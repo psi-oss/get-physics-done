@@ -1780,6 +1780,53 @@ def json_sum_lengths_cmd(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# commit — Git commit for planning files
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command("commit")
+def commit(
+    message: str = typer.Argument(..., help="Commit message"),
+    files: list[str] | None = typer.Option(None, "--files", help="Files to stage and commit"),
+) -> None:
+    """Stage planning files and create a git commit.
+
+    If --files is not specified, stages all .planning/ changes.
+
+    Examples::
+
+        gpd commit "docs: update roadmap" --files .planning/ROADMAP.md
+        gpd commit "wip: phase 3 progress"
+    """
+    from gpd.core.git_ops import cmd_commit
+
+    result = cmd_commit(_get_cwd(), message, files=files)
+    _output(result)
+    if not result.committed:
+        raise typer.Exit(code=1)
+
+
+@app.command("pre-commit-check")
+def pre_commit_check(
+    files: list[str] | None = typer.Option(None, "--files", help="Files to validate"),
+) -> None:
+    """Run pre-commit validation on planning files.
+
+    Checks frontmatter YAML validity and detects NaN/Inf values.
+
+    Examples::
+
+        gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md
+    """
+    from gpd.core.git_ops import cmd_pre_commit_check
+
+    result = cmd_pre_commit_check(_get_cwd(), files or [])
+    _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # version
 # ═══════════════════════════════════════════════════════════════════════════
 
