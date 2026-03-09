@@ -9,27 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gpd.mcp.launch import _build_tool_catalog_summary, _load_gpd_questioning
-
-# ---------------------------------------------------------------------------
-# Helper for skipif detection
-# ---------------------------------------------------------------------------
-
-
-def _can_load_gpd_questioning() -> bool:
-    """Check if GPD is installed and questioning.md exists."""
-    try:
-        from gpd.mcp.gpd_bridge.discovery import find_gpd_references_dir
-
-        refs_dir = find_gpd_references_dir()
-        if refs_dir is None:
-            return False
-        return (refs_dir / "questioning.md").exists()
-    except ImportError:
-        return False
-
 
 # ---------------------------------------------------------------------------
 # _load_gpd_questioning tests
@@ -69,13 +49,19 @@ def test_load_gpd_questioning_when_file_corrupt(tmp_path: Path):
     assert "Stage 2" in result
 
 
-@pytest.mark.skipif(
-    not _can_load_gpd_questioning(),
-    reason="GPD not installed or questioning.md not found",
-)
-def test_load_gpd_questioning_happy_path():
-    """When GPD is installed and questioning.md exists, real content is returned."""
-    result = _load_gpd_questioning()
+def test_load_gpd_questioning_happy_path(tmp_path: Path):
+    """When questioning.md exists and is well-formed, real content is returned."""
+    questioning = tmp_path / "questioning.md"
+    questioning.write_text(
+        "<philosophy>\nYou are a thinking partner, not an interviewer.\n</philosophy>\n"
+        "<how_to_question>\nAsk one question at a time.\n</how_to_question>\n"
+        "<question_types>\n- Scope\n- Physics target\n</question_types>\n"
+        "<anti_patterns>\n- Dumping 4+ questions as text\n</anti_patterns>\n",
+        encoding="utf-8",
+    )
+
+    with patch("gpd.mcp.gpd_bridge.discovery.find_gpd_references_dir", return_value=tmp_path):
+        result = _load_gpd_questioning()
 
     assert isinstance(result, str)
     assert "Stage 2" in result

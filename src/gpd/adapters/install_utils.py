@@ -30,6 +30,7 @@ HOOK_SCRIPTS: dict[str, str] = {
     "statusline": "statusline.py",
     "check_update": "check_update.py",
     "codex_notify": "codex_notify.py",
+    "runtime_detect": "runtime_detect.py",
 }
 
 # Legacy GPD hook basenames from older installs. Stored without extension so
@@ -633,6 +634,9 @@ def _copy_dir_contents(
 
             if runtime == "codex":
                 content = content.replace("/gpd:", "$gpd-")
+
+            if runtime == "gemini":
+                content = strip_sub_tags(content)
 
             dest.write_text(content, encoding="utf-8")
         else:

@@ -359,6 +359,18 @@ def trace_show(
                 last=last,
             )
 
+        # If filters are provided, aggregate all traces and apply them
+        if event_type or last:
+            if not traces.is_dir():
+                raise TraceError("No traces directory found.")
+            files = sorted(f for f in traces.iterdir() if f.suffix == ".jsonl")
+            if not files:
+                raise TraceError("No trace files found.")
+            all_events_: list[TraceEvent] = []
+            for f in files:
+                all_events_.extend(_read_trace_events(f))
+            return _filter_events(all_events_, event_type=event_type, last=last)
+
         # List available traces
         if not traces.is_dir():
             raise TraceError("No traces directory found.")

@@ -12,18 +12,26 @@ from gpd.version import __version__ as GPD_REQUIRED_VERSION  # noqa: N812
 def check_gpd_version(gpd_dir: Path) -> tuple[bool, str]:
     """Check installed GPD version against the pinned requirement.
 
-    Reads ``package.json`` from the GPD core directory and compares the
-    ``version`` field with ``GPD_REQUIRED_VERSION`` using exact string match.
+    Reads ``VERSION`` from the installed runtime content when present, with
+    ``package.json`` retained as a fallback for older layouts.
 
     Returns:
         A ``(is_compatible, installed_version)`` tuple.
     """
-    pkg_json_path = gpd_dir / GPD_CORE_DIR / "package.json"
+    version_path = gpd_dir / GPD_CORE_DIR / "VERSION"
     try:
-        pkg_data = json.loads(pkg_json_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return False, "0.0.0"
-    installed = pkg_data.get("version", "0.0.0")
+        installed = version_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        installed = ""
+
+    if not installed:
+        pkg_json_path = gpd_dir / GPD_CORE_DIR / "package.json"
+        try:
+            pkg_data = json.loads(pkg_json_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return False, "0.0.0"
+        installed = str(pkg_data.get("version", "0.0.0"))
+
     is_compatible = installed == GPD_REQUIRED_VERSION
     return is_compatible, installed
 

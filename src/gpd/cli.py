@@ -29,6 +29,7 @@ from gpd.core.errors import GPDError
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
 console = Console()
+err_console = Console(stderr=True)
 
 # Global state threaded through typer context
 _raw: bool = False
@@ -1613,7 +1614,8 @@ def validate_return(
     """Validate a gpd_return YAML block in a file."""
     from gpd.core.commands import cmd_validate_return
 
-    result = cmd_validate_return(Path(file_path))
+    resolved = _get_cwd() / file_path
+    result = cmd_validate_return(resolved)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)
@@ -1704,7 +1706,7 @@ def json_get_cmd(
     try:
         result = json_get(stdin_text, key, default=default)
     except ValueError as exc:
-        console.print(f"[red]error:[/red] {exc}", stderr=True)
+        err_console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(code=1) from None
     console.print(result, highlight=False)
 

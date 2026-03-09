@@ -253,6 +253,61 @@ class RuntimeAdapter(abc.ABC):
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
 
+            # Clean up settings.json GPD hooks and statusline
+            settings_path = target_dir / "settings.json"
+            if settings_path.exists():
+                import json as _json
+                try:
+                    settings = _json.loads(settings_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    settings = None
+                if isinstance(settings, dict):
+                    settings_modified = False
+                    # Remove GPD statusline
+                    sl = settings.get("statusLine")
+                    if isinstance(sl, dict):
+                        cmd = sl.get("command", "")
+                        if isinstance(cmd, str) and (
+                            "gpd-statusline" in cmd
+                            or "statusline.py" in cmd
+                        ):
+                            del settings["statusLine"]
+                            settings_modified = True
+                    # Remove GPD hooks from SessionStart
+                    hooks_cfg = settings.get("hooks")
+                    if isinstance(hooks_cfg, dict):
+                        ss = hooks_cfg.get("SessionStart")
+                        if isinstance(ss, list):
+                            before = len(ss)
+                            settings["hooks"]["SessionStart"] = [
+                                entry for entry in ss
+                                if not (
+                                    isinstance(entry, dict)
+                                    and isinstance(entry.get("hooks"), list)
+                                    and any(
+                                        isinstance(h, dict)
+                                        and isinstance(h.get("command"), str)
+                                        and (
+                                            "gpd-check-update" in h["command"]
+                                            or "check_update" in h["command"]
+                                            or "gpd-statusline" in h["command"]
+                                            or "statusline.py" in h["command"]
+                                        )
+                                        for h in entry["hooks"]
+                                    )
+                                )
+                            ]
+                            if len(settings["hooks"]["SessionStart"]) < before:
+                                settings_modified = True
+                            if not settings["hooks"]["SessionStart"]:
+                                del settings["hooks"]["SessionStart"]
+                            if not settings["hooks"]:
+                                del settings["hooks"]
+                    if settings_modified:
+                        tmp = settings_path.with_suffix(".tmp")
+                        tmp.write_text(_json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+                        tmp.rename(settings_path)
+
             # Remove file manifest
             manifest = target_dir / "gpd-file-manifest.json"
             if manifest.exists():

@@ -12,7 +12,23 @@ GPD_AGENT_PREFIX = "gpd-"
 """Filename prefix for GPD agent profiles in the agents/ directory."""
 
 GPD_CORE_DIR = "get-physics-done"
-"""Core GPD directory containing package.json, workflows, and bin/."""
+"""Core GPD directory containing version metadata, references, and workflows."""
+
+
+def _has_gpd_install_marker(config_dir: Path) -> bool:
+    """Return True when *config_dir* looks like a GPD runtime install root."""
+    core_dir = config_dir / GPD_CORE_DIR
+    if not core_dir.is_dir():
+        return False
+
+    if (core_dir / "VERSION").is_file():
+        return True
+
+    if (core_dir / "package.json").is_file():
+        return True
+
+    # Older or partially migrated installs may still be recognizable by content layout.
+    return (core_dir / "references").is_dir() and (core_dir / "workflows").is_dir()
 
 
 def find_gpd_install() -> Path | None:
@@ -23,7 +39,8 @@ def find_gpd_install() -> Path | None:
       2. Runtime-specific env var (``CLAUDE_CONFIG_DIR``, etc.) if set
       3. Global: ``Path.home() / <config_dir>``
 
-    Returns the first path where ``GPD_CORE_DIR/package.json`` exists,
+    Returns the first path where ``get-physics-done/`` has a supported
+    install marker (``VERSION`` preferred, ``package.json`` fallback),
     or ``None`` if GPD is not found.
     """
     from gpd.hooks.runtime_detect import RUNTIME_DIR_NAMES
@@ -43,8 +60,7 @@ def find_gpd_install() -> Path | None:
         candidates.append(Path.home() / dir_name)
 
     for candidate in candidates:
-        pkg_json = candidate / GPD_CORE_DIR / "package.json"
-        if pkg_json.exists():
+        if _has_gpd_install_marker(candidate):
             return candidate
 
     return None
