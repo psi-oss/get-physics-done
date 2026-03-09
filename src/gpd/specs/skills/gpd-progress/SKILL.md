@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Check physics research progress, summarize recent work and what's ahead, then intelligently route to the next action — either executing an existing plan or creating the next one.

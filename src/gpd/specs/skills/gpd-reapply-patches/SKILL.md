@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 After a GPD update wipes and reinstalls files, this command merges user's previously saved local modifications back into the new version. Uses intelligent comparison to handle cases where the upstream file also changed.

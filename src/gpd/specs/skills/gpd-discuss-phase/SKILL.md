@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Extract research decisions that downstream agents need -- researcher and planner will use CONTEXT.md to know what to investigate and what choices are locked.

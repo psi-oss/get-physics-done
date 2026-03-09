@@ -9,7 +9,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Safely rollback the last GPD-related git commit. Creates a safety checkpoint tag before reverting so the operation itself is reversible.

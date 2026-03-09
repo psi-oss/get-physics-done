@@ -16,7 +16,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Create executable phase prompts (PLAN.md files) for a research-project phase with integrated research and verification.

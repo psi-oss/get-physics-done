@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Supersede a completed research phase and create a replacement phase for iterative revision. Preserves the original phase as historical record while creating a new phase that inherits valid decisions and addresses what needs to change.

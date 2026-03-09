@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Mark research milestone {{version}} complete, archive to milestones/, and update ROADMAP.md and REQUIREMENTS.md.

@@ -13,7 +13,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Execute small, ad-hoc research tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (research, plan-checker, verifier).

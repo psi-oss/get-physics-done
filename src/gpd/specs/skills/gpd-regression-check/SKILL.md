@@ -11,7 +11,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Re-verify all previously verified physics truths across completed phases to detect regressions introduced by later work. Changes in one phase can silently break results in earlier phases through notation drift, convention changes, approximation regime violations, or modified shared artifacts.

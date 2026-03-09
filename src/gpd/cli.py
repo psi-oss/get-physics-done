@@ -1838,7 +1838,7 @@ def install(
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
 
-                # Handle finish_install for adapters that support it (e.g. Claude Code statusline)
+                # Handle finish_install for adapters that support it (e.g. statusline setup)
                 if hasattr(adapter, "finish_install") and "settingsPath" in result and "settings" in result:
                     should_install_statusline = True
                     adapter.finish_install(

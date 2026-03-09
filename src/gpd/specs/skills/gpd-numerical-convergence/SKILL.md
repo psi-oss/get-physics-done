@@ -13,7 +13,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Perform systematic convergence tests on numerical computations in a physics project. Identifies all numerical parameters, varies them systematically, determines convergence rates, applies Richardson extrapolation where applicable, and assesses numerical trustworthiness.

@@ -175,7 +175,7 @@ Pure-stdlib helpers shared across all adapters:
 - Path prefix computation (global vs local)
 - JSONC parsing (settings files with comments)
 - Settings I/O (atomic write with temp+rename)
-- `@include` expansion (for non-Claude runtimes)
+- `@include` expansion (for runtimes that do not resolve them natively)
 - File manifest generation (SHA-256 hashes for modification detection)
 - Local patch backup/restore
 - Orphaned file cleanup

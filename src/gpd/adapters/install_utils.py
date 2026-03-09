@@ -406,7 +406,7 @@ def expand_at_includes(
     """Expand ``@path/to/file`` include directives by inlining referenced file content.
 
     Claude Code resolves these at runtime, but Gemini and Codex do not.
-    This resolves includes at install time for non-Claude runtimes.
+    This resolves includes at install time for runtimes that lack native resolution.
 
     Args:
         content: File content potentially containing ``@`` include lines.

@@ -12,7 +12,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Merge the results, artifacts, and state updates from a source phase into a target phase. Useful when phases are reorganized, when a decimal phase (e.g., 2.1) needs to be folded back into its parent, or when parallel investigation branches converge.

@@ -13,7 +13,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Verify a research milestone achieved its definition of done. Check whether the original research question has been answered, whether all claims are supported by derivations or data, whether results are internally consistent, and whether cross-phase integration is sound.

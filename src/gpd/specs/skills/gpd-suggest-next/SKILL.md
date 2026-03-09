@@ -10,7 +10,7 @@ allowed-tools:
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
-<!-- @ includes are expanded at install time for non-Claude runtimes. -->
+<!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
 Analyze current project state and suggest the most impactful next action. Uses gpd suggest-next to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
