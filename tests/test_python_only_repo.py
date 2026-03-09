@@ -12,11 +12,11 @@ def _repo_root() -> Path:
 
 def test_bin_install_js_is_the_only_repo_javascript_file() -> None:
     repo_root = _repo_root()
-    excluded_dirs = {".git", ".venv", "__pycache__", ".pytest_cache", ".claude"}
+    excluded_dirs = {"__pycache__"}
     js_files = sorted(
         path.relative_to(repo_root).as_posix()
         for path in repo_root.rglob("*.js")
-        if not any(part in excluded_dirs for part in path.parts)
+        if not any(part in excluded_dirs or part.startswith(".") for part in path.relative_to(repo_root).parts[:-1])
     )
 
     assert js_files == ["bin/install.js"]
