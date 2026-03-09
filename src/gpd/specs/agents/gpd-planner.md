@@ -2630,7 +2630,7 @@ Include all frontmatter fields, including conventions and approximations.
 </step>
 
 <step name="validate_plan">
-Validate each created PLAN.md using gpd CLI:
+Validate each created PLAN.md using gpd:
 
 ```bash
 VALID=$(gpd frontmatter validate "$PLAN_PATH" --schema plan)

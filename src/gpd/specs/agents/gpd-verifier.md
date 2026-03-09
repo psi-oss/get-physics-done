@@ -350,7 +350,7 @@ Before using any equation from a prior phase or external source, verify conventi
 
 ## gpd CLI Commit Protocol
 
-All file commits during GPD workflows use the gpd CLI CLI:
+All file commits during GPD workflows use the gpd CLI:
 
 ```bash
 gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
@@ -362,9 +362,9 @@ gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
 - Always specify files explicitly via `--files` (never commit everything)
 - Scope should identify the phase or component (e.g., `docs(02-hamiltonian): derive energy spectrum`)
 - One commit per logical unit of work (one task, one checkpoint, one correction)
-- If `gpd CLI commit` fails twice, fall back to manual git operations and document the workaround
+- If `gpd commit` fails twice, fall back to manual git operations and document the workaround
 
-**Pre-commit validation** runs automatically inside `gpd CLI commit` before every commit. It checks:
+**Pre-commit validation** runs automatically inside `gpd commit` before every commit. It checks:
 
 1. **state.json** — no NaN values, required top-level fields present
 2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, autonomous, must_haves)

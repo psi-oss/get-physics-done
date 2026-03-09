@@ -14,6 +14,18 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from gpd.core.constants import (
+    PLAN_SUFFIX,
+    PLANNING_DIR_NAME,
+    PROJECT_FILENAME,
+    ROADMAP_FILENAME,
+    STANDALONE_PLAN,
+    STANDALONE_SUMMARY,
+    STATE_JSON_FILENAME,
+    SUMMARY_SUFFIX,
+    VERIFICATION_SUFFIX,
+)
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -25,13 +37,9 @@ __all__ = [
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-PLAN_SUFFIX = "-PLAN.md"
-STANDALONE_PLAN = "PLAN.md"
-SUMMARY_SUFFIX = "-SUMMARY.md"
-STANDALONE_SUMMARY = "SUMMARY.md"
+# Research/verification suffixes not yet in core.constants — keep local.
 RESEARCH_SUFFIX = "-RESEARCH.md"
 STANDALONE_RESEARCH = "RESEARCH.md"
-VERIFICATION_SUFFIX = "-VERIFICATION.md"
 STANDALONE_VERIFICATION = "VERIFICATION.md"
 
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
@@ -132,7 +140,7 @@ class _PhaseAnalysis:
 
 
 def _planning_dir(cwd: Path) -> Path:
-    return cwd / ".planning"
+    return cwd / PLANNING_DIR_NAME
 
 
 def _path_exists(cwd: Path, relative: str) -> bool:
@@ -381,8 +389,8 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     ctx_kwargs: dict[str, object] = {}
 
     # ── 0. Check project existence ──────────────────────────────────────
-    project_exists = _path_exists(cwd, ".planning/PROJECT.md")
-    roadmap_exists = _path_exists(cwd, ".planning/ROADMAP.md")
+    project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
+    roadmap_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}")
 
     if not project_exists:
         only = Recommendation(
@@ -733,7 +741,7 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         pass
 
     # Fallback: direct JSON read
-    state_path = cwd / ".planning" / "state.json"
+    state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
     try:
         raw = state_path.read_text(encoding="utf-8")
         parsed = json.loads(raw)

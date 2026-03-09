@@ -268,7 +268,7 @@ Then read `.planning/CONVENTIONS.md` in its entirety. This is the accumulated re
 
 **If `.planning/CONVENTIONS.md` does not exist:** Create it from the template at @{GPD_INSTALL_DIR}/templates/conventions.md, then populate it by scanning all existing phase artifacts for convention choices (metric signature, unit system, Fourier convention, etc.). Commit the new file before proceeding.
 
-### Canonical Convention Types (18 types tracked by gpd CLI)
+### Canonical Convention Types (18 types tracked by gpd)
 
 The convention_lock in state.json tracks these 18 canonical types. Your compliance matrix MUST cover every type that is relevant to the project's physics domain:
 

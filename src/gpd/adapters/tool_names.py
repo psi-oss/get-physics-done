@@ -138,6 +138,10 @@ def translate_list(names: list[str], runtime: str) -> list[str]:
 
 
 __all__ = [
+    "CLAUDE_CODE",
+    "CODEX",
+    "GEMINI",
+    "OPENCODE",
     "RUNTIME_TABLES",
     "canonical",
     "translate",

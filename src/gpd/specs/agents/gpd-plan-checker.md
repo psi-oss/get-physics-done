@@ -827,7 +827,7 @@ Map errors/warnings to verification dimensions:
 
 ## Step 3: Parse must_haves
 
-Extract must_haves from each plan using gpd CLI:
+Extract must_haves from each plan using gpd:
 
 ```bash
 MUST_HAVES=$(gpd frontmatter get "$PLAN_PATH" --field must_haves)
