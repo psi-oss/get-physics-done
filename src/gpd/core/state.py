@@ -1458,7 +1458,10 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     md_path = _state_md_path(cwd)
     content = safe_read_file(md_path)
     if content is None:
-        raise StateError("STATE.md not found")
+        raise StateError(
+            f"STATE.md not found at {md_path}. "
+            "Run 'gpd init' to create the project state file."
+        )
 
     if not section:
         return StateGetResult(content=content)
@@ -1481,7 +1484,10 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
 def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
     """Update a single **Field:** in STATE.md."""
     if not field or value is None:
-        raise StateError("field and value required for state update")
+        raise StateError(
+            f"Both field and value are required for state update, got field={field!r}, value={value!r}. "
+            "Usage: state_update(cwd, field='Status', value='in-progress')"
+        )
 
     # Validate status values
     if field.lower() == "status" and not is_valid_status(value):
@@ -1520,7 +1526,10 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
     """Batch-update multiple **Field:** values in STATE.md."""
     md_path = _state_md_path(cwd)
     if not md_path.exists():
-        raise StateError("STATE.md not found")
+        raise StateError(
+            f"STATE.md not found at {md_path}. "
+            "Run 'gpd init' to create the project state file before patching."
+        )
 
     with file_lock(md_path):
         content = md_path.read_text(encoding="utf-8")

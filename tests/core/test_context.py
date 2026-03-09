@@ -154,7 +154,7 @@ class TestInitExecutePhase:
         assert ctx["state_exists"] is False
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase required"):
+        with pytest.raises(ValueError, match="phase is required"):
             init_execute_phase(tmp_path, "")
 
     def test_includes_state(self, tmp_path: Path) -> None:
@@ -288,7 +288,7 @@ class TestInitVerifyWork:
         assert ctx["has_verification"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase required"):
+        with pytest.raises(ValueError, match="phase is required"):
             init_verify_work(tmp_path, "")
 
 

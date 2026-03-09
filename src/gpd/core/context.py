@@ -376,7 +376,10 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         includes: Optional set of file sections to embed (state, config, roadmap).
     """
     if not phase:
-        raise ValidationError("phase required for init execute-phase")
+        raise ValidationError(
+            "phase is required for init execute-phase. "
+            "Provide a phase identifier such as '1', '03', or '3.1'."
+        )
 
     includes = includes or set()
     config = load_config(cwd)
@@ -450,7 +453,10 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
                   (state, roadmap, requirements, context, research, verification, validation).
     """
     if not phase:
-        raise ValidationError("phase required for init plan-phase")
+        raise ValidationError(
+            "phase is required for init plan-phase. "
+            "Provide a phase identifier such as '1', '03', or '3.1'."
+        )
 
     includes = includes or set()
     config = load_config(cwd)
@@ -686,7 +692,10 @@ def init_resume(cwd: Path) -> dict:
 def init_verify_work(cwd: Path, phase: str | None) -> dict:
     """Assemble context for work verification."""
     if not phase:
-        raise ValidationError("phase required for init verify-work")
+        raise ValidationError(
+            "phase is required for init verify-work. "
+            "Provide a phase identifier such as '1', '03', or '3.1'."
+        )
 
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase)

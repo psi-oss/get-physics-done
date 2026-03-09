@@ -148,7 +148,10 @@ def result_add(
 
     rid = result_id or _auto_generate_id(state)
     if not rid or not rid.strip():
-        raise ResultError("result id must be non-empty")
+        raise ResultError(
+            f"Result ID must be a non-empty string, got {rid!r}. "
+            "Provide a descriptive ID (e.g., 'energy-conservation-eq') or omit it for auto-generation."
+        )
 
     if _find_result_index(state["intermediate_results"], rid) != -1:
         raise DuplicateResultError(rid)
@@ -322,6 +325,9 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
             updated_fields.append(field)
 
     if not updated_fields:
-        raise ResultError("No recognized fields provided")
+        raise ResultError(
+            f"No recognized fields in the update. Got keys: {sorted(updates.keys())}. "
+            f"Valid fields: {sorted(RESULT_FIELDS)}"
+        )
 
     return updated_fields, IntermediateResult(**state["intermediate_results"][idx])

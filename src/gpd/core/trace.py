@@ -211,9 +211,15 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
         ValueError: If *phase* or *plan* is empty, or a trace is already active.
     """
     if not phase:
-        raise TraceError("phase is required")
+        raise TraceError(
+            "phase is required for trace_start. "
+            "Provide a phase identifier, e.g. trace_start(cwd, phase='3', plan='01-setup')."
+        )
     if not plan:
-        raise TraceError("plan is required")
+        raise TraceError(
+            f"plan is required for trace_start (got phase={phase!r}, plan={plan!r}). "
+            "Provide a plan name, e.g. trace_start(cwd, phase='3', plan='01-setup')."
+        )
 
     existing = _read_active_trace(cwd)
     if existing is not None:
