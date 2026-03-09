@@ -8,8 +8,6 @@ For day-to-day usage, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md). For packag
 
 ## Install
 
-The fastest way to install GPD from the public repository is with `uv`:
-
 ```bash
 npx github:physicalsuperintelligence/get-physics-done
 ```
