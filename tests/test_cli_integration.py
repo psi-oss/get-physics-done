@@ -184,7 +184,8 @@ class TestVerifyPath:
         assert "directory" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_nonexistent_path(self) -> None:
-        result = _invoke("verify-path", "does/not/exist.txt")
+        result = _invoke("verify-path", "does/not/exist.txt", expect_ok=False)
+        assert result.exit_code == 1
         assert "False" in result.output or "false" in result.output
 
     def test_verify_path_raw(self, gpd_project: Path) -> None:
@@ -194,7 +195,8 @@ class TestVerifyPath:
         assert parsed["type"] == "file"
 
     def test_verify_path_raw_nonexistent(self) -> None:
-        result = _invoke("--raw", "verify-path", "nope.txt")
+        result = _invoke("--raw", "verify-path", "nope.txt", expect_ok=False)
+        assert result.exit_code == 1
         parsed = json.loads(result.output)
         assert parsed["exists"] is False
 
