@@ -48,7 +48,7 @@ def test_session_resume_loads_latest_session(tmp_path: Path) -> None:
     session = SessionState.new(
         session_id="resume001",
         project_name="get-physics-done",
-        project_root=str(tmp_path),
+        project_root=str(Path.cwd().resolve()),
         session_name="my-session",
     )
     (sessions_dir / "resume001.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
@@ -234,7 +234,8 @@ def test_session_fresh_launch_creates_new_session(tmp_path: Path) -> None:
     session_file = next(sessions_dir.glob("*.json"))
     session = SessionState.model_validate_json(session_file.read_text(encoding="utf-8"))
     assert session.project_name == "project-alpha"
-    assert session.status == "paused"
+    assert session.project_root == str(project_dir.resolve())
+    assert session.status == "completed"
 
 
 def test_session_fresh_launch_uses_current_project_for_startup_summary(tmp_path: Path) -> None:
@@ -246,8 +247,18 @@ def test_session_fresh_launch_uses_current_project_for_startup_summary(tmp_path:
 
     from gpd.mcp.session.models import SessionState
 
-    alpha = SessionState.new(session_id="alpha001", project_name="project-alpha", session_name="alpha-run")
-    beta = SessionState.new(session_id="beta001", project_name="project-beta", session_name="beta-run")
+    alpha = SessionState.new(
+        session_id="alpha001",
+        project_name="project-alpha",
+        project_root=str(project_dir),
+        session_name="alpha-run",
+    )
+    beta = SessionState.new(
+        session_id="beta001",
+        project_name="project-beta",
+        project_root=str(tmp_path / "project-beta"),
+        session_name="beta-run",
+    )
     (sessions_dir / "alpha001.json").write_text(alpha.model_dump_json(indent=2), encoding="utf-8")
     time.sleep(0.05)
     (sessions_dir / "beta001.json").write_text(beta.model_dump_json(indent=2), encoding="utf-8")
@@ -302,7 +313,12 @@ def test_session_resume_launch_failure_does_not_mutate_persisted_status(tmp_path
 
     from gpd.mcp.session.models import SessionState
 
-    session = SessionState.new(session_id="resume001", project_name="project-alpha", session_name="my-session")
+    session = SessionState.new(
+        session_id="resume001",
+        project_name="project-alpha",
+        project_root=str(project_dir),
+        session_name="my-session",
+    )
     session.status = "paused"
     session_path = sessions_dir / "resume001.json"
     session_path.write_text(session.model_dump_json(indent=2), encoding="utf-8")
@@ -326,7 +342,12 @@ def test_session_reindex_subcommand(tmp_path: Path) -> None:
 
     from gpd.mcp.session.models import SessionState
 
-    session = SessionState.new(session_id="idx001", project_name="test", session_name="indexed")
+    session = SessionState.new(
+        session_id="idx001",
+        project_name="test",
+        project_root=str(tmp_path / "project"),
+        session_name="indexed",
+    )
     (sessions_dir / "idx001.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
 
     with (
@@ -345,7 +366,12 @@ def test_session_reindex_subcommand_honors_raw_output(tmp_path: Path) -> None:
 
     from gpd.mcp.session.models import SessionState
 
-    session = SessionState.new(session_id="idx001", project_name="test", session_name="indexed")
+    session = SessionState.new(
+        session_id="idx001",
+        project_name="test",
+        project_root=str(tmp_path / "project"),
+        session_name="indexed",
+    )
     (sessions_dir / "idx001.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
 
     with (
