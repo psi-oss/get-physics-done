@@ -286,3 +286,68 @@ class TestUninstall:
         skills.mkdir()
         result = adapter.uninstall(target, skills_dir=skills)
         assert result["removed"] == []
+
+    def test_uninstall_preserves_non_gpd_toml_lines(self, adapter: CodexAdapter, tmp_path: Path) -> None:
+        """Uninstall must not destroy user TOML content that happens to contain 'gpd-'."""
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'model = "gpt-4"\n'
+            '# My notes about gpd-style naming\n'
+            'custom = "my-gpd-tool"\n'
+            'notify = ["python3", "/path/codex_notify.py"]\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = config_toml.read_text(encoding="utf-8")
+        assert 'model = "gpt-4"' in content
+        assert "gpd-style naming" in content
+        assert 'custom = "my-gpd-tool"' in content
+        assert "codex_notify" not in content
+
+    def test_uninstall_removes_gpd_comment_with_notify(self, adapter: CodexAdapter, tmp_path: Path) -> None:
+        """The '# GPD update notification' comment should be cleaned alongside the notify line."""
+        target = tmp_path / ".codex"
+        target.mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'model = "gpt-4"\n'
+            "\n"
+            "# GPD update notification\n"
+            'notify = ["python3", "/path/codex_notify.py"]\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = config_toml.read_text(encoding="utf-8")
+        assert "GPD update notification" not in content
+        assert "codex_notify" not in content
+
+
+class TestLegacyHookUpgrade:
+    def test_node_replacement_scoped_to_notify_line(self, tmp_path: Path) -> None:
+        """Upgrading 'node' to 'python3' must not affect non-notify TOML entries."""
+        from gpd.adapters.codex import _configure_config_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "hooks").mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'custom_tool = ["node", "/path/to/my-tool.js"]\n'
+            'notify = ["node", "/path/to/gpd-codex-notify.js"]\n',
+            encoding="utf-8",
+        )
+        _configure_config_toml(target, is_global=True)
+
+        content = config_toml.read_text(encoding="utf-8")
+        # The notify line should be upgraded to python3
+        assert '"python3"' in content
+        # The custom_tool line must still reference "node"
+        assert 'custom_tool = ["node"' in content

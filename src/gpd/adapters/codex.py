@@ -405,8 +405,17 @@ class CodexAdapter(RuntimeAdapter):
             config_toml = target_dir / "config.toml"
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
-                if "gpd-" in toml_content or "codex_notify" in toml_content:
-                    cleaned = re.sub(r"^.*(?:gpd-|codex_notify).*$", "", toml_content, flags=re.MULTILINE)
+                if "codex_notify" in toml_content:
+                    # Remove only the GPD notify block (comment + notify line)
+                    cleaned = re.sub(
+                        r"^# GPD update notification\n", "", toml_content, flags=re.MULTILINE
+                    )
+                    cleaned = re.sub(
+                        r'^notify\s*=\s*\[.*codex_notify.*\]\s*\n?',
+                        "",
+                        cleaned,
+                        flags=re.MULTILINE,
+                    )
                     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
                     config_toml.write_text(cleaned, encoding="utf-8")
                     removed.append("config.toml GPD entries")
@@ -574,12 +583,17 @@ def _configure_config_toml(
     else:
         desired_path = f".codex/hooks/{notify_hook}"
 
-    # Replace legacy JS hook references with Python hook
+    # Replace legacy JS hook references with Python hook (scoped to notify line)
     for legacy in legacy_hooks:
         if legacy in toml_content:
             toml_content = toml_content.replace(legacy, notify_hook)
-            if '"node"' in toml_content:
-                toml_content = toml_content.replace('"node"', '"python3"')
+    # Upgrade interpreter on the notify line only (avoid clobbering other "node" refs)
+    toml_content = re.sub(
+        r'^(notify\s*=\s*\[)"node"',
+        r'\1"python3"',
+        toml_content,
+        flags=re.MULTILINE,
+    )
 
     if "notify" not in toml_content:
         toml_content += f'\n# GPD update notification\nnotify = ["python3", "{desired_path}"]\n'
