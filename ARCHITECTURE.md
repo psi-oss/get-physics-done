@@ -17,7 +17,7 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   ├── ablations.py            # Feature flag ablation system (env var overrides, guards)
 │   ├── cli.py                  # `gpd` CLI (typer) — state, phase, health commands
 │   │
-│   ├── core/                   # Layer 1 — pure state management (~14k LOC)
+│   ├── core/                   # Layer 1 — pure state management (~14.5k LOC)
 │   │   ├── state.py            # STATE.md parser/renderer, JSON sync, atomic writes
 │   │   ├── phases.py           # Phase/roadmap/milestone management, wave validation
 │   │   ├── conventions.py      # Convention lock (18 physics fields + custom)
@@ -32,6 +32,8 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   │   ├── config.py           # Multi-runtime config, model tiers
 │   │   ├── model_defaults.py   # GPD_MODEL / GPD_FAST_MODEL env var defaults
 │   │   ├── verification_checks.py # Standalone verification check endpoints
+│   │   ├── git_ops.py          # Git commit and pre-commit checks
+│   │   ├── json_utils.py       # Minimal JSON manipulation utilities (jq-lite)
 │   │   ├── trace.py            # JSONL execution tracing
 │   │   ├── constants.py        # Named constants for domain values
 │   │   ├── utils.py            # Pure utility functions
@@ -39,22 +41,22 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   │   ├── observability.py    # Feature flags, Logfire spans, metrics
 │   │   └── commands.py         # CLI command implementations
 │   │
-│   ├── adapters/               # Layer 2 — multi-runtime install system (~3.7k LOC)
+│   ├── adapters/               # Layer 2 — multi-runtime install system (~3.8k LOC)
 │   │   ├── base.py             # RuntimeAdapter ABC + template method install()
 │   │   ├── claude_code.py      # Claude Code adapter
 │   │   ├── codex.py            # OpenAI Codex adapter
 │   │   ├── gemini.py           # Google Gemini CLI adapter
 │   │   ├── opencode.py         # OpenCode adapter
-│   │   ├── install_utils.py    # Pure-stdlib install helpers (~1.1k LOC)
+│   │   ├── install_utils.py    # Pure-stdlib install helpers (~1.2k LOC)
 │   │   └── tool_names.py       # Canonical → runtime tool name translation tables
 │   │
-│   ├── mcp/                    # Layer 2 — MCP servers + orchestration (~11k LOC)
+│   ├── mcp/                    # Layer 2 — MCP servers + orchestration (~11.3k LOC)
 │   │   ├── servers/            # 7 MCP tool servers (conventions, verification, etc.)
-│   │   ├── discovery/          # Tool discovery: catalog, router, selector, reconciler, fallback, sources
-│   │   ├── research/           # Research planner, cost estimator, error recovery
-│   │   ├── paper/              # Paper generation: bibliography, compiler, figures, templates
+│   │   ├── discovery/          # Tool discovery: catalog, models, router, selector, reconciler, fallback, sources
+│   │   ├── research/           # Research planner, cost estimator, error recovery, schemas
+│   │   ├── paper/              # Paper generation: bibliography, compiler, figures, generator, journal map, models, template registry, templates
 │   │   ├── session/            # Session manager, models, search
-│   │   ├── subagents/          # Subagent orchestration: SDK, specialist, MCP builder, cost estimator
+│   │   ├── subagents/          # Subagent orchestration: SDK, specialist, MCP builder, cost estimator, orchestrator, models, status display, tool spec
 │   │   ├── gpd_bridge/         # Bridge for external GPD version discovery
 │   │   ├── viewer/             # Web viewer (FastAPI, optional)
 │   │   ├── cli.py              # `gpd+` CLI entry point
@@ -68,7 +70,7 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   ├── hooks/                  # Runtime hooks (statusline, update check, Codex notify)
 │   ├── commands/               # ~58 command .md files with YAML frontmatter
 │   ├── agents/                 # 17 agent .md files with YAML frontmatter
-│   └── specs/                  # Bundled spec content (agents, skills, references, templates, workflows)
+│   └── specs/                  # Bundled spec content (agents, learned-patterns, references, skills, templates, workflows)
 │
 └── tests/
     ├── core/                   # Core module tests

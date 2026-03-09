@@ -21,7 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import (
+    PHASES_DIR_NAME,
     PLAN_SUFFIX,
+    PLANNING_DIR_NAME,
+    PROJECT_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
     STATE_LINES_BUDGET,
@@ -697,7 +700,8 @@ def _strip_placeholder(value: str | None) -> str | None:
     """Return None if *value* is a markdown placeholder (EM_DASH, '[Not set]', literal 'None')."""
     if value is None:
         return None
-    if value in ("\u2014", "[Not set]", "None"):
+    stripped = value.strip()
+    if stripped in ("\u2014", "None") or stripped.lower() == "[not set]":
         return None
     return value
 
@@ -1182,10 +1186,10 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
                     "current_focus": None,
                 }
             cq = parsed["project"].get("core_question")
-            if cq is not None and cq != "[Not set]":
+            if cq is not None and str(cq).strip().lower() != "[not set]":
                 merged["project_reference"]["core_research_question"] = cq
             cf = parsed["project"].get("current_focus")
-            if cf is not None and cf != "[Not set]":
+            if cf is not None and str(cf).strip().lower() != "[not set]":
                 merged["project_reference"]["current_focus"] = cf
 
         # Merge position

@@ -311,6 +311,8 @@ def _resolve_autonomy(parsed: dict) -> AutonomyMode:
         return AutonomyMode(val)
     # Backward compat: map old "mode" field
     mode = _get_nested(parsed, "mode")
+    if isinstance(mode, str):
+        mode = mode.strip().lower()
     if mode == "yolo":
         return AutonomyMode.YOLO
     if mode == "interactive":

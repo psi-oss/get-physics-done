@@ -424,7 +424,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     # ── 2. Check for paused work (highest priority) ─────────────────────
     if state:
         position = state.get("position") or {}
-        if position.get("paused_at") or position.get("status") == "Paused":
+        if position.get("paused_at") or str(position.get("status", "")).strip().lower() == "paused":
             paused_at = position.get("paused_at", "")
             reason = "Work was paused"
             if paused_at:

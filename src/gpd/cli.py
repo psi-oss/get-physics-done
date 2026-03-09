@@ -84,8 +84,11 @@ def _pretty_print(d: dict) -> None:
 
 
 def _error(msg: str) -> NoReturn:
-    """Print error and exit."""
-    console.print(f"[bold red]Error:[/] {msg}", highlight=False)
+    """Print error and exit — JSON when --raw, rich text otherwise."""
+    if _raw:
+        console.print_json(json.dumps({"error": str(msg)}))
+    else:
+        console.print(f"[bold red]Error:[/] {msg}", highlight=False)
     raise typer.Exit(code=1)
 
 
@@ -102,7 +105,10 @@ class _GPDTyper(typer.Typer):
         try:
             return super().__call__(*args, **kwargs)
         except GPDError as exc:
-            console.print(f"[bold red]Error:[/] {exc}", highlight=False)
+            if _raw:
+                console.print_json(json.dumps({"error": str(exc)}))
+            else:
+                console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
 
 

@@ -170,6 +170,7 @@ def cmd_current_timestamp(fmt: str = "full") -> CurrentTimestampResult:
         full     — ISO 8601 with timezone
     """
     now = datetime.now(UTC)
+    fmt = fmt.strip().lower()
 
     if fmt == "date":
         result = now.date().isoformat()
@@ -306,6 +307,7 @@ def cmd_scaffold(
     """
     padded = phase_normalize(phase) if phase else "00"
     today = date.today().isoformat()
+    scaffold_type = scaffold_type.strip().lower()
 
     if scaffold_type == "phase-dir":
         if not phase or not name:
@@ -318,7 +320,7 @@ def cmd_scaffold(
         dir_path.mkdir(parents=True, exist_ok=True)
         return ScaffoldResult(
             created=True,
-            directory=f".planning/phases/{dir_name}",
+            directory=f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
             path=str(dir_path),
         )
 
@@ -750,10 +752,14 @@ def cmd_validate_return(file_path: Path) -> ValidateReturnResult:
         if not fields.get(field):
             errors.append(f"Missing required field: {field}")
 
+    # Normalize status for comparison (strip whitespace, lowercase)
+    raw_status = fields.get("status", "")
+    status_lower = raw_status.strip().lower() if raw_status else ""
+
     # Validate status value
-    if fields.get("status") and fields["status"] not in VALID_RETURN_STATUSES:
+    if raw_status and status_lower not in VALID_RETURN_STATUSES:
         errors.append(
-            f"Invalid status '{fields['status']}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}"
+            f"Invalid status '{raw_status}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}"
         )
 
     # Validate task counts are numbers
@@ -766,7 +772,7 @@ def cmd_validate_return(file_path: Path) -> ValidateReturnResult:
                 errors.append(f"{count_field} is not a number: '{val}'")
 
     # Warn if completed but tasks_completed < tasks_total
-    if fields.get("status") == "completed" and fields.get("tasks_completed") and fields.get("tasks_total"):
+    if status_lower == "completed" and fields.get("tasks_completed") and fields.get("tasks_total"):
         try:
             done = int(fields["tasks_completed"])
             total = int(fields["tasks_total"])

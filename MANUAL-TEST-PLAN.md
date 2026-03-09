@@ -50,7 +50,7 @@ gpd verify-path /nonexistent/path
 
 ```bash
 echo '{"a":{"b":42}}' | gpd json get a.b
-echo '{"a":{"b":42}}' | gpd json get a.b --raw
+echo '{"a":{"b":42}}' | gpd --raw json get a.b
 echo '{"x":1,"y":2}' | gpd json keys .
 echo '[{"n":"a"},{"n":"b"}]' | gpd json list .
 echo '[{"n":"a","v":1},{"n":"b","v":2}]' | gpd json pluck . n
@@ -66,16 +66,16 @@ cat /tmp/j1.json
 
 # Edge cases
 echo '{}' | gpd json get missing --default "fallback"
-echo 'not json' | gpd json get x         # should error gracefully
+echo 'not json' | gpd json get x         # should error with exit code 1
 ```
 
-**Check:** All return correct values. `--raw` returns JSON. `merge-files` combines. `set` modifies file. Bad JSON errors cleanly.
+**Check:** All return correct values. `--raw` returns JSON. `merge-files` combines. `set` modifies file. Bad JSON exits with code 1 and error message.
 
 ### 1.4 Doctor (installation health)
 
 ```bash
 gpd doctor
-gpd doctor --raw
+gpd --raw doctor
 ```
 
 **Check:** 8 checks all pass (Specs Structure, Agent Files, Key References, Workflows, Templates, Python Version, Package Imports, Skill Files). `--raw` returns JSON with `overall: "ok"`.
@@ -90,7 +90,7 @@ gpd resolve-model gpd-project-researcher
 gpd resolve-model nonexistent-agent
 ```
 
-**Check:** Each returns a tier (tier-1/2/3). Nonexistent agent errors.
+**Check:** Each returns a tier (tier-1/2/3). Nonexistent agent falls back to tier-2 (by design).
 
 ---
 
@@ -282,7 +282,7 @@ EOF
 ```bash
 cd /tmp/gpd-project
 gpd state load
-gpd state load --raw
+gpd --raw state load
 gpd state get
 gpd state get "current_phase"
 gpd state get "status"
@@ -308,7 +308,7 @@ gpd state get "current_plan"          # 2
 
 ```bash
 gpd state validate
-gpd state validate --raw
+gpd --raw state validate
 ```
 
 **Check:** Should pass (or show specific validation issues). Exit code 0 if valid, 1 if not.
@@ -344,7 +344,7 @@ gpd progress table
 ```bash
 gpd state record-session --stopped-at "Finished literature review"
 gpd state snapshot
-gpd state snapshot --raw
+gpd --raw state snapshot
 ```
 
 **Check:** Session recorded with timestamp. Snapshot returns read-only summary.
@@ -393,9 +393,9 @@ gpd convention set metric_signature "not set"  # should warn or reject
 
 ```bash
 gpd convention list
-gpd convention list --raw
+gpd --raw convention list
 gpd convention check
-gpd convention check --raw
+gpd --raw convention check
 ```
 
 **Check:** List shows all set conventions. Check reports unset core conventions.
@@ -426,7 +426,7 @@ gpd result add --id res-1 --equation "delta_E = 0.1 U^2/t" --description "First 
   --units energy --validity "U/t < 0.5" --phase 01 --depends-on res-0
 
 gpd result list
-gpd result list --raw
+gpd --raw result list
 gpd result list --verified
 gpd result list --unverified
 
@@ -514,7 +514,7 @@ gpd phase next-decimal 01    # should return 01.1 or similar
 
 ```bash
 # Create a plan file in phase 01
-cat > .planning/phases/01-test-phase/PLAN-01-survey.md << 'EOF'
+cat > .planning/phases/01-test-phase/01-survey-PLAN.md << 'EOF'
 ---
 wave: 1
 status: incomplete
@@ -523,7 +523,7 @@ status: incomplete
 Survey existing Bethe ansatz results.
 EOF
 
-cat > .planning/phases/01-test-phase/PLAN-02-gaps.md << 'EOF'
+cat > .planning/phases/01-test-phase/02-gaps-PLAN.md << 'EOF'
 ---
 wave: 2
 depends_on: [PLAN-01]
@@ -543,7 +543,7 @@ gpd phase validate-waves 01
 
 ```bash
 # Create a SUMMARY for the plan
-cat > .planning/phases/01-test-phase/SUMMARY-01-survey.md << 'EOF'
+cat > .planning/phases/01-test-phase/01-survey-SUMMARY.md << 'EOF'
 ---
 status: complete
 phase: "01"
@@ -553,8 +553,9 @@ provides: [bethe-ansatz-overview]
 # Summary: Literature Survey
 Found 15 relevant papers.
 
-```gpd_return
-status: done
+```yaml
+gpd_return:
+  status: completed
 phase: "01"
 plan: "01"
 tasks_completed: 3
@@ -571,7 +572,7 @@ gpd phase list
 
 ```bash
 gpd roadmap analyze
-gpd roadmap analyze --raw
+gpd --raw roadmap analyze
 gpd roadmap get-phase 01
 gpd roadmap get-phase 02
 ```
@@ -587,31 +588,31 @@ cd /tmp/gpd-project
 ### 7.1 Frontmatter CRUD
 
 ```bash
-gpd frontmatter get .planning/phases/01-test-phase/PLAN-01-survey.md
-gpd frontmatter get .planning/phases/01-test-phase/PLAN-01-survey.md --field wave
+gpd frontmatter get .planning/phases/01-test-phase/01-survey-PLAN.md
+gpd frontmatter get .planning/phases/01-test-phase/01-survey-PLAN.md --field wave
 
-gpd frontmatter set .planning/phases/01-test-phase/PLAN-01-survey.md --field status --value complete
-gpd frontmatter get .planning/phases/01-test-phase/PLAN-01-survey.md --field status  # "complete"
+gpd frontmatter set .planning/phases/01-test-phase/01-survey-PLAN.md --field status --value complete
+gpd frontmatter get .planning/phases/01-test-phase/01-survey-PLAN.md --field status  # "complete"
 
-gpd frontmatter merge .planning/phases/01-test-phase/PLAN-01-survey.md --data '{"tags":["survey","literature"]}'
-gpd frontmatter get .planning/phases/01-test-phase/PLAN-01-survey.md   # should show tags
+gpd frontmatter merge .planning/phases/01-test-phase/01-survey-PLAN.md --data '{"tags":["survey","literature"]}'
+gpd frontmatter get .planning/phases/01-test-phase/01-survey-PLAN.md   # should show tags
 
-gpd frontmatter validate .planning/phases/01-test-phase/PLAN-01-survey.md --schema plan
+gpd frontmatter validate .planning/phases/01-test-phase/01-survey-PLAN.md --schema plan
 ```
 
 ### 7.2 Verification Suite
 
 ```bash
-gpd verify summary .planning/phases/01-test-phase/SUMMARY-01-survey.md
-gpd verify plan .planning/phases/01-test-phase/PLAN-01-survey.md
+gpd verify summary .planning/phases/01-test-phase/01-survey-SUMMARY.md
+gpd verify plan .planning/phases/01-test-phase/01-survey-PLAN.md
 gpd verify phase 01
-gpd verify artifacts .planning/phases/01-test-phase/PLAN-01-survey.md
+gpd verify artifacts .planning/phases/01-test-phase/01-survey-PLAN.md
 ```
 
 ### 7.3 Validate Return Block
 
 ```bash
-gpd validate-return .planning/phases/01-test-phase/SUMMARY-01-survey.md
+gpd validate-return .planning/phases/01-test-phase/01-survey-SUMMARY.md
 ```
 
 **Check:** Should pass — the gpd_return block has all required fields.
@@ -703,7 +704,7 @@ gpd config get commit_docs     # should be true
 cd /tmp/gpd-project
 
 gpd health
-gpd health --raw
+gpd --raw health
 gpd health --fix              # should auto-fix any fixable issues
 ```
 
@@ -713,7 +714,7 @@ gpd health --fix              # should auto-fix any fixable issues
 
 ```bash
 gpd suggest
-gpd suggest --raw
+gpd --raw suggest
 gpd suggest --limit 3
 ```
 
@@ -734,7 +735,7 @@ gpd scaffold phase-dir --phase 03 --name "Numerical Verification"
 
 ```bash
 gpd history-digest
-gpd summary-extract .planning/phases/01-test-phase/SUMMARY-01-survey.md --field status --field provides
+gpd summary-extract .planning/phases/01-test-phase/01-survey-SUMMARY.md --field status --field provides
 ```
 
 ### 10.5 Regression Check
@@ -757,9 +758,9 @@ gpd validate consistency
 ```bash
 cd /tmp/gpd-project
 
-gpd template select .planning/phases/01-test-phase/PLAN-01-survey.md
-gpd template fill execute --phase 01 --plan 01 --name "survey" --type execute --wave 1
-gpd template fill execute --phase 01 --plan 01 --name "survey" --fields '{"custom":"value"}'
+gpd template select .planning/phases/01-test-phase/01-survey-PLAN.md
+gpd template fill plan --phase 01 --plan 01 --name "survey" --type execute --wave 1
+gpd template fill plan --phase 01 --plan 01 --name "survey" --fields '{"custom":"value"}'
 ```
 
 ---
@@ -771,7 +772,7 @@ cd /tmp/gpd-project
 
 # Pre-commit check
 gpd pre-commit-check
-gpd pre-commit-check --files .planning/phases/01-test-phase/PLAN-01-survey.md
+gpd pre-commit-check --files .planning/phases/01-test-phase/01-survey-PLAN.md
 
 # Commit
 git add .planning/
@@ -792,21 +793,21 @@ These return JSON context for agent workflows. Test that they assemble correctly
 ```bash
 cd /tmp/gpd-project
 
-gpd init new-project --raw
-gpd init new-milestone --raw
-gpd init execute-phase 01 --raw
-gpd init execute-phase 01 --include state,config,roadmap --raw
-gpd init plan-phase 01 --raw
-gpd init plan-phase 01 --include state,roadmap --raw
-gpd init quick "Calculate ground state energy" --raw
-gpd init resume --raw
-gpd init verify-work 01 --raw
-gpd init progress --raw
-gpd init progress --include state,roadmap --raw
-gpd init map-theory --raw
-gpd init todos --raw
-gpd init phase-op 01 --raw
-gpd init milestone-op --raw
+gpd --raw init new-project
+gpd --raw init new-milestone
+gpd --raw init execute-phase 01
+gpd --raw init execute-phase 01 --include state,config,roadmap
+gpd --raw init plan-phase 01
+gpd --raw init plan-phase 01 --include state,roadmap
+gpd --raw init quick "Calculate ground state energy"
+gpd --raw init resume
+gpd --raw init verify-work 01
+gpd --raw init progress
+gpd --raw init progress --include state,roadmap
+gpd --raw init map-theory
+gpd --raw init todos
+gpd --raw init phase-op 01
+gpd --raw init milestone-op
 ```
 
 **Check:** Each returns valid JSON with documented keys. No crashes.
@@ -982,11 +983,11 @@ GPD_DISABLE_VERIFICATION=1 gpd health           # verification checks skipped
 
 # Test from Python
 python -c "
-from gpd.core.observability import load_feature_flags, is_enabled
-flags = load_feature_flags()
-print('conventions:', is_enabled('conventions'))
-print('verification:', is_enabled('verification'))
-print('patterns:', is_enabled('patterns'))
+from gpd.core.observability import init_feature_flags, is_enabled
+init_feature_flags()
+print('conventions:', is_enabled('gpd.conventions.enabled'))
+print('verification:', is_enabled('gpd.verification.enabled'))
+print('patterns:', is_enabled('gpd.patterns.enabled'))
 "
 
 # Ablation presets
@@ -998,7 +999,7 @@ print(f'\nTotal ablation points: {len(ABLATION_POINTS)}')
 "
 ```
 
-**Check:** 22 ablation points listed. Env var disables work.
+**Check:** 20 ablation points listed. Env var disables work.
 
 ---
 

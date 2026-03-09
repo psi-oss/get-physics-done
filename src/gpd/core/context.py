@@ -307,7 +307,7 @@ def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
 
             return {
                 "found": True,
-                "directory": f".planning/phases/{name}",
+                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{name}",
                 "phase_number": phase_number,
                 "phase_name": phase_name,
                 "phase_slug": phase_slug,
@@ -649,8 +649,8 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         "date": now.strftime("%Y-%m-%d"),
         "timestamp": now.isoformat(),
         # Paths
-        "quick_dir": ".planning/quick",
-        "task_dir": f".planning/quick/{next_num}-{slug}" if slug else None,
+        "quick_dir": f"{PLANNING_DIR_NAME}/quick",
+        "task_dir": f"{PLANNING_DIR_NAME}/quick/{next_num}-{slug}" if slug else None,
         # File existence
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
@@ -796,7 +796,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
                     "created": created,
                     "title": title,
                     "area": todo_area,
-                    "path": f".planning/todos/pending/{f.name}",
+                    "path": f"{PLANNING_DIR_NAME}/todos/pending/{f.name}",
                 }
             )
     except FileNotFoundError:
@@ -815,8 +815,8 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "todos": todos,
         "area_filter": area,
         # Paths
-        "pending_dir": ".planning/todos/pending",
-        "done_dir": ".planning/todos/done",
+        "pending_dir": f"{PLANNING_DIR_NAME}/todos/pending",
+        "done_dir": f"{PLANNING_DIR_NAME}/todos/done",
         # File existence
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos"),
@@ -908,7 +908,7 @@ def init_map_theory(cwd: Path) -> dict:
         "search_gitignored": config["search_gitignored"],
         "parallelization": config["parallelization"],
         # Paths
-        "research_map_dir": ".planning/research-map",
+        "research_map_dir": f"{PLANNING_DIR_NAME}/research-map",
         # Existing maps
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,
@@ -966,7 +966,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
             phase_entry: dict[str, object] = {
                 "number": phase_number,
                 "name": phase_name,
-                "directory": f".planning/phases/{dir_name}",
+                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
                 "status": status,
                 "plan_count": len(plans),
                 "summary_count": len(summaries),
@@ -986,7 +986,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
     state_content = _safe_read_file(cwd / PLANNING_DIR_NAME / STATE_MD_FILENAME)
     if state_content:
         status_match = re.search(r"\*\*Status:\*\*\s*(.+)", state_content)
-        if status_match and status_match.group(1).strip() == "Paused":
+        if status_match and status_match.group(1).strip().lower() == "paused":
             stopped_match = re.search(r"\*\*Stopped at:\*\*\s*(.+)", state_content)
             paused_at = stopped_match.group(1).strip() if stopped_match else "true"
 
