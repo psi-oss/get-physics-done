@@ -399,20 +399,15 @@ you MUST follow this structured pipeline. Do NOT just chat about the topic — r
 
 def _build_auto_startup() -> str:
     """Return the startup MCP diagnostic section."""
-    return """## AUTO-STARTUP: CHECK MODAL MCP HEALTH
-IMMEDIATELY when this session starts, BEFORE the user types anything, run this in the background:
-`gpd pipeline fix-mcps`
-This is a diagnostic sample check for Modal-backed physics MCPs. By default it tests
-three representative services, not the full configured MCP registry, and it does not
-redeploy or repair anything.
+    return """## AUTO-STARTUP: INITIAL TOOL STATE
+Do NOT run background repair, deployment, or hosted-infrastructure commands at startup.
+Wait for the user's first research task, then use `gpd pipeline discover` for that query
+to see which MCP tools are currently available, unavailable, or stale.
 
-If the output shows broken MCPs (broken_count > 0):
-1. Read the "action" field — it describes which MCPs are down and why.
-2. Briefly warn the user that the sampled Modal MCP services are unavailable.
-3. Continue with the remaining available tools. Do NOT attempt autonomous redeployment.
-
-If all MCPs are found (broken_count == 0), say nothing.
-If Modal credentials are missing, warn the user once."""
+If discovery shows unavailable or stale tools:
+1. Briefly note that some MCP tools are unavailable for this query.
+2. Continue with the remaining available tools whenever possible.
+3. Do NOT attempt autonomous redeployment or repair."""
 
 
 def _build_stage_1_discover() -> str:

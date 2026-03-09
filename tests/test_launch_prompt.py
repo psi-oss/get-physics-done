@@ -116,11 +116,11 @@ def test_build_tool_catalog_when_config_fails():
     assert "tool" in result.lower()
 
 
-def test_auto_startup_mentions_sample_check_and_no_redeploy():
-    """Startup instructions should match the diagnostic-only fix-mcps behavior."""
+def test_auto_startup_avoids_repair_workflows():
+    """Startup instructions should defer to discovery instead of hidden repair flows."""
     result = _build_auto_startup()
-    assert "sample check" in result.lower()
-    assert "not the full configured mcp registry" in result.lower()
+    assert "gpd pipeline discover" in result
+    assert "do not run background repair" in result.lower()
     assert "do not attempt autonomous redeployment" in result.lower()
 
 

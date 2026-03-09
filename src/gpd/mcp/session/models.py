@@ -66,8 +66,8 @@ class SessionState(BaseModel):
         cls,
         session_id: str,
         project_name: str,
-        project_root: str = "",
         session_name: str,
+        project_root: str = "",
         tags: list[str] | None = None,
     ) -> SessionState:
         """Create a new active session with current timestamps."""
