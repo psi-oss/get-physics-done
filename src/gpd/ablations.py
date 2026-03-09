@@ -8,7 +8,7 @@ Builds on ``gpd.core.observability.FeatureFlags`` to provide:
   is disabled, with Logfire span annotations for observability.
 - **Ablation point documentation**: Single source of truth for every GPD subsystem that
   can be toggled, what flags control it, and what the expected effect is.
-- **Strategy-layer integration**: ``apply_ablation_overrides`` merges simplified env vars
+- **Env var integration**: ``apply_ablation_overrides`` merges simplified env vars
   into the feature flag dict before ``FeatureFlags`` is constructed.
 
 Env var convention
@@ -73,7 +73,7 @@ class AblationPoint:
         subsystem: Short uppercase name used in env vars (e.g. ``"CONVENTIONS"``).
         flag_keys: Feature flag keys disabled when this ablation fires.
         description: Human-readable description of what gets disabled.
-        layer: Architecture layer (``"core"``, ``"strategy"``, ``"mcp"``).
+        layer: Architecture layer (``"core"``, ``"mcp"``).
     """
 
     subsystem: str
@@ -108,7 +108,7 @@ ABLATION_POINTS: dict[str, AblationPoint] = {
         subsystem="COMMIT_GATE",
         flag_keys=["gpd.conventions.commit_gate"],
         description="CommitGate convention invariant hooks only",
-        layer="strategy",
+        layer="core",
     ),
     "ASSERT_CHECK": AblationPoint(
         subsystem="ASSERT_CHECK",

@@ -269,21 +269,71 @@ def load_config(cwd: Path) -> dict:
 # these to provider-specific model names at install time.
 
 # Agent type → profile → tier mapping (subset used by context assembly).
+# Must stay consistent with MODEL_PROFILES in config.py and model-profiles.md.
 _MODEL_PROFILES: dict[str, dict[str, str]] = {
-    "gpd-executor": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-verifier": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-phase-researcher": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-planner": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-plan-checker": {"review": "tier-3", "deep-theory": "tier-2", "numerical": "tier-3", "budget": "tier-3"},
-    "gpd-project-researcher": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-research-synthesizer": {
-        "review": "tier-2",
+    "gpd-executor": {
         "deep-theory": "tier-1",
         "numerical": "tier-2",
-        "budget": "tier-3",
+        "exploratory": "tier-2",
+        "review": "tier-2",
+        "paper-writing": "tier-1",
     },
-    "gpd-roadmapper": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
-    "gpd-theory-mapper": {"review": "tier-2", "deep-theory": "tier-1", "numerical": "tier-2", "budget": "tier-3"},
+    "gpd-verifier": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-1",
+        "exploratory": "tier-2",
+        "review": "tier-1",
+        "paper-writing": "tier-2",
+    },
+    "gpd-phase-researcher": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-1",
+        "exploratory": "tier-1",
+        "review": "tier-2",
+        "paper-writing": "tier-2",
+    },
+    "gpd-planner": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-1",
+        "exploratory": "tier-1",
+        "review": "tier-1",
+        "paper-writing": "tier-1",
+    },
+    "gpd-plan-checker": {
+        "deep-theory": "tier-2",
+        "numerical": "tier-2",
+        "exploratory": "tier-2",
+        "review": "tier-1",
+        "paper-writing": "tier-2",
+    },
+    "gpd-project-researcher": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-2",
+        "exploratory": "tier-1",
+        "review": "tier-2",
+        "paper-writing": "tier-3",
+    },
+    "gpd-research-synthesizer": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-2",
+        "exploratory": "tier-2",
+        "review": "tier-2",
+        "paper-writing": "tier-1",
+    },
+    "gpd-roadmapper": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-1",
+        "exploratory": "tier-2",
+        "review": "tier-1",
+        "paper-writing": "tier-2",
+    },
+    "gpd-theory-mapper": {
+        "deep-theory": "tier-2",
+        "numerical": "tier-3",
+        "exploratory": "tier-3",
+        "review": "tier-3",
+        "paper-writing": "tier-3",
+    },
 }
 
 

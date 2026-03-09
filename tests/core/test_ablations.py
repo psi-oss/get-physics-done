@@ -511,7 +511,7 @@ class TestAblationPointsRegistry:
             assert point.subsystem, f"{name}: empty subsystem"
             assert point.flag_keys, f"{name}: empty flag_keys"
             assert point.description, f"{name}: empty description"
-            assert point.layer in ("core", "strategy", "mcp"), f"{name}: unknown layer {point.layer!r}"
+            assert point.layer in ("core", "mcp"), f"{name}: unknown layer {point.layer!r}"
 
     def test_subsystem_matches_dict_key(self) -> None:
         """Dict key matches the subsystem field on each AblationPoint."""
