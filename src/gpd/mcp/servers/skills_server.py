@@ -81,6 +81,22 @@ _CATEGORY_MAP: dict[str, str] = {
     "gpd-quick": "execution",
     "gpd-help": "help",
     "gpd-suggest": "help",
+    # Full-name entries for skills not captured by prefix matching
+    "gpd-bibliographer": "research",
+    "gpd-consistency-checker": "verification",
+    "gpd-discuss-phase": "planning",
+    "gpd-estimate-cost": "diagnostics",
+    "gpd-executor": "execution",
+    "gpd-experiment-designer": "planning",
+    "gpd-list-phase-assumptions": "planning",
+    "gpd-notation-coordinator": "verification",
+    "gpd-phase-researcher": "research",
+    "gpd-project-researcher": "research",
+    "gpd-referee": "paper",
+    "gpd-revise-phase": "management",
+    "gpd-roadmapper": "planning",
+    "gpd-theory-mapper": "exploration",
+    "gpd-verifier": "verification",
 }
 
 
@@ -114,11 +130,22 @@ def _load_skill_index() -> list[dict[str, str]]:
         if prompt_file.exists():
             content = safe_read_file(prompt_file)
             if content:
-                # Extract first non-empty, non-heading line as description
+                # Skip YAML frontmatter block (--- ... ---), then take
+                # the first non-empty, non-heading, non-comment line.
+                in_frontmatter = False
                 for line in content.splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and not line.startswith("---"):
-                        desc = line[:200]
+                    stripped = line.strip()
+                    if stripped == "---":
+                        in_frontmatter = not in_frontmatter
+                        continue
+                    if in_frontmatter:
+                        # Try to grab description from frontmatter field
+                        if stripped.startswith("description:"):
+                            desc = stripped[len("description:") :].strip()[:200]
+                        continue
+                    if stripped and not stripped.startswith("#") and not stripped.startswith("<!--"):
+                        if not desc:
+                            desc = stripped[:200]
                         break
 
         skills.append(

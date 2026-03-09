@@ -327,9 +327,9 @@ def guarded(
     """
 
     def decorator(func: Callable) -> Callable:
-        import asyncio
+        import inspect
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args: object, **kwargs: object) -> object:

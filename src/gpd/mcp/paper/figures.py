@@ -33,7 +33,7 @@ def detect_format(path: Path) -> str:
     return ext
 
 
-def normalize_figure(source: Path, output_dir: Path, target_format: str = "png") -> Path:
+def normalize_figure(source: Path, output_dir: Path) -> Path:
     """Normalize a figure to a pdflatex-compatible format.
 
     - PDF/PNG/JPG: copy as-is (passthrough)

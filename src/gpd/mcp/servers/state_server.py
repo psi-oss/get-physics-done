@@ -65,14 +65,16 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
         info = find_phase(cwd, phase)
         if info is None:
             return {"error": f"Phase {phase} not found"}
+        plan_count = len(info.plans)
+        summary_count = len(info.summaries)
         return {
             "phase_number": info.phase_number,
             "phase_name": info.phase_name,
             "directory": info.directory,
             "phase_slug": info.phase_slug,
-            "plan_count": info.plan_count,
-            "summary_count": info.summary_count,
-            "complete": info.complete,
+            "plan_count": plan_count,
+            "summary_count": summary_count,
+            "complete": plan_count > 0 and summary_count >= plan_count,
         }
 
 

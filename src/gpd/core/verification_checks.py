@@ -1,8 +1,8 @@
 """Registry of the 14 universal physics verification checks.
 
-This is pure domain data used by both the strategy layer (for CommitGate
-hooks and rubric construction) and the MCP verification server (for tool
-endpoints).  Lives in core/ so neither layer needs to import the other.
+This is pure domain data used by the MCP verification server (for tool
+endpoints) and available for any strategy layer integration.
+Lives in core/ so consumers don't need to import each other.
 
 Source: verification-quick-reference.md (specs/physics/verification/)
 """

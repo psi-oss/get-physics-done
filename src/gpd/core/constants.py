@@ -14,19 +14,15 @@ from pathlib import Path
 
 __all__ = [
     "ACTIVE_TRACE_FILENAME",
-    "AGENT_FILE_PREFIX",
-    "AGENT_FILE_SUFFIX",
     "CONFIG_FILENAME",
     "CONVENTIONS_FILENAME",
     "DECISION_THRESHOLD",
-    "DEFAULT_LOADER_CACHE_SIZE",
     "DEFAULT_MAX_INCLUDE_CHARS",
     "ENV_DATA_DIR",
     "ENV_MAX_INCLUDE_CHARS",
     "ENV_PATTERNS_ROOT",
     "MIN_PYTHON_MAJOR",
     "MIN_PYTHON_MINOR",
-    "NON_BUNDLE_SPECS_DIRS",
     "OPTIONAL_PLANNING_FILES",
     "PATTERNS_BY_DOMAIN_DIR",
     "PATTERNS_DIR_NAME",
@@ -37,25 +33,12 @@ __all__ = [
     "PROJECT_FILENAME",
     "ProjectLayout",
     "RECOMMENDED_PYTHON_VERSION",
-    "REF_DEFAULT_ERROR_CATALOG",
-    "REF_ERROR_CATALOG_PREFIX",
-    "REF_PROTOCOL_PREFIX",
-    "REF_SUBFIELD_GUIDE_FALLBACK",
-    "REF_SUBFIELD_PREFIX",
-    "REF_VERIFICATION_DOMAIN_PREFIX",
     "REQUIRED_PLANNING_DIRS",
     "REQUIRED_PLANNING_FILES",
     "REQUIRED_RETURN_FIELDS",
     "REQUIRED_SPECS_SUBDIRS",
     "ROADMAP_FILENAME",
     "SEED_PATTERN_INITIAL_OCCURRENCES",
-    "SKILL_DIR_PREFIX",
-    "SPECS_AGENTS_DIR",
-    "SPECS_REFERENCES_DIR",
-    "SPECS_SCHEMAS_DIR",
-    "SPECS_SKILLS_DIR",
-    "SPECS_TEMPLATES_DIR",
-    "SPECS_WORKFLOWS_DIR",
     "STANDALONE_PLAN",
     "STANDALONE_SUMMARY",
     "STATE_ARCHIVE_FILENAME",
@@ -69,7 +52,6 @@ __all__ = [
     "SUMMARY_SUFFIX",
     "TRACES_DIR_NAME",
     "UNCOMMITTED_FILES_THRESHOLD",
-    "UNIVERSAL_ERROR_IDS",
     "VALID_RETURN_STATUSES",
     "VERIFICATION_SUFFIX",
 ]
@@ -157,19 +139,6 @@ SPECS_TEMPLATES_DIR = "templates"
 SPECS_SKILLS_DIR = "skills"
 """Skill definition directories (gpd-execute-phase/, etc.)."""
 
-AGENT_FILE_PREFIX = "gpd-"
-"""Filename prefix for GPD agent files."""
-
-AGENT_FILE_SUFFIX = ".md"
-"""File extension for agent prompt files."""
-
-SKILL_DIR_PREFIX = "gpd-"
-"""Directory name prefix for GPD skill directories."""
-
-SPECS_SCHEMAS_DIR = "schemas"
-"""Schema definition files for bundle validation."""
-
-
 # ─── Pattern Library Layout ───────────────────────────────────────────────────
 # On-disk layout for the cross-project pattern library.
 
@@ -225,48 +194,7 @@ REQUIRED_SPECS_SUBDIRS: tuple[str, ...] = (
 )
 """Subdirectories expected in the specs/ bundle root."""
 
-NON_BUNDLE_SPECS_DIRS: frozenset[str] = frozenset(REQUIRED_SPECS_SUBDIRS) | {SPECS_SCHEMAS_DIR}
-"""Specs subdirectories that are NOT loadable bundles (used by bundle_loader to skip)."""
-
-
-# ─── Reference File Prefixes ─────────────────────────────────────────────────
-# Used by loader.py to classify references into sub-indexes.
-
-REF_PROTOCOL_PREFIX = "protocols/"
-"""Prefix for protocol reference files."""
-
-REF_VERIFICATION_DOMAIN_PREFIX = "verification-domain-"
-"""Prefix for verification domain checklist files."""
-
-REF_ERROR_CATALOG_PREFIX = "llm-errors-"
-"""Prefix for error catalog files."""
-
-REF_SUBFIELD_PREFIX = "subfields/"
-"""Prefix for subfield guide files."""
-
-REF_SUBFIELD_GUIDE_FALLBACK = "executor-subfield-guide"
-"""Fallback reference name when no subfield guide matches."""
-
-REF_DEFAULT_ERROR_CATALOG = "llm-errors-core"
-"""Default error catalog used when no keyword matches."""
-
-# ─── Universal Error Class IDs ──────────────────────────────────────────────
-# Error classes that are always relevant regardless of physics domain.
-
-UNIVERSAL_ERROR_IDS: frozenset[int] = frozenset({11, 15, 33, 37})
-"""Error class IDs always included when no specific keyword matches.
-
-11: Hallucinated mathematical identities
-15: Dimensional analysis errors
-33: Natural unit restoration errors
-37: Metric signature mismatch
-"""
-
-
-# ─── Default Max Cache Size ──────────────────────────────────────────────────
-
-DEFAULT_LOADER_CACHE_SIZE = 64
-"""Default maximum number of reference files cached by ReferenceLoader."""
+# ─── Default Max Include Chars ──────────────────────────────────────────────
 
 DEFAULT_MAX_INCLUDE_CHARS = 20000
 """Default character limit for file includes (overridable via GPD_MAX_INCLUDE_CHARS)."""

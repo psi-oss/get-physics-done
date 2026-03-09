@@ -9,7 +9,6 @@ Hierarchy (errors defined in this file)::
     ├── ValidationError(ValueError)     # cross-cutting input validation
     ├── StateError(ValueError)          # state.py
     ├── ConventionError(ValueError)     # conventions.py
-    ├── LoaderError                     # loader.py, router.py
     ├── ResultError(ValueError)         # results.py
     │   ├── ResultNotFoundError(KeyError)
     │   └── DuplicateResultError(ValueError)
@@ -18,8 +17,7 @@ Hierarchy (errors defined in this file)::
     │   └── DuplicateApproximationError(ValueError)
     ├── PatternError                    # patterns.py
     ├── TraceError                      # trace.py
-    ├── ConfigError(ValueError)         # config.py
-    └── BundleError                     # bundle_loader.py (subclasses in strategy/)
+    └── ConfigError(ValueError)         # config.py
 
 Errors defined in their owning modules (inherit GPDError):
 
@@ -43,14 +41,12 @@ ValueError) where applicable, preserving backwards compatibility with existing
 from __future__ import annotations
 
 __all__ = [
-    "BundleError",
     "ConfigError",
     "ConventionError",
     "DuplicateApproximationError",
     "DuplicateResultError",
     "ExtrasError",
     "GPDError",
-    "LoaderError",
     "PatternError",
     "QueryError",
     "ResultError",
@@ -83,10 +79,6 @@ class ConventionError(GPDError, ValueError):
     Inherits from ValueError for backwards compatibility with existing
     ``except ValueError`` handlers.
     """
-
-
-class LoaderError(GPDError):
-    """Error loading reference data (specs, protocols, error catalogs)."""
 
 
 class ResultError(GPDError, ValueError):
@@ -154,10 +146,6 @@ class ConfigError(GPDError, ValueError):
 
     Inherits from ValueError for backwards compatibility.
     """
-
-
-class BundleError(GPDError):
-    """Error in spec bundle loading or merging."""
 
 
 class ValidationError(GPDError, ValueError):

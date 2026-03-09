@@ -12,7 +12,7 @@ import logging
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
-from gpd.core.model_defaults import GPD_DEFAULT_MODEL
+from gpd.core.model_defaults import GPD_DEFAULT_MODEL, resolve_model_and_settings
 from gpd.mcp.subagents.models import ToolCreateRequest
 
 logger = logging.getLogger(__name__)
@@ -58,8 +58,9 @@ class ToolSpecDrafter:
     """Drafts tool specifications using PydanticAI Agent."""
 
     def __init__(self, model: str = GPD_DEFAULT_MODEL) -> None:
+        base_model, self._model_settings = resolve_model_and_settings(model)
         self._agent: Agent[None, ToolSpec] = Agent(
-            model,
+            base_model,
             output_type=ToolSpec,
             system_prompt=SPEC_DRAFTING_PROMPT,
             retries=2,
@@ -78,7 +79,7 @@ class ToolSpecDrafter:
             f"## Research Context\n{research_context}\n\n"
             f"## Available Tools (for reference)\n{tools_str}"
         )
-        result = await self._agent.run(user_prompt)
+        result = await self._agent.run(user_prompt, model_settings=self._model_settings)
         return result.output
 
 

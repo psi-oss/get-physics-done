@@ -335,13 +335,13 @@ class TestGuardedAsync:
 
     def test_async_is_still_coroutine(self) -> None:
         """Wrapped async function is still detected as coroutine function."""
-        import asyncio as aio
+        import inspect
 
         @guarded("gpd.conventions.enabled", default=None)
         async def coro_func() -> None:
             pass
 
-        assert aio.iscoroutinefunction(coro_func)
+        assert inspect.iscoroutinefunction(coro_func)
 
 
 # ─── skip_when_disabled shorthand ──────────────────────────────────────────

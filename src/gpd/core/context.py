@@ -15,10 +15,12 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+from gpd.core.constants import DEFAULT_MAX_INCLUDE_CHARS, ENV_MAX_INCLUDE_CHARS
+
 logger = logging.getLogger(__name__)
 
 # Maximum chars to include when embedding file contents in context.
-MAX_INCLUDE_CHARS = int(os.environ.get("GPD_MAX_INCLUDE_CHARS", "20000"))
+MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_INCLUDE_CHARS)))
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
@@ -30,7 +32,10 @@ _IGNORE_DIRS = frozenset(
         ".git",
         ".planning",
         ".claude",
+        ".codex",
+        ".gemini",
         ".opencode",
+        ".config",
         "get-physics-done",
         "agents",
         "command",

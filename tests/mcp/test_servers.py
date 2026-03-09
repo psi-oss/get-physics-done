@@ -608,14 +608,15 @@ class TestStateServer:
         mock_info.phase_name = "Setup"
         mock_info.directory = ".planning/phases/01-setup"
         mock_info.phase_slug = "01-setup"
-        mock_info.plan_count = 3
-        mock_info.summary_count = 2
-        mock_info.complete = False
+        mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
+        mock_info.summaries = ["summary-01.md", "summary-02.md"]
 
         with patch("gpd.core.phases.find_phase", return_value=mock_info):
             result = get_phase_info("/fake/project", "01")
         assert result["phase_number"] == "01"
         assert result["plan_count"] == 3
+        assert result["summary_count"] == 2
+        assert result["complete"] is False
 
     def test_get_phase_info_not_found(self):
         from gpd.mcp.servers.state_server import get_phase_info

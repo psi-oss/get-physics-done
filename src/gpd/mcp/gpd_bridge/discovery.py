@@ -18,21 +18,29 @@ GPD_CORE_DIR = "get-physics-done"
 def find_gpd_install() -> Path | None:
     """Locate the GPD installation directory.
 
-    Search order:
-      1. Project-local: ``Path.cwd() / ".claude"``
-      2. ``CLAUDE_CONFIG_DIR`` environment variable (if set)
-      3. Global: ``Path.home() / ".claude"``
+    Search order (for each runtime config dir: .claude, .codex, .gemini, .config/opencode):
+      1. Project-local: ``Path.cwd() / <config_dir>``
+      2. Runtime-specific env var (``CLAUDE_CONFIG_DIR``, etc.) if set
+      3. Global: ``Path.home() / <config_dir>``
 
     Returns the first path where ``GPD_CORE_DIR/package.json`` exists,
     or ``None`` if GPD is not found.
     """
-    candidates: list[Path] = [Path.cwd() / ".claude"]
+    from gpd.hooks.runtime_detect import RUNTIME_DIR_NAMES
 
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR", "")
-    if config_dir:
-        candidates.append(Path(config_dir))
+    # Collect candidates across all supported runtimes
+    candidates: list[Path] = []
+    for dir_name in RUNTIME_DIR_NAMES.values():
+        candidates.append(Path.cwd() / dir_name)
 
-    candidates.append(Path.home() / ".claude")
+    # Check runtime-specific config dir env vars
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_CONFIG_DIR", "GEMINI_CONFIG_DIR", "OPENCODE_CONFIG_DIR"):
+        config_dir = os.environ.get(env_var, "")
+        if config_dir:
+            candidates.append(Path(config_dir))
+
+    for dir_name in RUNTIME_DIR_NAMES.values():
+        candidates.append(Path.home() / dir_name)
 
     for candidate in candidates:
         pkg_json = candidate / GPD_CORE_DIR / "package.json"
@@ -45,7 +53,7 @@ def find_gpd_install() -> Path | None:
 def find_gpd_references_dir() -> Path | None:
     """Locate the GPD references directory (``get-physics-done/references/``).
 
-    Uses :func:`find_gpd_install` to locate the ``.claude`` root, then
+    Uses :func:`find_gpd_install` to locate the runtime config root, then
     returns the ``references/`` subdirectory if it exists.
     """
     gpd_dir = find_gpd_install()
@@ -58,7 +66,7 @@ def find_gpd_references_dir() -> Path | None:
 def discover_commands(gpd_dir: Path) -> list[Path]:
     """Return all ``.md`` files in the GPD commands directory.
 
-    These are the GPD slash-command markdown files consumed by Claude Code.
+    These are the GPD slash-command markdown files consumed by the hosting runtime.
     """
     cmd_dir = gpd_dir / GPD_COMMAND_DIR
     if not cmd_dir.is_dir():

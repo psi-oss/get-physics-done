@@ -16,7 +16,7 @@ from gpd.mcp.history import display_history, display_search_results
 from gpd.mcp.launch import (
     build_session_card,
     get_cached_mcp_count,
-    launch_claude_session,
+    launch_session,
     refresh_mcp_count_background,
     show_full_logo,
     show_resume_banner,
@@ -130,10 +130,10 @@ def main(
                     style="dim",
                 )
 
-            # Launch interactive Claude Code session
+            # Launch interactive session (currently Claude Code)
             with graceful_shutdown(session_manager):
                 try:
-                    launch_claude_session()
+                    launch_session()
                 except FileNotFoundError as exc:
                     console.print(f"[bold red]{exc}[/]")
                     raise typer.Exit(code=1) from None
@@ -161,10 +161,10 @@ def main(
                 session_name=f"session-{datetime.now().strftime('%Y%m%d-%H%M')}",
             )
 
-            # Launch interactive Claude Code session
+            # Launch interactive session (currently Claude Code)
             with graceful_shutdown(session_manager):
                 try:
-                    launch_claude_session()
+                    launch_session()
                 except FileNotFoundError as exc:
                     console.print(f"[bold red]{exc}[/]")
                     raise typer.Exit(code=1) from None

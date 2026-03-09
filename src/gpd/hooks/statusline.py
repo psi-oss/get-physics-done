@@ -125,10 +125,11 @@ def main() -> None:
     """Entry point: read JSON from stdin, write ANSI statusline to stdout."""
     try:
         data = json.loads(sys.stdin.read())
-    except Exception:
+    except Exception as exc:
+        _debug(f"Failed to parse stdin JSON: {exc}")
         return
 
-    model = (data.get("model") or {}).get("display_name", "Claude")
+    model = (data.get("model") or {}).get("display_name", "unknown")
     workspace_dir = (data.get("workspace") or {}).get("current_dir", os.getcwd())
     session_id = data.get("session_id", "")
     remaining = (data.get("context_window") or {}).get("remaining_percentage")

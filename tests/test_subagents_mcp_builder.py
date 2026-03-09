@@ -130,7 +130,13 @@ def test_parse_subagent_result_invalid_json():
 
 
 def test_get_mcp_builder_cwd_resolves():
-    """Verify the path resolution returns a string path."""
+    """Verify the path resolution returns a valid directory under the project."""
     cwd = get_mcp_builder_cwd()
     assert isinstance(cwd, str)
-    assert "mcp-builder" in cwd
+    from pathlib import Path
+
+    cwd_path = Path(cwd)
+    assert cwd_path.is_dir(), f"get_mcp_builder_cwd() returned non-existent path: {cwd}"
+    # Should resolve inside the project tree (contains pyproject.toml at some ancestor)
+    found_project_root = any((p / "pyproject.toml").exists() for p in [cwd_path, *cwd_path.parents])
+    assert found_project_root, f"cwd {cwd} is not inside the project tree"
