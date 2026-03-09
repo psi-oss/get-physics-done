@@ -845,12 +845,12 @@ def query_search(
 
 @query_app.command("deps")
 def query_deps(
-    phase: str = typer.Argument(..., help="Phase number"),
+    identifier: str = typer.Argument(..., help="Result identifier to trace dependencies for"),
 ) -> None:
-    """Show dependency graph for a phase."""
+    """Show what provides and requires a given result identifier."""
     from gpd.core.query import query_deps
 
-    _output(query_deps(_get_cwd(), phase))
+    _output(query_deps(_get_cwd(), identifier))
 
 
 @query_app.command("assumptions")
@@ -1013,7 +1013,7 @@ def trace_show(
     """Show trace events with optional filters."""
     from gpd.core.trace import trace_show
 
-    _output(trace_show(_get_cwd(), phase=phase, plan=plan, type=type, last=last))
+    _output(trace_show(_get_cwd(), phase=phase, plan=plan, event_type=type, last=last))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1141,8 +1141,18 @@ def approximation_add(
     """Add an approximation to track."""
     from gpd.core.extras import approximation_add
 
+    # Filter None values so core function defaults ("", "Valid") take effect
+    kwargs: dict[str, str] = {}
+    if validity_range is not None:
+        kwargs["validity_range"] = validity_range
+    if controlling_param is not None:
+        kwargs["controlling_param"] = controlling_param
+    if current_value is not None:
+        kwargs["current_value"] = current_value
+    if status is not None:
+        kwargs["status"] = status
     state = _load_state_dict()
-    res = approximation_add(state, name=name, validity_range=validity_range, controlling_param=controlling_param, current_value=current_value, status=status)
+    res = approximation_add(state, name=name or "", **kwargs)
     _save_state_dict(state)
     _output(res)
 
@@ -1178,8 +1188,18 @@ def uncertainty_add(
     """Add an uncertainty measurement."""
     from gpd.core.extras import uncertainty_add
 
+    # Filter None values so core function defaults ("") take effect
+    kwargs: dict[str, str] = {}
+    if value is not None:
+        kwargs["value"] = value
+    if uncertainty is not None:
+        kwargs["uncertainty"] = uncertainty
+    if phase is not None:
+        kwargs["phase"] = phase
+    if method is not None:
+        kwargs["method"] = method
     state = _load_state_dict()
-    res = uncertainty_add(state, quantity=quantity, value=value, uncertainty=uncertainty, phase=phase, method=method)
+    res = uncertainty_add(state, quantity=quantity or "", **kwargs)
     _save_state_dict(state)
     _output(res)
 

@@ -671,7 +671,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
         import importlib.metadata
 
         try:
-            version = importlib.metadata.version("gpd")
+            version = importlib.metadata.version("get-physics-done")
         except importlib.metadata.PackageNotFoundError:
             version = None
     sd = specs_dir
