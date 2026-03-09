@@ -105,4 +105,3 @@ GPD is released under the Apache License 2.0. See [`LICENSE`](LICENSE).
 ## Security
 
 To report a security issue, email [security@getphysicsdone.com](mailto:security@getphysicsdone.com). Public vulnerability disclosure guidance lives in [`SECURITY.md`](SECURITY.md).
-
