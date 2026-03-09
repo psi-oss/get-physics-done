@@ -351,7 +351,6 @@ class ResearchPlanner:
     ) -> ResearchPlan:
         """Run an agent and retry with validation feedback until the plan is valid."""
         current_prompt = prompt
-        last_errors: list[str] = []
 
         for attempt in range(MAX_VALIDATION_RETRIES + 1):
             result = await agent.run(current_prompt, model_settings=self._model_settings)
@@ -360,7 +359,6 @@ class ResearchPlanner:
             if not errors:
                 return plan
 
-            last_errors = errors
             logger.warning(
                 "Plan validation failed (attempt %d/%d): %s",
                 attempt + 1,
@@ -489,9 +487,7 @@ class ResearchPlanner:
         )
         valid_tool_names = _derive_evolution_tool_names(plan, tool_metadata_registry, available_tools)
         validation_context = (
-            _build_rich_tool_context(available_tools)
-            if available_tools
-            else _build_tool_name_context(valid_tool_names)
+            _build_rich_tool_context(available_tools) if available_tools else _build_tool_name_context(valid_tool_names)
         )
         new_plan = await self._run_agent_until_valid(
             self._evolution_agent,

@@ -73,6 +73,7 @@ class TestCostEstimate:
         assert estimate.gpu_type == ""
         assert estimate.estimated_cost_usd == 0.0
         assert estimate.confidence == "LOW"
+        assert estimate.tool_call_estimates == []
 
     def test_estimated_cost_range(self) -> None:
         estimate = CostEstimate(estimated_cost_usd=1.00)
@@ -140,6 +141,19 @@ class TestResearchPlanValidation:
         errors = plan.validate_no_cycles()
         assert len(errors) == 1
         assert "Cycle detected" in errors[0]
+
+    def test_detects_unknown_tool_reference(self) -> None:
+        milestones = [
+            _make_milestone("m1"),
+            _make_milestone("m2"),
+        ]
+        milestones[1].tools = ["known_tool", "invented_tool"]
+        plan = _make_plan(milestones)
+
+        errors = plan.validate_tool_references({"known_tool"})
+
+        assert len(errors) == 1
+        assert "invented_tool" in errors[0]
 
 
 class TestExecutionOrder:

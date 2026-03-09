@@ -30,6 +30,7 @@ class SessionState(BaseModel):
     # Identity
     session_id: str
     project_name: str
+    project_root: str = ""
     session_name: str
 
     # Timestamps
@@ -65,6 +66,7 @@ class SessionState(BaseModel):
         cls,
         session_id: str,
         project_name: str,
+        project_root: str = "",
         session_name: str,
         tags: list[str] | None = None,
     ) -> SessionState:
@@ -73,6 +75,7 @@ class SessionState(BaseModel):
         return cls(
             session_id=session_id,
             project_name=project_name,
+            project_root=project_root,
             session_name=session_name,
             created_at=now,
             updated_at=now,

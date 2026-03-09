@@ -592,8 +592,8 @@ class TestSkillsServerIntegration:
         assert isinstance(result, dict)
         assert "error" not in result
         assert result["name"] == "gpd-help"
-        assert "$gpd-help" in result["content"]
-        assert "/gpd:help" not in result["content"]
+        assert "/gpd:help" in result["content"]
+        assert "$gpd-help" not in result["content"]
 
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill

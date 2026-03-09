@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 STRUCTURAL_FAILURE_STATUSES = {"skipped", "error", "failed", "failure", "unavailable"}
 
 
-class StructuralToolExecutionError(RuntimeError):
+class StructuralToolExecutionError(Exception):
     """Raised when a tool returned a structurally unsuccessful result payload."""
 
     def __init__(self, message: str, outputs: list[dict[str, object]]) -> None:
@@ -482,7 +482,9 @@ async def execute_milestone_with_recovery(
         )
     except (TimeoutError, ConnectionError, RuntimeError) as exc:
         last_failure_message = str(exc)
-        logger.warning("Simplified execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message)
+        logger.warning(
+            "Simplified execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message
+        )
 
     # --- Phase 3: Substitute ---
     if dashboard_callback:
@@ -512,7 +514,9 @@ async def execute_milestone_with_recovery(
         )
     except (TimeoutError, ConnectionError, RuntimeError) as exc:
         last_failure_message = str(exc)
-        logger.warning("Substitute execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message)
+        logger.warning(
+            "Substitute execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message
+        )
 
     # --- Phase 4: Exhausted ---
     if dashboard_callback:

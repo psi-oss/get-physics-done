@@ -43,6 +43,7 @@ class TestSessionModels:
         session = SessionState.new(
             session_id="abc123",
             project_name="test-project",
+            project_root="/tmp/test-project",
             session_name="session-1",
             tags=["physics", "cfd"],
         )
@@ -50,6 +51,7 @@ class TestSessionModels:
         assert session.session_id == "abc123"
         assert session.status == "active"
         assert session.tags == ["physics", "cfd"]
+        assert session.project_root == "/tmp/test-project"
         assert session.created_at is not None
         assert session.milestones == []
 
@@ -58,18 +60,19 @@ class TestSessionManager:
     """Tests for SessionManager CRUD and atomic writes."""
 
     def test_create_produces_json_file(self, session_manager: SessionManager, tmp_path: Path) -> None:
-        session = session_manager.create("my-project", "run-1")
+        session = session_manager.create("my-project", str(tmp_path / "my-project"), "run-1")
         path = tmp_path / "sessions" / f"{session.session_id}.json"
         assert path.exists()
 
         data = json.loads(path.read_text())
         assert data["schema_version"] == 1
         assert data["project_name"] == "my-project"
+        assert data["project_root"] == str(tmp_path / "my-project")
         assert data["session_name"] == "run-1"
         assert data["status"] == "active"
 
     def test_save_atomic_write(self, session_manager: SessionManager, tmp_path: Path) -> None:
-        session = session_manager.create("proj", "sess")
+        session = session_manager.create("proj", str(tmp_path / "proj"), "sess")
         path = tmp_path / "sessions" / f"{session.session_id}.json"
 
         # Modify and save again
@@ -83,6 +86,7 @@ class TestSessionManager:
     def test_load_round_trips(self, session_manager: SessionManager) -> None:
         original = session_manager.create(
             "round-trip-project",
+            str(Path("/tmp/round-trip-project")),
             "round-trip-session",
             tags=["test"],
         )
@@ -99,17 +103,26 @@ class TestSessionManager:
         assert loaded.research_findings == ["important finding"]
 
     def test_get_latest_session(self, session_manager: SessionManager) -> None:
-        session_manager.create("proj", "first")
+        session_manager.create("proj", "/tmp/proj", "first")
         # Force a time gap so mtimes differ
         time.sleep(0.05)
-        s2 = session_manager.create("proj", "second")
+        s2 = session_manager.create("proj", "/tmp/proj", "second")
 
         latest = session_manager.get_latest_session()
         assert latest is not None
         assert latest.session_id == s2.session_id
 
+    def test_get_latest_session_prefers_exact_project_root(self, session_manager: SessionManager) -> None:
+        session_manager.create("proj", "/tmp/other", "other")
+        time.sleep(0.05)
+        exact = session_manager.create("proj", "/tmp/current", "current")
+
+        latest = session_manager.get_latest_session(project_name="proj", project_root="/tmp/current")
+        assert latest is not None
+        assert latest.session_id == exact.session_id
+
     def test_save_checkpoint_updates_timestamp(self, session_manager: SessionManager) -> None:
-        session = session_manager.create("proj", "ckpt-test")
+        session = session_manager.create("proj", "/tmp/proj", "ckpt-test")
         assert session.last_checkpoint_at is None
 
         session_manager.save_checkpoint("manual")
@@ -117,7 +130,7 @@ class TestSessionManager:
         assert session_manager.active_session.last_checkpoint_at is not None
 
     def test_save_checkpoint_interrupted_sets_status(self, session_manager: SessionManager) -> None:
-        session = session_manager.create("proj", "interrupt-test")
+        session = session_manager.create("proj", "/tmp/proj", "interrupt-test")
         assert session.status == "active"
 
         session_manager.save_checkpoint("interrupted")
@@ -125,9 +138,9 @@ class TestSessionManager:
         assert session_manager.active_session.status == "interrupted"
 
     def test_list_sessions(self, session_manager: SessionManager) -> None:
-        session_manager.create("proj", "s1")
+        session_manager.create("proj", "/tmp/proj", "s1")
         time.sleep(0.05)
-        session_manager.create("proj", "s2")
+        session_manager.create("proj", "/tmp/proj", "s2")
 
         sessions = session_manager.list_sessions()
         assert len(sessions) == 2
@@ -135,7 +148,7 @@ class TestSessionManager:
         assert sessions[0].session_name == "s2"
 
     def test_close_clears_active_session(self, session_manager: SessionManager) -> None:
-        session_manager.create("proj", "close-test")
+        session_manager.create("proj", "/tmp/proj", "close-test")
         assert session_manager.active_session is not None
 
         session_manager.close()
@@ -146,7 +159,7 @@ class TestSessionManager:
             session_manager.load("does-not-exist")
 
     def test_atomic_write_produces_valid_json(self, session_manager: SessionManager, tmp_path: Path) -> None:
-        session = session_manager.create("valid-json", "test")
+        session = session_manager.create("valid-json", str(tmp_path / "valid-json"), "test")
         path = tmp_path / "sessions" / f"{session.session_id}.json"
 
         # Should parse without error
@@ -154,14 +167,19 @@ class TestSessionManager:
         assert parsed["session_id"] == session.session_id
 
     def test_create_without_persist_defers_initial_write(self, session_manager: SessionManager, tmp_path: Path) -> None:
-        session = session_manager.create("deferred-project", "deferred-session", persist=False)
+        session = session_manager.create(
+            "deferred-project",
+            str(tmp_path / "deferred-project"),
+            "deferred-session",
+            persist=False,
+        )
 
         path = tmp_path / "sessions" / f"{session.session_id}.json"
         assert not path.exists()
         assert session_manager.active_session is not None
 
     def test_finalize_marks_session_paused(self, session_manager: SessionManager, tmp_path: Path) -> None:
-        session = session_manager.create("proj", "finalize-test", persist=False)
+        session = session_manager.create("proj", str(tmp_path / "proj"), "finalize-test", persist=False)
 
         session_manager.finalize("paused")
 
@@ -181,11 +199,13 @@ class TestSessionManager:
         stale = SessionState.new(
             session_id="stale001",
             project_name="project-alpha",
+            project_root=str(tmp_path / "project-alpha"),
             session_name="older-valid",
         )
         other = SessionState.new(
             session_id="other001",
             project_name="project-beta",
+            project_root=str(tmp_path / "project-beta"),
             session_name="newest-other-project",
         )
 
@@ -198,7 +218,7 @@ class TestSessionManager:
         time.sleep(0.05)
         broken_path.write_text("{not-valid-json", encoding="utf-8")
 
-        latest = session_manager.get_latest_session("project-alpha")
+        latest = session_manager.get_latest_session("project-alpha", str(tmp_path / "project-alpha"))
 
         assert latest is not None
         assert latest.session_id == "stale001"
@@ -207,6 +227,7 @@ class TestSessionManager:
         valid = SessionState.new(
             session_id="valid001",
             project_name="physics",
+            project_root=str(tmp_path / "physics"),
             session_name="valid-session",
         )
 
@@ -236,6 +257,7 @@ class TestSearchIndex:
         session = SessionState.new(
             session_id="search001",
             project_name="quantum-gravity",
+            project_root="/tmp/quantum-gravity",
             session_name="black-hole-sim",
             tags=["cosmology"],
         )
@@ -250,6 +272,7 @@ class TestSearchIndex:
         session = SessionState.new(
             session_id="nomatch001",
             project_name="optics",
+            project_root="/tmp/optics",
             session_name="laser-test",
         )
         search_index.index_session(session)
@@ -261,6 +284,7 @@ class TestSearchIndex:
         session = SessionState.new(
             session_id="search002",
             project_name="quantum-gravity",
+            project_root="/tmp/quantum-gravity",
             session_name="operator-test",
         )
         session.research_findings.append("discovered graviton emission pattern")
@@ -275,6 +299,7 @@ class TestSearchIndex:
         session = SessionState.new(
             session_id="search003",
             project_name="symbols",
+            project_root="/tmp/symbols",
             session_name="wildcards",
         )
         session.research_findings.append("100% stable _value output")
@@ -286,11 +311,13 @@ class TestSearchIndex:
         s1 = SessionState.new(
             session_id="struct001",
             project_name="thermo",
+            project_root="/tmp/thermo",
             session_name="heat-transfer",
         )
         s2 = SessionState.new(
             session_id="struct002",
             project_name="optics",
+            project_root="/tmp/optics",
             session_name="refraction",
         )
         s2.status = "completed"
@@ -316,6 +343,7 @@ class TestSearchIndex:
             session = SessionState.new(
                 session_id=f"rebuild{i:03d}",
                 project_name=f"project-{i}",
+                project_root=f"/tmp/project-{i}",
                 session_name=f"session-{i}",
             )
             (sessions_dir / f"rebuild{i:03d}.json").write_text(session.model_dump_json(indent=2))
@@ -334,11 +362,13 @@ class TestSearchIndex:
         stale = SessionState.new(
             session_id="stale001",
             project_name="stale-project",
+            project_root="/tmp/stale-project",
             session_name="old-session",
         )
         fresh = SessionState.new(
             session_id="fresh001",
             project_name="fresh-project",
+            project_root="/tmp/fresh-project",
             session_name="new-session",
         )
 
@@ -358,6 +388,7 @@ class TestSearchIndex:
         session = SessionState.new(
             session_id="reindex001",
             project_name="physics",
+            project_root="/tmp/physics",
             session_name="sim-1",
         )
         search_index.index_session(session)

@@ -175,7 +175,7 @@ class SubagentSDK:
 
             return await asyncio.wait_for(_run(), timeout=buffered_timeout)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Subagent timed out after %.1f buffered seconds (configured %.1f seconds)",
                 buffered_timeout,

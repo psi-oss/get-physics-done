@@ -73,7 +73,7 @@ def _launch_or_exit(session_manager: SessionManager, cwd: Path, *, raw_output: b
         raise typer.Exit(code=1) from None
 
     if exit_code == 0:
-        session_manager.finalize("paused")
+        session_manager.finalize("completed")
         return
 
     session_manager.finalize("interrupted")
@@ -134,7 +134,11 @@ def main(
 
         if resume or session_id:
             try:
-                loaded = session_manager.load(session_id) if session_id else session_manager.get_latest_session(project_name)
+                loaded = (
+                    session_manager.load(session_id)
+                    if session_id
+                    else session_manager.get_latest_session(project_name, str(working_dir))
+                )
             except FileNotFoundError:
                 _print_error(f"No session found with ID '{session_id}'.", raw_output=raw_output)
                 raise typer.Exit(code=1) from None
@@ -162,7 +166,7 @@ def main(
         mcp_count = get_cached_mcp_count()
         refresh_mcp_count_background()
 
-        latest = session_manager.get_latest_session(project_name)
+        latest = session_manager.get_latest_session(project_name, str(working_dir))
         session_summary = build_session_card(latest) if latest else None
 
         if not raw_output:
@@ -171,6 +175,7 @@ def main(
 
         session_manager.create(
             project_name=project_name,
+            project_root=str(working_dir),
             session_name=f"session-{datetime.now().strftime('%Y%m%d-%H%M')}",
             persist=False,
         )

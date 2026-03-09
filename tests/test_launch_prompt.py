@@ -9,7 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from gpd.mcp.launch import _build_auto_startup, _build_tool_catalog_summary, _build_work_dir_rules, _load_gpd_questioning
+from gpd.mcp.launch import (
+    _build_auto_startup,
+    _build_tool_catalog_summary,
+    _build_work_dir_rules,
+    _load_gpd_questioning,
+)
 
 # ---------------------------------------------------------------------------
 # _load_gpd_questioning tests

@@ -170,7 +170,9 @@ def _estimate_tool_call_cost(tool_name: str, tool_metadata: dict[str, object]) -
     gpu_type = str(tool_metadata.get("gpu_type", "CPU"))
     base_rate = MODAL_RATES_USD_PER_SECOND.get(gpu_type, MODAL_RATES_USD_PER_SECOND["CPU"])
     effective_rate = base_rate * REGIONAL_MULTIPLIER * NON_PREEMPTIBLE_MULTIPLIER
-    raw_seconds = _coerce_seconds(tool_metadata.get("estimated_seconds", tool_metadata.get("estimated_gpu_seconds", 30.0)))
+    raw_seconds = _coerce_seconds(
+        tool_metadata.get("estimated_seconds", tool_metadata.get("estimated_gpu_seconds", 30.0))
+    )
     estimated_seconds = raw_seconds + COLD_START_OVERHEAD_SECONDS
     confidence = "MEDIUM" if gpu_type in MODAL_RATES_USD_PER_SECOND else "LOW"
 
@@ -193,7 +195,11 @@ def _aggregate_cost_estimates(line_items: list[ToolCallCostEstimate]) -> CostEst
     total_cost = sum(line_item.estimated_cost_usd for line_item in line_items)
     gpu_types = {line_item.gpu_type or "CPU" for line_item in line_items}
     min_confidence_idx = min(
-        (CONFIDENCE_LEVELS.index(line_item.confidence) for line_item in line_items if line_item.confidence in CONFIDENCE_LEVELS),
+        (
+            CONFIDENCE_LEVELS.index(line_item.confidence)
+            for line_item in line_items
+            if line_item.confidence in CONFIDENCE_LEVELS
+        ),
         default=0,
     )
 
@@ -228,7 +234,9 @@ def _resolve_milestone_line_items(
                 for tool_name in tool_names
             ]
 
-        aggregate_label = milestone.tools[0] if len(milestone.tools) == 1 else "+".join(milestone.tools) or milestone.milestone_id
+        aggregate_label = (
+            milestone.tools[0] if len(milestone.tools) == 1 else "+".join(milestone.tools) or milestone.milestone_id
+        )
         return [_estimate_tool_call_cost(aggregate_label, direct_metadata)]
 
     milestone_entry = tool_metadata_registry.get(milestone.milestone_id)
@@ -248,7 +256,9 @@ def _resolve_milestone_line_items(
         ]
 
     if isinstance(milestone_entry, dict):
-        aggregate_label = milestone.tools[0] if len(milestone.tools) == 1 else "+".join(milestone.tools) or milestone.milestone_id
+        aggregate_label = (
+            milestone.tools[0] if len(milestone.tools) == 1 else "+".join(milestone.tools) or milestone.milestone_id
+        )
         return [_estimate_tool_call_cost(aggregate_label, milestone_entry)]
 
     if milestone.tools:
@@ -267,4 +277,6 @@ def _looks_like_cost_metadata(raw_metadata: object) -> bool:
     if not isinstance(raw_metadata, dict):
         return False
 
-    return any(key in raw_metadata for key in ("gpu_type", "estimated_seconds", "estimated_gpu_seconds", "tool_estimates"))
+    return any(
+        key in raw_metadata for key in ("gpu_type", "estimated_seconds", "estimated_gpu_seconds", "tool_estimates")
+    )

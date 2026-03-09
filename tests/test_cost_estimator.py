@@ -10,6 +10,7 @@ from gpd.mcp.research.cost_estimator import (
     estimate_milestone_cost,
     estimate_plan_cost,
     format_cost_display,
+    format_three_level_cost_display,
 )
 from gpd.mcp.research.schemas import (
     CostEstimate,
@@ -95,6 +96,29 @@ class TestEstimateMilestoneCost:
         # Default 30s + cold start
         assert estimate.estimated_seconds == 30.0 + COLD_START_OVERHEAD_SECONDS
 
+    def test_multi_tool_milestone_uses_per_tool_metadata(self) -> None:
+        milestone = _make_milestone("m1")
+        milestone.tools = ["solver", "analysis"]
+        registry: dict[str, object] = {
+            "solver": {"gpu_type": "A10G", "estimated_seconds": 30.0},
+            "analysis": {"gpu_type": "CPU", "estimated_seconds": 10.0},
+        }
+
+        estimate = estimate_milestone_cost(milestone, registry)
+
+        solver_expected = estimate_milestone_cost(_make_milestone("tmp"), registry["solver"])
+        analysis_expected = estimate_milestone_cost(_make_milestone("tmp"), registry["analysis"])
+
+        assert len(estimate.tool_call_estimates) == 2
+        assert (
+            abs(
+                estimate.estimated_cost_usd
+                - (solver_expected.estimated_cost_usd + analysis_expected.estimated_cost_usd)
+            )
+            < 1e-9
+        )
+        assert estimate.gpu_type == "mixed"
+
 
 class TestEstimatePlanCost:
     """Test estimate_plan_cost aggregation across milestones."""
@@ -139,6 +163,7 @@ class TestEstimatePlanCost:
         expected_total = m1_cost.estimated_cost_usd + m2_cost.estimated_cost_usd
         assert abs(total.estimated_cost_usd - expected_total) < 1e-9
         assert total.gpu_type == "mixed"
+        assert abs(total.rate_per_second - (total.estimated_cost_usd / total.estimated_seconds)) < 1e-9
 
     def test_min_confidence_propagated(self) -> None:
         milestones = [
@@ -187,6 +212,25 @@ class TestEstimatePlanCost:
         assert plan.milestones[0].cost_estimate.gpu_type == "T4"
         assert plan.milestones[0].cost_estimate.estimated_cost_usd > 0
 
+    def test_multi_tool_plan_uses_tool_name_registry(self) -> None:
+        milestone = _make_milestone("m1")
+        milestone.tools = ["solver", "analysis"]
+        plan = ResearchPlan(
+            plan_id="test",
+            query="test query",
+            milestones=[milestone],
+            reasoning="test",
+        )
+        registry: dict[str, dict[str, object]] = {
+            "solver": {"gpu_type": "A10G", "estimated_seconds": 30.0},
+            "analysis": {"gpu_type": "CPU", "estimated_seconds": 10.0},
+        }
+
+        total = estimate_plan_cost(plan, registry)
+
+        assert len(plan.milestones[0].cost_estimate.tool_call_estimates) == 2
+        assert total.estimated_cost_usd == plan.milestones[0].cost_estimate.estimated_cost_usd
+
 
 class TestFormatCostDisplay:
     """Test format_cost_display output formatting."""
@@ -225,3 +269,30 @@ class TestFormatCostDisplay:
         # Should show range: $0.70-$1.50
         assert "$0.70" in display
         assert "$1.50" in display
+
+
+class TestThreeLevelCostDisplay:
+    """Test the structured cost breakdown output."""
+
+    def test_uses_actual_tool_call_estimates_and_shared_range_policy(self) -> None:
+        milestone = _make_milestone("m1")
+        milestone.tools = ["solver", "analysis"]
+        plan = ResearchPlan(
+            plan_id="test",
+            query="test query",
+            milestones=[milestone],
+            reasoning="test",
+        )
+        registry: dict[str, dict[str, object]] = {
+            "solver": {"gpu_type": "A10G", "estimated_seconds": 30.0},
+            "analysis": {"gpu_type": "CPU", "estimated_seconds": 10.0},
+        }
+        plan.total_cost_estimate = estimate_plan_cost(plan, registry)
+
+        breakdown = format_three_level_cost_display(plan)
+
+        tool_calls = breakdown["milestones"][0]["tool_calls"]
+        assert [tool_call["tool"] for tool_call in tool_calls] == ["solver", "analysis"]
+
+        low, high = plan.total_cost_estimate.estimated_cost_range
+        assert breakdown["plan_total"]["cost_range"] == [low, high]

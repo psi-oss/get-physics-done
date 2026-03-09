@@ -123,6 +123,23 @@ class TestSimplifyMilestone:
         result = await simplify_milestone(milestone, planner_agent=mock_agent)
         assert result is None
 
+    async def test_returns_none_when_tools_change(self) -> None:
+        milestone = _make_milestone()
+        changed_tools = ResearchMilestone(
+            milestone_id="ms-1",
+            description="Simplified test milestone ms-1",
+            tools=["different_tool"],
+            expected_outputs=["reduced output"],
+        )
+
+        mock_agent = MagicMock()
+        mock_result = MagicMock()
+        mock_result.output = changed_tools
+        mock_agent.run = AsyncMock(return_value=mock_result)
+
+        result = await simplify_milestone(milestone, planner_agent=mock_agent)
+        assert result is None
+
 
 class TestFindSubstituteTool:
     """Test find_substitute_tool returns substitute or None."""
@@ -183,6 +200,24 @@ class TestFindSubstituteTool:
             MockAgent.return_value = mock_instance
 
             result = await find_substitute_tool(milestone, [])
+            assert result is None
+
+    async def test_returns_none_when_substitute_not_in_available_catalog(self) -> None:
+        milestone = _make_milestone(tools=["broken_tool"])
+        invalid_substitute = ResearchMilestone(
+            milestone_id="ms-1",
+            description="Test milestone ms-1",
+            tools=["invented_tool"],
+        )
+
+        with patch("gpd.mcp.research.error_recovery.Agent") as MockAgent:
+            mock_instance = MagicMock()
+            mock_result = MagicMock()
+            mock_result.output = invalid_substitute
+            mock_instance.run = AsyncMock(return_value=mock_result)
+            MockAgent.return_value = mock_instance
+
+            result = await find_substitute_tool(milestone, [{"name": "alt_tool", "description": "valid"}])
             assert result is None
 
 
@@ -248,6 +283,38 @@ class TestExecuteMilestoneWithRecovery:
             assert not result.is_error
             assert "simplified" in result.result_summary.lower()
 
+    async def test_simplify_fallback_uses_updated_execution_inputs(self) -> None:
+        milestone = _make_milestone(max_retries=0)
+        simplified = ResearchMilestone(
+            milestone_id="ms-1",
+            description="Simplified milestone description",
+            tools=["tool_a"],
+            expected_outputs=["reduced output"],
+            success_criteria="Coarse result is produced",
+        )
+
+        seen_arguments: list[dict[str, object]] = []
+        call_count = 0
+
+        async def staged_router(tool_name, args):
+            nonlocal call_count
+            call_count += 1
+            seen_arguments.append(args)
+            if call_count == 1:
+                raise TimeoutError("original fails")
+            return {"data": "simplified_ok"}
+
+        with patch("gpd.mcp.research.error_recovery.simplify_milestone", new_callable=AsyncMock) as mock_simplify:
+            mock_simplify.return_value = simplified
+
+            result = await execute_milestone_with_recovery(milestone, {}, staged_router)
+
+        assert not result.is_error
+        assert seen_arguments[-1]["description"] == "Simplified milestone description"
+        assert seen_arguments[-1]["expected_outputs"] == ["reduced output"]
+        assert seen_arguments[-1]["success_criteria"] == "Coarse result is produced"
+        assert seen_arguments[-1]["recovery_strategy"] == "simplified"
+
     async def test_substitute_fallback(self) -> None:
         """Retries fail, simplify returns None, substitute succeeds."""
         milestone = _make_milestone(max_retries=0)
@@ -297,6 +364,22 @@ class TestExecuteMilestoneWithRecovery:
             assert result.error_type == "all_recovery_exhausted"
             assert result.attempt_count >= 1
 
+    async def test_skipped_tool_outputs_do_not_report_success(self) -> None:
+        milestone = _make_milestone(max_retries=0)
+
+        with (
+            patch("gpd.mcp.research.error_recovery.simplify_milestone", new_callable=AsyncMock) as mock_simplify,
+            patch("gpd.mcp.research.error_recovery.find_substitute_tool", new_callable=AsyncMock) as mock_substitute,
+        ):
+            mock_simplify.return_value = None
+            mock_substitute.return_value = None
+
+            result = await execute_milestone_with_recovery(milestone, {}, None)
+
+        assert result.is_error
+        assert result.error_type == "all_recovery_exhausted"
+        assert "skipped" in result.error_message.lower()
+
     async def test_dashboard_callback_called(self) -> None:
         """Verify dashboard_callback fires at each recovery phase with consistent 3-arg signature."""
         milestone = _make_milestone(max_retries=0)
@@ -322,12 +405,10 @@ class TestExecuteMilestoneWithRecovery:
             # All calls must use uniform 3-arg signature: (phase, milestone, info_dict)
             for call in callback.call_args_list:
                 assert len(call.args) == 3, (
-                    f"dashboard_callback called with {len(call.args)} args "
-                    f"(expected 3) for phase '{call.args[0]}'"
+                    f"dashboard_callback called with {len(call.args)} args (expected 3) for phase '{call.args[0]}'"
                 )
                 assert isinstance(call.args[2], dict), (
-                    f"third arg must be a dict, got {type(call.args[2]).__name__} "
-                    f"for phase '{call.args[0]}'"
+                    f"third arg must be a dict, got {type(call.args[2]).__name__} for phase '{call.args[0]}'"
                 )
 
     async def test_non_critical_milestone_failure_returns_skippable_result(self) -> None:

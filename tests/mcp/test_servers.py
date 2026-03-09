@@ -507,6 +507,15 @@ class TestSkillsServer:
             "Canonical plan command.\n",
             encoding="utf-8",
         )
+        (commands_dir / "help.md").write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Show available commands.\n"
+            "---\n"
+            "\n"
+            "Canonical help command.\n",
+            encoding="utf-8",
+        )
 
         stale_exec = specs_skills_dir / "gpd-execute-phase"
         stale_exec.mkdir()
@@ -553,11 +562,12 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
-        assert result["count"] == 3
+        assert result["count"] == 4
         names = {s["name"] for s in result["skills"]}
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
         assert "gpd-debugger" in names
+        assert "gpd-help" in names
 
     def test_list_skills_by_category(self):
         from gpd.mcp.servers.skills_server import list_skills
@@ -611,7 +621,7 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill_index
 
         result = get_skill_index()
-        assert result["total_skills"] == 3
+        assert result["total_skills"] == 4
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
 

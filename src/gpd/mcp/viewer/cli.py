@@ -40,7 +40,7 @@ def _get_host(host: str) -> str:
 
 
 def _exit_with_error(message: str) -> None:
-    console.print(message, style="red", highlight=False)
+    console.print(message, style="red", highlight=False, markup=False)
     raise typer.Exit(code=1)
 
 

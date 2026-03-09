@@ -9,6 +9,7 @@ import pytest
 from rich.console import Console
 
 from gpd.mcp.research.planner import (
+    PlanValidationError,
     ResearchPlanner,
     display_plan,
     display_plan_evolution,
@@ -181,6 +182,76 @@ class TestResearchPlannerGeneratePlan:
 
     @pytest.mark.asyncio
     @patch("gpd.mcp.research.planner.Agent")
+    async def test_generate_plan_revalidates_tools_after_dag_retry(self, _mock_agent_cls: MagicMock) -> None:
+        planner = ResearchPlanner()
+
+        cyclic_plan = ResearchPlan(
+            plan_id="bad",
+            query="Test",
+            milestones=[
+                ResearchMilestone(milestone_id="m1", description="step 1", depends_on=["m2"], tools=["analysis"]),
+                ResearchMilestone(milestone_id="m2", description="step 2", depends_on=["m1"], tools=["analysis"]),
+            ],
+            reasoning="Bad DAG",
+        )
+        invalid_tool_plan = ResearchPlan(
+            plan_id="bad-tools",
+            query="Test",
+            milestones=[
+                ResearchMilestone(milestone_id="m1", description="step 1", tools=["invented_tool"]),
+            ],
+            reasoning="Bad tools",
+        )
+        valid_plan = _make_test_plan()
+
+        with patch.object(planner._plan_agent, "run", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [
+                _make_mock_agent_result(cyclic_plan),
+                _make_mock_agent_result(invalid_tool_plan),
+                _make_mock_agent_result(valid_plan),
+            ]
+
+            result = await planner.generate_plan(
+                query="Test",
+                available_tools=[
+                    {"name": "openfoam", "description": "CFD solver"},
+                    {"name": "materials_db", "description": "Materials database"},
+                    {"name": "analysis", "description": "Analysis toolkit"},
+                ],
+                tool_metadata_registry={},
+            )
+
+        assert mock_run.call_count == 3
+        assert result.validate_no_cycles() == []
+        assert result.validate_tool_references({"openfoam", "materials_db", "analysis"}) == []
+
+    @pytest.mark.asyncio
+    @patch("gpd.mcp.research.planner.Agent")
+    async def test_generate_plan_raises_after_repeated_invalid_tools(self, _mock_agent_cls: MagicMock) -> None:
+        planner = ResearchPlanner()
+        invalid_tool_plan = ResearchPlan(
+            plan_id="bad-tools",
+            query="Test",
+            milestones=[
+                ResearchMilestone(milestone_id="m1", description="step 1", tools=["invented_tool"]),
+            ],
+            reasoning="Bad tools",
+        )
+
+        with patch.object(planner._plan_agent, "run", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [_make_mock_agent_result(invalid_tool_plan)] * 3
+
+            with pytest.raises(PlanValidationError):
+                await planner.generate_plan(
+                    query="Test",
+                    available_tools=[{"name": "analysis", "description": "Analysis toolkit"}],
+                    tool_metadata_registry={},
+                )
+
+        assert mock_run.call_count == 3
+
+    @pytest.mark.asyncio
+    @patch("gpd.mcp.research.planner.Agent")
     async def test_generate_plan_sets_default_approval_gates(self, _mock_agent_cls: MagicMock) -> None:
         planner = ResearchPlanner()
         test_plan = _make_test_plan()
@@ -311,6 +382,68 @@ class TestResearchPlannerEvolvePlan:
         # New milestone should get SUGGESTED gate
         new_m = next(m for m in result.milestones if m.milestone_id == "m_new")
         assert new_m.approval_gate == ApprovalGate.SUGGESTED
+
+    @pytest.mark.asyncio
+    @patch("gpd.mcp.research.planner.Agent")
+    async def test_evolve_plan_revalidates_after_invalid_tool_output(self, _mock_agent_cls: MagicMock) -> None:
+        planner = ResearchPlanner()
+        original_plan = _make_test_plan()
+        invalid_tool_plan = _make_test_plan(
+            milestones=[
+                ResearchMilestone(
+                    milestone_id="m1",
+                    description="step 1",
+                    tools=["invented_tool"],
+                ),
+            ]
+        )
+
+        with patch.object(planner._evolution_agent, "run", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [
+                _make_mock_agent_result(invalid_tool_plan),
+                _make_mock_agent_result(_make_test_plan()),
+            ]
+
+            result, _ = await planner.evolve_plan(
+                plan=original_plan,
+                completed_results={},
+                latest_milestone_id="m1",
+                tool_metadata_registry={},
+            )
+
+        assert mock_run.call_count == 2
+        assert result.validate_tool_references({"materials_db", "openfoam", "analysis"}) == []
+
+    @pytest.mark.asyncio
+    @patch("gpd.mcp.research.planner.Agent")
+    async def test_evolve_plan_revalidates_dag(self, _mock_agent_cls: MagicMock) -> None:
+        planner = ResearchPlanner()
+        original_plan = _make_test_plan()
+        cyclic_plan = ResearchPlan(
+            plan_id="bad",
+            query="Test",
+            milestones=[
+                ResearchMilestone(milestone_id="m1", description="step 1", depends_on=["m2"], tools=["materials_db"]),
+                ResearchMilestone(milestone_id="m2", description="step 2", depends_on=["m1"], tools=["analysis"]),
+            ],
+            reasoning="Bad DAG",
+        )
+
+        with patch.object(planner._evolution_agent, "run", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [
+                _make_mock_agent_result(cyclic_plan),
+                _make_mock_agent_result(_make_test_plan()),
+            ]
+
+            result, _ = await planner.evolve_plan(
+                plan=original_plan,
+                completed_results={},
+                latest_milestone_id="m1",
+                tool_metadata_registry={},
+            )
+
+        assert mock_run.call_count == 2
+        assert result.validate_no_cycles() == []
 
 
 class TestDisplayPlan:
