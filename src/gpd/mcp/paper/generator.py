@@ -198,7 +198,10 @@ async def generate_paper(
     base_model, model_settings = resolve_model_and_settings(model)
 
     # Build citation key list for context
-    cite_keys = [f"{c.authors[0].split()[-1] if c.authors else 'unknown'}{c.year}" for c in citations]
+    cite_keys = [
+        f"{(c.authors[0].split()[-1] if c.authors[0].strip() else 'unknown') if c.authors else 'unknown'}{c.year}"
+        for c in citations
+    ]
     fig_labels = [f.label for f in figures]
 
     # 1. Plan sections

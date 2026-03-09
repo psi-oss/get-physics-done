@@ -501,14 +501,7 @@ class TestVerifyArtifacts:
 
         (tmp_path / "data.csv").write_text("a\nb\nc\n")
         f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  artifacts:\n"
-            "    - path: data.csv\n"
-            "      min_lines: 2\n"
-            "---\n\nBody.\n"
-        )
+        content = "---\nmust_haves:\n  artifacts:\n    - path: data.csv\n      min_lines: 2\n---\n\nBody.\n"
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
@@ -518,14 +511,7 @@ class TestVerifyArtifacts:
 
         (tmp_path / "data.csv").write_text("a\n")
         f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  artifacts:\n"
-            "    - path: data.csv\n"
-            "      min_lines: 100\n"
-            "---\n\nBody.\n"
-        )
+        content = "---\nmust_haves:\n  artifacts:\n    - path: data.csv\n      min_lines: 100\n---\n\nBody.\n"
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
@@ -536,14 +522,7 @@ class TestVerifyArtifacts:
 
         (tmp_path / "output.py").write_text("def main():\n    pass\n")
         f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  artifacts:\n"
-            "    - path: output.py\n"
-            "      contains: def main\n"
-            "---\n\nBody.\n"
-        )
+        content = "---\nmust_haves:\n  artifacts:\n    - path: output.py\n      contains: def main\n---\n\nBody.\n"
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
@@ -596,14 +575,7 @@ class TestVerifyKeyLinks:
         (tmp_path / "source.py").write_text("import target_module  # see target.py\n")
         (tmp_path / "target.py").write_text("# target\n")
         f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  key_links:\n"
-            "    - from: source.py\n"
-            "      to: target.py\n"
-            "---\n\nBody.\n"
-        )
+        content = "---\nmust_haves:\n  key_links:\n    - from: source.py\n      to: target.py\n---\n\nBody.\n"
         f.write_text(content)
         result = verify_key_links(tmp_path, f)
         assert result.all_verified is True
@@ -652,13 +624,7 @@ class TestVerifyKeyLinks:
         from gpd.core.frontmatter import verify_key_links
 
         f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  key_links:\n"
-            "    - from: source.py\n"
-            "---\n\nBody.\n"
-        )
+        content = "---\nmust_haves:\n  key_links:\n    - from: source.py\n---\n\nBody.\n"
         f.write_text(content)
         result = verify_key_links(tmp_path, f)
         assert result.all_verified is False

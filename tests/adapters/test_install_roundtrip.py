@@ -504,7 +504,6 @@ class TestSerializationRoundtrip:
         content = cmd.read_text(encoding="utf-8")
         assert "Help body" in content
 
-
     def test_nested_command_survives_all_runtimes(self, gpd_root: Path, tmp_path: Path) -> None:
         """The nested sub/deep.md command is reachable in every runtime."""
         # Claude Code: commands/gpd/sub/deep.md

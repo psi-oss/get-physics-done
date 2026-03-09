@@ -47,25 +47,15 @@ def gpd_project(tmp_path: Path) -> Path:
         "metrics": [],
     }
     (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text(
-        "# State\n\n## Current Phase\n1\n\n## Decisions\n\n## Blockers\n"
-    )
-    (planning / "PROJECT.md").write_text(
-        "# Test Project\n\n## Core Research Question\nWhat is physics?\n"
-    )
-    (planning / "REQUIREMENTS.md").write_text(
-        "# Requirements\n\n- [ ] **REQ-01**: Do the thing\n"
-    )
+    (planning / "STATE.md").write_text("# State\n\n## Current Phase\n1\n\n## Decisions\n\n## Blockers\n")
+    (planning / "PROJECT.md").write_text("# Test Project\n\n## Core Research Question\nWhat is physics?\n")
+    (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- [ ] **REQ-01**: Do the thing\n")
     (planning / "ROADMAP.md").write_text(
         "# Roadmap\n\n## Phase 1: Test Phase\nGoal: Test\nRequirements: REQ-01\n"
         "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n"
     )
-    (planning / "CONVENTIONS.md").write_text(
-        "# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n"
-    )
-    (planning / "config.json").write_text(
-        json.dumps({"mode": "yolo", "depth": "standard"})
-    )
+    (planning / "CONVENTIONS.md").write_text("# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n")
+    (planning / "config.json").write_text(json.dumps({"mode": "yolo", "depth": "standard"}))
 
     # Phase directories
     p1 = planning / "phases" / "01-test-phase"

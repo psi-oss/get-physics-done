@@ -394,7 +394,9 @@ class TestCommandMergeBehavior:
         assert result["debug"].description == "from primary"
         assert result["debug"].source == "commands"
 
-    def test_primary_command_removes_gpd_prefixed_spec_skill(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_primary_command_removes_gpd_prefixed_spec_skill(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Primary commands/debug.md should evict specs/skills/gpd-debug/ from the registry.
 
         Real-world layout: specs/skills/ uses gpd-prefixed dir names (gpd-debug/)
@@ -426,7 +428,9 @@ class TestCommandMergeBehavior:
         assert result["debug"].source == "commands"
         assert len(result) == 1
 
-    def test_gpd_prefixed_spec_skill_kept_when_no_primary(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_gpd_prefixed_spec_skill_kept_when_no_primary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """specs/skills/gpd-health/ should remain when no commands/health.md exists."""
         specs_dir = tmp_path / "specs" / "skills"
         specs_dir.mkdir(parents=True)

@@ -513,7 +513,12 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and ("gpd-check-update" in h["command"] or "check_update" in h["command"] or "gpd-statusline" in h["command"] or "statusline.py" in h["command"])
+        and (
+            "gpd-check-update" in h["command"]
+            or "check_update" in h["command"]
+            or "gpd-statusline" in h["command"]
+            or "statusline.py" in h["command"]
+        )
         for h in entry_hooks
     )
 

@@ -442,7 +442,9 @@ _ALL_SPECS: list[ModelSpec] = [
     _openai_spec("gpt-5.2", frozenset({"none", "low", "medium", "high", "xhigh"}), aliases=("gpt-5.2",)),
     _openai_spec("gpt-5.4", frozenset({"none", "low", "medium", "high", "xhigh"}), aliases=("gpt-5.4",)),
     _openai_spec("gpt-5-mini", frozenset({"minimal", "low", "medium", "high"}), aliases=("gpt-5-mini",)),
-    _openai_spec("gpt-5-nano", frozenset({"minimal", "low", "medium", "high"}), supports_web=False, aliases=("gpt-5-nano",)),
+    _openai_spec(
+        "gpt-5-nano", frozenset({"minimal", "low", "medium", "high"}), supports_web=False, aliases=("gpt-5-nano",)
+    ),
     _openai_spec("gpt-5-pro", frozenset({"high"}), supports_code=False, aliases=("gpt-5-pro",)),
     _openai_spec("gpt-5.4-pro", frozenset({"medium", "high", "xhigh"}), supports_code=False, aliases=("gpt-5.4-pro",)),
     _openai_spec("gpt-4o", frozenset({"none"}), aliases=("gpt-4o",)),
@@ -463,13 +465,27 @@ _ALL_SPECS: list[ModelSpec] = [
     _openai_spec("o3-mini", frozenset({"low", "medium", "high"})),
     _openai_spec("o1", frozenset({"low", "medium", "high"})),
     # Google — Gemini 2.5 (budget-based)
-    _google_budget_spec("gemini-2.5-pro", {"minimal": 128, "low": 4096, "medium": 16384, "high": 32768}, aliases=("gemini-2.5-pro",)),
-    _google_budget_spec("gemini-2.5-flash", {"none": 0, "minimal": 128, "low": 4096, "medium": 16384, "high": 24576}, aliases=("gemini-2.5-flash",)),
-    _google_budget_spec("gemini-2.5-flash-lite", {"none": 0, "minimal": 512, "low": 4096, "medium": 16384, "high": 24576}),
+    _google_budget_spec(
+        "gemini-2.5-pro", {"minimal": 128, "low": 4096, "medium": 16384, "high": 32768}, aliases=("gemini-2.5-pro",)
+    ),
+    _google_budget_spec(
+        "gemini-2.5-flash",
+        {"none": 0, "minimal": 128, "low": 4096, "medium": 16384, "high": 24576},
+        aliases=("gemini-2.5-flash",),
+    ),
+    _google_budget_spec(
+        "gemini-2.5-flash-lite", {"none": 0, "minimal": 512, "low": 4096, "medium": 16384, "high": 24576}
+    ),
     # Google — Gemini 3+ (level-based)
     _google_level_spec("gemini-3-pro-preview", {"low": "low", "high": "high"}, aliases=("gemini-3-pro",)),
-    _google_level_spec("gemini-3-flash-preview", {"minimal": "minimal", "low": "low", "medium": "medium", "high": "high"}, aliases=("gemini-3-flash",)),
-    _google_level_spec("gemini-3.1-pro-preview", {"low": "low", "medium": "medium", "high": "high"}, aliases=("gemini-3.1-pro",)),
+    _google_level_spec(
+        "gemini-3-flash-preview",
+        {"minimal": "minimal", "low": "low", "medium": "medium", "high": "high"},
+        aliases=("gemini-3-flash",),
+    ),
+    _google_level_spec(
+        "gemini-3.1-pro-preview", {"low": "low", "medium": "medium", "high": "high"}, aliases=("gemini-3.1-pro",)
+    ),
     # xAI — suppressed effort
     _suppressed_spec("grok-4", "xai", canonical_effort="high", aliases=("grok-4",)),
     _suppressed_spec("grok-4-fast", "xai", canonical_effort="high", aliases=("grok-4-fast",)),
@@ -484,14 +500,50 @@ _ALL_SPECS: list[ModelSpec] = [
     _suppressed_spec("grok-3-fast", "xai", canonical_effort="none"),
     _suppressed_spec("grok-3", "xai", canonical_effort="none"),
     # DeepSeek — suppressed effort
-    _suppressed_spec("deepseek-reasoner", "deepseek", canonical_effort="high", max_output_tokens=64_000, aliases=("deepseek-r1",)),
-    _suppressed_spec("deepseek-chat", "deepseek", canonical_effort="none", max_output_tokens=8_000, aliases=("deepseek-chat",)),
+    _suppressed_spec(
+        "deepseek-reasoner", "deepseek", canonical_effort="high", max_output_tokens=64_000, aliases=("deepseek-r1",)
+    ),
+    _suppressed_spec(
+        "deepseek-chat", "deepseek", canonical_effort="none", max_output_tokens=8_000, aliases=("deepseek-chat",)
+    ),
     # Moonshot — suppressed effort
-    _suppressed_spec("kimi-k2.5", "moonshotai", canonical_effort="high", max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS, aliases=("kimi-k2.5",), pricing_fallback=("openrouter", "moonshotai/kimi-k2.5")),
-    _suppressed_spec("kimi-k2-thinking", "moonshotai", canonical_effort="high", max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS, pricing_fallback=("groq", "moonshotai/kimi-k2-thinking")),
-    _suppressed_spec("kimi-k2-0905", "moonshotai", canonical_effort="none", max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS, pricing_fallback=("groq", "moonshotai/kimi-k2-instruct")),
-    _suppressed_spec("kimi-k2-instruct", "moonshotai", canonical_effort="none", max_output_tokens=MOONSHOT_128K_CONTEXT_TOKENS, pricing_fallback=("groq", "moonshotai/kimi-k2-instruct")),
-    _suppressed_spec("kimi-k2-0711-preview", "moonshotai", canonical_effort="none", max_output_tokens=MOONSHOT_128K_CONTEXT_TOKENS, aliases=("kimi-k2",), pricing_fallback=("groq", "moonshotai/kimi-k2-instruct")),
+    _suppressed_spec(
+        "kimi-k2.5",
+        "moonshotai",
+        canonical_effort="high",
+        max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS,
+        aliases=("kimi-k2.5",),
+        pricing_fallback=("openrouter", "moonshotai/kimi-k2.5"),
+    ),
+    _suppressed_spec(
+        "kimi-k2-thinking",
+        "moonshotai",
+        canonical_effort="high",
+        max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS,
+        pricing_fallback=("groq", "moonshotai/kimi-k2-thinking"),
+    ),
+    _suppressed_spec(
+        "kimi-k2-0905",
+        "moonshotai",
+        canonical_effort="none",
+        max_output_tokens=MOONSHOT_256K_CONTEXT_TOKENS,
+        pricing_fallback=("groq", "moonshotai/kimi-k2-instruct"),
+    ),
+    _suppressed_spec(
+        "kimi-k2-instruct",
+        "moonshotai",
+        canonical_effort="none",
+        max_output_tokens=MOONSHOT_128K_CONTEXT_TOKENS,
+        pricing_fallback=("groq", "moonshotai/kimi-k2-instruct"),
+    ),
+    _suppressed_spec(
+        "kimi-k2-0711-preview",
+        "moonshotai",
+        canonical_effort="none",
+        max_output_tokens=MOONSHOT_128K_CONTEXT_TOKENS,
+        aliases=("kimi-k2",),
+        pricing_fallback=("groq", "moonshotai/kimi-k2-instruct"),
+    ),
 ]
 
 # =============================================================================

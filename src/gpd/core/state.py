@@ -135,7 +135,7 @@ class Position(BaseModel):
     status: str | None = None
     last_activity: str | None = None
     last_activity_desc: str | None = None
-    progress_percent: int = 0
+    progress_percent: int | None = 0
     paused_at: str | None = None
 
 
@@ -696,37 +696,49 @@ def parse_state_md(content: str) -> dict:
     }
 
 
+def _strip_placeholder(value: str | None) -> str | None:
+    """Return None if *value* is a markdown placeholder (EM_DASH, '[Not set]', literal 'None')."""
+    if value is None:
+        return None
+    if value in ("\u2014", "[Not set]", "None"):
+        return None
+    return value
+
+
 def parse_state_to_json(content: str) -> dict:
     """Parse STATE.md content into JSON-sidecar format."""
     parsed = parse_state_md(content)
 
     session: dict = {}
-    if parsed["session"]["last_date"]:
-        session["last_session"] = parsed["session"]["last_date"]
-        session["last_date"] = parsed["session"]["last_date"]
-    if parsed["session"]["stopped_at"]:
-        session["stopped_at"] = parsed["session"]["stopped_at"]
-    if parsed["session"]["resume_file"]:
-        session["resume_file"] = parsed["session"]["resume_file"]
+    last_date = _strip_placeholder(parsed["session"]["last_date"])
+    stopped_at = _strip_placeholder(parsed["session"]["stopped_at"])
+    resume_file = _strip_placeholder(parsed["session"]["resume_file"])
+    if last_date:
+        session["last_session"] = last_date
+        session["last_date"] = last_date
+    if stopped_at:
+        session["stopped_at"] = stopped_at
+    if resume_file:
+        session["resume_file"] = resume_file
 
     return {
         "_version": 1,
         "_synced_at": datetime.now(tz=UTC).isoformat(),
         "project": {
-            "core_question": parsed["project"]["core_question"],
-            "current_focus": parsed["project"]["current_focus"],
+            "core_question": _strip_placeholder(parsed["project"]["core_question"]),
+            "current_focus": _strip_placeholder(parsed["project"]["current_focus"]),
         },
         "position": {
-            "current_phase": parsed["position"]["current_phase"],
-            "current_phase_name": parsed["position"]["current_phase_name"],
+            "current_phase": _strip_placeholder(parsed["position"]["current_phase"]),
+            "current_phase_name": _strip_placeholder(parsed["position"]["current_phase_name"]),
             "total_phases": parsed["position"]["total_phases"],
-            "current_plan": parsed["position"]["current_plan"],
+            "current_plan": _strip_placeholder(parsed["position"]["current_plan"]),
             "total_plans_in_phase": parsed["position"]["total_plans_in_phase"],
-            "status": parsed["position"]["status"],
-            "last_activity": parsed["position"]["last_activity"],
-            "last_activity_desc": parsed["position"]["last_activity_desc"],
+            "status": _strip_placeholder(parsed["position"]["status"]),
+            "last_activity": _strip_placeholder(parsed["position"]["last_activity"]),
+            "last_activity_desc": _strip_placeholder(parsed["position"]["last_activity_desc"]),
             "progress": parsed["position"]["progress_raw"],
-            "paused_at": parsed["position"]["paused_at"],
+            "paused_at": _strip_placeholder(parsed["position"]["paused_at"]),
         },
         "session": session,
         "decisions": parsed["decisions"],
@@ -1162,9 +1174,13 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
                     merged["position"]["progress_percent"] = int(m.group(1))
                     merged["position"].pop("progress", None)
 
-        # Merge session
+        # Merge session (filter out placeholder values)
         if parsed.get("session") and parsed["session"]:
-            merged["session"] = {**(merged.get("session") or {}), **parsed["session"]}
+            filtered_session = {
+                k: v for k, v in parsed["session"].items() if v is not None and v != EM_DASH
+            }
+            if filtered_session:
+                merged["session"] = {**(merged.get("session") or {}), **filtered_session}
 
         # Replace decisions and blockers (fully represented in markdown)
         if parsed.get("decisions") is not None:
@@ -2082,7 +2098,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
                     dec_segs[0] = str(max(1, first_seg - 1))
                     keep_phase_min = ".".join(dec_segs)
                     met_segs = list(segs)
-                    met_segs[0] = str(first_seg - 1)
+                    met_segs[0] = str(max(0, first_seg - 1))
                     metrics_phase_min = ".".join(met_segs)
                 except ValueError:
                     pass

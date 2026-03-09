@@ -184,7 +184,7 @@ def check_state_validity(cwd: Path) -> HealthCheck:
             phase = str(state_obj["position"]["current_phase"])
             if not re.match(r"^\d{2}(\.\d+)*$", phase):
                 warnings.append(f'phase ID format: "{phase}" -- expected zero-padded')
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError, AttributeError, KeyError, TypeError):
         pass
 
     details: dict[str, object] = {"has_json": layout.state_json.exists(), "has_md": layout.state_md.exists()}

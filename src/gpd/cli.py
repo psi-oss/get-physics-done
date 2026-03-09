@@ -543,7 +543,17 @@ def result_add(
 
     deps = depends_on.split(",") if depends_on else []
     state = _load_state_dict()
-    res = result_add(state, result_id=id, equation=equation, description=description, units=units, validity=validity, phase=phase, depends_on=deps, verified=verified)
+    res = result_add(
+        state,
+        result_id=id,
+        equation=equation,
+        description=description,
+        units=units,
+        validity=validity,
+        phase=phase,
+        depends_on=deps,
+        verified=verified,
+    )
     _save_state_dict(state)
     _output(res)
 
@@ -1735,8 +1745,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 def install(
     runtimes: list[str] | None = typer.Argument(
         None,
-        help="Runtime(s) to install (claude-code, codex, gemini, opencode). "
-        "Omit for interactive selection.",
+        help="Runtime(s) to install (claude-code, codex, gemini, opencode). Omit for interactive selection.",
     ),
     install_all: bool = typer.Option(False, "--all", help="Install for all supported runtimes"),
     global_install: bool = typer.Option(False, "--global", help="Install globally (~/.runtime/)"),
@@ -1817,7 +1826,7 @@ def install(
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
 
                 # Handle finish_install for adapters that support it (e.g. Claude Code statusline)
-                if hasattr(adapter, "finish_install") and "settingsPath" in result:
+                if hasattr(adapter, "finish_install") and "settingsPath" in result and "settings" in result:
                     should_install_statusline = True
                     adapter.finish_install(
                         result["settingsPath"],
