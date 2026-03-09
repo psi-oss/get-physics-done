@@ -147,7 +147,7 @@ class SubagentSDK:
                             result_text=message.result or "",
                             cost_usd=message.total_cost_usd or 0.0,
                             session_id=message.session_id,
-                            duration_seconds=message.duration_ms / 1000.0,
+                            duration_seconds=(message.duration_ms or 0) / 1000.0,
                         )
                 return result
 
