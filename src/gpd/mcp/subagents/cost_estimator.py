@@ -39,6 +39,29 @@ COMPLEX_PATTERNS: list[str] = [
 ]
 """Error patterns indicating complex, time-consuming issues."""
 
+# ── Timeout constants ────────────────────────────────────────────────────────
+
+TIMEOUT_BUFFER_MULTIPLIER: float = 1.5
+"""Multiplier applied to base timeouts (50% buffer per research pitfall 5)."""
+
+BASE_TIMEOUT_SIMPLE: int = 120
+"""Base timeout in seconds for simple fixes (e.g. ImportError, missing module)."""
+
+BASE_TIMEOUT_MODERATE: int = 300
+"""Base timeout in seconds for moderate-complexity fixes."""
+
+BASE_TIMEOUT_COMPLEX: int = 600
+"""Base timeout in seconds for complex fixes (e.g. MemoryError, segfault)."""
+
+FIX_MINUTES_SIMPLE: float = 2.0
+"""Estimated fix time in minutes for simple errors."""
+
+FIX_MINUTES_MODERATE: float = 5.0
+"""Estimated fix time in minutes for moderate errors."""
+
+FIX_MINUTES_COMPLEX: float = 10.0
+"""Estimated fix time in minutes for complex errors."""
+
 
 class FixComplexity(StrEnum):
     """Complexity classification for tool fixes."""
@@ -77,29 +100,29 @@ def estimate_fix_cost(
     is_complex = _matches_patterns(combined_lower, COMPLEX_PATTERNS)
 
     if is_simple:
-        fix_minutes = 2.0
+        fix_minutes = FIX_MINUTES_SIMPLE
         fix_complexity = FixComplexity.simple
-        base_timeout = 120
+        base_timeout = BASE_TIMEOUT_SIMPLE
     elif is_complex:
-        fix_minutes = 10.0
+        fix_minutes = FIX_MINUTES_COMPLEX
         fix_complexity = FixComplexity.complex
-        base_timeout = 600
+        base_timeout = BASE_TIMEOUT_COMPLEX
     else:
-        fix_minutes = 5.0
+        fix_minutes = FIX_MINUTES_MODERATE
         fix_complexity = FixComplexity.moderate
-        base_timeout = 300
+        base_timeout = BASE_TIMEOUT_MODERATE
 
     substitute_minutes = 3.0 if has_substitute else None
 
     # Decision logic
     if substitute_minutes is not None and substitute_minutes < fix_minutes:
         recommendation = "substitute"
-    elif fix_minutes <= 10:
+    elif fix_minutes <= FIX_MINUTES_COMPLEX:
         recommendation = "fix"
     else:
         recommendation = "skip"
 
-    timeout_seconds = int(base_timeout * 1.5)
+    timeout_seconds = int(base_timeout * TIMEOUT_BUFFER_MULTIPLIER)
 
     sub_desc = f"available at {substitute_minutes}min" if substitute_minutes is not None else "not available"
     reasoning = (
@@ -125,12 +148,12 @@ def should_spawn_mcp_builder(estimate: FixEstimate) -> bool:
 
 def get_timeout_for_complexity(complexity: FixComplexity) -> int:
     """Return the buffered timeout in seconds for a given complexity level."""
-    timeouts = {
-        FixComplexity.simple: 180,
-        FixComplexity.moderate: 450,
-        FixComplexity.complex: 900,
+    base_timeouts = {
+        FixComplexity.simple: BASE_TIMEOUT_SIMPLE,
+        FixComplexity.moderate: BASE_TIMEOUT_MODERATE,
+        FixComplexity.complex: BASE_TIMEOUT_COMPLEX,
     }
-    return timeouts[complexity]
+    return int(base_timeouts[complexity] * TIMEOUT_BUFFER_MULTIPLIER)
 
 
 def _matches_patterns(text_lower: str, patterns: list[str]) -> bool:

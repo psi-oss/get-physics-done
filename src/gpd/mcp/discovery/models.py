@@ -11,6 +11,14 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
+OVERVIEW_PREVIEW_MAX_CHARS: int = 200
+"""Maximum character length for tool overview/description previews.
+
+Used when storing ToolEntry.overview and when building compact LLM prompts
+to keep context size manageable.
+"""
+
+
 class MCPStatus(StrEnum):
     """Deployment status of an MCP tool."""
 

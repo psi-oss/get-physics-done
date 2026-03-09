@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
+from gpd.mcp.subagents.cost_estimator import TIMEOUT_BUFFER_MULTIPLIER
 from gpd.mcp.subagents.models import SubagentResult, SubagentStatus
 
 logger = logging.getLogger(__name__)
@@ -112,8 +113,8 @@ class SubagentSDK:
             max_budget_usd=max_budget_usd,
         )
 
-        # Apply 50% buffer to timeout (per research pitfall 5)
-        buffered_timeout = timeout_seconds * 1.5
+        # Apply timeout buffer (per research pitfall 5)
+        buffered_timeout = timeout_seconds * TIMEOUT_BUFFER_MULTIPLIER
 
         try:
             result = SubagentResult(success=False, result_text="No result received")

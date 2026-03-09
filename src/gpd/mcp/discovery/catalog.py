@@ -12,6 +12,7 @@ import logging
 import threading
 
 from gpd.mcp.discovery.models import (
+    OVERVIEW_PREVIEW_MAX_CHARS,
     CostProfile,
     MCPSourcesConfig,
     MCPStatus,
@@ -24,6 +25,9 @@ from gpd.mcp.discovery.reconciler import reconcile_modal
 from gpd.mcp.research.cost_estimator import MODAL_RATES_USD_PER_SECOND
 
 logger = logging.getLogger(__name__)
+
+STALENESS_FRESH_THRESHOLD_SECONDS: float = 300.0
+"""Tools checked within this many seconds are labelled 'fresh' in the catalog display."""
 
 # Known category mappings for local MCPs (discovered at connection time,
 # not pre-enumerated -- but we can assign categories for routing)
@@ -127,7 +131,7 @@ class ToolCatalog:
                 categories=categories,
                 domains=domains,
                 tools=tool_list,
-                overview=overview[:200] if overview else "",
+                overview=overview[:OVERVIEW_PREVIEW_MAX_CHARS] if overview else "",
                 cost_profile=CostProfile(
                     gpu_type=gpu_type,
                     estimated_seconds=est_seconds,
@@ -259,7 +263,7 @@ class ToolCatalog:
         rows: list[dict[str, object]] = []
         for _name, entry in sorted(self._full_catalog.items()):
             staleness_label = (
-                "fresh" if entry.staleness_seconds < 300 else "stale" if entry.last_checked else "unchecked"
+                "fresh" if entry.staleness_seconds < STALENESS_FRESH_THRESHOLD_SECONDS else "stale" if entry.last_checked else "unchecked"
             )
             rows.append(
                 {

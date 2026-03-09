@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from gpd.core.model_defaults import GPD_DEFAULT_MODEL, resolve_model_and_settings
-from gpd.mcp.discovery.models import ToolEntry
+from gpd.mcp.discovery.models import OVERVIEW_PREVIEW_MAX_CHARS, ToolEntry
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class SelectedTool(BaseModel):
 class ToolSelection(BaseModel):
     """Structured output from the tool selection agent."""
 
-    tools: list[SelectedTool] = Field(max_length=15)
+    tools: list[SelectedTool] = Field(max_length=MAX_TOOLS)
     """Selected tools, hard-capped at 15."""
 
     reasoning: str
@@ -67,7 +67,7 @@ SELECTION_SYSTEM_PROMPT = (
 def _build_tool_catalog_prompt(tools: list[ToolEntry]) -> str:
     """Build a compact catalog string for the LLM prompt.
 
-    Groups tools by category and truncates overview to 200 chars to avoid
+    Groups tools by category and truncates overview to OVERVIEW_PREVIEW_MAX_CHARS to avoid
     context bloat (pitfall 3: use compact SKILLS_SUMMARY format).
     """
     if not tools:
@@ -86,7 +86,7 @@ def _build_tool_catalog_prompt(tools: list[ToolEntry]) -> str:
             status = tool.status.value if tool.status else "unknown"
             domains_str = ", ".join(tool.domains[:3]) if tool.domains else "general"
             tool_names = ", ".join(t.get("name", "") for t in tool.tools[:5]) if tool.tools else "n/a"
-            overview = tool.overview[:200] if tool.overview else tool.description[:200]
+            overview = tool.overview[:OVERVIEW_PREVIEW_MAX_CHARS] if tool.overview else tool.description[:OVERVIEW_PREVIEW_MAX_CHARS]
             lines.append(f"- {tool.name} [{status}] - {overview} | Domains: {domains_str} | Tools: {tool_names}")
 
     return "\n".join(lines)
