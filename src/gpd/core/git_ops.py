@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.observability import instrument_gpd_function
 
@@ -224,7 +225,7 @@ def cmd_commit(
     if files:
         files_to_stage = list(files)
     else:
-        files_to_stage = [".planning/"]
+        files_to_stage = [f"{PLANNING_DIR_NAME}/"]
 
     # Stage files
     rc, stdout, stderr = _exec_git(cwd, ["add", "--", *files_to_stage])

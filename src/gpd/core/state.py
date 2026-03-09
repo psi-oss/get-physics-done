@@ -873,9 +873,9 @@ def generate_state_markdown(raw: dict) -> str:
     p("")
     pr = s["project_reference"]
     if pr.get("project_md_updated"):
-        p(f"See: .planning/PROJECT.md (updated {pr['project_md_updated']})")
+        p(f"See: {PLANNING_DIR_NAME}/{PROJECT_FILENAME} (updated {pr['project_md_updated']})")
     else:
-        p("See: .planning/PROJECT.md")
+        p(f"See: {PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
     p("")
     p(f"**Core research question:** {pr.get('core_research_question') or '[Not set]'}")
     p(f"**Current focus:** {pr.get('current_focus') or '[Not set]'}")
@@ -2090,11 +2090,11 @@ def state_validate(cwd: Path) -> StateValidateResult:
             ]
             if not matching:
                 issues.append(
-                    f'filesystem: current_phase "{current_phase}" has no matching directory in .planning/phases/'
+                    f'filesystem: current_phase "{current_phase}" has no matching directory in {PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/'
                 )
         else:
             issues.append(
-                f'filesystem: .planning/phases/ directory does not exist but current_phase is "{current_phase}"'
+                f'filesystem: {PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/ directory does not exist but current_phase is "{current_phase}"'
             )
 
     valid = len(issues) == 0
