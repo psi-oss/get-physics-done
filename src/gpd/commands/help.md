@@ -51,7 +51,7 @@ Output this and STOP (do not display the full reference):
 
 **Workflow:** new-project → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 
-Run `/gpd:help --all` for all 56 commands.
+Run `/gpd:help --all` for all 58 commands.
 
 --- END of default output. STOP here. ---
 
@@ -325,6 +325,15 @@ Usage: `/gpd:progress`
 Usage: `/gpd:progress --full` (detailed view with all phase artifacts)
 Usage: `/gpd:progress --brief` (compact one-line status)
 Usage: `/gpd:progress --reconcile` (fix diverged STATE.md and state.json)
+
+**`/gpd:suggest-next`**
+Suggest the most impactful next action based on current project state.
+
+- Scans phases, plans, verification status, blockers, and todos
+- Produces a prioritized action list
+- Fastest way to answer "what should I do next?" without reading through progress reports
+
+Usage: `/gpd:suggest-next`
 
 ### Session Management
 
@@ -725,6 +734,15 @@ Reapply local modifications after a GPD update.
 - Use after `/gpd:update` if you have local workflow or template modifications
 
 Usage: `/gpd:reapply-patches`
+
+**`/gpd:health`**
+Run comprehensive project health checks.
+
+- Validates state.json, STATE.md sync, convention locks, config.json, orphaned phases, ROADMAP.md consistency, missing plans, stale artifacts, and git status
+- Use `--fix` to auto-repair detected issues
+
+Usage: `/gpd:health`
+Usage: `/gpd:health --fix`
 
 **`/gpd:help`**
 Show this command reference.

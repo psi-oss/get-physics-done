@@ -66,7 +66,7 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   │
 │   ├── utils/                  # Shared utilities (effort mapping, LaTeX, MCP registry, paths)
 │   ├── hooks/                  # Runtime hooks (statusline, update check, Codex notify)
-│   ├── commands/               # ~56 command .md files with YAML frontmatter
+│   ├── commands/               # ~58 command .md files with YAML frontmatter
 │   ├── agents/                 # 17 agent .md files with YAML frontmatter
 │   └── specs/                  # Bundled spec content (agents, skills, references, etc.)
 │

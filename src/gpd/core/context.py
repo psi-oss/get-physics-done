@@ -1,20 +1,24 @@
 """Context assembly for AI agent commands.
 
-Ported from experiments/get-physics-done/get-physics-done/src/commands.js (cmdInit* functions).
 Each function gathers project state and produces a structured dict consumed by agent prompts.
 
-Layer 1 code: stdlib + pathlib only (no framework imports).
+Delegates to :mod:`gpd.core.config` for configuration loading and model-tier
+resolution so that defaults and model profiles are defined in exactly one place.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+from gpd.core.config import (
+    GPDProjectConfig,
+    load_config as _load_config_structured,
+    resolve_agent_tier,
+)
 from gpd.core.constants import (
     CONFIG_FILENAME,
     DEFAULT_MAX_INCLUDE_CHARS,
@@ -24,11 +28,13 @@ from gpd.core.constants import (
     ROADMAP_FILENAME,
     STATE_MD_FILENAME,
 )
+from gpd.core.errors import ConfigError, ValidationError
 
 logger = logging.getLogger(__name__)
 
 # Maximum chars to include when embedding file contents in context.
 MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_INCLUDE_CHARS)))
+
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
@@ -50,8 +56,6 @@ _IGNORE_DIRS = frozenset(
         "hooks",
     }
 )
-
-_SENTINEL = object()
 
 __all__ = [
     "init_execute_phase",
@@ -173,104 +177,48 @@ def _extract_frontmatter_field(content: str, field: str) -> str | None:
 # ─── Config Loader ────────────────────────────────────────────────────────────
 
 
+def _config_to_dict(cfg: GPDProjectConfig) -> dict:
+    """Convert a :class:`GPDProjectConfig` to the plain-dict format used by context callers.
+
+    StrEnum values are converted to plain strings so that downstream template
+    code (which does string comparisons) keeps working.
+    """
+    d: dict[str, object] = {
+        "model_profile": str(cfg.model_profile.value),
+        "autonomy": str(cfg.autonomy.value),
+        "research_mode": str(cfg.research_mode.value),
+        "commit_docs": cfg.commit_docs,
+        "search_gitignored": cfg.search_gitignored,
+        "branching_strategy": str(cfg.branching_strategy.value),
+        "phase_branch_template": cfg.phase_branch_template,
+        "milestone_branch_template": cfg.milestone_branch_template,
+        "research": cfg.research,
+        "plan_checker": cfg.plan_checker,
+        "verifier": cfg.verifier,
+        "parallelization": cfg.parallelization,
+        "brave_search": cfg.brave_search,
+    }
+    if cfg.model_map:
+        d["model_map"] = cfg.model_map
+    return d
+
+
+_SENTINEL = object()  # unique marker for "key not found" in config lookup
+
+
 def load_config(cwd: Path) -> dict:
-    """Load .planning/config.json with defaults. Mirrors JS loadConfig."""
-    defaults: dict[str, object] = {
-        "model_profile": "review",
-        "autonomy": "guided",
-        "research_mode": "balanced",
-        "commit_docs": True,
-        "search_gitignored": False,
-        "branching_strategy": "none",
-        "phase_branch_template": "gpd/phase-{phase}-{slug}",
-        "milestone_branch_template": "gpd/{milestone}-{slug}",
-        "research": True,
-        "plan_checker": True,
-        "verifier": True,
-        "parallelization": True,
-        "brave_search": False,
-    }
+    """Load .planning/config.json with defaults.
 
-    config_path = cwd / PLANNING_DIR_NAME / CONFIG_FILENAME
-    try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return dict(defaults)
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise ValueError(
-            f"Malformed {CONFIG_FILENAME}: {exc}. Fix or delete {PLANNING_DIR_NAME}/{CONFIG_FILENAME}"
-        ) from exc
+    Delegates to :func:`gpd.core.config.load_config` (the canonical
+    implementation) and converts the result to a plain dict for backward
+    compatibility with existing context-assembly callers.
 
-    def _get(key: str, section: str | None = None, field: str | None = None) -> object:
-        """Look up key at top level, then in nested section. Returns _SENTINEL if not found."""
-        if key in raw and raw[key] is not None:
-            return raw[key]
-        if section and field and section in raw and isinstance(raw[section], dict):
-            v = raw[section].get(field)
-            if v is not None:
-                return v
-        return _SENTINEL
-
-    def _coalesce(val: object, default: object) -> object:
-        return default if val is _SENTINEL else val
-
-    # Parallelization can be bool or {enabled: bool}
-    par_raw = _get("parallelization")
-    if isinstance(par_raw, bool):
-        parallelization = par_raw
-    elif isinstance(par_raw, dict) and "enabled" in par_raw:
-        parallelization = par_raw["enabled"]
-    else:
-        parallelization = defaults["parallelization"]
-
-    # Autonomy with backward compat for old "mode" field
-    autonomy_raw = _get("autonomy")
-    if autonomy_raw is not _SENTINEL:
-        autonomy = autonomy_raw
-    else:
-        mode = _get("mode")
-        if mode == "yolo":
-            autonomy = "yolo"
-        elif mode == "interactive":
-            autonomy = "supervised"
-        else:
-            autonomy = defaults["autonomy"]
-
-    # Plan checker with backward compat for workflow.plan_check
-    plan_checker_raw = _get("plan_checker", "workflow", "plan_checker")
-    if plan_checker_raw is _SENTINEL:
-        # Try legacy key
-        if isinstance(raw.get("workflow"), dict) and "plan_check" in raw["workflow"]:
-            plan_checker = raw["workflow"]["plan_check"]
-        else:
-            plan_checker = defaults["plan_checker"]
-    else:
-        plan_checker = plan_checker_raw
-
-    return {
-        "model_profile": _coalesce(_get("model_profile"), defaults["model_profile"]),
-        "autonomy": autonomy,
-        "research_mode": _coalesce(_get("research_mode"), defaults["research_mode"]),
-        "commit_docs": _coalesce(_get("commit_docs", "planning", "commit_docs"), defaults["commit_docs"]),
-        "search_gitignored": _coalesce(
-            _get("search_gitignored", "planning", "search_gitignored"), defaults["search_gitignored"]
-        ),
-        "branching_strategy": _coalesce(
-            _get("branching_strategy", "git", "branching_strategy"), defaults["branching_strategy"]
-        ),
-        "phase_branch_template": _coalesce(
-            _get("phase_branch_template", "git", "phase_branch_template"), defaults["phase_branch_template"]
-        ),
-        "milestone_branch_template": _coalesce(
-            _get("milestone_branch_template", "git", "milestone_branch_template"),
-            defaults["milestone_branch_template"],
-        ),
-        "research": _coalesce(_get("research", "workflow", "research"), defaults["research"]),
-        "plan_checker": plan_checker,
-        "verifier": _coalesce(_get("verifier", "workflow", "verifier"), defaults["verifier"]),
-        "parallelization": parallelization,
-        "brave_search": _coalesce(_get("brave_search"), defaults["brave_search"]),
-    }
+    Raises :class:`~gpd.core.errors.ConfigError` on malformed JSON.
+    ``ConfigError`` inherits from both ``GPDError`` and ``ValueError``,
+    so existing ``except ValueError`` handlers continue to work.
+    """
+    cfg = _load_config_structured(cwd)
+    return _config_to_dict(cfg)
 
 
 # ─── Resolve Model ────────────────────────────────────────────────────────────
@@ -278,84 +226,12 @@ def load_config(cwd: Path) -> dict:
 # Core returns tier strings (e.g. "tier-1", "tier-2"). Adapters translate
 # these to provider-specific model names at install time.
 
-# Agent type → profile → tier mapping (subset used by context assembly).
-# Must stay consistent with MODEL_PROFILES in config.py and model-profiles.md.
-_MODEL_PROFILES: dict[str, dict[str, str]] = {
-    "gpd-executor": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-2",
-        "exploratory": "tier-2",
-        "review": "tier-2",
-        "paper-writing": "tier-1",
-    },
-    "gpd-verifier": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-1",
-        "exploratory": "tier-2",
-        "review": "tier-1",
-        "paper-writing": "tier-2",
-    },
-    "gpd-phase-researcher": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-1",
-        "exploratory": "tier-1",
-        "review": "tier-2",
-        "paper-writing": "tier-2",
-    },
-    "gpd-planner": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-1",
-        "exploratory": "tier-1",
-        "review": "tier-1",
-        "paper-writing": "tier-1",
-    },
-    "gpd-plan-checker": {
-        "deep-theory": "tier-2",
-        "numerical": "tier-2",
-        "exploratory": "tier-2",
-        "review": "tier-1",
-        "paper-writing": "tier-2",
-    },
-    "gpd-project-researcher": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-2",
-        "exploratory": "tier-1",
-        "review": "tier-2",
-        "paper-writing": "tier-3",
-    },
-    "gpd-research-synthesizer": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-2",
-        "exploratory": "tier-2",
-        "review": "tier-2",
-        "paper-writing": "tier-1",
-    },
-    "gpd-roadmapper": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-1",
-        "exploratory": "tier-2",
-        "review": "tier-1",
-        "paper-writing": "tier-2",
-    },
-    "map-content": {
-        "deep-theory": "tier-1",
-        "numerical": "tier-2",
-        "exploratory": "tier-1",
-        "review": "tier-2",
-        "paper-writing": "tier-3",
-    },
-    "gpd-theory-mapper": {
-        "deep-theory": "tier-2",
-        "numerical": "tier-3",
-        "exploratory": "tier-3",
-        "review": "tier-3",
-        "paper-writing": "tier-3",
-    },
-}
-
 
 def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> str:
     """Resolve the model identifier for a given agent type based on config profile.
+
+    Delegates tier resolution to :func:`gpd.core.config.resolve_agent_tier`
+    which owns the canonical ``MODEL_PROFILES`` table.
 
     Args:
         cwd: Project root directory.
@@ -365,10 +241,7 @@ def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> st
     if config is None:
         config = load_config(cwd)
     profile = config.get("model_profile", "review")
-    agent_models = _MODEL_PROFILES.get(agent_type)
-    tier = "tier-2"
-    if agent_models:
-        tier = agent_models.get(profile) or agent_models.get("review", "tier-2")
+    tier = resolve_agent_tier(agent_type, profile).value
     model_map = config.get("model_map")
     if model_map and isinstance(model_map, dict) and tier in model_map:
         return model_map[tier]
@@ -503,7 +376,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         includes: Optional set of file sections to embed (state, config, roadmap).
     """
     if not phase:
-        raise ValueError("phase required for init execute-phase")
+        raise ValidationError("phase required for init execute-phase")
 
     includes = includes or set()
     config = load_config(cwd)
@@ -577,7 +450,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
                   (state, roadmap, requirements, context, research, verification, validation).
     """
     if not phase:
-        raise ValueError("phase required for init plan-phase")
+        raise ValidationError("phase required for init plan-phase")
 
     includes = includes or set()
     config = load_config(cwd)
@@ -813,7 +686,7 @@ def init_resume(cwd: Path) -> dict:
 def init_verify_work(cwd: Path, phase: str | None) -> dict:
     """Assemble context for work verification."""
     if not phase:
-        raise ValueError("phase required for init verify-work")
+        raise ValidationError("phase required for init verify-work")
 
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase)

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release as a standalone package.
-- 56 commands covering the full physics research workflow (project setup, phase planning, execution, verification, paper generation).
+- 58 commands covering the full physics research workflow (project setup, phase planning, execution, verification, paper generation).
 - 17 specialist agents (derivation, numerical verification, literature review, dimensional analysis, and more).
 - 7 MCP tool servers: conventions, verification, protocols, errors, patterns, state, skills.
 - 75 skills for physics research tasks.
