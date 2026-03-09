@@ -16,9 +16,9 @@ allowed-tools:
 <!-- @ includes are expanded at install time for runtimes that do not resolve them natively. -->
 
 <objective>
-Run comprehensive project health checks (9 checks) and optionally auto-fix detected issues.
+Run comprehensive project health checks (11 checks) and optionally auto-fix detected issues.
 
-Checks include: state.json validity, STATE.md sync, convention lock integrity, config.json validity, orphaned phase directories, ROADMAP.md consistency, missing plan files, stale artifacts, and git status.
+Checks include: environment, project structure, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return metadata, config.json validity, and git status.
 
 Use `--fix` to automatically repair detected issues.
 </objective>
@@ -83,7 +83,7 @@ All {total} health checks passed.
 <success_criteria>
 
 - [ ] Health command executed successfully
-- [ ] All 9 checks reported with status
+- [ ] All 11 checks reported with status
 - [ ] Summary presented (pass/warn/fail counts)
 - [ ] Auto-fix applied if --fix flag present
 - [ ] Clear guidance on how to fix remaining issues

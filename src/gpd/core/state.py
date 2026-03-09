@@ -1551,6 +1551,14 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                 failed.append(field)
                 continue
 
+            if field_norm.lower() == "status":
+                current_status = state_extract_field(content, "Status")
+                if current_status:
+                    err = validate_state_transition(current_status, value)
+                    if err:
+                        failed.append(field)
+                        continue
+
             escaped = _escape_regex(field_norm)
             pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
             if pattern.search(content):

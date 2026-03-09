@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 75 skills for physics research tasks.
 - Multi-runtime install adapters for Claude Code, OpenCode, Gemini CLI, and Codex.
 - Experiment design system with power analysis, budget estimation, feasibility checks, and ethics review.
-- Convention lock system enforcing 17 physics notation fields with drift detection.
+- Convention lock system enforcing 18 physics notation fields with drift detection.
 - 11-check diagnostic health dashboard.
 - Feature flag and ablation system with hierarchical flag resolution.
 - MCTS strategy bridge for pipeline integration.

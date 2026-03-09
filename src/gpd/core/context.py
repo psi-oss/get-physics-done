@@ -352,12 +352,14 @@ def _get_milestone_fallback(cwd: Path) -> dict:
 
 def _detect_platform() -> str:
     """Detect the AI agent platform (claude, codex, gemini, etc.)."""
-    if os.environ.get("CODEX_CLI"):
+    if os.environ.get("CLAUDE_CODE_SESSION") or os.environ.get("CLAUDE_CODE"):
+        return "claude"
+    if os.environ.get("CODEX_SESSION") or os.environ.get("CODEX_CLI"):
         return "codex"
     if os.environ.get("GEMINI_CLI"):
         return "gemini"
-    if os.environ.get("CLAUDE_CODE"):
-        return "claude"
+    if os.environ.get("OPENCODE_SESSION"):
+        return "opencode"
     return "unknown"  # No known platform detected
 
 

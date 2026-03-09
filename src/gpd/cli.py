@@ -406,6 +406,9 @@ def phase_validate_waves(
 
     result = validate_phase_waves(_get_cwd(), phase_num)
     _output(result)
+    validation = getattr(result, "validation", None)
+    if getattr(validation, "valid", True) is False:
+        raise typer.Exit(code=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -936,7 +939,7 @@ def suggest(
 # pattern — Error pattern library
 # ═══════════════════════════════════════════════════════════════════════════
 
-pattern_app = typer.Typer(help="Error pattern library (8 categories, 12 domains)")
+pattern_app = typer.Typer(help="Error pattern library (8 categories, 13 domains)")
 app.add_typer(pattern_app, name="pattern")
 
 

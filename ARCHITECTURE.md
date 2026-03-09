@@ -56,7 +56,7 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   │   ├── research/           # Research planner, cost estimator, error recovery, schemas
 │   │   ├── paper/              # Paper generation: bibliography, compiler, figures, generator, journal map, models, template registry, templates
 │   │   ├── session/            # Session manager, models, search
-│   │   ├── subagents/          # Subagent orchestration: SDK, specialist, MCP builder, cost estimator, orchestrator, models, status display, tool spec
+│   │   ├── subagents/          # Subagent orchestration: SDK, specialist, tool spec, cost estimator, orchestrator, models, status display
 │   │   ├── viewer/             # Web viewer (FastAPI, optional)
 │   │   ├── cli.py              # `gpd session` subcommand wiring
 │   │   ├── config.py           # MCP configuration
@@ -307,7 +307,7 @@ resolve_model(project_dir, agent_name)
 
 **Resolution priority**: `config.model_map[tier]` > tier string (e.g., `"tier-1"`)
 
-**Model profiles** control tier assignments per agent. 18 agents × 5 profiles:
+**Model profiles** control tier assignments per agent. 17 agents × 5 profiles:
 
 | Profile          | High-tier agents                          | Low-tier agents                    |
 |------------------|-------------------------------------------|------------------------------------|

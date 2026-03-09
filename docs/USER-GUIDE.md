@@ -165,7 +165,7 @@ For reproducibility, it is helpful to record:
 
 ## Working with Conventions and Notation
 
-GPD enforces notation consistency across your entire project. When you start a project, it locks conventions for up to 17 physics fields:
+GPD enforces notation consistency across your entire project. When you start a project, it locks conventions for up to 18 physics fields:
 
 - Coordinate system (Cartesian, spherical, cylindrical, ...)
 - Metric signature (+--- or -+++)

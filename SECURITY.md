@@ -34,7 +34,7 @@ We will coordinate disclosure with you and credit reporters unless anonymity is 
 ### In scope
 
 - Vulnerabilities in GPD Python code (`src/gpd/`)
-- MCP server security issues (8 servers in `src/gpd/mcp/servers/`)
+- MCP server security issues (7 tool servers in `src/gpd/mcp/servers/`)
 - Runtime adapter vulnerabilities (file writes, config injection)
 - Authentication or authorization bypasses
 - Path traversal or arbitrary file access
