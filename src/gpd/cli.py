@@ -940,12 +940,23 @@ pattern_app = typer.Typer(help="Error pattern library (8 categories, 12 domains)
 app.add_typer(pattern_app, name="pattern")
 
 
+def _resolve_patterns_root() -> Path:
+    """Resolve pattern library root respecting GPD_PATTERNS_ROOT env var.
+
+    Uses the same resolution order as gpd.core.patterns._patterns_root:
+    GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > cwd/learned-patterns.
+    """
+    from gpd.core.patterns import _patterns_root
+
+    return _patterns_root(specs_root=_get_cwd())
+
+
 @pattern_app.command("init")
 def pattern_init() -> None:
     """Initialize the error pattern library."""
     from gpd.core.patterns import pattern_init
 
-    _output({"path": str(pattern_init(root=_get_cwd()))})
+    _output({"path": str(pattern_init(root=_resolve_patterns_root()))})
 
 
 @pattern_app.command("add")
@@ -974,7 +985,7 @@ def pattern_add(
             prevention=prevention or "",
             example=example or "",
             test_value=test_value or "",
-            root=_get_cwd(),
+            root=_resolve_patterns_root(),
         )
     )
 
@@ -988,7 +999,7 @@ def pattern_list(
     """List error patterns with optional filters."""
     from gpd.core.patterns import pattern_list
 
-    _output(pattern_list(domain=domain, category=category, severity=severity, root=_get_cwd()))
+    _output(pattern_list(domain=domain, category=category, severity=severity, root=_resolve_patterns_root()))
 
 
 @pattern_app.command("search")
@@ -998,7 +1009,7 @@ def pattern_search(
     """Search error patterns by text."""
     from gpd.core.patterns import pattern_search
 
-    _output(pattern_search(" ".join(query), root=_get_cwd()))
+    _output(pattern_search(" ".join(query), root=_resolve_patterns_root()))
 
 
 @pattern_app.command("seed")
@@ -1006,7 +1017,7 @@ def pattern_seed() -> None:
     """Seed the pattern library with common physics error patterns."""
     from gpd.core.patterns import pattern_seed
 
-    _output(pattern_seed(root=_get_cwd()))
+    _output(pattern_seed(root=_resolve_patterns_root()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
