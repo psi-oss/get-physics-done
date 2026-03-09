@@ -26,9 +26,21 @@ class CostAgentOutput(BaseModel):
     reasoning: str
 
 
-cost_agent: Agent[None, CostAgentOutput] = Agent(
-    model=GPD_DEFAULT_MODEL,
-    output_type=CostAgentOutput,
-    instructions=COST_ESTIMATION_SYSTEM_PROMPT,
-    retries=2,
-)
+_cost_agent: Agent[None, CostAgentOutput] | None = None
+
+
+def get_cost_agent() -> Agent[None, CostAgentOutput]:
+    """Return the cost estimation agent, creating it on first call.
+
+    Defers Agent construction so the module can be imported without
+    an API key set in the environment.
+    """
+    global _cost_agent
+    if _cost_agent is None:
+        _cost_agent = Agent(
+            model=GPD_DEFAULT_MODEL,
+            output_type=CostAgentOutput,
+            instructions=COST_ESTIMATION_SYSTEM_PROMPT,
+            retries=2,
+        )
+    return _cost_agent

@@ -66,11 +66,20 @@ class TestNormalization:
         out = tmp_path / "output"
 
         # Monkeypatch cairosvg to not be available
+        import subprocess
         import sys
 
         monkeypatch.setitem(sys.modules, "cairosvg", None)
-        # Also make inkscape not found
-        monkeypatch.setattr("shutil.which", lambda x: None)
+
+        # Mock subprocess.run to simulate inkscape not found
+        _original_run = subprocess.run
+
+        def _mock_run(args, **kwargs):
+            if args and args[0] == "inkscape":
+                raise FileNotFoundError("inkscape not found")
+            return _original_run(args, **kwargs)
+
+        monkeypatch.setattr("subprocess.run", _mock_run)
 
         with pytest.raises(RuntimeError, match="SVG conversion requires"):
             normalize_figure(src, out)

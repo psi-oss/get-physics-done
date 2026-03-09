@@ -39,16 +39,39 @@ class ClarifiedSpec(BaseModel):
     constraints: list[str]
 
 
-clarification_agent: Agent[None, ClarificationQuestion | ClarifiedSpec] = Agent(
-    model=GPD_DEFAULT_MODEL,
-    output_type=[ClarificationQuestion, ClarifiedSpec],  # type: ignore[arg-type]
-    instructions=CLARIFICATION_SYSTEM_PROMPT,
-    retries=2,
-)
+_clarification_agent: Agent[None, ClarificationQuestion | ClarifiedSpec] | None = None
+_feasibility_agent: Agent[None, FeasibilityResult] | None = None
 
-feasibility_agent: Agent[None, FeasibilityResult] = Agent(
-    model=GPD_DEFAULT_MODEL,
-    output_type=FeasibilityResult,
-    instructions=FEASIBILITY_SYSTEM_PROMPT,
-    retries=2,
-)
+
+def get_clarification_agent() -> Agent[None, ClarificationQuestion | ClarifiedSpec]:
+    """Return the clarification agent, creating it on first call.
+
+    Defers Agent construction so the module can be imported without
+    an API key set in the environment.
+    """
+    global _clarification_agent
+    if _clarification_agent is None:
+        _clarification_agent = Agent(
+            model=GPD_DEFAULT_MODEL,
+            output_type=[ClarificationQuestion, ClarifiedSpec],  # type: ignore[arg-type]
+            instructions=CLARIFICATION_SYSTEM_PROMPT,
+            retries=2,
+        )
+    return _clarification_agent
+
+
+def get_feasibility_agent() -> Agent[None, FeasibilityResult]:
+    """Return the feasibility agent, creating it on first call.
+
+    Defers Agent construction so the module can be imported without
+    an API key set in the environment.
+    """
+    global _feasibility_agent
+    if _feasibility_agent is None:
+        _feasibility_agent = Agent(
+            model=GPD_DEFAULT_MODEL,
+            output_type=FeasibilityResult,
+            instructions=FEASIBILITY_SYSTEM_PROMPT,
+            retries=2,
+        )
+    return _feasibility_agent
