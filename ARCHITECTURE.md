@@ -376,7 +376,6 @@ GPDError
 ├── ValidationError(ValueError)
 ├── StateError(ValueError)
 ├── ConventionError(ValueError)
-├── LoaderError
 ├── ResultError(ValueError)
 │   ├── ResultNotFoundError(KeyError)
 │   └── DuplicateResultError(ValueError)
@@ -386,7 +385,6 @@ GPDError
 ├── PatternError
 ├── TraceError
 ├── ConfigError(ValueError)
-├── BundleError
 ├── PhaseError (in phases.py)
 │   ├── PhaseNotFoundError
 │   ├── PhaseValidationError
