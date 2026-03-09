@@ -1,4 +1,0 @@
-name: "quantum-error-correction"
-description: "load_when:"
-domain: physics
-file: "references/protocols/quantum-error-correction.md"

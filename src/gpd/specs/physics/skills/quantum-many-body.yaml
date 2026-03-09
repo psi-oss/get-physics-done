@@ -1,4 +1,0 @@
-name: "quantum-many-body"
-description: "load_when:"
-domain: physics
-file: "references/protocols/quantum-many-body.md"

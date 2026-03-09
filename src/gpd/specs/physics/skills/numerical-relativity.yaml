@@ -1,4 +1,0 @@
-name: "numerical-relativity"
-description: "load_when:"
-domain: physics
-file: "references/protocols/numerical-relativity.md"

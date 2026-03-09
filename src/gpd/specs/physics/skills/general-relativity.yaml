@@ -1,4 +1,0 @@
-name: "general-relativity"
-description: "load_when:"
-domain: physics
-file: "references/protocols/general-relativity.md"

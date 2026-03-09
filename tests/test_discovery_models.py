@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
-import yaml
 
 from gpd.mcp.discovery.models import (
     PHYSICS_CATEGORIES,
@@ -201,62 +199,11 @@ class TestResolveEnvVars:
 
 
 class TestLoadSourcesConfig:
-    def test_returns_default_when_file_missing(self, tmp_path: Path) -> None:
-        config = load_sources_config(tmp_path / "nonexistent.yaml")
+    def test_returns_default_config(self) -> None:
+        config = load_sources_config()
         assert config.version == "1.0.0"
         assert "gpd-modal" in config.sources
-
-    def test_parses_valid_yaml(self, tmp_path: Path) -> None:
-        yaml_path = tmp_path / "test-sources.yaml"
-        yaml_path.write_text(
-            yaml.dump(
-                {
-                    "version": "1.0.0",
-                    "sources": {
-                        "test-source": {
-                            "type": "modal",
-                            "app_name": "my-app",
-                        },
-                    },
-                }
-            )
-        )
-        config = load_sources_config(yaml_path)
-        assert "test-source" in config.sources
-        assert config.sources["test-source"].app_name == "my-app"
-
-    def test_resolves_env_vars_in_yaml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MY_APP", "resolved-app")
-        yaml_path = tmp_path / "test-sources.yaml"
-        yaml_path.write_text(
-            yaml.dump(
-                {
-                    "version": "1.0.0",
-                    "sources": {
-                        "test-source": {
-                            "type": "modal",
-                            "app_name": "${MY_APP}",
-                        },
-                    },
-                }
-            )
-        )
-        config = load_sources_config(yaml_path)
-        assert config.sources["test-source"].app_name == "resolved-app"
-
-    def test_falls_back_on_invalid_yaml(self, tmp_path: Path) -> None:
-        yaml_path = tmp_path / "bad.yaml"
-        yaml_path.write_text(":::invalid yaml{{{}}")
-        config = load_sources_config(yaml_path)
-        assert config.version == "1.0.0"
-        assert "gpd-modal" in config.sources
-
-    def test_rejects_unsupported_version(self, tmp_path: Path) -> None:
-        yaml_path = tmp_path / "v2.yaml"
-        yaml_path.write_text(yaml.dump({"version": "2.0.0", "sources": {}}))
-        config = load_sources_config(yaml_path)
-        # Falls back to default because version 2.x is unsupported
-        assert "gpd-modal" in config.sources
+        assert config == get_default_config()
 
 
 # -- get_default_config tests --

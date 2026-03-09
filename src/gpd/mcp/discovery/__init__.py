@@ -8,8 +8,6 @@ fallback, and MCP Builder subagent contract.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from gpd.mcp.discovery.catalog import ToolCatalog
 from gpd.mcp.discovery.fallback import (
     AutoSubstituteResult,
@@ -68,16 +66,13 @@ __all__ = [
 ]
 
 
-def get_tool_catalog(config_path: Path | None = None) -> ToolCatalog:
+def get_tool_catalog() -> ToolCatalog:
     """Load sources config and create a ToolCatalog instance.
-
-    Args:
-        config_path: Optional path to mcp-sources.yaml. Uses default if None.
 
     Returns:
         A ToolCatalog ready for lazy per-category discovery.
     """
-    config = load_sources_config(config_path)
+    config = load_sources_config()
     return ToolCatalog(config)
 
 

@@ -1,4 +1,0 @@
-name: "bethe-ansatz"
-description: "load_when:"
-domain: physics
-file: "references/protocols/bethe-ansatz.md"

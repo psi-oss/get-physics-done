@@ -68,7 +68,7 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   ├── hooks/                  # Runtime hooks (statusline, update check, Codex notify)
 │   ├── commands/               # ~58 command .md files with YAML frontmatter
 │   ├── agents/                 # 17 agent .md files with YAML frontmatter
-│   └── specs/                  # Bundled spec content (agents, skills, references, etc.)
+│   └── specs/                  # Bundled spec content (agents, skills, references, templates, workflows)
 │
 └── tests/
     ├── core/                   # Core module tests
@@ -348,22 +348,6 @@ Provider-specific output:
 - **Google**: `{"google_thinking_config": {"thinking_level": "low"}}`
 
 **Never** set `reasoning_effort` directly — it only works for OpenAI and silently fails for other providers.
-
-### Bundle Overlay Configuration
-
-Bundle overlays layer domain-specific specs (actors, actions, skills) on top of a base bundle. The overlay name determines which subdirectory under `specs/` to load. The default overlay is `["physics"]`, configured via `GPDConfig.bundle_overlays`.
-
-| Source                       | Format                          | Example                          |
-|------------------------------|---------------------------------|----------------------------------|
-| `GPDConfig.bundle_overlays`  | `list[str]` field in contracts  | `["physics"]`                    |
-| `GPD_BUNDLE_OVERLAYS` env    | Comma-separated string          | `"physics,astro"`                |
-| Default                      | —                               | `["physics"]`                    |
-
-Overlays are merged sequentially: base → overlay₁ → overlay₂. Merge rules:
-- Actor prompts: base system prompt + overlay extensions (appended)
-- Action specs: deep merge (overlay fields override base, lists concatenated)
-- Skills: union (overlay additions merged in)
-- Config: overlay values override base
 
 ---
 
