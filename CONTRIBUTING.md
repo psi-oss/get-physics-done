@@ -21,7 +21,7 @@ Useful checks:
 
 ```bash
 uv run pytest tests/test_release_consistency.py -v
-uv run pytest tests/test_python_only_repo.py -v
+uv run pytest tests/core/test_cli.py tests/test_cli.py -v
 uv run pytest tests/ -v
 ```
 
