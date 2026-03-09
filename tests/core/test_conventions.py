@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from gpd.contracts import ConventionLock
 
+from gpd.contracts import ConventionLock
 from gpd.core.conventions import (
     KNOWN_CONVENTIONS,
     AssertionMismatch,

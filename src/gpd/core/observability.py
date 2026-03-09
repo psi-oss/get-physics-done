@@ -19,10 +19,9 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 
 import logfire
-
-from gpd.contracts import GPDConfig
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.contracts import GPDConfig
 from gpd.core.errors import GPDError
 
 logger = logging.getLogger(__name__)

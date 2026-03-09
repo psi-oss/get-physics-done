@@ -20,9 +20,9 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from gpd.contracts import ConventionLock
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.contracts import ConventionLock
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,

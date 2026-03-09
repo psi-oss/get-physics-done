@@ -160,7 +160,6 @@ def get_convention_lock_summary(project_dir: Path) -> dict[str, object]:
     lock_data = state_data.get("convention_lock", {})
 
     from gpd.contracts import ConventionLock
-
     from gpd.core.conventions import convention_list
 
     lock = ConventionLock(**{k: v for k, v in lock_data.items() if k in ConventionLock.model_fields})

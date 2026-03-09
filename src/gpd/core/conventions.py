@@ -21,9 +21,9 @@ import logging
 import re
 from pathlib import Path
 
-from gpd.contracts import ConventionLock
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.contracts import ConventionLock
 from gpd.core.errors import ConventionError
 from gpd.core.observability import instrument_gpd_function
 

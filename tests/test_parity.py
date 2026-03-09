@@ -32,8 +32,8 @@ import re
 from pathlib import Path
 
 import pytest
-from gpd.contracts import ConventionLock
 
+from gpd.contracts import ConventionLock
 from gpd.core.conventions import (
     CONVENTION_LABELS,
     KEY_ALIASES,
