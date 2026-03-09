@@ -27,11 +27,15 @@ def test_required_public_release_artifacts_exist() -> None:
 def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     repo_root = _repo_root()
 
-    for relative_path in ("README.md", "docs/USER-GUIDE.md"):
-        content = (repo_root / relative_path).read_text(encoding="utf-8")
-        assert "Physical Superintelligence (PSI)" in content
-        assert "GSD" in content
-        assert "get-shit-done-cc" in content
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    assert "Physical Superintelligence (PSI)" in readme
+    assert "GSD" in readme
+    assert "[Physical Superintelligence (PSI)](https://www.psi.inc)" in readme
+
+    user_guide = (repo_root / "docs/USER-GUIDE.md").read_text(encoding="utf-8")
+    assert "Physical Superintelligence (PSI)" in user_guide
+    assert "GSD" in user_guide
+    assert "get-shit-done-cc" in user_guide
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
