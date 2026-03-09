@@ -149,10 +149,10 @@ def _compute_branch_name(
 ) -> str | None:
     """Compute the git branch name based on branching strategy."""
     strategy = config.get("branching_strategy", "none")
-    if strategy == "phase" and phase_number:
+    if strategy in ("per-phase", "phase") and phase_number:
         template = config.get("phase_branch_template", "gpd/phase-{phase}-{slug}")
         return template.replace("{phase}", phase_number).replace("{slug}", phase_slug or "phase")
-    if strategy == "milestone":
+    if strategy in ("per-milestone", "milestone"):
         template = config.get("milestone_branch_template", "gpd/{milestone}-{slug}")
         return template.replace("{milestone}", milestone_version).replace("{slug}", milestone_slug or "milestone")
     return None

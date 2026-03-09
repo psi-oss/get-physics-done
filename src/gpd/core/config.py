@@ -341,47 +341,52 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
 
-    return GPDProjectConfig(
-        model_profile=_get_nested(parsed, "model_profile") or _CONFIG_DEFAULTS.model_profile,
-        autonomy=_resolve_autonomy(parsed),
-        research_mode=_get_nested(parsed, "research_mode") or _CONFIG_DEFAULTS.research_mode,
-        commit_docs=_coalesce(
-            _get_nested(parsed, "commit_docs", section="planning", field="commit_docs"),
-            _CONFIG_DEFAULTS.commit_docs,
-        ),
-        search_gitignored=_coalesce(
-            _get_nested(parsed, "search_gitignored", section="planning", field="search_gitignored"),
-            _CONFIG_DEFAULTS.search_gitignored,
-        ),
-        branching_strategy=_coalesce(
-            _get_nested(parsed, "branching_strategy", section="git", field="branching_strategy"),
-            _CONFIG_DEFAULTS.branching_strategy,
-        ),
-        phase_branch_template=_coalesce(
-            _get_nested(parsed, "phase_branch_template", section="git", field="phase_branch_template"),
-            _CONFIG_DEFAULTS.phase_branch_template,
-        ),
-        milestone_branch_template=_coalesce(
-            _get_nested(parsed, "milestone_branch_template", section="git", field="milestone_branch_template"),
-            _CONFIG_DEFAULTS.milestone_branch_template,
-        ),
-        research=_coalesce(
-            _get_nested(parsed, "research", section="workflow", field="research"),
-            _CONFIG_DEFAULTS.research,
-        ),
-        plan_checker=_resolve_plan_checker(parsed),
-        verifier=_coalesce(
-            _get_nested(parsed, "verifier", section="workflow", field="verifier"),
-            _CONFIG_DEFAULTS.verifier,
-        ),
-        parallelization=_resolve_parallelization(parsed),
-        brave_search=_coalesce(
-            _get_nested(parsed, "brave_search"),
-            _CONFIG_DEFAULTS.brave_search,
-        ),
-        model_map=_get_nested(parsed, "model_map") or None,
-        cost_per_million=_parse_cost_per_million(parsed),
-    )
+    try:
+        return GPDProjectConfig(
+            model_profile=_get_nested(parsed, "model_profile") or _CONFIG_DEFAULTS.model_profile,
+            autonomy=_resolve_autonomy(parsed),
+            research_mode=_get_nested(parsed, "research_mode") or _CONFIG_DEFAULTS.research_mode,
+            commit_docs=_coalesce(
+                _get_nested(parsed, "commit_docs", section="planning", field="commit_docs"),
+                _CONFIG_DEFAULTS.commit_docs,
+            ),
+            search_gitignored=_coalesce(
+                _get_nested(parsed, "search_gitignored", section="planning", field="search_gitignored"),
+                _CONFIG_DEFAULTS.search_gitignored,
+            ),
+            branching_strategy=_coalesce(
+                _get_nested(parsed, "branching_strategy", section="git", field="branching_strategy"),
+                _CONFIG_DEFAULTS.branching_strategy,
+            ),
+            phase_branch_template=_coalesce(
+                _get_nested(parsed, "phase_branch_template", section="git", field="phase_branch_template"),
+                _CONFIG_DEFAULTS.phase_branch_template,
+            ),
+            milestone_branch_template=_coalesce(
+                _get_nested(parsed, "milestone_branch_template", section="git", field="milestone_branch_template"),
+                _CONFIG_DEFAULTS.milestone_branch_template,
+            ),
+            research=_coalesce(
+                _get_nested(parsed, "research", section="workflow", field="research"),
+                _CONFIG_DEFAULTS.research,
+            ),
+            plan_checker=_resolve_plan_checker(parsed),
+            verifier=_coalesce(
+                _get_nested(parsed, "verifier", section="workflow", field="verifier"),
+                _CONFIG_DEFAULTS.verifier,
+            ),
+            parallelization=_resolve_parallelization(parsed),
+            brave_search=_coalesce(
+                _get_nested(parsed, "brave_search"),
+                _CONFIG_DEFAULTS.brave_search,
+            ),
+            model_map=_get_nested(parsed, "model_map") or None,
+            cost_per_million=_parse_cost_per_million(parsed),
+        )
+    except (ValueError, TypeError) as e:
+        raise ConfigError(
+            f"Invalid config.json values: {e}. Fix or delete .planning/config.json"
+        ) from e
 
 
 def _coalesce(value: object, default: object) -> object:
