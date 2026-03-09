@@ -286,7 +286,7 @@ def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = None
     try:
-        lock_fd = open(lock_path, "w")  # noqa: SIM115
+        lock_fd = open(lock_path, "w", encoding="utf-8")  # noqa: SIM115
         # Use non-blocking first, retry with timeout
         import time
 
