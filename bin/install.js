@@ -14,10 +14,10 @@ const path = require("path");
 const readline = require("readline");
 
 const RUNTIMES = {
-  claude: { name: "Claude Code", flag: "--claude" },
-  opencode: { name: "OpenCode", flag: "--opencode" },
-  gemini: { name: "Gemini CLI", flag: "--gemini" },
-  codex: { name: "Codex", flag: "--codex" },
+  "claude-code": { name: "Claude Code" },
+  "opencode": { name: "OpenCode" },
+  "gemini": { name: "Gemini CLI" },
+  "codex": { name: "Codex" },
 };
 
 function log(msg) {
@@ -103,32 +103,36 @@ async function main() {
   }
 
   // Determine runtime
+  // Determine runtime from flags or interactive prompt
+  const runtimeKeys = Object.keys(RUNTIMES);
   let runtime = null;
-  for (const [key, info] of Object.entries(RUNTIMES)) {
+  for (const key of runtimeKeys) {
     if (args.includes(`--${key}`)) {
       runtime = key;
       break;
     }
   }
+  // Also accept short aliases
+  if (!runtime && args.includes("--claude")) runtime = "claude-code";
 
   if (!runtime) {
     console.log("");
     console.log("  Which coding agent do you use?");
     console.log("");
-    console.log("  1. Claude Code");
-    console.log("  2. OpenCode");
-    console.log("  3. Gemini CLI");
-    console.log("  4. Codex");
+    runtimeKeys.forEach((key, i) => {
+      console.log(`  ${i + 1}. ${RUNTIMES[key].name}`);
+    });
     console.log("");
     const choice = await prompt("  Enter number (1-4): ");
-    runtime = ["claude", "opencode", "gemini", "codex"][parseInt(choice) - 1];
-    if (!runtime) {
+    const idx = parseInt(choice) - 1;
+    if (idx < 0 || idx >= runtimeKeys.length) {
       error("Invalid choice.");
       process.exit(1);
     }
+    runtime = runtimeKeys[idx];
   }
 
-  // Determine scope
+  // Determine scope from flags or interactive prompt
   let scope = null;
   if (args.includes("--global")) scope = "global";
   if (args.includes("--local")) scope = "local";
@@ -144,16 +148,31 @@ async function main() {
     scope = choice === "2" ? "local" : "global";
   }
 
-  // Run gpd install
+  // Run gpd install <runtime> --global/--local
   log(`Installing GPD for ${RUNTIMES[runtime].name} (${scope})...`);
-  const installArgs = ["gpd", "install", `--${runtime}`, `--${scope}`];
-  const result = spawnSync("uv", ["run", ...installArgs], { stdio: "inherit" });
+
+  // Try uv run gpd install first, fall back to gpd directly
+  let result = spawnSync("uv", ["run", "gpd", "install", runtime, `--${scope}`], {
+    stdio: "inherit",
+  });
+  if (result.status !== 0) {
+    // Fallback: try gpd directly (if installed globally)
+    result = spawnSync("gpd", ["install", runtime, `--${scope}`], {
+      stdio: "inherit",
+    });
+  }
+  if (result.status !== 0) {
+    // Final fallback: run the Python module directly
+    result = spawnSync(python, ["-m", "gpd.cli", "install", runtime, `--${scope}`], {
+      stdio: "inherit",
+    });
+  }
 
   if (result.status === 0) {
     console.log("");
     log("\x1b[32mInstalled successfully!\x1b[0m");
     console.log("");
-    if (runtime === "claude" || runtime === "gemini") {
+    if (runtime === "claude-code" || runtime === "gemini") {
       console.log("  Start a new project:  /gpd:new-project");
     } else if (runtime === "opencode") {
       console.log("  Start a new project:  /gpd-new-project");
