@@ -71,6 +71,3 @@ GPD will:
 - One of: Claude Code, OpenCode, Gemini CLI, or Codex
 - API key for your LLM provider (Anthropic, OpenAI, or Google)
 
-## License
-
-MIT
