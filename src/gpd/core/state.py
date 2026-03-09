@@ -789,8 +789,13 @@ from gpd.core.conventions import CONVENTION_LABELS as _CONVENTION_LABELS  # noqa
 
 
 def _is_bogus_value(v: object) -> bool:
-    """Check if a convention value is effectively unset."""
-    return v is None or str(v).lower() in ("null", "undefined", "none")
+    """Check if a convention value is effectively unset.
+
+    Delegates to :func:`gpd.core.conventions.is_bogus_value` for consistency.
+    """
+    from gpd.core.conventions import is_bogus_value
+
+    return is_bogus_value(v)
 
 
 def _escape_pipe(v: object) -> str:

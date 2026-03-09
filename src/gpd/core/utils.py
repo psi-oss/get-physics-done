@@ -146,10 +146,11 @@ def format_progress_bar(percent: float, width: int = 40) -> str:
 # ─── Safe Parsing ───────────────────────────────────────────────────────────────
 
 
-def safe_parse_int(value: object, default: int) -> int:
-    """Parse an integer safely, returning default if invalid.
+def safe_parse_int(value: object, default: int | None = 0) -> int | None:
+    """Parse an integer safely, returning *default* if invalid.
 
-    Unlike int(), never raises on bad input.
+    Unlike int(), never raises on bad input.  When *default* is ``None``
+    the caller can distinguish "not a number" from a real zero.
     """
     if value is None:
         return default

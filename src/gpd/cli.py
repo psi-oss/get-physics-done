@@ -185,7 +185,7 @@ def state_validate() -> None:
 
     result = state_validate(_get_cwd())
     _output(result)
-    if hasattr(result, "passed") and not result.passed:
+    if hasattr(result, "valid") and not result.valid:
         raise typer.Exit(code=1)
 
 
@@ -453,20 +453,22 @@ def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
 
 
 def _save_lock(lock: object) -> None:
-    """Save ConventionLock back to state.json."""
+    """Save ConventionLock back to state.json and regenerate STATE.md."""
     import json
 
     from gpd.core.constants import ProjectLayout
-    from gpd.core.utils import atomic_write, file_lock
+    from gpd.core.state import save_state_json
+    from gpd.core.utils import file_lock
 
-    state_path = ProjectLayout(_get_cwd()).state_json
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
     with file_lock(state_path):
         try:
             raw = json.loads(state_path.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
             raw = {}
         raw["convention_lock"] = lock.model_dump(exclude_none=True)  # type: ignore[union-attr]
-        atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
+    save_state_json(cwd, raw)
 
 
 @convention_app.command("set")
@@ -558,16 +560,10 @@ def _load_state_dict() -> dict:
 
 
 def _save_state_dict(state: dict) -> None:
-    """Save a state dict back to state.json with file locking."""
-    import json
+    """Save a state dict back to state.json and regenerate STATE.md."""
+    from gpd.core.state import save_state_json
 
-    from gpd.core.constants import ProjectLayout
-    from gpd.core.utils import atomic_write, file_lock
-
-    state_path = ProjectLayout(_get_cwd()).state_json
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    with file_lock(state_path):
-        atomic_write(state_path, json.dumps(state, indent=2) + "\n")
+    save_state_json(_get_cwd(), state)
 
 
 @result_app.command("list")
@@ -656,7 +652,7 @@ def verify_summary(
     """Verify a SUMMARY.md file."""
     from gpd.core.frontmatter import verify_summary
 
-    _output(verify_summary(_get_cwd(), path, check_count))
+    _output(verify_summary(_get_cwd(), Path(path), check_count))
 
 
 @verify_app.command("plan")
@@ -666,7 +662,7 @@ def verify_plan(
     """Verify plan file structure."""
     from gpd.core.frontmatter import verify_plan_structure
 
-    _output(verify_plan_structure(_get_cwd(), path))
+    _output(verify_plan_structure(_get_cwd(), Path(path)))
 
 
 @verify_app.command("phase")
@@ -686,7 +682,7 @@ def verify_references(
     """Verify all internal references resolve."""
     from gpd.core.frontmatter import verify_references
 
-    _output(verify_references(_get_cwd(), path))
+    _output(verify_references(_get_cwd(), Path(path)))
 
 
 @verify_app.command("commits")
@@ -706,7 +702,7 @@ def verify_artifacts(
     """Verify all artifacts referenced in a plan exist."""
     from gpd.core.frontmatter import verify_artifacts
 
-    _output(verify_artifacts(_get_cwd(), plan_path))
+    _output(verify_artifacts(_get_cwd(), Path(plan_path)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1032,12 +1028,11 @@ app.add_typer(init_app, name="init")
 def init_execute_phase(
     phase: str | None = typer.Argument(None, help="Phase number"),
     include: str | None = typer.Option(None, "--include", help="Additional context includes"),
-    max_context: int | None = typer.Option(None, "--max-context", help="Max context chars"),
 ) -> None:
     """Assemble context for executing a phase."""
     from gpd.core.context import init_execute_phase
 
-    includes = include.split(",") if include else []
+    includes = set(include.split(",")) if include else set()
     _output(init_execute_phase(_get_cwd(), phase, includes))
 
 
@@ -1045,12 +1040,11 @@ def init_execute_phase(
 def init_plan_phase(
     phase: str | None = typer.Argument(None, help="Phase number"),
     include: str | None = typer.Option(None, "--include", help="Additional context includes"),
-    max_context: int | None = typer.Option(None, "--max-context", help="Max context chars"),
 ) -> None:
     """Assemble context for planning a phase."""
     from gpd.core.context import init_plan_phase
 
-    includes = include.split(",") if include else []
+    includes = set(include.split(",")) if include else set()
     _output(init_plan_phase(_get_cwd(), phase, includes))
 
 
@@ -1106,7 +1100,7 @@ def init_progress(
     """Assemble context for progress review."""
     from gpd.core.context import init_progress
 
-    includes = include.split(",") if include else []
+    includes = set(include.split(",")) if include else set()
     _output(init_progress(_get_cwd(), includes))
 
 

@@ -91,8 +91,8 @@ def test_state_update(mock_update):
 @patch("gpd.core.state.state_validate")
 def test_state_validate_pass(mock_validate):
     mock_result = MagicMock()
-    mock_result.passed = True
-    mock_result.model_dump.return_value = {"passed": True, "errors": []}
+    mock_result.valid = True
+    mock_result.model_dump.return_value = {"valid": True, "issues": []}
     mock_validate.return_value = mock_result
     result = runner.invoke(app, ["state", "validate"])
     assert result.exit_code == 0
@@ -101,8 +101,8 @@ def test_state_validate_pass(mock_validate):
 @patch("gpd.core.state.state_validate")
 def test_state_validate_fail(mock_validate):
     mock_result = MagicMock()
-    mock_result.passed = False
-    mock_result.model_dump.return_value = {"passed": False, "errors": ["bad"]}
+    mock_result.valid = False
+    mock_result.model_dump.return_value = {"valid": False, "issues": ["bad"]}
     mock_validate.return_value = mock_result
     result = runner.invoke(app, ["state", "validate"])
     assert result.exit_code == 1

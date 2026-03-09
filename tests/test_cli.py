@@ -27,7 +27,7 @@ def test_main_no_gpd_prints_error_and_exits_1(tmp_path: Path) -> None:
         patch("gpd.mcp.cli.find_gpd_install", return_value=None),
         patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, [])
     assert result.exit_code == 1
@@ -40,7 +40,7 @@ def test_main_with_gpd_displays_logo(mock_gpd_install: Path, tmp_path: Path) -> 
         patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, [])
     assert result.exit_code == 0
@@ -59,7 +59,7 @@ def test_main_resume_with_no_sessions_exits_1(mock_gpd_install: Path, tmp_path: 
         patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, ["--resume"])
     assert result.exit_code == 1
@@ -80,7 +80,7 @@ def test_main_resume_loads_latest_session(mock_gpd_install: Path, tmp_path: Path
         patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, ["--resume"])
     assert result.exit_code == 0
@@ -102,7 +102,7 @@ def test_main_session_flag_loads_specific_session(mock_gpd_install: Path, tmp_pa
         patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, ["--session", "specific01"])
     assert result.exit_code == 0
@@ -142,7 +142,7 @@ def test_fresh_launch_creates_new_session(mock_gpd_install: Path, tmp_path: Path
         patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, [])
     assert result.exit_code == 0
@@ -159,7 +159,7 @@ def test_fresh_launch_shows_mcp_count(mock_gpd_install: Path, tmp_path: Path) ->
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
         patch("gpd.mcp.cli.get_cached_mcp_count", return_value=5),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, [])
     assert result.exit_code == 0
@@ -195,7 +195,7 @@ def test_version_mismatch_shows_warning(mock_gpd_install: Path, tmp_path: Path) 
         patch("gpd.mcp.cli.check_gpd_version", return_value=(False, "99.0.0")),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_claude_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
         result = runner.invoke(app, [])
     assert result.exit_code == 0
