@@ -14,9 +14,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from psi_contracts.blackboard import BlackboardWriteRequest, CurationDecision
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from psi_contracts.blackboard import BlackboardWriteRequest, CurationDecision
 
 from gpd.core.model_defaults import GPD_DEFAULT_FAST_MODEL
 from gpd.specs import SPECS_DIR
@@ -38,10 +41,29 @@ _FALLBACK_PROMPT = (
 # ---------------------------------------------------------------------------
 
 
-class CurationBatch(BaseModel):
-    """Structured output from the curator agent for a batch of requests."""
+def _get_curation_batch_class() -> type[BaseModel]:
+    """Lazily build and cache the CurationBatch Pydantic model.
 
-    decisions: list[CurationDecision] = Field(default_factory=list)
+    The model references ``psi_contracts.blackboard.CurationDecision``,
+    which is only available inside the PSI monorepo.  Building it inside
+    a function avoids a module-level import of psi_contracts.
+    """
+    global _CurationBatch
+    if _CurationBatch is not None:
+        return _CurationBatch
+
+    from psi_contracts.blackboard import CurationDecision
+
+    class CurationBatch(BaseModel):
+        """Structured output from the curator agent for a batch of requests."""
+
+        decisions: list[CurationDecision] = Field(default_factory=list)
+
+    _CurationBatch = CurationBatch
+    return _CurationBatch
+
+
+_CurationBatch: type[BaseModel] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +105,7 @@ def _get_curator_agent(model_id: str, prompt: str):
 
     agent = Agent(
         model_id,
-        output_type=CurationBatch,
+        output_type=_get_curation_batch_class(),
         system_prompt=prompt,
         retries=2,
     )
@@ -158,6 +180,8 @@ class PhysicsCurator:
         current_state: dict[str, object],
     ) -> list[CurationDecision]:
         """Evaluate a single chunk of requests via the PydanticAI agent."""
+        from psi_contracts.blackboard import CurationDecision as _CurationDecision
+
         prompt = self._build_prompt(requests, current_state)
         agent = _get_curator_agent(self._model_id, self._prompt)
         result = await agent.run(prompt)
@@ -167,7 +191,7 @@ class PhysicsCurator:
         # Pad or truncate to match request count
         while len(decisions) < len(requests):
             decisions.append(
-                CurationDecision(
+                _CurationDecision(
                     approved=False,
                     reason="Curator did not return a decision for this request.",
                 )

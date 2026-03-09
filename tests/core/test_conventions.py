@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from psi_contracts.gpd import ConventionLock
+from gpd.contracts import ConventionLock
 
 from gpd.core.conventions import (
     KNOWN_CONVENTIONS,

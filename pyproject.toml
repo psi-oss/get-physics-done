@@ -24,6 +24,7 @@ dependencies = [
     "pybtex>=0.24",
     "Pillow>=10.0",
     "asyncpg>=0.31.0",
+    "jinja2>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -35,11 +36,7 @@ viewer = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
     "sse-starlette>=1.6",
-    "jinja2>=3.1",
 ]
-
-[project.entry-points."psi.strategies"]
-gpd_mcts = "gpd.strategy.mcts:GPDMCTSStrategy"
 
 [project.scripts]
 gpd = "gpd.cli:app"

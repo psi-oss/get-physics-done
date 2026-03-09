@@ -32,7 +32,7 @@ import re
 from pathlib import Path
 
 import pytest
-from psi_contracts.gpd import ConventionLock
+from gpd.contracts import ConventionLock
 
 from gpd.core.conventions import (
     CONVENTION_LABELS,

@@ -19,6 +19,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 
 import logfire
+
 from gpd.contracts import GPDConfig
 from pydantic import BaseModel, ConfigDict, Field
 
