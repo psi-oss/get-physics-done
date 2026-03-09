@@ -131,6 +131,7 @@ In rapid mode, prioritize equations tagged in SUMMARY.md frontmatter as downstre
 - `{GPD_INSTALL_DIR}/references/contradiction-resolution-example.md` -- Worked example of resolving contradictions with confidence weighting (load when encountering conflicting claims between phases)
 - `{GPD_INSTALL_DIR}/references/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
 - `{GPD_INSTALL_DIR}/references/cross-project-patterns.md` -- Cross-project pattern library: check for known convention error patterns before investigating from scratch, record new patterns after resolution
+- `{GPD_INSTALL_DIR}/templates/uncertainty-budget.md` -- Template for `.planning/analysis/UNCERTAINTY-BUDGET.md` (load when auditing uncertainty propagation across phases)
 </references>
 
 <core_principle>

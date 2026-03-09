@@ -999,7 +999,7 @@ done
 
 **4. If ANY failures or skips occurred:**
 
-Create a recovery section in the phase directory:
+Create a recovery section in the phase directory. For physics-specific root cause analysis, consult `{GPD_INSTALL_DIR}/templates/recovery-plan.md`:
 
 ```bash
 RECOVERY_FILE="${phase_dir}/PHASE-RECOVERY.md"

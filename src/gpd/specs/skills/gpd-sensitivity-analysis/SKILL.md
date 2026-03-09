@@ -25,6 +25,7 @@ Determine which input parameters most strongly affect output quantities. Compute
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md
+@{GPD_INSTALL_DIR}/templates/uncertainty-budget.md
 </execution_context>
 
 <context>

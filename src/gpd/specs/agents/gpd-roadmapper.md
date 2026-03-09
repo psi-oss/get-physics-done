@@ -234,6 +234,13 @@ Which categories depend on others?
 - PAPER needs all upstream results
 - LIT informs FORM but can be concurrent with early phases
 
+**Domain-specific phase templates:** For projects in well-defined subfields, consult the project-type template for domain-specific phase structures, mode adjustments (explore/exploit), common pitfalls, and verification patterns:
+- `{GPD_INSTALL_DIR}/templates/project-types/qft-calculation.md` -- QFT: Feynman rules, regularization, renormalization, cross sections
+- `{GPD_INSTALL_DIR}/templates/project-types/stat-mech-simulation.md` -- Stat mech: algorithm design, equilibration, production, finite-size scaling
+- Other subfields: `{GPD_INSTALL_DIR}/templates/project-types/` (amo, condensed-matter, cosmology, general-relativity, etc.)
+
+Load the matching template when the PROJECT.md physics subfield aligns. Use its phase structure as a starting point, then adapt to the specific research objectives.
+
 **Step 3: Create Research Milestones**
 Each phase delivers a coherent, verifiable research outcome.
 

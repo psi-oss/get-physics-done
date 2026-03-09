@@ -12,6 +12,8 @@ Read these reference files using the Read tool:
 - {GPD_INSTALL_DIR}/references/execute-plan-validation.md
 - {GPD_INSTALL_DIR}/references/execute-plan-checkpoints.md
 - {GPD_INSTALL_DIR}/references/reproducibility.md
+- {GPD_INSTALL_DIR}/references/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (Uncertainty Budget declaration format, verification checks, phase handoff format)
+- {GPD_INSTALL_DIR}/references/executor-index.md -- Maps execution scenarios (QFT, condensed matter, numerical, paper writing, debugging) to the correct domain-specific reference files
 - {GPD_INSTALL_DIR}/templates/calculation-log.md -- Template for CALCULATION_LOG.md (detailed derivation records within a phase)
 - {GPD_INSTALL_DIR}/templates/recovery-plan.md -- Template for RECOVERY.md (structured recovery after plan execution failure)
 </required_reading>
@@ -553,7 +555,7 @@ All routes: `/clear` first for fresh context.
 </process>
 
 <failure_recovery>
-When plan execution fails, see `execute-plan-recovery.md` for the full recovery protocol including rollback, partial work preservation, and RECOVERY.md creation.
+When plan execution fails, see `execute-plan-recovery.md` for the full recovery protocol including rollback, partial work preservation, and RECOVERY.md creation. For physics-specific failure diagnosis (sign errors, convergence failures, numerical instability, dimensional mismatches), use the template at `{GPD_INSTALL_DIR}/templates/recovery-plan.md`.
 </failure_recovery>
 
 <success_criteria>

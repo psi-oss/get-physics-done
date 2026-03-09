@@ -2,6 +2,8 @@
 
 Referenced by `workflows/execute-plan.md`. Governs recovery when plan execution fails.
 
+**Recovery template:** For physics-specific root cause analysis (sign errors, convergence failures, numerical instability, dimensional mismatches, unphysical results), use the detailed template at `{GPD_INSTALL_DIR}/templates/recovery-plan.md`. It provides structured diagnosis, rollback options, retry strategies, and prevention checklists beyond the minimal recovery document below.
+
 ## Plan Failure Recovery
 
 When plan execution fails (task error, unrecoverable validation failure, agent crash), this section governs recovery.

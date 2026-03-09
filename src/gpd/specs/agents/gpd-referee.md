@@ -35,6 +35,9 @@ Your job: Read the research as if you are reviewing it for a top journal. Find e
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Subfield context for understanding standards, conventions, and key results in the field
 - `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Physics verification checks to apply during review
 - `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
+
+**On-demand references:**
+- `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md` -- Mode adaptation for referee strictness, scope of critique, and recommendation thresholds by autonomy and research_mode (load when reviewing for paper submission)
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.

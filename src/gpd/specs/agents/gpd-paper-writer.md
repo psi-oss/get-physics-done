@@ -86,9 +86,11 @@ The paper-writer adapts its approach based on project research mode.
 <references>
 - `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Standard format for notation tables and symbol definitions
+- `@{GPD_INSTALL_DIR}/templates/latex-preamble.md` -- Standard LaTeX preamble, macros, equation labeling, and figure conventions
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)
+- `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md` -- Mode adaptation for paper structure, derivation detail, figure strategy, and literature integration by autonomy and research_mode (load when calibrating writing approach)
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
