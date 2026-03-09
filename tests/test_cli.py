@@ -14,13 +14,21 @@ from gpd.cli import app
 runner = CliRunner()
 
 
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    import re
+
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
 def test_session_help_is_exposed_from_main_cli() -> None:
     """The unified gpd CLI should expose the session subcommand."""
     result = runner.invoke(app, ["session", "--help"])
     assert result.exit_code == 0
-    assert "--resume" in result.output
-    assert "--history" in result.output
-    assert "reindex" in result.output
+    plain = _strip_ansi(result.output)
+    assert "--resume" in plain
+    assert "--history" in plain
+    assert "reindex" in plain
 
 
 def test_session_resume_with_no_sessions_exits_1(tmp_path: Path) -> None:

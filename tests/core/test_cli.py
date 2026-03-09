@@ -59,10 +59,13 @@ def test_phase_help():
 
 
 def test_session_help():
+    import re
+
     result = runner.invoke(app, ["session", "--help"])
     assert result.exit_code == 0
-    assert "--resume" in result.output
-    assert "reindex" in result.output
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--resume" in plain
+    assert "reindex" in plain
 
 
 def test_pipeline_help():
