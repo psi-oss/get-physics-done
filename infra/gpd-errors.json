@@ -4,6 +4,9 @@
   "transport": "stdio",
   "command": "python",
   "args": ["-m", "gpd.mcp.servers.errors_mcp"],
+  "env": {
+    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
   "alternatives": {
     "entry_point": {
       "command": "gpd-mcp-errors",

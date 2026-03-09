@@ -3,14 +3,12 @@
  * GPD installer — sets up Get Physics Done in your coding agent.
  *
  * Usage:
- *   npx github:physicalsuperintelligence/get-physics-done
- *   npx github:physicalsuperintelligence/get-physics-done --claude --global
- *   npx github:physicalsuperintelligence/get-physics-done --opencode --global
+ *   npx github:get-physics-done/get-physics-done
+ *   npx github:get-physics-done/get-physics-done --claude --global
+ *   npx github:get-physics-done/get-physics-done --opencode --global
  */
 
 const { execSync, spawnSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
 const readline = require("readline");
 
 const RUNTIMES = {
@@ -91,18 +89,21 @@ async function main() {
 
   // Install the Python package
   log("Installing get-physics-done...");
-  try {
-    spawnSync("uv", ["pip", "install", "get-physics-done@git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
-      stdio: "inherit",
-    });
-  } catch {
-    // Fallback to pip
-    spawnSync(python, ["-m", "pip", "install", "git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
+  let pipResult = spawnSync("uv", ["pip", "install", "get-physics-done@git+https://github.com/get-physics-done/get-physics-done.git"], {
+    stdio: "inherit",
+  });
+  if (pipResult.status !== 0) {
+    // Fallback to pip if uv pip install failed
+    log("uv pip install failed, trying pip...");
+    pipResult = spawnSync(python, ["-m", "pip", "install", "git+https://github.com/get-physics-done/get-physics-done.git"], {
       stdio: "inherit",
     });
   }
+  if (pipResult.status !== 0) {
+    error("Failed to install get-physics-done Python package.");
+    process.exit(1);
+  }
 
-  // Determine runtime
   // Determine runtime from flags or interactive prompt
   const runtimeKeys = Object.keys(RUNTIMES);
   let runtime = null;
@@ -114,6 +115,7 @@ async function main() {
   }
   // Also accept short aliases
   if (!runtime && args.includes("--claude")) runtime = "claude-code";
+  if (!runtime && args.includes("--gemini-cli")) runtime = "gemini";
 
   if (!runtime) {
     console.log("");
@@ -123,7 +125,7 @@ async function main() {
       console.log(`  ${i + 1}. ${RUNTIMES[key].name}`);
     });
     console.log("");
-    const choice = await prompt("  Enter number (1-4): ");
+    const choice = await prompt(`  Enter number (1-${runtimeKeys.length}): `);
     const idx = parseInt(choice) - 1;
     if (idx < 0 || idx >= runtimeKeys.length) {
       error("Invalid choice.");

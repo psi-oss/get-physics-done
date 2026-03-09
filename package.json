@@ -6,16 +6,11 @@
     "get-physics-done": "bin/install.js"
   },
   "files": [
-    "bin/",
-    "src/gpd/commands/",
-    "src/gpd/agents/",
-    "src/gpd/specs/",
-    "src/gpd/hooks/",
-    "src/gpd/adapters/"
+    "bin/"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/physicalsuperintelligence/get-physics-done.git"
+    "url": "https://github.com/get-physics-done/get-physics-done.git"
   },
   "keywords": ["physics", "research", "ai", "claude", "opencode", "lagrangian", "derivation"],
   "license": "UNLICENSED"
