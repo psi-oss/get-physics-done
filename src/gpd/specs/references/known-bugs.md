@@ -11,19 +11,19 @@ This file is an index. Full details are in the sub-files linked below.
 
 | Bug # | Title | Status | File |
 |-------|-------|--------|------|
-| 1 | Phase Number Parsing Bugs (parseFloat / .sort()) | Fixed | [resolved](known-bugs-resolved.md) |
+| 1 | Phase Number Parsing Bugs (lossy numeric parsing / naive sorting) | Fixed | [resolved](known-bugs-resolved.md) |
 | 2 | State Dual-Write Consistency | Improved (arch remains) | [active](known-bugs-active.md) |
 | 3 | Convention Source-of-Truth Multiplicity | Substantially resolved (no pre-commit hook) | [active](known-bugs-active.md) |
 | 4 | Context Window Compression Artifacts | Mitigated (platform issue) | [active](known-bugs-active.md) |
 | 5 | Git Tag Accumulation from Failed Plans | Workaround only | [active](known-bugs-active.md) |
 | 6 | Dollar Sign Backreference in State Replace Calls | Fixed | [resolved](known-bugs-resolved.md) |
 | 7 | Phase Remove Cascading Renumber in ROADMAP.md | Fixed | [resolved](known-bugs-resolved.md) |
-| 8 | install.js Error Recovery Could Delete Original Data | Fixed | [resolved](known-bugs-resolved.md) |
+| 8 | Installer Error Recovery Could Delete Original Data | Fixed | [resolved](known-bugs-resolved.md) |
 | 9 | Progress Data Loss from Unconditional Delete in syncStateJson | Fixed | [resolved](known-bugs-resolved.md) |
 | 10 | NaN Propagation from Non-Numeric Total Phases/Plans | Fixed | [resolved](known-bugs-resolved.md) |
 | 11 | progress_percent Null-to-Zero Roundtrip Corruption | Fixed | [resolved](known-bugs-resolved.md) |
 | 12 | depends-on Hyphenated YAML Key Ignored in Wave Validation | Fixed | [resolved](known-bugs-resolved.md) |
-| 13 | gpd CLI Requires Node.js 18+ (Caveat) | Obsolete (CLI rewritten in Python) | [resolved](known-bugs-resolved.md) |
+| 13 | gpd CLI Required a Deprecated Runtime 18+ (Caveat) | Obsolete (CLI rewritten in Python) | [resolved](known-bugs-resolved.md) |
 | 14 | Concurrent Agent File Edit Conflicts | Workaround only | [active](known-bugs-active.md) |
 | 15 | State Auto-Compact Implementation Lost During Concurrent Edits | Fixed | [resolved](known-bugs-resolved.md) |
 | 16 | validate-return Command Integration | Fixed | [resolved](known-bugs-resolved.md) |

@@ -123,7 +123,6 @@ Structure:
 <html>
   <head>
     <title>{project_title} -- Research Results</title>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
       body {
         font-family: "Computer Modern", Georgia, serif;

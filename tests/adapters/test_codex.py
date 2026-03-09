@@ -201,8 +201,9 @@ class TestInstall:
         config_toml = target / "config.toml"
         assert config_toml.exists()
         content = config_toml.read_text(encoding="utf-8")
-        assert "notify" in content
-        assert "python3" in content
+        expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        assert "# GPD update notification" in content
+        assert expected_notify in content
 
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -331,8 +332,8 @@ class TestUninstall:
 
 
 class TestLegacyHookUpgrade:
-    def test_node_replacement_scoped_to_notify_line(self, tmp_path: Path) -> None:
-        """Upgrading 'node' to 'python3' must not affect non-notify TOML entries."""
+    def test_rewrites_legacy_notify_without_touching_unrelated_tool_lines(self, tmp_path: Path) -> None:
+        """Configuring notify should only replace the GPD notify line."""
         from gpd.adapters.codex import _configure_config_toml
 
         target = tmp_path / ".codex"
@@ -340,14 +341,13 @@ class TestLegacyHookUpgrade:
         (target / "hooks").mkdir()
         config_toml = target / "config.toml"
         config_toml.write_text(
-            'custom_tool = ["node", "/path/to/my-tool.js"]\n'
-            'notify = ["node", "/path/to/gpd-codex-notify.js"]\n',
+            'custom_tool = ["toolctl", "/path/to/my-tool"]\n'
+            'notify = ["toolctl", "/path/to/gpd-codex-notify"]\n',
             encoding="utf-8",
         )
         _configure_config_toml(target, is_global=True)
 
         content = config_toml.read_text(encoding="utf-8")
-        # The notify line should be upgraded to python3
-        assert '"python3"' in content
-        # The custom_tool line must still reference "node"
-        assert 'custom_tool = ["node"' in content
+        expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        assert expected_notify in content
+        assert 'custom_tool = ["toolctl", "/path/to/my-tool"]' in content

@@ -1,4 +1,4 @@
-"""OpenCode runtime adapter — full parity with old install.js.
+"""OpenCode runtime adapter.
 
 Handles:
 - XDG Base Directory config path resolution (4-level precedence)
@@ -22,6 +22,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     file_hash,
@@ -507,13 +508,13 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 f.unlink()
                 counts["agents"] += 1
 
-    # 4. Remove GPD hooks (both Python and legacy JS)
+    # 4. Remove GPD hooks
     hooks_dir = target_dir / "hooks"
     if hooks_dir.exists():
-        gpd_hooks = [name for h in HOOK_SCRIPTS.values() for name in (h["current"], h["legacy"])]
-        for hook in gpd_hooks:
-            hook_path = hooks_dir / hook
-            if hook_path.exists():
+        for hook_path in hooks_dir.iterdir():
+            if not hook_path.is_file():
+                continue
+            if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
                 hook_path.unlink()
                 counts["hooks"] += 1
 
@@ -612,7 +613,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
 
 
 class OpenCodeAdapter(RuntimeAdapter):
-    """Adapter for OpenCode — full parity with old install.js."""
+    """Adapter for OpenCode."""
 
     @property
     def runtime_name(self) -> str:

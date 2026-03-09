@@ -399,7 +399,7 @@ Present completion summary and next steps:
 - Don't mark future/unstarted phases as superseded -- use $gpd-remove-phase instead
 - Don't silently skip downstream dependency updates -- always check and update references
 - Don't create the replacement without pre-populating CONTEXT.md -- the whole point is to carry forward learnings
-- Don't use `python` for gpd invocations -- always use `node`
+- Don't use `python` for gpd invocations -- always use `gpd`
 - Don't renumber existing phases -- use decimal numbering for the replacement
 - Don't modify the original phase's PLAN.md or SUMMARY.md files -- only add SUPERSEDED.md
 

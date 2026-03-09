@@ -68,15 +68,15 @@ class TestUninstallBase:
         target = tmp_path / ".claude"
         hooks = target / "hooks"
         hooks.mkdir(parents=True)
-        (hooks / "gpd-statusline.js").write_text("s", encoding="utf-8")
-        (hooks / "gpd-check-update.js").write_text("u", encoding="utf-8")
-        (hooks / "user-hook.js").write_text("keep", encoding="utf-8")
+        (hooks / "statusline.py").write_text("s", encoding="utf-8")
+        (hooks / "check_update.py").write_text("u", encoding="utf-8")
+        (hooks / "user-hook.py").write_text("keep", encoding="utf-8")
 
         adapter.uninstall(target)
 
-        assert not (hooks / "gpd-statusline.js").exists()
-        assert not (hooks / "gpd-check-update.js").exists()
-        assert (hooks / "user-hook.js").exists()
+        assert not (hooks / "statusline.py").exists()
+        assert not (hooks / "check_update.py").exists()
+        assert (hooks / "user-hook.py").exists()
 
     def test_removes_manifest(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")

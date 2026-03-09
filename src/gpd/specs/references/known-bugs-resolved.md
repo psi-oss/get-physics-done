@@ -8,25 +8,25 @@ Last updated: 2026-02-24
 
 ## GPD-Specific Issues
 
-### 1. Phase Number Parsing Bugs (parseFloat / .sort())
+### 1. Phase Number Parsing Bugs (lossy numeric parsing / naive sorting)
 
 **Bug:** `parseFloat("2.1.1")` returns `2.1`, silently truncating multi-level decimal phases. This conflates distinct phases (e.g., "2.1" and "2.1.1" both map to 2.1). Similarly, `parseFloat("01.10")` returns `1.1`, conflating phase "01.10" with "01.1". Lexicographic `.sort()` on phase directories also misordered phases when sub-phases reach 10+ (e.g., "02.10" sorts before "02.2").
 
-**Status:** Fixed. All files now use `comparePhaseNumbers` (segment-by-segment comparison) and segment-by-segment `parseInt` normalization. `commands.js` six `.sort()` calls now use `comparePhaseNumbers`. `state.js` `cmdStateCompact` now uses segment-by-segment threshold computation and `comparePhaseNumbers` instead of `parseFloat`.
+**Status:** Fixed. All files now use `comparePhaseNumbers` (segment-by-segment comparison) and segment-by-segment integer normalization. Phase ordering and state compaction now use `comparePhaseNumbers` instead of lossy decimal parsing.
 
 **Note:** Decimal phase numbers (e.g., 2.1) and multi-level decimals (e.g., 2.1.1) are correctly supported across all phase ordering, directory matching, insert, result, compact, and validation operations.
 
 ### 6. Dollar Sign Backreference in State Replace Calls
 
-**Bug:** Several `String.replace()` calls in `state.js` pass user-provided text in the replacement string without escaping `$` characters. In JavaScript, `$1`, `$&`, `$'`, `$$` in replacement strings are interpreted as regex backreferences, not literal text.
+**Bug:** Several legacy state update paths passed user-provided text directly into regex replacement strings without escaping `$` characters. That caused replacement backreference syntax such as `$1` and `$&` to be interpreted instead of treated literally.
 
-**Affected locations (state.js):**
-- Line 1350: `cmdStateRecordMetric` — metrics table body includes user-provided phase/duration values
-- Line 1470: `cmdStateAddDecision` — decision text from user
-- Line 1515: `cmdStateAddBlocker` — blocker text from user
-- Line 1604: `cmdStateResolveBlocker` — resolved section body
+**Affected locations:**
+- `cmdStateRecordMetric` — metrics table body includes user-provided phase/duration values
+- `cmdStateAddDecision` — decision text from user
+- `cmdStateAddBlocker` — blocker text from user
+- `cmdStateResolveBlocker` — resolved section body
 
-**Note:** The `stateReplaceField` helper (line 1016) already correctly escapes `$` via `String(newValue).replace(/\$/g, "$$$$")`. The above locations do NOT use this helper.
+**Note:** The shared `stateReplaceField` helper already escaped `$` correctly. The above locations bypassed that helper.
 
 **Fix:** Use function replacement — `content.replace(pattern, () => replacement)` — which prevents `$` interpretation.
 
@@ -34,7 +34,7 @@ Last updated: 2026-02-24
 
 ### 7. Phase Remove Cascading Renumber in ROADMAP.md
 
-**Bug:** `cmdPhaseRemove` in `phases.js` renumbered subsequent phase references in ROADMAP.md using a reverse loop (from maxPhase down to removedInt+1). This caused cascading renames: "Phase 8" -> "Phase 7", then the new "Phase 7" was caught again by the "Phase 7" -> "Phase 6" rename, producing incorrect numbering.
+**Bug:** The legacy `cmdPhaseRemove` phase-management implementation renumbered subsequent phase references in ROADMAP.md using a reverse loop (from maxPhase down to removedInt+1). This caused cascading renames: "Phase 8" -> "Phase 7", then the new "Phase 7" was caught again by the "Phase 7" -> "Phase 6" rename, producing incorrect numbering.
 
 **Example:** Removing phase 5 from [1,2,3,4,5,6,7,8] would produce [1,2,3,4,5,5,5] instead of [1,2,3,4,5,6,7].
 
@@ -44,7 +44,7 @@ Last updated: 2026-02-24
 
 **Note:** The filesystem directory renaming in the same function uses descending order, which is correct because directories have unique slugs (e.g., "08-numerics" -> "07-numerics" won't conflict with "07-formalism").
 
-### 8. install.js Error Recovery Could Delete Original Data
+### 8. Installer Error Recovery Could Delete Original Data
 
 **Bug:** In `copyWithPathReplacement`, if both the swap rename (tmpDir->destDir) and the restore rename (oldDir->destDir) failed, the outer catch block unconditionally deleted oldDir — which held the only copy of the original installation.
 
@@ -54,7 +54,7 @@ Last updated: 2026-02-24
 
 ### 9. Progress Data Loss from Unconditional Delete in syncStateJson
 
-**Bug:** In `syncStateJson` (state.js), the line `delete merged.position.progress` executed unconditionally after attempting a `%` regex match on the progress string. If the regex didn't match (e.g., progress was "Drafting introduction" instead of "50%"), the progress field was silently destroyed.
+**Bug:** In the legacy `syncStateJson` state-sync implementation, the line `delete merged.position.progress` executed unconditionally after attempting a `%` regex match on the progress string. If the regex didn't match (e.g., progress was "Drafting introduction" instead of "50%"), the progress field was silently destroyed.
 
 **Fix:** Moved the `delete merged.position.progress` inside the `if (m)` block so it only fires when the percentage was successfully extracted.
 
@@ -62,15 +62,15 @@ Last updated: 2026-02-24
 
 ### 10. NaN Propagation from Non-Numeric Total Phases/Plans
 
-**Bug:** `parseStateMd` in state.js used `parseInt(value, 10)` on `Total Phases` and `Total Plans in Phase` fields without a NaN guard. If these fields contained non-numeric values like "TBD" or "N/A", `parseInt` returned `NaN`, which propagated into state.json and serialized as `null`, silently losing the original value.
+**Bug:** `parseStateMd` in the legacy state parser used `parseInt(value, 10)` on `Total Phases` and `Total Plans in Phase` fields without a NaN guard. If these fields contained non-numeric values like "TBD" or "N/A", `parseInt` returned `NaN`, which propagated into state.json and serialized as `null`, silently losing the original value.
 
-**Fix:** Replaced with `safeParseInt(value, null)` from utils.js, which never returns NaN. Non-numeric values produce `null`.
+**Fix:** Replaced with `safeParseInt(value, null)` from the shared utility layer, which never returns NaN. Non-numeric values produce `null`.
 
 **Status:** Fixed.
 
 ### 11. progress_percent Null-to-Zero Roundtrip Corruption
 
-**Bug:** `renderStateMd` in state.js used `const pct = s.position.progress_percent ?? 0` to render the progress bar. When progress was genuinely unknown (`null`), this defaulted to `0`, rendering `[░░░░░░░░░░] 0%` in STATE.md. On the next parse, this re-read as `progress_percent: 0`, permanently replacing "unknown" with "zero progress".
+**Bug:** `renderStateMd` in the legacy state renderer used `const pct = s.position.progress_percent ?? 0` to render the progress bar. When progress was genuinely unknown (`null`), this defaulted to `0`, rendering `[░░░░░░░░░░] 0%` in STATE.md. On the next parse, this re-read as `progress_percent: 0`, permanently replacing "unknown" with "zero progress".
 
 **Fix:** Only render the progress bar when `pct != null`. Unknown progress now correctly omits the progress bar entirely.
 
@@ -78,7 +78,7 @@ Last updated: 2026-02-24
 
 ### 12. depends-on Hyphenated YAML Key Ignored in Wave Validation
 
-**Bug:** `validateWaves` and `cmdPhasePlanIndex` in phases.js only checked `fm.depends_on` (underscore) from YAML frontmatter, ignoring `fm["depends-on"]` (hyphen). YAML allows both `depends_on:` and `depends-on:` as keys, and the hyphenated form is common. This caused silent dependency loss — plans with `depends-on:` appeared to have no dependencies, potentially executing out of order.
+**Bug:** `validateWaves` and `cmdPhasePlanIndex` in the legacy phase-planning module only checked `fm.depends_on` (underscore) from YAML frontmatter, ignoring `fm["depends-on"]` (hyphen). YAML allows both `depends_on:` and `depends-on:` as keys, and the hyphenated form is common. This caused silent dependency loss — plans with `depends-on:` appeared to have no dependencies, potentially executing out of order.
 
 **Note:** The existing code already had this hyphen fallback pattern for `files-modified` vs `files_modified`, but it was missing for `depends-on`.
 
@@ -86,21 +86,21 @@ Last updated: 2026-02-24
 
 **Status:** Fixed.
 
-### 13. gpd CLI Requires Node.js 18+ (Caveat)
+### 13. gpd CLI Required a Deprecated Runtime 18+ (Caveat)
 
-**Bug:** The original Node.js CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required Node.js 18 or later. Previously had no version check at startup — running with an older Node.js produced a cryptic error.
+**Bug:** The original CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required a deprecated runtime 18 or later. Previously it had no version check at startup, so older environments failed cryptically.
 
-**Status:** Obsolete. The CLI has been rewritten in Python. The `gpd health` command checks Python version and environment. The Node.js dependency no longer exists.
+**Status:** Obsolete. The CLI has been rewritten in Python. The `gpd health` command checks Python version and environment. The deprecated runtime dependency no longer exists.
 
 ### 15. State Auto-Compact Implementation Lost During Concurrent Edits
 
-**Bug:** The `cmdStateAutoCompact` function and its `state auto-compact` CLI routing were implemented in state.js/index.js but lost during concurrent edits by multiple agents. The function body and routing were present in one session but absent in the next.
+**Bug:** The `cmdStateAutoCompact` function and its `state auto-compact` CLI routing were implemented in the legacy state and CLI routing modules but lost during concurrent edits by multiple agents. The function body and routing were present in one session but absent in the next.
 
 **Status:** Fixed. Auto-compact is wired into transition.md (step `auto_compact_state`, lines 469-491) — calls `state compact` after each phase transition and commits if compaction occurred. Progress.md (line 153) runs a compaction health check and warns when STATE.md exceeds the 150-line target. The `state compact` command uses a 1500-line hard threshold for automatic compaction and a 150-line soft warning threshold.
 
 ### 16. validate-return Command Integration
 
-**Bug:** The `gpd validate-return` command was implemented (index.js, frontmatter.js) and initially reported as having no callers.
+**Bug:** The `gpd validate-return` command was implemented in the legacy CLI/router stack and initially reported as having no callers.
 
 **Status:** Fixed. `execute-phase.md` (line 264) calls `validate-return` as part of post-execution validation for each agent SUMMARY. The command validates gpd_return YAML envelopes and marks plans as NEEDS_REVIEW if validation fails (non-fatal warning). Additionally, `gpd health` checks for gpd_return presence in the system health dashboard.
 
@@ -136,21 +136,21 @@ History:
 - `cmdStateCompact`: non-numeric phase segment produces `"NaN"` string
 - `normalizePhaseName`: non-numeric segments produce `"01.NaN"`
 
-**Status:** Fixed. Two new utility functions added to utils.js:
+**Status:** Fixed. Two new utility functions added to the shared utility layer:
 - `safeParseInt(value, defaultVal)` — never returns NaN; returns `defaultVal` for non-numeric input
 - `phaseToTopLevel(phase)` — correctly extracts top-level phase number from multi-level strings like "2.1.1" (replaces broken `parseFloat` pattern)
 
 All affected locations updated:
-- `parseStateMd` (state.js): `total_phases` and `total_plans_in_phase` use `safeParseInt(value, null)`
-- `cmdValidateState` (state.js): phase range check uses `phaseToTopLevel()` instead of `parseFloat()`
-- `cmdTemplateFill` (frontmatter.js): wave number uses `safeParseInt(options.wave, 1)`
-- CLI args (index.js): `--check-count` and `--limit` use `safeParseInt()` with appropriate defaults
+- `parseStateMd` (state parsing): `total_phases` and `total_plans_in_phase` use `safeParseInt(value, null)`
+- `cmdValidateState` (state validation): phase range check uses `phaseToTopLevel()` instead of `parseFloat()`
+- `cmdTemplateFill` (frontmatter handling): wave number uses `safeParseInt(options.wave, 1)`
+- CLI argument parsing: `--check-count` and `--limit` use `safeParseInt()` with appropriate defaults
 
 ### 22. cost-track Command Not Implemented
 
 **Bug:** `execute-plan.md` referenced `gpd cost-track` which was commented out. Listed in help text but the call was dead code.
 
-**Status:** Fixed. Both `cost-track` and `cost-report` are fully implemented in commands.js with CLI routing in index.js. `cost-track` appends JSONL entries to `.planning/cost-tracking.jsonl`, `cost-report` aggregates by agent/phase with variance analysis. The `execute-plan.md` step `track_cost` has been uncommented to call `cost-track` after each plan execution.
+**Status:** Fixed. Both `cost-track` and `cost-report` are fully implemented in the command layer with CLI routing. `cost-track` appends JSONL entries to `.planning/cost-tracking.jsonl`, `cost-report` aggregates by agent/phase with variance analysis. The `execute-plan.md` step `track_cost` has been uncommented to call `cost-track` after each plan execution.
 
 ### 23. pre-commit-check Only Used in 2 Workflows
 
@@ -197,7 +197,7 @@ All affected locations updated:
 
 **Impact:** False-positive convention mismatch errors that could block commits or trigger unnecessary NEEDS_REVIEW warnings. Physicists who mix formats (common when copying from different textbooks) would face spurious errors.
 
-**Status:** Fixed. Added `normalizeConventionValue()` in commands.js that maps equivalent metric signature representations to canonical forms before comparison:
+**Status:** Fixed. Added `normalizeConventionValue()` in the command layer that maps equivalent metric signature representations to canonical forms before comparison:
 - `(+,-,-,-)`, `+---` -> `mostly_minus`
 - `(-,+,+,+)`, `-+++` -> `mostly_plus`
 - `(+,+,+,+)`, `++++` -> `euclidean`

@@ -1,4 +1,4 @@
-"""Edge case tests ported from gpd-tools-edge-cases.test.js and gpd-tools.test.js.
+"""Edge case tests ported from the legacy integration suite.
 
 Covers the 5 deep edge cases:
 1. Empty .planning/phases/ directory but state references a phase
@@ -73,7 +73,7 @@ def _write_state(tmp_path: Path, content: str) -> Path:
 class TestEdgeMissingPhasesDir:
     """Empty .planning/phases/ dir or missing entirely while state references phases.
 
-    Ported from: gpd-tools-edge-cases.test.js "deep edge: missing .planning/phases/"
+    Ported from the legacy suite's "deep edge: missing .planning/phases/" case.
     """
 
     def test_progress_handles_missing_phases_dir(self, tmp_path: Path) -> None:
@@ -128,7 +128,7 @@ class TestEdgeMissingPhasesDir:
 class TestEdgeRoadmapOutOfOrder:
     """ROADMAP.md has phases listed in non-sequential order.
 
-    Ported from: gpd-tools-edge-cases.test.js "deep edge: ROADMAP out-of-order phases"
+    Ported from the legacy suite's "deep edge: ROADMAP out-of-order phases" case.
     """
 
     def test_roadmap_analyze_extracts_phases_in_document_order(self, tmp_path: Path) -> None:
@@ -216,7 +216,7 @@ class TestEdgeRoadmapOutOfOrder:
 class TestEdgeSameWaveFileOverlap:
     """Two or more plans in the same wave modify the same file.
 
-    Ported from: gpd-tools-edge-cases.test.js "deep edge: same-wave file overlap"
+    Ported from the legacy suite's "deep edge: same-wave file overlap" case.
     """
 
     def test_validate_waves_detects_file_overlap(self, tmp_path: Path) -> None:
@@ -255,7 +255,7 @@ class TestEdgeSameWaveFileOverlap:
 class TestEdgeSummaryFrontmatterOnly:
     """SUMMARY.md with frontmatter but no body text.
 
-    Ported from: gpd-tools-edge-cases.test.js "deep edge: SUMMARY frontmatter-only"
+    Ported from the legacy suite's "deep edge: SUMMARY frontmatter-only" case.
     """
 
     def test_phase_completeness_counts_frontmatter_only_summary(self, tmp_path: Path) -> None:

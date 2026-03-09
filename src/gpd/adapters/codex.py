@@ -1,4 +1,4 @@
-"""OpenAI Codex CLI runtime adapter — full install/uninstall parity with old install.js.
+"""OpenAI Codex CLI runtime adapter.
 
 Codex CLI uses SKILLS (not commands). Each skill is a directory under
 ~/.agents/skills/<skill-name>/SKILL.md with YAML frontmatter.
@@ -19,6 +19,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     convert_tool_references_in_body,
@@ -391,13 +392,13 @@ class CodexAdapter(RuntimeAdapter):
                         f.unlink()
                         counts["agents"] += 1
 
-            # 5. Remove GPD hooks (both Python and legacy JS)
+            # 5. Remove GPD hooks
             hooks_dir = target_dir / "hooks"
             if hooks_dir.exists():
-                gpd_hooks = [name for h in HOOK_SCRIPTS.values() for name in (h["current"], h["legacy"])]
-                for hook_name in gpd_hooks:
-                    hook_path = hooks_dir / hook_name
-                    if hook_path.exists():
+                for hook_path in hooks_dir.iterdir():
+                    if not hook_path.is_file():
+                        continue
+                    if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
                         hook_path.unlink()
                         counts["hooks"] += 1
 
@@ -575,28 +576,41 @@ def _configure_config_toml(
     if config_toml.exists():
         toml_content = config_toml.read_text(encoding="utf-8")
 
-    notify_hook = HOOK_SCRIPTS["codex_notify"]["current"]
-    legacy_hooks = [HOOK_SCRIPTS["codex_notify"]["legacy"], HOOK_SCRIPTS["check_update"]["legacy"]]
+    notify_hook = HOOK_SCRIPTS["codex_notify"]
+    legacy_markers = (
+        "codex_notify.py",
+        "check_update.py",
+        "gpd-codex-notify",
+        "gpd-check-update",
+    )
 
     if is_global:
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     else:
         desired_path = f".codex/hooks/{notify_hook}"
+    desired_line = f'notify = ["python3", "{desired_path}"]'
 
-    # Replace legacy JS hook references with Python hook (scoped to notify line)
-    for legacy in legacy_hooks:
-        if legacy in toml_content:
-            toml_content = toml_content.replace(legacy, notify_hook)
-    # Upgrade interpreter on the notify line only (avoid clobbering other "node" refs)
-    toml_content = re.sub(
-        r'^(notify\s*=\s*\[)"node"',
-        r'\1"python3"',
-        toml_content,
-        flags=re.MULTILINE,
-    )
+    configured = False
+    existing_notify = False
+    updated_lines: list[str] = []
+    for line in toml_content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("notify"):
+            existing_notify = True
+            if any(marker in line for marker in legacy_markers):
+                updated_lines.append(desired_line)
+                configured = True
+                continue
+        updated_lines.append(line)
 
-    if "notify" not in toml_content:
-        toml_content += f'\n# GPD update notification\nnotify = ["python3", "{desired_path}"]\n'
+    toml_content = "\n".join(updated_lines)
+
+    if not configured and not existing_notify:
+        if toml_content and not toml_content.endswith("\n"):
+            toml_content += "\n"
+        toml_content += f'\n# GPD update notification\n{desired_line}\n'
+    elif toml_content and not toml_content.endswith("\n"):
+        toml_content += "\n"
 
     config_toml.write_text(toml_content, encoding="utf-8")
 

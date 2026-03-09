@@ -9,6 +9,7 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    LEGACY_HOOK_BASENAMES,
     compute_path_prefix,
     copy_hook_scripts,
     install_gpd_content,
@@ -242,11 +243,11 @@ class RuntimeAdapter(abc.ABC):
             # Remove GPD hooks
             hooks_dir = target_dir / "hooks"
             if hooks_dir.is_dir():
-                gpd_hooks = [name for h in HOOK_SCRIPTS.values() for name in (h["current"], h["legacy"])]
                 hook_count = 0
-                for hook_name in gpd_hooks:
-                    hook_path = hooks_dir / hook_name
-                    if hook_path.exists():
+                for hook_path in hooks_dir.iterdir():
+                    if not hook_path.is_file():
+                        continue
+                    if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
                         hook_path.unlink()
                         hook_count += 1
                 if hook_count:

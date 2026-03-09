@@ -1,4 +1,4 @@
-"""Shared install utilities — pure-stdlib helpers ported from install.js.
+"""Shared install utilities for runtime installation and upgrades.
 
 Every function here uses only the Python standard library (pathlib, json, hashlib,
 tempfile, os, re).  No external deps allowed.
@@ -26,27 +26,38 @@ MAX_INCLUDE_EXPANSION_DEPTH = 10
 GPD_CONTENT_DIRS = ("references", "templates", "workflows")
 
 # Hook script filenames by purpose.
-# "current" = Python scripts shipped since v2.x.
-# "legacy"  = JS scripts from v1.x (kept for uninstall cleanup).
-HOOK_SCRIPTS: dict[str, dict[str, str]] = {
-    "statusline": {"current": "statusline.py", "legacy": "gpd-statusline.js"},
-    "check_update": {"current": "check_update.py", "legacy": "gpd-check-update.js"},
-    "codex_notify": {"current": "codex_notify.py", "legacy": "gpd-codex-notify.js"},
+HOOK_SCRIPTS: dict[str, str] = {
+    "statusline": "statusline.py",
+    "check_update": "check_update.py",
+    "codex_notify": "codex_notify.py",
+}
+
+# Legacy GPD hook basenames from older installs. Stored without extension so
+# cleanup can remove stale files regardless of their historical suffix.
+LEGACY_HOOK_BASENAMES = {
+    "gpd-statusline",
+    "gpd-check-update",
+    "gpd-codex-notify",
+    "statusline",
+    "gpd-intel-index",
+    "gpd-intel-session",
+    "gpd-intel-prune",
 }
 
 # Orphaned files from previous GPD versions (relative to config dir)
 _ORPHANED_FILES = [
     "hooks/gpd-notify.sh",  # Removed in v1.6.x
-    "hooks/statusline.js",  # Renamed to gpd-statusline.js in v1.9.0
 ]
 
 # Orphaned hook command patterns to remove from settings
 _ORPHANED_HOOK_PATTERNS = [
     "gpd-notify.sh",  # Removed in v1.6.x
-    "hooks/statusline.js",  # Renamed to gpd-statusline.js in v1.9.0
-    "gpd-intel-index.js",  # Removed in v1.9.2
-    "gpd-intel-session.js",  # Removed in v1.9.2
-    "gpd-intel-prune.js",  # Removed in v1.9.2
+    "gpd-statusline",
+    "gpd-check-update",
+    "gpd-codex-notify",
+    "gpd-intel-index",
+    "gpd-intel-session",
+    "gpd-intel-prune",
 ]
 
 # ---------------------------------------------------------------------------
@@ -657,7 +668,6 @@ def cleanup_orphaned_hooks(settings: dict[str, object]) -> dict[str, object]:
     """Remove orphaned hook registrations from *settings*.
 
     Mutates and returns *settings* with orphaned GPD hooks removed.
-    Also updates statusLine if it points to the old ``statusline.js`` path.
     """
     hooks = settings.get("hooks")
     if isinstance(hooks, dict):
@@ -678,13 +688,6 @@ def cleanup_orphaned_hooks(settings: dict[str, object]) -> dict[str, object]:
                         continue
                 filtered.append(entry)
             hooks[event_type] = filtered
-
-    # Fix old statusline.js → gpd-statusline.js
-    status_line = settings.get("statusLine")
-    if isinstance(status_line, dict):
-        cmd = status_line.get("command", "")
-        if isinstance(cmd, str) and "statusline.js" in cmd and "gpd-statusline.js" not in cmd:
-            status_line["command"] = cmd.replace("statusline.js", "gpd-statusline.js")
 
     return settings
 
@@ -960,6 +963,20 @@ def pre_install_cleanup(
     save_local_patches(target_dir, codex_skills_dir=codex_skills_dir)
     cleanup_orphaned_files(target_dir)
 
+    gpd_dir = target_dir / "get-physics-done"
+    if gpd_dir.exists():
+        _shutil.rmtree(gpd_dir)
+
+    hooks_dir = target_dir / "hooks"
+    if hooks_dir.is_dir():
+        for hook_name in HOOK_SCRIPTS.values():
+            hook_path = hooks_dir / hook_name
+            if hook_path.exists():
+                hook_path.unlink()
+        for hook_path in hooks_dir.iterdir():
+            if hook_path.is_file() and hook_path.stem in LEGACY_HOOK_BASENAMES:
+                hook_path.unlink()
+
 
 def install_gpd_content(
     specs_dir: Path,
@@ -1124,11 +1141,11 @@ def build_hook_command(
     *,
     is_global: bool,
     config_dir_name: str,
-    interpreter: str = "node",
+    interpreter: str = "python3",
 ) -> str:
     """Build the shell command string for a hook script.
 
-    Shared by Claude Code and Gemini adapters (both use python3 for hooks).
+    Shared by Claude Code and Gemini adapters.
     """
     if is_global:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")

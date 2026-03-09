@@ -1,4 +1,4 @@
-"""Claude Code runtime adapter — full install with parity to old install.js."""
+"""Claude Code runtime adapter."""
 
 from __future__ import annotations
 
@@ -114,14 +114,14 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         settings = cleanup_orphaned_hooks(read_settings(settings_path))
         statusline_command = build_hook_command(
             target_dir,
-            HOOK_SCRIPTS["statusline"]["current"],
+            HOOK_SCRIPTS["statusline"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
             interpreter="python3",
         )
         update_check_command = build_hook_command(
             target_dir,
-            HOOK_SCRIPTS["check_update"]["current"],
+            HOOK_SCRIPTS["check_update"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
             interpreter="python3",

@@ -210,9 +210,9 @@ class TestGeminiLifecycle:
 
         # Write settings.json with GPD entries (install returns settings but doesn't write them)
         settings = {
-            "statusLine": {"type": "command", "command": "node gpd-statusline.js"},
+            "statusLine": {"type": "command", "command": "python3 statusline.py"},
             "hooks": {
-                "SessionStart": [{"hooks": [{"type": "command", "command": "node gpd-check-update.js"}]}],
+                "SessionStart": [{"hooks": [{"type": "command", "command": "python3 check_update.py"}]}],
             },
             "experimental": {"enableAgents": True},
         }
@@ -671,7 +671,6 @@ class TestInstallIdempotent:
         gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
         assert len(gpd_skills) > 0
 
-    @pytest.mark.skip(reason="OpenCode install flow under active development")
     def test_opencode_install_twice(self, tmp_path: Path, gpd_root: Path) -> None:
         adapter = get_adapter("opencode")
         target = tmp_path / ".opencode"
