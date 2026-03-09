@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
-from psi_contracts.gpd import ConventionLock
+from gpd.contracts import ConventionLock
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.conventions import (

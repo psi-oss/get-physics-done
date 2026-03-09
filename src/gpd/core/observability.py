@@ -19,7 +19,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 
 import logfire
-from psi_contracts.gpd import GPDConfig
+from gpd.contracts import GPDConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.errors import GPDError

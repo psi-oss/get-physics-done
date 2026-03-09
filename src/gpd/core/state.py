@@ -20,7 +20,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from psi_contracts.gpd import ConventionLock
+from gpd.contracts import ConventionLock
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import (

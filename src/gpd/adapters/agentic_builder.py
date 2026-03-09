@@ -159,7 +159,7 @@ def get_convention_lock_summary(project_dir: Path) -> dict[str, object]:
     state_data = json.loads(state_path.read_text(encoding="utf-8"))
     lock_data = state_data.get("convention_lock", {})
 
-    from psi_contracts.gpd import ConventionLock
+    from gpd.contracts import ConventionLock
 
     from gpd.core.conventions import convention_list
 

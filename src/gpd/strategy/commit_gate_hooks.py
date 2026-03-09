@@ -17,7 +17,7 @@ import logging
 import re
 from collections.abc import Callable
 
-from psi_contracts.gpd import ConventionLock, ErrorClass
+from gpd.contracts import ConventionLock, ErrorClass
 
 from gpd.core.conventions import (
     KNOWN_CONVENTIONS,

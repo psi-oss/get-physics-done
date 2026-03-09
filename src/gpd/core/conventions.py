@@ -21,7 +21,7 @@ import logging
 import re
 from pathlib import Path
 
-from psi_contracts.gpd import ConventionLock
+from gpd.contracts import ConventionLock
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.errors import ConventionError

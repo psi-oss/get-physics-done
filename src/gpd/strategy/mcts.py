@@ -22,7 +22,7 @@ from uuid import UUID
 import logfire
 from psi_contracts.campaign import CampaignConfig
 from psi_contracts.formalization import FormalProblem, Verifier
-from psi_contracts.gpd import ConventionLock, ErrorClass
+from gpd.contracts import ConventionLock, ErrorClass
 from psi_contracts.solving import Run
 
 from gpd.core.errors import LoaderError
