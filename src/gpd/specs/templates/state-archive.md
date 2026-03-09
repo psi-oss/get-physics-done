@@ -2,7 +2,7 @@
 template_version: 1
 ---
 
-<!-- Used by: gpd state compact command (cmdStateCompact in state.js). -->
+<!-- Used by: gpd state compact command (state_compact in gpd.core.state). -->
 
 # State Archive Template
 
@@ -81,6 +81,6 @@ Entries are grouped by type within each archive block. Multiple compactions accu
 - Subsequent compactions append after the existing content
 - Do not manually edit this file — it is a historical record
 - If STATE.md is manually trimmed, the trimmed content should be appended here following the same format
-- Compaction triggers when STATE.md exceeds 1500 lines (LINE_BUDGET in state.js)
+- Compaction triggers when STATE.md exceeds 1500 lines (STATE_LINES_BUDGET in gpd.core.constants)
 - A warning is emitted when STATE.md exceeds 150 lines (WARN_THRESHOLD) but does not trigger compaction
 </guidelines>

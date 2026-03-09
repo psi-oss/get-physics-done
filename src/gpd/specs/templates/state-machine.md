@@ -32,7 +32,7 @@ Not started → Discussed → Researched → Planned → Executing → Phase com
                                                    Blocked → (resolve) → Executing
 ```
 
-Disk status values (from `cmdRoadmapAnalyze`): `no_directory`, `empty`, `discussed`, `researched`, `planned`, `partial`, `complete`
+Disk status values (from `roadmap_analyze`): `no_directory`, `empty`, `discussed`, `researched`, `planned`, `partial`, `complete`
 
 - **Owner files**: ROADMAP.md (phase section, checkbox), STATE.md (Current Phase, Status)
 - **Not started → Discussed**: `$gpd-discuss-phase` completes (`{NN}-CONTEXT.md` created in phase directory)
@@ -166,7 +166,7 @@ Active → Audited → Complete → Archived
 
 ## Status Vocabulary Mapping
 
-Three status systems coexist. The **disk status** (from `cmdRoadmapAnalyze`) is the canonical internal representation. ROADMAP.md and STATE.md use display labels.
+Three status systems coexist. The **disk status** (from `roadmap_analyze`) is the canonical internal representation. ROADMAP.md and STATE.md use display labels.
 
 | Disk Status (canonical) | ROADMAP.md Display | STATE.md Status | Description |
 |------------------------|--------------------|-----------------|-------------|
@@ -181,7 +181,7 @@ Three status systems coexist. The **disk status** (from `cmdRoadmapAnalyze`) is 
 | — | Deferred | — | Phase pushed to later (not a disk status) |
 
 **Notes:**
-- Disk statuses are detected by scanning phase directory contents (see `cmdRoadmapAnalyze`)
+- Disk statuses are detected by scanning phase directory contents (see `roadmap_analyze`)
 - ROADMAP.md statuses are display labels in the Progress table
 - STATE.md Status reflects the current phase's workflow position
 - "Blocked" and "Deferred" are workflow states, not detected from disk
@@ -190,24 +190,24 @@ Three status systems coexist. The **disk status** (from `cmdRoadmapAnalyze`) is 
 
 ## Dual-Write Consistency
 
-STATE.md and state.json are kept in sync via `syncStateJson()`:
+STATE.md and state.json are kept in sync via `sync_state_json()`:
 
-- **STATE.md** is the human-readable source, rendered by `generateStateMarkdown()`
+- **STATE.md** is the human-readable source, rendered by `generate_state_markdown()`
 - **state.json** is the machine-readable sidecar, with additional fields not in markdown (convention_lock, approximations, propagated_uncertainties, intermediate_results as structured objects)
-- Every write to STATE.md triggers `syncStateJson()` which parses markdown and merges into existing JSON
-- Every write to state.json via `saveStateJson()` also regenerates STATE.md
-- `cmdValidateState` cross-checks position fields between both files
+- Every write to STATE.md triggers `sync_state_json()` which parses markdown and merges into existing JSON
+- Every write to state.json via `save_state_json()` also regenerates STATE.md
+- `state_validate` cross-checks position fields between both files
 - `state.json.bak` provides crash recovery if state.json becomes corrupt
 
 ---
 
 ## Invariants
 
-1. **Phase numbering is sequential** for integer phases (gaps detected by `cmdValidateConsistency`)
+1. **Phase numbering is sequential** for integer phases (gaps detected by `validate_consistency`)
 2. **Decimal phases** (e.g., 06.1, 06.2) are inserted between integer phases and renumbered on removal
 3. **Every SUMMARY.md must have a matching PLAN.md** (orphan summaries flagged by consistency check)
 4. **Plan wave ordering**: a plan cannot depend on a plan in the same or later wave
-5. **No circular dependencies** between plans (validated by topological sort in `validateWaves`)
+5. **No circular dependencies** between plans (validated by topological sort in `validate_waves`)
 6. **Convention lock is append-only** in spirit: conventions should not be silently changed
 7. **Decisions are append-only** in STATE.md; full log lives in DECISIONS.md
 8. **Progress percentage** = (total SUMMARY.md files) / (total PLAN.md files) across all phases

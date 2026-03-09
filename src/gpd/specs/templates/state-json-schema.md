@@ -7,7 +7,7 @@ purpose: Canonical schema for .planning/state.json — the machine-readable rese
 
 Canonical schema for `.planning/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
 
-Source of truth: `defaultStateObj()` in `src/state.js`.
+Source of truth: `default_state_dict()` in `gpd.core.state`.
 
 ---
 
@@ -33,7 +33,7 @@ Source of truth: `defaultStateObj()` in `src/state.js`.
 
 ### Authoritative vs Derived
 
-Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). When `syncStateJson()` merges markdown into JSON, it preserves these fields. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
+Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). When `sync_state_json()` merges markdown into JSON, it preserves these fields. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
 
 ---
 
@@ -55,7 +55,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | `core_research_question` | `string \| null` | `$gpd-new-project` |
 | `current_focus` | `string \| null` | Phase transitions, `gpd state update` |
 
-**Legacy note:** `parseStateToJson` emits `project` key; `syncStateJson` maps this to `project_reference`.
+**Legacy note:** `parse_state_to_json` emits `project` key; `sync_state_json` maps this to `project_reference`.
 
 ### `position`
 
@@ -95,7 +95,7 @@ Paused, Phase complete, Phase complete — ready for verification,
 Verifying, Complete, Blocked, Ready to plan, Milestone complete
 ```
 
-**Phase ID format:** Zero-padded segments: `"03"`, `"03.01"`. See `normalizePhaseId()`.
+**Phase ID format:** Zero-padded segments: `"03"`, `"03.01"`. See `phase_normalize()`.
 
 ### `convention_lock` (13 standard fields + custom)
 
@@ -268,7 +268,7 @@ Run via `gpd state validate`. Current checks:
 3. **Position cross-check** — position fields match between JSON and MD
 4. **Convention lock completeness** — reports unset conventions (warning, not error)
 5. **No NaN values** — numeric fields (total_phases, total_plans_in_phase, progress_percent) must not be NaN
-6. **Schema completeness** — all fields from `defaultStateObj()` must be present at top level
+6. **Schema completeness** — all fields from `default_state_dict()` must be present at top level
 7. **Status vocabulary** — status must be from VALID_STATUSES list (13 values)
 8. **Phase ID format** — current_phase must match `\d{2}(\.\d{2})?` pattern
 9. **Phase range** — current_phase must not exceed total_phases when both are set
@@ -281,11 +281,11 @@ Run via `gpd state validate`. Current checks:
 
 STATE.md and state.json are kept in sync:
 
-1. **STATE.md → state.json**: `syncStateJson()` parses markdown, merges into existing JSON (preserving JSON-only fields)
-2. **state.json → STATE.md**: `saveStateJson()` calls `generateStateMarkdown()` to regenerate markdown
-3. **Crash recovery**: `state.json.bak` created after every successful write; `loadStateJson()` tries backup before falling back to STATE.md
+1. **STATE.md → state.json**: `sync_state_json()` parses markdown, merges into existing JSON (preserving JSON-only fields)
+2. **state.json → STATE.md**: `save_state_json()` calls `generate_state_markdown()` to regenerate markdown
+3. **Crash recovery**: `state.json.bak` created after every successful write; `load_state_json()` tries backup before falling back to STATE.md
 4. **Atomic writes**: Uses intent-marker protocol (`.state-write-intent`) to detect and recover from interrupted writes
-5. **Locking**: `lockFile()`/`unlockFile()` prevents concurrent writes (TOCTOU races)
+5. **Locking**: `file_lock()` context manager prevents concurrent writes (TOCTOU races)
 
 ### Authority hierarchy
 
