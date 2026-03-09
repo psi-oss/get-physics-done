@@ -71,15 +71,24 @@ async function main() {
   }
   log(`Found ${execSync(`${python} --version`, { encoding: "utf-8" }).trim()}`);
 
-  // Install the Python package
-  log("Installing get-physics-done...");
-  const packageResult = spawnSync(
+  // Install the Python package (try SSH first, fall back to HTTPS)
+  const sshUrl = "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git";
+  const httpsUrl = "git+https://github.com/physicalsuperintelligence/get-physics-done.git";
+
+  log("Installing get-physics-done (trying SSH)...");
+  let packageResult = spawnSync(
     python,
-    ["-m", "pip", "install", "--upgrade", "git+https://github.com/physicalsuperintelligence/get-physics-done.git"],
-    {
-      stdio: "inherit",
-    }
+    ["-m", "pip", "install", "--upgrade", sshUrl],
+    { stdio: "inherit" }
   );
+  if (packageResult.status !== 0) {
+    log("SSH failed, falling back to HTTPS...");
+    packageResult = spawnSync(
+      python,
+      ["-m", "pip", "install", "--upgrade", httpsUrl],
+      { stdio: "inherit" }
+    );
+  }
   if (packageResult.status !== 0) {
     error("Failed to install get-physics-done Python package.");
     process.exit(1);
