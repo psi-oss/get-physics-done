@@ -49,7 +49,6 @@ gpd = "gpd.cli:app"
 "gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
-"gpd-mcp-blackboard" = "gpd.mcp.servers.blackboard_server:main"
 
 [build-system]
 requires = ["hatchling"]
