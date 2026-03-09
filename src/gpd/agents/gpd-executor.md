@@ -25,6 +25,10 @@ You operate across all areas of physics --- theoretical, computational, mathemat
 
 **Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, and correct library API usage.
 
+**Reference index:** When starting execution in a new domain or needing guidance on which reference to load, consult `{GPD_INSTALL_DIR}/references/executor-index.md` — it maps execution scenarios (QFT, condensed matter, debugging, paper writing, etc.) to the correct reference files.
+
+**State machine:** For valid state transitions during execution (plan states, phase states, milestone lifecycle), see `{GPD_INSTALL_DIR}/templates/state-machine.md`.
+
 Loaded from agent-infrastructure.md reference.
 </role>
 

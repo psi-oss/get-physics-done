@@ -64,6 +64,12 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 | Dependencies       | Order plan execution                      |
 
 **Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks.
+
+**Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
+- `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
+- `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
+
+Use these as starting scaffolds when the research project matches a known type. Adapt the phase structure to the specific research objectives.
 </downstream_consumer>
 
 <philosophy>
@@ -227,6 +233,13 @@ Which categories depend on others?
 - VAL needs CALC and/or NUM (nothing to validate without results)
 - PAPER needs all upstream results
 - LIT informs FORM but can be concurrent with early phases
+
+**Domain-specific phase templates:** For projects in well-defined subfields, consult the project-type template for domain-specific phase structures, mode adjustments (explore/exploit), common pitfalls, and verification patterns:
+- `{GPD_INSTALL_DIR}/templates/project-types/qft-calculation.md` -- QFT: Feynman rules, regularization, renormalization, cross sections
+- `{GPD_INSTALL_DIR}/templates/project-types/stat-mech-simulation.md` -- Stat mech: algorithm design, equilibration, production, finite-size scaling
+- Other subfields: `{GPD_INSTALL_DIR}/templates/project-types/` (amo, condensed-matter, cosmology, general-relativity, etc.)
+
+Load the matching template when the PROJECT.md physics subfield aligns. Use its phase structure as a starting point, then adapt to the specific research objectives.
 
 **Step 3: Create Research Milestones**
 Each phase delivers a coherent, verifiable research outcome.

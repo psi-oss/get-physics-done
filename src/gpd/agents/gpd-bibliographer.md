@@ -1174,7 +1174,7 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 ## Mode-Aware Bibliography Management
 
-The bibliographer adapts its search depth, verification strictness, and output completeness based on two project settings: `autonomy` (how much human oversight) and `research_mode` (explore vs exploit). Read these from config.json at the start of each session.
+The bibliographer adapts its search depth, verification strictness, and output completeness based on two project settings: `autonomy` (how much human oversight) and `research_mode` (explore vs exploit). Read these from config.json at the start of each session. For the full mode specification matrix, see `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md`.
 
 ```bash
 # Read mode settings from config
