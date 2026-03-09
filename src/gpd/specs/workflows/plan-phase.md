@@ -5,7 +5,10 @@ Create executable phase prompts (PLAN.md files) for a research phase with integr
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-Read `{GPD_INSTALL_DIR}/references/ui-brand.md` using the Read tool.
+Read these files using the Read tool:
+- {GPD_INSTALL_DIR}/references/ui-brand.md
+- {GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md -- Template for spawning gpd-planner agents (placeholders, continuation format, failure protocol)
+- {GPD_INSTALL_DIR}/templates/phase-prompt.md -- PLAN.md output format (frontmatter, task XML, must-haves schema)
 </required_reading>
 
 <process>

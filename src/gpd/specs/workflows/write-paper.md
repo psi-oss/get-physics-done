@@ -76,6 +76,8 @@ Mode effects on the write-paper pipeline:
 - **Supervised autonomy**: Checkpoints after outline, after each section draft, before referee review
 - **Autonomous/YOLO**: Auto-generate outline from research digest, draft all sections, run referee, present final result
 
+For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md`.
+
 **If `project_exists` is false:**
 
 ```
@@ -431,11 +433,17 @@ paper/
 The main.tex should:
 
 - Use the target journal's document class
-- Define all custom macros in a preamble block
+- Define all custom macros in a preamble block (see `{GPD_INSTALL_DIR}/templates/latex-preamble.md` for standard packages, project-specific macros, equation labeling conventions, and SymPy-to-LaTeX integration)
 - \input each section file
 - Handle bibliography correctly for the journal
 
+If the project has a `.planning/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
+
 Create `main.tex` and `Makefile` before proceeding to figure generation and section drafting. The compilation checks in `draft_sections` require `main.tex` to exist.
+
+**Supplemental material:** If the paper requires supplemental material (common for PRL and other letter-format journals), use `{GPD_INSTALL_DIR}/templates/paper/supplemental-material.md` for the standard structure (extended derivations, computational details, additional figures, data tables, code availability).
+
+**Experimental comparison:** If the paper compares theoretical predictions with experimental or observational data, use `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md` for the systematic comparison structure (data source metadata, unit conversion checklist, pull analysis, chi-squared statistics, discrepancy classification with root cause hierarchy).
 </step>
 
 <step name="generate_figures">

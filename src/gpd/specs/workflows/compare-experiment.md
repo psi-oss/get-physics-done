@@ -6,6 +6,11 @@ Called from $gpd-compare-experiment command. Produces COMPARISON.md with quantif
 Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
 </purpose>
 
+<required_reading>
+Read these files using the Read tool:
+- {GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md -- Template for systematic theory-experiment comparison (data source metadata, unit conversion checklist, pull calculation, discrepancy classification, root cause hierarchy)
+</required_reading>
+
 <process>
 
 ## 0. Load Project Context

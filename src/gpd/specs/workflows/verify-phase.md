@@ -34,6 +34,7 @@ Then verify each level against the actual research artifacts — **by doing phys
 <required_reading>
 @{GPD_INSTALL_DIR}/references/verification-core.md
 @{GPD_INSTALL_DIR}/references/verification-numerical.md
+@{GPD_INSTALL_DIR}/references/error-propagation-protocol.md
 @{GPD_INSTALL_DIR}/templates/verification-report.md
 </required_reading>
 

@@ -64,6 +64,12 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 | Dependencies       | Order plan execution                      |
 
 **Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks.
+
+**Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
+- `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
+- `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
+
+Use these as starting scaffolds when the research project matches a known type. Adapt the phase structure to the specific research objectives.
 </downstream_consumer>
 
 <philosophy>

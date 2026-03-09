@@ -12,6 +12,13 @@ Uncertainties propagate. Every intermediate result in a derivation chain carries
 **The contract:** Every uncertainty source must be accounted for -- input measurement errors, approximation-induced systematics, numerical truncation, and model limitations. The dominant error source must be identified, because an error budget that misses the largest contributor provides false confidence. A final result quoted as "X +/- delta" is only meaningful if delta reflects the true dominant uncertainty, not just the easiest one to compute.
 </core_principle>
 
+<required_reading>
+Read these reference and template files using the Read tool:
+- {GPD_INSTALL_DIR}/references/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (verification checks, phase handoff format, catastrophic cancellation detection)
+- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.planning/analysis/UNCERTAINTY-BUDGET.md)
+- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.planning/analysis/PARAMETERS.md)
+</required_reading>
+
 <process>
 
 <step name="identify_target">

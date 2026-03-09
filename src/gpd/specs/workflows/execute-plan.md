@@ -12,6 +12,8 @@ Read these reference files using the Read tool:
 - {GPD_INSTALL_DIR}/references/execute-plan-validation.md
 - {GPD_INSTALL_DIR}/references/execute-plan-checkpoints.md
 - {GPD_INSTALL_DIR}/references/reproducibility.md
+- {GPD_INSTALL_DIR}/templates/calculation-log.md -- Template for CALCULATION_LOG.md (detailed derivation records within a phase)
+- {GPD_INSTALL_DIR}/templates/recovery-plan.md -- Template for RECOVERY.md (structured recovery after plan execution failure)
 </required_reading>
 
 <process>

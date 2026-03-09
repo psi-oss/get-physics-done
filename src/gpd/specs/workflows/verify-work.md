@@ -23,6 +23,10 @@ Walk through derivation logic, perform numerical spot-checks, re-derive limiting
 @{GPD_INSTALL_DIR}/templates/research-verification.md
 </template>
 
+<required_reading>
+@{GPD_INSTALL_DIR}/references/error-propagation-protocol.md
+</required_reading>
+
 <process>
 
 <step name="check_type_selection">

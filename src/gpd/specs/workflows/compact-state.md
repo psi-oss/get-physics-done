@@ -6,6 +6,9 @@ Triggered automatically when progress.md detects STATE.md exceeds 1500 lines, or
 
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
+
+Read these files using the Read tool:
+- {GPD_INSTALL_DIR}/templates/state-archive.md -- Template for STATE-ARCHIVE.md (archive structure, what gets archived, archive format)
 </required_reading>
 
 <process>

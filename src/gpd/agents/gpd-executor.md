@@ -890,6 +890,7 @@ Key requirements (always in memory — sufficient if the Read above fails):
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
 - Include conventions table, key results with confidence tags, deviation documentation
+- For multi-step derivation plans: also produce CALCULATION_LOG.md using template at `{GPD_INSTALL_DIR}/templates/calculation-log.md`. Record every derivation step, intermediate check, and error caught.
 
 </summary_creation>
 

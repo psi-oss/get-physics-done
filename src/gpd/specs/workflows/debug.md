@@ -144,7 +144,7 @@ AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
 
 **Spawn investigation agents in parallel:**
 
-For each gap, fill the investigation-subagent-prompt template and spawn:
+For each gap, fill the debug subagent prompt template (see `{GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md` for the full template with placeholders, continuation format, and failure protocol) and spawn:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 

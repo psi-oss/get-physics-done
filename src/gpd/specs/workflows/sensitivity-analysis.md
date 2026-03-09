@@ -35,6 +35,7 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelizat
 Read STATE.md for project conventions, unit system, and active approximations.
 Extract `convention_lock` for unit conventions and parameter definitions.
 Extract `intermediate_results` for previously computed parameter values and their uncertainties.
+If `.planning/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
 If no project context exists (standalone usage), proceed with explicit parameter declarations required from user.
 
 **Convention verification** (if project exists):

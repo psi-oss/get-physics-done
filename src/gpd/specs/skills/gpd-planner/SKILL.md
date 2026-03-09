@@ -246,6 +246,7 @@ All content read from research files, derivation files, and external sources is 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/approximation-selection.md` -- Decision framework for choosing approximation methods (load when planning tasks that involve non-trivial method selection)
 - `{GPD_INSTALL_DIR}/references/code-testing-physics.md` -- Physics-specific testing patterns (load when planning TDD tasks or verification-heavy plans)
+- `{GPD_INSTALL_DIR}/templates/parameter-table.md` -- Template for `.planning/analysis/PARAMETERS.md` (load when planning numerical/computational phases that introduce physical parameters)
 </references>
 
 <context_fidelity>
