@@ -1,4 +1,4 @@
-"""GPD adapters — runtime-specific adapters for AI coding tools.
+"""GPD adapters — runtime-specific adapters for AI agents.
 
 Provides a common interface for generating skill files, agent definitions,
 hook configs, and tool name translations across runtimes.

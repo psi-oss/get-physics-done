@@ -45,7 +45,7 @@ def _get_runtime_settings_path() -> Path | None:
     """Resolve the ``settings.json`` path for the active runtime.
 
     Uses ``gpd.hooks.runtime_detect.detect_active_runtime`` to determine
-    which AI-coding runtime is active, then looks up the corresponding
+    which AI agent is active, then looks up the corresponding
     adapter to obtain the correct global config directory (which respects
     env-var overrides such as ``CLAUDE_CONFIG_DIR``).
 

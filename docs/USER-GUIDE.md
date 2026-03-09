@@ -1,6 +1,6 @@
 # GPD User Guide
 
-GPD (Get Physics Done) is an autonomous physics research system that runs inside your coding agent. You describe a problem, GPD asks clarifying questions, then handles formalization, derivation, numerical verification, and paper writing.
+GPD (Get Physics Done) is an autonomous physics research system that runs inside your AI agent. You describe a problem, GPD asks clarifying questions, then handles formalization, derivation, numerical verification, and paper writing.
 
 This guide is for physicists using GPD day-to-day. For architecture and internals, see [ARCHITECTURE.md](../ARCHITECTURE.md).
 
@@ -20,7 +20,7 @@ Or with uv:
 uv pip install get-physics-done
 ```
 
-### 2. Set up your coding agent
+### 2. Set up your AI agent
 
 ```bash
 gpd install
@@ -30,7 +30,7 @@ This auto-detects your runtime (Claude Code, OpenCode, Gemini CLI, or Codex) and
 
 ### 3. Start your first project
 
-In your coding agent, run:
+In your AI agent, run:
 
 ```
 /gpd:new-project

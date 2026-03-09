@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * GPD installer — sets up Get Physics Done in your coding agent.
+ * GPD installer — sets up Get Physics Done in your AI agent.
  *
  * Usage:
  *   npx github:get-physics-done/get-physics-done
@@ -119,7 +119,7 @@ async function main() {
 
   if (!runtime) {
     console.log("");
-    console.log("  Which coding agent do you use?");
+    console.log("  Which AI agent do you use?");
     console.log("");
     runtimeKeys.forEach((key, i) => {
       console.log(`  ${i + 1}. ${RUNTIMES[key].name}`);

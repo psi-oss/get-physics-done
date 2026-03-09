@@ -42,7 +42,7 @@ body:
     id: runtime
     attributes:
       label: Runtime
-      description: Which coding agent are you using?
+      description: Which AI agent are you using?
       options:
         - Claude Code
         - OpenCode

@@ -25,7 +25,7 @@ class RuntimeAdapter(abc.ABC):
     """Abstract base for GPD runtime adapters.
 
     Each adapter knows how to generate configuration files, skill definitions,
-    agent definitions, and hook scripts for a specific AI coding runtime
+    agent definitions, and hook scripts for a specific AI agent
     (Claude Code, Codex, Gemini CLI, OpenCode).
 
     The ``install()`` method implements a **template method** pattern:

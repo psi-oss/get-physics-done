@@ -243,7 +243,7 @@ The following improvements were made during a comprehensive audit and hardening 
 
 ### Platform-Specific Runtime Bugs
 
-These bugs affect specific AI coding runtimes. The installer handles most translation automatically, but edge cases may exist.
+These bugs affect specific AI agents. The installer handles most translation automatically, but edge cases may exist.
 
 #### P1. No Subagent Spawning (Some Runtimes)
 

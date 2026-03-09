@@ -37,7 +37,7 @@ Output this and STOP (do not display the full reference):
 
 # GPD Command Reference
 
-**GPD** (Get Physics Done) — agentic physics research with AI coding assistants.
+**GPD** (Get Physics Done) — agentic physics research with AI research agents.
 
 ## Quick Start
 
@@ -62,7 +62,7 @@ Display the reference content directly — no additions or modifications.
 
 # GPD Command Reference
 
-**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research with AI coding assistants.
+**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research with AI research agents.
 
 ## Quick Start
 

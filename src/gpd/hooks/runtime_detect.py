@@ -1,6 +1,6 @@
 """Runtime detection for GPD hooks.
 
-Detects which AI coding runtime (Claude Code, Codex, Gemini CLI, OpenCode)
+Detects which AI agent (Claude Code, Codex, Gemini CLI, OpenCode)
 is active based on environment variables and directory existence.
 Provides shared constants for runtime directory paths.
 """
@@ -38,7 +38,7 @@ ALL_RUNTIMES = [RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE]
 
 
 def detect_active_runtime() -> str:
-    """Detect which AI coding runtime is currently active.
+    """Detect which AI agent is currently active.
 
     Checks environment variables first, then falls back to directory existence.
     Returns one of: "claude", "codex", "gemini", "opencode", "unknown".

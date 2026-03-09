@@ -10,11 +10,11 @@ An autonomous physics research system. Describe a problem in plain English, and 
 npx github:get-physics-done/get-physics-done
 ```
 
-Prompts you to select your coding agent (Claude Code, OpenCode, Gemini CLI, or Codex) and installs GPD.
+Prompts you to select your AI agent (Claude Code, OpenCode, Gemini CLI, or Codex) and installs GPD.
 
 ## Use
 
-In your coding agent, run:
+In your AI agent, run:
 
 ```
 /gpd:new-project

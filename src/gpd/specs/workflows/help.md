@@ -79,7 +79,7 @@ Project ─── the overall research goal
 <reference>
 # GPD Command Reference
 
-**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research with AI coding assistants.
+**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research with AI research agents.
 
 ## Quick Start
 

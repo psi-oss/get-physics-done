@@ -191,7 +191,7 @@ Format completion message (changelog was already shown in confirmation step):
 |  GPD Updated: v1.5.10 -> v1.5.15                         |
 +===========================================================+
 
->> Restart your AI coding assistant to pick up the new commands.
+>> Restart your AI agent to pick up the new commands.
 
 [View full changelog](https://github.com/get-physics-done/get-physics-done/blob/main/CHANGELOG.md)
 ```

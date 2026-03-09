@@ -472,7 +472,7 @@ def _get_milestone_fallback(cwd: Path) -> dict:
 
 
 def _detect_platform() -> str:
-    """Detect the AI coding platform (claude, codex, gemini, etc.)."""
+    """Detect the AI agent platform (claude, codex, gemini, etc.)."""
     if os.environ.get("CODEX_CLI"):
         return "codex"
     if os.environ.get("GEMINI_CLI"):
@@ -544,7 +544,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         # File existence
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "config_exists": _path_exists(cwd, ".planning/config.json"),
+        "config_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{CONFIG_FILENAME}"),
         # Platform
         "platform": _PLATFORM,
     }
@@ -601,7 +601,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         "has_plans": len(phase_info.get("plans", [])) > 0 if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # Environment
-        "planning_exists": _path_exists(cwd, ".planning"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         # Platform
         "platform": _PLATFORM,
@@ -681,15 +681,15 @@ def init_new_project(cwd: Path) -> dict:
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
         # Existing state
-        "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
-        "has_theory_map": _path_exists(cwd, ".planning/research-map"),
-        "planning_exists": _path_exists(cwd, ".planning"),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "has_theory_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
         "has_project_manifest": has_project_manifest,
         "has_existing_project": has_research_files or has_project_manifest,
         "needs_theory_map": (has_research_files or has_project_manifest)
-        and not _path_exists(cwd, ".planning/research-map"),
+        and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
         # Git state
         "has_git": _path_exists(cwd, ".git"),
         # Enhanced search
@@ -718,7 +718,7 @@ def init_new_milestone(cwd: Path) -> dict:
         "current_milestone": milestone["version"],
         "current_milestone_name": milestone["name"],
         # File existence
-        "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
@@ -768,7 +768,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         "task_dir": f".planning/quick/{next_num}-{slug}" if slug else None,
         # File existence
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "planning_exists": _path_exists(cwd, ".planning"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Platform
         "platform": _PLATFORM,
     }
@@ -790,8 +790,8 @@ def init_resume(cwd: Path) -> dict:
         # File existence
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
-        "planning_exists": _path_exists(cwd, ".planning"),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Agent state
         "has_interrupted_agent": interrupted_agent_id is not None,
         "interrupted_agent_id": interrupted_agent_id,
@@ -866,7 +866,7 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         # File existence
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
-        "planning_exists": _path_exists(cwd, ".planning"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Platform
         "platform": _PLATFORM,
     }
@@ -930,9 +930,9 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "pending_dir": ".planning/todos/pending",
         "done_dir": ".planning/todos/done",
         # File existence
-        "planning_exists": _path_exists(cwd, ".planning"),
-        "todos_dir_exists": _path_exists(cwd, ".planning/todos"),
-        "pending_dir_exists": _path_exists(cwd, ".planning/todos/pending"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos"),
+        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos/pending"),
         # Platform
         "platform": _PLATFORM,
     }
@@ -988,11 +988,11 @@ def init_milestone_op(cwd: Path) -> dict:
         "archived_milestones": archived_milestones,
         "archive_count": len(archived_milestones),
         # File existence
-        "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
-        "milestones_exists": _path_exists(cwd, ".planning/milestones"),
-        "phases_dir_exists": _path_exists(cwd, ".planning/phases"),
+        "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/milestones"),
+        "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/phases"),
         # Platform
         "platform": _PLATFORM,
     }
@@ -1025,8 +1025,8 @@ def init_map_theory(cwd: Path) -> dict:
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,
         # File existence
-        "planning_exists": _path_exists(cwd, ".planning"),
-        "research_map_dir_exists": _path_exists(cwd, ".planning/research-map"),
+        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
         # Platform
         "platform": _PLATFORM,
     }
@@ -1124,7 +1124,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         "paused_at": paused_at,
         "has_work_in_progress": current_phase is not None,
         # File existence
-        "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
