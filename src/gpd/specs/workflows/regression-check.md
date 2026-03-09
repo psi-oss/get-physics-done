@@ -223,7 +223,7 @@ For each truth with category `artifact`:
 1. Parse the evidence field for file paths
 2. Check each path still exists:
    ```bash
-   gpd verify-path-exists "$ARTIFACT_PATH"
+   gpd verify-path "$ARTIFACT_PATH"
    ```
 3. If the file exists, check it is substantive (not a stub):
    ```bash

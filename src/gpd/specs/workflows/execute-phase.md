@@ -248,14 +248,14 @@ VALIDATION_FAILED=false
 
 # Validate each plan's frontmatter and structure
 for plan in "$phase_dir"/*-PLAN.md; do
-  if ! gpd verify plan-structure "$plan"; then
+  if ! gpd verify plan "$plan"; then
     echo "ERROR: plan-structure validation failed for $(basename "$plan")"
     VALIDATION_FAILED=true
   fi
 done
 
 # Validate wave dependencies
-if ! gpd validate-waves "$phase_number"; then
+if ! gpd phase validate-waves "$phase_number"; then
   echo "ERROR: wave dependency validation failed"
   VALIDATION_FAILED=true
 fi

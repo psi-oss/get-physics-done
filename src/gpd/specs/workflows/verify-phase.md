@@ -365,7 +365,7 @@ Use gpd for initial physics check verification:
 
 ```bash
 for plan in "$phase_dir"/*-PLAN.md; do
-  CHECKS_RESULT=$(gpd verify plan-structure "$plan")
+  CHECKS_RESULT=$(gpd verify plan "$plan")
   echo "=== $plan ===" && echo "$CHECKS_RESULT"
 done
 ```

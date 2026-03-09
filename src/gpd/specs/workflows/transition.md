@@ -595,7 +595,7 @@ fi
 Append a `## Session:` block (same format as pause-work) capturing the phase's key results:
 
 ```bash
-timestamp=$(gpd current-timestamp full --raw)
+timestamp=$(gpd timestamp full --raw)
 
 cat >> .planning/DERIVATION-STATE.md << EOF
 

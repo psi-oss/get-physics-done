@@ -99,7 +99,7 @@ Use values from init context: `timestamp` and `date` are already available.
 Generate slug for the title:
 
 ```bash
-slug=$(gpd generate-slug "$title" --raw)
+slug=$(gpd slug "$title" --raw)
 ```
 
 Write to `.planning/todos/pending/${date}-${slug}.md`:

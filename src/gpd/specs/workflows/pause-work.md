@@ -57,7 +57,7 @@ that prevents lossy compression across context resets.
 
 ```bash
 # Get timestamp and phase context
-timestamp=$(gpd current-timestamp full --raw)
+timestamp=$(gpd timestamp full --raw)
 phase_dir=$(ls -dt .planning/phases/*/ 2>/dev/null | head -1 | sed 's|/$||' | xargs basename)
 
 # Create file with header if it doesn't exist
@@ -246,7 +246,7 @@ Be specific enough for a fresh AI session to understand immediately and pick up 
 Use `current-timestamp` for last_updated field. You can use init todos (which provides timestamps) or call directly:
 
 ```bash
-timestamp=$(gpd current-timestamp full --raw)
+timestamp=$(gpd timestamp full --raw)
 ```
 
 </step>

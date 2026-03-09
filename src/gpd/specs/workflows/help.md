@@ -606,7 +606,7 @@ Visualize dependency graph across phases and identify gaps.
 
 Usage: `$gpd-graph`
 
-> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
+> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
 
 **`$gpd-export [--format html|latex|zip|all]`**
 Export research results to HTML, LaTeX, or ZIP package.
