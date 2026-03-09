@@ -96,7 +96,7 @@ def _auto_generate_id(state: dict) -> str:
     phase = position.get("current_phase", 0)
     padded_phase = phase_normalize(str(phase))
 
-    normalized_current = phase_unpad(phase)
+    normalized_current = phase_unpad(str(phase))
     results = state.get("intermediate_results", [])
     existing_in_phase = [
         r for r in results if r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_current
@@ -158,7 +158,8 @@ def result_add(
     # Resolve phase from state position if not provided
     if phase is None:
         position = state.get("position", {})
-        phase = position.get("current_phase")
+        raw_phase = position.get("current_phase")
+        phase = str(raw_phase) if raw_phase is not None else None
 
     # Normalize depends_on to list
     if depends_on is None:
