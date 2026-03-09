@@ -535,19 +535,10 @@ def result_add(
     from gpd.core.results import result_add
 
     deps = depends_on.split(",") if depends_on else []
-    _output(
-        result_add(
-            _get_cwd(),
-            id=id,
-            equation=equation,
-            description=description,
-            units=units,
-            validity=validity,
-            phase=phase,
-            depends_on=deps,
-            verified=verified,
-        )
-    )
+    state = _load_state_dict()
+    res = result_add(state, result_id=id, equation=equation, description=description, units=units, validity=validity, phase=phase, depends_on=deps, verified=verified)
+    _save_state_dict(state)
+    _output(res)
 
 
 def _load_state_dict() -> dict:
@@ -564,6 +555,19 @@ def _load_state_dict() -> dict:
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
         raise typer.Exit(code=1) from None
+
+
+def _save_state_dict(state: dict) -> None:
+    """Save a state dict back to state.json with file locking."""
+    import json
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write, file_lock
+
+    state_path = ProjectLayout(_get_cwd()).state_json
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    with file_lock(state_path):
+        atomic_write(state_path, json.dumps(state, indent=2) + "\n")
 
 
 @result_app.command("list")
@@ -585,7 +589,7 @@ def result_deps(
     """Show BFS dependency graph for a result."""
     from gpd.core.results import result_deps
 
-    _output(result_deps(_get_cwd(), result_id))
+    _output(result_deps(_load_state_dict(), result_id))
 
 
 @result_app.command("verify")
@@ -595,7 +599,10 @@ def result_verify(
     """Mark a result as verified."""
     from gpd.core.results import result_verify
 
-    _output(result_verify(_get_cwd(), result_id))
+    state = _load_state_dict()
+    res = result_verify(state, result_id)
+    _save_state_dict(state)
+    _output(res)
 
 
 @result_app.command("update")
@@ -627,7 +634,10 @@ def result_update(
         opts["depends_on"] = depends_on.split(",")
     if verified:
         opts["verified"] = True
-    _output(result_update(_get_cwd(), result_id, opts))
+    state = _load_state_dict()
+    res = result_update(state, result_id, **opts)
+    _save_state_dict(state)
+    _output(res)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -713,9 +723,15 @@ def frontmatter_get(
     field: str | None = typer.Option(None, "--field", help="Specific field to get"),
 ) -> None:
     """Get frontmatter from a markdown file."""
-    from gpd.core.frontmatter import frontmatter_get
+    from gpd.core.frontmatter import extract_frontmatter
 
-    _output(frontmatter_get(_get_cwd(), file, field))
+    file_path = _get_cwd() / file
+    fm_content = file_path.read_text(encoding="utf-8")
+    meta, _ = extract_frontmatter(fm_content)
+    if field:
+        _output(meta.get(field))
+    else:
+        _output(meta)
 
 
 @frontmatter_app.command("set")
@@ -725,9 +741,15 @@ def frontmatter_set(
     value: str | None = typer.Option(None, "--value", help="Field value"),
 ) -> None:
     """Set a frontmatter field."""
-    from gpd.core.frontmatter import frontmatter_set
+    from gpd.core.frontmatter import splice_frontmatter
 
-    _output(frontmatter_set(_get_cwd(), file, field, value))
+    if not field:
+        raise typer.BadParameter("--field is required")
+    file_path = _get_cwd() / file
+    fm_content = file_path.read_text(encoding="utf-8")
+    updated = splice_frontmatter(fm_content, {field: value})
+    file_path.write_text(updated, encoding="utf-8")
+    _output({"updated": field, "value": value})
 
 
 @frontmatter_app.command("merge")
@@ -736,9 +758,16 @@ def frontmatter_merge(
     data: str | None = typer.Option(None, "--data", help="JSON data to merge"),
 ) -> None:
     """Merge JSON data into frontmatter."""
-    from gpd.core.frontmatter import frontmatter_merge
+    from gpd.core.frontmatter import deep_merge_frontmatter
 
-    _output(frontmatter_merge(_get_cwd(), file, data))
+    if not data:
+        raise typer.BadParameter("--data is required")
+    merge_data = json.loads(data)
+    file_path = _get_cwd() / file
+    fm_content = file_path.read_text(encoding="utf-8")
+    updated = deep_merge_frontmatter(fm_content, merge_data)
+    file_path.write_text(updated, encoding="utf-8")
+    _output({"merged": True, "file": file})
 
 
 @frontmatter_app.command("validate")
@@ -747,9 +776,13 @@ def frontmatter_validate(
     schema: str | None = typer.Option(None, "--schema", help="Schema name to validate against"),
 ) -> None:
     """Validate frontmatter against a schema."""
-    from gpd.core.frontmatter import frontmatter_validate
+    from gpd.core.frontmatter import validate_frontmatter
 
-    _output(frontmatter_validate(_get_cwd(), file, schema))
+    if not schema:
+        raise typer.BadParameter("--schema is required")
+    file_path = _get_cwd() / file
+    fm_content = file_path.read_text(encoding="utf-8")
+    _output(validate_frontmatter(fm_content, schema))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -799,7 +832,7 @@ def query_search(
     phase_range: str | None = typer.Option(None, "--phase-range", help="Phase range filter (e.g. 10-20)"),
 ) -> None:
     """Search across phases by provides/requires/text."""
-    from gpd.core.query import query_search
+    from gpd.core.query import query as query_search
 
     _output(
         query_search(
@@ -847,7 +880,10 @@ def suggest(
     """Suggest what to do next based on project state."""
     from gpd.core.suggest import suggest_next
 
-    _output(suggest_next(_get_cwd(), limit=limit))
+    kwargs: dict[str, int] = {}
+    if limit is not None:
+        kwargs["limit"] = limit
+    _output(suggest_next(_get_cwd(), **kwargs))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -863,7 +899,7 @@ def pattern_init() -> None:
     """Initialize the error pattern library."""
     from gpd.core.patterns import pattern_init
 
-    _output(pattern_init(_get_cwd()))
+    _output({"path": str(pattern_init(root=_get_cwd()))})
 
 
 @pattern_app.command("add")
@@ -883,16 +919,16 @@ def pattern_add(
 
     _output(
         pattern_add(
-            _get_cwd(),
-            domain=domain,
-            category=category,
-            severity=severity,
-            title=title,
-            description=description,
-            detection=detection,
-            prevention=prevention,
-            example=example,
-            test_value=test_value,
+            domain=domain or "",
+            title=title or "",
+            category=category or "conceptual-error",
+            severity=severity or "medium",
+            description=description or "",
+            detection=detection or "",
+            prevention=prevention or "",
+            example=example or "",
+            test_value=test_value or "",
+            root=_get_cwd(),
         )
     )
 
@@ -906,7 +942,7 @@ def pattern_list(
     """List error patterns with optional filters."""
     from gpd.core.patterns import pattern_list
 
-    _output(pattern_list(_get_cwd(), domain=domain, category=category, severity=severity))
+    _output(pattern_list(domain=domain, category=category, severity=severity, root=_get_cwd()))
 
 
 @pattern_app.command("search")
@@ -916,7 +952,7 @@ def pattern_search(
     """Search error patterns by text."""
     from gpd.core.patterns import pattern_search
 
-    _output(pattern_search(_get_cwd(), " ".join(query)))
+    _output(pattern_search(" ".join(query), root=_get_cwd()))
 
 
 @pattern_app.command("seed")
@@ -924,7 +960,7 @@ def pattern_seed() -> None:
     """Seed the pattern library with common physics error patterns."""
     from gpd.core.patterns import pattern_seed
 
-    _output(pattern_seed(_get_cwd()))
+    _output(pattern_seed(root=_get_cwd()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -954,7 +990,13 @@ def trace_log(
     """Log an event to the active trace."""
     from gpd.core.trace import trace_log
 
-    _output(trace_log(_get_cwd(), event, data))
+    parsed_data = None
+    if data:
+        try:
+            parsed_data = json.loads(data)
+        except json.JSONDecodeError:
+            parsed_data = {"raw": data}
+    _output(trace_log(_get_cwd(), event, parsed_data))
 
 
 @trace_app.command("stop")
@@ -1105,16 +1147,10 @@ def approximation_add(
     """Add an approximation to track."""
     from gpd.core.extras import approximation_add
 
-    _output(
-        approximation_add(
-            _get_cwd(),
-            name=name,
-            validity_range=validity_range,
-            controlling_param=controlling_param,
-            current_value=current_value,
-            status=status,
-        )
-    )
+    state = _load_state_dict()
+    res = approximation_add(state, name=name, validity_range=validity_range, controlling_param=controlling_param, current_value=current_value, status=status)
+    _save_state_dict(state)
+    _output(res)
 
 
 @approx_app.command("list")
@@ -1122,7 +1158,7 @@ def approximation_list() -> None:
     """List all tracked approximations."""
     from gpd.core.extras import approximation_list
 
-    _output(approximation_list(_get_cwd()))
+    _output(approximation_list(_load_state_dict()))
 
 
 @approx_app.command("check")
@@ -1130,7 +1166,7 @@ def approximation_check() -> None:
     """Check validity of all approximations."""
     from gpd.core.extras import approximation_check
 
-    _output(approximation_check(_get_cwd()))
+    _output(approximation_check(_load_state_dict()))
 
 
 uncertainty_app = typer.Typer(help="Uncertainty propagation tracking")
@@ -1148,16 +1184,10 @@ def uncertainty_add(
     """Add an uncertainty measurement."""
     from gpd.core.extras import uncertainty_add
 
-    _output(
-        uncertainty_add(
-            _get_cwd(),
-            quantity=quantity,
-            value=value,
-            uncertainty=uncertainty,
-            phase=phase,
-            method=method,
-        )
-    )
+    state = _load_state_dict()
+    res = uncertainty_add(state, quantity=quantity, value=value, uncertainty=uncertainty, phase=phase, method=method)
+    _save_state_dict(state)
+    _output(res)
 
 
 @uncertainty_app.command("list")
@@ -1165,7 +1195,7 @@ def uncertainty_list() -> None:
     """List all tracked uncertainties."""
     from gpd.core.extras import uncertainty_list
 
-    _output(uncertainty_list(_get_cwd()))
+    _output(uncertainty_list(_load_state_dict()))
 
 
 question_app = typer.Typer(help="Open research questions")
@@ -1179,7 +1209,10 @@ def question_add(
     """Add an open research question."""
     from gpd.core.extras import question_add
 
-    _output(question_add(_get_cwd(), " ".join(text)))
+    state = _load_state_dict()
+    res = question_add(state, " ".join(text))
+    _save_state_dict(state)
+    _output(res)
 
 
 @question_app.command("list")
@@ -1187,7 +1220,7 @@ def question_list() -> None:
     """List open research questions."""
     from gpd.core.extras import question_list
 
-    _output(question_list(_get_cwd()))
+    _output(question_list(_load_state_dict()))
 
 
 @question_app.command("resolve")
@@ -1197,7 +1230,10 @@ def question_resolve(
     """Mark a question as resolved."""
     from gpd.core.extras import question_resolve
 
-    _output(question_resolve(_get_cwd(), " ".join(text)))
+    state = _load_state_dict()
+    res = question_resolve(state, " ".join(text))
+    _save_state_dict(state)
+    _output(res)
 
 
 calculation_app = typer.Typer(help="Calculation tracking")
@@ -1211,7 +1247,10 @@ def calculation_add(
     """Add a calculation to track."""
     from gpd.core.extras import calculation_add
 
-    _output(calculation_add(_get_cwd(), " ".join(text)))
+    state = _load_state_dict()
+    res = calculation_add(state, " ".join(text))
+    _save_state_dict(state)
+    _output(res)
 
 
 @calculation_app.command("list")
@@ -1219,7 +1258,7 @@ def calculation_list() -> None:
     """List tracked calculations."""
     from gpd.core.extras import calculation_list
 
-    _output(calculation_list(_get_cwd()))
+    _output(calculation_list(_load_state_dict()))
 
 
 @calculation_app.command("complete")
@@ -1229,7 +1268,10 @@ def calculation_complete(
     """Mark a calculation as complete."""
     from gpd.core.extras import calculation_complete
 
-    _output(calculation_complete(_get_cwd(), " ".join(text)))
+    state = _load_state_dict()
+    res = calculation_complete(state, " ".join(text))
+    _save_state_dict(state)
+    _output(res)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1245,9 +1287,23 @@ def config_get(
     key: str = typer.Argument(..., help="Config key path (dot-separated)"),
 ) -> None:
     """Get a configuration value."""
-    from gpd.core.config import config_get
+    from gpd.core.constants import ProjectLayout
 
-    _output(config_get(_get_cwd(), key))
+    config_path = ProjectLayout(_get_cwd()).config_json
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        _output({"key": key, "found": False})
+        return
+    parts = key.split(".")
+    current: object = raw
+    for part in parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            _output({"key": key, "found": False})
+            return
+    _output({"key": key, "value": current, "found": True})
 
 
 @config_app.command("set")
@@ -1256,17 +1312,52 @@ def config_set(
     value: str = typer.Argument(..., help="Value to set"),
 ) -> None:
     """Set a configuration value."""
-    from gpd.core.config import config_set
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write, file_lock
 
-    _output(config_set(_get_cwd(), key, value))
+    config_path = ProjectLayout(_get_cwd()).config_json
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with file_lock(config_path):
+        try:
+            raw = json.loads(config_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            raw = {}
+        parts = key.split(".")
+        current = raw
+        for part in parts[:-1]:
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+        try:
+            parsed = json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            parsed = value
+        current[parts[-1]] = parsed
+        atomic_write(config_path, json.dumps(raw, indent=2) + "\n")
+    _output({"key": key, "value": value, "updated": True})
 
 
 @config_app.command("ensure-section")
 def config_ensure_section() -> None:
     """Ensure config directory structure exists."""
-    from gpd.core.config import config_ensure_section
+    from gpd.core.config import GPDProjectConfig
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write
 
-    _output(config_ensure_section(_get_cwd()))
+    config_path = ProjectLayout(_get_cwd()).config_json
+    if config_path.exists():
+        _output({"created": False, "path": str(config_path)})
+        return
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    defaults = GPDProjectConfig()
+    config_dict = {
+        "model_profile": defaults.model_profile.value,
+        "commit_docs": defaults.commit_docs,
+        "search_gitignored": defaults.search_gitignored,
+        "branching_strategy": defaults.branching_strategy.value,
+    }
+    atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
+    _output({"created": True, "path": str(config_path)})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1280,11 +1371,11 @@ app.add_typer(validate_app, name="validate")
 @validate_app.command("consistency")
 def validate_consistency() -> None:
     """Validate cross-phase consistency."""
-    from gpd.core.health import validate_consistency
+    from gpd.core.health import run_health
 
-    result = validate_consistency(_get_cwd())
-    _output(result)
-    if hasattr(result, "passed") and not result.passed:
+    report = run_health(_get_cwd())
+    _output(report)
+    if report.overall == "fail":
         raise typer.Exit(code=1)
 
 
@@ -1301,9 +1392,11 @@ def template_select(
     plan_path: str | None = typer.Argument(None, help="Path to plan file"),
 ) -> None:
     """Select appropriate template for a plan."""
-    from gpd.core.frontmatter import template_select
+    from gpd.core.frontmatter import select_template
 
-    _output(template_select(_get_cwd(), plan_path))
+    if not plan_path:
+        raise typer.BadParameter("plan_path is required")
+    _output(select_template(_get_cwd(), Path(plan_path)))
 
 
 @template_app.command("fill")
@@ -1317,26 +1410,25 @@ def template_fill(
     fields: str | None = typer.Option(None, "--fields", help="JSON fields"),
 ) -> None:
     """Fill a template with provided fields."""
-    from gpd.core.frontmatter import template_fill
+    from gpd.core.frontmatter import TemplateFillOptions, fill_template
 
+    if not phase:
+        raise typer.BadParameter("--phase is required")
     parsed_fields = {}
     if fields:
         try:
             parsed_fields = json.loads(fields)
         except json.JSONDecodeError as exc:
             raise typer.BadParameter(f"--fields must be valid JSON: {exc}") from exc
-    _output(
-        template_fill(
-            _get_cwd(),
-            template_type,
-            phase=phase,
-            plan=plan,
-            name=name,
-            type=type,
-            wave=wave,
-            fields=parsed_fields,
-        )
+    options = TemplateFillOptions(
+        phase=phase,
+        name=name,
+        plan=plan,
+        plan_type=type,
+        wave=int(wave) if wave else None,
+        fields=parsed_fields or None,
     )
+    _output(fill_template(_get_cwd(), template_type, options))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1351,9 +1443,7 @@ def dependency_graph(
     validate: bool = typer.Option(False, "--validate", help="Validate graph integrity"),
 ) -> None:
     """Generate a dependency graph across phases."""
-    from gpd.core.query import dependency_graph
-
-    _output(dependency_graph(_get_cwd(), fmt, phase=phase, validate=validate))
+    raise typer.BadParameter("dependency-graph is not yet implemented")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1626,7 +1716,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 def install(
     runtimes: list[str] | None = typer.Argument(
         None,
-        help="Runtime(s) to install (claude-code, codex, gemini, opencode, agentic-builder). "
+        help="Runtime(s) to install (claude-code, codex, gemini, opencode). "
         "Omit for interactive selection.",
     ),
     install_all: bool = typer.Option(False, "--all", help="Install for all supported runtimes"),

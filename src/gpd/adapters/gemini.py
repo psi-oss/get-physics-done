@@ -404,18 +404,20 @@ class GeminiAdapter(RuntimeAdapter):
             experimental["enableAgents"] = True
             logger.info("Enabled experimental agents")
 
-        # Build hook commands (Gemini uses Node.js hooks like old install.js)
+        # Build hook commands (Python hooks, same as Claude Code)
         statusline_cmd = build_hook_command(
             target_dir,
-            HOOK_SCRIPTS["statusline"]["legacy"],
+            HOOK_SCRIPTS["statusline"]["current"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            interpreter="python3",
         )
         update_check_cmd = build_hook_command(
             target_dir,
-            HOOK_SCRIPTS["check_update"]["legacy"],
+            HOOK_SCRIPTS["check_update"]["current"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            interpreter="python3",
         )
         ensure_update_hook(settings, update_check_cmd)
 
@@ -459,7 +461,7 @@ class GeminiAdapter(RuntimeAdapter):
             status_line = settings.get("statusLine")
             if isinstance(status_line, dict):
                 cmd = status_line.get("command", "")
-                if isinstance(cmd, str) and "gpd-statusline" in cmd:
+                if isinstance(cmd, str) and ("gpd-statusline" in cmd or "statusline.py" in cmd):
                     del settings["statusLine"]
                     modified = True
 
@@ -507,7 +509,7 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and ("gpd-check-update" in h["command"] or "gpd-statusline" in h["command"])
+        and ("gpd-check-update" in h["command"] or "check_update" in h["command"] or "gpd-statusline" in h["command"] or "statusline.py" in h["command"])
         for h in entry_hooks
     )
 

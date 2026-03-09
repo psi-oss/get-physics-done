@@ -232,7 +232,7 @@ class TestGpdModelEnvVar:
         with patch.dict(os.environ, {"GPD_MODEL": "invalid:totally-fake-model"}):
             result = adapter.install(gpd_root, target, is_global=True)
 
-        assert result["runtime"] == "claude"
+        assert result["runtime"] == "claude-code"
         assert (target / "commands" / "gpd").is_dir()
 
     def test_install_with_empty_model_succeeds(self, tmp_path: Path) -> None:
@@ -244,7 +244,7 @@ class TestGpdModelEnvVar:
         with patch.dict(os.environ, {"GPD_MODEL": ""}):
             result = adapter.install(gpd_root, target, is_global=True)
 
-        assert result["runtime"] == "claude"
+        assert result["runtime"] == "claude-code"
 
 
 # =========================================================================

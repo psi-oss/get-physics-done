@@ -522,7 +522,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         if (
             isinstance(settings.get("statusLine"), dict)
             and isinstance(settings["statusLine"].get("command"), str)
-            and "gpd-statusline" in settings["statusLine"]["command"]
+            and ("gpd-statusline" in settings["statusLine"]["command"] or "statusline.py" in settings["statusLine"]["command"])
         ):
             del settings["statusLine"]
             settings_modified = True
@@ -537,7 +537,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                     isinstance(entry.get("hooks"), list)
                     and any(
                         isinstance(h.get("command"), str)
-                        and ("gpd-check-update" in h["command"] or "gpd-statusline" in h["command"])
+                        and ("gpd-check-update" in h["command"] or "check_update" in h["command"] or "gpd-statusline" in h["command"] or "statusline.py" in h["command"])
                         for h in entry["hooks"]
                     )
                 )

@@ -82,7 +82,7 @@ class TestClaudeCodeLifecycle:
         assert len(manifest["files"]) > 0
 
         # Result dict has expected keys
-        assert result["runtime"] == "claude"
+        assert result["runtime"] == "claude-code"
         assert result["commands"] > 0
         assert result["agents"] > 0
 

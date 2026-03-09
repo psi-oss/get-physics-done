@@ -439,7 +439,9 @@ def subfield_defaults(domain: str) -> dict:
 
 def main() -> None:
     """Run the MCP server via stdio transport."""
-    mcp.run()
+    from gpd.mcp.servers import run_mcp_server
+
+    run_mcp_server(mcp, "GPD Conventions MCP Server")
 
 
 if __name__ == "__main__":

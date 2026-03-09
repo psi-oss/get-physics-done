@@ -55,7 +55,6 @@ execution:
   mcp_tools: true
 
 report:
-  impl: agentic_builder.reporting:run_solve_report
   effects:
     aux_writes:
       - target: node_record

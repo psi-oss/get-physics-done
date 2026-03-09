@@ -217,7 +217,7 @@ class TestInstall:
         hooks = settings.get("hooks", {})
         session_start = hooks.get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert any("gpd-check-update" in c for c in cmds)
+        assert any("check_update" in c for c in cmds)
 
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"

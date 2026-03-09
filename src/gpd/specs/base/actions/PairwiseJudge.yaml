@@ -42,7 +42,6 @@ execution:
   actor_id: PairwiseJudge
 
 report:
-  impl: agentic_builder.reporting:run_pairwise_judge_comparison_report
   effects:
     events:
       - kind: judge_completed

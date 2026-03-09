@@ -257,12 +257,12 @@ def _find_psi_root() -> Path | None:
     from_env = os.environ.get("PSI_ROOT")
     if from_env:
         root = Path(from_env)
-        if (root / "infra" / "mcp").is_dir():
+        if (root / "infra").is_dir():
             return root
 
     current = Path(__file__).resolve().parent
     for _ in range(10):
-        if (current / "infra" / "mcp").is_dir():
+        if (current / "infra").is_dir():
             return current
         parent = current.parent
         if parent == current:
@@ -285,7 +285,7 @@ def build_mcp_config_file() -> Path | None:
         logger.debug("PSI root not found, skipping MCP config generation")
         return None
 
-    mcp_dir = psi_root / "infra" / "mcp"
+    mcp_dir = psi_root / "infra"
     if not mcp_dir.is_dir():
         return None
 

@@ -1,7 +1,7 @@
-"""Tests for all 8 GPD MCP servers.
+"""Tests for all 7 GPD MCP servers.
 
 Calls @mcp.tool() decorated functions directly with mock backends.
-Covers: blackboard, conventions, errors, patterns, protocols, skills, state, verification.
+Covers: conventions, errors, patterns, protocols, skills, state, verification.
 """
 
 from __future__ import annotations
@@ -12,13 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # ---------------------------------------------------------------------------
-# 1. Blackboard server
-# ---------------------------------------------------------------------------
-
-
-
-# ---------------------------------------------------------------------------
-# 2. Conventions server
+# 1. Conventions server
 # ---------------------------------------------------------------------------
 
 
@@ -194,7 +188,7 @@ class TestConventionsServer:
 
 
 # ---------------------------------------------------------------------------
-# 3. Errors MCP server
+# 2. Errors MCP server
 # ---------------------------------------------------------------------------
 
 
@@ -292,7 +286,7 @@ class TestErrorsMcp:
 
 
 # ---------------------------------------------------------------------------
-# 4. Patterns server
+# 3. Patterns server
 # ---------------------------------------------------------------------------
 
 
@@ -384,7 +378,7 @@ class TestPatternsServer:
 
 
 # ---------------------------------------------------------------------------
-# 5. Protocols server
+# 4. Protocols server
 # ---------------------------------------------------------------------------
 
 
@@ -480,7 +474,7 @@ class TestProtocolsServer:
 
 
 # ---------------------------------------------------------------------------
-# 6. Skills server
+# 5. Skills server
 # ---------------------------------------------------------------------------
 
 
@@ -589,7 +583,7 @@ class TestSkillsServer:
 
 
 # ---------------------------------------------------------------------------
-# 7. State server
+# 6. State server
 # ---------------------------------------------------------------------------
 
 
@@ -697,7 +691,7 @@ class TestStateServer:
 
 
 # ---------------------------------------------------------------------------
-# 8. Verification server
+# 7. Verification server
 # ---------------------------------------------------------------------------
 
 

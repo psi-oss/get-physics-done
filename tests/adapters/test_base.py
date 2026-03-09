@@ -12,13 +12,13 @@ from gpd.adapters import get_adapter
 class TestResolveTargetDir:
     """Test resolve_target_dir for all adapters."""
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_local_uses_cwd(self, runtime: str, tmp_path: Path) -> None:
         adapter = get_adapter(runtime)
         result = adapter.resolve_target_dir(is_global=False, cwd=tmp_path)
         assert result == tmp_path / adapter.config_dir_name
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_global_uses_global_config(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         result = adapter.resolve_target_dir(is_global=True)
@@ -108,7 +108,7 @@ class TestUninstallBase:
 class TestAdapterConformance:
     """Verify all adapters implement the full ABC interface."""
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_has_required_properties(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert isinstance(adapter.runtime_name, str)
@@ -117,7 +117,7 @@ class TestAdapterConformance:
         assert isinstance(adapter.help_command, str)
         assert isinstance(adapter.global_config_dir, Path)
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_has_required_methods(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert callable(adapter.translate_tool_name)
@@ -127,12 +127,12 @@ class TestAdapterConformance:
         assert callable(adapter.install)
         assert callable(adapter.uninstall)
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_config_dir_name_starts_with_dot(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.config_dir_name.startswith(".")
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_runtime_name_matches_registry(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.runtime_name == runtime

@@ -82,30 +82,12 @@ OPENCODE: dict[str, str] = {
     "tool_search": "tool_search",
 }
 
-AGENTIC_BUILDER: dict[str, str] = {
-    "file_read": "file_read",
-    "file_write": "file_write",
-    "file_edit": "file_edit",
-    "shell": "shell",
-    "search_files": "search_files",
-    "find_files": "find_files",
-    "web_search": "web_search",
-    "web_fetch": "web_fetch",
-    "notebook_edit": "notebook_edit",
-    "agent": "agent",
-    "ask_user": "ask_user",
-    "todo_write": "todo_write",
-    "task": "task",
-    "slash_command": "slash_command",
-    "tool_search": "tool_search",
-}
 
 RUNTIME_TABLES: dict[str, dict[str, str]] = {
     "claude-code": CLAUDE_CODE,
     "codex": CODEX,
     "gemini": GEMINI,
     "opencode": OPENCODE,
-    "agentic-builder": AGENTIC_BUILDER,
 }
 
 # Legacy Claude Code names found in existing specs → canonical names

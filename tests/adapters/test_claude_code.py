@@ -156,7 +156,7 @@ class TestInstall:
         target.mkdir(parents=True)
         result = adapter.install(gpd_root, target)
 
-        assert result["runtime"] == "claude"
+        assert result["runtime"] == "claude-code"
         assert isinstance(result["commands"], int)
         assert isinstance(result["agents"], int)
         assert result["commands"] > 0

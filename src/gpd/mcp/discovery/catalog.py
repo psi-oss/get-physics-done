@@ -15,6 +15,7 @@ from gpd.mcp.discovery.models import (
     CostProfile,
     MCPSourcesConfig,
     MCPStatus,
+    SourceConfig,
     ToolCatalogSnapshot,
     ToolEntry,
     categorize_tool,
@@ -78,7 +79,7 @@ class ToolCatalog:
 
         return catalog
 
-    def _load_modal_source(self, source_config: MCPSourcesConfig) -> dict[str, ToolEntry]:
+    def _load_modal_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load tools from psi-mcp-shared registry with SKILLS_SUMMARY metadata."""
         entries: dict[str, ToolEntry] = {}
 
@@ -137,7 +138,7 @@ class ToolCatalog:
 
         return entries
 
-    def _load_external_source(self, source_config: MCPSourcesConfig) -> dict[str, ToolEntry]:
+    def _load_external_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load tools from external services YAML."""
         entries: dict[str, ToolEntry] = {}
 
@@ -165,7 +166,7 @@ class ToolCatalog:
 
         return entries
 
-    def _load_local_source(self, source_config: MCPSourcesConfig) -> dict[str, ToolEntry]:
+    def _load_local_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load local MCP server entries.
 
         Local MCP tools are discovered at connection time via MCP protocol,
@@ -186,7 +187,7 @@ class ToolCatalog:
 
         return entries
 
-    def _load_custom_source(self, source_config: MCPSourcesConfig) -> dict[str, ToolEntry]:
+    def _load_custom_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load custom inline endpoint definitions."""
         entries: dict[str, ToolEntry] = {}
 

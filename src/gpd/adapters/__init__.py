@@ -17,13 +17,12 @@ def _ensure_loaded() -> None:
     if _LOADED:
         return
     _LOADED = True
-    from gpd.adapters.agentic_builder import AgenticBuilderAdapter
     from gpd.adapters.claude_code import ClaudeCodeAdapter
     from gpd.adapters.codex import CodexAdapter
     from gpd.adapters.gemini import GeminiAdapter
     from gpd.adapters.opencode import OpenCodeAdapter
 
-    for cls in (ClaudeCodeAdapter, CodexAdapter, GeminiAdapter, OpenCodeAdapter, AgenticBuilderAdapter):
+    for cls in (ClaudeCodeAdapter, CodexAdapter, GeminiAdapter, OpenCodeAdapter):
         _REGISTRY[cls().runtime_name] = cls
 
 

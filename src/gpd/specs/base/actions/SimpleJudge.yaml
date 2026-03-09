@@ -44,7 +44,6 @@ execution:
   actor_id: SimpleJudge
 
 report:
-  impl: agentic_builder.reporting:run_simple_judge_report
   effects:
     aux_writes:
       - target: node_aux

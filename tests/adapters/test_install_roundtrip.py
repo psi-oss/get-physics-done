@@ -12,9 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.agentic_builder import (
-    AgenticBuilderAdapter,
-)
 from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.codex import CodexAdapter
 from gpd.adapters.gemini import GeminiAdapter
@@ -390,66 +387,6 @@ class TestOpenCodeRoundtrip:
 
 
 # ---------------------------------------------------------------------------
-# Agentic Builder: install → read back → compare
-# ---------------------------------------------------------------------------
-
-
-class TestAgenticBuilderRoundtrip:
-    """Install into .psi/, verify Python-consumable agents and prompts."""
-
-    @pytest.fixture()
-    def installed(self, gpd_root: Path, tmp_path: Path) -> Path:
-        target = tmp_path / ".psi"
-        target.mkdir()
-        AgenticBuilderAdapter().install(gpd_root, target)
-        return target
-
-    def test_agents_are_txt(self, installed: Path) -> None:
-        """Agentic-builder agents are plain .txt system prompts."""
-        agents_dir = installed / "agents"
-        assert agents_dir.is_dir()
-        txt_files = list(agents_dir.glob("*.txt"))
-        assert len(txt_files) > 0
-        # Should not have .md files
-        md_files = list(agents_dir.glob("*.md"))
-        assert len(md_files) == 0
-
-    def test_commands_are_txt_prompts(self, installed: Path) -> None:
-        """Agentic-builder commands become plain .txt prompt files."""
-        prompts_dir = installed / "prompts"
-        assert prompts_dir.is_dir()
-        txt_files = list(prompts_dir.glob("*.txt"))
-        assert len(txt_files) > 0
-
-    def test_agent_count_at_least_source(self, installed: Path, gpd_root: Path) -> None:
-        """At least as many agents as in source (may include specs/ legacy agents)."""
-        src_count = sum(1 for _ in (gpd_root / "agents").glob("*.md"))
-        dest_count = sum(1 for _ in (installed / "agents").glob("*.txt"))
-        assert dest_count >= src_count
-
-    def test_agent_content_non_empty(self, installed: Path) -> None:
-        """Every installed agent prompt has non-empty content."""
-        for txt in (installed / "agents").glob("*.txt"):
-            content = txt.read_text(encoding="utf-8")
-            assert len(content.strip()) > 0, f"Empty agent: {txt.name}"
-
-    def test_prompt_content_non_empty(self, installed: Path) -> None:
-        """Every installed command prompt has non-empty content."""
-        for txt in (installed / "prompts").glob("*.txt"):
-            content = txt.read_text(encoding="utf-8")
-            assert len(content.strip()) > 0, f"Empty prompt: {txt.name}"
-
-    def test_install_returns_counts(self, gpd_root: Path, tmp_path: Path) -> None:
-        """Install returns valid artifact counts."""
-        target = tmp_path / ".psi2"
-        target.mkdir()
-        result = AgenticBuilderAdapter().install(gpd_root, target)
-        assert result["runtime"] == "agentic-builder"
-        assert result["agents"] > 0
-        assert result["commands"] > 0
-
-
-# ---------------------------------------------------------------------------
 # Cross-runtime: install/uninstall cycle for each runtime
 # ---------------------------------------------------------------------------
 
@@ -516,19 +453,6 @@ class TestInstallUninstallCycle:
         )
         assert len(gpd_cmds) == 0
 
-    def test_agentic_builder_cycle(self, gpd_root: Path, tmp_path: Path) -> None:
-        adapter = AgenticBuilderAdapter()
-        target = tmp_path / ".psi"
-        target.mkdir()
-
-        adapter.install(gpd_root, target)
-        assert (target / "agents").is_dir()
-        assert (target / "prompts").is_dir()
-
-        adapter.uninstall(target)
-        assert not (target / "agents").exists()
-        assert not (target / "prompts").exists()
-
 
 # ---------------------------------------------------------------------------
 # Serialization roundtrip: source spec → install → re-read matches
@@ -580,17 +504,6 @@ class TestSerializationRoundtrip:
         content = cmd.read_text(encoding="utf-8")
         assert "Help body" in content
 
-    def test_agentic_builder_preserves_agent_body(self, gpd_root: Path, tmp_path: Path) -> None:
-        """Agent body text survives agentic-builder extraction to .txt."""
-        target = tmp_path / ".psi"
-        target.mkdir()
-        AgenticBuilderAdapter().install(gpd_root, target)
-
-        # Agentic-builder reads from the real agents dir (not fixture), so
-        # just verify each installed .txt has non-empty content
-        for txt in (target / "agents").glob("*.txt"):
-            content = txt.read_text(encoding="utf-8")
-            assert len(content.strip()) > 0, f"Empty agent body: {txt.name}"
 
     def test_nested_command_survives_all_runtimes(self, gpd_root: Path, tmp_path: Path) -> None:
         """The nested sub/deep.md command is reachable in every runtime."""

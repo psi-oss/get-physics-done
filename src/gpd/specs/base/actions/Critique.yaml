@@ -56,6 +56,3 @@ execution:
   kind: report
   shape: node
   actor_id: Critic
-
-report:
-  impl: agentic_builder.reporting:run_critique_report

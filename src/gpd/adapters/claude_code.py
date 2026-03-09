@@ -128,7 +128,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         )
         ensure_update_hook(settings, update_check_command)
         return {
-            "runtime": "claude",
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_command,

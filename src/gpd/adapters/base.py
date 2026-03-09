@@ -26,7 +26,7 @@ class RuntimeAdapter(abc.ABC):
 
     Each adapter knows how to generate configuration files, skill definitions,
     agent definitions, and hook scripts for a specific AI coding runtime
-    (Claude Code, Codex, Gemini CLI, OpenCode, agentic-builder).
+    (Claude Code, Codex, Gemini CLI, OpenCode).
 
     The ``install()`` method implements a **template method** pattern:
     ``_validate → _pre_cleanup → _install_commands → _install_content →
@@ -34,7 +34,7 @@ class RuntimeAdapter(abc.ABC):
     _write_manifest → _verify``.
     Subclasses override individual ``_install_*`` hooks for runtime-specific
     behavior.  Override ``install()`` itself only when the signature must change
-    (e.g. Codex ``skills_dir``) or the flow is entirely different (agentic-builder).
+    (e.g. Codex ``skills_dir``).
     """
 
     @property
@@ -242,9 +242,9 @@ class RuntimeAdapter(abc.ABC):
             # Remove GPD hooks
             hooks_dir = target_dir / "hooks"
             if hooks_dir.is_dir():
-                legacy_hooks = [h["legacy"] for h in HOOK_SCRIPTS.values()]
+                gpd_hooks = [name for h in HOOK_SCRIPTS.values() for name in (h["current"], h["legacy"])]
                 hook_count = 0
-                for hook_name in legacy_hooks:
+                for hook_name in gpd_hooks:
                     hook_path = hooks_dir / hook_name
                     if hook_path.exists():
                         hook_path.unlink()

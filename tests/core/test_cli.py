@@ -261,7 +261,7 @@ def test_pattern_search(mock_search):
     assert result.exit_code == 0
     # Verify query was joined
     args = mock_search.call_args
-    assert "sign convention" in args[0][1]
+    assert "sign convention" in args[0][0]
 
 
 # ─── init subcommands ───────────────────────────────────────────────────────

@@ -44,7 +44,6 @@ packages/gpd/
 │   │   ├── codex.py            # OpenAI Codex adapter
 │   │   ├── gemini.py           # Google Gemini CLI adapter
 │   │   ├── opencode.py         # OpenCode adapter
-│   │   ├── agentic_builder.py  # PSI agentic-builder adapter (Python API)
 │   │   ├── install_utils.py    # Pure-stdlib install helpers (1.2k LOC)
 │   │   └── tool_names.py       # Canonical → runtime tool name translation tables
 │   │
@@ -62,7 +61,7 @@ packages/gpd/
 │   │   └── api.py              # Public re-exports
 │   │
 │   ├── mcp/                    # Layer 2 — MCP servers + orchestration (13k LOC)
-│   │   ├── servers/            # 8 MCP tool servers (conventions, verification, etc.)
+│   │   ├── servers/            # 7 MCP tool servers (conventions, verification, etc.)
 │   │   ├── discovery/          # Tool discovery: catalog, router, selector, reconciler
 │   │   ├── research/           # Research planner, cost estimator, error recovery
 │   │   ├── paper/              # Paper generation: bibliography, compiler, figures, templates
@@ -182,7 +181,7 @@ install(gpd_root, target_dir, is_global)
   → _verify(target_dir)               # post-install verification
 ```
 
-Subclasses override individual hooks. Only `AgenticBuilderAdapter` overrides the entire `install()` method (different output structure: `.psi/agents/*.txt` + `prompts/*.txt` + `mcp/*.json`).
+Subclasses override individual hooks.psi/agents/*.txt` + `prompts/*.txt` + `mcp/*.json`).
 
 ### Supported Runtimes
 
@@ -192,7 +191,6 @@ Subclasses override individual hooks. Only `AgenticBuilderAdapter` overrides the
 | OpenAI Codex      | `CodexAdapter`            | `.codex`    | Skills in `~/.agents/skills/gpd-*/` | `agents/gpd-*.md` |
 | Google Gemini CLI | `GeminiAdapter`           | `.gemini`   | `commands/gpd/*.md`  | `agents/gpd-*.md`   |
 | OpenCode          | `OpenCodeAdapter`         | `.opencode` | `commands/gpd/*.md`  | `agents/gpd-*.md`   |
-| Agentic Builder   | `AgenticBuilderAdapter`   | `.psi`      | `prompts/*.txt`      | `agents/*.txt`      |
 
 ### Tool Name Translation
 
@@ -407,7 +405,7 @@ Overlays are merged sequentially: base → overlay₁ → overlay₂. Merge rule
 
 ---
 
-## Strategy Layer — Agentic Builder Integration
+## Strategy Layer
 
 `gpd.strategy.mcts.GPDMCTSStrategy` wraps `pipeline.strategies.mcts.MCTSStrategy` with physics intelligence:
 
@@ -431,7 +429,7 @@ gpd_mcts = "gpd.strategy.mcts:GPDMCTSStrategy"
 
 ### Type Bridge (`type_bridge.py`)
 
-Converts between `psi-contracts` types and `agentic-builder` engine types:
+Converts between contract types and engine types:
 - `contract_entry_to_engine()` / `engine_entry_to_contract()`
 - `contract_decision_to_engine()` / `engine_decision_to_contract()`
 - `engine_write_request_to_contract()`
@@ -440,7 +438,7 @@ Converts between `psi-contracts` types and `agentic-builder` engine types:
 
 ## MCP Servers
 
-8 MCP tool servers, each a standalone process registered in `pyproject.toml` scripts:
+7 MCP tool servers, each a standalone process registered in `pyproject.toml` scripts:
 
 | Server                  | Entry Point                | Provides                              |
 |------------------------|---------------------------|---------------------------------------|
@@ -451,7 +449,6 @@ Converts between `psi-contracts` types and `agentic-builder` engine types:
 | `gpd-mcp-patterns`     | `patterns_server:main`     | Error pattern library                 |
 | `gpd-mcp-state`        | `state_server:main`        | STATE.md read/write                   |
 | `gpd-mcp-skills`       | `skills_server:main`       | Skill/command discovery               |
-| `gpd-mcp-blackboard`   | `blackboard_server:main`   | Shared state blackboard               |
 
 ---
 
@@ -534,7 +531,6 @@ Domain errors also inherit from their stdlib counterpart (`ValueError`, `KeyErro
 7. Register in `adapters/__init__.py` `_ensure_loaded()` function
 8. Add install roundtrip tests in `tests/adapters/`
 
-Only override `install()` itself if the output structure differs fundamentally from the base flow (as `AgenticBuilderAdapter` does).
 
 ---
 

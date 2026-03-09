@@ -7,7 +7,6 @@ import pytest
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.tool_names import (
-    AGENTIC_BUILDER,
     CLAUDE_CODE,
     CODEX,
     GEMINI,
@@ -22,15 +21,15 @@ from gpd.adapters.tool_names import (
 class TestRegistry:
     """Tests for the adapter registry (get_adapter / list_runtimes)."""
 
-    def test_list_runtimes_returns_all_five(self) -> None:
+    def test_list_runtimes_returns_all_four(self) -> None:
         runtimes = list_runtimes()
-        assert set(runtimes) == {"claude-code", "codex", "gemini", "opencode", "agentic-builder"}
+        assert set(runtimes) == {"claude-code", "codex", "gemini", "opencode"}
 
     def test_list_runtimes_sorted(self) -> None:
         runtimes = list_runtimes()
         assert runtimes == sorted(runtimes)
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_get_adapter_returns_instance(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert isinstance(adapter, RuntimeAdapter)
@@ -109,13 +108,9 @@ class TestToolNames:
         assert translate_list([], "claude-code") == []
 
     def test_all_runtime_tables_present(self) -> None:
-        assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode", "agentic-builder"}
+        assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode"}
 
     def test_all_tables_have_same_canonical_keys(self) -> None:
         keys = set(CLAUDE_CODE.keys())
-        for name, table in [("CODEX", CODEX), ("GEMINI", GEMINI), ("OPENCODE", OPENCODE), ("AB", AGENTIC_BUILDER)]:
+        for name, table in [("CODEX", CODEX), ("GEMINI", GEMINI), ("OPENCODE", OPENCODE)]:
             assert set(table.keys()) == keys, f"{name} has different canonical keys than CLAUDE_CODE"
-
-    def test_agentic_builder_identity_mapping(self) -> None:
-        for canon, runtime_name in AGENTIC_BUILDER.items():
-            assert canon == runtime_name, f"agentic-builder should be identity for {canon}"
