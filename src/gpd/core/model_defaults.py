@@ -44,11 +44,15 @@ def resolve_model_and_settings(spec: str) -> tuple[str, dict[str, object]]:
         resolve_model_and_settings("anthropic:claude-sonnet-4-5-20250929")
         # -> ("anthropic:claude-sonnet-4-5-20250929", {<baseline Anthropic settings>})
     """
-    from inference_providers.effort import (
-        base_model_settings,
-        effort_to_model_settings,
-        parse_model_spec,
-    )
+    try:
+        from inference_providers.effort import (
+            base_model_settings,
+            effort_to_model_settings,
+            parse_model_spec,
+        )
+    except ImportError:
+        # Standalone mode: no effort parsing available, return spec as-is
+        return spec, {}
 
     provider, base, effort = parse_model_spec(spec)
     if base is None:

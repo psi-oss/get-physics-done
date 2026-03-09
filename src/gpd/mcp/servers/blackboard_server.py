@@ -24,7 +24,7 @@ try:
     from research_memory.blackboard.store import BlackboardStore
 except ImportError:
     raise ImportError(
-        "GPD blackboard requires the research-memory package. Add research-memory to your dependencies."
+        "Blackboard server requires the research-memory package (pip install get-physics-done[psi])"
     ) from None
 
 from gpd.core.observability import gpd_span
