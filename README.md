@@ -11,17 +11,7 @@ For day-to-day usage, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md). For packag
 The fastest way to install GPD from the public repository is with `uv`:
 
 ```bash
-uv tool install git+https://github.com/physicalsuperintelligence/get-physics-done.git
-gpd install
-```
-
-`gpd install` prompts for your runtime and install location, then installs GPD into your AI agent configuration.
-
-If you prefer `pip`, install the package from GitHub and then run the same setup step:
-
-```bash
-python3 -m pip install "git+https://github.com/physicalsuperintelligence/get-physics-done.git"
-gpd install
+npx github:physicalsuperintelligence/get-physics-done
 ```
 
 ## Supported Runtimes
