@@ -1397,7 +1397,9 @@ def _renumber_decimal_phases(phases_dir: Path, normalized: str) -> tuple[list[Re
     """Renumber sibling decimal phases after removing one.
 
     E.g., removing 06.2: 06.3 -> 06.2, 06.4 -> 06.3.
-    Sorts descending to avoid conflicts. Validates before executing.
+    Sorts ascending so each rename lands on the slot just vacated by the
+    previous rename, avoiding collisions when sibling directories share
+    the same slug.  Validates before executing.
     """
     renamed_dirs: list[RenameEntry] = []
     renamed_files: list[RenameEntry] = []
@@ -1424,7 +1426,7 @@ def _renumber_decimal_phases(phases_dir: Path, normalized: str) -> tuple[list[Re
                 }
             )
 
-    to_rename.sort(key=lambda x: x["old_decimal"], reverse=True)
+    to_rename.sort(key=lambda x: x["old_decimal"])
 
     # Dry-run validation
     planned_ops = []
@@ -1477,7 +1479,9 @@ def _renumber_integer_phases(phases_dir: Path, removed_int: int) -> tuple[list[R
     """Renumber subsequent integer phases after removing one.
 
     E.g., removing phase 5: 06 -> 05, 06.1 -> 05.1, 07 -> 06, etc.
-    Sorts descending to avoid naming conflicts. Validates before executing.
+    Sorts ascending so each rename lands on the slot just vacated by the
+    previous rename (or the deleted phase), avoiding collisions when
+    sibling directories share the same slug.  Validates before executing.
     """
     renamed_dirs: list[RenameEntry] = []
     renamed_files: list[RenameEntry] = []
@@ -1503,7 +1507,7 @@ def _renumber_integer_phases(phases_dir: Path, removed_int: int) -> tuple[list[R
                 }
             )
 
-    to_rename.sort(key=lambda x: x["old_int"], reverse=True)
+    to_rename.sort(key=lambda x: x["old_int"])
 
     # Dry-run validation
     planned_ops = []

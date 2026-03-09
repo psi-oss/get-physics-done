@@ -415,6 +415,77 @@ def test_phase_remove_basic(tmp_path: Path) -> None:
     assert "Phase 2: Second" not in roadmap
 
 
+def test_phase_remove_renumber_same_slug(tmp_path: Path) -> None:
+    """Removing a phase when siblings share the same slug must not collide.
+
+    Before the fix both _renumber_integer_phases and _renumber_decimal_phases
+    sorted descending, which caused an OSError (Directory not empty) when the
+    destination directory already existed because its occupant had not yet been
+    moved out of the way.  Ascending sort ensures each rename lands in the slot
+    just vacated by the previous rename or the deleted directory.
+    """
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Work
+        **Goal:** first
+
+        ### Phase 2: Work
+        **Goal:** second
+
+        ### Phase 3: Work
+        **Goal:** third
+        """,
+    )
+    phases_dir = tmp_path / ".planning" / "phases"
+    for i in range(1, 4):
+        d = _create_phase_dir(tmp_path, f"{str(i).zfill(2)}-work")
+        (d / f"{str(i).zfill(2)}-PLAN.md").write_text("plan")
+
+    result = phase_remove(tmp_path, "1")
+
+    remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
+    assert remaining == ["01-work", "02-work"]
+    assert len(result.renamed_directories) == 2
+    # Verify files were also renumbered
+    assert (phases_dir / "01-work" / "01-PLAN.md").exists()
+    assert (phases_dir / "02-work" / "02-PLAN.md").exists()
+
+
+def test_phase_remove_decimal_renumber_same_slug(tmp_path: Path) -> None:
+    """Decimal sub-phase renumbering must not collide when slugs match."""
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 3: Base
+        **Goal:** base
+
+        ### Phase 3.1: Fix
+        **Goal:** fix1
+
+        ### Phase 3.2: Fix
+        **Goal:** fix2
+
+        ### Phase 3.3: Fix
+        **Goal:** fix3
+        """,
+    )
+    phases_dir = tmp_path / ".planning" / "phases"
+    _create_phase_dir(tmp_path, "03-base")
+    for i in range(1, 4):
+        d = _create_phase_dir(tmp_path, f"03.{i}-fix")
+        (d / f"03.{i}-PLAN.md").write_text("plan")
+
+    phase_remove(tmp_path, "3.1", force=True)
+
+    remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
+    assert remaining == ["03-base", "03.1-fix", "03.2-fix"]
+    assert (phases_dir / "03.1-fix" / "03.1-PLAN.md").exists()
+    assert (phases_dir / "03.2-fix" / "03.2-PLAN.md").exists()
+
+
 def test_phase_remove_with_summaries_needs_force(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n**Goal:** x\n")
