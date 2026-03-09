@@ -219,7 +219,7 @@ STATE.md is approaching compaction threshold (N lines). Will auto-compact at nex
 **Deep diagnostics (--full mode only):** Run the health dashboard for comprehensive system checks:
 
 ```bash
-HEALTH=$(gpd health --json 2>/dev/null)
+HEALTH=$(gpd --raw health 2>/dev/null)
 ```
 
 If health reports any issues (non-empty `issues` array), append a summary:
