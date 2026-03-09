@@ -1025,7 +1025,7 @@ Details here.
         assert sections[0]["level"] == 2
 
     def test_extract_steps(self):
-        from gpd.mcp.servers.protocols_server import _extract_steps
+        from gpd.mcp.servers.protocols_server import _extract_steps_and_checkpoints
 
         body = """\
 ## Procedure
@@ -1037,12 +1037,12 @@ Details here.
 ## Results
 Some results here.
 """
-        steps = _extract_steps(body)
+        steps, _checkpoints = _extract_steps_and_checkpoints(body)
         assert len(steps) == 3
         assert steps[0] == "Identify the small parameter"
 
     def test_extract_checkpoints(self):
-        from gpd.mcp.servers.protocols_server import _extract_checkpoints
+        from gpd.mcp.servers.protocols_server import _extract_steps_and_checkpoints
 
         body = """\
 ## Verification Checkpoints
@@ -1053,7 +1053,7 @@ Some results here.
 ## Other Section
 Not a checkpoint.
 """
-        checkpoints = _extract_checkpoints(body)
+        _steps, checkpoints = _extract_steps_and_checkpoints(body)
         assert len(checkpoints) == 2
 
     def test_infer_domain(self):

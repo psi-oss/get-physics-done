@@ -47,31 +47,27 @@ def _extract_sections(body: str) -> list[dict[str, str]]:
     return sections
 
 
-def _extract_steps(body: str) -> list[str]:
-    """Extract numbered or bulleted procedural steps from the body."""
+def _extract_steps_and_checkpoints(body: str) -> tuple[list[str], list[str]]:
+    """Extract procedural steps and verification checkpoints from the body.
+
+    Parses sections once and extracts both in a single pass (avoids
+    duplicate ``_extract_sections`` calls).
+    """
     steps: list[str] = []
+    checkpoints: list[str] = []
     for section in _extract_sections(body):
         title_lower = section["title"].lower()
         if any(kw in title_lower for kw in ("step", "procedure", "method", "organization", "approach")):
-            # Extract bullet/numbered items
             for line in section["content"].split("\n"):
                 stripped = line.strip()
                 if re.match(r"^(\d+\.|[-*])\s+", stripped):
                     steps.append(re.sub(r"^(\d+\.|[-*])\s+", "", stripped).strip())
-    return steps
-
-
-def _extract_checkpoints(body: str) -> list[str]:
-    """Extract verification checkpoints from the body."""
-    checkpoints: list[str] = []
-    for section in _extract_sections(body):
-        title_lower = section["title"].lower()
         if any(kw in title_lower for kw in ("verification", "checkpoint", "check", "common pitfall", "common error")):
             for line in section["content"].split("\n"):
                 stripped = line.strip()
                 if re.match(r"^(\d+\.|[-*])\s+", stripped):
                     checkpoints.append(re.sub(r"^(\d+\.|[-*])\s+", "", stripped).strip())
-    return checkpoints
+    return steps, checkpoints
 
 
 def _infer_domain(name: str, load_when: list[str]) -> str:
@@ -181,8 +177,7 @@ class ProtocolStore:
             context_cost = meta.get("context_cost", "medium")
 
             domain = _infer_domain(name, load_when)
-            steps = _extract_steps(body)
-            checkpoints = _extract_checkpoints(body)
+            steps, checkpoints = _extract_steps_and_checkpoints(body)
 
             # Extract title from first H1
             title_match = re.search(r"^#\s+(.+)$", body, re.MULTILINE)

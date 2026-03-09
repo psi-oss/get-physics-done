@@ -337,6 +337,13 @@ _MODEL_PROFILES: dict[str, dict[str, str]] = {
         "review": "tier-1",
         "paper-writing": "tier-2",
     },
+    "map-content": {
+        "deep-theory": "tier-1",
+        "numerical": "tier-2",
+        "exploratory": "tier-1",
+        "review": "tier-2",
+        "paper-writing": "tier-3",
+    },
     "gpd-theory-mapper": {
         "deep-theory": "tier-2",
         "numerical": "tier-3",
@@ -347,22 +354,22 @@ _MODEL_PROFILES: dict[str, dict[str, str]] = {
 }
 
 
-def _resolve_model(cwd: Path, agent_type: str) -> str:
-    """Resolve the model identifier for a given agent type based on config profile."""
-    config = load_config(cwd)
+def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> str:
+    """Resolve the model identifier for a given agent type based on config profile.
+
+    Args:
+        cwd: Project root directory.
+        agent_type: Agent name (e.g. "gpd-executor").
+        config: Pre-loaded config dict. If None, loads from disk (slower).
+    """
+    if config is None:
+        config = load_config(cwd)
     profile = config.get("model_profile", "review")
     agent_models = _MODEL_PROFILES.get(agent_type)
     tier = "tier-2"
     if agent_models:
         tier = agent_models.get(profile) or agent_models.get("review", "tier-2")
-    model_map = None
-    # Config may have a custom model_map
-    config_path = cwd / PLANNING_DIR_NAME / CONFIG_FILENAME
-    try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-        model_map = raw.get("model_map")
-    except (FileNotFoundError, json.JSONDecodeError, ValueError):
-        pass
+    model_map = config.get("model_map")
     if model_map and isinstance(model_map, dict) and tier in model_map:
         return model_map[tier]
     return tier
@@ -505,8 +512,8 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
 
     result: dict[str, object] = {
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor"),
-        "verifier_model": _resolve_model(cwd, "gpd-verifier"),
+        "executor_model": _resolve_model(cwd, "gpd-executor", config),
+        "verifier_model": _resolve_model(cwd, "gpd-verifier", config),
         # Config flags
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -578,9 +585,9 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
 
     result: dict[str, object] = {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-phase-researcher"),
-        "planner_model": _resolve_model(cwd, "gpd-planner"),
-        "checker_model": _resolve_model(cwd, "gpd-plan-checker"),
+        "researcher_model": _resolve_model(cwd, "gpd-phase-researcher", config),
+        "planner_model": _resolve_model(cwd, "gpd-planner", config),
+        "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
         # Workflow flags
         "research_enabled": config["research"],
         "plan_checker_enabled": config["plan_checker"],
@@ -672,9 +679,9 @@ def init_new_project(cwd: Path) -> dict:
 
     return {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-project-researcher"),
-        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer"),
-        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper"),
+        "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
+        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
+        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -705,9 +712,9 @@ def init_new_milestone(cwd: Path) -> dict:
 
     return {
         # Models
-        "researcher_model": _resolve_model(cwd, "gpd-project-researcher"),
-        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer"),
-        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper"),
+        "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
+        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
+        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -749,8 +756,8 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
 
     return {
         # Models
-        "planner_model": _resolve_model(cwd, "gpd-planner"),
-        "executor_model": _resolve_model(cwd, "gpd-executor"),
+        "planner_model": _resolve_model(cwd, "gpd-planner", config),
+        "executor_model": _resolve_model(cwd, "gpd-executor", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -813,8 +820,8 @@ def init_verify_work(cwd: Path, phase: str | None) -> dict:
 
     return {
         # Models
-        "planner_model": _resolve_model(cwd, "gpd-planner"),
-        "checker_model": _resolve_model(cwd, "gpd-plan-checker"),
+        "planner_model": _resolve_model(cwd, "gpd-planner", config),
+        "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -840,8 +847,8 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
 
     result: dict[str, object] = {
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor"),
-        "verifier_model": _resolve_model(cwd, "gpd-verifier"),
+        "executor_model": _resolve_model(cwd, "gpd-executor", config),
+        "verifier_model": _resolve_model(cwd, "gpd-verifier", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -1011,7 +1018,7 @@ def init_map_theory(cwd: Path) -> dict:
 
     return {
         # Models
-        "mapper_model": _resolve_model(cwd, "gpd-theory-mapper"),
+        "mapper_model": _resolve_model(cwd, "gpd-theory-mapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -1103,8 +1110,8 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
 
     result: dict[str, object] = {
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor"),
-        "planner_model": _resolve_model(cwd, "gpd-planner"),
+        "executor_model": _resolve_model(cwd, "gpd-executor", config),
+        "planner_model": _resolve_model(cwd, "gpd-planner", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],

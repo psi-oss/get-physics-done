@@ -108,10 +108,22 @@ def _infer_category(skill_name: str) -> str:
     return "other"
 
 
+_skill_index_cache: list[dict[str, str]] | None = None
+
+
 def _load_skill_index() -> list[dict[str, str]]:
-    """Load the list of available skills from the skills directory."""
+    """Load the list of available skills from the skills directory.
+
+    Results are cached for the process lifetime since skill files on disk
+    do not change between MCP tool calls.
+    """
+    global _skill_index_cache  # noqa: PLW0603
+    if _skill_index_cache is not None:
+        return _skill_index_cache
+
     if not SKILLS_DIR.is_dir():
-        return []
+        _skill_index_cache = []
+        return _skill_index_cache
 
     skills: list[dict[str, str]] = []
     for entry in sorted(SKILLS_DIR.iterdir()):
@@ -155,6 +167,7 @@ def _load_skill_index() -> list[dict[str, str]]:
                 "description": desc,
             }
         )
+    _skill_index_cache = skills
     return skills
 
 
