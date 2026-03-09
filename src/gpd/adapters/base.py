@@ -253,7 +253,7 @@ class RuntimeAdapter(abc.ABC):
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
 
-            # Clean up settings.json GPD hooks and statusline
+            # Clean up settings.json GPD hooks, statusline, and MCP servers
             settings_path = target_dir / "settings.json"
             if settings_path.exists():
                 import json as _json
@@ -303,6 +303,19 @@ class RuntimeAdapter(abc.ABC):
                                 del settings["hooks"]["SessionStart"]
                             if not settings["hooks"]:
                                 del settings["hooks"]
+                    # Remove GPD MCP servers
+                    mcp = settings.get("mcpServers")
+                    if isinstance(mcp, dict):
+                        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                        gpd_keys = [k for k in mcp if k in GPD_MCP_SERVER_KEYS]
+                        for k in gpd_keys:
+                            del mcp[k]
+                        if gpd_keys:
+                            settings_modified = True
+                        if not mcp:
+                            del settings["mcpServers"]
+
                     if settings_modified:
                         tmp = settings_path.with_suffix(".tmp")
                         tmp.write_text(_json.dumps(settings, indent=2) + "\n", encoding="utf-8")

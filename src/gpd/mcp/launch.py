@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -299,85 +298,18 @@ def _find_claude_code_binary() -> str:
     return path
 
 
-def _find_gpd_root() -> Path | None:
-    """Locate the GPD project root by checking for infra/.
-
-    Checks GPD_ROOT env var first, then walks up from this file's location.
-    """
-    from_env = os.environ.get("GPD_ROOT")
-    if from_env:
-        root = Path(from_env)
-        if (root / "infra").is_dir():
-            return root
-
-    current = Path(__file__).resolve().parent
-    for _ in range(10):
-        if (current / "infra").is_dir():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-
-    return None
-
 
 def build_mcp_config_file() -> Path | None:
-    """Build an --mcp-config JSON from infra/ server definitions.
+    """Build an --mcp-config JSON from built-in server definitions.
 
-    Reads local MCP server configs, resolves environment variable references,
-    and writes an mcpServers JSON file compatible with the hosting runtime.
+    Uses the canonical server registry from ``builtin_servers`` so the
+    config works both in development and from an installed wheel.
 
-    Returns path to the generated file, or None if no configs found.
+    Returns path to the generated file, or None if no servers available.
     """
-    gpd_root = _find_gpd_root()
-    if gpd_root is None:
-        logger.debug("GPD root not found, skipping MCP config generation")
-        return None
+    from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
-    mcp_dir = gpd_root / "infra"
-    if not mcp_dir.is_dir():
-        return None
-
-    from gpd.mcp.discovery.sources import resolve_env_vars
-
-    _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
-
-    servers: dict[str, dict[str, object]] = {}
-    for config_file in sorted(mcp_dir.glob("*.json")):
-        try:
-            raw = json.loads(config_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            continue
-
-        if "command" not in raw:
-            continue
-
-        # Resolve env vars in args
-        resolved_args = [resolve_env_vars(str(a)) for a in raw.get("args", [])]
-
-        # Skip servers with unresolvable env vars (they'll fail to start)
-        if any(_UNRESOLVED_RE.search(a) for a in resolved_args):
-            continue
-
-        server_key = config_file.stem
-        # Rewrite bare "python" to venv python so MCP servers find installed packages
-        cmd = raw["command"]
-        if cmd == "python" and gpd_root and (gpd_root / ".venv" / "bin" / "python").exists():
-            cmd = str(gpd_root / ".venv" / "bin" / "python")
-        entry: dict[str, object] = {
-            "command": cmd,
-            "args": resolved_args,
-        }
-
-        if "env" in raw and isinstance(raw["env"], dict):
-            resolved_env = {k: resolve_env_vars(str(v)) for k, v in raw["env"].items()}
-            # Skip if any env var is unresolved
-            if any(_UNRESOLVED_RE.search(v) for v in resolved_env.values()):
-                continue
-            entry["env"] = resolved_env
-
-        servers[server_key] = entry
+    servers = build_mcp_servers_dict()
 
     if not servers:
         return None

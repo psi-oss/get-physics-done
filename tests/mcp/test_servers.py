@@ -541,6 +541,16 @@ class TestSkillsServer:
             encoding="utf-8",
         )
 
+        (commands_dir / "help.md").write_text(
+            "---\n"
+            "name: gpd:help\n"
+            "description: Show available GPD commands and usage guide.\n"
+            "---\n"
+            "\n"
+            "Canonical help command.\n",
+            encoding="utf-8",
+        )
+
         ignored = specs_skills_dir / "not-a-gpd-skill"
         ignored.mkdir()
         (ignored / "SKILL.md").write_text(

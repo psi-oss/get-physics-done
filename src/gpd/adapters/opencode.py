@@ -575,7 +575,26 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 tmp_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
                 tmp_path.rename(settings_path)
 
-    # 6. Clean up permissions from opencode.json
+    # 6. Remove GPD MCP servers from opencode.json
+    oc_config_dir_mcp = config_dir or get_opencode_global_dir()
+    oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
+    if oc_config_path_mcp.exists():
+        try:
+            oc_mcp = parse_jsonc(oc_config_path_mcp.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            oc_mcp = None
+        if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcpServers"), dict):
+            from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+            gpd_keys = [k for k in oc_mcp["mcpServers"] if k in GPD_MCP_SERVER_KEYS]
+            for k in gpd_keys:
+                del oc_mcp["mcpServers"][k]
+            if gpd_keys:
+                if not oc_mcp["mcpServers"]:
+                    del oc_mcp["mcpServers"]
+                oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
+
+    # 7. Clean up permissions from opencode.json
     oc_config_dir = config_dir or get_opencode_global_dir()
     oc_config_path = oc_config_dir / "opencode.json"
     if oc_config_path.exists():
@@ -610,6 +629,25 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
 # ---------------------------------------------------------------------------
 # Adapter class
 # ---------------------------------------------------------------------------
+
+
+def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, object]]) -> int:
+    """Write MCP server entries into opencode.json."""
+    config_path = config_dir / "opencode.json"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    config: dict = {}
+    if config_path.exists():
+        config = parse_jsonc(config_path.read_text(encoding="utf-8"))
+
+    existing_mcp = config.get("mcpServers", {})
+    if not isinstance(existing_mcp, dict):
+        existing_mcp = {}
+    existing_mcp.update(servers)
+    config["mcpServers"] = existing_mcp
+
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    return len(servers)
 
 
 class OpenCodeAdapter(RuntimeAdapter):
@@ -734,10 +772,22 @@ class OpenCodeAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         configure_opencode_permissions(target_dir)
+
+        # Wire MCP servers into opencode.json.
+        import sys
+
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
+        mcp_count = 0
+        if mcp_servers:
+            mcp_count = _write_mcp_servers_opencode(target_dir, mcp_servers)
+
         return {
             "target": str(target_dir),
             "hooks": self._hooks_count,
             "gpd_files": getattr(self, "_gpd_files_count", 0),
+            "mcpServers": mcp_count,
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:

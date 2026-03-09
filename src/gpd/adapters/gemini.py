@@ -433,10 +433,24 @@ class GeminiAdapter(RuntimeAdapter):
         )
         ensure_update_hook(settings, update_check_cmd)
 
+        # Wire MCP servers into settings so they start automatically.
+        import sys
+
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
+        if mcp_servers:
+            existing_mcp = settings.get("mcpServers", {})
+            if not isinstance(existing_mcp, dict):
+                existing_mcp = {}
+            existing_mcp.update(mcp_servers)
+            settings["mcpServers"] = existing_mcp
+
         return {
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_cmd,
+            "mcpServers": len(mcp_servers),
         }
 
     def finish_install(

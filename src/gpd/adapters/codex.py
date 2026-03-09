@@ -335,10 +335,22 @@ class CodexAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         _configure_config_toml(target_dir, is_global)
+
+        # Wire MCP servers into config.toml.
+        import sys
+
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
+        mcp_count = 0
+        if mcp_servers:
+            mcp_count = _write_mcp_servers_codex_toml(target_dir, mcp_servers)
+
         return {
             "target": str(target_dir),
             "skills_dir": str(self._skills_dir),
             "skills": sum(1 for d in self._skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")),
+            "mcpServers": mcp_count,
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
@@ -402,7 +414,16 @@ class CodexAdapter(RuntimeAdapter):
                         hook_path.unlink()
                         counts["hooks"] += 1
 
-            # 6. Clean up config.toml
+            # 6. Remove GPD MCP servers from config.toml
+            config_toml_mcp = target_dir / "config.toml"
+            if config_toml_mcp.exists():
+                toml_mcp = config_toml_mcp.read_text(encoding="utf-8")
+                cleaned_mcp = _remove_gpd_mcp_toml_sections(toml_mcp)
+                if cleaned_mcp != toml_mcp:
+                    config_toml_mcp.write_text(cleaned_mcp, encoding="utf-8")
+                    removed.append("config.toml MCP servers")
+
+            # 7. Clean up config.toml
             config_toml = target_dir / "config.toml"
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
@@ -560,6 +581,62 @@ def _copy_agents_as_agent_files(
         new_agent_names.add(entry.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
+
+
+def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str, object]]) -> int:
+    """Append MCP server entries to Codex config.toml."""
+    config_toml = target_dir / "config.toml"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    content = ""
+    if config_toml.exists():
+        content = config_toml.read_text(encoding="utf-8")
+
+    # Remove existing GPD MCP sections before rewriting.
+    content = _remove_gpd_mcp_toml_sections(content)
+
+    # Append new MCP server sections.
+    lines: list[str] = []
+    if content and not content.endswith("\n"):
+        content += "\n"
+    lines.append("# GPD MCP servers")
+    for name, entry in sorted(servers.items()):
+        cmd = str(entry.get("command", ""))
+        args = entry.get("args", [])
+        args_list = list(args) if isinstance(args, list) else []
+        lines.append(f"\n[mcpServers.{name}]")
+        lines.append(f'command = "{cmd}"')
+        args_toml = ", ".join(f'"{a}"' for a in args_list)
+        lines.append(f"args = [{args_toml}]")
+        env = entry.get("env", {})
+        if isinstance(env, dict) and env:
+            lines.append(f"\n[mcpServers.{name}.env]")
+            for k, v in env.items():
+                lines.append(f'{k} = "{v}"')
+
+    content += "\n".join(lines) + "\n"
+    config_toml.write_text(content, encoding="utf-8")
+    return len(servers)
+
+
+def _remove_gpd_mcp_toml_sections(content: str) -> str:
+    """Remove GPD MCP server sections from TOML content."""
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+    # Remove the header comment and all [mcpServers.gpd-*] / [mcpServers.arxiv] sections.
+    content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
+    for key in GPD_MCP_SERVER_KEYS:
+        escaped = re.escape(key)
+        # Remove [mcpServers.key] and [mcpServers.key.env] sections until the next section.
+        content = re.sub(
+            rf"^\[mcpServers\.{escaped}(?:\.env)?\]\n(?:[^\[]*\n)*",
+            "",
+            content,
+            flags=re.MULTILINE,
+        )
+    # Clean up excessive blank lines.
+    content = re.sub(r"\n{3,}", "\n\n", content)
+    return content
 
 
 def _configure_config_toml(
