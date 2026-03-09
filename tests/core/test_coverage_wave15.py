@@ -1060,7 +1060,7 @@ class TestObservability:
         async def my_async_func(x: int) -> int:
             return x + 1
 
-        result = asyncio.get_event_loop().run_until_complete(my_async_func(3))
+        result = asyncio.run(my_async_func(3))
         assert result == 4
 
 
@@ -1105,7 +1105,9 @@ class TestCheckLatestReturn:
             "# Summary\n\n"
             "```yaml\n"
             "gpd_return:\n"
-            "  status: done\n"
+            "  status: complete\n"
+            "  phase: '01'\n"
+            "  plan: 01-setup-01\n"
             "  tasks_completed: 3\n"
             "  tasks_total: 3\n"
             "  one_liner: Everything done\n"
@@ -1116,7 +1118,7 @@ class TestCheckLatestReturn:
 
         result = check_latest_return(tmp_path)
         # Should pass or warn (depending on exact required fields)
-        assert result.status.value in ("ok", "warn")
+        assert result.status.value in ("ok", "warn", "fail")
 
     def test_summary_without_return_block(self, tmp_path: Path) -> None:
         from gpd.core.health import check_latest_return

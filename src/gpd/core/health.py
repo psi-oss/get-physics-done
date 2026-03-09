@@ -148,7 +148,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             details[name] = "present"
         else:
             details[name] = "missing"
-            issues.append(f"Required file missing: .planning/{name}")
+            issues.append(f"Required file missing: {PLANNING_DIR_NAME}/{name}")
 
     for name in REQUIRED_PLANNING_DIRS:
         full = layout.planning / name
@@ -156,7 +156,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             details[name] = "present"
         else:
             details[name] = "missing"
-            issues.append(f"Required directory missing: .planning/{name}/")
+            issues.append(f"Required directory missing: {PLANNING_DIR_NAME}/{name}/")
 
     for name in OPTIONAL_PLANNING_FILES:
         full = layout.planning / name
@@ -514,7 +514,7 @@ def check_git_status(cwd: Path) -> HealthCheck:
         details["uncommitted_files"] = uncommitted
 
         if uncommitted > UNCOMMITTED_FILES_THRESHOLD:
-            warnings.append(f"{uncommitted} uncommitted files in .planning/")
+            warnings.append(f"{uncommitted} uncommitted files in {PLANNING_DIR_NAME}/")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         warnings.append("git status check failed")
 

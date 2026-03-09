@@ -18,8 +18,12 @@ from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
     PLAN_SUFFIX,
+    PLANNING_DIR_NAME,
+    PROJECT_FILENAME,
+    ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
+    STATE_MD_FILENAME,
     SUMMARY_SUFFIX,
     VERIFICATION_SUFFIX,
 )
@@ -1097,9 +1101,9 @@ def fill_template(
                 "- **Output:** [Concrete deliverable]",
                 "",
                 "## Context",
-                "@.planning/PROJECT.md",
-                "@.planning/ROADMAP.md",
-                "@.planning/STATE.md",
+                f"@{PLANNING_DIR_NAME}/{PROJECT_FILENAME}",
+                f"@{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}",
+                f"@{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}",
                 "",
                 "## Tasks",
                 "",
