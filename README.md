@@ -5,22 +5,10 @@ An autonomous physics research system. Describe a problem in plain English, and 
 ## Install
 
 ```bash
-pip install get-physics-done
+npx github:physicalsuperintelligence/get-physics-done
 ```
 
-Or with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv pip install get-physics-done
-```
-
-Then install into your coding agent:
-
-```bash
-gpd install
-```
-
-This sets up GPD in Claude Code, OpenCode, Gemini CLI, or Codex — whichever you use.
+Prompts you to select your coding agent (Claude Code, OpenCode, Gemini CLI, or Codex) and installs GPD.
 
 ## Use
 

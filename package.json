@@ -1,0 +1,22 @@
+{
+  "name": "get-physics-done",
+  "version": "0.1.0",
+  "description": "Autonomous physics research system for Claude Code, OpenCode, Gemini CLI, and Codex",
+  "bin": {
+    "get-physics-done": "bin/install.js"
+  },
+  "files": [
+    "bin/",
+    "src/gpd/commands/",
+    "src/gpd/agents/",
+    "src/gpd/specs/",
+    "src/gpd/hooks/",
+    "src/gpd/adapters/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/physicalsuperintelligence/get-physics-done.git"
+  },
+  "keywords": ["physics", "research", "ai", "claude", "opencode", "lagrangian", "derivation"],
+  "license": "UNLICENSED"
+}
