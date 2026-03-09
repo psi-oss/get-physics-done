@@ -43,17 +43,22 @@ logger = logging.getLogger(__name__)
 # ─── Claude Code → Codex tool name mapping (for body text conversion) ─────────
 
 _CLAUDE_TO_CODEX: dict[str, str | None] = {
+    "Agent": "agent",
+    "AskUserQuestion": "ask_user",
     "Bash": "shell",
-    "Read": "read_file",
-    "Write": "write_file",
     "Edit": "apply_patch",
     "Glob": "glob",
     "Grep": "grep",
-    "WebSearch": "web_search",
-    "WebFetch": "web_fetch",
+    "NotebookEdit": "notebook_edit",
+    "Read": "read_file",
+    "SlashCommand": "slash_command",
+    # Task is excluded — auto-discovered by Codex
+    "Task": None,
     "TodoWrite": "todo",
-    "AskUserQuestion": "ask_user",
-    "Task": None,  # Excluded — auto-discovered by Codex
+    "ToolSearch": "tool_search",
+    "WebFetch": "web_fetch",
+    "WebSearch": "web_search",
+    "Write": "write_file",
 }
 
 

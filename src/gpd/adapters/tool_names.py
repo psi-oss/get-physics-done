@@ -71,15 +71,15 @@ OPENCODE: dict[str, str] = {
     "shell": "shell",
     "search_files": "grep",
     "find_files": "glob",
-    "web_search": "web_search",
-    "web_fetch": "web_fetch",
-    "notebook_edit": "notebook_edit",
+    "web_search": "websearch",
+    "web_fetch": "webfetch",
+    "notebook_edit": "notebookedit",
     "agent": "agent",
     "ask_user": "question",
     "todo_write": "todowrite",
     "task": "task",
     "slash_command": "skill",
-    "tool_search": "tool_search",
+    "tool_search": "toolsearch",
 }
 
 

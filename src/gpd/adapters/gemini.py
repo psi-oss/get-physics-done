@@ -47,18 +47,22 @@ logger = logging.getLogger(__name__)
 # Maps Claude Code names (as they appear in agent/command specs) to Gemini built-in names.
 
 _CLAUDE_TO_GEMINI: dict[str, str | None] = {
-    "Read": "read_file",
-    "Write": "write_file",
-    "Edit": "replace",
+    "Agent": "agent",
+    "AskUserQuestion": "ask_user",
     "Bash": "run_shell_command",
+    "Edit": "replace",
     "Glob": "glob",
     "Grep": "search_file_content",
-    "WebSearch": "google_web_search",
-    "WebFetch": "web_fetch",
-    "TodoWrite": "write_todos",
-    "AskUserQuestion": "ask_user",
+    "NotebookEdit": "notebook_edit",
+    "Read": "read_file",
+    "SlashCommand": "slash_command",
     # Task is excluded — agents are auto-registered as callable tools in Gemini
     "Task": None,
+    "TodoWrite": "write_todos",
+    "ToolSearch": "tool_search",
+    "WebFetch": "web_fetch",
+    "WebSearch": "google_web_search",
+    "Write": "write_file",
 }
 
 

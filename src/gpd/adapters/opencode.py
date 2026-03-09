@@ -41,10 +41,14 @@ _logger = __import__("logging").getLogger(__name__)
 # Claude Code tool name → OpenCode tool name (special mappings)
 _CLAUDE_TO_OPENCODE: dict[str, str] = {
     "AskUserQuestion": "question",
+    "Bash": "shell",
+    "Edit": "edit_file",
+    "Read": "read_file",
     "SlashCommand": "skill",
     "TodoWrite": "todowrite",
     "WebFetch": "webfetch",
     "WebSearch": "websearch",
+    "Write": "write_file",
 }
 
 # Color name → hex for OpenCode compatibility
@@ -502,10 +506,10 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 f.unlink()
                 counts["agents"] += 1
 
-    # 4. Remove GPD hooks
+    # 4. Remove GPD hooks (both Python and legacy JS)
     hooks_dir = target_dir / "hooks"
     if hooks_dir.exists():
-        gpd_hooks = [HOOK_SCRIPTS["statusline"]["legacy"], HOOK_SCRIPTS["check_update"]["legacy"]]
+        gpd_hooks = [name for h in HOOK_SCRIPTS.values() for name in (h["current"], h["legacy"])]
         for hook in gpd_hooks:
             hook_path = hooks_dir / hook
             if hook_path.exists():
@@ -702,7 +706,7 @@ class OpenCodeAdapter(RuntimeAdapter):
             hooks_dest = target_dir / "hooks"
             hooks_dest.mkdir(parents=True, exist_ok=True)
             for entry in hooks_src.iterdir():
-                if entry.is_file():
+                if entry.is_file() and not entry.name.startswith("__"):
                     shutil.copy2(entry, hooks_dest / entry.name)
                     self._hooks_count += 1
 

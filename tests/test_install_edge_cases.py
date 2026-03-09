@@ -128,9 +128,18 @@ class TestInstallCorruptedPackage:
         with pytest.raises(FileNotFoundError, match="hooks"):
             validate_package_integrity(root)
 
+    def test_missing_specs_dir(self, tmp_path: Path) -> None:
+        root = tmp_path / "broken"
+        (root / "commands").mkdir(parents=True)
+        (root / "agents").mkdir(parents=True)
+        (root / "hooks").mkdir(parents=True)
+
+        with pytest.raises(FileNotFoundError, match="specs"):
+            validate_package_integrity(root)
+
     def test_all_dirs_present_passes(self, tmp_path: Path) -> None:
         root = tmp_path / "valid"
-        for d in ("commands", "agents", "hooks"):
+        for d in ("commands", "agents", "hooks", "specs"):
             (root / d).mkdir(parents=True)
         # Should not raise
         validate_package_integrity(root)

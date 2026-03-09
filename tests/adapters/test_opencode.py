@@ -100,8 +100,8 @@ class TestConvertFrontmatter:
         content = "---\ndescription: D\nallowed-tools:\n  - Read\n  - Bash\n  - AskUserQuestion\n---\nBody"
         result = convert_claude_to_opencode_frontmatter(content)
         assert "tools:" in result
-        assert "read: true" in result
-        assert "bash: true" in result
+        assert "read_file: true" in result
+        assert "shell: true" in result
         assert "question: true" in result
         assert "allowed-tools:" not in result
 
