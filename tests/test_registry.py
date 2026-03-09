@@ -394,6 +394,58 @@ class TestCommandMergeBehavior:
         assert result["debug"].description == "from primary"
         assert result["debug"].source == "commands"
 
+    def test_primary_command_removes_gpd_prefixed_spec_skill(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Primary commands/debug.md should evict specs/skills/gpd-debug/ from the registry.
+
+        Real-world layout: specs/skills/ uses gpd-prefixed dir names (gpd-debug/)
+        while commands/ uses bare stems (debug.md). The override must strip the
+        gpd- prefix to detect the duplicate.
+        """
+        specs_dir = tmp_path / "specs" / "skills"
+        specs_dir.mkdir(parents=True)
+        skill_dir = specs_dir / "gpd-debug"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: gpd-debug\ndescription: from specs\n---\nSpecs body.", encoding="utf-8"
+        )
+
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "debug.md").write_text(
+            "---\nname: gpd:debug\ndescription: from primary\n---\nPrimary body.", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", specs_dir)
+
+        result = registry._discover_commands()
+        # Only the primary command should remain; the gpd-debug spec should be evicted
+        assert "debug" in result
+        assert "gpd-debug" not in result
+        assert result["debug"].description == "from primary"
+        assert result["debug"].source == "commands"
+        assert len(result) == 1
+
+    def test_gpd_prefixed_spec_skill_kept_when_no_primary(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """specs/skills/gpd-health/ should remain when no commands/health.md exists."""
+        specs_dir = tmp_path / "specs" / "skills"
+        specs_dir.mkdir(parents=True)
+        skill_dir = specs_dir / "gpd-health"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: gpd-health\ndescription: health check\n---\nBody.", encoding="utf-8"
+        )
+
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", specs_dir)
+
+        result = registry._discover_commands()
+        assert "gpd-health" in result
+        assert result["gpd-health"].source == "specs/skills"
+
     def test_specs_skill_dir_without_skill_md_ignored(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         specs_dir = tmp_path / "specs" / "skills"
         specs_dir.mkdir(parents=True)

@@ -208,10 +208,16 @@ def _discover_commands() -> dict[str, CommandDef]:
     # 2. commands/ (primary, overrides specs/skills)
     #    Key by path.stem (e.g. "debug") — the frontmatter name may differ
     #    (e.g. "gpd:debug") but callers use the filesystem stem.
+    #    Also remove the corresponding gpd-{stem} spec/skill entry so that
+    #    primary commands fully replace their specs/skills counterparts
+    #    (specs/skills use "gpd-debug" dir names while commands use "debug.md").
     if COMMANDS_DIR.is_dir():
         for path in sorted(COMMANDS_DIR.glob("*.md")):
             cmd = _parse_command_file(path, source="commands")
             result[path.stem] = cmd
+            # Remove the gpd-prefixed specs/skills duplicate if it exists
+            gpd_prefixed = f"gpd-{path.stem}"
+            result.pop(gpd_prefixed, None)
 
     return result
 
