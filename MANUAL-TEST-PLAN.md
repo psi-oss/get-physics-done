@@ -1,9 +1,35 @@
 # GPD Manual Test Plan — Complete Step-by-Step
 
-## Prerequisites
+## Release Validation Modes
+
+Use this document in two passes:
+
+1. Public release smoke test: validate the published README flow on a clean machine.
+2. Maintainer deep validation: validate the checked-out source tree before release.
+
+## Phase 0: Public Release Smoke Test (README-only)
+
+On a clean machine, follow only the public README instructions. Do not install from source first.
 
 ```bash
-uv pip install -e .
+git clone https://github.com/physicalsuperintelligence/get-physics-done.git
+cd get-physics-done
+npx github:physicalsuperintelligence/get-physics-done --claude --local
+```
+
+**Check:**
+- The installer completes without undocumented prerequisites.
+- The selected runtime directory is populated correctly.
+- Restarting the target runtime exposes the expected help command (`/gpd:help`, `$gpd-help`, or `/gpd-help`).
+- Time to first successful run and any platform-specific workarounds are recorded.
+
+## Maintainer Prerequisites
+
+The deeper checks below validate the checked-out source tree directly.
+
+```bash
+uv sync --dev
+source .venv/bin/activate
 ```
 
 Verify:
@@ -95,6 +121,8 @@ gpd resolve-model nonexistent-agent
 ---
 
 ## PHASE 2: Installation on All Platforms
+
+These checks exercise the local source checkout after the maintainer setup above. The clean-machine README flow is covered separately in Phase 0.
 
 ### 2.1 Claude Code (local)
 

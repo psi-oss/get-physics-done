@@ -23,7 +23,7 @@
   ],
   "registry_prefix": "gpd_errors",
   "prerequisites": [
-    "Install: uv pip install -e packages/gpd"
+    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done"
   ],
   "health_check": {
     "tool": "list_error_classes",

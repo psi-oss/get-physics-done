@@ -2,9 +2,13 @@
 
 [![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
 
-Get Physics Done is an open-source AI copilot for physics research. Built by physicists, for physicists, GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
+Get Physics Done is an open-source AI copilot for physics research from Physical Superintelligence (PSI), released as a community contribution. Built by physicists, for physicists, GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 For day-to-day usage, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md). For package internals, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Inspiration
+
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption helped show that AI-native command workflows can be genuinely useful in practice. At the time of writing, GSD has roughly 27k GitHub stars and the `get-shit-done-cc` package reports 42.1k weekly downloads, which is well over 150k per month. For comparison, the Python [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python) is around 5k stars. GPD takes inspiration from that workflow success while focusing the system specifically on physics research.
 
 ## Install
 

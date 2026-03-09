@@ -1,8 +1,10 @@
 # GPD User Guide
 
-GPD (Get Physics Done) is an autonomous physics research system that runs inside your AI agent. You describe a problem, GPD asks clarifying questions, then handles formalization, derivation, numerical verification, and paper writing.
+GPD (Get Physics Done) is an autonomous physics research system that runs inside your AI agent. It is published by Physical Superintelligence (PSI) as an open-source community contribution. You describe a problem, GPD asks clarifying questions, then handles formalization, derivation, numerical verification, and paper writing.
 
 This guide is for physicists using GPD day-to-day. For architecture and internals, see [ARCHITECTURE.md](../ARCHITECTURE.md).
+
+The name GPD is an explicit nod to [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done). At the time of writing, GSD has roughly 27k GitHub stars and the `get-shit-done-cc` package reports 42.1k weekly downloads, which is well over 150k per month. That adoption helped validate the usefulness of AI-native command workflows; GPD brings that idea to physics research.
 
 ---
 
