@@ -37,7 +37,9 @@ _cwd: Path = Path(".")
 def _output(data: object) -> None:
     """Print result — JSON when --raw, rich text otherwise."""
     if _raw:
-        if isinstance(data, list):
+        if data is None:
+            console.print_json(json.dumps({"result": None}))
+        elif isinstance(data, (list, tuple)):
             items = [
                 item.model_dump() if hasattr(item, "model_dump") else
                 dataclasses.asdict(item) if dataclasses.is_dataclass(item) and not isinstance(item, type) else
@@ -54,7 +56,9 @@ def _output(data: object) -> None:
         else:
             console.print_json(json.dumps({"result": str(data)}, default=str))
     else:
-        if isinstance(data, list):
+        if data is None:
+            return  # nothing to display
+        elif isinstance(data, (list, tuple)):
             for item in data:
                 _output(item)
         elif hasattr(data, "model_dump"):
@@ -280,14 +284,14 @@ app.add_typer(phase_app, name="phase")
 
 @phase_app.command("list")
 def phase_list(
-    type: str | None = typer.Option(None, "--type", help="File type filter"),
+    file_type: str | None = typer.Option(None, "--type", help="File type filter"),
     phase: str | None = typer.Option(None, "--phase", help="Phase filter"),
 ) -> None:
     """List phases and their files."""
     from gpd.core.phases import list_phase_files, list_phases
 
-    if type or phase:
-        _output(list_phase_files(_get_cwd(), file_type=type or "plan", phase=phase))
+    if file_type or phase:
+        _output(list_phase_files(_get_cwd(), file_type=file_type or "plan", phase=phase))
     else:
         _output(list_phases(_get_cwd()))
 
@@ -460,7 +464,6 @@ def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
         return ConventionLock()
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
-        raise typer.Exit(code=1) from None
 
     lock_data = raw.get("convention_lock", {})
     if not isinstance(lock_data, dict):
@@ -582,7 +585,6 @@ def _load_state_dict() -> dict:
         return {}
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
-        raise typer.Exit(code=1) from None
 
 
 def _save_state_dict(state: dict) -> None:
@@ -638,7 +640,7 @@ def result_update(
     validity: str | None = typer.Option(None, "--validity", help="Validity range"),
     phase: str | None = typer.Option(None, "--phase", help="Phase number"),
     depends_on: str | None = typer.Option(None, "--depends-on", help="Comma-separated dependency IDs"),
-    verified: bool = typer.Option(False, "--verified", help="Mark as verified"),
+    verified: bool | None = typer.Option(None, "--verified/--no-verified", help="Mark as verified or un-verify"),
 ) -> None:
     """Update an existing result."""
     from gpd.core.results import result_update
@@ -656,7 +658,7 @@ def result_update(
         opts["phase"] = phase
     if depends_on is not None:
         opts["depends_on"] = depends_on.split(",")
-    if verified:
+    if verified is not None:
         opts["verified"] = verified
     state = _load_state_dict()
     _fields, updated = result_update(state, result_id, **opts)
@@ -761,14 +763,12 @@ def frontmatter_get(
 @frontmatter_app.command("set")
 def frontmatter_set(
     file: str = typer.Argument(..., help="Markdown file path"),
-    field: str | None = typer.Option(None, "--field", help="Field name"),
-    value: str | None = typer.Option(None, "--value", help="Field value"),
+    field: str = typer.Option(..., "--field", help="Field name"),
+    value: str | None = typer.Option(None, "--value", help="Field value (omit to clear)"),
 ) -> None:
     """Set a frontmatter field."""
     from gpd.core.frontmatter import splice_frontmatter
 
-    if not field:
-        raise typer.BadParameter("--field is required")
     file_path = _get_cwd() / file
     fm_content = file_path.read_text(encoding="utf-8")
     updated = splice_frontmatter(fm_content, {field: value})
@@ -779,13 +779,11 @@ def frontmatter_set(
 @frontmatter_app.command("merge")
 def frontmatter_merge(
     file: str = typer.Argument(..., help="Markdown file path"),
-    data: str | None = typer.Option(None, "--data", help="JSON data to merge"),
+    data: str = typer.Option(..., "--data", help="JSON data to merge"),
 ) -> None:
     """Merge JSON data into frontmatter."""
     from gpd.core.frontmatter import deep_merge_frontmatter
 
-    if not data:
-        raise typer.BadParameter("--data is required")
     merge_data = json.loads(data)
     file_path = _get_cwd() / file
     fm_content = file_path.read_text(encoding="utf-8")
@@ -797,13 +795,11 @@ def frontmatter_merge(
 @frontmatter_app.command("validate")
 def frontmatter_validate(
     file: str = typer.Argument(..., help="Markdown file path"),
-    schema: str | None = typer.Option(None, "--schema", help="Schema name to validate against"),
+    schema: str = typer.Option(..., "--schema", help="Schema name to validate against"),
 ) -> None:
     """Validate frontmatter against a schema."""
     from gpd.core.frontmatter import validate_frontmatter
 
-    if not schema:
-        raise typer.BadParameter("--schema is required")
     file_path = _get_cwd() / file
     fm_content = file_path.read_text(encoding="utf-8")
     _output(validate_frontmatter(fm_content, schema))
@@ -1035,13 +1031,13 @@ def trace_stop() -> None:
 def trace_show(
     phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
     plan: str | None = typer.Option(None, "--plan", help="Filter by plan"),
-    type: str | None = typer.Option(None, "--type", help="Filter by event type"),
+    event_type: str | None = typer.Option(None, "--type", help="Filter by event type"),
     last: int | None = typer.Option(None, "--last", help="Show last N events"),
 ) -> None:
     """Show trace events with optional filters."""
     from gpd.core.trace import trace_show
 
-    _output(trace_show(_get_cwd(), phase=phase, plan=plan, event_type=type, last=last))
+    _output(trace_show(_get_cwd(), phase=phase, plan=plan, event_type=event_type, last=last))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1431,43 +1427,43 @@ app.add_typer(template_app, name="template")
 
 @template_app.command("select")
 def template_select(
-    plan_path: str | None = typer.Argument(None, help="Path to plan file"),
+    plan_path: str = typer.Argument(..., help="Path to plan file"),
 ) -> None:
     """Select appropriate template for a plan."""
     from gpd.core.frontmatter import select_template
 
-    if not plan_path:
-        raise typer.BadParameter("plan_path is required")
     _output(select_template(_get_cwd(), Path(plan_path)))
 
 
 @template_app.command("fill")
 def template_fill(
     template_type: str = typer.Argument(..., help="Template type"),
-    phase: str | None = typer.Option(None, "--phase", help="Phase number"),
+    phase: str = typer.Option(..., "--phase", help="Phase number"),
     plan: str | None = typer.Option(None, "--plan", help="Plan name"),
     name: str | None = typer.Option(None, "--name", help="Document name"),
-    type: str = typer.Option("execute", "--type", help="Plan type (execute/research)"),
+    plan_type: str = typer.Option("execute", "--type", help="Plan type (execute/research)"),
     wave: str = typer.Option("1", "--wave", help="Wave number"),
     fields: str | None = typer.Option(None, "--fields", help="JSON fields"),
 ) -> None:
     """Fill a template with provided fields."""
     from gpd.core.frontmatter import TemplateFillOptions, fill_template
 
-    if not phase:
-        raise typer.BadParameter("--phase is required")
     parsed_fields = {}
     if fields:
         try:
             parsed_fields = json.loads(fields)
         except json.JSONDecodeError as exc:
             raise typer.BadParameter(f"--fields must be valid JSON: {exc}") from exc
+    try:
+        wave_int = int(wave)
+    except ValueError:
+        raise typer.BadParameter(f"--wave must be an integer, got {wave!r}") from None
     options = TemplateFillOptions(
         phase=phase,
         name=name,
         plan=plan,
-        plan_type=type,
-        wave=int(wave) if wave else None,
+        plan_type=plan_type,
+        wave=wave_int,
         fields=parsed_fields or None,
     )
     _output(fill_template(_get_cwd(), template_type, options))
