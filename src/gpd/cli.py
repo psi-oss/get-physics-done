@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
+from typing import NoReturn
 
 import typer
 from rich.console import Console
@@ -82,7 +83,7 @@ def _pretty_print(d: dict) -> None:
     console.print(table)
 
 
-def _error(msg: str) -> None:
+def _error(msg: str) -> NoReturn:
     """Print error and exit."""
     console.print(f"[bold red]Error:[/] {msg}", highlight=False)
     raise typer.Exit(code=1)
@@ -693,7 +694,7 @@ def verify_summary(
     """Verify a SUMMARY.md file."""
     from gpd.core.frontmatter import verify_summary
 
-    _output(verify_summary(_get_cwd(), Path(path), check_count))
+    _output(verify_summary(_get_cwd(), Path(path), check_file_count=check_count))
 
 
 @verify_app.command("plan")
@@ -1027,7 +1028,7 @@ def trace_log(
             parsed_data = json.loads(data)
         except json.JSONDecodeError:
             parsed_data = {"raw": data}
-    _output(trace_log(_get_cwd(), event, parsed_data))
+    _output(trace_log(_get_cwd(), event, data=parsed_data))
 
 
 @trace_app.command("stop")
@@ -1068,7 +1069,7 @@ def init_execute_phase(
     from gpd.core.context import init_execute_phase
 
     includes = set(include.split(",")) if include else set()
-    _output(init_execute_phase(_get_cwd(), phase, includes))
+    _output(init_execute_phase(_get_cwd(), phase, includes=includes))
 
 
 @init_app.command("plan-phase")
@@ -1080,7 +1081,7 @@ def init_plan_phase(
     from gpd.core.context import init_plan_phase
 
     includes = set(include.split(",")) if include else set()
-    _output(init_plan_phase(_get_cwd(), phase, includes))
+    _output(init_plan_phase(_get_cwd(), phase, includes=includes))
 
 
 @init_app.command("new-project")
@@ -1107,7 +1108,7 @@ def init_quick(
     from gpd.core.context import init_quick
 
     text = " ".join(description) if description else None
-    _output(init_quick(_get_cwd(), text))
+    _output(init_quick(_get_cwd(), description=text))
 
 
 @init_app.command("resume")
@@ -1136,7 +1137,7 @@ def init_progress(
     from gpd.core.context import init_progress
 
     includes = set(include.split(",")) if include else set()
-    _output(init_progress(_get_cwd(), includes))
+    _output(init_progress(_get_cwd(), includes=includes))
 
 
 @init_app.command("map-theory")
@@ -1196,7 +1197,7 @@ def approximation_add(
     """Add an approximation to track."""
     from gpd.core.extras import approximation_add
 
-    # Filter None values so core function defaults ("", "Valid") take effect
+    # Filter None values so core function defaults ("", "valid") take effect
     kwargs: dict[str, str] = {}
     if validity_range is not None:
         kwargs["validity_range"] = validity_range
@@ -1643,6 +1644,21 @@ def slug(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# resolve-model — Resolve model identifier for an agent
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command("resolve-model")
+def resolve_model_cmd(
+    agent_name: str = typer.Argument(..., help="Agent name (e.g. gpd-executor)"),
+) -> None:
+    """Resolve the model identifier for an agent in the current project."""
+    from gpd.core.config import resolve_model
+
+    _output(resolve_model(_get_cwd(), agent_name))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # verify-path — Path existence check
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1655,6 +1671,112 @@ def verify_path(
     from gpd.core.commands import cmd_verify_path_exists
 
     _output(cmd_verify_path_exists(_get_cwd(), target_path))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# json — lightweight JSON manipulation (jq-lite)
+# ═══════════════════════════════════════════════════════════════════════════
+
+json_app = typer.Typer(help="JSON manipulation utilities (jq-lite)")
+app.add_typer(json_app, name="json")
+
+
+@json_app.command("get")
+def json_get_cmd(
+    key: str = typer.Argument(..., help="Dot-path key (e.g. .section, .directories[-1])"),
+    default: str | None = typer.Option(None, "--default", help="Default value if key is missing"),
+) -> None:
+    """Read a value from stdin JSON at the given dot-path key."""
+    import sys
+
+    from gpd.core.json_utils import json_get
+
+    stdin_text = sys.stdin.read()
+    result = json_get(stdin_text, key, default=default)
+    console.print(result, highlight=False)
+
+
+@json_app.command("keys")
+def json_keys_cmd(
+    key: str = typer.Argument(..., help="Dot-path to object (e.g. .waves)"),
+) -> None:
+    """List top-level keys of the object at the given path from stdin JSON."""
+    import sys
+
+    from gpd.core.json_utils import json_keys
+
+    stdin_text = sys.stdin.read()
+    result = json_keys(stdin_text, key)
+    if result:
+        console.print(result, highlight=False)
+
+
+@json_app.command("list")
+def json_list_cmd(
+    key: str = typer.Argument(..., help="Dot-path to array or object"),
+) -> None:
+    """List items from the array at the given path from stdin JSON."""
+    import sys
+
+    from gpd.core.json_utils import json_list
+
+    stdin_text = sys.stdin.read()
+    result = json_list(stdin_text, key)
+    if result:
+        console.print(result, highlight=False)
+
+
+@json_app.command("pluck")
+def json_pluck_cmd(
+    key: str = typer.Argument(..., help="Dot-path to array of objects"),
+    field: str = typer.Argument(..., help="Field name to extract from each object"),
+) -> None:
+    """Extract a field from each object in the array at the given path."""
+    import sys
+
+    from gpd.core.json_utils import json_pluck
+
+    stdin_text = sys.stdin.read()
+    result = json_pluck(stdin_text, key, field)
+    if result:
+        console.print(result, highlight=False)
+
+
+@json_app.command("set")
+def json_set_cmd(
+    file: str = typer.Option(..., "--file", help="Path to JSON file"),
+    path: str = typer.Option(..., "--path", help="Dot-path key to set"),
+    value: str = typer.Option(..., "--value", help="Value to set"),
+) -> None:
+    """Set a key in a JSON file (creates file if needed)."""
+    from gpd.core.json_utils import json_set
+
+    _output(json_set(file, path, value))
+
+
+@json_app.command("merge-files")
+def json_merge_files_cmd(
+    files: list[str] = typer.Argument(..., help="JSON files to merge"),
+    out: str = typer.Option(..., "--out", help="Output file path"),
+) -> None:
+    """Merge multiple JSON files into one (shallow dict merge)."""
+    from gpd.core.json_utils import json_merge_files
+
+    _output(json_merge_files(out, files))
+
+
+@json_app.command("sum-lengths")
+def json_sum_lengths_cmd(
+    keys: list[str] = typer.Argument(..., help="Dot-path keys to arrays"),
+) -> None:
+    """Sum the lengths of arrays at the given paths from stdin JSON."""
+    import sys
+
+    from gpd.core.json_utils import json_sum_lengths
+
+    stdin_text = sys.stdin.read()
+    result = json_sum_lengths(stdin_text, keys)
+    console.print(result, highlight=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
