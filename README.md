@@ -1,5 +1,7 @@
 # Get Physics Done (GPD)
 
+[![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
+
 An autonomous physics research system. Describe a problem in plain English, and GPD handles the rest — formalization, literature context, derivations, numerical verification, and paper writing.
 
 ## Install
