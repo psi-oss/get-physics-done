@@ -4,7 +4,7 @@ This is pure domain data used by the MCP verification server (for tool
 endpoints) and available for any strategy layer integration.
 Lives in core/ so consumers don't need to import each other.
 
-Source: verification-quick-reference.md (specs/physics/verification/)
+Source: verification-quick-reference.md (formerly specs/physics/verification/, now inlined)
 """
 
 from __future__ import annotations
