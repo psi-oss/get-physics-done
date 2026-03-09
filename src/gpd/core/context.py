@@ -352,6 +352,15 @@ def _get_milestone_fallback(cwd: Path) -> dict:
 
 def _detect_platform() -> str:
     """Detect the AI agent platform (claude, codex, gemini, etc.)."""
+    try:
+        from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+
+        runtime = detect_active_runtime()
+        if runtime != RUNTIME_UNKNOWN:
+            return runtime
+    except ImportError:
+        pass
+
     if os.environ.get("CLAUDE_CODE_SESSION") or os.environ.get("CLAUDE_CODE"):
         return "claude"
     if os.environ.get("CODEX_SESSION") or os.environ.get("CODEX_CLI"):

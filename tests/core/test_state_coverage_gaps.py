@@ -236,6 +236,20 @@ class TestStatePatch:
         assert "Status" in result.failed
         assert "Status" not in result.updated
 
+    def test_patch_invalid_status_transition_rejected(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_project(tmp_path)
+        result = state_patch(cwd, {"Status": "Complete"})
+
+        assert "Status" in result.failed
+        assert "Status" not in result.updated
+
+        md = (cwd / ".planning" / "STATE.md").read_text()
+        assert "**Status:** Executing" in md
+
+        loaded = load_state_json(cwd)
+        assert loaded is not None
+        assert loaded["position"]["status"] == "Executing"
+
     def test_patch_nonexistent_field(self, tmp_path: Path) -> None:
         cwd = _bootstrap_project(tmp_path)
         result = state_patch(cwd, {"NonexistentFieldXYZ123": "value"})

@@ -17,10 +17,12 @@ from unittest.mock import patch
 import pytest
 
 from gpd.adapters.install_utils import (
+    build_hook_command,
     copy_with_path_replacement,
     expand_at_includes,
     generate_manifest,
     parse_jsonc,
+    read_settings,
     write_settings,
 )
 
@@ -258,6 +260,38 @@ class TestParseJsonc:
         """parse_jsonc should raise on truly invalid JSON after stripping comments."""
         with pytest.raises(json.JSONDecodeError):
             parse_jsonc("{not valid json}")
+
+
+class TestReadSettings:
+    """Tests for read_settings: JSONC support and safe fallback behavior."""
+
+    def test_preserves_valid_jsonc_settings(self, tmp_path: Path) -> None:
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text(
+            '{\n  // preserve this file\n  "theme": "solarized",\n  "nested": {"enabled": true,},\n}\n',
+            encoding="utf-8",
+        )
+
+        assert read_settings(settings_path) == {
+            "theme": "solarized",
+            "nested": {"enabled": True},
+        }
+
+
+class TestBuildHookCommand:
+    """Tests for build_hook_command: shared interpreter selection."""
+
+    def test_defaults_to_current_python_interpreter(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        command = build_hook_command(
+            tmp_path,
+            "statusline.py",
+            is_global=False,
+            config_dir_name=".claude",
+        )
+
+        assert command == "/custom/venv/bin/python .claude/hooks/statusline.py"
 
 
 # =========================================================================

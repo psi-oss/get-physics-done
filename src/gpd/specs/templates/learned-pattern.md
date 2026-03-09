@@ -4,11 +4,11 @@ template_version: 1
 
 # Learned Pattern Template
 
-Template for `get-physics-done/learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
+Template for `learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 
-For how patterns are managed, read, and written, see `@get-physics-done/references/cross-project-patterns.md`.
+For how patterns are managed, read, and written, see `@{GPD_INSTALL_DIR}/references/cross-project-patterns.md`.
 
 ---
 
@@ -106,7 +106,7 @@ Concrete, actionable checks that the verifier can perform. Reference specific ve
 
 Concrete guidance for the planner to include in plans.
 
-- Good: "Add a must_have physics_check: 'Verify Im[G^R(omega=1)] < 0 for a free particle with epsilon_k=0.5'. Include explicit metric signature declaration in STATE.md conventions."
+- Good: "Add a must_have physics_check: 'Verify Im[G^R(omega=1)] < 0 for a free particle with epsilon_k=0.5'. Include explicit metric signature declaration in the convention lock."
 - Bad: "Be careful with signs." (Not actionable.)
 
 ### Example

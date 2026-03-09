@@ -422,7 +422,7 @@ def gpd_span(name: str, **attrs: object) -> Generator[logfire.LogfireSpan, None,
         attr_key = key if key.startswith("gpd.") else f"gpd.{key}"
         prefixed[attr_key] = value
 
-    with logfire.span("gpd.{name}", name=name, **prefixed) as span:
+    with logfire.span(f"gpd.{name}", name=name, **prefixed) as span:
         yield span
 
 

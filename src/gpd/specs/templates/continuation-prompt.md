@@ -109,7 +109,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 Task(
   subagent_type="gpd-executor",
   model="{executor_model}",
-  prompt="First, read agents/gpd-executor.md for your role and instructions.\n\n" + filled_template,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.\n\n" + filled_template,
   description="Continue {phase}-{plan} from task {resume_task_number}"
 )
 ```

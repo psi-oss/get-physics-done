@@ -583,7 +583,7 @@ gpd cost-report [--phase <N>]
 
 ## gpd CLI Cross-Project Pattern Library
 
-Persistent knowledge base of physics error patterns across projects. Stored at `{GPD_INSTALL_DIR}/learned-patterns/`.
+Persistent knowledge base of physics error patterns across projects. Stored at the pattern-library root resolved by gpd: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `./learned-patterns`.
 
 ```bash
 # Initialize the pattern library (creates directory structure)
@@ -1633,7 +1633,7 @@ gpd pattern search "$(python3 -c "import json; print(json.load(open('.planning/s
 
 If patterns are found, add pattern-specific checks (sign checks, factor spot-checks, convergence tests) as described in each pattern's detection guidance. A matching pattern provides a strong starting check — but still verify independently.
 
-**Fallback:** If `gpd pattern search` is unavailable, check `{GPD_INSTALL_DIR}/learned-patterns/` directly. If `index.json` exists, filter by domain and read matching patterns.
+**Fallback:** If `gpd pattern search` is unavailable, check the resolved pattern-library root directly (`$GPD_PATTERNS_ROOT`, else `$GPD_DATA_DIR/learned-patterns`, else `./learned-patterns`). If `index.json` exists, filter by domain and read matching patterns.
 
 </error_pattern_awareness>
 

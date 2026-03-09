@@ -164,6 +164,19 @@ class TestReadCurrentTask:
         with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
             assert _read_current_task("session-123") == ""
 
+    def test_local_runtime_todo_file_is_discovered(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        local_todo_dir = tmp_path / ".codex" / "todos"
+        local_todo_dir.mkdir(parents=True)
+        todos = [{"status": "in_progress", "activeForm": "Inspect local runtime"}]
+        (local_todo_dir / "session-123-agent-local.json").write_text(json.dumps(todos))
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_current_task("session-123") == "Inspect local runtime"
+
     def test_corrupt_todo_file_returns_empty(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
@@ -184,8 +197,8 @@ class TestCheckUpdateHook:
 
     def test_no_cache_file_returns_empty(self, tmp_path: Path) -> None:
         with (
-            patch("gpd.hooks.runtime_detect.get_cache_dirs", return_value=[tmp_path / "cache"]),
-            patch("gpd.hooks.statusline.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
         ):
             assert _check_update() == ""
 
@@ -194,8 +207,8 @@ class TestCheckUpdateHook:
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}))
         with (
-            patch("gpd.hooks.runtime_detect.get_cache_dirs", return_value=[]),
-            patch("gpd.hooks.statusline.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
         ):
             result = _check_update()
             assert "/gpd:update" in result
@@ -205,8 +218,8 @@ class TestCheckUpdateHook:
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}))
         with (
-            patch("gpd.hooks.runtime_detect.get_cache_dirs", return_value=[]),
-            patch("gpd.hooks.statusline.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
         ):
             assert _check_update() == ""
 
@@ -215,10 +228,34 @@ class TestCheckUpdateHook:
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text("broken{json")
         with (
-            patch("gpd.hooks.runtime_detect.get_cache_dirs", return_value=[]),
-            patch("gpd.hooks.statusline.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
         ):
             assert _check_update() == ""
+
+    def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        home_cache = home / ".gpd" / "cache"
+        home_cache.mkdir(parents=True)
+        (home_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": False, "checked": 10}),
+            encoding="utf-8",
+        )
+
+        local_cache = tmp_path / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            result = _check_update()
+
+        assert "/gpd:update" in result
 
 
 # ─── main() integration ───────────────────────────────────────────────────

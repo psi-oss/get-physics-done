@@ -56,14 +56,20 @@ class TestToolNames:
         ("legacy", "expected"),
         [
             ("Read", "file_read"),
+            ("read_file", "file_read"),
             ("Write", "file_write"),
+            ("apply_patch", "file_edit"),
             ("Edit", "file_edit"),
             ("Bash", "shell"),
+            ("run_shell_command", "shell"),
             ("Grep", "search_files"),
             ("Glob", "find_files"),
             ("WebSearch", "web_search"),
+            ("websearch", "web_search"),
             ("WebFetch", "web_fetch"),
             ("AskUserQuestion", "ask_user"),
+            ("question", "ask_user"),
+            ("skill", "slash_command"),
         ],
     )
     def test_canonical_legacy_aliases(self, legacy: str, expected: str) -> None:
@@ -93,6 +99,11 @@ class TestToolNames:
     def test_translate_legacy_name_auto_canonicalized(self) -> None:
         assert translate("Read", "codex") == "read_file"
         assert translate("Bash", "gemini") == "run_shell_command"
+
+    def test_translate_runtime_native_name_auto_canonicalized(self) -> None:
+        assert translate("apply_patch", "claude-code") == "Edit"
+        assert translate("question", "codex") == "ask_user"
+        assert translate("run_shell_command", "opencode") == "shell"
 
     def test_translate_unknown_runtime_fallback(self) -> None:
         assert translate("file_read", "unknown-runtime") == "file_read"

@@ -595,6 +595,16 @@ class TestSkillsServerIntegration:
         assert "gpd command reference" in result["content"].lower()
         assert result["file_count"] == 1
 
+    def test_get_skill_resolves_package_spec_paths(self):
+        from gpd.mcp.servers.skills_server import get_skill
+        from gpd.registry import SPECS_DIR
+
+        result = get_skill("gpd-plan-phase")
+
+        assert "error" not in result
+        assert "{GPD_INSTALL_DIR}" not in result["content"]
+        assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/plan-phase.md" in result["content"]
+
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill
 

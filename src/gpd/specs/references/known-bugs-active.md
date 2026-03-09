@@ -156,7 +156,7 @@ Task(prompt="
 
 # CORRECT — subagent reads the file itself
 Task(prompt="
-  First, read {GPD_INSTALL_DIR}/agents/gpd-executor.md for your role and instructions.
+  First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
   <files_to_read>
   Read these files at execution start using the Read tool:

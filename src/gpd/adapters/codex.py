@@ -11,9 +11,12 @@ Hooks go into config.toml (TOML format), not settings.json.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import shlex
 import shutil
+import tomllib
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -40,6 +43,9 @@ from gpd.adapters.tool_names import CODEX, canonical
 from gpd.core.observability import gpd_span
 
 logger = logging.getLogger(__name__)
+
+_GPD_NOTIFY_COMMENT = "# GPD update notification"
+_GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 
 # ─── Claude Code → Codex tool name mapping (for body text conversion) ─────────
 
@@ -81,6 +87,27 @@ def get_codex_skills_dir() -> Path:
     Priority: CODEX_SKILLS_DIR > ~/.agents/skills
     """
     return Path(_get_codex_skills_dir_str())
+
+
+def _resolve_codex_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: Path | None = None) -> Path:
+    """Resolve the skills directory for an install/uninstall target.
+
+    Global installs use the shared Codex skills directory. Local installs stay
+    self-contained under the target config dir unless the caller overrides it.
+    """
+    if skills_dir is not None:
+        return skills_dir
+    if is_global:
+        return get_codex_skills_dir()
+    return target_dir / "skills"
+
+
+def _is_global_codex_target(target_dir: Path) -> bool:
+    """Return True when *target_dir* is the resolved global Codex config dir."""
+    try:
+        return target_dir.expanduser().resolve() == get_codex_global_dir().expanduser().resolve()
+    except OSError:
+        return target_dir.expanduser() == get_codex_global_dir().expanduser()
 
 
 # ─── Codex-specific content conversion ─────────────────────────────────────
@@ -290,7 +317,7 @@ class CodexAdapter(RuntimeAdapter):
         Stores *skills_dir* for use by template method hooks, then delegates
         to the base class template method.
         """
-        self._skills_dir = skills_dir if skills_dir is not None else get_codex_skills_dir()
+        self._skills_dir = _resolve_codex_skills_dir(target_dir, is_global=is_global, skills_dir=skills_dir)
         return super().install(gpd_root, target_dir, is_global=is_global)
 
     # --- Template method hooks ---
@@ -367,7 +394,10 @@ class CodexAdapter(RuntimeAdapter):
         Removes only GPD-specific files/directories, preserves user content.
         """
         if skills_dir is None:
-            skills_dir = get_codex_skills_dir()
+            skills_dir = _resolve_codex_skills_dir(
+                target_dir,
+                is_global=_is_global_codex_target(target_dir),
+            )
 
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
             removed: list[str] = []
@@ -427,18 +457,8 @@ class CodexAdapter(RuntimeAdapter):
             config_toml = target_dir / "config.toml"
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
-                if "codex_notify" in toml_content:
-                    # Remove only the GPD notify block (comment + notify line)
-                    cleaned = re.sub(
-                        r"^# GPD update notification\n", "", toml_content, flags=re.MULTILINE
-                    )
-                    cleaned = re.sub(
-                        r'^notify\s*=\s*\[.*codex_notify.*\]\s*\n?',
-                        "",
-                        cleaned,
-                        flags=re.MULTILINE,
-                    )
-                    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+                cleaned = _remove_gpd_notify_config(toml_content)
+                if cleaned != toml_content:
                     config_toml.write_text(cleaned, encoding="utf-8")
                     removed.append("config.toml GPD entries")
 
@@ -665,31 +685,136 @@ def _configure_config_toml(
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     else:
         desired_path = f".codex/hooks/{notify_hook}"
-    desired_line = f'notify = ["python3", "{desired_path}"]'
+    config_toml.write_text(
+        _install_gpd_notify_config(
+            toml_content,
+            desired_path=desired_path,
+            legacy_markers=legacy_markers,
+        ),
+        encoding="utf-8",
+    )
 
-    configured = False
-    existing_notify = False
-    updated_lines: list[str] = []
+
+def _line_contains_gpd_notify(line: str, legacy_markers: tuple[str, ...]) -> bool:
+    return any(marker in line for marker in legacy_markers)
+
+
+def _parse_notify_assignment(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if not stripped.startswith("notify"):
+        return None
+    try:
+        parsed = tomllib.loads(stripped + "\n")
+    except tomllib.TOMLDecodeError:
+        return None
+    value = parsed.get("notify")
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(value)
+    return None
+
+
+def _build_notify_line(desired_path: str) -> str:
+    return f'notify = ["python3", "{desired_path}"]'
+
+
+def _build_notify_wrapper_line(existing_notify: list[str], desired_path: str) -> str:
+    existing_cmd = " ".join(shlex.quote(arg) for arg in existing_notify)
+    gpd_cmd = f"python3 {shlex.quote(desired_path)}"
+    shell_script = (
+        'tmp="$(mktemp "${TMPDIR:-/tmp}/gpd-codex-notify.XXXXXX")" || exit 0; '
+        'cat > "$tmp"; '
+        f"{existing_cmd} < \"$tmp\" || true; "
+        f"{gpd_cmd} < \"$tmp\" || true; "
+        'rm -f "$tmp"'
+    )
+    return f'notify = ["sh", "-c", {json.dumps(shell_script)}]'
+
+
+def _serialize_toml_lines(lines: list[str]) -> str:
+    content = "\n".join(lines).rstrip()
+    return f"{content}\n" if content else ""
+
+
+def _install_gpd_notify_config(
+    toml_content: str,
+    *,
+    desired_path: str,
+    legacy_markers: tuple[str, ...],
+) -> str:
+    desired_line = _build_notify_line(desired_path)
+    cleaned_lines: list[str] = []
+    insert_at: int | None = None
+    existing_notify: list[str] | None = None
+
     for line in toml_content.splitlines():
         stripped = line.strip()
+        if stripped == _GPD_NOTIFY_COMMENT or stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+            if insert_at is None:
+                insert_at = len(cleaned_lines)
+            continue
         if stripped.startswith("notify"):
-            existing_notify = True
-            if any(marker in line for marker in legacy_markers):
-                updated_lines.append(desired_line)
-                configured = True
+            if insert_at is None:
+                insert_at = len(cleaned_lines)
+            if _line_contains_gpd_notify(line, legacy_markers):
                 continue
-        updated_lines.append(line)
+            existing_notify = _parse_notify_assignment(line)
+            continue
+        cleaned_lines.append(line)
 
-    toml_content = "\n".join(updated_lines)
+    notify_block: list[str]
+    if existing_notify:
+        notify_block = [
+            _GPD_NOTIFY_COMMENT,
+            _GPD_NOTIFY_BACKUP_PREFIX + json.dumps(existing_notify),
+            _build_notify_wrapper_line(existing_notify, desired_path),
+        ]
+    else:
+        notify_block = [_GPD_NOTIFY_COMMENT, desired_line]
 
-    if not configured and not existing_notify:
-        if toml_content and not toml_content.endswith("\n"):
-            toml_content += "\n"
-        toml_content += f'\n# GPD update notification\n{desired_line}\n'
-    elif toml_content and not toml_content.endswith("\n"):
-        toml_content += "\n"
+    if insert_at is None:
+        if cleaned_lines and cleaned_lines[-1] != "":
+            cleaned_lines.append("")
+        cleaned_lines.extend(notify_block)
+    else:
+        cleaned_lines[insert_at:insert_at] = notify_block
 
-    config_toml.write_text(toml_content, encoding="utf-8")
+    return _serialize_toml_lines(cleaned_lines)
+
+
+def _remove_gpd_notify_config(toml_content: str) -> str:
+    legacy_markers = (
+        "codex_notify.py",
+        "check_update.py",
+        "gpd-codex-notify",
+        "gpd-check-update",
+    )
+    cleaned_lines: list[str] = []
+    insert_at: int | None = None
+    original_notify: str | None = None
+
+    for line in toml_content.splitlines():
+        stripped = line.strip()
+        if stripped == _GPD_NOTIFY_COMMENT:
+            if insert_at is None:
+                insert_at = len(cleaned_lines)
+            continue
+        if stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+            if insert_at is None:
+                insert_at = len(cleaned_lines)
+            original_notify = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
+            continue
+        if stripped.startswith("notify") and _line_contains_gpd_notify(line, legacy_markers):
+            if insert_at is None:
+                insert_at = len(cleaned_lines)
+            continue
+        cleaned_lines.append(line)
+
+    if original_notify:
+        restore_line = f"notify = {original_notify}"
+        position = insert_at if insert_at is not None else len(cleaned_lines)
+        cleaned_lines[position:position] = [restore_line]
+
+    return _serialize_toml_lines(cleaned_lines)
 
 
 __all__ = [

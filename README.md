@@ -12,13 +12,19 @@ GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github
 
 ## Install
 
+Bootstrap prerequisites:
+
+- Node.js with `npm`/`npx`
+- Python 3.11+ with `pip`
+- Network access to GitHub and PyPI
+
 Install GPD with `npx`:
 
 ```bash
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+, installs the GPD Python package with the full unified CLI surface (`gpd session`, `gpd pipeline`, and `gpd view`), and then runs the runtime installer.
+That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI with the full unified CLI surface (`gpd session`, `gpd pipeline`, and `gpd view`), and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 
@@ -92,7 +98,9 @@ gpd view
 
 ## Requirements
 
-- Python 3.11+ (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
+- Node.js with `npm`/`npx`
+- Python 3.11+ with `pip` (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
+- Network access to GitHub and PyPI for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 
@@ -118,7 +126,3 @@ Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.0) [Computer so
 ## License
 
 GPD is released under the Apache License 2.0. See [`LICENSE`](LICENSE).
-
-## Security
-
-To report a security issue, email [security@getphysicsdone.com](mailto:security@getphysicsdone.com). Public vulnerability disclosure guidance lives in [`SECURITY.md`](SECURITY.md).

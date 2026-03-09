@@ -9,15 +9,37 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def find_project_root() -> Path | None:
-    """Find the project root by looking for pyproject.toml with a packages/ dir.
+def _looks_like_project_root(candidate: Path) -> bool:
+    """Return True when *candidate* matches a supported GPD repo layout."""
+    if not candidate.is_dir():
+        return False
 
-    Walks up from CWD and from this file's location, returning the first
-    directory that contains both pyproject.toml and a packages/ subdirectory.
+    has_repo_metadata = (candidate / "pyproject.toml").is_file() or (candidate / ".git").exists()
+    has_layout_marker = (
+        (candidate / "infra").is_dir()
+        or (candidate / "packages").is_dir()
+        or (candidate / "src" / "gpd").is_dir()
+    )
+    return has_repo_metadata and has_layout_marker
+
+
+def find_project_root(start: Path | None = None) -> Path | None:
+    """Find the GPD project root from CWD, an explicit start, or this module.
+
+    Supports both the current ``src/gpd`` repository layout and older
+    ``packages/``-based layouts.
     """
-    for start in (Path.cwd(), Path(__file__).resolve()):
-        for parent in (start, *start.parents):
-            pyproject = parent / "pyproject.toml"
-            if pyproject.exists() and (parent / "packages").is_dir():
+    starts = [Path.cwd(), Path(__file__).resolve()]
+    if start is not None:
+        starts.insert(0, Path(start).expanduser().resolve())
+
+    seen: set[Path] = set()
+    for origin in starts:
+        current = origin if origin.is_dir() else origin.parent
+        for parent in (current, *current.parents):
+            if parent in seen:
+                continue
+            seen.add(parent)
+            if _looks_like_project_root(parent):
                 return parent
     return None

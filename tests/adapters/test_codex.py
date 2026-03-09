@@ -146,6 +146,28 @@ class TestGenerateHook:
 
 
 class TestInstall:
+    def test_local_install_uses_target_skills_dir_by_default(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        global_skills = tmp_path / "global-skills"
+        preserved_skill = global_skills / "gpd-keep"
+        preserved_skill.mkdir(parents=True)
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(global_skills))
+
+        result = adapter.install(gpd_root, target, is_global=False)
+
+        local_skills = target / "skills"
+        assert result["skills_dir"] == str(local_skills)
+        assert any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
+        assert (global_skills / "gpd-keep" / "SKILL.md").exists()
+
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
@@ -237,6 +259,28 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_local_uninstall_uses_target_skills_dir_by_default(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        global_skills = tmp_path / "global-skills"
+        preserved_skill = global_skills / "gpd-keep"
+        preserved_skill.mkdir(parents=True)
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(global_skills))
+
+        adapter.install(gpd_root, target, is_global=False)
+        adapter.uninstall(target)
+
+        local_skills = target / "skills"
+        assert not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
+        assert (global_skills / "gpd-keep" / "SKILL.md").exists()
+
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
@@ -351,3 +395,37 @@ class TestLegacyHookUpgrade:
         expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
         assert expected_notify in content
         assert 'custom_tool = ["toolctl", "/path/to/my-tool"]' in content
+
+    def test_wraps_existing_notify_and_restores_it_on_uninstall(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.adapters.codex import _configure_config_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "hooks").mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'model = "gpt-5"\n'
+            'notify = ["toolctl", "/path/to/my-tool"]\n',
+            encoding="utf-8",
+        )
+
+        _configure_config_toml(target, is_global=True)
+
+        content = config_toml.read_text(encoding="utf-8")
+        assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in content
+        assert 'notify = ["sh", "-c",' in content
+        assert "/path/to/my-tool" in content
+        assert "codex_notify.py" in content
+
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.uninstall(target, skills_dir=skills)
+
+        cleaned = config_toml.read_text(encoding="utf-8")
+        assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
+        assert "codex_notify" not in cleaned
+        assert "GPD original notify" not in cleaned

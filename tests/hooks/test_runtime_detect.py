@@ -166,15 +166,35 @@ class TestAllRuntimeDirs:
 class TestHelperDirs:
     """Tests for get_todo_dirs and get_cache_dirs."""
 
-    def test_todo_dirs_are_todos_subdirs(self) -> None:
-        dirs = get_todo_dirs()
-        assert all(d.name == "todos" for d in dirs)
-        assert len(dirs) == 4
+    def test_todo_dirs_include_local_and_global_runtime_paths(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_todo_dirs()
 
-    def test_cache_dirs_are_cache_subdirs(self) -> None:
-        dirs = get_cache_dirs()
+        assert all(d.name == "todos" for d in dirs)
+        assert len(dirs) == 8
+        assert tmp_path / ".codex" / "todos" in dirs
+        assert tmp_path / ".opencode" / "todos" in dirs
+        assert home / ".codex" / "todos" in dirs
+        assert home / ".config" / "opencode" / "todos" in dirs
+
+    def test_cache_dirs_include_local_and_global_runtime_paths(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_cache_dirs()
+
         assert all(d.name == "cache" for d in dirs)
-        assert len(dirs) == 4
+        assert len(dirs) == 8
+        assert tmp_path / ".claude" / "cache" in dirs
+        assert tmp_path / ".opencode" / "cache" in dirs
+        assert home / ".claude" / "cache" in dirs
+        assert home / ".config" / "opencode" / "cache" in dirs
 
 
 # ─── get_gpd_install_dirs ──────────────────────────────────────────────────
@@ -183,11 +203,19 @@ class TestHelperDirs:
 class TestGPDInstallDirs:
     """Tests for get_gpd_install_dirs."""
 
-    def test_returns_both_local_and_global(self) -> None:
-        dirs = get_gpd_install_dirs()
+    def test_returns_both_local_and_global(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_gpd_install_dirs()
+
         # 4 runtimes × 2 locations (cwd + home) = 8
         assert len(dirs) == 8
         assert all("get-physics-done" in str(d) for d in dirs)
+        assert tmp_path / ".opencode" / "get-physics-done" in dirs
+        assert home / ".config" / "opencode" / "get-physics-done" in dirs
 
 
 # ─── update_command_for_runtime ────────────────────────────────────────────
@@ -200,13 +228,13 @@ class TestUpdateCommand:
         assert update_command_for_runtime(RUNTIME_UNKNOWN) == "gpd install"
 
     def test_claude_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE) == "gpd install --runtime claude"
+        assert update_command_for_runtime(RUNTIME_CLAUDE) == "gpd install claude-code"
 
     def test_codex_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CODEX) == "gpd install --runtime codex"
+        assert update_command_for_runtime(RUNTIME_CODEX) == "gpd install codex"
 
     def test_gemini_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_GEMINI) == "gpd install --runtime gemini"
+        assert update_command_for_runtime(RUNTIME_GEMINI) == "gpd install gemini"
 
     def test_opencode_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE) == "gpd install --runtime opencode"
+        assert update_command_for_runtime(RUNTIME_OPENCODE) == "gpd install opencode"

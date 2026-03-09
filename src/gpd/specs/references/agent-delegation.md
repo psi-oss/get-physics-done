@@ -14,7 +14,7 @@ AGENT_MODEL=$(gpd resolve-model gpd-{agent} --raw)
 Task(
   subagent_type="gpd-{agent}",
   model="{AGENT_MODEL}",    # Omit if resolved to null
-  prompt="First, read {GPD_INSTALL_DIR}/agents/gpd-{agent}.md for your role and instructions.\n\n{task_prompt}",
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-{agent}.md for your role and instructions.\n\n{task_prompt}",
   description="{short description}"
 )
 ```
@@ -34,9 +34,9 @@ Task(
 
 1. **Always resolve model first:** `gpd resolve-model gpd-{agent} --raw`
 2. **If model is null or empty:** Omit the `model` parameter from Task(). The runtime will use its default model.
-3. **Agent instructions path:** `{GPD_INSTALL_DIR}/agents/gpd-{agent}.md` (resolved by installer per runtime)
+3. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
 4. **gpd path:** `bin/gpd CLI` (relative to project root, runtime-agnostic)
-5. **Never hardcode runtime-specific paths** — use `{GPD_INSTALL_DIR}` placeholder, resolved by the installer.
+5. **Never hardcode runtime-specific paths** — use `{GPD_INSTALL_DIR}` for specs assets and `{GPD_AGENTS_DIR}` for agent prompts.
 6. **Fresh context:** Task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
 
 ## Platform Note Template

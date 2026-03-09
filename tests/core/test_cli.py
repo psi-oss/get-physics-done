@@ -169,6 +169,32 @@ def test_phase_complete(mock_complete):
     mock_complete.assert_called_once()
 
 
+@patch("gpd.core.phases.validate_phase_waves")
+def test_phase_validate_waves_pass(mock_validate):
+    mock_result = MagicMock()
+    mock_result.validation.valid = True
+    mock_result.model_dump.return_value = {"phase": "42", "validation": {"valid": True, "errors": []}}
+    mock_validate.return_value = mock_result
+
+    result = runner.invoke(app, ["phase", "validate-waves", "42"])
+
+    assert result.exit_code == 0
+    mock_validate.assert_called_once()
+
+
+@patch("gpd.core.phases.validate_phase_waves")
+def test_phase_validate_waves_fail(mock_validate):
+    mock_result = MagicMock()
+    mock_result.validation.valid = False
+    mock_result.model_dump.return_value = {"phase": "42", "validation": {"valid": False, "errors": ["cycle"]}}
+    mock_validate.return_value = mock_result
+
+    result = runner.invoke(app, ["phase", "validate-waves", "42"])
+
+    assert result.exit_code == 1
+    mock_validate.assert_called_once()
+
+
 # ─── raw output ─────────────────────────────────────────────────────────────
 
 

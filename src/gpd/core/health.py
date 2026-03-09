@@ -509,13 +509,22 @@ def check_git_status(cwd: Path) -> HealthCheck:
             text=True,
             timeout=5,
         )
+        if result.returncode != 0:
+            details["repo_detected"] = False
+            message = result.stderr.strip() or "git status check failed"
+            warnings.append(message)
+            status = CheckStatus.WARN
+            return HealthCheck(status=status, label="Git Status", details=details, warnings=warnings)
+
         lines = [ln for ln in result.stdout.strip().split("\n") if ln.strip()] if result.stdout.strip() else []
         uncommitted = len(lines)
+        details["repo_detected"] = True
         details["uncommitted_files"] = uncommitted
 
         if uncommitted > UNCOMMITTED_FILES_THRESHOLD:
             warnings.append(f"{uncommitted} uncommitted files in {PLANNING_DIR_NAME}/")
     except (FileNotFoundError, subprocess.TimeoutExpired):
+        details["repo_detected"] = False
         warnings.append("git status check failed")
 
     status = CheckStatus.WARN if warnings else CheckStatus.OK

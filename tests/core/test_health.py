@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 from gpd.core.health import (
     CheckStatus,
@@ -139,9 +141,19 @@ class TestCheckConfig:
 
 class TestCheckGitStatus:
     def test_non_git_dir(self, tmp_path: Path):
-        result = check_git_status(tmp_path)
-        # Should still return a result (may warn about git failure)
+        completed = subprocess.CompletedProcess(
+            args=["git", "status", "--porcelain", ".planning/"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: not a git repository (or any of the parent directories): .git",
+        )
+        with patch("gpd.core.health.subprocess.run", return_value=completed):
+            result = check_git_status(tmp_path)
+
         assert result.label == "Git Status"
+        assert result.status == CheckStatus.WARN
+        assert result.details["repo_detected"] is False
+        assert any("not a git repository" in warning for warning in result.warnings)
 
 
 class TestCheckRoadmapConsistency:

@@ -504,7 +504,8 @@ class TestSkillsServer:
             "description: Create detailed execution plan.\n"
             "---\n"
             "\n"
-            "Canonical plan command.\n",
+            "Canonical plan command.\n"
+            "Read @{GPD_INSTALL_DIR}/workflows/plan-phase.md and {GPD_AGENTS_DIR}/gpd-planner.md.\n",
             encoding="utf-8",
         )
         (commands_dir / "help.md").write_text(
@@ -600,6 +601,17 @@ class TestSkillsServer:
         assert "Canonical execute command" in result["content"]
         assert "Stale execute spec" not in result["content"]
         assert result["file_count"] == 1
+
+    def test_get_skill_resolves_install_and_agents_placeholders(self):
+        from gpd.mcp.servers.skills_server import get_skill
+        from gpd.registry import AGENTS_DIR, SPECS_DIR
+
+        result = get_skill("gpd-plan-phase")
+
+        assert "{GPD_INSTALL_DIR}" not in result["content"]
+        assert "{GPD_AGENTS_DIR}" not in result["content"]
+        assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/plan-phase.md" in result["content"]
+        assert f"{AGENTS_DIR.resolve().as_posix()}/gpd-planner.md" in result["content"]
 
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill

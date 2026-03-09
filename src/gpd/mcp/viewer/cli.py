@@ -48,8 +48,10 @@ def _handle_missing_viewer_dependency(exc: ModuleNotFoundError) -> None:
     match = re.search(r"No module named ['\"]([^'\"]+)['\"]", str(exc))
     missing = exc.name or (match.group(1) if match else "viewer dependency")
     _exit_with_error(
-        "Viewer dependencies are not installed. "
-        "Run: pip install 'get-physics-done[viewer]' "
+        "Viewer dependencies are missing from this environment. "
+        "Reinstall or upgrade the standard package with: "
+        "python -m pip install --upgrade get-physics-done "
+        "or rerun: npx github:physicalsuperintelligence/get-physics-done "
         f"(missing module: {missing})."
     )
 

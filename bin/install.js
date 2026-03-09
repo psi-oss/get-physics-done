@@ -10,6 +10,9 @@
 
 const { execSync, spawnSync } = require("child_process");
 const readline = require("readline");
+const { version: packageVersion } = require("../package.json");
+
+const PYTHON_PACKAGE_NAME = "get-physics-done";
 
 const RUNTIMES = {
   "claude-code": { name: "Claude Code" },
@@ -44,6 +47,14 @@ function checkPython() {
   return null;
 }
 
+function checkPip(python) {
+  const result = spawnSync(python, ["-m", "pip", "--version"], { encoding: "utf-8" });
+  if (result.status !== 0) {
+    return null;
+  }
+  return (result.stdout || result.stderr).trim();
+}
+
 async function prompt(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -71,26 +82,25 @@ async function main() {
   }
   log(`Found ${execSync(`${python} --version`, { encoding: "utf-8" }).trim()}`);
 
-  // Install the Python package (try SSH first, fall back to HTTPS)
-  const sshUrl = "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git";
-  const httpsUrl = "git+https://github.com/physicalsuperintelligence/get-physics-done.git";
+  const pipVersion = checkPip(python);
+  if (!pipVersion) {
+    error(`Python 3.11+ with pip is required, but ${python} does not have pip available.`);
+    error("Install pip for that interpreter, then rerun the bootstrap installer.");
+    process.exit(1);
+  }
+  log(`Found ${pipVersion}`);
 
-  log("Installing get-physics-done (trying SSH)...");
-  let packageResult = spawnSync(
+  // Install the version-matched Python package release.
+  const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${packageVersion}`;
+
+  log(`Installing ${pythonPackageSpec} from PyPI...`);
+  const packageResult = spawnSync(
     python,
-    ["-m", "pip", "install", "--upgrade", sshUrl],
+    ["-m", "pip", "install", "--upgrade", pythonPackageSpec],
     { stdio: "inherit" }
   );
   if (packageResult.status !== 0) {
-    log("SSH failed, falling back to HTTPS...");
-    packageResult = spawnSync(
-      python,
-      ["-m", "pip", "install", "--upgrade", httpsUrl],
-      { stdio: "inherit" }
-    );
-  }
-  if (packageResult.status !== 0) {
-    error("Failed to install get-physics-done Python package.");
+    error(`Failed to install ${pythonPackageSpec}.`);
     process.exit(1);
   }
 

@@ -104,22 +104,36 @@ def _read_current_task(session_id: str) -> str:
     return ""
 
 
+def _latest_update_cache() -> dict[str, object] | None:
+    """Return the freshest valid update cache across all runtime locations."""
+    from gpd.hooks.runtime_detect import get_update_cache_files
+
+    latest_cache: dict[str, object] | None = None
+    latest_checked = -1.0
+
+    for cache_file in get_update_cache_files():
+        if not cache_file.exists():
+            continue
+        try:
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            _debug(f"Failed to parse update cache {cache_file}: {exc}")
+            continue
+
+        checked = cache.get("checked")
+        checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
+        if latest_cache is None or checked_value > latest_checked:
+            latest_cache = cache
+            latest_checked = checked_value
+
+    return latest_cache
+
+
 def _check_update() -> str:
     """Check GPD update cache files for available updates."""
-    from gpd.hooks.runtime_detect import get_cache_dirs
-
-    cache_paths = [Path.home() / ".gpd" / "cache" / "gpd-update-check.json"] + [
-        d / "gpd-update-check.json" for d in get_cache_dirs()
-    ]
-    for cache_file in cache_paths:
-        if cache_file.exists():
-            try:
-                cache = json.loads(cache_file.read_text(encoding="utf-8"))
-                if cache.get("update_available"):
-                    return "\x1b[33m\u2b06 /gpd:update\x1b[0m \u2502 "
-            except Exception as exc:
-                _debug(f"Failed to parse update cache {cache_file}: {exc}")
-            break
+    cache = _latest_update_cache()
+    if cache and cache.get("update_available"):
+        return "\x1b[33m\u2b06 /gpd:update\x1b[0m \u2502 "
     return ""
 
 

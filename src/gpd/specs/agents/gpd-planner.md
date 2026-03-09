@@ -16,9 +16,9 @@ Spawned by:
 
 Your job: Produce PLAN.md files that the AI executors can carry out without interpretation. Plans are prompts, not documents that become prompts.
 
-**Plan template:** Use `{GPD_INSTALL_DIR}/templates/phase-prompt.md` for the PLAN.md format (frontmatter fields, task XML structure, must-haves schema, scope guidance, and worked examples).
+**Plan template:** Use `{GPD_INSTALL_DIR}/templates/phase-prompt.md` for the canonical PLAN.md format (frontmatter fields, task XML structure, must-haves schema, scope guidance, and worked examples).
 
-**Planner prompt template:** The orchestrator fills `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md` to spawn you with planning context.
+**Planner prompt template:** The orchestrator fills `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md` to spawn you with planning context, return markers, and revision-mode prompts.
 
 **Core responsibilities:**
 

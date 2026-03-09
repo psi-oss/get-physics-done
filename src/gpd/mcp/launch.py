@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import tomllib
 from pathlib import Path
 
 from rich.console import Console
@@ -40,8 +41,23 @@ GPD_LOGO = r"""
 """
 
 
-def _get_runtime_settings_path() -> Path | None:
-    """Resolve the ``settings.json`` path for the active runtime.
+_RUNTIME_TO_ADAPTER: dict[str, str] = {
+    "claude": "claude-code",
+    "codex": "codex",
+    "gemini": "gemini",
+    "opencode": "opencode",
+}
+
+_RUNTIME_MODEL_CONFIGS: dict[str, str] = {
+    "claude": "settings.json",
+    "codex": "config.toml",
+    "gemini": "settings.json",
+    "opencode": "opencode.json",
+}
+
+
+def _get_active_runtime_model_config() -> tuple[str, Path] | None:
+    """Resolve the model-config path for the active runtime.
 
     Uses ``gpd.hooks.runtime_detect.detect_active_runtime`` to determine
     which AI agent is active, then looks up the corresponding
@@ -54,31 +70,51 @@ def _get_runtime_settings_path() -> Path | None:
         from gpd.hooks.runtime_detect import detect_active_runtime
 
         runtime = detect_active_runtime()
-        # Map runtime_detect identifiers to adapter registry names
-        _RUNTIME_TO_ADAPTER: dict[str, str] = {
-            "claude": "claude-code",
-            "codex": "codex",
-            "gemini": "gemini",
-            "opencode": "opencode",
-        }
         adapter_name = _RUNTIME_TO_ADAPTER.get(runtime)
-        if adapter_name is None:
+        config_name = _RUNTIME_MODEL_CONFIGS.get(runtime)
+        if adapter_name is None or config_name is None:
             return None
 
         from gpd.adapters import get_adapter
 
         adapter = get_adapter(adapter_name)
-        return adapter.global_config_dir / "settings.json"
+        return runtime, adapter.global_config_dir / config_name
     except (ImportError, KeyError, OSError):
         return None
 
 
+def _read_model_from_config(config_path: Path) -> str | None:
+    """Read a model string from a runtime-native config file."""
+    if not config_path.exists():
+        return None
+
+    try:
+        raw = config_path.read_text(encoding="utf-8")
+        if config_path.suffix == ".toml":
+            data = tomllib.loads(raw)
+        else:
+            data = json.loads(raw)
+    except (json.JSONDecodeError, OSError, tomllib.TOMLDecodeError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    model = data.get("model")
+    if model is None:
+        return None
+    if isinstance(model, str):
+        normalized = model.strip()
+        return normalized or None
+    return str(model)
+
+
 def _detect_model() -> str:
-    """Read the active model from the current runtime's settings.
+    """Read the active model from the current runtime's config.
 
     Resolves the runtime config directory via the adapter registry
     (respecting env-var overrides like ``CLAUDE_CONFIG_DIR``), reads
-    ``settings.json`` for the ``model`` key, and maps known aliases
+    the runtime's native config for the ``model`` key, and maps known aliases
     to human-readable display names.  Falls back to ``'unknown'``.
     """
     _DISPLAY_NAMES: dict[str, str] = {
@@ -86,15 +122,17 @@ def _detect_model() -> str:
         "sonnet": "Sonnet 4.6",
         "haiku": "Haiku 4.5",
     }
-    settings_path = _get_runtime_settings_path()
-    if settings_path is None or not settings_path.exists():
+    config_info = _get_active_runtime_model_config()
+    if config_info is None:
         return "unknown"
-    try:
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-        model = str(data.get("model", "unknown"))
+
+    runtime, config_path = config_info
+    model = _read_model_from_config(config_path)
+    if model is None:
+        return "unknown"
+    if runtime == "claude":
         return _DISPLAY_NAMES.get(model, model)
-    except (json.JSONDecodeError, OSError):
-        return "unknown"
+    return model
 
 
 def show_full_logo(
@@ -296,7 +334,6 @@ def _find_claude_code_binary() -> str:
             "claude CLI not found on PATH. Install Claude Code: https://docs.anthropic.com/en/docs/claude-code"
         )
     return path
-
 
 
 def build_mcp_config_file() -> Path | None:
@@ -726,17 +763,19 @@ def launch_session(*, cwd: Path | None = None) -> int:
     return result.returncode
 
 def _detect_model_alias() -> str:
-    """Read the raw model alias (e.g. ``'opus'``) from the active runtime's settings.
+    """Read the raw Claude model alias (e.g. ``'opus'``) from active config.
 
-    Uses ``_get_runtime_settings_path`` to find the correct config
-    directory (respecting env-var overrides).  Falls back to ``'opus'``
-    when settings are unavailable.
+    The integrated launcher invokes Claude Code, so only Claude-native
+    aliases are reused. Other runtimes fall back to ``'opus'``.
     """
-    settings_path = _get_runtime_settings_path()
-    if settings_path is None or not settings_path.exists():
+    config_info = _get_active_runtime_model_config()
+    if config_info is None:
         return "opus"
-    try:
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-        return str(data.get("model", "opus"))
-    except (json.JSONDecodeError, OSError):
+    runtime, config_path = config_info
+    if runtime != "claude":
         return "opus"
+
+    model = _read_model_from_config(config_path)
+    if model is None:
+        return "opus"
+    return model

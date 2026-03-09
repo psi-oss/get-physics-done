@@ -18,12 +18,14 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.observability import gpd_span
-from gpd.registry import get_command, list_commands
+from gpd.registry import AGENTS_DIR, SPECS_DIR, get_command, list_commands
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-skills")
 
 mcp = FastMCP("gpd-skills")
+_SPECS_PATH = SPECS_DIR.resolve().as_posix()
+_AGENTS_PATH = AGENTS_DIR.resolve().as_posix()
 
 # Category mapping: skill name prefix -> category
 _CATEGORY_MAP: dict[str, str] = {
@@ -154,6 +156,11 @@ def _public_skill(skill: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _resolve_skill_content(content: str) -> str:
+    """Resolve runtime path placeholders to the local package paths."""
+    return content.replace("{GPD_INSTALL_DIR}", _SPECS_PATH).replace("{GPD_AGENTS_DIR}", _AGENTS_PATH)
+
+
 @mcp.tool()
 def list_skills(category: str | None = None) -> dict:
     """List available GPD skills with optional category filter.
@@ -199,7 +206,7 @@ def get_skill(name: str) -> dict:
         return {
             "name": skill["name"],
             "category": skill["category"],
-            "content": command.content,
+            "content": _resolve_skill_content(command.content),
             "file_count": 1,
         }
 

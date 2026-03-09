@@ -90,27 +90,36 @@ RUNTIME_TABLES: dict[str, dict[str, str]] = {
     "opencode": OPENCODE,
 }
 
-# Legacy runtime-specific names found in existing specs → canonical names
+# Legacy runtime-specific names found in existing specs → canonical names.
+# Start with the inverse of every runtime table so already-converted names
+# canonicalize correctly regardless of which adapter produced them.
 _LEGACY_ALIASES: dict[str, str] = {
-    "read_file": "file_read",
-    "write_file": "file_write",
-    "edit_file": "file_edit",
-    "Read": "file_read",
-    "Write": "file_write",
-    "Edit": "file_edit",
-    "Bash": "shell",
-    "Grep": "search_files",
-    "Glob": "find_files",
-    "WebSearch": "web_search",
-    "WebFetch": "web_fetch",
-    "NotebookEdit": "notebook_edit",
-    "Agent": "agent",
-    "AskUserQuestion": "ask_user",
-    "TodoWrite": "todo_write",
-    "Task": "task",
-    "SlashCommand": "slash_command",
-    "ToolSearch": "tool_search",
+    runtime_name: canonical_name
+    for table in RUNTIME_TABLES.values()
+    for canonical_name, runtime_name in table.items()
 }
+_LEGACY_ALIASES.update(
+    {
+        "read_file": "file_read",
+        "write_file": "file_write",
+        "edit_file": "file_edit",
+        "Read": "file_read",
+        "Write": "file_write",
+        "Edit": "file_edit",
+        "Bash": "shell",
+        "Grep": "search_files",
+        "Glob": "find_files",
+        "WebSearch": "web_search",
+        "WebFetch": "web_fetch",
+        "NotebookEdit": "notebook_edit",
+        "Agent": "agent",
+        "AskUserQuestion": "ask_user",
+        "TodoWrite": "todo_write",
+        "Task": "task",
+        "SlashCommand": "slash_command",
+        "ToolSearch": "tool_search",
+    }
+)
 
 
 def canonical(name: str) -> str:
@@ -119,6 +128,9 @@ def canonical(name: str) -> str:
     Accepts any runtime-specific name or legacy alias and returns
     the canonical GPD name (e.g. ``"Read"`` → ``"file_read"``).
     """
+    for table in RUNTIME_TABLES.values():
+        if name in table:
+            return name
     return _LEGACY_ALIASES.get(name, name)
 
 

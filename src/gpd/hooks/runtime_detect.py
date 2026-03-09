@@ -15,12 +15,28 @@ RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
 RUNTIME_UNKNOWN = "unknown"
 
+# Map runtime → CLI install name
+RUNTIME_CLI_NAMES: dict[str, str] = {
+    RUNTIME_CLAUDE: "claude-code",
+    RUNTIME_CODEX: "codex",
+    RUNTIME_GEMINI: "gemini",
+    RUNTIME_OPENCODE: "opencode",
+}
+
 # Map runtime → home-relative config directory name
 RUNTIME_DIR_NAMES: dict[str, str] = {
     RUNTIME_CLAUDE: ".claude",
     RUNTIME_CODEX: ".codex",
     RUNTIME_GEMINI: ".gemini",
     RUNTIME_OPENCODE: os.path.join(".config", "opencode"),
+}
+
+# Map runtime → cwd-relative config directory name for local installs
+LOCAL_RUNTIME_DIR_NAMES: dict[str, str] = {
+    RUNTIME_CLAUDE: ".claude",
+    RUNTIME_CODEX: ".codex",
+    RUNTIME_GEMINI: ".gemini",
+    RUNTIME_OPENCODE: ".opencode",
 }
 
 # Environment variables that indicate a specific runtime is active
@@ -63,36 +79,59 @@ def runtime_dir(runtime: str) -> Path:
     return Path.home() / RUNTIME_DIR_NAMES.get(runtime, RUNTIME_DIR_NAMES[RUNTIME_CLAUDE])
 
 
-def all_runtime_dirs() -> list[Path]:
-    """Return config directories for all known runtimes."""
+def _unique_paths(paths: list[Path]) -> list[Path]:
+    """Return paths in order with duplicates removed."""
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in paths:
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(path)
+    return unique
+
+
+def all_runtime_dirs(*, include_local: bool = False) -> list[Path]:
+    """Return config directories for all known runtimes.
+
+    When ``include_local`` is true, include workspace-local runtime configs
+    before the home-directory configs.
+    """
+    dirs: list[Path] = []
+    if include_local:
+        cwd = Path.cwd()
+        dirs.extend(cwd / LOCAL_RUNTIME_DIR_NAMES[runtime] for runtime in ALL_RUNTIMES)
+
     home = Path.home()
-    return [home / d for d in RUNTIME_DIR_NAMES.values()]
+    dirs.extend(home / RUNTIME_DIR_NAMES[runtime] for runtime in ALL_RUNTIMES)
+    return _unique_paths(dirs)
 
 
 def get_todo_dirs() -> list[Path]:
-    """Return todo directories for all known runtimes."""
-    return [d / "todos" for d in all_runtime_dirs()]
+    """Return todo directories for local and global runtime installs."""
+    return [d / "todos" for d in all_runtime_dirs(include_local=True)]
 
 
 def get_cache_dirs() -> list[Path]:
-    """Return cache directories for all known runtimes."""
-    return [d / "cache" for d in all_runtime_dirs()]
+    """Return cache directories for local and global runtime installs."""
+    return [d / "cache" for d in all_runtime_dirs(include_local=True)]
+
+
+def get_update_cache_files() -> list[Path]:
+    """Return all candidate update-cache files in priority scan order."""
+    return [Path.home() / ".gpd" / "cache" / "gpd-update-check.json"] + [
+        d / "gpd-update-check.json" for d in get_cache_dirs()
+    ]
 
 
 def get_gpd_install_dirs() -> list[Path]:
     """Return GPD installation directories for all known runtimes (both local and global)."""
-    cwd = Path.cwd()
-    home = Path.home()
-    dirs: list[Path] = []
-    for d_name in RUNTIME_DIR_NAMES.values():
-        dirs.append(cwd / d_name / "get-physics-done")
-    for d_name in RUNTIME_DIR_NAMES.values():
-        dirs.append(home / d_name / "get-physics-done")
-    return dirs
+    return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
 
 
 def update_command_for_runtime(runtime: str) -> str:
     """Return the appropriate gpd install command for a given runtime."""
-    if runtime == RUNTIME_UNKNOWN:
+    cli_runtime = RUNTIME_CLI_NAMES.get(runtime)
+    if cli_runtime is None:
         return "gpd install"
-    return f"gpd install --runtime {runtime}"
+    return f"gpd install {cli_runtime}"

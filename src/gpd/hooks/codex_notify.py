@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 
 def _debug(msg: str) -> None:
@@ -34,24 +33,32 @@ def _trigger_update_check(cwd: str) -> None:
 
 def _check_and_notify_update() -> None:
     """Read update cache and emit a notification to stderr if update available."""
-    from gpd.hooks.runtime_detect import detect_active_runtime, get_cache_dirs, update_command_for_runtime
+    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files, update_command_for_runtime
 
-    cache_paths = [Path.home() / ".gpd" / "cache" / "gpd-update-check.json"] + [
-        d / "gpd-update-check.json" for d in get_cache_dirs()
-    ]
-    for cache_file in cache_paths:
-        if cache_file.exists():
-            try:
-                cache = json.loads(cache_file.read_text(encoding="utf-8"))
-                if cache.get("update_available"):
-                    installed = cache.get("installed", "?")
-                    latest = cache.get("latest", "?")
-                    runtime = detect_active_runtime()
-                    cmd = update_command_for_runtime(runtime)
-                    sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
-            except Exception as exc:
-                _debug(f"Failed to parse cache {cache_file}: {exc}")
-            break
+    latest_cache: dict[str, object] | None = None
+    latest_checked = -1.0
+
+    for cache_file in get_update_cache_files():
+        if not cache_file.exists():
+            continue
+        try:
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            _debug(f"Failed to parse cache {cache_file}: {exc}")
+            continue
+
+        checked = cache.get("checked")
+        checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
+        if latest_cache is None or checked_value > latest_checked:
+            latest_cache = cache
+            latest_checked = checked_value
+
+    if latest_cache and latest_cache.get("update_available"):
+        installed = latest_cache.get("installed", "?")
+        latest = latest_cache.get("latest", "?")
+        runtime = detect_active_runtime()
+        cmd = update_command_for_runtime(runtime)
+        sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 
 def main() -> None:

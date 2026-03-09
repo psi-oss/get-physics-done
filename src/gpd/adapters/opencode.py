@@ -25,6 +25,7 @@ from gpd.adapters.install_utils import (
     LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
+    compute_path_prefix,
     file_hash,
     generate_manifest,
     get_global_dir,
@@ -750,7 +751,7 @@ class OpenCodeAdapter(RuntimeAdapter):
     # --- Template method hooks ---
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
-        return f"{str(target_dir).replace(os.sep, '/')}/"
+        return compute_path_prefix(target_dir, self.config_dir_name, is_global=is_global)
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
@@ -826,7 +827,7 @@ class OpenCodeAdapter(RuntimeAdapter):
         from gpd.core.observability import gpd_span
 
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
-            result = uninstall_opencode(target_dir, config_dir=self.global_config_dir)
+            result = uninstall_opencode(target_dir, config_dir=target_dir)
             removed: list[str] = []
             if result["commands"]:
                 removed.append(f"{result['commands']} GPD commands")

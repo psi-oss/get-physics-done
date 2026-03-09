@@ -255,6 +255,22 @@ class TestGenerateAgent:
 
 
 class TestInstall:
+    def test_local_install_uses_relative_gpd_paths(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        content = (target / "command" / "gpd-help.md").read_text(encoding="utf-8")
+        assert "./.opencode/get-physics-done/ref" in content
+        assert "./.opencode/agents" in content
+        assert f"{target.as_posix()}/get-physics-done" not in content
+
     def test_install_creates_flattened_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()
@@ -323,6 +339,33 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_uninstall_cleans_local_opencode_json(
+        self,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        adapter = OpenCodeAdapter()
+        monkeypatch.setenv("OPENCODE_CONFIG_DIR", str(tmp_path / "global-opencode"))
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        config_path = target / "opencode.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["permission"]["read"]["/tmp/custom/*"] = "allow"
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(config_path.read_text(encoding="utf-8"))
+        read_permissions = cleaned.get("permission", {}).get("read", {})
+        external_permissions = cleaned.get("permission", {}).get("external_directory", {})
+        assert "/tmp/custom/*" in read_permissions
+        assert not any("get-physics-done" in key for key in read_permissions)
+        assert not any("get-physics-done" in key for key in external_permissions)
+
     def test_uninstall_removes_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()

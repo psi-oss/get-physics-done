@@ -249,6 +249,36 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert any("check_update" in c for c in cmds)
 
+    def test_install_preserves_jsonc_settings_and_uses_current_interpreter(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            '{\n  // keep user settings\n  "theme": "solarized",\n}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["theme"] == "solarized"
+        assert settings["statusLine"]["command"] == "/custom/venv/bin/python .gemini/hooks/statusline.py"
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
+        assert "/custom/venv/bin/python .gemini/hooks/check_update.py" in cmds
+
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()

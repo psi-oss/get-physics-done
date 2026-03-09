@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -37,5 +38,18 @@ def test_init_context_uses_active_runtime_signal(
         module = importlib.reload(context_module)
         ctx = module.init_new_project(tmp_path)
         assert ctx["platform"] == expected
+
+    importlib.reload(context_module)
+
+
+def test_init_context_uses_runtime_detect_directory_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    with monkeypatch.context() as runtime_env:
+        _clear_runtime_env(runtime_env)
+        (tmp_path / ".codex").mkdir()
+
+        with patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path):
+            module = importlib.reload(context_module)
+            ctx = module.init_new_project(tmp_path)
+            assert ctx["platform"] == "codex"
 
     importlib.reload(context_module)

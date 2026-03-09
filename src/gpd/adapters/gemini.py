@@ -422,14 +422,12 @@ class GeminiAdapter(RuntimeAdapter):
             HOOK_SCRIPTS["statusline"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
-            interpreter="python3",
         )
         update_check_cmd = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["check_update"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
-            interpreter="python3",
         )
         ensure_update_hook(settings, update_check_cmd)
 

@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import re
+import shlex
+import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -242,14 +244,19 @@ def parse_jsonc(content: str) -> object:
 
 
 def read_settings(settings_path: str | Path) -> dict[str, object]:
-    """Read and parse a settings JSON file.  Returns ``{}`` if missing or unparseable."""
+    """Read and parse a settings JSON/JSONC file.
+
+    Returns ``{}`` if the file is missing, unreadable, malformed, or does not
+    contain a top-level JSON object.
+    """
     p = Path(settings_path)
     if not p.exists():
         return {}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        parsed = parse_jsonc(p.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def write_settings(settings_path: str | Path, settings: dict[str, object]) -> None:
@@ -1145,16 +1152,17 @@ def build_hook_command(
     *,
     is_global: bool,
     config_dir_name: str,
-    interpreter: str = "python3",
+    interpreter: str | None = None,
 ) -> str:
     """Build the shell command string for a hook script.
 
     Shared by Claude Code and Gemini adapters.
     """
+    command_interpreter = interpreter or _hook_python_interpreter()
     if is_global:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")
-        return f'{interpreter} "{hooks_path}"'
-    return f"{interpreter} {config_dir_name}/hooks/{hook_filename}"
+        return f"{shlex.quote(command_interpreter)} {shlex.quote(hooks_path)}"
+    return f"{shlex.quote(command_interpreter)} {shlex.quote(f'{config_dir_name}/hooks/{hook_filename}')}"
 
 
 # ---------------------------------------------------------------------------
@@ -1167,6 +1175,15 @@ def _rmtree(p: Path) -> None:
     import shutil
 
     shutil.rmtree(str(p), ignore_errors=True)
+
+
+def _hook_python_interpreter() -> str:
+    """Return the interpreter that is currently running GPD.
+
+    Hook scripts import ``gpd.*`` modules, so they need the same interpreter
+    used for the active install process.
+    """
+    return sys.executable or "python3"
 
 
 def _iso_now() -> str:
