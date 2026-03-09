@@ -249,6 +249,13 @@ def load_feature_flags(
             if env_key in env_dict:
                 resolved[key] = _parse_bool_env(env_dict[env_key])
 
+
+        # Layer 6: Apply simplified GPD_DISABLE_<SUBSYSTEM> env var overrides
+        # (late import to avoid circular dependency with gpd.ablations)
+        from gpd.ablations import apply_ablation_overrides
+
+        apply_ablation_overrides(resolved, env=env_dict)
+
         return resolved
 
 
