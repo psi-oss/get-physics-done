@@ -285,7 +285,8 @@ async def execute_milestone_with_recovery(
         prior_results: Results from previously completed milestones.
         tool_router: Callable for MCP tool execution.
         dashboard_callback: Optional callback for progress reporting.
-            Called with (phase_name, milestone, extra_info).
+            Called with (phase_name, milestone, info_dict) where info_dict
+            is {"current": int, "max": int} for "attempt" phase or {} otherwise.
         available_tools: Available tools for substitution fallback.
 
     Returns:
@@ -313,7 +314,11 @@ async def execute_milestone_with_recovery(
             nonlocal attempt_count
             attempt_count += 1
             if dashboard_callback:
-                dashboard_callback("attempt", milestone, attempt_count, milestone.retry_policy.max_retries + 1)
+                dashboard_callback(
+                    "attempt",
+                    milestone,
+                    {"current": attempt_count, "max": milestone.retry_policy.max_retries + 1},
+                )
             return await _execute_tools(milestone)
 
         tool_outputs = await _retried_execution()
@@ -335,7 +340,7 @@ async def execute_milestone_with_recovery(
 
     # --- Phase 2: Simplify ---
     if dashboard_callback:
-        dashboard_callback("simplify", milestone)
+        dashboard_callback("simplify", milestone, {})
 
     try:
         simplified = await simplify_milestone(milestone)
@@ -356,7 +361,7 @@ async def execute_milestone_with_recovery(
 
     # --- Phase 3: Substitute ---
     if dashboard_callback:
-        dashboard_callback("substitute", milestone)
+        dashboard_callback("substitute", milestone, {})
 
     try:
         substitute = await find_substitute_tool(milestone, available_tools or [])
@@ -377,7 +382,7 @@ async def execute_milestone_with_recovery(
 
     # --- Phase 4: Exhausted ---
     if dashboard_callback:
-        dashboard_callback("exhausted", milestone)
+        dashboard_callback("exhausted", milestone, {})
 
     elapsed = time.monotonic() - start_time
     return MilestoneResult(

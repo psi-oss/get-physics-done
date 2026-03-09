@@ -298,7 +298,7 @@ class TestExecuteMilestoneWithRecovery:
             assert result.attempt_count >= 1
 
     async def test_dashboard_callback_called(self) -> None:
-        """Verify dashboard_callback fires at each recovery phase."""
+        """Verify dashboard_callback fires at each recovery phase with consistent 3-arg signature."""
         milestone = _make_milestone(max_retries=0)
         router = AsyncMock(side_effect=TimeoutError("fail"))
         callback = MagicMock()
@@ -318,6 +318,17 @@ class TestExecuteMilestoneWithRecovery:
             assert "simplify" in phase_names
             assert "substitute" in phase_names
             assert "exhausted" in phase_names
+
+            # All calls must use uniform 3-arg signature: (phase, milestone, info_dict)
+            for call in callback.call_args_list:
+                assert len(call.args) == 3, (
+                    f"dashboard_callback called with {len(call.args)} args "
+                    f"(expected 3) for phase '{call.args[0]}'"
+                )
+                assert isinstance(call.args[2], dict), (
+                    f"third arg must be a dict, got {type(call.args[2]).__name__} "
+                    f"for phase '{call.args[0]}'"
+                )
 
     async def test_non_critical_milestone_failure_returns_skippable_result(self) -> None:
         """Non-critical milestone failure returns is_error=True but allows continuation."""
