@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.constants import (
-    CONFIG_FILENAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
@@ -184,21 +183,24 @@ def _compare_phase_numbers(a: str, b: str) -> int:
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
-    """Load project config.json with defaults. Returns flat dict."""
-    config_path = _planning_dir(cwd) / CONFIG_FILENAME
-    result = dict(_CONFIG_DEFAULTS)
+    """Load project config.json with defaults. Returns flat dict with autonomy & research_mode.
+
+    Delegates to :func:`gpd.core.config.load_config` (the canonical loader)
+    which handles backward compatibility for the legacy ``mode`` field and
+    nested config sections.  Falls back to built-in defaults on any error so
+    that suggest never crashes due to a bad config file.
+    """
     try:
-        raw = config_path.read_text(encoding="utf-8")
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            for key in ("autonomy", "research_mode"):
-                if key in parsed:
-                    result[key] = parsed[key]
-    except FileNotFoundError:
-        pass
-    except (json.JSONDecodeError, OSError):
-        pass
-    return result
+        from gpd.core.config import load_config as _load_config_canonical
+
+        cfg = _load_config_canonical(cwd)
+        return {
+            "autonomy": str(cfg.autonomy.value),
+            "research_mode": str(cfg.research_mode.value),
+        }
+    except Exception:
+        logger.debug("suggest: canonical config load failed, using defaults")
+        return dict(_CONFIG_DEFAULTS)
 
 
 def _format_command(action: str) -> str:
