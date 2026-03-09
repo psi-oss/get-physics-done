@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
+    PLANNING_DIR_NAME,
     PLAN_SUFFIX,
     REQUIRED_RETURN_FIELDS,
     SUMMARY_SUFFIX,
@@ -237,8 +238,8 @@ def cmd_todo_complete(cwd: Path, filename: str) -> TodoCompleteResult:
     if not filename:
         raise ValidationError("filename required for todo complete")
 
-    pending_dir = cwd / ".planning" / "todos" / "pending"
-    done_dir = cwd / ".planning" / "todos" / "done"
+    pending_dir = cwd / PLANNING_DIR_NAME / "todos" / "pending"
+    done_dir = cwd / PLANNING_DIR_NAME / "todos" / "done"
     source_path = pending_dir / filename
 
     if not source_path.exists():
@@ -263,7 +264,7 @@ def cmd_todo_complete(cwd: Path, filename: str) -> TodoCompleteResult:
 
 def _find_phase_dir(cwd: Path, phase: str) -> Path | None:
     """Locate a phase directory by number. Returns the absolute path or None."""
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     if not phases_dir.is_dir():
         return None
 
@@ -313,7 +314,7 @@ def cmd_scaffold(
             raise ValidationError("phase and name required for phase-dir scaffold")
         slug = generate_slug(name) or name.lower().strip()
         dir_name = f"{padded}-{slug}"
-        phases_parent = cwd / ".planning" / "phases"
+        phases_parent = cwd / PLANNING_DIR_NAME / "phases"
         phases_parent.mkdir(parents=True, exist_ok=True)
         dir_path = phases_parent / dir_name
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -494,7 +495,7 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     dependency-graph.provides, dependency-graph.affects, patterns-established,
     key-decisions, and methods.added.
     """
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     methods_set: set[str] = set()
     phase_sets: dict[str, dict[str, set[str]]] = {}
     digest = HistoryDigestResult()
@@ -589,7 +590,7 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
 
     Returns a result indicating pass/fail with detailed issue list.
     """
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     issues: list[RegressionIssue] = []
 
     # Collect completed phase directories
