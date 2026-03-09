@@ -133,7 +133,7 @@ Extract one-liners from SUMMARY.md files using summary-extract:
 ```bash
 # For each phase in milestone, extract one-liner
 for summary in .planning/phases/*-*/*-SUMMARY.md; do
-  gpd summary-extract "$summary" --fields one_liner | gpd json get .one_liner --default ""
+  gpd summary-extract "$summary" --field one_liner | gpd json get .one_liner --default ""
 done
 ```
 

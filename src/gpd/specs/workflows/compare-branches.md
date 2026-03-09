@@ -66,7 +66,7 @@ For each SUMMARY.md found:
 git show {branch}:{summary_path} 2>/dev/null
 ```
 
-Extract via `summary-extract --fields one_liner,key_results,equations`: `one_liner` (body bold text or frontmatter), `key_results` (body section), `equations` (body section "Equations Derived").
+Extract via `summary-extract --field one_liner --field key_results --field equations`: `one_liner` (body bold text or frontmatter), `key_results` (body section), `equations` (body section "Equations Derived").
 
 5. **Verification status** -- scan for VERIFICATION.md files:
 
@@ -161,7 +161,7 @@ Save the SUMMARY content from `git show` to a temp file, then extract with gpd C
 ```bash
 mkdir -p .planning/tmp
 git show {branch}:{summary_path} > .planning/tmp/gpd-branch-summary.md 2>/dev/null
-gpd summary-extract .planning/tmp/gpd-branch-summary.md --fields key_results
+gpd summary-extract .planning/tmp/gpd-branch-summary.md --field key_results
 ```
 
 Alternatively, use the Read tool on the `git show` output to parse the YAML frontmatter directly.

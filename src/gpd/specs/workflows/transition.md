@@ -571,7 +571,7 @@ cat ${PHASE_DIR}/*-SUMMARY.md
 **2. Extract from SUMMARYs:**
 
 - `conventions` frontmatter field -> convention definitions
-- `## Key Results` body section -> key equations and results (use `gpd summary-extract --fields key_results` to extract)
+- `## Key Results` body section -> key equations and results (use `gpd summary-extract --field key_results` to extract)
 - `provides` frontmatter field -> artifacts provided by this phase
 
 **3. Create DERIVATION-STATE.md if it doesn't exist:**

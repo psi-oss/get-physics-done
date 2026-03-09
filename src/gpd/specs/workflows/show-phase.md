@@ -101,7 +101,7 @@ Present as table:
 For each SUMMARY.md:
 
 ```bash
-gpd summary-extract <path> --fields one_liner,key_results,equations
+gpd summary-extract <path> --field one_liner --field key_results --field equations
 ```
 
 Collect:

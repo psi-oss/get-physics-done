@@ -99,7 +99,7 @@ For each phase with `disk_status: "complete"` or `disk_status: "partial"`:
 ```bash
 # Extract conventions from SUMMARY.md frontmatter
 for SUMMARY in .planning/phases/${PHASE_DIR}/*-SUMMARY.md; do
-  gpd summary-extract "$SUMMARY" --fields conventions,affects
+  gpd summary-extract "$SUMMARY" --field conventions --field affects
 done
 ```
 

@@ -848,7 +848,7 @@ If >15%, use `summary-extract` for one-liners instead of reading full SUMMARY fi
 
 ```bash
 for summary in "${phase_dir}"/*-SUMMARY.md; do
-  gpd summary-extract "$summary" --fields one_liner
+  gpd summary-extract "$summary" --field one_liner
 done
 ```
 </step>

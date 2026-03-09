@@ -204,8 +204,8 @@ Copy any scripts, data files, or other artifacts from source to target.
 Read convention declarations from SUMMARY.md frontmatter in both phases:
 
 ```bash
-gpd summary-extract "${SOURCE_DIR}"/*-SUMMARY.md --fields conventions
-gpd summary-extract "${TARGET_DIR}"/*-SUMMARY.md --fields conventions
+gpd summary-extract "${SOURCE_DIR}"/*-SUMMARY.md --field conventions
+gpd summary-extract "${TARGET_DIR}"/*-SUMMARY.md --field conventions
 ```
 
 **If conventions conflict** (same field, different value):
