@@ -11,32 +11,43 @@ This guide is for physicists using GPD day-to-day. For architecture and internal
 ### 1. Install GPD
 
 ```bash
-pip install get-physics-done
+uv tool install git+https://github.com/physicalsuperintelligence/get-physics-done.git
 ```
 
-Or with uv:
+Or with `pip`:
 
 ```bash
-uv pip install get-physics-done
+python3 -m pip install "git+https://github.com/physicalsuperintelligence/get-physics-done.git"
 ```
 
-### 2. Set up your AI agent
+### 2. Install GPD into your AI runtime
 
 ```bash
 gpd install
 ```
 
-This auto-detects your runtime (Claude Code, OpenCode, Gemini CLI, or Codex) and installs all GPD commands and agents. If you use multiple runtimes, run `gpd install` in each.
+This launches the interactive installer, where you choose Claude Code, Gemini CLI, Codex, or OpenCode and then pick a local or global install location.
+
+For scripted installs, you can specify the runtime directly:
+
+```bash
+gpd install claude-code --global
+```
 
 ### 3. Start your first project
 
-In your AI agent, run:
+Use the command syntax for your runtime:
 
-```
-/gpd:new-project
-```
+| Runtime | Help | Start a project |
+|---------|------|-----------------|
+| Claude Code | `/gpd:help` | `/gpd:new-project` |
+| Gemini CLI | `/gpd:help` | `/gpd:new-project` |
+| Codex | `$gpd-help` | `$gpd-new-project` |
+| OpenCode | `/gpd-help` | `/gpd-new-project` |
 
 GPD will ask 3-5 questions to pin down your problem's scope, assumptions, notation, and verification targets. Answer them, and GPD creates your project structure.
+
+The rest of this guide uses Claude Code / Gemini CLI command syntax (`/gpd:...`). If you are using Codex or OpenCode, translate the command prefix using the table above.
 
 ---
 
@@ -105,6 +116,8 @@ Questions appear at natural decision points: before choosing a coordinate system
 
 ## Key Commands
 
+Commands below are shown in Claude Code / Gemini CLI syntax.
+
 | Command | Description |
 |---------|-------------|
 | `/gpd:new-project` | Start a new research project from scratch |
@@ -127,6 +140,20 @@ Questions appear at natural decision points: before choosing a coordinate system
 | `/gpd:error-patterns` | Check for known error patterns in your work |
 
 Run `/gpd:discover` inside your agent to see the full list of available commands.
+
+---
+
+## Citation and License
+
+GPD is released under Apache 2.0. The license preserves copyright notices in redistribution, but it does not require academic citation.
+
+If GPD materially contributed to a paper, note, or internal report, cite the software using [`CITATION.cff`](../CITATION.cff) or the BibTeX entry in [`README.md`](../README.md).
+
+For reproducibility, it is helpful to record:
+
+- GPD version
+- Runtime used (Claude Code, Gemini CLI, Codex, or OpenCode)
+- Model/provider used by that runtime
 
 ---
 
@@ -164,7 +191,7 @@ Once locked, GPD flags any deviation. To change a convention mid-project, use an
 
 ### GPD commands not appearing in my agent
 
-Run `gpd install` again. If you recently updated GPD (`pip install --upgrade get-physics-done`), reinstall to pick up new commands.
+Run `gpd install` again. If you recently upgraded or reinstalled the Python package, reinstall the runtime integration to pick up the latest commands and agents.
 
 ### "GPD state not found" or missing STATE.md
 

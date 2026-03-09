@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If GPD contributes to your research, please cite it using the metadata below."
+title: "Get Physics Done"
+type: software
+version: 0.1.0
+license: Apache-2.0
+abstract: "An open-source AI copilot for physics research that structures, executes, verifies, and documents research workflows across multiple AI runtimes."
+authors:
+  - family-names: "Hernandez-Cuenca"
+    given-names: "Sergio"
+repository-code: "https://github.com/physicalsuperintelligence/get-physics-done"
+url: "https://github.com/physicalsuperintelligence/get-physics-done"
+keywords:
+  - physics
+  - research
+  - AI
+  - scientific workflows
+  - derivations
+  - verification

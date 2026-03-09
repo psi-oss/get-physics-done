@@ -10,8 +10,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/get-physics-done/get-physics-done.git"
+    "url": "https://github.com/physicalsuperintelligence/get-physics-done.git"
   },
+  "homepage": "https://github.com/physicalsuperintelligence/get-physics-done#readme",
+  "bugs": {
+    "url": "https://github.com/physicalsuperintelligence/get-physics-done/issues"
+  },
+  "author": "Sergio Hernandez-Cuenca",
   "keywords": ["physics", "research", "ai", "claude", "opencode", "lagrangian", "derivation"],
-  "license": "UNLICENSED"
+  "license": "Apache-2.0"
 }

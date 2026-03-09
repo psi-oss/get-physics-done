@@ -2,7 +2,20 @@
 name = "get-physics-done"
 version = "0.1.0"
 description = "GPD — Get Physics Done: autonomous physics research orchestration"
+readme = "README.md"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Sergio Hernandez-Cuenca" },
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
     # Core
     "typer>=0.21.1",
@@ -42,6 +55,13 @@ gpd = "gpd.cli:app"
 "gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
+
+[project.urls]
+Homepage = "https://github.com/physicalsuperintelligence/get-physics-done"
+Documentation = "https://github.com/physicalsuperintelligence/get-physics-done/blob/main/docs/USER-GUIDE.md"
+Repository = "https://github.com/physicalsuperintelligence/get-physics-done"
+Issues = "https://github.com/physicalsuperintelligence/get-physics-done/issues"
+Security = "mailto:security@getphysicsdone.com"
 
 [build-system]
 requires = ["hatchling"]

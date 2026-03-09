@@ -3,9 +3,9 @@
  * GPD installer — sets up Get Physics Done in your AI agent.
  *
  * Usage:
- *   npx github:get-physics-done/get-physics-done
- *   npx github:get-physics-done/get-physics-done --claude --global
- *   npx github:get-physics-done/get-physics-done --opencode --global
+ *   npx github:physicalsuperintelligence/get-physics-done
+ *   npx github:physicalsuperintelligence/get-physics-done --claude --global
+ *   npx github:physicalsuperintelligence/get-physics-done --opencode --global
  */
 
 const { execSync, spawnSync } = require("child_process");
@@ -89,13 +89,13 @@ async function main() {
 
   // Install the Python package
   log("Installing get-physics-done...");
-  let pipResult = spawnSync("uv", ["pip", "install", "get-physics-done@git+https://github.com/get-physics-done/get-physics-done.git"], {
+  let pipResult = spawnSync("uv", ["pip", "install", "get-physics-done@git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
     stdio: "inherit",
   });
   if (pipResult.status !== 0) {
     // Fallback to pip if uv pip install failed
     log("uv pip install failed, trying pip...");
-    pipResult = spawnSync(python, ["-m", "pip", "install", "git+https://github.com/get-physics-done/get-physics-done.git"], {
+    pipResult = spawnSync(python, ["-m", "pip", "install", "git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
       stdio: "inherit",
     });
   }

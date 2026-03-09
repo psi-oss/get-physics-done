@@ -25,4 +25,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Paper generation pipeline with bibliography, figures, and LaTeX compilation.
 - Web viewer (optional FastAPI server) for session inspection.
 
-[0.1.0]: https://github.com/get-physics-done/get-physics-done/releases/tag/v0.1.0
+[0.1.0]: https://github.com/physicalsuperintelligence/get-physics-done/releases/tag/v0.1.0
