@@ -1,6 +1,5 @@
 """Shared utility functions for GPD.
 
-Ported from experiments/get-physics-done/get-physics-done/src/utils.js.
 Layer 1 code: stdlib + pathlib + json + re only.
 """
 

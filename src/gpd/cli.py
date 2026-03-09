@@ -1,7 +1,6 @@
 """Unified GPD CLI — Python entry point for all GPD workflow operations.
 
-Replaces the Node.js ``gpd-tools`` CLI with a native Python implementation
-that delegates to ``gpd.core.*`` modules.
+Delegates to ``gpd.core.*`` modules for all command implementations.
 
 Usage::
 

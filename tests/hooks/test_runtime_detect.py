@@ -204,3 +204,9 @@ class TestUpdateCommand:
 
     def test_codex_runtime(self) -> None:
         assert update_command_for_runtime(RUNTIME_CODEX) == "gpd install --runtime codex"
+
+    def test_gemini_runtime(self) -> None:
+        assert update_command_for_runtime(RUNTIME_GEMINI) == "gpd install --runtime gemini"
+
+    def test_opencode_runtime(self) -> None:
+        assert update_command_for_runtime(RUNTIME_OPENCODE) == "gpd install --runtime opencode"

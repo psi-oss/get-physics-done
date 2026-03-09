@@ -98,10 +98,10 @@ class TestLoadConfig:
 
     def test_custom_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"autonomy": "yolo", "research_mode": "deep"})
+        _create_config(tmp_path, {"autonomy": "yolo", "research_mode": "exploit"})
         config = load_config(tmp_path)
         assert config["autonomy"] == "yolo"
-        assert config["research_mode"] == "deep"
+        assert config["research_mode"] == "exploit"
 
     def test_nested_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

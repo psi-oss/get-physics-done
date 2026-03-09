@@ -10,8 +10,6 @@ trace_start  — create trace file, set as active
 trace_log    — append timestamped event to active trace
 trace_stop   — close active trace, write summary line
 trace_show   — display/filter trace events
-
-Ported from experiments/get-physics-done/get-physics-done/src/trace.js (336 lines).
 """
 
 from __future__ import annotations
@@ -188,7 +186,7 @@ def _read_trace_events(file_path: Path) -> list[TraceEvent]:
 
 
 def _serialize_event(event_type: str, **extra: object) -> str:
-    """Serialize one JSONL line with ``type`` key (matching JS format)."""
+    """Serialize one JSONL line with ``type`` key."""
     obj: dict[str, object] = {"timestamp": _now_iso(), "type": event_type}
     obj.update({k: v for k, v in extra.items() if v is not None})
     return json.dumps(obj, default=str)

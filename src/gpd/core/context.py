@@ -16,8 +16,10 @@ from pathlib import Path
 
 from gpd.core.config import (
     GPDProjectConfig,
-    load_config as _load_config_structured,
     resolve_agent_tier,
+)
+from gpd.core.config import (
+    load_config as _load_config_structured,
 )
 from gpd.core.constants import (
     CONFIG_FILENAME,
@@ -28,7 +30,7 @@ from gpd.core.constants import (
     ROADMAP_FILENAME,
     STATE_MD_FILENAME,
 )
-from gpd.core.errors import ConfigError, ValidationError
+from gpd.core.errors import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -201,9 +203,6 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
     if cfg.model_map:
         d["model_map"] = cfg.model_map
     return d
-
-
-_SENTINEL = object()  # unique marker for "key not found" in config lookup
 
 
 def load_config(cwd: Path) -> dict:

@@ -19,8 +19,6 @@ pattern_search   — keyword search
 pattern_promote  — promote confidence level
 pattern_update   — increment occurrence + update fields
 pattern_seed     — initialize with canonical physics patterns
-
-Ported from experiments/get-physics-done/get-physics-done/src/patterns.js (896 lines).
 """
 
 from __future__ import annotations

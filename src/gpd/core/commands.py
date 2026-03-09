@@ -1,7 +1,4 @@
-"""Ported JS command functions — pure logic with I/O separation.
-
-Ported from experiments/get-physics-done/get-physics-done/src/commands.js
-and experiments/get-physics-done/get-physics-done/src/index.js.
+"""Command functions — pure logic with I/O separation.
 
 All functions take state dicts / Path arguments — callers handle persistence.
 Layer 1 code: stdlib + pathlib + re + pydantic only.

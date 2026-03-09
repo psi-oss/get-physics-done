@@ -3,8 +3,6 @@
 Aggregates validation and diagnostic checks across project structure, state
 consistency, convention completeness, config, roadmap, and more into a single
 report with auto-fix capability.
-
-Ported from experiments/get-physics-done/get-physics-done/src/health.js (1053 lines).
 """
 
 from __future__ import annotations
@@ -40,7 +38,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
-from gpd.core.errors import GPDError
+from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.state import (
     load_state_json,
@@ -663,7 +661,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
         version: Version string to include in the report.
     """
     if specs_dir is None:
-        raise ValueError(
+        raise ValidationError(
             "specs_dir is required. Pass the specs directory explicitly "
             "(e.g., from SPECS_DIR in gpd or via CLI argument)."
         )

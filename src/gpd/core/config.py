@@ -1,6 +1,5 @@
 """GPD configuration loading and model tier system.
 
-Ported from experiments/get-physics-done/get-physics-done/src/utils.js (config section).
 Layer 1 code: stdlib + pydantic only.
 """
 

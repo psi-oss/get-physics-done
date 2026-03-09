@@ -1578,9 +1578,9 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
 def state_record_metric(
     cwd: Path,
     *,
-    phase: str,
-    plan: str,
-    duration: str,
+    phase: str | None = None,
+    plan: str | None = None,
+    duration: str | None = None,
     tasks: str | None = None,
     files: str | None = None,
 ) -> RecordMetricResult:
@@ -1663,7 +1663,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
 def state_add_decision(
     cwd: Path,
     *,
-    summary: str,
+    summary: str | None = None,
     phase: str | None = None,
     rationale: str | None = None,
 ) -> AddDecisionResult:

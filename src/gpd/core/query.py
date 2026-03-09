@@ -1,6 +1,5 @@
 """Cross-phase result query commands for GPD.
 
-Ported from experiments/get-physics-done/get-physics-done/src/query.js.
 Searches across all phase SUMMARY files to find results by provides, requires,
 affects, equation, text, and assumption references.
 """

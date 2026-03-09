@@ -4,15 +4,12 @@ Provides the 18-field convention lock system: set/list/diff/check operations,
 ASSERT_CONVENTION parsing from LaTeX/Python/Markdown files, key alias
 normalization, and value sanitization.
 
-Ported from experiments/get-physics-done/get-physics-done/src/state-conventions.js (420 lines).
-
-Python enhancements over JS (intentional, not bugs):
-- KEY_ALIASES: 13 short aliases (e.g., "metric" -> "metric_signature").
-  JS requires full field names only. Python is more lenient for CLI ergonomics.
+Key features:
+- KEY_ALIASES: 13 short aliases (e.g., "metric" -> "metric_signature")
+  for CLI ergonomics.
 - VALUE_ALIASES: Normalizes variant notations (e.g., "+---" -> "mostly-minus").
-  JS stores raw values without normalization.
 - ASSERT_CONVENTION parsing: Scans file content for convention assertions in
-  Markdown/LaTeX/Python comments. JS has no file-scanning equivalent.
+  Markdown/LaTeX/Python comments.
 """
 
 from __future__ import annotations
@@ -59,9 +56,8 @@ __all__ = [
 
 KNOWN_CONVENTIONS: list[str] = [name for name in ConventionLock.model_fields if name != "custom_conventions"]
 
-# Explicit label map matching JS CONVENTION_LABELS exactly.
-# Previously auto-generated via name.replace("_", " ").capitalize() which produced
-# incorrect casing (e.g., "Levi civita sign" instead of "Levi-Civita sign").
+# Explicit label map (not auto-generated from field names, which would produce
+# incorrect casing like "Levi civita sign" instead of "Levi-Civita sign").
 CONVENTION_LABELS: dict[str, str] = {
     "metric_signature": "Metric signature",
     "fourier_convention": "Fourier convention",
@@ -84,7 +80,6 @@ CONVENTION_LABELS: dict[str, str] = {
 }
 
 # Short aliases (physicist-friendly) -> canonical convention_lock field names.
-# Python enhancement: JS requires full field names only.
 KEY_ALIASES: dict[str, str] = {
     "metric": "metric_signature",
     "fourier": "fourier_convention",
@@ -103,7 +98,6 @@ KEY_ALIASES: dict[str, str] = {
 }
 
 # Per-field value normalization: variant notations -> canonical form.
-# Python enhancement: JS stores raw values without normalization.
 # Physicists write metric signatures as (+,-,-,-) or (-,+,+,+) but the
 # canonical form in the lock may be "mostly-plus" or "mostly-minus".
 VALUE_ALIASES: dict[str, dict[str, str]] = {
@@ -124,7 +118,7 @@ VALUE_ALIASES: dict[str, dict[str, str]] = {
 # Values that should be treated as "unset" (prevent string-vs-null confusion)
 _BOGUS_VALUES = frozenset({"", "null", "undefined", "none"})
 
-# Regex for ASSERT_CONVENTION lines (Python enhancement: JS has no equivalent):
+# Regex for ASSERT_CONVENTION lines:
 #   <!-- ASSERT_CONVENTION: key=value, key=value -->  (Markdown)
 #   % ASSERT_CONVENTION: key=value, key=value         (LaTeX)
 #   # ASSERT_CONVENTION: key=value, key=value         (Python)
@@ -384,7 +378,7 @@ def convention_diff(lock_a: ConventionLock, lock_b: ConventionLock) -> Conventio
 def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | None:
     """Extract convention mentions from a phase's SUMMARY frontmatter and body.
 
-    Mirrors the JS cmdConventionDiff extractPhaseConventions logic:
+    Extracts convention mentions from frontmatter and body text:
     1. Parse YAML frontmatter for conventions/convention_lock fields
     2. Scan body text for "Convention Label: value" patterns
 
@@ -457,8 +451,6 @@ def convention_diff_phases(
     Extracts conventions from phase summary frontmatter and body text,
     then computes the diff. Falls back to current state convention_lock
     if no convention data is found in either phase.
-
-    This matches the JS cmdConventionDiff behavior.
     """
     import json
 
@@ -557,8 +549,6 @@ def convention_check(lock: ConventionLock) -> ConventionCheckResult:
 
 def parse_assert_conventions(content: str) -> list[tuple[str, str]]:
     """Parse ASSERT_CONVENTION directives from file content.
-
-    Python enhancement: JS has no file-scanning equivalent.
 
     Supports three comment formats:
         <!-- ASSERT_CONVENTION: key=value, key=value -->  (Markdown/HTML)

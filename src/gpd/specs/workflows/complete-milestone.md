@@ -46,7 +46,7 @@ ROADMAP=$(gpd roadmap analyze)
 This returns all phases with plan/summary counts and disk status. Use this to verify:
 
 - Which phases belong to this milestone?
-- All phases complete (all plans have summaries)? Check `disk_status === 'complete'` for each.
+- All phases complete (all plans have summaries)? Check `disk_status == 'complete'` for each.
 - `progress_percent` should be 100%.
 
 Present:

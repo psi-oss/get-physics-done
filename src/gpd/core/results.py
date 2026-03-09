@@ -1,6 +1,5 @@
 """Intermediate result tracking for GPD research state.
 
-Ported from experiments/get-physics-done/get-physics-done/src/state-results.js.
 All functions operate on state dicts (the caller handles persistence).
 """
 
@@ -72,7 +71,7 @@ RESULT_FIELDS = frozenset({"equation", "description", "units", "validity", "phas
 
 
 def _int_to_base36(n: int) -> str:
-    """Convert a non-negative integer to a base-36 string (matching JS Number.toString(36))."""
+    """Convert a non-negative integer to a base-36 string."""
     if n == 0:
         return "0"
     digits = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -88,9 +87,8 @@ def _auto_generate_id(state: dict) -> str:
 
     Format: "R-{phase}-{seq}-{suffix}" e.g. "R-03-01-lxk7a2b".
 
-    Uses base-36 encoding for the timestamp suffix, matching JS behavior
-    (Date.now().toString(36)). The random part uses secrets.token_hex for
-    better collision resistance than JS Math.random().toString(36).
+    Uses base-36 encoding for the timestamp suffix and secrets.token_hex
+    for the random part to provide good collision resistance.
     """
     position = state.get("position", {})
     phase = position.get("current_phase", 0)
@@ -104,7 +102,7 @@ def _auto_generate_id(state: dict) -> str:
     seq = len(existing_in_phase) + 1
     padded_seq = str(seq).zfill(2)
 
-    # Base-36 timestamp suffix (matches JS Date.now().toString(36))
+    # Base-36 timestamp suffix (last 4 chars of ms-since-epoch in base-36)
     ts_part = _int_to_base36(int(time.time() * 1000))[-4:]
     rand_part = secrets.token_hex(2)[:3]
     suffix = ts_part + rand_part

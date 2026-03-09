@@ -1,7 +1,5 @@
 """Frontmatter parsing, schema validation, verification suite, and template operations.
 
-Ported from experiments/get-physics-done/get-physics-done/src/frontmatter.js (1142 lines).
-
 Core operations:
   extract_frontmatter / reconstruct_frontmatter / splice_frontmatter — YAML CRUD
   validate_frontmatter — schema enforcement for plan/summary/verification files

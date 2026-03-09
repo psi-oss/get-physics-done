@@ -1,6 +1,5 @@
 """Approximations, uncertainties, open questions, and active calculations for GPD state.
 
-Ported from experiments/get-physics-done/get-physics-done/src/state-extras.js.
 All functions operate on state dicts (the caller handles persistence).
 """
 

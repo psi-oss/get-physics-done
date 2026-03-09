@@ -1,6 +1,5 @@
 """Next-action intelligence for GPD research projects.
 
-Ported from experiments/get-physics-done/get-physics-done/src/commands.js (cmdSuggestNext).
 Analyzes current project state and returns prioritized recommendations for next steps.
 
 Layer 1 code: stdlib + pathlib + json + dataclasses only.
@@ -47,7 +46,7 @@ CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
 # Paper search paths relative to cwd
 PAPER_PATHS = ("paper/main.tex", "manuscript/main.tex", "draft/main.tex")
 
-# Config defaults matching JS loadConfig
+# Config defaults matching load_config()
 _CONFIG_DEFAULTS: dict[str, object] = {
     "autonomy": "guided",
     "research_mode": "balanced",
