@@ -430,6 +430,45 @@ convention_app = typer.Typer(help="Convention lock (notation, units, sign conven
 app.add_typer(convention_app, name="convention")
 
 
+def _load_lock() -> "ConventionLock":
+    """Load ConventionLock from state.json in the current working directory."""
+    import json
+
+    from gpd.contracts import ConventionLock
+    from gpd.core.constants import ProjectLayout
+
+    state_path = ProjectLayout(_get_cwd()).state_json
+    try:
+        raw = json.loads(state_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ConventionLock()
+    except json.JSONDecodeError as e:
+        _error(f"Malformed state.json: {e}")
+        raise typer.Exit(code=1)
+
+    lock_data = raw.get("convention_lock", {})
+    if not isinstance(lock_data, dict):
+        return ConventionLock()
+    return ConventionLock(**lock_data)
+
+
+def _save_lock(lock: "ConventionLock") -> None:
+    """Save ConventionLock back to state.json."""
+    import json
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write, file_lock
+
+    state_path = ProjectLayout(_get_cwd()).state_json
+    with file_lock(state_path):
+        try:
+            raw = json.loads(state_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            raw = {}
+        raw["convention_lock"] = lock.model_dump(exclude_none=True)
+        atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
+
+
 @convention_app.command("set")
 def convention_set(
     key: str = typer.Argument(..., help="Convention key"),
@@ -439,7 +478,11 @@ def convention_set(
     """Set a convention in the convention lock."""
     from gpd.core.conventions import convention_set
 
-    _output(convention_set(_get_cwd(), key, value, force=force))
+    lock = _load_lock()
+    result = convention_set(lock, key, value, force=force)
+    if result.updated:
+        _save_lock(lock)
+    _output(result)
 
 
 @convention_app.command("list")
@@ -447,7 +490,7 @@ def convention_list() -> None:
     """List all active conventions."""
     from gpd.core.conventions import convention_list
 
-    _output(convention_list(_get_cwd()))
+    _output(convention_list(_load_lock()))
 
 
 @convention_app.command("diff")
@@ -466,7 +509,7 @@ def convention_check() -> None:
     """Check convention consistency across phases."""
     from gpd.core.conventions import convention_check
 
-    _output(convention_check(_get_cwd()))
+    _output(convention_check(_load_lock()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -507,6 +550,22 @@ def result_add(
     )
 
 
+def _load_state_dict() -> dict:
+    """Load state.json as a plain dict for commands that need raw state."""
+    import json
+
+    from gpd.core.constants import ProjectLayout
+
+    state_path = ProjectLayout(_get_cwd()).state_json
+    try:
+        return json.loads(state_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as e:
+        _error(f"Malformed state.json: {e}")
+        raise typer.Exit(code=1)
+
+
 @result_app.command("list")
 def result_list(
     phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
@@ -516,7 +575,7 @@ def result_list(
     """List intermediate results."""
     from gpd.core.results import result_list
 
-    _output(result_list(_get_cwd(), phase=phase, verified=verified, unverified=unverified))
+    _output(result_list(_load_state_dict(), phase=phase, verified=verified, unverified=unverified))
 
 
 @result_app.command("deps")
