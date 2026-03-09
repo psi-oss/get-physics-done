@@ -96,7 +96,7 @@ class TestBuildPaper:
         async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
             return mock_result
 
-        monkeypatch.setattr("gpd.mcp.paper.compiler.check_class_file", lambda dc: (True, "ok"))
+        monkeypatch.setattr("gpd.mcp.paper.compiler.check_class_file", lambda dc, install_hint=None: (True, "ok"))
         monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
 
         output = await build_paper(config, tmp_path)
@@ -235,10 +235,37 @@ class TestClassFileFallback:
 
         monkeypatch.setattr(
             "gpd.mcp.paper.compiler.check_class_file",
-            lambda dc: (False, f"{dc}.cls not found. Install via: tlmgr install revtex"),
+            lambda dc, install_hint=None: (False, f"{dc}.cls not found. Install via: tlmgr install revtex"),
         )
 
         output = await build_paper(config, tmp_path)
         assert output.success is False
         assert len(output.errors) > 0
         assert "not found" in output.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_build_paper_missing_jhep_support_file(self, tmp_path, monkeypatch):
+        from gpd.mcp.paper.compiler import build_paper
+
+        config = PaperConfig(
+            title="Test",
+            authors=[Author(name="A")],
+            abstract="Abstract.",
+            sections=[Section(title="Intro", content="Hello.")],
+            journal="jhep",
+        )
+
+        monkeypatch.setattr("gpd.mcp.paper.compiler.check_class_file", lambda dc, install_hint=None: (True, "ok"))
+        monkeypatch.setattr(
+            "gpd.mcp.paper.compiler.check_tex_file",
+            lambda resource_name, install_hint=None: (
+                (False, "jheppub.sty not found. Install via: tlmgr install jhep")
+                if resource_name == "jheppub.sty"
+                else (True, "ok")
+            ),
+        )
+
+        output = await build_paper(config, tmp_path)
+        assert output.success is False
+        assert len(output.errors) > 0
+        assert "jheppub.sty not found" in output.errors[0]

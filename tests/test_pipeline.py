@@ -161,3 +161,10 @@ def test_plan_uses_nested_cost_profile_metadata(tmp_path: Path) -> None:
     assert captured_registry["openfoam"]["gpu_type"] == "A10G"
     assert captured_registry["openfoam"]["estimated_seconds"] == 45.0
     assert captured_registry["openfoam"]["cost_per_call_usd"] == 0.22
+
+
+def test_paper_help_lists_jhep() -> None:
+    result = runner.invoke(app, ["paper", "--help"])
+
+    assert result.exit_code == 0
+    assert "jhep" in result.output

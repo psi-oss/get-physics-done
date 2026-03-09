@@ -298,7 +298,7 @@ def paper(
     work_dir: Path = typer.Option(..., "--work-dir", "-w", help="Session work directory"),
     title: str = typer.Option(..., "--title", help="Paper title"),
     abstract: str = typer.Option("", "--abstract", help="Paper abstract"),
-    journal: str = typer.Option("prl", "--journal", "-j", help="Target journal (prl, nature, mnras, apj, jfm)"),
+    journal: str = typer.Option("prl", "--journal", "-j", help="Target journal (prl, jhep, nature, mnras, apj, jfm)"),
 ) -> None:
     """Generate LaTeX paper from research results.
 

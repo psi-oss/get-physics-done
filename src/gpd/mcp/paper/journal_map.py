@@ -9,7 +9,8 @@ from __future__ import annotations
 from gpd.mcp.paper.models import JournalSpec
 
 # Journal specifications with LaTeX configuration, column widths, and DPI requirements.
-# Sources: RevTeX 4.2 Author's Guide, AASTeX v6.3.1/v7.0 Guide, MNRAS Guide, Nature template.
+# Sources: RevTeX 4.2 Author's Guide, AASTeX v6.3.1/v7.0 Guide, MNRAS Guide,
+# Nature template, JHEP author manual.
 JOURNAL_SPECS: dict[str, JournalSpec] = {
     "prl": JournalSpec(
         key="prl",
@@ -23,6 +24,7 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         preferred_formats=["pdf", "eps", "png"],
         compiler="pdflatex",
         texlive_package="revtex",
+        required_tex_files=["apsrev4-2.bst"],
     ),
     "apj": JournalSpec(
         # Default to aastex631 for broader compatibility.
@@ -39,6 +41,7 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         preferred_formats=["pdf", "eps", "png"],
         compiler="pdflatex",
         texlive_package="aastex",
+        required_tex_files=["aasjournal.bst"],
     ),
     "mnras": JournalSpec(
         key="mnras",
@@ -52,6 +55,7 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         preferred_formats=["pdf", "eps", "png"],
         compiler="pdflatex",
         texlive_package="mnras",
+        required_tex_files=["mnras.bst"],
     ),
     "nature": JournalSpec(
         key="nature",
@@ -65,6 +69,24 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         preferred_formats=["pdf", "eps", "tiff", "png"],
         compiler="pdflatex",
         texlive_package="latex-base",
+        required_tex_files=["naturemag.bst"],
+        install_hint="Install via: tlmgr install nature",
+    ),
+    "jhep": JournalSpec(
+        # JHEP uses article + jheppub.sty with JHEP.bst for bibliography.
+        key="jhep",
+        document_class="article",
+        class_options=["a4paper", "11pt"],
+        bib_style="JHEP",
+        column_width_cm=16.5,
+        double_width_cm=16.5,
+        max_height_cm=24.0,
+        dpi=300,
+        preferred_formats=["pdf", "eps", "png"],
+        compiler="pdflatex",
+        texlive_package="jhep",
+        required_tex_files=["jheppub.sty", "JHEP.bst"],
+        install_hint="Install the official JHEP author package so jheppub.sty and JHEP.bst are on your TeX path.",
     ),
     "jfm": JournalSpec(
         # Note: jfm.cls must be installed separately -- not in standard TeX Live.
@@ -80,6 +102,8 @@ JOURNAL_SPECS: dict[str, JournalSpec] = {
         preferred_formats=["pdf", "eps", "png"],
         compiler="pdflatex",
         texlive_package="jfm",
+        required_tex_files=["jfm.bst"],
+        install_hint="Install the official Cambridge JFM class bundle and place jfm.cls and jfm.bst on your TeX path.",
     ),
 }
 

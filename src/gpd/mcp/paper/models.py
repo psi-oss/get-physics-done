@@ -47,6 +47,8 @@ class JournalSpec(BaseModel):
     preferred_formats: list[str]
     compiler: str = "pdflatex"
     texlive_package: str
+    required_tex_files: list[str] = Field(default_factory=list)
+    install_hint: str = ""
 
 
 class PaperConfig(BaseModel):

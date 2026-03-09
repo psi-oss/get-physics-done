@@ -1,6 +1,6 @@
-"""Compiler wrapper: class file checks, multi-pass compilation, full pipeline.
+"""Compiler wrapper: TeX dependency checks, multi-pass compilation, full pipeline.
 
-Wraps the LaTeX compiler with class file pre-checks (kpsewhich),
+Wraps the LaTeX compiler with TeX resource pre-checks (kpsewhich),
 latexmk support for multi-pass compilation, and the build_paper orchestrator.
 """
 
@@ -16,13 +16,13 @@ from pathlib import Path
 from gpd.mcp.paper.bibliography import BibliographyData, write_bib_file
 from gpd.mcp.paper.figures import prepare_figures
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import PaperConfig, PaperOutput
+from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
 
 
-# ---- Class file availability check ----
+# ---- TeX resource availability check ----
 
 _DOCUMENT_CLASS_TO_TLMGR: dict[str, str] = {
     "revtex4-2": "revtex",
@@ -39,28 +39,56 @@ def _get_tlmgr_package(document_class: str) -> str:
     return _DOCUMENT_CLASS_TO_TLMGR.get(document_class, document_class)
 
 
-def check_class_file(document_class: str) -> tuple[bool, str]:
-    """Check if a LaTeX class file is available via kpsewhich.
+def _default_install_hint(package_name: str) -> str:
+    """Return the standard TeX Live install guidance string."""
+    return f"Install via: tlmgr install {package_name}"
+
+
+def check_tex_file(resource_name: str, install_hint: str | None = None) -> tuple[bool, str]:
+    """Check if a TeX resource file is available via kpsewhich.
 
     Returns:
         (available, message) tuple. If kpsewhich is not installed,
-        assumes the class file is present.
+        assumes the resource is present.
     """
     try:
         result = subprocess.run(
-            ["kpsewhich", f"{document_class}.cls"],
+            ["kpsewhich", resource_name],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        if result.returncode == 0:
+        if result.returncode == 0 and result.stdout.strip():
             return True, result.stdout.strip()
-        pkg = _get_tlmgr_package(document_class)
-        return False, f"{document_class}.cls not found. Install via: tlmgr install {pkg}"
+        hint = install_hint or _default_install_hint(Path(resource_name).stem)
+        return False, f"{resource_name} not found. {hint}"
     except FileNotFoundError:
-        return True, "kpsewhich not available, assuming class file present"
+        return True, "kpsewhich not available, assuming TeX resource present"
     except subprocess.TimeoutExpired:
-        return True, "kpsewhich timed out, assuming class file present"
+        return True, "kpsewhich timed out, assuming TeX resource present"
+
+
+def check_class_file(document_class: str, install_hint: str | None = None) -> tuple[bool, str]:
+    """Check if a LaTeX class file is available via kpsewhich."""
+    hint = install_hint or _default_install_hint(_get_tlmgr_package(document_class))
+    return check_tex_file(f"{document_class}.cls", install_hint=hint)
+
+
+def check_journal_dependencies(spec: JournalSpec) -> tuple[bool, list[str]]:
+    """Check whether a journal's class and support files are installed."""
+    errors: list[str] = []
+    install_hint = spec.install_hint or _default_install_hint(spec.texlive_package)
+
+    available, message = check_class_file(spec.document_class, install_hint=install_hint)
+    if not available:
+        errors.append(message)
+
+    for resource_name in spec.required_tex_files:
+        available, message = check_tex_file(resource_name, install_hint=install_hint)
+        if not available:
+            errors.append(message)
+
+    return not errors, errors
 
 
 # ---- Multi-pass compilation ----
@@ -190,7 +218,7 @@ async def build_paper(
     1. Prepare figures (normalize, size)
     2. Write .bib file
     3. Render .tex from template
-    4. Check class file availability
+    4. Check required TeX resources
     5. Compile to PDF
     """
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -216,11 +244,11 @@ async def build_paper(
     tex_path = output_dir / "paper.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
 
-    # 4. Check class file (blocking subprocess; run in thread to avoid stalling the loop)
+    # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
-    available, msg = await asyncio.to_thread(check_class_file, spec.document_class)
-    if not available:
-        errors.append(msg)
+    dependencies_available, dependency_errors = await asyncio.to_thread(check_journal_dependencies, spec)
+    if not dependencies_available:
+        errors.extend(dependency_errors)
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,

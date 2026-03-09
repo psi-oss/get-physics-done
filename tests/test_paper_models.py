@@ -67,20 +67,23 @@ class TestModels:
         )
         assert spec.compiler == "pdflatex"
         assert spec.dpi == 300
+        assert spec.required_tex_files == []
+        assert spec.install_hint == ""
 
 
 # ---- Journal map tests ----
 
 
 class TestJournalMap:
-    def test_get_journal_spec_all_five(self):
+    def test_get_journal_spec_all_six(self):
         from gpd.mcp.paper.journal_map import get_journal_spec
 
-        for key in ["prl", "apj", "mnras", "nature", "jfm"]:
+        for key in ["prl", "apj", "mnras", "nature", "jhep", "jfm"]:
             spec = get_journal_spec(key)
             assert spec.key == key
             assert spec.column_width_cm > 0
             assert spec.dpi > 0
+            assert f"{spec.bib_style}.bst" in spec.required_tex_files
 
     def test_get_journal_spec_unknown_raises(self):
         from gpd.mcp.paper.journal_map import get_journal_spec
@@ -111,8 +114,8 @@ class TestJournalMap:
         from gpd.mcp.paper.journal_map import list_journals
 
         journals = list_journals()
-        assert len(journals) == 5
-        assert set(journals) == {"prl", "apj", "mnras", "nature", "jfm"}
+        assert len(journals) == 6
+        assert set(journals) == {"prl", "apj", "mnras", "nature", "jhep", "jfm"}
 
 
 # ---- Template tests ----
@@ -122,7 +125,7 @@ class TestTemplates:
     def test_load_all_templates(self):
         from gpd.mcp.paper.template_registry import load_template
 
-        for j in ["prl", "apj", "mnras", "nature", "jfm"]:
+        for j in ["prl", "apj", "mnras", "nature", "jhep", "jfm"]:
             t = load_template(j)
             assert t is not None
 
@@ -157,6 +160,24 @@ class TestTemplates:
         )
         tex = render_paper(config)
         assert "aastex631" in tex
+
+    def test_render_jhep_paper(self):
+        from gpd.mcp.paper.template_registry import render_paper
+
+        config = PaperConfig(
+            title="Loop Corrections",
+            authors=[Author(name="A", email="a@example.com", affiliation="CERN")],
+            abstract="Abstract.",
+            sections=[Section(title="Setup", content="Details.")],
+            journal="jhep",
+        )
+        tex = render_paper(config)
+        assert r"\documentclass[a4paper,11pt]{article}" in tex
+        assert r"\usepackage{jheppub}" in tex
+        assert r"\author[1]{A}" in tex
+        assert r"\affiliation[1]{CERN}" in tex
+        assert r"\emailAdd{a@example.com}" in tex
+        assert r"\bibliographystyle{JHEP}" in tex
 
     def test_render_with_figures(self):
         from gpd.mcp.paper.template_registry import render_paper
