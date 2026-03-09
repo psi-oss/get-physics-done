@@ -1157,6 +1157,26 @@ def init_todos(
     _output(init_todos(_get_cwd(), area))
 
 
+@init_app.command("phase-op")
+def init_phase_op(
+    phase: str | None = typer.Argument(None, help="Phase number"),
+    include: str | None = typer.Option(None, "--include", help="Additional context includes"),
+) -> None:
+    """Assemble context for generic phase operations."""
+    from gpd.core.context import init_phase_op
+
+    includes = set(include.split(",")) if include else set()
+    _output(init_phase_op(_get_cwd(), phase, includes))
+
+
+@init_app.command("milestone-op")
+def init_milestone_op() -> None:
+    """Assemble context for milestone operations."""
+    from gpd.core.context import init_milestone_op
+
+    _output(init_milestone_op(_get_cwd()))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # extras — Approximations, uncertainties, questions, calculations
 # ═══════════════════════════════════════════════════════════════════════════
