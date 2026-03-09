@@ -98,7 +98,7 @@ class SessionManager:
             msg = f"Session file not found: {path}"
             raise FileNotFoundError(msg)
 
-        session = SessionState.model_validate_json(path.read_text())
+        session = SessionState.model_validate_json(path.read_text(encoding="utf-8"))
         self._active_session = session
         return session
 
@@ -130,9 +130,12 @@ class SessionManager:
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
-        if not json_files:
-            return None
-        return SessionState.model_validate_json(json_files[0].read_text())
+        for f in json_files:
+            try:
+                return SessionState.model_validate_json(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+        return None
 
     def list_sessions(self, limit: int = 50) -> list[SessionState]:
         """List sessions sorted by modification time (newest first)."""
@@ -143,5 +146,8 @@ class SessionManager:
         )
         sessions: list[SessionState] = []
         for path in json_files[:limit]:
-            sessions.append(SessionState.model_validate_json(path.read_text()))
+            try:
+                sessions.append(SessionState.model_validate_json(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                continue
         return sessions

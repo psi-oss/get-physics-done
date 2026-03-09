@@ -91,7 +91,7 @@ def _detect_model() -> str:
     if settings_path is None or not settings_path.exists():
         return "unknown"
     try:
-        data = json.loads(settings_path.read_text())
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
         model = str(data.get("model", "unknown"))
         return _DISPLAY_NAMES.get(model, model)
     except (json.JSONDecodeError, OSError):
@@ -135,7 +135,7 @@ def get_cached_mcp_count() -> int:
     cache_file = CACHE_DIR / "mcp_count.json"
     if cache_file.exists():
         try:
-            data = json.loads(cache_file.read_text())
+            data = json.loads(cache_file.read_text(encoding="utf-8"))
             return int(data["count"])
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             return 0
@@ -342,7 +342,7 @@ def build_mcp_config_file() -> Path | None:
     servers: dict[str, dict[str, object]] = {}
     for config_file in sorted(mcp_dir.glob("*.json")):
         try:
-            raw = json.loads(config_file.read_text())
+            raw = json.loads(config_file.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
 
@@ -380,7 +380,7 @@ def build_mcp_config_file() -> Path | None:
 
     config_path = CACHE_DIR / "mcp-config.json"
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(json.dumps({"mcpServers": servers}, indent=2))
+    config_path.write_text(json.dumps({"mcpServers": servers}, indent=2), encoding="utf-8")
     return config_path
 
 
@@ -455,7 +455,7 @@ def _try_load_questioning_from_file() -> str | None:
             return None
 
         questioning_file = refs_dir / "questioning.md"
-        raw = questioning_file.read_text()
+        raw = questioning_file.read_text(encoding="utf-8")
 
         philosophy = _extract_xml_section(raw, "philosophy")
         how_to_question = _extract_xml_section(raw, "how_to_question")
@@ -815,7 +815,7 @@ def _detect_model_alias() -> str:
     if settings_path is None or not settings_path.exists():
         return "opus"
     try:
-        data = json.loads(settings_path.read_text())
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
         return str(data.get("model", "opus"))
     except (json.JSONDecodeError, OSError):
         return "opus"

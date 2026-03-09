@@ -99,7 +99,7 @@ def push(
 
     # Read from file (extract frames from MCP response JSON)
     if file:
-        with open(file) as f:
+        with open(file, encoding="utf-8") as f:
             response = json.load(f)
 
         frames = _extract_frames(response, tool)

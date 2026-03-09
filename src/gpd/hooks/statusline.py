@@ -48,7 +48,7 @@ def _read_position(workspace_dir: str) -> str:
     if not state_file.exists():
         return ""
     try:
-        state = json.loads(state_file.read_text())
+        state = json.loads(state_file.read_text(encoding="utf-8"))
         pos = state.get("position", {})
         phase = pos.get("current_phase")
         total_phases = pos.get("total_phases")
@@ -94,7 +94,7 @@ def _read_current_task(session_id: str) -> str:
         return ""
 
     try:
-        todos = json.loads(matches[0][1].read_text())
+        todos = json.loads(matches[0][1].read_text(encoding="utf-8"))
         for t in todos:
             if t.get("status") == "in_progress":
                 return t.get("activeForm", "")
@@ -114,7 +114,7 @@ def _check_update() -> str:
     for cache_file in cache_paths:
         if cache_file.exists():
             try:
-                cache = json.loads(cache_file.read_text())
+                cache = json.loads(cache_file.read_text(encoding="utf-8"))
                 if cache.get("update_available"):
                     return "\x1b[33m\u2b06 /gpd:update\x1b[0m \u2502 "
             except Exception as exc:

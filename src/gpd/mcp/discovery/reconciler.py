@@ -37,7 +37,7 @@ def check_deployment_status(project_root: Path | None = None) -> set[str]:
         return set()
 
     try:
-        with open(status_path) as f:
+        with open(status_path, encoding="utf-8") as f:
             data = json.load(f)
         passed = data.get("passed", [])
         return set(passed)

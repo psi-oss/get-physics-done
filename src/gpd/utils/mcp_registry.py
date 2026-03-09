@@ -62,7 +62,7 @@ def get_passing_mcps() -> set[str]:
     status_file = simulators_dir.parent / "MCP_TEST_STATUS.md"
     passing: set[str] = set()
     if status_file.exists():
-        with open(status_file) as f:
+        with open(status_file, encoding="utf-8") as f:
             for line in f:
                 if "| PASS" in line:
                     parts = line.split("|")
@@ -82,7 +82,7 @@ def get_skills_summary() -> dict:
     skills_file = simulators_dir / "SKILLS_SUMMARY.json"
     if skills_file.exists():
         try:
-            with open(skills_file) as f:
+            with open(skills_file, encoding="utf-8") as f:
                 data = json.load(f)
                 return data.get("skills", {})
         except (OSError, json.JSONDecodeError):
@@ -106,7 +106,7 @@ def get_streaming_configs() -> dict:
             continue
 
         try:
-            with open(metadata_file) as f:
+            with open(metadata_file, encoding="utf-8") as f:
                 metadata = json.load(f)
 
             streaming = metadata.get("streaming", {})
@@ -238,7 +238,7 @@ def get_available_mcps() -> dict:
                 continue
 
             try:
-                with open(subdir / "server.py") as f:
+                with open(subdir / "server.py", encoding="utf-8") as f:
                     content = f.read()
 
                 if mcp_id in CURATED_DESCRIPTIONS:

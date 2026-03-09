@@ -124,7 +124,7 @@ def plan(
     Outputs JSON with the full plan including milestones, costs, and approval gates.
     """
     try:
-        tools_data = json.loads(tools_file.read_text())
+        tools_data = json.loads(tools_file.read_text(encoding="utf-8"))
         available_tools = tools_data if isinstance(tools_data, list) else tools_data.get("tools", [])
 
         from gpd.mcp.research.cost_estimator import format_three_level_cost_display
@@ -156,7 +156,7 @@ def plan(
         # Save plan to work dir for later stages
         work_dir.mkdir(parents=True, exist_ok=True)
         plan_path = work_dir / "plan.json"
-        plan_path.write_text(plan_result.model_dump_json(indent=2))
+        plan_path.write_text(plan_result.model_dump_json(indent=2), encoding="utf-8")
 
         _json_out(
             {
@@ -201,7 +201,7 @@ def execute(
         from gpd.mcp.research.error_recovery import execute_milestone_with_recovery
         from gpd.mcp.research.schemas import MilestoneResult, ResearchPlan
 
-        plan_data = json.loads(plan_file.read_text())
+        plan_data = json.loads(plan_file.read_text(encoding="utf-8"))
         research_plan = ResearchPlan.model_validate(plan_data)
 
         # Find the target milestone
@@ -216,7 +216,7 @@ def execute(
         results_dir.mkdir(parents=True, exist_ok=True)
         prior_results: dict[str, MilestoneResult] = {}
         for result_file in results_dir.glob("*.json"):
-            result_data = json.loads(result_file.read_text())
+            result_data = json.loads(result_file.read_text(encoding="utf-8"))
             mr = MilestoneResult.model_validate(result_data)
             prior_results[mr.milestone_id] = mr
 
@@ -231,7 +231,7 @@ def execute(
 
         # Save result
         result_path = results_dir / f"{milestone}.json"
-        result_path.write_text(result.model_dump_json(indent=2))
+        result_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
         _json_out(
             {
@@ -272,7 +272,7 @@ def paper(
         results: list[MilestoneResult] = []
         if results_dir.exists():
             for result_file in sorted(results_dir.glob("*.json")):
-                data = json.loads(result_file.read_text())
+                data = json.loads(result_file.read_text(encoding="utf-8"))
                 results.append(MilestoneResult.model_validate(data))
 
         # Build research summary from results

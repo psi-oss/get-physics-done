@@ -235,7 +235,10 @@ class SearchIndex:
 
         count = 0
         for path in sessions_dir.glob("*.json"):
-            session = SessionState.model_validate_json(path.read_text())
+            try:
+                session = SessionState.model_validate_json(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
             self.index_session(session)
             count += 1
         return count

@@ -42,7 +42,7 @@ def _check_and_notify_update() -> None:
     for cache_file in cache_paths:
         if cache_file.exists():
             try:
-                cache = json.loads(cache_file.read_text())
+                cache = json.loads(cache_file.read_text(encoding="utf-8"))
                 if cache.get("update_available"):
                     installed = cache.get("installed", "?")
                     latest = cache.get("latest", "?")

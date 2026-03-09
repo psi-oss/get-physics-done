@@ -22,7 +22,6 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
     ROADMAP_FILENAME,
-    STATE_JSON_FILENAME,
     STATE_MD_FILENAME,
 )
 
@@ -75,10 +74,10 @@ __all__ = [
 
 
 def _safe_read_file(filepath: Path) -> str | None:
-    """Read a file, returning None if it doesn't exist."""
+    """Read a file, returning None if it doesn't exist or can't be read."""
     try:
         return filepath.read_text(encoding="utf-8")
-    except FileNotFoundError:
+    except (FileNotFoundError, IsADirectoryError, PermissionError, OSError):
         return None
 
 
@@ -783,7 +782,7 @@ def init_resume(cwd: Path) -> dict:
     agent_id_file = cwd / PLANNING_DIR_NAME / "current-agent-id.txt"
     try:
         interrupted_agent_id = agent_id_file.read_text(encoding="utf-8").strip() or None
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         pass
 
     return {

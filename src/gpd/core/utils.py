@@ -227,10 +227,10 @@ MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_IN
 
 
 def safe_read_file(path: Path) -> str | None:
-    """Read a file, returning None if it doesn't exist or is a directory."""
+    """Read a file, returning None if it doesn't exist, is a directory, or can't be read."""
     try:
         return path.read_text(encoding="utf-8")
-    except (FileNotFoundError, IsADirectoryError):
+    except (FileNotFoundError, IsADirectoryError, PermissionError, OSError):
         return None
 
 

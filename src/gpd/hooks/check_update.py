@@ -42,7 +42,7 @@ def _read_installed_version() -> str:
     for vf in _version_files():
         try:
             if vf.exists():
-                return vf.read_text().strip()
+                return vf.read_text(encoding="utf-8").strip()
         except OSError as exc:
             _debug(f"Failed to read {vf}: {exc}")
     return "0.0.0"
@@ -87,7 +87,7 @@ def _do_check(cache_file: Path) -> None:
 
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(json.dumps(result))
+        cache_file.write_text(json.dumps(result), encoding="utf-8")
     except OSError as exc:
         _debug(f"Failed to write update cache: {exc}")
 
@@ -101,7 +101,7 @@ def main() -> None:
     # Throttle: skip if checked recently
     if cache_file.exists():
         try:
-            cache = json.loads(cache_file.read_text())
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)

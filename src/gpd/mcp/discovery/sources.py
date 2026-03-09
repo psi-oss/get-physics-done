@@ -83,7 +83,7 @@ def load_sources_config(config_path: Path | None = None) -> MCPSourcesConfig:
         return get_default_config()
 
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f)
     except (OSError, yaml.YAMLError) as exc:
         logger.warning("Failed to parse MCP sources config at %s: %s", path, exc)
@@ -171,4 +171,4 @@ sources:
       - code-execution
 """
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(content)
+    config_path.write_text(content, encoding="utf-8")
