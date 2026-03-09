@@ -225,7 +225,7 @@ def execute(
             execute_milestone_with_recovery(
                 milestone=target,
                 prior_results=prior_results,
-                tool_router=None,  # Will use MCP tools via Claude Code
+                tool_router=None,  # No custom tool routing; uses MCP tools directly
             )
         )
 

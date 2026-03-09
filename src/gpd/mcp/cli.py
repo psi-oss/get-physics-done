@@ -130,7 +130,7 @@ def main(
                     style="dim",
                 )
 
-            # Launch interactive session (currently Claude Code)
+            # Launch interactive session
             with graceful_shutdown(session_manager):
                 try:
                     launch_session()
@@ -161,7 +161,7 @@ def main(
                 session_name=f"session-{datetime.now().strftime('%Y%m%d-%H%M')}",
             )
 
-            # Launch interactive session (currently Claude Code)
+            # Launch interactive session
             with graceful_shutdown(session_manager):
                 try:
                     launch_session()

@@ -90,7 +90,7 @@ RUNTIME_TABLES: dict[str, dict[str, str]] = {
     "opencode": OPENCODE,
 }
 
-# Legacy Claude Code names found in existing specs → canonical names
+# Legacy runtime-specific names found in existing specs → canonical names
 _LEGACY_ALIASES: dict[str, str] = {
     "read_file": "file_read",
     "write_file": "file_write",
