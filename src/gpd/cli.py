@@ -430,7 +430,7 @@ convention_app = typer.Typer(help="Convention lock (notation, units, sign conven
 app.add_typer(convention_app, name="convention")
 
 
-def _load_lock() -> "ConventionLock":
+def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
     """Load ConventionLock from state.json in the current working directory."""
     import json
 
@@ -444,7 +444,7 @@ def _load_lock() -> "ConventionLock":
         return ConventionLock()
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     lock_data = raw.get("convention_lock", {})
     if not isinstance(lock_data, dict):
@@ -452,7 +452,7 @@ def _load_lock() -> "ConventionLock":
     return ConventionLock(**lock_data)
 
 
-def _save_lock(lock: "ConventionLock") -> None:
+def _save_lock(lock: object) -> None:
     """Save ConventionLock back to state.json."""
     import json
 
@@ -465,7 +465,7 @@ def _save_lock(lock: "ConventionLock") -> None:
             raw = json.loads(state_path.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
             raw = {}
-        raw["convention_lock"] = lock.model_dump(exclude_none=True)
+        raw["convention_lock"] = lock.model_dump(exclude_none=True)  # type: ignore[union-attr]
         atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
 
 
@@ -563,7 +563,7 @@ def _load_state_dict() -> dict:
         return {}
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
 @result_app.command("list")
