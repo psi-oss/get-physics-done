@@ -45,7 +45,36 @@ def test_pyproject_exposes_single_gpd_cli_entrypoint() -> None:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'gpd = "gpd.cli:app"' in pyproject
-    assert '"gpd+" = "gpd.mcp.cli:app"' not in pyproject
+    assert '"gpd+"' not in pyproject
+    assert not (repo_root / "src" / "gpd" / "cli_plus.py").exists()
+
+
+def test_unified_gpd_surface_has_no_cli_plus_regressions() -> None:
+    repo_root = _repo_root()
+    regression_markers = ("gpd+", "GPD+", "cli_plus")
+    scan_targets = [
+        repo_root / "src",
+        repo_root / "docs",
+        repo_root / "README.md",
+        repo_root / "ARCHITECTURE.md",
+        repo_root / "MANUAL-TEST-PLAN.md",
+        repo_root / "pyproject.toml",
+    ]
+
+    offending: list[str] = []
+    for target in scan_targets:
+        paths = [target] if target.is_file() else target.rglob("*")
+        for path in paths:
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if any(marker in content for marker in regression_markers):
+                offending.append(path.relative_to(repo_root).as_posix())
+
+    assert offending == []
 
 
 def test_install_docs_are_npx_only() -> None:
