@@ -4,7 +4,6 @@ Provides:
 - Feature flag system with ablation presets for fine-grained GPD control
 - Logfire span helpers with GPD-specific attributes
 - Decorator factory for instrumented functions
-- Cost tracking attributes
 
 Flag resolution priority: env vars > YAML overrides > GPDConfig (contracts) > local config > preset > defaults.
 """
@@ -32,24 +31,8 @@ __all__ = [
     "FeatureFlagError",
     "FeatureFlags",
     "FlagNotInitializedError",
-    "GPD_ATTR_CHECK_RESULT",
-    "GPD_ATTR_CHECK_TYPE",
-    "GPD_ATTR_CONVENTION_KEY",
-    "GPD_ATTR_DOMAIN",
-    "GPD_ATTR_ERROR_CLASS_ID",
-    "GPD_ATTR_OVERHEAD_COST_USD",
-    "GPD_ATTR_OVERHEAD_TOKENS",
-    "GPD_ATTR_PHASE",
-    "GPD_ATTR_PROTOCOL_NAME",
     "GPD_FEATURE_FLAGS",
     "UnknownPresetError",
-    "get_feature_flags",
-    "gpd_checks_failed",
-    "gpd_checks_passed",
-    "gpd_checks_run",
-    "gpd_convention_violations",
-    "gpd_overhead_cost",
-    "gpd_overhead_tokens",
     "gpd_span",
     "init_feature_flags",
     "instrument_gpd_function",
@@ -397,17 +380,6 @@ def init_feature_flags(
         return _active_flags
 
 
-def get_feature_flags() -> FeatureFlags:
-    """Get the active feature flags.
-
-    Raises:
-        FlagNotInitializedError: If ``init_feature_flags()`` has not been called.
-    """
-    if _active_flags is None:
-        raise FlagNotInitializedError
-    return _active_flags
-
-
 def is_enabled(flag_path: str) -> bool:
     """Check if a specific flag is active. Returns False if flags not initialized."""
     if _active_flags is None:
@@ -424,18 +396,6 @@ def reset_feature_flags() -> None:
 # ---------------------------------------------------------------------------
 # Logfire span helpers
 # ---------------------------------------------------------------------------
-
-# GPD-specific span attribute keys (OpenTelemetry semantic conventions style)
-GPD_ATTR_DOMAIN = "gpd.domain"
-GPD_ATTR_PHASE = "gpd.phase"
-GPD_ATTR_CHECK_TYPE = "gpd.check_type"
-GPD_ATTR_CHECK_RESULT = "gpd.check_result"
-GPD_ATTR_CONVENTION_KEY = "gpd.convention_key"
-GPD_ATTR_ERROR_CLASS_ID = "gpd.error_class_id"
-GPD_ATTR_PROTOCOL_NAME = "gpd.protocol_name"
-GPD_ATTR_OVERHEAD_TOKENS = "gpd.overhead_tokens"
-GPD_ATTR_OVERHEAD_COST_USD = "gpd.overhead_cost_usd"
-
 
 @contextmanager
 def gpd_span(name: str, **attrs: object) -> Generator[logfire.LogfireSpan, None, None]:
@@ -495,44 +455,3 @@ def instrument_gpd_function(
         return sync_wrapper
 
     return decorator
-
-
-# ---------------------------------------------------------------------------
-# Metrics — pre-built counters for GPD overhead tracking
-# ---------------------------------------------------------------------------
-
-gpd_checks_run = logfire.metric_counter(
-    "gpd.checks_run",
-    description="Total GPD verification checks executed",
-    unit="checks",
-)
-
-gpd_checks_passed = logfire.metric_counter(
-    "gpd.checks_passed",
-    description="GPD verification checks that passed",
-    unit="checks",
-)
-
-gpd_checks_failed = logfire.metric_counter(
-    "gpd.checks_failed",
-    description="GPD verification checks that failed",
-    unit="checks",
-)
-
-gpd_convention_violations = logfire.metric_counter(
-    "gpd.convention_violations",
-    description="Convention lock violations detected",
-    unit="violations",
-)
-
-gpd_overhead_tokens = logfire.metric_counter(
-    "gpd.overhead_tokens",
-    description="Tokens consumed by GPD overhead (verification, conventions, protocols)",
-    unit="tokens",
-)
-
-gpd_overhead_cost = logfire.metric_counter(
-    "gpd.overhead_cost_usd",
-    description="Cost in USD of GPD overhead",
-    unit="usd",
-)
