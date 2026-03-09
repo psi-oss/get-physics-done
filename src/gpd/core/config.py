@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
 from gpd.core.errors import ConfigError
 from gpd.core.observability import instrument_gpd_function
 
@@ -345,7 +345,7 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        raise ConfigError(f"Malformed config.json: {e}. Fix or delete .planning/config.json") from e
+        raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
 
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
@@ -394,7 +394,7 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         )
     except (ValueError, TypeError) as e:
         raise ConfigError(
-            f"Invalid config.json values: {e}. Fix or delete .planning/config.json"
+            f"Invalid config.json values: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json"
         ) from e
 
 
