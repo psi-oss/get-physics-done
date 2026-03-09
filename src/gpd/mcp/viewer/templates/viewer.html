@@ -209,10 +209,7 @@
       <div class="empty" id="placeholder">
         Waiting for frames...<br /><br />
         Push from your AI agent:<br />
-        <code
-          >curl -X POST http://localhost:PORT/api/frame -H 'Content-Type:
-          application/json' -d '{"data":"..."}'</code
-        >
+        <code id="hint-cmd"></code>
       </div>
       <img id="main-frame" style="display: none" alt="Simulation frame" />
       <div class="frame-label" id="frame-label" style="display: none"></div>
@@ -264,6 +261,16 @@
         const fpsSlider = document.getElementById("fps-slider");
         const fpsVal = document.getElementById("fps-val");
         const bufferInfo = document.getElementById("buffer-info");
+
+        // Populate the example curl command with the real host:port
+        const hintCmd = document.getElementById("hint-cmd");
+        if (hintCmd) {
+          const origin = window.location.origin;
+          hintCmd.textContent =
+            "curl -X POST " +
+            origin +
+            "/api/frame -H 'Content-Type: application/json' -d '{\"data\":\"...\"}'";
+        }
 
         let frames = [];
         let currentIndex = -1;

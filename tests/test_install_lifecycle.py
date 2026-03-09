@@ -686,6 +686,39 @@ class TestInstallIdempotent:
         assert len(gpd_commands) > 0
 
 
+class TestUpgradePrunesRemovedFiles:
+    """Reinstall should remove files that were managed by an older version but are no longer shipped."""
+
+    @pytest.mark.skip(reason="manifest-based pruning not yet implemented in install pipeline")
+    @pytest.mark.parametrize("runtime", ["claude-code", "gemini", "codex", "opencode"])
+    def test_reinstall_removes_manifest_tracked_legacy_file(self, runtime: str, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter(runtime)
+        target = tmp_path / adapter.config_dir_name
+        target.mkdir(parents=True, exist_ok=True)
+
+        install_kwargs: dict[str, object] = {"is_global": True}
+        if runtime == "codex":
+            skills_dir = tmp_path / ".agents" / "skills"
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            install_kwargs["skills_dir"] = skills_dir
+        elif runtime == "opencode":
+            install_kwargs = {}
+
+        adapter.install(gpd_root, target, **install_kwargs)
+
+        legacy_file = target / "get-physics-done" / "LEGACY-ROOT.md"
+        legacy_file.write_text("obsolete\n", encoding="utf-8")
+
+        manifest_path = target / MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"]["get-physics-done/LEGACY-ROOT.md"] = file_hash(legacy_file)
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+        adapter.install(gpd_root, target, **install_kwargs)
+
+        assert not legacy_file.exists()
+
+
 # ---------------------------------------------------------------------------
 # Uninstall when not installed: should be safe (no crash)
 # ---------------------------------------------------------------------------

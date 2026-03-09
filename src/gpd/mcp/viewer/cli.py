@@ -45,10 +45,10 @@ def start(
     """Start the frame viewer server and open the browser.
 
     Usage:
-        gpd-plus view                    # start on default port, open browser
-        gpd-plus view --port 8080        # custom port
-        gpd-plus view --host 0.0.0.0     # listen on all interfaces
-        gpd-plus view --no-open          # don't open browser
+        gpd+ view                    # start on default port, open browser
+        gpd+ view --port 8080        # custom port
+        gpd+ view --host 0.0.0.0     # listen on all interfaces
+        gpd+ view --no-open          # don't open browser
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -87,9 +87,9 @@ def push(
     """Push a frame to a running viewer.
 
     Usage:
-        gpd-plus view push "base64data..." --tool mujoco
-        gpd-plus view push --file result.json --tool mujoco
-        echo "base64..." | gpd-plus view push -
+        gpd+ view push "base64data..." --tool mujoco
+        gpd+ view push --file result.json --tool mujoco
+        echo "base64..." | gpd+ view push -
     """
     port = _get_port(port)
     host = _get_host(host)

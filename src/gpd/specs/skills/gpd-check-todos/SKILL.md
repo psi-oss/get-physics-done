@@ -1,7 +1,7 @@
 ---
 name: gpd-check-todos
 description: List pending research todos and select one to work on
-argument-hint: [area filter]
+argument-hint: "[area filter]"
 allowed-tools:
   - read_file
   - write_file
