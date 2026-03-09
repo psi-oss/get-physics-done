@@ -23,6 +23,7 @@ from rich.console import Console
 from rich.table import Table
 
 import gpd
+from gpd.core.errors import GPDError
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
@@ -40,14 +41,14 @@ def _output(data: object) -> None:
             console.print_json(json.dumps({"result": None}))
         elif isinstance(data, (list, tuple)):
             items = [
-                item.model_dump() if hasattr(item, "model_dump") else
+                item.model_dump(mode="json", by_alias=True) if hasattr(item, "model_dump") else
                 dataclasses.asdict(item) if dataclasses.is_dataclass(item) and not isinstance(item, type) else
                 item
                 for item in data
             ]
             console.print_json(json.dumps(items, default=str))
         elif hasattr(data, "model_dump"):
-            console.print_json(json.dumps(data.model_dump(), default=str))
+            console.print_json(json.dumps(data.model_dump(mode="json", by_alias=True), default=str))
         elif dataclasses.is_dataclass(data) and not isinstance(data, type):
             console.print_json(json.dumps(dataclasses.asdict(data), default=str))
         elif isinstance(data, dict):
@@ -61,7 +62,7 @@ def _output(data: object) -> None:
             for item in data:
                 _output(item)
         elif hasattr(data, "model_dump"):
-            _pretty_print(data.model_dump())
+            _pretty_print(data.model_dump(mode="json", by_alias=True))
         elif dataclasses.is_dataclass(data) and not isinstance(data, type):
             _pretty_print(dataclasses.asdict(data))
         elif isinstance(data, dict):
@@ -93,7 +94,18 @@ def _get_cwd() -> Path:
 
 # ─── App setup ──────────────────────────────────────────────────────────────
 
-app = typer.Typer(
+class _GPDTyper(typer.Typer):
+    """Typer subclass that catches GPDError and prints a user-friendly message."""
+
+    def __call__(self, *args: object, **kwargs: object) -> object:
+        try:
+            return super().__call__(*args, **kwargs)
+        except GPDError as exc:
+            console.print(f"[bold red]Error:[/] {exc}", highlight=False)
+            raise SystemExit(1) from None
+
+
+app = _GPDTyper(
     name="gpd",
     help="GPD — Get Physics Done: unified physics research CLI",
     no_args_is_help=True,
