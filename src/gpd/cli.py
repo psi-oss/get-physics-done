@@ -246,7 +246,7 @@ def state_resolve_blocker(
 @state_app.command("record-session")
 def state_record_session(
     stopped_at: str | None = typer.Option(None, "--stopped-at", help="Stop timestamp"),
-    resume_file: str = typer.Option("None", "--resume-file", help="Resume context file"),
+    resume_file: str | None = typer.Option(None, "--resume-file", help="Resume context file"),
 ) -> None:
     """Record a session boundary for context tracking."""
     from gpd.core.state import state_record_session

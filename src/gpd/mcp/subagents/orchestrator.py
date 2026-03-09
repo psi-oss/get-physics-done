@@ -155,7 +155,7 @@ class SubagentOrchestrator:
             )
 
         # Post-creation re-validation (per locked decision Area 4 Decision 3)
-        if result.success:
+        if result.success and result.mcp_name:
             catalog = self._catalog
             if hasattr(catalog, "refresh"):
                 catalog.refresh()
