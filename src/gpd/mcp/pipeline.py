@@ -1,4 +1,4 @@
-"""Pipeline CLI subcommands for GPD+ research orchestration.
+"""Pipeline CLI subcommands for GPD research orchestration.
 
 Each subcommand wraps an existing module, runs it, and outputs structured JSON
 to stdout. The hosting runtime invokes these via Bash tool calls. The system prompt
@@ -15,7 +15,7 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
-app = typer.Typer(name="pipeline", help="GPD+ research pipeline stages")
+app = typer.Typer(name="pipeline", help="GPD research pipeline stages")
 
 
 class DiscoveredTool(BaseModel):
@@ -284,7 +284,7 @@ def paper(
             generate_paper(
                 research_summary=research_summary,
                 title=title,
-                authors=[Author(name="GPD+ Research Agent", affiliation="Automated")],
+                authors=[Author(name="GPD Research Agent", affiliation="Automated")],
                 abstract=abstract,
                 figures=[],
                 citations=[],

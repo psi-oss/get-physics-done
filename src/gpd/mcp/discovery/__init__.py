@@ -1,4 +1,4 @@
-"""MCP tool discovery layer for GPD+.
+"""MCP tool discovery layer for GPD.
 
 Public API for discovering available MCP tools from configured sources
 (Modal deployments, local servers, external endpoints, custom configs),

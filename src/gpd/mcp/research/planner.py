@@ -38,7 +38,7 @@ class PlanValidationError(ValidationError):
 
 
 PLAN_SYSTEM_PROMPT = """\
-You are a physics research planner for GPD+. Your job is to decompose a physics
+You are a physics research planner for GPD. Your job is to decompose a physics
 research question into a directed acyclic graph (DAG) of milestones that will
 answer the question rigorously, efficiently, and with built-in validation.
 

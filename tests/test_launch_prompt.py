@@ -1,7 +1,7 @@
 """Tests for GPD content injection functions in launch.py.
 
 Tests failure-mode behavior of _load_gpd_questioning and _build_tool_catalog_summary
-to verify graceful degradation when GPD is missing, files are corrupt, or catalog fails.
+for the bundled questioning reference and MCP catalog fallbacks.
 """
 
 from __future__ import annotations
@@ -16,19 +16,9 @@ from gpd.mcp.launch import _build_tool_catalog_summary, _load_gpd_questioning
 # ---------------------------------------------------------------------------
 
 
-def test_load_gpd_questioning_when_gpd_missing():
-    """When find_gpd_references_dir() returns None, fallback content is returned."""
-    with patch("gpd.mcp.gpd_bridge.discovery.find_gpd_references_dir", return_value=None):
-        result = _load_gpd_questioning()
-
-    assert isinstance(result, str)
-    assert "thinking partner" in result.lower()
-    assert "Stage 2" in result
-
-
-def test_load_gpd_questioning_when_file_missing(tmp_path: Path):
-    """When references dir exists but questioning.md is absent, fallback content is returned."""
-    with patch("gpd.mcp.gpd_bridge.discovery.find_gpd_references_dir", return_value=tmp_path):
+def test_load_gpd_questioning_when_reference_missing(tmp_path: Path):
+    """When the bundled questioning reference is missing, fallback content is returned."""
+    with patch("gpd.mcp.launch._questioning_reference_path", return_value=tmp_path / "missing.md"):
         result = _load_gpd_questioning()
 
     assert isinstance(result, str)
@@ -37,11 +27,11 @@ def test_load_gpd_questioning_when_file_missing(tmp_path: Path):
 
 
 def test_load_gpd_questioning_when_file_corrupt(tmp_path: Path):
-    """When questioning.md has garbage content (no XML tags), fallback content is returned."""
+    """When questioning.md has garbage content, fallback content is returned."""
     corrupt_file = tmp_path / "questioning.md"
-    corrupt_file.write_text("This is just plain text with no XML tags at all.\nNothing useful here.\n")
+    corrupt_file.write_text("This is just plain text with no XML tags at all.\nNothing useful here.\n", encoding="utf-8")
 
-    with patch("gpd.mcp.gpd_bridge.discovery.find_gpd_references_dir", return_value=tmp_path):
+    with patch("gpd.mcp.launch._questioning_reference_path", return_value=corrupt_file):
         result = _load_gpd_questioning()
 
     assert isinstance(result, str)
@@ -60,7 +50,7 @@ def test_load_gpd_questioning_happy_path(tmp_path: Path):
         encoding="utf-8",
     )
 
-    with patch("gpd.mcp.gpd_bridge.discovery.find_gpd_references_dir", return_value=tmp_path):
+    with patch("gpd.mcp.launch._questioning_reference_path", return_value=questioning):
         result = _load_gpd_questioning()
 
     assert isinstance(result, str)
@@ -102,7 +92,7 @@ def test_build_tool_catalog_when_catalog_empty():
         result = _build_tool_catalog_summary()
 
     assert isinstance(result, str)
-    assert "No MCP tools" in result or "gpd+ pipeline discover" in result
+    assert "No MCP tools" in result or "gpd pipeline discover" in result
 
 
 def test_build_tool_catalog_when_config_fails():

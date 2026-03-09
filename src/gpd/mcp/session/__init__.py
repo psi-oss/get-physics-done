@@ -1,4 +1,4 @@
-"""Session persistence layer for GPD+.
+"""Session persistence layer for GPD.
 
 Provides Pydantic models for session state, a SessionManager with
 atomic JSON writes, and a SQLite FTS5 search index for session history.

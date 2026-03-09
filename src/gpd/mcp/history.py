@@ -1,4 +1,4 @@
-"""Session search display and history UI for GPD+."""
+"""Session search display and history UI for GPD."""
 
 from __future__ import annotations
 

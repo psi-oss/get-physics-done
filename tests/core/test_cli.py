@@ -37,6 +37,9 @@ def test_help():
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
+    assert "session" in result.output
+    assert "pipeline" in result.output
+    assert "view" in result.output
 
 
 def test_state_help():
@@ -53,6 +56,26 @@ def test_phase_help():
     assert "list" in result.output
     assert "add" in result.output
     assert "complete" in result.output
+
+
+def test_session_help():
+    result = runner.invoke(app, ["session", "--help"])
+    assert result.exit_code == 0
+    assert "--resume" in result.output
+    assert "reindex" in result.output
+
+
+def test_pipeline_help():
+    result = runner.invoke(app, ["pipeline", "--help"])
+    assert result.exit_code == 0
+    assert "discover" in result.output
+    assert "execute" in result.output
+
+
+def test_view_help():
+    result = runner.invoke(app, ["view", "--help"])
+    assert result.exit_code == 0
+    assert "push" in result.output
 
 
 # ─── state subcommands ──────────────────────────────────────────────────────

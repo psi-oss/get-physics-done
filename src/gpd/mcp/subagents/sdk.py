@@ -45,7 +45,7 @@ def _get_short_cwd(cwd: str) -> str:
     if len(cwd) <= 80:
         return cwd
 
-    link_dir = tempfile.mkdtemp(prefix="gpdplus-")
+    link_dir = tempfile.mkdtemp(prefix="gpd-session-")
     link_path = str(Path(link_dir) / "w")
     os.symlink(cwd, link_path)
     _SYMLINK_CLEANUP.append(link_path)

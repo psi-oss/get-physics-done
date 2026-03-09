@@ -1,4 +1,4 @@
-"""Pydantic data models for GPD+ session state."""
+"""Pydantic data models for GPD session state."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class MilestoneState(BaseModel):
 class SessionState(BaseModel):
     """Full session state persisted as JSON.
 
-    This is the source of truth for a GPD+ session. The schema_version
+    This is the source of truth for a GPD session. The schema_version
     field enables forward-compatible schema migrations.
     """
 

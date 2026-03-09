@@ -1,4 +1,4 @@
-"""Unified GPD CLI — Python entry point for all GPD workflow operations.
+"""Unified GPD CLI — entry point for core workflow, sessions, and MCP tooling.
 
 Delegates to ``gpd.core.*`` modules for all command implementations.
 
@@ -25,6 +25,9 @@ from rich.table import Table
 
 import gpd
 from gpd.core.errors import GPDError
+from gpd.mcp.cli import session_app
+from gpd.mcp.pipeline import app as pipeline_app
+from gpd.mcp.viewer.cli import viewer_app
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
@@ -119,6 +122,10 @@ app = _GPDTyper(
     no_args_is_help=True,
     add_completion=True,
 )
+
+app.add_typer(session_app, name="session", help="Interactive research session with MCP orchestration")
+app.add_typer(pipeline_app, name="pipeline", help="MCP-backed research pipeline stages")
+app.add_typer(viewer_app, name="view", help="Frame viewer for MCP simulation outputs")
 
 
 def _version_callback(value: bool) -> None:

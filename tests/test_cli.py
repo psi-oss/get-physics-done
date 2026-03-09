@@ -1,4 +1,4 @@
-"""Tests for the GPD+ CLI entry point."""
+"""Tests for the integrated session CLI exposed through gpd."""
 
 from __future__ import annotations
 
@@ -7,196 +7,139 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from gpd.mcp.cli import app
-from gpd.version import __version__
+from gpd.cli import app
 
 runner = CliRunner()
 
 
-def test_version_flag_outputs_version() -> None:
-    """--version flag outputs GPD+ version string."""
-    result = runner.invoke(app, ["--version"])
+def test_session_help_is_exposed_from_main_cli() -> None:
+    """The unified gpd CLI should expose the session subcommand."""
+    result = runner.invoke(app, ["session", "--help"])
     assert result.exit_code == 0
-    assert "GPD+" in result.output
-    assert __version__ in result.output
+    assert "--resume" in result.output
+    assert "--history" in result.output
+    assert "reindex" in result.output
 
 
-def test_main_no_gpd_prints_error_and_exits_1(tmp_path: Path) -> None:
-    """main with no GPD installed prints error and exits with code 1."""
-    with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=None),
-        patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
-        patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
-    ):
-        result = runner.invoke(app, [])
-    assert result.exit_code == 1
-    assert "GPD not found" in result.output
-
-
-def test_main_with_gpd_displays_logo(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """main with GPD installed displays the ASCII logo and discovery summary."""
-    with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
-        patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
-        patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
-    ):
-        result = runner.invoke(app, [])
-    assert result.exit_code == 0
-    # Logo should contain the GPD+ block characters
-    assert "GPD+" in result.output or "\u2588" in result.output
-    # Discovery summary should show commands and agents count
-    assert "commands" in result.output
-    assert "agents" in result.output
-
-
-def test_main_resume_with_no_sessions_exits_1(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """--resume with no sessions prints error and exits 1."""
+def test_session_resume_with_no_sessions_exits_1(tmp_path: Path) -> None:
+    """gpd session --resume should fail cleanly when no sessions exist."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
     with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
+        patch("gpd.mcp.cli.list_commands", return_value=["cmd-a", "cmd-b"]),
+        patch("gpd.mcp.cli.list_agents", return_value=["agent-a"]),
     ):
-        result = runner.invoke(app, ["--resume"])
+        result = runner.invoke(app, ["session", "--resume"])
     assert result.exit_code == 1
     assert "No session found" in result.output
 
 
-def test_main_resume_loads_latest_session(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """--resume loads the latest session and shows resume banner."""
+def test_session_resume_loads_latest_session(tmp_path: Path) -> None:
+    """gpd session --resume should load the latest saved session."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
 
     from gpd.mcp.session.models import SessionState
 
     session = SessionState.new(session_id="resume001", project_name="test", session_name="my-session")
-    (sessions_dir / "resume001.json").write_text(session.model_dump_json(indent=2))
+    (sessions_dir / "resume001.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
 
     with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
+        patch("gpd.mcp.cli.list_commands", return_value=["cmd-a", "cmd-b", "cmd-c"]),
+        patch("gpd.mcp.cli.list_agents", return_value=["agent-a", "agent-b"]),
         patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
-        result = runner.invoke(app, ["--resume"])
+        result = runner.invoke(app, ["session", "--resume"])
     assert result.exit_code == 0
     assert "Resuming" in result.output
     assert "my-session" in result.output
+    assert "Loaded 3 commands and 2 agents" in result.output
 
 
-def test_main_session_flag_loads_specific_session(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """--session flag loads a specific session by ID."""
+def test_session_flag_loads_specific_session(tmp_path: Path) -> None:
+    """gpd session --session should load a specific session by ID."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
 
     from gpd.mcp.session.models import SessionState
 
     session = SessionState.new(session_id="specific01", project_name="test", session_name="specific-run")
-    (sessions_dir / "specific01.json").write_text(session.model_dump_json(indent=2))
+    (sessions_dir / "specific01.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
 
     with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
+        patch("gpd.mcp.cli.list_commands", return_value=["cmd-a"]),
+        patch("gpd.mcp.cli.list_agents", return_value=["agent-a"]),
         patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
-        result = runner.invoke(app, ["--session", "specific01"])
+        result = runner.invoke(app, ["session", "--session", "specific01"])
     assert result.exit_code == 0
     assert "Resuming" in result.output
     assert "specific-run" in result.output
 
 
-def test_search_flag_calls_search(tmp_path: Path) -> None:
-    """--search queries the index and displays results."""
+def test_session_search_flag_queries_history(tmp_path: Path) -> None:
+    """gpd session --search should query the session index."""
     with (
         patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
     ):
-        result = runner.invoke(app, ["--search", "quantum"])
+        result = runner.invoke(app, ["session", "--search", "quantum"])
     assert result.exit_code == 0
-    # With empty index, should show "No sessions found"
     assert "No sessions found" in result.output
 
 
-def test_history_flag_lists_sessions(tmp_path: Path) -> None:
-    """--history lists sessions and calls display_history."""
+def test_session_history_flag_lists_sessions(tmp_path: Path) -> None:
+    """gpd session --history should render history even when empty."""
     with (
         patch("gpd.mcp.cli.SESSIONS_DIR", tmp_path / "sessions"),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
     ):
-        result = runner.invoke(app, ["--history"])
+        result = runner.invoke(app, ["session", "--history"])
     assert result.exit_code == 0
-    # With no sessions, should show "No sessions yet"
     assert "No sessions yet" in result.output
 
 
-def test_fresh_launch_creates_new_session(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """Fresh launch (no flags) creates a new session JSON file."""
+def test_session_fresh_launch_creates_new_session(tmp_path: Path) -> None:
+    """gpd session should create a new session without any separate entrypoint."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
     with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
-    ):
-        result = runner.invoke(app, [])
-    assert result.exit_code == 0
-    json_files = list(sessions_dir.glob("*.json"))
-    assert len(json_files) == 1
-
-
-def test_fresh_launch_shows_mcp_count(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """Fresh launch shows MCP count from cache."""
-    sessions_dir = tmp_path / "sessions"
-    sessions_dir.mkdir(parents=True)
-    with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
-        patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
-        patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
+        patch("gpd.mcp.cli.list_commands", return_value=["cmd-a", "cmd-b", "cmd-c"]),
+        patch("gpd.mcp.cli.list_agents", return_value=["agent-a", "agent-b"]),
         patch("gpd.mcp.cli.get_cached_mcp_count", return_value=5),
+        patch("gpd.mcp.cli.refresh_mcp_count_background", return_value=None),
         patch("gpd.mcp.cli.launch_session", return_value=0),
     ):
-        result = runner.invoke(app, [])
+        result = runner.invoke(app, ["session"])
     assert result.exit_code == 0
+    assert len(list(sessions_dir.glob("*.json"))) == 1
+    assert "GPD v" in result.output or "█" in result.output
     assert "5 MCP tools available" in result.output
+    assert "3 built-in commands and 2 agents ready" in result.output
 
 
-def test_reindex_subcommand(tmp_path: Path) -> None:
-    """reindex subcommand calls rebuild_index and prints count."""
+def test_session_reindex_subcommand(tmp_path: Path) -> None:
+    """gpd session reindex should rebuild the stored session index."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
 
-    # Write a session JSON file so rebuild finds it
     from gpd.mcp.session.models import SessionState
 
     session = SessionState.new(session_id="idx001", project_name="test", session_name="indexed")
-    (sessions_dir / "idx001.json").write_text(session.model_dump_json(indent=2))
+    (sessions_dir / "idx001.json").write_text(session.model_dump_json(indent=2), encoding="utf-8")
 
     with (
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
     ):
-        result = runner.invoke(app, ["reindex"])
+        result = runner.invoke(app, ["session", "reindex"])
     assert result.exit_code == 0
     assert "1 sessions indexed" in result.output
-
-
-def test_version_mismatch_shows_warning(mock_gpd_install: Path, tmp_path: Path) -> None:
-    """Version mismatch produces a visible warning panel."""
-    sessions_dir = tmp_path / "sessions"
-    sessions_dir.mkdir(parents=True)
-    with (
-        patch("gpd.mcp.cli.find_gpd_install", return_value=mock_gpd_install),
-        patch("gpd.mcp.cli.check_gpd_version", return_value=(False, "99.0.0")),
-        patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
-        patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
-    ):
-        result = runner.invoke(app, [])
-    assert result.exit_code == 0
-    assert "Version Warning" in result.output or "mismatch" in result.output

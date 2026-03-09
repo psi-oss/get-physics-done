@@ -1,9 +1,9 @@
-"""ASCII logo rendering, startup display, MCP caching, session launch, and resume validation for GPD+.
+"""ASCII logo rendering, startup display, MCP caching, session launch, and resume validation for GPD.
 
-GPD+ currently launches interactive sessions via Claude Code.  The
-``launch_session()`` / ``_find_claude_code_binary()`` helpers are
-intentionally Claude-Code-specific; other runtimes would need their own
-launch functions (or a generic abstraction) in the future.
+GPD currently launches integrated interactive sessions via Claude Code. The
+``launch_session()`` / ``_find_claude_code_binary()`` helpers are currently
+Claude-Code-specific; other runtimes would need their own launch functions in
+the future.
 """
 
 from __future__ import annotations
@@ -31,13 +31,13 @@ _sync_discovery_done = False
 """Module-level flag: True when get_cached_mcp_count did synchronous discovery
 (first run). Checked by refresh_mcp_count_background to skip redundant work."""
 
-GPD_PLUS_LOGO = r"""
-   ██████╗ ██████╗ ██████╗     ██╗
-  ██╔════╝ ██╔══██╗██╔══██╗    ██║
-  ██║  ███╗██████╔╝██║  ██║ ████████╗
-  ██║   ██║██╔═══╝ ██║  ██║ ╚══██╔══╝
-  ╚██████╔╝██║     ██████╔╝    ██║
-   ╚═════╝ ╚═╝     ╚═════╝     ╚═╝
+GPD_LOGO = r"""
+ ██████╗ ██████╗ ██████╗
+██╔════╝ ██╔══██╗██╔══██╗
+██║  ███╗██████╔╝██║  ██║
+██║   ██║██╔═══╝ ██║  ██║
+╚██████╔╝██║     ██████╔╝
+ ╚═════╝ ╚═╝     ╚═════╝
 """
 
 
@@ -106,12 +106,12 @@ def show_full_logo(
 ) -> None:
     """Render the full ASCII logo for fresh session launch.
 
-    Displays the GPD+ logo in bold magenta, a version line, an MCP tool
-    count, the active model, and optionally a last session summary panel.
+    Displays the GPD logo, a version line, an MCP tool count, the active
+    model, and optionally a last session summary panel.
     """
-    logo_text = Text(GPD_PLUS_LOGO, style="bold magenta")
+    logo_text = Text(GPD_LOGO, style="bold blue")
     console.print(logo_text)
-    console.print(f"  GPD+ v{version}", style="bold")
+    console.print(f"  GPD v{version}", style="bold")
     console.print(f"  {mcp_count} MCP tools available", style="dim")
     model = _detect_model()
     console.print(f"  Model: {model}", style="dim")
@@ -122,7 +122,7 @@ def show_full_logo(
 
 def show_resume_banner(console: Console, version: str, session_name: str) -> None:
     """One-line banner for resume launches."""
-    console.print(f"[bold magenta]GPD+[/] v{version} | Resuming: {session_name}")
+    console.print(f"[bold blue]GPD[/] v{version} | Resuming: {session_name}")
 
 
 def get_cached_mcp_count() -> int:
@@ -291,10 +291,6 @@ def _find_claude_code_binary() -> str:
     return path
 
 
-# Keep a public alias for backwards compatibility (used by tests & cli.py imports)
-find_claude_binary = _find_claude_code_binary
-
-
 def _find_gpd_root() -> Path | None:
     """Locate the GPD project root by checking for infra/.
 
@@ -385,9 +381,9 @@ def build_mcp_config_file() -> Path | None:
 
 
 def _build_identity() -> str:
-    """Return the GPD+ identity override section."""
-    return """IMPORTANT IDENTITY OVERRIDE: You are GPD+, a physics research orchestrator.
-Do NOT identify as Claude Code or Claude. When asked who you are, say you are GPD+.
+    """Return the GPD identity override section."""
+    return """IMPORTANT IDENTITY OVERRIDE: You are GPD, a physics research orchestrator.
+Do NOT identify as Claude Code or Claude. When asked who you are, say you are GPD.
 
 YOU ARE A RESEARCH PIPELINE CONTROLLER. When a user gives you a physics research question,
 you MUST follow this structured pipeline. Do NOT just chat about the topic — run the pipeline."""
@@ -397,7 +393,7 @@ def _build_auto_startup() -> str:
     """Return the auto-startup MCP validation section."""
     return """## AUTO-STARTUP: VALIDATE MODAL MCP DEPLOYMENTS
 IMMEDIATELY when this session starts, BEFORE the user types anything, run this in the background:
-`gpd+ pipeline fix-mcps`
+`gpd pipeline fix-mcps`
 This checks whether physics MCP services are deployed and reachable on Modal.
 
 If the output shows broken MCPs (broken_count > 0):
@@ -417,7 +413,7 @@ If Modal credentials are missing, warn the user once."""
 def _build_stage_1_discover() -> str:
     """Return the Stage 1: DISCOVER TOOLS section."""
     return """### Stage 1: DISCOVER TOOLS
-Run: `gpd+ pipeline discover "THE RESEARCH QUESTION"`
+Run: `gpd pipeline discover "THE RESEARCH QUESTION"`
 This selects the best MCP simulation/analysis tools for the problem.
 The output includes each tool's name, description, capabilities, domains, and operations.
 
@@ -432,9 +428,8 @@ Ask: "These are the tools I'll use. Proceed to scoping questions?\""""
 def _load_gpd_questioning() -> str:
     """Return the Stage 2 SCOPE THE RESEARCH section with GPD questioning methodology.
 
-    Reads questioning.md from the GPD references directory at launch time.
-    Falls back to a hardcoded condensed version if GPD is not installed,
-    the file is missing, or parsing fails.
+    Reads the bundled questioning reference at launch time. Falls back to a
+    hardcoded condensed version if the file is missing or parsing fails.
     """
     content = _try_load_questioning_from_file()
     if content is not None:
@@ -442,20 +437,17 @@ def _load_gpd_questioning() -> str:
     return _gpd_questioning_fallback()
 
 
+def _questioning_reference_path() -> Path:
+    """Return the bundled questioning reference path."""
+    from gpd.specs import SPECS_DIR
+
+    return SPECS_DIR / "references" / "questioning.md"
+
+
 def _try_load_questioning_from_file() -> str | None:
-    """Attempt to load and parse questioning.md from GPD references.
-
-    Returns formatted Stage 2 section string on success, None on any failure.
-    """
+    """Attempt to load and parse the bundled questioning reference."""
     try:
-        from gpd.mcp.gpd_bridge.discovery import find_gpd_references_dir
-
-        refs_dir = find_gpd_references_dir()
-        if refs_dir is None:
-            return None
-
-        questioning_file = refs_dir / "questioning.md"
-        raw = questioning_file.read_text(encoding="utf-8")
+        raw = _questioning_reference_path().read_text(encoding="utf-8")
 
         philosophy = _extract_xml_section(raw, "philosophy")
         how_to_question = _extract_xml_section(raw, "how_to_question")
@@ -492,7 +484,7 @@ def _try_load_questioning_from_file() -> str | None:
             anti_patterns.strip(),
             "- Dumping 4+ questions as text in a single response (USE AskUserQuestion instead)",
             "",
-            "**MCP integration probes** (unique to GPD+, ask after physics is clear):",
+            "**MCP integration probes** (ask after physics is clear):",
             "- Check feasibility against discovered MCP tools from Stage 1",
             "- Clarify resolution: quick exploratory (3-4 milestones) vs deep systematic (6-8)?",
             "- Surface known constraints: parameter ranges, boundary conditions, geometries",
@@ -501,7 +493,7 @@ def _try_load_questioning_from_file() -> str | None:
             "Do NOT proceed to planning until you have enough information from the interactive questions.",
         ]
         return "\n".join(lines)
-    except (FileNotFoundError, OSError):
+    except OSError:
         return None
 
 
@@ -571,7 +563,7 @@ follows from it. Build a conversation, not a questionnaire.
 - Rushing to formalism before understanding the physical picture
 - Shallow acceptance -- taking "strong coupling regime" without probing what "strong" means
 
-**MCP integration probes** (unique to GPD+, ask after physics is clear):
+**MCP integration probes** (ask after physics is clear):
 - Check feasibility against discovered MCP tools from Stage 1
 - Clarify resolution: quick exploratory (3-4 milestones) vs deep systematic (6-8)?
 - Surface known constraints: parameter ranges, boundary conditions, geometries
@@ -626,7 +618,7 @@ def _build_tool_catalog_summary() -> str:
         if not all_tools:
             return (
                 "## Available MCP Physics Tools\n\n"
-                "(No MCP tools currently cataloged -- use `gpd+ pipeline discover` to find tools for your question)"
+                "(No MCP tools currently cataloged -- use `gpd pipeline discover` to find tools for your question)"
             )
 
         lines = ["## Available MCP Physics Tools", ""]
@@ -651,7 +643,7 @@ def _build_tool_catalog_summary() -> str:
         count = get_cached_mcp_count()
         return (
             f"## Available MCP Physics Tools\n\n"
-            f"{count} MCP physics tools available -- run `gpd+ pipeline discover` for full catalog."
+            f"{count} MCP physics tools available -- run `gpd pipeline discover` for full catalog."
         )
 
 
@@ -667,7 +659,7 @@ predict limiting behavior before computing, structure as PREDICT -> DERIVE -> VE
 Save the discovery output (with the user's constraints appended):
 Write the full tools JSON to WORK_DIR/tools.json.
 
-Run: `gpd+ pipeline plan --query "THE QUESTION (with user constraints)" --tools-file WORK_DIR/tools.json --work-dir WORK_DIR`
+Run: `gpd pipeline plan --query "THE QUESTION (with user constraints)" --tools-file WORK_DIR/tools.json --work-dir WORK_DIR`
 
 CRITICAL VALIDATION — after the plan is generated, check:
 1. Every tool referenced in milestones must be one from Stage 1 discovery. If the plan
@@ -689,7 +681,7 @@ def _build_stage_4_execute() -> str:
     return """### Stage 4: EXECUTE MILESTONES
 For each milestone in execution order:
 
-Run: `gpd+ pipeline execute --plan-file WORK_DIR/plan.json --milestone MILESTONE_ID --work-dir WORK_DIR`
+Run: `gpd pipeline execute --plan-file WORK_DIR/plan.json --milestone MILESTONE_ID --work-dir WORK_DIR`
 
 After each milestone:
 - Show the user the result summary
@@ -702,7 +694,7 @@ Continue until all milestones are complete or the user stops."""
 def _build_stage_5_paper() -> str:
     """Return the Stage 5: GENERATE PAPER section."""
     return """### Stage 5: GENERATE PAPER
-Run: `gpd+ pipeline paper --work-dir WORK_DIR --title "PAPER TITLE" --abstract "ABSTRACT" --journal prl`
+Run: `gpd pipeline paper --work-dir WORK_DIR --title "PAPER TITLE" --abstract "ABSTRACT" --journal prl`
 
 Show the user the generated sections and ask for review."""
 
@@ -710,7 +702,7 @@ Show the user the generated sections and ask for review."""
 def _build_stage_6_compile() -> str:
     """Return the Stage 6: COMPILE TO PDF section."""
     return """### Stage 6: COMPILE TO PDF
-Run: `gpd+ pipeline compile --paper-dir WORK_DIR/paper`
+Run: `gpd pipeline compile --paper-dir WORK_DIR/paper`
 
 If compilation succeeds, tell the user the PDF path.
 If it fails, show the error and attempt to fix."""
@@ -719,8 +711,8 @@ If it fails, show the error and attempt to fix."""
 def _build_work_dir_rules() -> str:
     """Return the WORK DIRECTORY section."""
     return """## WORK DIRECTORY
-Use `~/.gpdplus/sessions/SESSION_ID/work/` as WORK_DIR.
-Create it at the start: `mkdir -p ~/.gpdplus/sessions/$(date +%Y%m%d-%H%M%S)/work`
+Use `~/.gpd/sessions/SESSION_ID/work/` as WORK_DIR.
+Create it at the start: `mkdir -p ~/.gpd/sessions/$(date +%Y%m%d-%H%M%S)/work`
 All pipeline artifacts (plan.json, results/, paper/) go here."""
 
 
@@ -740,7 +732,7 @@ def _build_rules() -> str:
 
 
 def build_system_prompt() -> str:
-    """Build the --append-system-prompt content describing GPD+ capabilities.
+    """Build the --append-system-prompt content describing GPD capabilities.
 
     Composes from section functions for each logical block. Each section
     can be independently replaced (e.g., Stage 2 questioning, tool catalog)
@@ -765,12 +757,12 @@ def build_system_prompt() -> str:
 
 
 def launch_session() -> int:
-    """Launch an interactive Claude Code session with GPD+ configuration.
+    """Launch an interactive Claude Code session with integrated GPD configuration.
 
-    Currently GPD+ only supports Claude Code as the interactive runtime.
+    The integrated GPD session launcher currently supports Claude Code only.
     This function passes through stdin/stdout/stderr directly to Claude
-    Code's TUI, skips user-level settings (which contain GSD hooks /
-    statusLine), disables slash commands, and explicitly blocks GSD skills.
+    Code's TUI while keeping the standard GPD commands and MCP tooling
+    available inside the launched session.
 
     Returns the exit code from the Claude Code process.
     Raises ``FileNotFoundError`` if the ``claude`` binary is not installed.
@@ -786,9 +778,6 @@ def launch_session() -> int:
         prompt,
         "--setting-sources",
         "project,local",
-        "--disable-slash-commands",
-        "--disallowed-tools",
-        "Skill(gsd:*)",
         "--model",
         model,
     ]
@@ -797,11 +786,6 @@ def launch_session() -> int:
 
     result = subprocess.run(args)
     return result.returncode
-
-
-# Keep the old name as a public alias for backwards compatibility
-launch_claude_session = launch_session
-
 
 def _detect_model_alias() -> str:
     """Read the raw model alias (e.g. ``'opus'``) from the active runtime's settings.

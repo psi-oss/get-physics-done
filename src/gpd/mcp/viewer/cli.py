@@ -1,4 +1,4 @@
-"""CLI commands for the GPD+ Frame Viewer."""
+"""CLI commands for the GPD Frame Viewer."""
 
 from __future__ import annotations
 
@@ -18,21 +18,21 @@ DEFAULT_HOST = "127.0.0.1"
 
 
 def _get_port(port: int) -> int:
-    """Resolve viewer port, checking GPDPLUS_VIEWER_PORT env var."""
+    """Resolve viewer port, checking GPD_VIEWER_PORT env var."""
     if port != DEFAULT_PORT:
         return port
     import os
 
-    return int(os.environ.get("GPDPLUS_VIEWER_PORT", str(DEFAULT_PORT)))
+    return int(os.environ.get("GPD_VIEWER_PORT", str(DEFAULT_PORT)))
 
 
 def _get_host(host: str) -> str:
-    """Resolve viewer host, checking GPDPLUS_VIEWER_HOST env var."""
+    """Resolve viewer host, checking GPD_VIEWER_HOST env var."""
     if host != DEFAULT_HOST:
         return host
     import os
 
-    return os.environ.get("GPDPLUS_VIEWER_HOST", DEFAULT_HOST)
+    return os.environ.get("GPD_VIEWER_HOST", DEFAULT_HOST)
 
 
 @viewer_app.callback(invoke_without_command=True)
@@ -45,10 +45,10 @@ def start(
     """Start the frame viewer server and open the browser.
 
     Usage:
-        gpd+ view                    # start on default port, open browser
-        gpd+ view --port 8080        # custom port
-        gpd+ view --host 0.0.0.0     # listen on all interfaces
-        gpd+ view --no-open          # don't open browser
+        gpd view                    # start on default port, open browser
+        gpd view --port 8080        # custom port
+        gpd view --host 0.0.0.0     # listen on all interfaces
+        gpd view --no-open          # don't open browser
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -56,7 +56,7 @@ def start(
     port = _get_port(port)
     host = _get_host(host)
 
-    console.print(f"[bold blue]GPD+ Frame Viewer[/] starting on http://{host}:{port}")
+    console.print(f"[bold blue]GPD Frame Viewer[/] starting on http://{host}:{port}")
     console.print(
         f"  Push frames:  [dim]curl -X POST http://{host}:{port}/api/frame "
         '-H \'Content-Type: application/json\' -d \'\\{"data":"base64...","tool":"mujoco"\\}\'[/]'
@@ -87,9 +87,9 @@ def push(
     """Push a frame to a running viewer.
 
     Usage:
-        gpd+ view push "base64data..." --tool mujoco
-        gpd+ view push --file result.json --tool mujoco
-        echo "base64..." | gpd+ view push -
+        gpd view push "base64data..." --tool mujoco
+        gpd view push --file result.json --tool mujoco
+        echo "base64..." | gpd view push -
     """
     port = _get_port(port)
     host = _get_host(host)

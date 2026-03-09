@@ -1,6 +1,6 @@
 """Collaborative tool specification protocol.
 
-GPD+ drafts an initial tool specification using a PydanticAI agent,
+GPD drafts an initial tool specification using a PydanticAI agent,
 then converts it to a ToolCreateRequest for MCP Builder to build.
 The MCP Builder prompt includes instructions to refine the spec if needed.
 """

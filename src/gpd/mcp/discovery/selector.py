@@ -53,7 +53,7 @@ class ToolSelection(BaseModel):
 
 
 SELECTION_SYSTEM_PROMPT = (
-    "You are a physics simulation tool router for the GPD+ research agent. "
+    "You are a physics simulation tool router for the GPD research agent. "
     "Given a physics problem description and a catalog of available MCP simulation tools, "
     "select the most relevant tools. "
     "Select between 1 and 15 tools. Fewer is better -- only select tools that are genuinely needed. "

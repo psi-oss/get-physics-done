@@ -1,4 +1,4 @@
-"""Research planning, execution, and orchestration engine for GPD+.
+"""Research planning, execution, and orchestration engine for GPD.
 
 Public API for decomposing research questions into milestone DAGs,
 estimating Modal compute costs, generating and evolving plans via
@@ -40,6 +40,7 @@ from gpd.mcp.research.schemas import (
 
 __all__ = [
     "ApprovalGate",
+    "CitationEntry",
     "CostEstimate",
     "MODAL_RATES_USD_PER_SECOND",
     "MilestoneResult",
@@ -57,5 +58,6 @@ __all__ = [
     "find_substitute_tool",
     "format_cost_display",
     "make_retry_decorator",
+    "prompt_plan_approval",
     "simplify_milestone",
 ]

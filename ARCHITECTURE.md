@@ -57,9 +57,8 @@ GPD (Get Physics Done) is a unified physics research orchestration package. It p
 │   │   ├── paper/              # Paper generation: bibliography, compiler, figures, generator, journal map, models, template registry, templates
 │   │   ├── session/            # Session manager, models, search
 │   │   ├── subagents/          # Subagent orchestration: SDK, specialist, MCP builder, cost estimator, orchestrator, models, status display, tool spec
-│   │   ├── gpd_bridge/         # Bridge for external GPD version discovery
 │   │   ├── viewer/             # Web viewer (FastAPI, optional)
-│   │   ├── cli.py              # `gpd+` CLI entry point
+│   │   ├── cli.py              # `gpd session` subcommand wiring
 │   │   ├── config.py           # MCP configuration
 │   │   ├── pipeline.py         # Pipeline integration
 │   │   ├── launch.py           # Launch prompt generation
@@ -418,8 +417,7 @@ Domain errors also inherit from their stdlib counterpart (`ValueError`, `KeyErro
 
 | Command    | Module         | Description                                      |
 |-----------|----------------|--------------------------------------------------|
-| `gpd`     | `gpd.cli`      | Core CLI: state, phase, health, conventions      |
-| `gpd+`    | `gpd.mcp.cli`  | MCP orchestration CLI                            |
+| `gpd`     | `gpd.cli`      | Unified CLI: core workflow, session, pipeline, viewer |
 
 ---
 

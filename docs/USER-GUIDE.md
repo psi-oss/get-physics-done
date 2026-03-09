@@ -38,6 +38,7 @@ Use the command syntax for your runtime:
 GPD will ask 3-5 questions to pin down your problem's scope, assumptions, notation, and verification targets. Answer them, and GPD creates your project structure.
 
 The rest of this guide uses Claude Code / Gemini CLI command syntax (`/gpd:...`). If you are using Codex or OpenCode, translate the command prefix using the table above.
+The same package also exposes a terminal CLI for session orchestration and MCP tooling: `gpd session`, `gpd pipeline ...`, and `gpd view`.
 
 ---
 
@@ -130,6 +131,19 @@ Commands below are shown in Claude Code / Gemini CLI syntax.
 | `/gpd:error-patterns` | Check for known error patterns in your work |
 
 Run `/gpd:discover` inside your agent to see the full list of available commands.
+
+### Session And Pipeline CLI
+
+From your terminal, the unified `gpd` CLI also includes the former separate orchestration surface:
+
+```bash
+gpd session
+gpd session --history
+gpd pipeline discover "finite-temperature Hubbard model"
+gpd view
+```
+
+`gpd session` launches an integrated interactive session with MCP orchestration and standard GPD commands available inside it. The session launcher currently targets Claude Code; `gpd pipeline` and `gpd view` are regular CLI subcommands.
 
 ---
 

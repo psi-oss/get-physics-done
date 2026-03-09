@@ -73,6 +73,19 @@ GPD will:
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
 
+## Integrated Session And Pipeline
+
+The same `gpd` install also includes the session, MCP pipeline, and frame-viewer features. Use the unified CLI from your shell:
+
+```bash
+gpd session
+gpd session --history
+gpd pipeline discover "lattice QCD phase transition"
+gpd view
+```
+
+`gpd session` launches an interactive Claude Code session with MCP orchestration and the standard GPD command surface available inside it. `gpd pipeline` and `gpd view` are regular CLI subcommands you can run directly from the terminal.
+
 ## Requirements
 
 - Python 3.11+

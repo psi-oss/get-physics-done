@@ -92,7 +92,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create the viewer FastAPI app."""
-    app = FastAPI(title="GPD+ Frame Viewer", lifespan=_lifespan)
+    app = FastAPI(title="GPD Frame Viewer", lifespan=_lifespan)
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
     @app.get("/", response_class=HTMLResponse)

@@ -1003,21 +1003,20 @@ print(f'\nTotal ablation points: {len(ABLATION_POINTS)}')
 
 ---
 
-## PHASE 18: GPD+ and Pipeline
+## PHASE 18: Session and Pipeline
 
-### 18.1 GPD+ CLI
+### 18.1 Session CLI
 
 ```bash
-gpd+ --version
-gpd+ --history              # may be empty on first run
-gpd+ --search "test"        # FTS5 search, may return nothing
-gpd+ reindex                # rebuild search index
+gpd session --history              # may be empty on first run
+gpd session --search "test"        # FTS5 search, may return nothing
+gpd session reindex                # rebuild search index
 ```
 
 ### 18.2 Pipeline Discover
 
 ```bash
-gpd+ pipeline discover "lattice QCD phase transition"
+gpd pipeline discover "lattice QCD phase transition"
 ```
 
 **Check:** Returns tool selection with domains, confidence, reasoning.
@@ -1026,7 +1025,7 @@ gpd+ pipeline discover "lattice QCD phase transition"
 
 ```bash
 # Requires tools file from discover step
-gpd+ pipeline plan --query "lattice QCD phase transition" \
+gpd pipeline plan --query "lattice QCD phase transition" \
   --tools-file /path/to/tools.json --work-dir /tmp/gpd-pipeline
 ```
 
@@ -1034,19 +1033,19 @@ gpd+ pipeline plan --query "lattice QCD phase transition" \
 
 ```bash
 # These require prior steps and may need Modal credentials
-gpd+ pipeline execute --plan-file /tmp/gpd-pipeline/plan.json \
+gpd pipeline execute --plan-file /tmp/gpd-pipeline/plan.json \
   --milestone M1 --work-dir /tmp/gpd-pipeline
 
-gpd+ pipeline paper --work-dir /tmp/gpd-pipeline \
+gpd pipeline paper --work-dir /tmp/gpd-pipeline \
   --title "Test Paper" --abstract "Test abstract" --journal prl
 
-gpd+ pipeline compile --paper-dir /tmp/gpd-pipeline/paper
+gpd pipeline compile --paper-dir /tmp/gpd-pipeline/paper
 ```
 
 ### 18.5 Fix MCPs
 
 ```bash
-gpd+ pipeline fix-mcps    # tests Modal connectivity + MCP health
+gpd pipeline fix-mcps    # tests Modal connectivity + MCP health
 ```
 
 ---
@@ -1241,7 +1240,7 @@ rm -f /tmp/j1.json /tmp/j2.json /tmp/merged.json /tmp/gpd-test-results.txt
 | 15 | MCP servers (7 × ~5 tools) | 37 |
 | 16 | Hooks | 4 |
 | 17 | Ablation & feature flags | 5 |
-| 18 | GPD+ & pipeline | 7 |
+| 18 | Session & pipeline | 7 |
 | 19 | E2E agent workflows (Claude Code) | 45+ |
 | 20 | Unit test suite | 1903 tests |
 | 21 | Edge cases & error handling | 10 |

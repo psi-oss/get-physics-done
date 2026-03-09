@@ -40,6 +40,14 @@ def test_npx_installer_no_longer_references_uv() -> None:
     assert "gpd.cli" in content
 
 
+def test_pyproject_exposes_single_gpd_cli_entrypoint() -> None:
+    repo_root = _repo_root()
+    pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'gpd = "gpd.cli:app"' in pyproject
+    assert '"gpd+" = "gpd.mcp.cli:app"' not in pyproject
+
+
 def test_install_docs_are_npx_only() -> None:
     repo_root = _repo_root()
     npx_command = "npx github:physicalsuperintelligence/get-physics-done"
