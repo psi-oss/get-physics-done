@@ -185,9 +185,6 @@ class ResearchState(BaseModel):
     Missing fields are populated with defaults via ensure_state_schema().
     """
 
-    _version: int = 1
-    _synced_at: str | None = None
-
     project_reference: ProjectReference = Field(default_factory=ProjectReference)
     position: Position = Field(default_factory=Position)
     active_calculations: list[str | dict] = Field(default_factory=list)

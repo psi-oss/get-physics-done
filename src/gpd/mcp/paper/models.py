@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Author(BaseModel):
@@ -56,11 +56,11 @@ class PaperConfig(BaseModel):
     authors: list[Author]
     abstract: str
     sections: list[Section]
-    figures: list[FigureRef] = []
+    figures: list[FigureRef] = Field(default_factory=list)
     acknowledgments: str = ""
     bib_file: str = "references"
     journal: str = "prl"
-    appendix_sections: list[Section] = []
+    appendix_sections: list[Section] = Field(default_factory=list)
 
 
 class PaperOutput(BaseModel):
@@ -71,4 +71,4 @@ class PaperOutput(BaseModel):
     figures_dir: Path | None = None
     pdf_path: Path | None = None
     success: bool
-    errors: list[str] = []
+    errors: list[str] = Field(default_factory=list)

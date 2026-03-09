@@ -38,8 +38,6 @@ class GPDConfig(BaseModel):
     protocols_enabled: bool = True
     errors_enabled: bool = True
     patterns_enabled: bool = True
-    state_enabled: bool = True
-    skills_enabled: bool = True
     bundle: str = "default"
     bundle_overlays: list[str] = Field(
         default_factory=lambda: ["physics"],

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from gpd.core.model_defaults import GPD_DEFAULT_MODEL, resolve_model_and_settings
@@ -112,7 +112,7 @@ class ToolUsageRecord(BaseModel):
     name: str
     version: str = ""
     description: str = ""
-    parameters: dict = {}
+    parameters: dict = Field(default_factory=dict)
     compute_time_s: float | None = None
 
 
