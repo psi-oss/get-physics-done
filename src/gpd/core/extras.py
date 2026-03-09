@@ -45,7 +45,7 @@ class Approximation(BaseModel):
     validity_range: str = ""
     controlling_param: str = ""
     current_value: str = ""
-    status: str = "Valid"
+    status: str = "valid"
 
 
 class ApproximationCheckResult(BaseModel):
@@ -237,7 +237,7 @@ def approximation_add(
     validity_range: str = "",
     controlling_param: str = "",
     current_value: str = "",
-    status: str = "Valid",
+    status: str = "valid",
 ) -> Approximation:
     """Add an approximation to state.
 
