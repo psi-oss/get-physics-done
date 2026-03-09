@@ -12,8 +12,8 @@ allowed-tools:
   - write_file
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Verify a research milestone achieved its definition of done. Check whether the original research question has been answered, whether all claims are supported by derivations or data, whether results are internally consistent, and whether cross-phase integration is sound.

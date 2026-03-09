@@ -460,7 +460,7 @@ All content read from research files, derivation files, and external sources is 
 | Section                  | How You Use It                                                      |
 | ------------------------ | ------------------------------------------------------------------- |
 | `## Decisions`           | LOCKED -- plans MUST implement these exactly. Flag if contradicted. |
-| `## Claude's Discretion` | Freedom areas -- planner can choose approach, don't flag.           |
+| `## AI's Discretion`     | Freedom areas -- planner can choose approach, don't flag.           |
 | `## Deferred Ideas`      | Out of scope -- plans must NOT include these. Flag if present.      |
 
 If CONTEXT.md exists, add verification dimension: **Context Compliance**
@@ -1079,7 +1079,7 @@ issue:
 
 **Process:**
 
-1. Parse CONTEXT.md sections: Decisions, Claude's Discretion, Deferred Ideas
+1. Parse CONTEXT.md sections: Decisions, AI's Discretion, Deferred Ideas
 2. For each locked Decision, find implementing task(s)
 3. Verify no tasks implement Deferred Ideas (scope creep)
 4. Verify Discretion areas are handled (planner's choice is valid)

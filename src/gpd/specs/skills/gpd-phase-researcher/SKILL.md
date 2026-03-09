@@ -87,7 +87,7 @@ MODE=$(python3 -c "import json; print(json.load(open('.planning/config.json')).g
 | Section                  | How You Use It                                    |
 | ------------------------ | ------------------------------------------------- |
 | `## Decisions`           | Locked choices — research THESE, not alternatives |
-| `## Claude's Discretion` | Your freedom areas — research options, recommend  |
+| `## AI's Discretion`     | Your freedom areas — research options, recommend  |
 | `## Deferred Ideas`      | Out of scope — ignore completely                  |
 
 If CONTEXT.md exists, it constrains your research scope. Don't explore alternatives to locked decisions.
@@ -410,7 +410,7 @@ done
 | Section                 | Constraint                                      |
 | ----------------------- | ----------------------------------------------- |
 | **Decisions**           | Locked — research THESE deeply, no alternatives |
-| **Claude's Discretion** | Research options, make recommendations          |
+| **AI's Discretion**     | Research options, make recommendations          |
 | **Deferred Ideas**      | Out of scope — ignore completely                |
 
 **Physics-specific examples:**
@@ -418,7 +418,7 @@ done
 - User decided "use path integral quantization" — research path integral methods deeply, don't explore canonical quantization
 - User decided "work in momentum space" — don't investigate position-space methods
 - User decided "ignore finite-size effects" — research the thermodynamic limit only
-- Marked as Claude's discretion: "choice of regularization scheme" — research options (dimensional reg, zeta-function, lattice, Pauli-Villars) and recommend
+- Marked as AI's discretion: "choice of regularization scheme" — research options (dimensional reg, zeta-function, lattice, Pauli-Villars) and recommend
 - Deferred: "extension to finite temperature" — ignore completely
 
 ## Step 2: Identify Research Domains

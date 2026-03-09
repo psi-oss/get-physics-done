@@ -1,6 +1,6 @@
 ---
 name: gpd-list-phase-assumptions
-description: Surface Claude's assumptions about a phase approach before planning
+description: Surface the AI's assumptions about a phase approach before planning
 argument-hint: "[phase]"
 allowed-tools:
   - read_file
@@ -9,13 +9,13 @@ allowed-tools:
   - glob
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
-Analyze a phase and present Claude's assumptions about the physics, methodology, computational approach, scope boundaries, risk areas, and dependencies.
+Analyze a phase and present the AI's assumptions about the physics, methodology, computational approach, scope boundaries, risk areas, and dependencies.
 
-Purpose: Help users see what Claude thinks BEFORE planning begins -- enabling course correction early when assumptions are wrong.
+Purpose: Help users see what the AI thinks BEFORE planning begins -- enabling course correction early when assumptions are wrong.
 Output: Conversational output only (no file creation) -- ends with "What do you think?" prompt
 
 **Assumption categories for physics research:**
@@ -83,7 +83,7 @@ Phase number: $ARGUMENTS (required)
 3. Follow list-phase-assumptions.md workflow:
    - Analyze roadmap description
    - Surface assumptions about: physical model, mathematical formalism, computational approach, methodology ordering, scope boundaries
-   - For each assumption, state WHY Claude assumes it (what in the phase description or physics domain suggests it)
+   - For each assumption, state WHY the AI assumes it (what in the phase description or physics domain suggests it)
    - Flag assumptions that are most likely to be wrong or most consequential if wrong
    - Present assumptions clearly, grouped by category
    - Prompt "What do you think?"

@@ -4,8 +4,8 @@ description: Show available GPD commands and usage guide
 argument-hint: "[--all]"
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Display the complete GPD command reference.
@@ -37,7 +37,7 @@ Output this and STOP (do not display the full reference):
 
 # GPD Command Reference
 
-**GPD** (Get Physics Done) — agentic physics research with Claude Code.
+**GPD** (Get Physics Done) — agentic physics research.
 
 ## Quick Start
 
@@ -51,7 +51,7 @@ Output this and STOP (do not display the full reference):
 
 **Workflow:** new-project → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 
-Run `$gpd-help --all` for all 58 commands.
+Run `$gpd-help --all` for all commands.
 
 --- END of default output. STOP here. ---
 
@@ -62,7 +62,7 @@ Display the reference content directly — no additions or modifications.
 
 # GPD Command Reference
 
-**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research with Claude Code.
+**GPD** (Get Physics Done) creates hierarchical research plans optimized for solo agentic physics research.
 
 ## Quick Start
 

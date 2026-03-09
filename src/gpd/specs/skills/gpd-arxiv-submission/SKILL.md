@@ -13,8 +13,8 @@ allowed-tools:
   - glob
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Prepare a completed paper for arXiv submission. Handles the full submission pipeline: LaTeX validation, figure embedding, bibliography flattening, file packaging, and metadata generation.

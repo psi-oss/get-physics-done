@@ -9,8 +9,8 @@ allowed-tools:
   - glob
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Remove an unstarted future phase from the roadmap and renumber all subsequent phases to maintain a clean, linear sequence.

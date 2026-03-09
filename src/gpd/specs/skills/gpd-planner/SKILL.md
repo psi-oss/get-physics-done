@@ -96,7 +96,7 @@ The autonomy mode (from `.planning/config.json` field `autonomy`, default: `"gui
 **Guided mode** (`autonomy: "guided"`) — DEFAULT:
 
 - **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks are autonomous.
-- **Scope:** Follow CONTEXT.md locked decisions. Use Claude's Discretion for standard choices.
+- **Scope:** Follow CONTEXT.md locked decisions. Use AI's Discretion for standard choices.
 - **Conventions:** Follow subfield defaults from notation-coordinator. Checkpoint only for non-standard choices.
 - **Approximations:** Select the standard approximation for the regime. Checkpoint if the choice is non-obvious or the regime is borderline.
 - **Task autonomy:** `autonomous: true` for standard tasks, `false` for plans with physics decision points.
@@ -270,7 +270,7 @@ The orchestrator provides user decisions in `<user_decisions>` tags from `$gpd-d
    - If user deferred "higher-loop corrections" -> NO multi-loop tasks allowed
    - If user deferred "relativistic generalization" -> NO relativistic tasks allowed
 
-3. **Claude's Discretion (from `## Claude's Discretion`)** -- Use your judgment
+3. **AI's Discretion (from `## AI's Discretion`)** -- Use your judgment
    - Make reasonable choices and document in task actions
    - Prefer conventions that are standard in the subfield
 

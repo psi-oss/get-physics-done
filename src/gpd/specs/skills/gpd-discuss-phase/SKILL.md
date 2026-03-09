@@ -11,8 +11,8 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Extract research decisions that downstream agents need -- researcher and planner will use CONTEXT.md to know what to investigate and what choices are locked.
@@ -77,7 +77,7 @@ Generate 3-4 **phase-specific** gray areas, not generic categories.
 - If more -> ask 4 more, check again
 - After all areas -> "Ready to create context?"
 
-**Do NOT ask about (Claude handles these):**
+**Do NOT ask about (the AI handles these):**
 
 - Code implementation details
 - File organization

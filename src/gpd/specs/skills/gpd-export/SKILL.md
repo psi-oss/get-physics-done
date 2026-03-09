@@ -10,8 +10,8 @@ allowed-tools:
   - glob
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Export research results into shareable formats. Collects key results, equations, derivations, and figures from all completed phases and packages them for external consumption.

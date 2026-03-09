@@ -7,8 +7,8 @@ allowed-tools:
   - shell
 ---
 
-<!-- Platform: Claude Code. Tool names and @ includes are platform-specific. -->
-<!-- allowed-tools listed are Claude Code tool names. Other platforms use different tool interfaces. -->
+<!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->
+<!-- @ includes are expanded at install time for non-Claude runtimes. -->
 
 <objective>
 Research how to tackle a phase. Spawns gpd-phase-researcher agent with phase context.
@@ -109,7 +109,7 @@ For this phase, discover:
 - What mathematical methods and computational tools form the standard approach?
 - What approximations are standard and what are their regimes of validity?
 - What problems do people commonly hit (divergences, instabilities, sign problems)?
-- What is the current state-of-the-art vs what Claude's training thinks is SOTA?
+- What is the current state-of-the-art vs what the AI's training data reflects as SOTA?
 - What should NOT be derived from scratch (use established results instead)?
 - Are there known exact solutions, limiting cases, or benchmark results for validation?
 - What are the key references (textbooks, review articles, seminal papers)?
