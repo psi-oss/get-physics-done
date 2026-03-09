@@ -129,7 +129,7 @@ _BOGUS_VALUES = frozenset({"", "null", "undefined", "none"})
 #   % ASSERT_CONVENTION: key=value, key=value         (LaTeX)
 #   # ASSERT_CONVENTION: key=value, key=value         (Python)
 _ASSERT_LINE_RE = re.compile(
-    r"^(?:<!--|[%#])\s*ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$",
+    r"^\s*(?:<!--|[%#])\s*ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$",
     re.MULTILINE,
 )
 _ASSERT_PAYLOAD_RE = re.compile(r"ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$")

@@ -269,3 +269,172 @@ def test_validate_assertions_unset_convention_skipped():
     content = "<!-- ASSERT_CONVENTION: metric=mostly-plus -->"
     mismatches = validate_assertions(content, lock, filename="test.md")
     assert mismatches == []
+
+
+# ─── Edge cases: empty/unicode/long values ────────────────────────────────
+
+
+def test_convention_set_empty_string_rejected():
+    """Empty string must be treated as bogus and rejected."""
+    lock = ConventionLock()
+    with pytest.raises(ConventionError):
+        convention_set(lock, "metric_signature", "")
+
+
+def test_convention_set_whitespace_only_rejected():
+    """Whitespace-only string collapses to empty and is rejected."""
+    lock = ConventionLock()
+    with pytest.raises(ConventionError):
+        convention_set(lock, "metric_signature", "   ")
+
+
+def test_convention_set_newlines_collapsed():
+    """Newlines in values are collapsed to spaces."""
+    lock = ConventionLock()
+    result = convention_set(lock, "metric_signature", "mostly\n-plus")
+    assert result.updated is True
+    assert result.value == "mostly -plus"
+
+
+def test_convention_set_unicode_key_as_custom():
+    """Unicode keys not in KNOWN_CONVENTIONS are treated as custom."""
+    lock = ConventionLock()
+    result = convention_set(lock, "\u00e9lectrique", "oui")
+    assert result.updated is True
+    assert result.custom is True
+    assert lock.custom_conventions["\u00e9lectrique"] == "oui"
+
+
+def test_convention_set_very_long_value():
+    """Very long values are accepted (no truncation)."""
+    lock = ConventionLock()
+    long_val = "x" * 10_000
+    result = convention_set(lock, "metric_signature", long_val)
+    assert result.updated is True
+    assert lock.metric_signature == long_val
+
+
+def test_is_bogus_value_case_insensitive():
+    """Bogus value detection is case-insensitive."""
+    assert is_bogus_value("NULL") is True
+    assert is_bogus_value("None") is True
+    assert is_bogus_value("UNDEFINED") is True
+    assert is_bogus_value("Null") is True
+
+
+def test_is_bogus_value_with_whitespace():
+    """Leading/trailing whitespace still detects bogus values."""
+    assert is_bogus_value("  null  ") is True
+    assert is_bogus_value("\tnone\t") is True
+    assert is_bogus_value(" ") is True
+
+
+def test_sanitize_value_rejects_none_variants():
+    """Sanitize rejects all _BOGUS_VALUES variants."""
+    for bogus in ("", "null", "undefined", "none"):
+        with pytest.raises(ConventionError):
+            sanitize_value(bogus)
+
+
+# ─── Edge cases: convention_check validates all 18 fields ─────────────────
+
+
+def test_convention_check_all_18_set():
+    """When all 18 canonical fields are set, check reports complete."""
+    lock = ConventionLock(
+        metric_signature="mostly-plus",
+        fourier_convention="physics",
+        natural_units="natural",
+        gauge_choice="Lorenz",
+        regularization_scheme="dim-reg",
+        renormalization_scheme="MS-bar",
+        coordinate_system="spherical",
+        spin_basis="helicity",
+        state_normalization="relativistic",
+        coupling_convention="alpha",
+        index_positioning="NW-SE",
+        time_ordering="T-product",
+        commutation_convention="canonical",
+        levi_civita_sign="+1",
+        generator_normalization="standard",
+        covariant_derivative_sign="+",
+        gamma_matrix_convention="Dirac",
+        creation_annihilation_order="normal",
+    )
+    result = convention_check(lock)
+    assert result.complete is True
+    assert result.missing_count == 0
+    assert result.set_count == 18
+    assert result.total == 18
+
+
+def test_convention_check_partial():
+    """Partial lock correctly reports set/missing counts."""
+    lock = ConventionLock(metric_signature="mostly-plus", gauge_choice="Lorenz")
+    result = convention_check(lock)
+    assert result.complete is False
+    assert result.set_count == 2
+    assert result.missing_count == 16
+
+
+# ─── Edge cases: parse_assert_conventions with indentation ───────────────
+
+
+def test_parse_assert_indented_python():
+    """Indented Python comments are parsed (e.g. inside a function)."""
+    content = "    # ASSERT_CONVENTION: metric=mostly-plus"
+    pairs = parse_assert_conventions(content)
+    assert ("metric_signature", "mostly-plus") in pairs
+
+
+def test_parse_assert_indented_latex():
+    """Indented LaTeX comments are parsed."""
+    content = "  % ASSERT_CONVENTION: gauge=Lorenz"
+    pairs = parse_assert_conventions(content)
+    assert ("gauge_choice", "Lorenz") in pairs
+
+
+def test_parse_assert_indented_html():
+    """Indented HTML comments are parsed."""
+    content = "  <!-- ASSERT_CONVENTION: units=natural -->"
+    pairs = parse_assert_conventions(content)
+    assert ("natural_units", "natural") in pairs
+
+
+def test_parse_assert_tab_indented():
+    """Tab-indented comments are parsed."""
+    content = "\t# ASSERT_CONVENTION: spin=helicity"
+    pairs = parse_assert_conventions(content)
+    assert ("spin_basis", "helicity") in pairs
+
+
+# ─── Edge case: immutability gate with same value is a no-op ─────────────
+
+
+def test_convention_set_same_value_no_force_needed():
+    """Re-setting same value succeeds without force."""
+    lock = ConventionLock()
+    convention_set(lock, "metric_signature", "mostly-plus")
+    result = convention_set(lock, "metric_signature", "mostly-plus")
+    assert result.updated is True  # same value, no conflict
+
+
+# ─── Edge case: custom convention immutability ────────────────────────────
+
+
+def test_convention_set_custom_immutability_gate():
+    """Custom conventions also require force to overwrite."""
+    lock = ConventionLock()
+    convention_set(lock, "my_custom", "value1")
+    result = convention_set(lock, "my_custom", "value2")
+    assert result.updated is False
+    assert result.reason == "convention_already_set"
+
+
+def test_convention_set_custom_force_overwrite():
+    """Custom conventions can be overwritten with force."""
+    lock = ConventionLock()
+    convention_set(lock, "my_custom", "value1")
+    result = convention_set(lock, "my_custom", "value2", force=True)
+    assert result.updated is True
+    assert lock.custom_conventions["my_custom"] == "value2"

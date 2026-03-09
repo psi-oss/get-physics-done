@@ -37,7 +37,15 @@ _cwd: Path = Path(".")
 def _output(data: object) -> None:
     """Print result — JSON when --raw, rich text otherwise."""
     if _raw:
-        if hasattr(data, "model_dump"):
+        if isinstance(data, list):
+            items = [
+                item.model_dump() if hasattr(item, "model_dump") else
+                dataclasses.asdict(item) if dataclasses.is_dataclass(item) and not isinstance(item, type) else
+                item
+                for item in data
+            ]
+            console.print_json(json.dumps(items, default=str))
+        elif hasattr(data, "model_dump"):
             console.print_json(json.dumps(data.model_dump(), default=str))
         elif dataclasses.is_dataclass(data) and not isinstance(data, type):
             console.print_json(json.dumps(dataclasses.asdict(data), default=str))
@@ -46,7 +54,10 @@ def _output(data: object) -> None:
         else:
             console.print_json(json.dumps({"result": str(data)}, default=str))
     else:
-        if hasattr(data, "model_dump"):
+        if isinstance(data, list):
+            for item in data:
+                _output(item)
+        elif hasattr(data, "model_dump"):
             _pretty_print(data.model_dump())
         elif dataclasses.is_dataclass(data) and not isinstance(data, type):
             _pretty_print(dataclasses.asdict(data))
@@ -462,7 +473,7 @@ def _save_lock(lock: object) -> None:
     import json
 
     from gpd.core.constants import ProjectLayout
-    from gpd.core.state import save_state_json
+    from gpd.core.state import save_state_json_locked
     from gpd.core.utils import file_lock
 
     cwd = _get_cwd()
@@ -473,7 +484,7 @@ def _save_lock(lock: object) -> None:
         except (FileNotFoundError, json.JSONDecodeError):
             raw = {}
         raw["convention_lock"] = lock.model_dump(exclude_none=True)  # type: ignore[union-attr]
-    save_state_json(cwd, raw)
+        save_state_json_locked(cwd, raw)
 
 
 @convention_app.command("set")
@@ -590,6 +601,8 @@ def result_list(
     """List intermediate results."""
     from gpd.core.results import result_list
 
+    if verified and unverified:
+        _error("--verified and --unverified are mutually exclusive")
     _output(result_list(_load_state_dict(), phase=phase, verified=verified, unverified=unverified))
 
 
@@ -644,11 +657,11 @@ def result_update(
     if depends_on is not None:
         opts["depends_on"] = depends_on.split(",")
     if verified:
-        opts["verified"] = True
+        opts["verified"] = verified
     state = _load_state_dict()
-    res = result_update(state, result_id, **opts)
+    _fields, updated = result_update(state, result_id, **opts)
     _save_state_dict(state)
-    _output(res)
+    _output(updated)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

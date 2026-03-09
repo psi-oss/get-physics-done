@@ -39,7 +39,7 @@ from gpd.core.constants import (
     VALID_RETURN_STATUSES,
     ProjectLayout,
 )
-from gpd.core.conventions import KNOWN_CONVENTIONS
+from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.state import (
@@ -335,7 +335,7 @@ def check_convention_lock(cwd: Path) -> HealthCheck:
     for key in KNOWN_CONVENTIONS:
         total_count += 1
         val = cl.get(key)
-        if val is not None and val != "null":
+        if not is_bogus_value(val):
             set_count += 1
 
     unset = total_count - set_count
