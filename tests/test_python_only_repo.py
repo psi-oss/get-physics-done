@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -11,7 +12,7 @@ def _repo_root() -> Path:
 
 def test_bin_install_js_is_the_only_repo_javascript_file() -> None:
     repo_root = _repo_root()
-    excluded_dirs = {".git", ".venv", "__pycache__", ".pytest_cache"}
+    excluded_dirs = {".git", ".venv", "__pycache__", ".pytest_cache", ".claude"}
     js_files = sorted(
         path.relative_to(repo_root).as_posix()
         for path in repo_root.rglob("*.js")
@@ -19,6 +20,40 @@ def test_bin_install_js_is_the_only_repo_javascript_file() -> None:
     )
 
     assert js_files == ["bin/install.js"]
+
+
+def test_package_json_exposes_npx_installer() -> None:
+    repo_root = _repo_root()
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+
+    assert package_json["name"] == "get-physics-done"
+    assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
+    assert "bin/" in package_json.get("files", [])
+    assert (repo_root / "bin" / "install.js").is_file()
+
+
+def test_npx_installer_no_longer_references_uv() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "uv" not in content
+    assert "gpd.cli" in content
+
+
+def test_install_docs_are_npx_only() -> None:
+    repo_root = _repo_root()
+    npx_command = "npx github:physicalsuperintelligence/get-physics-done"
+    disallowed_markers = (
+        "uv tool install",
+        "python3 -m pip install",
+        "gpd install",
+    )
+
+    for relative_path in ("README.md", "docs/USER-GUIDE.md"):
+        content = (repo_root / relative_path).read_text(encoding="utf-8")
+        assert npx_command in content, f"{relative_path} should mention the npx bootstrap installer"
+        for marker in disallowed_markers:
+            assert marker not in content, f"{relative_path} should not mention {marker!r}"
 
 
 def test_legacy_gpd_javascript_hook_filenames_are_gone() -> None:
