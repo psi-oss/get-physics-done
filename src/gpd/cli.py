@@ -188,7 +188,7 @@ def state_compact() -> None:
 
 @state_app.command("snapshot")
 def state_snapshot() -> None:
-    """Create a point-in-time snapshot of the state."""
+    """Return a fast read-only snapshot of current state for progress and routing."""
     from gpd.core.state import state_snapshot
 
     _output(state_snapshot(_get_cwd()))

@@ -1,10 +1,9 @@
 """Phase lifecycle and roadmap management for GPD research projects.
 
-Ported from experiments/get-physics-done/get-physics-done/src/phases.js (2094 lines).
 Handles phase discovery, ROADMAP.md parsing, wave validation, dependency graph analysis,
 milestone management, and progress rendering.
 
-All public functions are instrumented with Logfire spans via ``gpd_span``.
+Most public functions are instrumented with Logfire spans via ``gpd_span``.
 All return types are Pydantic models — no raw dicts cross module boundaries.
 """
 

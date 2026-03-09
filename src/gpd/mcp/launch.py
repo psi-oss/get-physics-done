@@ -612,9 +612,8 @@ If any critical dimension FAILS, reject the plan and re-run with corrected const
 def _build_tool_catalog_summary() -> str:
     """Generate a dynamic MCP tool summary at launch time.
 
-    Tries to load the full ToolCatalog and format tool entries. On ANY
-    failure (import, config, catalog errors), falls back to cached MCP
-    count. This function MUST NEVER crash build_system_prompt().
+    Tries to load the full ToolCatalog and format tool entries. On import,
+    OS, or config-parse failures, falls back to cached MCP count.
     """
     try:
         from gpd.mcp.discovery.catalog import ToolCatalog

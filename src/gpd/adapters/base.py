@@ -29,9 +29,9 @@ class RuntimeAdapter(abc.ABC):
     (Claude Code, Codex, Gemini CLI, OpenCode).
 
     The ``install()`` method implements a **template method** pattern:
-    ``_validate → _pre_cleanup → _install_commands → _install_content →
-    _install_agents → _install_version → _install_hooks → _configure_runtime →
-    _write_manifest → _verify``.
+    ``_validate → _compute_path_prefix → _pre_cleanup → _install_commands →
+    _install_content → _install_agents → _install_version → _install_hooks →
+    _configure_runtime → _write_manifest → _verify``.
     Subclasses override individual ``_install_*`` hooks for runtime-specific
     behavior.  Override ``install()`` itself only when the signature must change
     (e.g. Codex ``skills_dir``).

@@ -1,8 +1,5 @@
 """Dual-write state management for GPD research projects.
 
-Ported from experiments/get-physics-done/get-physics-done/src/state.js (2493 lines).
-Layer 1 code: stdlib + pathlib + json + re + pydantic only.
-
 The state engine maintains two files in sync:
 - STATE.md  — human-readable, editable markdown
 - state.json — machine-readable, authoritative for structured data
