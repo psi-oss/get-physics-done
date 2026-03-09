@@ -296,7 +296,7 @@ find_claude_binary = _find_claude_code_binary
 
 
 def _find_gpd_root() -> Path | None:
-    """Locate the GPD project root by checking for infra/mcp/.
+    """Locate the GPD project root by checking for infra/.
 
     Checks GPD_ROOT env var first, then walks up from this file's location.
     """
@@ -319,7 +319,7 @@ def _find_gpd_root() -> Path | None:
 
 
 def build_mcp_config_file() -> Path | None:
-    """Build an --mcp-config JSON from infra/mcp/ server definitions.
+    """Build an --mcp-config JSON from infra/ server definitions.
 
     Reads local MCP server configs, resolves environment variable references,
     and writes an mcpServers JSON file compatible with the hosting runtime.
