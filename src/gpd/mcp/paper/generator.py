@@ -189,7 +189,7 @@ async def generate_paper(
     """Generate a complete paper from research artifacts via PydanticAI agents.
 
     1. Plan sections from research summary
-    2. Write each section with Claude
+    2. Write each section with the AI agent
     3. Generate figure captions
     4. Build reproducibility appendix
     5. Assemble PaperConfig

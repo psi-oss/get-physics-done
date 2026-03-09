@@ -243,22 +243,22 @@ class TestMain:
     def test_empty_json_object_no_crash(self) -> None:
         """Empty {} input should not crash — all fields default gracefully."""
         output = self._run_main({})
-        assert "Claude" in output  # Default model name
+        assert "unknown" in output  # Default model name
 
     def test_missing_model_field(self) -> None:
-        """Missing 'model' key → defaults to 'Claude'."""
+        """Missing 'model' key → defaults to 'unknown'."""
         output = self._run_main({"workspace": {"current_dir": "/tmp"}})
-        assert "Claude" in output
+        assert "unknown" in output
 
     def test_model_field_is_none(self) -> None:
-        """model=None → 'or {}' fallback → 'Claude'."""
+        """model=None → 'or {}' fallback → 'unknown'."""
         output = self._run_main({"model": None})
-        assert "Claude" in output
+        assert "unknown" in output
 
     def test_model_without_display_name(self) -> None:
-        """model={} with no display_name → defaults to 'Claude'."""
+        """model={} with no display_name → defaults to 'unknown'."""
         output = self._run_main({"model": {}})
-        assert "Claude" in output
+        assert "unknown" in output
 
     def test_with_valid_model(self) -> None:
         output = self._run_main({"model": {"display_name": "GPT-4o"}})

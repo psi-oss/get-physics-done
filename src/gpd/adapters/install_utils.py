@@ -84,19 +84,6 @@ def replace_placeholders(content: str, path_prefix: str) -> str:
     return content
 
 
-def get_dir_name(runtime: str) -> str:
-    """Return the local config directory name for *runtime*.
-
-    >>> get_dir_name("opencode")
-    '.opencode'
-    """
-    return {
-        "opencode": ".opencode",
-        "gemini": ".gemini",
-        "codex": ".codex",
-    }.get(runtime, ".claude")
-
-
 def get_opencode_global_dir() -> str:
     """Resolve OpenCode global config directory following XDG spec.
 
@@ -362,14 +349,14 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
     (Read, Write, Edit) in prose.
     """
     # Globally safe to replace everywhere (unique names)
-    safe_global = ["WebSearch", "WebFetch", "TodoWrite", "AskUserQuestion", "SlashCommand"]
+    safe_global = ["WebSearch", "WebFetch", "TodoWrite", "AskUserQuestion", "SlashCommand", "NotebookEdit", "ToolSearch"]
     for claude_name in safe_global:
         target = tool_map.get(claude_name)
         if target:
             content = re.sub(r"\b" + claude_name + r"\b", target, content)
 
     # Context-sensitive replacements (common English words)
-    contextual = ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task"]
+    contextual = ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "Agent"]
     for claude_name in contextual:
         target = tool_map.get(claude_name)
         if not target:
@@ -545,7 +532,6 @@ def copy_with_path_replacement(
     dest_dir: str | Path,
     path_prefix: str,
     runtime: str,
-    convert_to_toml: bool = False,
 ) -> None:
     """Safely copy *src_dir* to *dest_dir* with path replacement in ``.md`` files.
 
@@ -577,7 +563,7 @@ def copy_with_path_replacement(
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        _copy_dir_contents(src_dir, tmp_dir, path_prefix, runtime, convert_to_toml)
+        _copy_dir_contents(src_dir, tmp_dir, path_prefix, runtime)
 
         # Swap into place
         if dest_dir.exists():
@@ -608,7 +594,6 @@ def _copy_dir_contents(
     target_dir: Path,
     path_prefix: str,
     runtime: str,
-    convert_to_toml: bool,
 ) -> None:
     """Recursively copy directory contents with path replacement in .md files.
 
@@ -622,7 +607,7 @@ def _copy_dir_contents(
 
         if entry.is_dir():
             dest.mkdir(parents=True, exist_ok=True)
-            _copy_dir_contents(entry, dest, path_prefix, runtime, convert_to_toml)
+            _copy_dir_contents(entry, dest, path_prefix, runtime)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix)
@@ -932,13 +917,13 @@ _install_logger = _logging.getLogger("gpd.adapters.install")
 def validate_package_integrity(gpd_root: Path) -> None:
     """Validate that the GPD package data directory contains required subdirs.
 
-    Raises ``FileNotFoundError`` if commands/, agents/, or hooks/ are missing.
+    Raises ``FileNotFoundError`` if commands/, agents/, hooks/, or specs/ are missing.
     """
-    for required in ("commands", "agents", "hooks"):
+    for required in ("commands", "agents", "hooks", "specs"):
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
                 f"Package integrity check failed: missing {required}/. "
-                "Try reinstalling: pip install --force-reinstall psi-gpd"
+                "Try reinstalling: pip install --force-reinstall gpd"
             )
 
 
@@ -1135,7 +1120,7 @@ def build_hook_command(
 ) -> str:
     """Build the shell command string for a hook script.
 
-    Shared by Claude Code (python3) and Gemini (node) adapters.
+    Shared by Claude Code and Gemini adapters (both use python3 for hooks).
     """
     if is_global:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")

@@ -1,13 +1,13 @@
 # Get Physics Done (GPD)
 
-[![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
+[![CI](https://github.com/get-physics-done/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/get-physics-done/get-physics-done/actions/workflows/test.yml)
 
 An autonomous physics research system. Describe a problem in plain English, and GPD handles the rest — formalization, literature context, derivations, numerical verification, and paper writing.
 
 ## Install
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done
+npx github:get-physics-done/get-physics-done
 ```
 
 Prompts you to select your coding agent (Claude Code, OpenCode, Gemini CLI, or Codex) and installs GPD.

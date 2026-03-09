@@ -26,10 +26,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# PSI platform strategy bridge (only needed inside the PSI monorepo).
-# These packages are not on PyPI — they are PSI workspace packages.
-# Install via: pip install get-physics-done[psi] (from within the PSI monorepo only)
-# psi = ["psi-mcp-shared", "psi-contracts", "psi-core", "inference-providers", "psi-pipeline", "research-memory"]
 viewer = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",

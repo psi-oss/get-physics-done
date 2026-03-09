@@ -204,7 +204,7 @@ class TestLoadSourcesConfig:
     def test_returns_default_when_file_missing(self, tmp_path: Path) -> None:
         config = load_sources_config(tmp_path / "nonexistent.yaml")
         assert config.version == "1.0.0"
-        assert "psi-modal" in config.sources
+        assert "gpd-modal" in config.sources
 
     def test_parses_valid_yaml(self, tmp_path: Path) -> None:
         yaml_path = tmp_path / "test-sources.yaml"
@@ -249,14 +249,14 @@ class TestLoadSourcesConfig:
         yaml_path.write_text(":::invalid yaml{{{}}")
         config = load_sources_config(yaml_path)
         assert config.version == "1.0.0"
-        assert "psi-modal" in config.sources
+        assert "gpd-modal" in config.sources
 
     def test_rejects_unsupported_version(self, tmp_path: Path) -> None:
         yaml_path = tmp_path / "v2.yaml"
         yaml_path.write_text(yaml.dump({"version": "2.0.0", "sources": {}}))
         config = load_sources_config(yaml_path)
         # Falls back to default because version 2.x is unsupported
-        assert "psi-modal" in config.sources
+        assert "gpd-modal" in config.sources
 
 
 # -- get_default_config tests --
@@ -266,15 +266,15 @@ class TestGetDefaultConfig:
     def test_has_three_sources(self) -> None:
         config = get_default_config()
         assert len(config.sources) == 3
-        assert "psi-modal" in config.sources
+        assert "gpd-modal" in config.sources
         assert "external" in config.sources
         assert "local" in config.sources
 
-    def test_psi_modal_source(self) -> None:
+    def test_gpd_modal_source(self) -> None:
         config = get_default_config()
-        modal_src = config.sources["psi-modal"]
+        modal_src = config.sources["gpd-modal"]
         assert modal_src.type == "modal"
-        assert modal_src.app_name == "psi-mcp-servers"
+        assert modal_src.app_name == "gpd-mcp-servers"
         assert modal_src.reconcile is True
 
     def test_local_source_has_configs(self) -> None:

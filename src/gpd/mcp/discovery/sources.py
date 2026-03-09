@@ -106,21 +106,21 @@ def load_sources_config(config_path: Path | None = None) -> MCPSourcesConfig:
 def get_default_config() -> MCPSourcesConfig:
     """Return a sensible default MCPSourcesConfig with three sources.
 
-    - psi-modal: Modal-deployed PSI simulators
+    - gpd-modal: Modal-deployed physics simulators
     - external: External services from registry YAML
     - local: Local MCP servers (stdio transport)
     """
     return MCPSourcesConfig(
         version="1.0.0",
         sources={
-            "psi-modal": SourceConfig(
+            "gpd-modal": SourceConfig(
                 type="modal",
-                app_name="psi-mcp-servers",
+                app_name="gpd-mcp-servers",
                 reconcile=True,
             ),
             "external": SourceConfig(
                 type="external",
-                services_file="${PSI_ROOT}/infra/mcp/registry/external_services.yaml",
+                services_file="${GPD_ROOT}/infra/mcp/registry/external_services.yaml",
             ),
             "local": SourceConfig(
                 type="local",
@@ -146,18 +146,18 @@ def write_default_config(config_path: Path) -> None:
 version: "1.0.0"
 
 sources:
-  # Modal-deployed PSI simulators (primary source, 100+ physics MCPs)
-  psi-modal:
+  # Modal-deployed physics simulators (primary source, 100+ physics MCPs)
+  gpd-modal:
     type: modal
-    app_name: "psi-mcp-servers"
+    app_name: "gpd-mcp-servers"
     env: "${MCP_BUILDER_MODAL_ENV:-dev}"
-    registry: "psi-mcp-shared"
+    registry: "gpd-mcp-shared"
     reconcile: true  # Check Modal deployment status
 
   # External MCP endpoints (non-Modal services)
   external:
     type: external
-    services_file: "${PSI_ROOT}/infra/mcp/registry/external_services.yaml"
+    services_file: "${GPD_ROOT}/infra/mcp/registry/external_services.yaml"
 
   # Local MCP servers (stdio transport)
   local:

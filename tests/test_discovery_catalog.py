@@ -73,7 +73,7 @@ def _make_test_config() -> MCPSourcesConfig:
     """Return a test config that only has a modal source."""
     return MCPSourcesConfig(
         sources={
-            "psi-modal": SourceConfig(type="modal", app_name="psi-mcp-servers"),
+            "gpd-modal": SourceConfig(type="modal", app_name="gpd-mcp-servers"),
         },
     )
 
@@ -300,14 +300,14 @@ class TestToolCatalogToolCount:
 
 
 class TestToolCatalogGracefulDegradation:
-    def test_handles_missing_psi_mcp_shared(self) -> None:
-        """Catalog should return empty results if psi-mcp-shared is unavailable."""
+    def test_handles_missing_gpd_mcp_shared(self) -> None:
+        """Catalog should return empty results if gpd-mcp-shared is unavailable."""
         config = _make_test_config()
         catalog = ToolCatalog(config)
 
         with patch(
             "gpd.mcp.discovery.catalog.ToolCatalog._load_modal_source",
-            side_effect=ImportError("psi-mcp-shared not installed"),
+            side_effect=ImportError("gpd-mcp-shared not installed"),
         ):
             # The _load_full_catalog catches the exception and continues
             all_tools = catalog.get_all_tools()

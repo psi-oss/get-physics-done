@@ -24,8 +24,7 @@ logger = logging.getLogger(__name__)
 
 MCP_BUILDER_SYSTEM_PROMPT: str = """You are MCP Builder, an autonomous MCP server construction agent.
 
-You have access to the MCP Builder construction pipeline at:
-  psi/apps/mcp-builder/construction/
+You work within the GPD MCP infrastructure located under src/gpd/mcp/.
 
 Your capabilities:
 1. CREATE new MCP servers: run_construction_pipeline(question, capability_gap)
@@ -53,22 +52,24 @@ MCP_BUILDER_TOOLS: list[str] = ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 
 
 def get_mcp_builder_cwd() -> str:
-    """Return the absolute path to psi/apps/mcp-builder/.
+    """Return the working directory for the MCP Builder subagent.
 
-    Resolves relative to this file: walk up from gpd.mcp package to psi root,
-    then down to apps/mcp-builder.
+    Resolves the project root relative to this file, then returns
+    ``<project_root>/src/gpd/mcp`` as the working directory.
+
+    Falls back to the current working directory when the resolved path
+    does not exist (e.g. running from an installed wheel).
     """
-    # __file__ is .../psi/packages/gpd/src/gpd/mcp/subagents/mcp_builder.py
-    # Walk up to psi root: subagents -> mcp -> gpd -> src -> gpd -> packages -> psi
-    psi_root = Path(__file__).resolve().parents[6]
-    mcp_builder_dir = psi_root / "apps" / "mcp-builder"
-    if mcp_builder_dir.is_dir():
-        return str(mcp_builder_dir)
-    # Fallback: try relative from cwd
-    fallback = Path.cwd() / "psi" / "apps" / "mcp-builder"
-    if fallback.is_dir():
-        return str(fallback)
-    return str(mcp_builder_dir)
+    # __file__ is .../src/gpd/mcp/subagents/mcp_builder.py
+    # parents: [0] subagents/ [1] mcp/ [2] gpd/ [3] src/ [4] project root
+    project_root = Path(__file__).resolve().parents[4]
+    mcp_dir = project_root / "src" / "gpd" / "mcp"
+    if mcp_dir.is_dir():
+        return str(mcp_dir)
+    # Fallback: project root itself
+    if (project_root / "pyproject.toml").exists():
+        return str(project_root)
+    return str(Path.cwd())
 
 
 def create_mcp_builder_definition() -> object:

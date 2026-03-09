@@ -178,7 +178,7 @@ gpd state advance-plan  # might silently fail
 | `ENOENT` | STATE.md or target file missing | Verify `.planning/STATE.md` exists before calling |
 | `Parse error` | Malformed frontmatter or markdown | Read file, fix formatting, retry |
 | `No phase/plan found` | STATE.md has unexpected structure | Check Current Phase/Plan fields in STATE.md |
-| Non-zero exit with no output | Node.js crash or missing dependency | Check `node --version`, verify gpd CLI path |
+| Non-zero exit with no output | Python crash or missing dependency | Check `python --version`, verify gpd CLI path |
 
 **Recovery protocol:** If a gpd CLI command fails twice, read the target file manually, make the state update via Edit tool, and document the manual fix in the plan SUMMARY.md.
 

@@ -29,7 +29,7 @@ GPD_DEFAULT_FAST_MODEL: str = os.environ.get("GPD_FAST_MODEL", "anthropic:claude
 
 
 def resolve_model_and_settings(spec: str) -> tuple[str, dict[str, object]]:
-    """Parse a PSI model spec into ``(agent_model_id, model_settings)``.
+    """Parse a model spec into ``(agent_model_id, model_settings)``.
 
     Strips effort suffixes like ``-low``, ``-high-budget`` and returns
     provider-specific PydanticAI ``model_settings`` for ``.run()`` calls.
@@ -51,8 +51,6 @@ def resolve_model_and_settings(spec: str) -> tuple[str, dict[str, object]]:
     )
 
     provider, base, effort = parse_model_spec(spec)
-    if base is None:
-        return spec, {}
     agent_model = f"{provider}:{base}" if provider else base
     if effort:
         settings = effort_to_model_settings(provider, base, effort)

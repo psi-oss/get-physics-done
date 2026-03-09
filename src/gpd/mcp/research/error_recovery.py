@@ -134,14 +134,14 @@ async def execute_tool_call(
 
     The tool_router is a callable (from Phase 3) that takes
     (tool_name, arguments) and returns a result dict. When tool_router
-    is None, returns a "skipped" result indicating Claude Code should
+    is None, returns a "skipped" result indicating the hosting runtime should
     call the tool directly.
 
     Args:
         tool_name: Name of the MCP tool to call.
         arguments: Arguments dict to pass to the tool.
         tool_router: Callable that routes to the appropriate MCP server,
-            or None to delegate tool calls to Claude Code.
+            or None to delegate tool calls to the hosting runtime.
 
     Returns:
         Result dict from the tool execution, or a skipped-result dict
@@ -151,7 +151,7 @@ async def execute_tool_call(
         return {
             "status": "skipped",
             "tool_name": tool_name,
-            "reason": "No tool_router provided -- tools will be called by Claude Code directly",
+            "reason": "No tool_router provided -- tools will be called by the hosting runtime directly",
             "arguments": arguments,
         }
     result = await tool_router(tool_name, arguments)

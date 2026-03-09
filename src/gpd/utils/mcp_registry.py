@@ -1,7 +1,7 @@
 """MCP Registry -- discovery, SKILL.md loading, streaming configs.
 
-Inlined from PSI's ``psi_mcp_shared.registry`` so GPD can discover
-available MCP servers without depending on PSI monorepo packages.
+Inlined from the MCP shared registry so GPD can discover
+available MCP servers standalone.
 
 Uses GPD's own infra/ directory layout for MCP configs when available,
 or falls back to the simulators package if importable.
@@ -10,11 +10,14 @@ or falls back to the simulators package if importable.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
 
 from gpd.utils.paths import find_project_root
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_simulators_dir() -> Path | None:
@@ -274,7 +277,7 @@ def get_available_mcps() -> dict:
                             tools.append({"name": tool_name, "desc": tool_doc})
 
             except Exception as e:
-                print(f"[MCP_REGISTRY] Failed to parse {mcp_id}/server.py: {e}")
+                logger.warning("Failed to parse %s/server.py: %s", mcp_id, e)
                 desc = f"{mcp_id} MCP (parse error)"
                 tools = []
 

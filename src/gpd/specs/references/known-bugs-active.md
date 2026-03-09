@@ -10,11 +10,11 @@ Last updated: 2026-02-24
 
 ### 2. State Dual-Write Consistency
 
-**Caveat:** STATE.md and state.json can drift out of sync when one is updated without the other. The JavaScript state module writes both, but manual edits to STATE.md (common during debugging) leave state.json stale.
+**Caveat:** STATE.md and state.json can drift out of sync when one is updated without the other. The state module writes both, but manual edits to STATE.md (common during debugging) leave state.json stale.
 
 **Status:** Improved. The `gpd state validate` command now performs 11 cross-checks between STATE.md and state.json including: field sync (phase, plan, total counts), NaN detection, schema completeness, status vocabulary validation, phase ID format, phase range bounds, result ID uniqueness, and dependency validity. A state-json-schema template documents the full schema. The `$gpd-sync-state` command provides reconciliation when drift is detected. However, the dual-write architecture itself remains — full resolution would require making STATE.md a generated read-only view of state.json.
 
-**Workaround:** Run `gpd state validate` to detect drift. After manually editing STATE.md, delete `state.json` so it regenerates on the next `gpd state` command (the fallback parser in `loadStateJson` reconstructs it from STATE.md). When reading state, prefer the JS API (`gpd CLI state-snapshot`) which reads from the canonical source.
+**Workaround:** Run `gpd state validate` to detect drift. After manually editing STATE.md, delete `state.json` so it regenerates on the next `gpd state` command (the fallback parser in `load_state_json` reconstructs it from STATE.md). When reading state, prefer `gpd state load` which reads from the canonical source.
 
 ### 3. Convention Source-of-Truth Multiplicity
 
@@ -75,7 +75,7 @@ git tag -d gpd-checkpoint/old-tag-name
 - Agent A edits section X of a shared file, agent B edits section Y
 - If agent B uses full-file Write (not targeted Edit), agent A's changes are lost
 - No error is raised — the last writer wins silently
-- This session experienced multiple instances of lost edits on shared files (agent-infrastructure.md, state.js, index.js)
+- Past sessions experienced multiple instances of lost edits on shared files (agent-infrastructure.md and core module files)
 
 **Workaround:** Use targeted `Edit` (string replacement) instead of full-file `Write` whenever possible. Read the file immediately before writing to capture recent teammate changes. Orchestrators should avoid assigning overlapping file edits to parallel agents.
 

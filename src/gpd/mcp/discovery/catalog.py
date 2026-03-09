@@ -55,7 +55,7 @@ class ToolCatalog:
         """Build the complete catalog from all configured sources.
 
         Loads from:
-        1. Modal source: psi-mcp-shared registry + SKILLS_SUMMARY
+        1. Modal source: gpd-mcp-shared registry + SKILLS_SUMMARY
         2. External source: external_services.yaml
         3. Local source: known local MCP servers
         4. Custom source: inline endpoint definitions
@@ -80,7 +80,7 @@ class ToolCatalog:
         return catalog
 
     def _load_modal_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
-        """Load tools from psi-mcp-shared registry with SKILLS_SUMMARY metadata."""
+        """Load tools from gpd-mcp-shared registry with SKILLS_SUMMARY metadata."""
         entries: dict[str, ToolEntry] = {}
 
         from gpd.utils.mcp_registry import get_available_mcps, get_skills_summary
@@ -230,7 +230,7 @@ class ToolCatalog:
 
         if category not in self._reconciled_categories:
             # Find the modal app name from sources config
-            app_name = "psi-mcp-servers"
+            app_name = "gpd-mcp-servers"
             for src in self._sources.sources.values():
                 if src.type == "modal":
                     app_name = src.app_name
@@ -288,7 +288,7 @@ class ToolCatalog:
             try:
                 if self._full_catalog is None:
                     return
-                app_name = "psi-mcp-servers"
+                app_name = "gpd-mcp-servers"
                 for src in self._sources.sources.values():
                     if src.type == "modal":
                         app_name = src.app_name

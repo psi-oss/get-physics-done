@@ -2,7 +2,7 @@
 
 Generates publication-ready LaTeX papers from research artifacts
 with domain-appropriate journal templates, auto-generated bibliography,
-and Claude-written content.
+and AI-generated content.
 
 Public API:
     generate_paper()  - PydanticAI agent generates paper content from research

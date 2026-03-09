@@ -1,4 +1,10 @@
-"""ASCII logo rendering, startup display, MCP caching, Claude Code launch, and resume validation for GPD+."""
+"""ASCII logo rendering, startup display, MCP caching, session launch, and resume validation for GPD+.
+
+GPD+ currently launches interactive sessions via Claude Code.  The
+``launch_session()`` / ``_find_claude_code_binary()`` helpers are
+intentionally Claude-Code-specific; other runtimes would need their own
+launch functions (or a generic abstraction) in the future.
+"""
 
 from __future__ import annotations
 
@@ -35,19 +41,54 @@ GPD_PLUS_LOGO = r"""
 """
 
 
-def _detect_model() -> str:
-    """Read the active model from Claude Code settings.
+def _get_runtime_settings_path() -> Path | None:
+    """Resolve the ``settings.json`` path for the active runtime.
 
-    Checks ~/.claude/settings.json for the 'model' key and maps
-    aliases to display names. Falls back to 'unknown'.
+    Uses ``gpd.hooks.runtime_detect.detect_active_runtime`` to determine
+    which AI-coding runtime is active, then looks up the corresponding
+    adapter to obtain the correct global config directory (which respects
+    env-var overrides such as ``CLAUDE_CONFIG_DIR``).
+
+    Returns ``None`` if the runtime is unknown or the adapter cannot be loaded.
+    """
+    try:
+        from gpd.hooks.runtime_detect import detect_active_runtime
+
+        runtime = detect_active_runtime()
+        # Map runtime_detect identifiers to adapter registry names
+        _RUNTIME_TO_ADAPTER: dict[str, str] = {
+            "claude": "claude-code",
+            "codex": "codex",
+            "gemini": "gemini",
+            "opencode": "opencode",
+        }
+        adapter_name = _RUNTIME_TO_ADAPTER.get(runtime)
+        if adapter_name is None:
+            return None
+
+        from gpd.adapters import get_adapter
+
+        adapter = get_adapter(adapter_name)
+        return adapter.global_config_dir / "settings.json"
+    except (ImportError, KeyError, OSError):
+        return None
+
+
+def _detect_model() -> str:
+    """Read the active model from the current runtime's settings.
+
+    Resolves the runtime config directory via the adapter registry
+    (respecting env-var overrides like ``CLAUDE_CONFIG_DIR``), reads
+    ``settings.json`` for the ``model`` key, and maps known aliases
+    to human-readable display names.  Falls back to ``'unknown'``.
     """
     _DISPLAY_NAMES: dict[str, str] = {
         "opus": "Opus 4.6",
         "sonnet": "Sonnet 4.6",
         "haiku": "Haiku 4.5",
     }
-    settings_path = Path.home() / ".claude" / "settings.json"
-    if not settings_path.exists():
+    settings_path = _get_runtime_settings_path()
+    if settings_path is None or not settings_path.exists():
         return "unknown"
     try:
         data = json.loads(settings_path.read_text())
@@ -155,6 +196,8 @@ def _refresh_mcp_count_worker() -> None:
         catalog = ToolCatalog(config)
         count = catalog.tool_count
     except Exception:
+        # Background worker — log to debug and fall back to 0
+        logger.debug("MCP count refresh failed", exc_info=True)
         count = 0
     _write_mcp_cache(count)
 
@@ -211,7 +254,7 @@ def validate_resume(session: SessionState, console: Console) -> list[str]:
     Checks:
       1. Session JSON loaded successfully (implicit -- we have the object)
       2. MCP tools referenced in session.mcp_tools_used are available
-         (placeholder: just check psi-mcp-shared importability)
+         (placeholder: check MCP registry availability)
       3. Error messages from previous session noted as warnings
 
     Returns a list of warning strings. Empty list = all clear.
@@ -221,12 +264,10 @@ def validate_resume(session: SessionState, console: Console) -> list[str]:
     # Check MCP tools availability (placeholder for Phase 3)
     if session.mcp_tools_used:
         try:
-            import importlib
-
-            importlib.import_module("psi_mcp_shared")
-        except ImportError:
+            from gpd.utils.mcp_registry import get_available_mcps  # noqa: F401
+        except (ImportError, OSError):
             warnings.append(
-                f"psi-mcp-shared not available; {len(session.mcp_tools_used)} referenced MCP tools cannot be verified"
+                f"MCP registry not available; {len(session.mcp_tools_used)} referenced MCP tools cannot be verified"
             )
 
     # Note previous errors
@@ -236,10 +277,11 @@ def validate_resume(session: SessionState, console: Console) -> list[str]:
     return warnings
 
 
-def find_claude_binary() -> str:
-    """Find the claude CLI binary on PATH.
+def _find_claude_code_binary() -> str:
+    """Find the ``claude`` CLI binary on PATH.
 
-    Raises FileNotFoundError with install instructions if not found.
+    This is specific to the Claude Code launch path (``launch_session``).
+    Raises ``FileNotFoundError`` with install instructions if not found.
     """
     path = shutil.which("claude")
     if path is None:
@@ -249,12 +291,16 @@ def find_claude_binary() -> str:
     return path
 
 
-def _find_psi_root() -> Path | None:
-    """Locate the PSI monorepo root by checking for infra/mcp/.
+# Keep a public alias for backwards compatibility (used by tests & cli.py imports)
+find_claude_binary = _find_claude_code_binary
 
-    Checks PSI_ROOT env var first, then walks up from this file's location.
+
+def _find_gpd_root() -> Path | None:
+    """Locate the GPD project root by checking for infra/mcp/.
+
+    Checks GPD_ROOT env var first, then walks up from this file's location.
     """
-    from_env = os.environ.get("PSI_ROOT")
+    from_env = os.environ.get("GPD_ROOT")
     if from_env:
         root = Path(from_env)
         if (root / "infra").is_dir():
@@ -273,19 +319,19 @@ def _find_psi_root() -> Path | None:
 
 
 def build_mcp_config_file() -> Path | None:
-    """Build a Claude Code --mcp-config JSON from infra/mcp/ server definitions.
+    """Build an --mcp-config JSON from infra/mcp/ server definitions.
 
     Reads local MCP server configs, resolves environment variable references,
-    and writes a Claude Code compatible mcpServers JSON file.
+    and writes an mcpServers JSON file compatible with the hosting runtime.
 
     Returns path to the generated file, or None if no configs found.
     """
-    psi_root = _find_psi_root()
-    if psi_root is None:
-        logger.debug("PSI root not found, skipping MCP config generation")
+    gpd_root = _find_gpd_root()
+    if gpd_root is None:
+        logger.debug("GPD root not found, skipping MCP config generation")
         return None
 
-    mcp_dir = psi_root / "infra"
+    mcp_dir = gpd_root / "infra"
     if not mcp_dir.is_dir():
         return None
 
@@ -313,8 +359,8 @@ def build_mcp_config_file() -> Path | None:
         server_key = config_file.stem
         # Rewrite bare "python" to venv python so MCP servers find installed packages
         cmd = raw["command"]
-        if cmd == "python" and psi_root and (psi_root / ".venv" / "bin" / "python").exists():
-            cmd = str(psi_root / ".venv" / "bin" / "python")
+        if cmd == "python" and gpd_root and (gpd_root / ".venv" / "bin" / "python").exists():
+            cmd = str(gpd_root / ".venv" / "bin" / "python")
         entry: dict[str, object] = {
             "command": cmd,
             "args": resolved_args,
@@ -332,7 +378,7 @@ def build_mcp_config_file() -> Path | None:
     if not servers:
         return None
 
-    config_path = CACHE_DIR / "claude-mcp-config.json"
+    config_path = CACHE_DIR / "mcp-config.json"
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps({"mcpServers": servers}, indent=2))
     return config_path
@@ -719,17 +765,18 @@ def build_system_prompt() -> str:
     return "\n\n".join(sections)
 
 
-def launch_claude_session() -> int:
+def launch_session() -> int:
     """Launch an interactive Claude Code session with GPD+ configuration.
 
-    Passes through stdin/stdout/stderr directly to Claude Code's TUI.
-    Skips user-level settings (which contain GSD hooks/statusLine),
-    disables slash commands, and explicitly blocks GSD skills.
+    Currently GPD+ only supports Claude Code as the interactive runtime.
+    This function passes through stdin/stdout/stderr directly to Claude
+    Code's TUI, skips user-level settings (which contain GSD hooks /
+    statusLine), disables slash commands, and explicitly blocks GSD skills.
 
     Returns the exit code from the Claude Code process.
-    Raises FileNotFoundError if the claude binary is not installed.
+    Raises ``FileNotFoundError`` if the ``claude`` binary is not installed.
     """
-    claude_bin = find_claude_binary()
+    claude_bin = _find_claude_code_binary()
     prompt = build_system_prompt()
     mcp_config = build_mcp_config_file()
     model = _detect_model_alias()
@@ -753,10 +800,19 @@ def launch_claude_session() -> int:
     return result.returncode
 
 
+# Keep the old name as a public alias for backwards compatibility
+launch_claude_session = launch_session
+
+
 def _detect_model_alias() -> str:
-    """Read the model alias from Claude Code settings (e.g. 'opus')."""
-    settings_path = Path.home() / ".claude" / "settings.json"
-    if not settings_path.exists():
+    """Read the raw model alias (e.g. ``'opus'``) from the active runtime's settings.
+
+    Uses ``_get_runtime_settings_path`` to find the correct config
+    directory (respecting env-var overrides).  Falls back to ``'opus'``
+    when settings are unavailable.
+    """
+    settings_path = _get_runtime_settings_path()
+    if settings_path is None or not settings_path.exists():
         return "opus"
     try:
         data = json.loads(settings_path.read_text())

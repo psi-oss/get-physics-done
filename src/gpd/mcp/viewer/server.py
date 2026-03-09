@@ -41,7 +41,7 @@ class FrameStore:
 
     def __init__(self) -> None:
         self.frames: deque[Frame] = deque(maxlen=MAX_FRAME_HISTORY)
-        self._subscribers: list[asyncio.Queue[Frame]] = []
+        self._subscribers: list[asyncio.Queue[Frame | None]] = []
         self._lock = asyncio.Lock()
 
     async def push(self, frame: Frame) -> int:
@@ -49,7 +49,7 @@ class FrameStore:
         async with self._lock:
             self.frames.append(frame)
             idx = len(self.frames) - 1
-            dead: list[asyncio.Queue[Frame]] = []
+            dead: list[asyncio.Queue[Frame | None]] = []
             for q in self._subscribers:
                 try:
                     q.put_nowait(frame)
@@ -59,14 +59,14 @@ class FrameStore:
                 self._subscribers.remove(q)
             return idx
 
-    async def subscribe(self) -> asyncio.Queue[Frame]:
+    async def subscribe(self) -> asyncio.Queue[Frame | None]:
         """Create a new subscriber queue."""
-        q: asyncio.Queue[Frame] = asyncio.Queue(maxsize=256)
+        q: asyncio.Queue[Frame | None] = asyncio.Queue(maxsize=256)
         async with self._lock:
             self._subscribers.append(q)
         return q
 
-    async def unsubscribe(self, q: asyncio.Queue[Frame]) -> None:
+    async def unsubscribe(self, q: asyncio.Queue[Frame | None]) -> None:
         async with self._lock:
             if q in self._subscribers:
                 self._subscribers.remove(q)
@@ -81,7 +81,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create the viewer FastAPI app."""
-    app = FastAPI(title="PSI Frame Viewer", lifespan=_lifespan)
+    app = FastAPI(title="GPD+ Frame Viewer", lifespan=_lifespan)
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
     @app.get("/", response_class=HTMLResponse)
@@ -91,10 +91,13 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, object]:
         store: FrameStore = app.state.store
+        async with store._lock:
+            frame_count = len(store.frames)
+            sub_count = len(store._subscribers)
         return {
             "status": "running",
-            "frames": len(store.frames),
-            "subscribers": len(store._subscribers),
+            "frames": frame_count,
+            "subscribers": sub_count,
             "uptime_seconds": round(time.time() - app.state.start_time, 1),
         }
 
@@ -136,7 +139,8 @@ def create_app() -> FastAPI:
     async def frame_history() -> list[dict[str, object]]:
         """Get all buffered frames (for late-joining viewers)."""
         store: FrameStore = app.state.store
-        return [{"index": i, **f.model_dump()} for i, f in enumerate(store.frames)]
+        async with store._lock:
+            return [{"index": i, **f.model_dump()} for i, f in enumerate(store.frames)]
 
     @app.get("/api/events")
     async def events(request: Request) -> EventSourceResponse:

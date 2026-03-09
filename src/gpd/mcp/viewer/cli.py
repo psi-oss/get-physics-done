@@ -1,4 +1,4 @@
-"""CLI commands for the PSI Frame Viewer."""
+"""CLI commands for the GPD+ Frame Viewer."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def start(
     port = _get_port(port)
     host = _get_host(host)
 
-    console.print(f"[bold blue]PSI Frame Viewer[/] starting on http://{host}:{port}")
+    console.print(f"[bold blue]GPD+ Frame Viewer[/] starting on http://{host}:{port}")
     console.print(
         f"  Push frames:  [dim]curl -X POST http://{host}:{port}/api/frame "
         '-H \'Content-Type: application/json\' -d \'\\{"data":"base64...","tool":"mujoco"\\}\'[/]'

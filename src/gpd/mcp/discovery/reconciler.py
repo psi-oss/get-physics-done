@@ -17,21 +17,21 @@ from gpd.mcp.discovery.models import MCPStatus, ToolEntry
 logger = logging.getLogger(__name__)
 
 
-def check_deployment_status(psi_root: Path | None = None) -> set[str]:
+def check_deployment_status(project_root: Path | None = None) -> set[str]:
     """Read the set of passing MCP names from deployment_status.json.
 
     Fast pre-filter: returns MCPs in the "passed" list. Treat this as a hint,
     not ground truth (the file may be stale).
 
     Args:
-        psi_root: Path to the PSI project root. If None, attempts to infer
-            from psi_mcp_shared or PSI_ROOT env var.
+        project_root: Path to the project root. If None, attempts to infer
+            from gpd_mcp_shared or GPD_ROOT env var.
 
     Returns:
         Set of MCP names that appear in the "passed" list, or empty set
         if the file is not found or unreadable.
     """
-    status_path = _resolve_deployment_status_path(psi_root)
+    status_path = _resolve_deployment_status_path(project_root)
     if status_path is None or not status_path.exists():
         logger.warning("deployment_status.json not found, skipping fast pre-filter")
         return set()
@@ -46,15 +46,15 @@ def check_deployment_status(psi_root: Path | None = None) -> set[str]:
         return set()
 
 
-def _resolve_deployment_status_path(psi_root: Path | None) -> Path | None:
+def _resolve_deployment_status_path(project_root: Path | None) -> Path | None:
     """Resolve the path to deployment_status.json."""
     import os
 
-    if psi_root is not None:
-        return psi_root / "infra" / "modal" / "deployment_status.json"
+    if project_root is not None:
+        return project_root / "infra" / "modal" / "deployment_status.json"
 
-    # Try PSI_ROOT env var
-    env_root = os.environ.get("PSI_ROOT")
+    # Try GPD_ROOT env var
+    env_root = os.environ.get("GPD_ROOT")
     if env_root:
         return Path(env_root) / "infra" / "modal" / "deployment_status.json"
 
@@ -89,7 +89,7 @@ def _check_modal_live(name: str, app_name: str) -> tuple[str, bool]:
 
 def reconcile_modal(
     tools: list[ToolEntry],
-    app_name: str = "psi-mcp-servers",
+    app_name: str = "gpd-mcp-servers",
     max_workers: int = 5,
 ) -> list[ToolEntry]:
     """Reconcile Modal tools against actual deployment status.

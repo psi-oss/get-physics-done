@@ -1,7 +1,7 @@
 """Project root resolution.
 
-Inlined from PSI's ``psi_mcp_shared._paths._find_project_root`` so GPD
-can locate project roots without depending on PSI monorepo packages.
+Inlined from ``_paths._find_project_root`` so GPD
+can locate project roots standalone.
 """
 
 from __future__ import annotations

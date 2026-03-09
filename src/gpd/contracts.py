@@ -1,7 +1,7 @@
 """GPD contracts — types for convention locks, verification, protocols, errors, and configuration.
 
-These types were originally in psi_contracts.gpd but are inlined here so GPD
-works standalone without the PSI platform packages.
+These types were originally in a shared contracts package but are inlined here so GPD
+works standalone without external platform packages.
 """
 
 from __future__ import annotations
@@ -96,7 +96,6 @@ GPD_MCP_TOOLS: dict[str, str] = {
     "patterns_enabled": "gpd-patterns",
     "state_enabled": "gpd-state",
     "skills_enabled": "gpd-skills",
-    "blackboard_enabled": "gpd-blackboard",
 }
 
 
@@ -109,7 +108,6 @@ class GPDConfig(BaseModel):
     patterns_enabled: bool = True
     state_enabled: bool = True
     skills_enabled: bool = True
-    blackboard_enabled: bool = True
     bundle: str = "default"
     bundle_overlays: list[str] = Field(
         default_factory=lambda: ["physics"],

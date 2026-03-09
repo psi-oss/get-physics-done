@@ -10,7 +10,7 @@
 
 If you discover a security vulnerability in GPD, please report it responsibly.
 
-**Email:** security@psi.inc
+**Email:** security@getphysicsdone.com
 
 **Do not** open a public GitHub issue for security vulnerabilities.
 

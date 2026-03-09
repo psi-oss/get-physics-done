@@ -39,8 +39,6 @@ system: |
      and resolve it before proceeding
   5. Track approximation regime and validity conditions in /approximations
 
-  {blackboard_instructions}
-
   ### Dimensional Analysis
   Every intermediate expression should carry its dimensions:
   - Energy: [M L^2 T^{-2}]

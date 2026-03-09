@@ -3,15 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
-
-requires_db = pytest.mark.skipif(
-    not os.environ.get("GPD_EXP_DATABASE_URL"),
-    reason="GPD_EXP_DATABASE_URL not set — skipping database tests",
-)
 
 
 @pytest.fixture()

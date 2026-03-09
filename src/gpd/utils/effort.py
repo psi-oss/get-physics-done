@@ -1,7 +1,7 @@
 """Provider-specific effort and output token mappings (standalone).
 
-Inlined from PSI's ``inference_providers.effort`` + ``inference_providers.models``
-so GPD can resolve model specs without depending on the PSI monorepo.
+Inlined from ``inference_providers.effort`` + ``inference_providers.models``
+so GPD can resolve model specs standalone.
 
 Core API:
     parse_model_spec(spec) -> (provider, base_model, effort_or_None)
@@ -174,13 +174,13 @@ def _anthropic_adaptive_spec(
         "none": {"anthropic_thinking": {"type": "disabled"}, "max_tokens": max_output},
     }
     efforts = ["none"]
-    for psi_effort, api_effort in _ANTHROPIC_EFFORT_MAP.items():
-        settings[psi_effort] = {
+    for effort_level, api_effort in _ANTHROPIC_EFFORT_MAP.items():
+        settings[effort_level] = {
             "anthropic_thinking": {"type": "adaptive"},
             "max_tokens": max_output,
             "anthropic_effort": api_effort,
         }
-        efforts.append(psi_effort)
+        efforts.append(effort_level)
     if supports_max:
         settings["xhigh"] = {
             "anthropic_thinking": {"type": "adaptive"},
@@ -212,13 +212,13 @@ def _anthropic_native_effort_spec(
         "none": {"anthropic_thinking": {"type": "disabled"}, "max_tokens": max_output},
     }
     efforts = ["none"]
-    for psi_effort, api_effort in _ANTHROPIC_EFFORT_MAP.items():
-        settings[psi_effort] = {
+    for effort_level, api_effort in _ANTHROPIC_EFFORT_MAP.items():
+        settings[effort_level] = {
             "anthropic_thinking": {"type": "enabled", "budget_tokens": budget},
             "max_tokens": max_output,
             "anthropic_effort": api_effort,
         }
-        efforts.append(psi_effort)
+        efforts.append(effort_level)
     return ModelSpec(
         name=name,
         provider="anthropic",
@@ -243,17 +243,17 @@ def _anthropic_legacy_spec(
     }
     efforts = ["none"]
     seen_budgets: dict[int, str] = {}
-    for psi_effort in ("minimal", "low", "medium", "high"):
-        raw = _LEGACY_BUDGETS[psi_effort]
+    for effort_level in ("minimal", "low", "medium", "high"):
+        raw = _LEGACY_BUDGETS[effort_level]
         capped = min(raw, _anthropic_max_budget_tokens(max_output))
         if capped in seen_budgets:
             continue
-        seen_budgets[capped] = psi_effort
-        settings[psi_effort] = {
+        seen_budgets[capped] = effort_level
+        settings[effort_level] = {
             "anthropic_thinking": {"type": "enabled", "budget_tokens": capped},
             "max_tokens": max_output,
         }
-        efforts.append(psi_effort)
+        efforts.append(effort_level)
     return ModelSpec(
         name=name,
         provider="anthropic",
@@ -421,7 +421,7 @@ def _suppressed_spec(
 
 
 # =============================================================================
-# The catalog — every PSI-supported model
+# The catalog — every supported model
 # =============================================================================
 
 _ALL_SPECS: list[ModelSpec] = [
@@ -502,7 +502,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {spec.name: spec for spec in _ALL_SPECS}
 
 
 def _api_model_name(inspect_model: str) -> str:
-    inner = inspect_model[4:] if inspect_model.startswith("psi/") else inspect_model
+    inner = inspect_model[4:] if inspect_model.startswith("gpd/") else inspect_model
     return inner.split(":", 1)[1] if ":" in inner else inner
 
 
@@ -570,6 +570,11 @@ def effort_to_model_settings(provider: str, model: str, effort: str) -> dict[str
                 f"Valid values: {sorted(spec.valid_efforts)}"
             )
         settings = dict(spec.effort_settings[base_effort])
+        if use_budget_variant and spec.provider != "anthropic":
+            raise ValueError(
+                f"Unsupported effort variant {effort!r} for {provider}:{model!r}. "
+                "The '-budget' suffix is only supported for Anthropic models."
+            )
         if spec.provider == "anthropic":
             _apply_anthropic_context_features(settings, spec_name=spec.name)
             if use_budget_variant:
@@ -617,8 +622,8 @@ def base_model_settings(provider: str, model: str) -> dict[str, object]:
 # =============================================================================
 
 
-def parse_model_spec(spec: str) -> tuple[str, str | None, str | None]:
-    """Parse a PSI model spec into ``(provider, base_model, effort_or_None)``.
+def parse_model_spec(spec: str) -> tuple[str, str, str | None]:
+    """Parse a model spec into ``(provider, base_model, effort_or_None)``.
 
     Examples::
 

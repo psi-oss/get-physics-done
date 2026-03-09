@@ -88,9 +88,9 @@ Last updated: 2026-02-24
 
 ### 13. gpd CLI Requires Node.js 18+ (Caveat)
 
-**Bug:** `gpd CLI` uses `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This requires Node.js 18 or later. Previously had no version check at startup — running with an older Node.js produced a cryptic error.
+**Bug:** The original Node.js CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required Node.js 18 or later. Previously had no version check at startup — running with an older Node.js produced a cryptic error.
 
-**Status:** Fixed. The `gpd health` command (health.js) now checks Node.js version at startup and reports a clear error if < 18. The `--diagnostic` flag provides comprehensive environment checks including Node.js version, git availability, and .planning directory structure.
+**Status:** Obsolete. The CLI has been rewritten in Python. The `gpd health` command checks Python version and environment. The Node.js dependency no longer exists.
 
 ### 15. State Auto-Compact Implementation Lost During Concurrent Edits
 

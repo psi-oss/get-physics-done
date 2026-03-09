@@ -1,8 +1,8 @@
 """Pipeline CLI subcommands for GPD+ research orchestration.
 
 Each subcommand wraps an existing module, runs it, and outputs structured JSON
-to stdout. Claude Code invokes these via Bash tool calls. The system prompt
-drives Claude through the pipeline step by step.
+to stdout. The hosting runtime invokes these via Bash tool calls. The system prompt
+drives the AI agent through the pipeline step by step.
 """
 
 from __future__ import annotations
@@ -389,8 +389,8 @@ def fix_mcps(
 
     test_results: dict[str, dict] = {}
     for mcp_name in mcps:
-        # Modal naming convention: psi-mcp-{name}, {Name}Service
-        app_name = f"psi-mcp-{mcp_name.replace('_', '-')}"
+        # Modal naming convention: gpd-mcp-{name}, {Name}Service
+        app_name = f"gpd-mcp-{mcp_name.replace('_', '-')}"
         # Build class name: "qe_epw" → "QeEpwService"
         class_name = "".join(part.capitalize() for part in mcp_name.split("_")) + "Service"
         try:

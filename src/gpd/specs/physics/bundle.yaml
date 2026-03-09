@@ -1,7 +1,7 @@
 # Physics Spec Bundle — Domain Overlay
 # Extends the base bundle with physics-specific guidance, protocols,
 # verification checklists, error catalogs, and convention management.
-# Merges with base/ at load time via bundle_loader.
+# Merges with base/ at load time via the bundle overlay system.
 
 name: physics
 version: "1.0.0"

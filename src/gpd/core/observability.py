@@ -11,8 +11,8 @@ Flag resolution priority: env vars > YAML overrides > GPDConfig (contracts) > lo
 
 from __future__ import annotations
 
-import asyncio
 import functools
+import inspect
 import logging
 import os
 from collections.abc import Callable, Generator
@@ -218,7 +218,7 @@ def load_feature_flags(
     """Resolve feature flags with priority: env > YAML > config > local_config > preset > defaults.
 
     Args:
-        config: GPDConfig from psi_contracts (feature flag fields).
+        config: GPDConfig (feature flag fields).
         env: Environment dict (defaults to os.environ).
         yaml_overrides: YAML config file overrides.
         preset: Name of an ablation preset to apply as base.
@@ -245,7 +245,7 @@ def load_feature_flags(
         if local_config is not None:
             _apply_local_config(resolved, local_config)
 
-        # Layer 3: Apply GPDConfig from psi_contracts
+        # Layer 3: Apply GPDConfig feature flags
         if config is not None:
             resolved["gpd.enabled"] = config.enabled
             resolved["gpd.conventions.enabled"] = config.conventions_enabled
@@ -371,7 +371,7 @@ def init_feature_flags(
     """Initialize the module-level feature flag singleton.
 
     Args:
-        config: GPDConfig from psi_contracts (feature flag fields).
+        config: GPDConfig (feature flag fields).
         env: Environment dict (defaults to os.environ).
         yaml_overrides: YAML config file overrides.
         preset: Name of an ablation preset to apply as base.
@@ -478,7 +478,7 @@ def instrument_gpd_function(
     def decorator(func: Callable) -> Callable:
         name = span_name or f"{func.__module__}.{func.__qualname__}"
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args: object, **kwargs: object) -> object:

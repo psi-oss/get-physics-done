@@ -1,7 +1,7 @@
 """LaTeX utilities — auto-fix, fence stripping, Unicode sanitization.
 
-Inlined from PSI's ``psi_core.latex.autofix`` and ``pipeline.latex_utils``
-so GPD can process LaTeX without depending on PSI monorepo packages.
+Inlined from ``latex.autofix`` and ``pipeline.latex_utils``
+so GPD can process LaTeX standalone.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Auto-fix (from psi_core.latex.autofix)
+# Auto-fix rules
 # =============================================================================
 
 

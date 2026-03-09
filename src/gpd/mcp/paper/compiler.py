@@ -1,6 +1,6 @@
 """Compiler wrapper: class file checks, multi-pass compilation, full pipeline.
 
-Wraps psi_core.latex.LaTeXCompiler with class file pre-checks (kpsewhich),
+Wraps the LaTeX compiler with class file pre-checks (kpsewhich),
 latexmk support for multi-pass compilation, and the build_paper orchestrator.
 """
 
@@ -162,10 +162,10 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         # Try autofix
         from gpd.utils.latex import try_autofix
 
-        tex_content = tex_path.read_text(encoding="utf-8")
+        tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
         fix_result = try_autofix(tex_content, log)
         if fix_result.was_modified and fix_result.fixed_content:
-            tex_path.write_text(fix_result.fixed_content, encoding="utf-8")
+            await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
             logger.info("Applied autofix: %s", fix_result.fixes_applied)
             await run_cmd(base_cmd, cwd)
             if pdf_path.exists():
@@ -208,17 +208,17 @@ async def build_paper(
     bib_content = ""
     if bib_data:
         bib_path = output_dir / f"{config.bib_file}.bib"
-        write_bib_file(bib_data, bib_path)
-        bib_content = bib_path.read_text(encoding="utf-8")
+        await asyncio.to_thread(write_bib_file, bib_data, bib_path)
+        bib_content = await asyncio.to_thread(bib_path.read_text, encoding="utf-8")
 
     # 3. Render .tex
     tex_content = render_paper(config)
     tex_path = output_dir / "paper.tex"
-    tex_path.write_text(tex_content, encoding="utf-8")
+    await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
 
-    # 4. Check class file
+    # 4. Check class file (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
-    available, msg = check_class_file(spec.document_class)
+    available, msg = await asyncio.to_thread(check_class_file, spec.document_class)
     if not available:
         errors.append(msg)
         return PaperOutput(

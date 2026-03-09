@@ -212,13 +212,13 @@ class SourceConfig(BaseModel):
     type: str
     """Source type: 'modal', 'local', 'external', 'custom'."""
 
-    app_name: str = "psi-mcp-servers"
+    app_name: str = "gpd-mcp-servers"
     """Modal app name (for modal type)."""
 
     env: str = "dev"
     """Modal environment."""
 
-    registry: str = "psi-mcp-shared"
+    registry: str = "gpd-mcp-shared"
     """Registry to use for catalog."""
 
     reconcile: bool = True

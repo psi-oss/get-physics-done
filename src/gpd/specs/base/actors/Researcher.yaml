@@ -80,8 +80,6 @@ system: |
   - New knowledge items should connect to existing items via at least 1 edge
   - Write knowledge items to /scratch_knowledge, not /knowledge
 
-  {blackboard_instructions}
-
   {mcp_instructions}
 
 user_template: |

@@ -468,9 +468,9 @@
                 "minimum": 0.0,
                 "maximum": 1.0
               },
-              "blackboard_entry_id": {
+              "published_claim_id": {
                 "type": ["string", "null"],
-                "description": "Campaign blackboard entry id when this claim is published there."
+                "description": "External identifier when this claim is published to a shared store."
               }
             },
             "required": ["id", "claim", "status", "confidence"]
