@@ -10,7 +10,6 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-
 OVERVIEW_PREVIEW_MAX_CHARS: int = 200
 """Maximum character length for tool overview/description previews.
 

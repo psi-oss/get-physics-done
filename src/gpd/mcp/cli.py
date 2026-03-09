@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -38,17 +39,31 @@ def _content_counts() -> tuple[int, int]:
     return len(list_commands()), len(list_agents())
 
 
-def _launch_or_exit(session_manager: SessionManager) -> None:
+def _launch_or_exit(session_manager: SessionManager, cwd: Path) -> None:
     """Launch the interactive session and propagate failures as CLI exits."""
     with graceful_shutdown(session_manager):
         try:
-            exit_code = launch_session()
+            exit_code = launch_session(cwd=cwd)
         except FileNotFoundError as exc:
             console.print(f"[bold red]{exc}[/]")
             raise typer.Exit(code=1) from None
 
     if exit_code:
         raise typer.Exit(code=exit_code)
+
+
+def _resolve_working_directory(ctx: typer.Context) -> Path:
+    """Resolve the requested working directory from the root CLI context."""
+    root_params = ctx.parent.params if ctx.parent is not None else {}
+    requested = root_params.get("cwd", ".")
+    return Path(str(requested)).expanduser().resolve()
+
+
+def _default_project_name(cwd: Path) -> str:
+    """Use the working directory name as the session project label."""
+    if cwd.name:
+        return cwd.name
+    return "default"
 
 
 @session_app.callback(invoke_without_command=True)
@@ -63,6 +78,7 @@ def main(
     if ctx.invoked_subcommand is not None:
         return
 
+    working_dir = _resolve_working_directory(ctx)
     ensure_dirs()
     search_index = SearchIndex(DB_PATH)
     session_manager = SessionManager(SESSIONS_DIR, search_index)
@@ -81,7 +97,11 @@ def main(
         command_count, agent_count = _content_counts()
 
         if resume or session_id:
-            loaded = session_manager.load(session_id) if session_id else session_manager.get_latest_session()
+            try:
+                loaded = session_manager.load(session_id) if session_id else session_manager.get_latest_session()
+            except FileNotFoundError:
+                console.print(f"[bold red]No session found with ID '{session_id}'.[/]")
+                raise typer.Exit(code=1) from None
             if loaded is None:
                 console.print("[bold red]No session found to resume.[/]")
                 raise typer.Exit(code=1)
@@ -89,7 +109,7 @@ def main(
             if not session_id:
                 session_manager._active_session = loaded
 
-            warnings = validate_resume(loaded, console)
+            warnings = validate_resume(loaded)
             for warning in warnings:
                 console.print(f"  [yellow]Warning:[/] {warning}")
 
@@ -97,7 +117,7 @@ def main(
             loaded.status = "active"
             session_manager.save(loaded)
             console.print(f"  Loaded {command_count} commands and {agent_count} agents", style="dim")
-            _launch_or_exit(session_manager)
+            _launch_or_exit(session_manager, working_dir)
             return
 
         mcp_count = get_cached_mcp_count()
@@ -110,10 +130,10 @@ def main(
         console.print(f"  {command_count} built-in commands and {agent_count} agents ready", style="dim")
 
         session_manager.create(
-            project_name="default",
+            project_name=_default_project_name(working_dir),
             session_name=f"session-{datetime.now().strftime('%Y%m%d-%H%M')}",
         )
-        _launch_or_exit(session_manager)
+        _launch_or_exit(session_manager, working_dir)
     finally:
         search_index.close()
 

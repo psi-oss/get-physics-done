@@ -235,6 +235,33 @@ class TestSearchIndex:
         results = search_index.search_structured(project="project-0")
         assert len(results) == 1
 
+    def test_rebuild_index_removes_deleted_sessions(self, search_index: SearchIndex, tmp_path: Path) -> None:
+        sessions_dir = tmp_path / "rebuild_sessions"
+        sessions_dir.mkdir()
+
+        stale = SessionState.new(
+            session_id="stale001",
+            project_name="stale-project",
+            session_name="old-session",
+        )
+        fresh = SessionState.new(
+            session_id="fresh001",
+            project_name="fresh-project",
+            session_name="new-session",
+        )
+
+        stale_path = sessions_dir / "stale001.json"
+        fresh_path = sessions_dir / "fresh001.json"
+        stale_path.write_text(stale.model_dump_json(indent=2), encoding="utf-8")
+        fresh_path.write_text(fresh.model_dump_json(indent=2), encoding="utf-8")
+
+        assert search_index.rebuild_index(sessions_dir) == 2
+        stale_path.unlink()
+
+        assert search_index.rebuild_index(sessions_dir) == 1
+        assert search_index.search_structured(project="stale-project") == []
+        assert len(search_index.search_structured(project="fresh-project")) == 1
+
     def test_reindex_updates_existing(self, search_index: SearchIndex) -> None:
         session = SessionState.new(
             session_id="reindex001",

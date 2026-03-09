@@ -83,6 +83,20 @@ def test_session_flag_loads_specific_session(tmp_path: Path) -> None:
     assert "specific-run" in result.output
 
 
+def test_session_flag_missing_id_exits_cleanly(tmp_path: Path) -> None:
+    """gpd session --session should fail cleanly for a missing session ID."""
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    with (
+        patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
+        patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
+    ):
+        result = runner.invoke(app, ["session", "--session", "missing-id"])
+    assert result.exit_code == 1
+    assert "No session found with ID 'missing-id'" in result.output
+
+
 def test_session_search_flag_queries_history(tmp_path: Path) -> None:
     """gpd session --search should query the session index."""
     with (
@@ -109,6 +123,8 @@ def test_session_fresh_launch_creates_new_session(tmp_path: Path) -> None:
     """gpd session should create a new session without any separate entrypoint."""
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True)
+    project_dir = tmp_path / "project-alpha"
+    project_dir.mkdir()
     with (
         patch("gpd.mcp.cli.SESSIONS_DIR", sessions_dir),
         patch("gpd.mcp.cli.DB_PATH", tmp_path / "search.db"),
@@ -116,14 +132,21 @@ def test_session_fresh_launch_creates_new_session(tmp_path: Path) -> None:
         patch("gpd.mcp.cli.list_agents", return_value=["agent-a", "agent-b"]),
         patch("gpd.mcp.cli.get_cached_mcp_count", return_value=5),
         patch("gpd.mcp.cli.refresh_mcp_count_background", return_value=None),
-        patch("gpd.mcp.cli.launch_session", return_value=0),
+        patch("gpd.mcp.cli.launch_session", return_value=0) as launch_session,
     ):
-        result = runner.invoke(app, ["session"])
+        result = runner.invoke(app, ["--cwd", str(project_dir), "session"])
     assert result.exit_code == 0
     assert len(list(sessions_dir.glob("*.json"))) == 1
     assert "GPD v" in result.output or "█" in result.output
     assert "5 MCP tools available" in result.output
     assert "3 built-in commands and 2 agents ready" in result.output
+    launch_session.assert_called_once_with(cwd=project_dir.resolve())
+
+    from gpd.mcp.session.models import SessionState
+
+    session_file = next(sessions_dir.glob("*.json"))
+    session = SessionState.model_validate_json(session_file.read_text(encoding="utf-8"))
+    assert session.project_name == "project-alpha"
 
 
 def test_session_reindex_subcommand(tmp_path: Path) -> None:

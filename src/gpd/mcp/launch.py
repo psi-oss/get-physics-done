@@ -248,27 +248,35 @@ def build_session_card(session: SessionState) -> str:
     return "\n".join(lines)
 
 
-def validate_resume(session: SessionState, console: Console) -> list[str]:
+def validate_resume(session: SessionState) -> list[str]:
     """Validate that a session can be safely resumed.
 
     Checks:
       1. Session JSON loaded successfully (implicit -- we have the object)
-      2. MCP tools referenced in session.mcp_tools_used are available
-         (placeholder: check MCP registry availability)
+      2. MCP tools referenced in session.mcp_tools_used still appear in the
+         current MCP registry snapshot
       3. Error messages from previous session noted as warnings
 
     Returns a list of warning strings. Empty list = all clear.
     """
     warnings: list[str] = []
 
-    # Check MCP tools availability (placeholder for Phase 3)
+    # Check whether previously used MCP tools are still visible to the registry.
     if session.mcp_tools_used:
         try:
-            from gpd.utils.mcp_registry import get_available_mcps  # noqa: F401
+            from gpd.utils.mcp_registry import get_available_mcps
         except (ImportError, OSError):
             warnings.append(
                 f"MCP registry not available; {len(session.mcp_tools_used)} referenced MCP tools cannot be verified"
             )
+        else:
+            available_mcps = set(get_available_mcps())
+            missing_mcps = sorted(set(session.mcp_tools_used) - available_mcps)
+            if missing_mcps:
+                preview = ", ".join(missing_mcps[:5])
+                if len(missing_mcps) > 5:
+                    preview += f" (+{len(missing_mcps) - 5} more)"
+                warnings.append(f"MCP tools used previously are not currently available: {preview}")
 
     # Note previous errors
     if session.error_messages:
@@ -756,13 +764,16 @@ def build_system_prompt() -> str:
     return "\n\n".join(sections)
 
 
-def launch_session() -> int:
+def launch_session(*, cwd: Path | None = None) -> int:
     """Launch an interactive Claude Code session with integrated GPD configuration.
 
     The integrated GPD session launcher currently supports Claude Code only.
     This function passes through stdin/stdout/stderr directly to Claude
     Code's TUI while keeping the standard GPD commands and MCP tooling
     available inside the launched session.
+
+    Args:
+        cwd: Optional working directory for the launched Claude Code session.
 
     Returns the exit code from the Claude Code process.
     Raises ``FileNotFoundError`` if the ``claude`` binary is not installed.
@@ -784,7 +795,7 @@ def launch_session() -> int:
     if mcp_config is not None:
         args.extend(["--mcp-config", str(mcp_config)])
 
-    result = subprocess.run(args)
+    result = subprocess.run(args, cwd=str(cwd) if cwd is not None else None)
     return result.returncode
 
 def _detect_model_alias() -> str:

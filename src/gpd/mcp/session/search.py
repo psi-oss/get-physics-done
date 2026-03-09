@@ -227,12 +227,24 @@ class SearchIndex:
 
         return [dict(row) for row in rows]
 
+    def _clear_index(self) -> None:
+        """Clear all indexed rows before a full rebuild."""
+        if self._conn is None:
+            msg = "SearchIndex is closed"
+            raise RuntimeError(msg)
+
+        self._conn.execute("DELETE FROM session_meta")
+        if self._fts5_available:
+            self._conn.execute("DELETE FROM session_search")
+        self._conn.commit()
+
     def rebuild_index(self, sessions_dir: Path) -> int:
         """Rebuild the FTS5 index from all JSON session files on disk."""
         if self._conn is None:
             msg = "SearchIndex is closed"
             raise RuntimeError(msg)
 
+        self._clear_index()
         count = 0
         for path in sessions_dir.glob("*.json"):
             try:

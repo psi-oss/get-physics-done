@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from rich.console import Console
 
@@ -220,15 +221,23 @@ class TestValidateResume:
     """Tests for resume validation."""
 
     def test_healthy_session_returns_empty(self) -> None:
-        console = Console(record=True, width=80)
         session = _make_session()
-        warnings = validate_resume(session, console)
+        warnings = validate_resume(session)
         assert warnings == []
 
     def test_session_with_errors_warns(self) -> None:
-        console = Console(record=True, width=80)
         session = _make_session()
         session.error_messages.append("Something failed")
-        warnings = validate_resume(session, console)
+        warnings = validate_resume(session)
         assert len(warnings) == 1
         assert "error" in warnings[0].lower()
+
+    def test_session_with_missing_mcp_tools_warns(self) -> None:
+        session = _make_session()
+        session.mcp_tools_used.extend(["openfoam", "lammps"])
+
+        with patch("gpd.utils.mcp_registry.get_available_mcps", return_value={"lammps": {"description": "ok"}}):
+            warnings = validate_resume(session)
+
+        assert len(warnings) == 1
+        assert "openfoam" in warnings[0]
