@@ -92,7 +92,7 @@ gpd view
 
 ## Requirements
 
-- Python 3.11+ (if you need a newer Python, install it with [pyenv](https://github.com/pyenv/pyenv): `pyenv install 3.13 && pyenv global 3.13`)
+- Python 3.11+ (install a newer version with `brew install python@3.13` on macOS or `pyenv install 3.13` on Linux)
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 
