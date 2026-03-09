@@ -31,21 +31,17 @@ function checkPython() {
     try {
       const version = execSync(`${cmd} --version 2>&1`, { encoding: "utf-8" }).trim();
       const match = version.match(/(\d+)\.(\d+)/);
-      if (match && parseInt(match[1]) >= 3 && parseInt(match[2]) >= 11) {
+      if (!match) {
+        continue;
+      }
+      const major = parseInt(match[1], 10);
+      const minor = parseInt(match[2], 10);
+      if (major > 3 || (major === 3 && minor >= 11)) {
         return cmd;
       }
     } catch {}
   }
   return null;
-}
-
-function checkUv() {
-  try {
-    execSync("uv --version 2>&1", { encoding: "utf-8" });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function prompt(question) {
@@ -75,31 +71,16 @@ async function main() {
   }
   log(`Found ${execSync(`${python} --version`, { encoding: "utf-8" }).trim()}`);
 
-  // Check/install uv
-  const hasUv = checkUv();
-  if (!hasUv) {
-    log("Installing uv (Python package manager)...");
-    try {
-      execSync("curl -LsSf https://astral.sh/uv/install.sh | sh", { stdio: "inherit" });
-    } catch {
-      error("Failed to install uv. Install manually: https://docs.astral.sh/uv/");
-      process.exit(1);
-    }
-  }
-
   // Install the Python package
   log("Installing get-physics-done...");
-  let pipResult = spawnSync("uv", ["pip", "install", "get-physics-done@git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
-    stdio: "inherit",
-  });
-  if (pipResult.status !== 0) {
-    // Fallback to pip if uv pip install failed
-    log("uv pip install failed, trying pip...");
-    pipResult = spawnSync(python, ["-m", "pip", "install", "git+https://github.com/physicalsuperintelligence/get-physics-done.git"], {
+  const packageResult = spawnSync(
+    python,
+    ["-m", "pip", "install", "--upgrade", "git+https://github.com/physicalsuperintelligence/get-physics-done.git"],
+    {
       stdio: "inherit",
-    });
-  }
-  if (pipResult.status !== 0) {
+    }
+  );
+  if (packageResult.status !== 0) {
     error("Failed to install get-physics-done Python package.");
     process.exit(1);
   }
@@ -126,7 +107,7 @@ async function main() {
     });
     console.log("");
     const choice = await prompt(`  Enter number (1-${runtimeKeys.length}): `);
-    const idx = parseInt(choice) - 1;
+    const idx = parseInt(choice, 10) - 1;
     if (idx < 0 || idx >= runtimeKeys.length) {
       error("Invalid choice.");
       process.exit(1);
@@ -150,31 +131,16 @@ async function main() {
     scope = choice === "2" ? "local" : "global";
   }
 
-  // Run gpd install <runtime> --global/--local
   log(`Installing GPD for ${RUNTIMES[runtime].name} (${scope})...`);
 
   // Suppress logfire warning during install
   const installEnv = { ...process.env, LOGFIRE_IGNORE_NO_CONFIG: "1" };
 
-  // Try uv run gpd install first, fall back to gpd directly
-  let result = spawnSync("uv", ["run", "gpd", "install", runtime, `--${scope}`], {
+  // Run the installer through the same Python interpreter that installed GPD.
+  const result = spawnSync(python, ["-m", "gpd.cli", "install", runtime, `--${scope}`], {
     stdio: "inherit",
     env: installEnv,
   });
-  if (result.status !== 0) {
-    // Fallback: try gpd directly (if installed globally)
-    result = spawnSync("gpd", ["install", runtime, `--${scope}`], {
-      stdio: "inherit",
-      env: installEnv,
-    });
-  }
-  if (result.status !== 0) {
-    // Final fallback: run the Python module directly
-    result = spawnSync(python, ["-m", "gpd.cli", "install", runtime, `--${scope}`], {
-      stdio: "inherit",
-      env: installEnv,
-    });
-  }
 
   if (result.status === 0) {
     console.log("");

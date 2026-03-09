@@ -11,30 +11,20 @@ This guide is for physicists using GPD day-to-day. For architecture and internal
 ### 1. Install GPD
 
 ```bash
-uv tool install git+https://github.com/physicalsuperintelligence/get-physics-done.git
+npx github:physicalsuperintelligence/get-physics-done
 ```
 
-Or with `pip`:
+That bootstrap command checks for Python 3.11+, installs GPD, and then walks you through installing it into Claude Code, Gemini CLI, Codex, or OpenCode.
+
+If you want to skip the prompts, pass the runtime and scope directly:
 
 ```bash
-python3 -m pip install "git+https://github.com/physicalsuperintelligence/get-physics-done.git"
+npx github:physicalsuperintelligence/get-physics-done --claude --global
 ```
 
-### 2. Install GPD into your AI runtime
+Use `--gemini`, `--codex`, or `--opencode` to preselect the other runtimes.
 
-```bash
-gpd install
-```
-
-This launches the interactive installer, where you choose Claude Code, Gemini CLI, Codex, or OpenCode and then pick a local or global install location.
-
-For scripted installs, you can specify the runtime directly:
-
-```bash
-gpd install claude-code --global
-```
-
-### 3. Start your first project
+### 2. Start your first project
 
 Use the command syntax for your runtime:
 
@@ -191,7 +181,7 @@ Once locked, GPD flags any deviation. To change a convention mid-project, use an
 
 ### GPD commands not appearing in my agent
 
-Run `gpd install` again. If you recently upgraded or reinstalled the Python package, reinstall the runtime integration to pick up the latest commands and agents.
+Run `npx github:physicalsuperintelligence/get-physics-done` again to refresh the installed commands and agents.
 
 ### "GPD state not found" or missing STATE.md
 

@@ -8,32 +8,30 @@ For day-to-day usage, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md). For packag
 
 ## Install
 
-The fastest way to install GPD from the public repository is with `uv`:
+Install GPD with `npx`:
 
 ```bash
-uv tool install git+https://github.com/physicalsuperintelligence/get-physics-done.git
-gpd install
+npx github:physicalsuperintelligence/get-physics-done
 ```
 
-`gpd install` prompts for your runtime and install location, then installs GPD into your AI agent configuration.
+That command checks for Python 3.11+, installs the GPD Python package, and then runs the runtime installer.
 
-If you prefer `pip`, install the package from GitHub and then run the same setup step:
+If you want to skip the prompts, pass the runtime and scope directly:
 
 ```bash
-python3 -m pip install "git+https://github.com/physicalsuperintelligence/get-physics-done.git"
-gpd install
+npx github:physicalsuperintelligence/get-physics-done --claude --global
 ```
 
 ## Supported Runtimes
 
-GPD currently installs into four AI runtimes:
+GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag:
 
-| Runtime | Install target | Help command | Start command |
-|---------|----------------|--------------|---------------|
-| Claude Code | `gpd install claude-code` | `/gpd:help` | `/gpd:new-project` |
-| Gemini CLI | `gpd install gemini` | `/gpd:help` | `/gpd:new-project` |
-| Codex | `gpd install codex` | `$gpd-help` | `$gpd-new-project` |
-| OpenCode | `gpd install opencode` | `/gpd-help` | `/gpd-new-project` |
+| Runtime | `npx` flag | Help command | Start command |
+|---------|------------|--------------|---------------|
+| Claude Code | `--claude` | `/gpd:help` | `/gpd:new-project` |
+| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:new-project` |
+| Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |
+| OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
 Runtime syntax differs slightly, but the workflow is the same across all four.
 
