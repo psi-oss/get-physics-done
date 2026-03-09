@@ -229,6 +229,77 @@ class TestResultCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Approximation commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestApproximationCommands:
+    def test_list(self) -> None:
+        _invoke("approximation", "list")
+
+    def test_add(self) -> None:
+        _invoke("approximation", "add", "Born approx", "--validity-range", "x << 1")
+
+    def test_add_minimal(self) -> None:
+        """Add with only the name — optional params must not pass None to core."""
+        _invoke("approximation", "add", "WKB approx")
+
+    def test_check(self) -> None:
+        _invoke("approximation", "check")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Uncertainty commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestUncertaintyCommands:
+    def test_list(self) -> None:
+        _invoke("uncertainty", "list")
+
+    def test_add(self) -> None:
+        _invoke("uncertainty", "add", "mass", "--value", "1.0", "--uncertainty", "0.1")
+
+    def test_add_minimal(self) -> None:
+        """Add with only the quantity — optional params must not pass None to core."""
+        _invoke("uncertainty", "add", "charge")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Question commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestQuestionCommands:
+    def test_list(self) -> None:
+        _invoke("question", "list")
+
+    def test_add(self) -> None:
+        _invoke("question", "add", "What is the coupling constant?")
+
+    def test_resolve(self) -> None:
+        _invoke("question", "add", "What is the coupling constant?")
+        _invoke("question", "resolve", "coupling constant")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Calculation commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestCalculationCommands:
+    def test_list(self) -> None:
+        _invoke("calculation", "list")
+
+    def test_add(self) -> None:
+        _invoke("calculation", "add", "Loop integral computation")
+
+    def test_complete(self) -> None:
+        _invoke("calculation", "add", "Loop integral computation")
+        _invoke("calculation", "complete", "Loop integral")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Utility commands
 # ═══════════════════════════════════════════════════════════════════════════
 
