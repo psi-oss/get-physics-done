@@ -45,8 +45,8 @@ Extract from find-phase: `source_dir` (`directory`), `source_name` (`phase_name`
 **Get goals from roadmap:**
 
 ```bash
-SOURCE_GOAL=$(gpd roadmap get-phase "${SOURCE_PHASE}" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).goal||'')}catch{}})")
-TARGET_GOAL=$(gpd roadmap get-phase "${TARGET_PHASE}" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).goal||'')}catch{}})")
+SOURCE_GOAL=$(gpd roadmap get-phase "${SOURCE_PHASE}" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('goal',''))")
+TARGET_GOAL=$(gpd roadmap get-phase "${TARGET_PHASE}" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('goal',''))")
 ```
 </step>
 

@@ -102,7 +102,7 @@ Last updated: 2026-02-24
 
 **Bug:** The `gpd validate-return` command was implemented (index.js, frontmatter.js) and initially reported as having no callers.
 
-**Status:** Fixed. `execute-phase.md` (line 264) calls `validate-return` as part of post-execution validation for each agent SUMMARY. The command validates gpd_return YAML envelopes and marks plans as NEEDS_REVIEW if validation fails (non-fatal warning). Additionally, `health.js` checks for gpd_return presence in the system health dashboard.
+**Status:** Fixed. `execute-phase.md` (line 264) calls `validate-return` as part of post-execution validation for each agent SUMMARY. The command validates gpd_return YAML envelopes and marks plans as NEEDS_REVIEW if validation fails (non-fatal warning). Additionally, `gpd health` checks for gpd_return presence in the system health dashboard.
 
 ### 17. verify-conventions Not Integrated Into Inter-Wave Gates (Integration Gap)
 

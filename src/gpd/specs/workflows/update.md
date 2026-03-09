@@ -46,17 +46,17 @@ Proceed to install step (treat as version 0.0.0 for comparison).
 </step>
 
 <step name="check_latest_version">
-Check npm for latest version:
+Check PyPI for latest version:
 
 ```bash
 # gpd is the unified Python package
 pip index versions gpd 2>/dev/null
 ```
 
-**If npm check fails:**
+**If version check fails:**
 
 ```
-Couldn't check for updates (offline or npm unavailable).
+Couldn't check for updates (offline or PyPI unavailable).
 
 To update manually: `gpd install --all --global`
 ```
@@ -217,7 +217,7 @@ Run $gpd-reapply-patches to merge your modifications into the new version.
 <success_criteria>
 
 - [ ] Installed version read correctly
-- [ ] Latest version checked via npm
+- [ ] Latest version checked via PyPI
 - [ ] Update skipped if already current
 - [ ] Changelog fetched and displayed BEFORE update
 - [ ] Clean install warning shown

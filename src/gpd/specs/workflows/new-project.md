@@ -452,8 +452,8 @@ if [ -f .planning/init-progress.json ]; then
   PREV_DESC=""
   INIT_PROGRESS_RAW=$(cat .planning/init-progress.json 2>/dev/null || echo "")
   if [ -n "$INIT_PROGRESS_RAW" ]; then
-    PREV_STEP=$(echo "$INIT_PROGRESS_RAW" | node -e "try{const d=require('fs').readFileSync('/dev/stdin','utf8');const j=JSON.parse(d);console.log(j.step||'')}catch(e){console.log('')}" 2>/dev/null)
-    PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | node -e "try{const d=require('fs').readFileSync('/dev/stdin','utf8');const j=JSON.parse(d);console.log(j.description||'')}catch(e){console.log('')}" 2>/dev/null)
+    PREV_STEP=$(echo "$INIT_PROGRESS_RAW" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('step',''))" 2>/dev/null)
+    PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('description',''))" 2>/dev/null)
   fi
 
   # If JSON was corrupted (empty step), treat as fresh start

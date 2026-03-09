@@ -57,8 +57,15 @@ This is unusual — STATE.md is the primary file. Regenerate:
 
 ```bash
 # Trigger STATE.md regeneration by reading state.json and writing it back
-# (saveStateJson always writes both state.json and STATE.md)
-STATUS=$(node -e "try { const s=JSON.parse(require('fs').readFileSync('.planning/state.json','utf-8')); console.log(s.position?.status || 'Not started'); } catch(e) { console.log('Not started'); }")
+# (sync_state_json always writes both state.json and STATE.md)
+STATUS=$(python3 -c "
+import json, pathlib
+try:
+    s = json.loads(pathlib.Path('.planning/state.json').read_text())
+    print((s.get('position') or {}).get('status', 'Not started') or 'Not started')
+except Exception:
+    print('Not started')
+")
 gpd state update "Status" "${STATUS}"
 if [ $? -ne 0 ]; then echo "WARNING: state update failed — manual STATE.md repair may be needed"; fi
 ```
@@ -228,13 +235,16 @@ gpd state patch \
 
 ```bash
 # Re-read both files and confirm no remaining divergences
-cat .planning/state.json | node -e "
-  try {
-    const j = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-    console.log('Phase:', j.position?.current_phase ?? 'unknown');
-    console.log('Status:', j.position?.status ?? 'unknown');
-    console.log('Synced:', j._synced_at ?? 'not set');
-  } catch(e) { console.log('ERROR: state.json is not valid JSON:', e.message); }
+python3 -c "
+import json, pathlib
+try:
+    j = json.loads(pathlib.Path('.planning/state.json').read_text())
+    pos = j.get('position') or {}
+    print('Phase:', pos.get('current_phase', 'unknown'))
+    print('Status:', pos.get('status', 'unknown'))
+    print('Synced:', j.get('_synced_at', 'not set'))
+except Exception as e:
+    print('ERROR: state.json is not valid JSON:', e)
 "
 ```
 </step>

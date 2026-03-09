@@ -366,7 +366,7 @@ class StateCompactResult(BaseModel):
 
 
 def default_state_dict() -> dict:
-    """Return a dict with every field generateStateMarkdown needs, initialized to defaults."""
+    """Return a dict with every field generate_state_markdown needs, initialized to defaults."""
     return ResearchState().model_dump()
 
 
@@ -1140,17 +1140,19 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
                     "core_research_question": None,
                     "current_focus": None,
                 }
-            if parsed["project"].get("core_question") is not None:
-                merged["project_reference"]["core_research_question"] = parsed["project"]["core_question"]
-            if parsed["project"].get("current_focus") is not None:
-                merged["project_reference"]["current_focus"] = parsed["project"]["current_focus"]
+            cq = parsed["project"].get("core_question")
+            if cq is not None and cq != "[Not set]":
+                merged["project_reference"]["core_research_question"] = cq
+            cf = parsed["project"].get("current_focus")
+            if cf is not None and cf != "[Not set]":
+                merged["project_reference"]["current_focus"] = cf
 
         # Merge position
         if parsed.get("position"):
             if "position" not in merged:
                 merged["position"] = {}
             for key, val in parsed["position"].items():
-                if val is not None:
+                if val is not None and val != EM_DASH:
                     merged["position"][key] = val
             # Convert progress string to progress_percent
             progress = parsed["position"].get("progress")
@@ -1190,7 +1192,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         atomic_write(json_path.with_suffix(".json.bak"), json_content + "\n")
     except OSError:
         if os.environ.get("GPD_DEBUG"):
-            logger.debug("syncStateJson backup write failed")
+            logger.debug("sync_state_json backup write failed")
 
     return merged
 

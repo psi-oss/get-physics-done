@@ -176,7 +176,15 @@ If enabled in config (`referee_review: true` in `.planning/config.json`) or if t
 **Check config or ask user:**
 
 ```bash
-REFEREE_ENABLED=$(node -e "try { const c = JSON.parse(require('fs').readFileSync('.planning/config.json','utf-8')); console.log(c.referee_review ?? 'unset') } catch { console.log('unset') }")
+REFEREE_ENABLED=$(python3 -c "
+import json, pathlib
+try:
+    c = json.loads(pathlib.Path('.planning/config.json').read_text())
+    v = c.get('referee_review')
+    print('unset' if v is None else str(v).lower())
+except Exception:
+    print('unset')
+")
 ```
 
 - If `true`: proceed with referee review

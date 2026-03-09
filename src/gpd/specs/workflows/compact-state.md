@@ -51,7 +51,7 @@ If under 1500 and not forced (`--force` flag absent): offer to compact anyway or
 <step name="run_compact">
 **Delegate to gpd state compact:**
 
-The JavaScript implementation handles the detailed archival logic:
+The gpd CLI handles the detailed archival logic:
 
 ```bash
 RESULT=$(gpd state compact)

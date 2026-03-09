@@ -509,23 +509,27 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    ```bash
    # Read verify_between_waves from config (default: "auto")
-   # Uses nullish check (not ||) so explicit false is respected
-   VERIFY_BETWEEN=$(node -e "
-     try {
-       const c = JSON.parse(require('fs').readFileSync('.planning/config.json','utf8'));
-       const v = c.workflow && c.workflow.verify_between_waves;
-       console.log(v !== null && v !== undefined ? String(v) : 'auto');
-     } catch(e) { console.log('auto'); }
+   # Uses nullish check so explicit false is respected
+   VERIFY_BETWEEN=$(python3 -c "
+   import json, pathlib
+   try:
+       c = json.loads(pathlib.Path('.planning/config.json').read_text())
+       v = (c.get('workflow') or {}).get('verify_between_waves')
+       print('auto' if v is None else str(v).lower())
+   except Exception:
+       print('auto')
    ")
 
    # Resolve "auto" based on model profile
    if [ "$VERIFY_BETWEEN" = "auto" ]; then
-     PROFILE=$(node -e "
-       try {
-         const c = JSON.parse(require('fs').readFileSync('.planning/config.json','utf8'));
-         console.log(c.model_profile || 'review');
-       } catch(e) { console.log('review'); }
-     ")
+     PROFILE=$(python3 -c "
+   import json, pathlib
+   try:
+       c = json.loads(pathlib.Path('.planning/config.json').read_text())
+       print(c.get('model_profile', 'review'))
+   except Exception:
+       print('review')
+   ")
      # auto defaults: enabled for deep-theory and review, disabled for others
      case "$PROFILE" in
        deep-theory|review) VERIFY_BETWEEN="true" ;;

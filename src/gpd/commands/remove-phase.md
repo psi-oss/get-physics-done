@@ -22,7 +22,7 @@ Purpose: Clean removal of research work you have decided not to pursue, without 
 - Scope reduction after realizing a particular physical regime is outside the problem domain
 - Consolidation of multiple small phases into a single phase
 
-Output: Phase deleted, all subsequent phases renumbered, gpd.js commit as historical record.
+Output: Phase deleted, all subsequent phases renumbered, gpd commit as historical record.
 </objective>
 
 <execution_context>
