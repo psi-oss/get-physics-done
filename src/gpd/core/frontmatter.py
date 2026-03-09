@@ -95,6 +95,10 @@ class FrontmatterValidationError(GPDError, ValueError):
 _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)")
 _EMPTY_FRONTMATTER_RE = re.compile(r"^---\r?\n---(?:\r?\n|$)")
 
+# Matches the full frontmatter block (including empty) for replacement operations.
+# Uses a lookahead so the trailing newline is preserved for the caller to reattach.
+_FRONTMATTER_BLOCK_RE = re.compile(r"^---\r?\n(?:[\s\S]*?\r?\n)?---(?=\r?\n|$)")
+
 
 def extract_frontmatter(content: str) -> tuple[dict, str]:
     """Extract YAML frontmatter and body from markdown content.
@@ -163,18 +167,18 @@ def splice_frontmatter(content: str, updates: dict) -> str:
     yaml_str = _dump_yaml(meta)
 
     clean = content.lstrip("\ufeff")
-    fm_match = re.match(r"^---\r?\n[\s\S]*?\r?\n---(?=\r?\n|$)", clean)
+    fm_match = _FRONTMATTER_BLOCK_RE.match(clean)
     if fm_match:
         return f"---{eol}{yaml_str}{eol}---" + clean[fm_match.end() :]
     return f"---{eol}{yaml_str}{eol}---{eol}{eol}" + clean
 
 
 def deep_merge_frontmatter(content: str, merge_data: dict) -> str:
-    """Deep-merge *merge_data* into existing frontmatter.
+    """Shallow-merge *merge_data* into existing frontmatter.
 
     For each key in *merge_data*: if both existing and new values are plain
-    dicts (not lists), they are recursively merged.  Otherwise the new value
-    overwrites.
+    dicts (not lists), their top-level entries are merged (one level only).
+    Otherwise the new value overwrites.
     """
     meta, _ = extract_frontmatter(content)
     for key, val in merge_data.items():
@@ -188,7 +192,7 @@ def deep_merge_frontmatter(content: str, merge_data: dict) -> str:
     yaml_str = _dump_yaml(meta)
 
     clean = content.lstrip("\ufeff")
-    fm_match = re.match(r"^---\r?\n[\s\S]*?\r?\n---(?=\r?\n|$)", clean)
+    fm_match = _FRONTMATTER_BLOCK_RE.match(clean)
     if fm_match:
         return f"---{eol}{yaml_str}{eol}---" + clean[fm_match.end() :]
     return f"---{eol}{yaml_str}{eol}---{eol}{eol}" + clean
@@ -416,9 +420,9 @@ def _write_file_atomic(path: Path, content: str) -> None:
 # ---------------------------------------------------------------------------
 
 # Patterns to extract file paths mentioned in markdown
-_FILE_MENTION_BACKTICK = re.compile(r"`([^`]+\.[a-zA-Z]+)`")
+_FILE_MENTION_BACKTICK = re.compile(r"`([^`]+\.[a-zA-Z][a-zA-Z0-9]*)`")
 _FILE_MENTION_VERB = re.compile(
-    r"(?:Created|Modified|Added|Updated|Edited):\s*`?([^\s`]+\.[a-zA-Z]+)`?",
+    r"(?:Created|Modified|Added|Updated|Edited):\s*`?([^\s`]+\.[a-zA-Z][a-zA-Z0-9]*)`?",
     re.IGNORECASE,
 )
 
@@ -683,7 +687,7 @@ def verify_phase_completeness(cwd: Path, phase: str) -> PhaseCompleteness:
 
 # Patterns for file references
 _AT_REF_RE = re.compile(r"@([^\s\n,)]+/[^\s\n,)]+)")
-_BACKTICK_FILE_RE = re.compile(r"`([^`]+/[^`]+\.[a-zA-Z]{1,10})`")
+_BACKTICK_FILE_RE = re.compile(r"`([^`]+/[^`]+\.[a-zA-Z][a-zA-Z0-9]{0,9})`")
 
 
 @instrument_gpd_function("frontmatter.verify_references")
@@ -924,7 +928,7 @@ def verify_key_links(cwd: Path, plan_file_path: Path) -> KeyLinkVerification:
 # Template operations
 # ---------------------------------------------------------------------------
 
-_FILE_MENTION_RE = re.compile(r"`([^`]+\.[a-zA-Z]+)`")
+_FILE_MENTION_RE = re.compile(r"`([^`]+\.[a-zA-Z][a-zA-Z0-9]*)`")
 _TASK_HEADING_RE = re.compile(r"###\s*Task\s*\d+")
 _DECISION_RE = re.compile(r"decision", re.IGNORECASE)
 
