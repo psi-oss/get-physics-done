@@ -1,0 +1,86 @@
+# Escalate Action — Base Bundle
+# Request a missing capability or external input.
+
+schema_version: 1
+action_id: Escalate
+title: Escalate
+summary: |
+  Request a capability the system currently lacks: web search, human input,
+  missing package, disabled tool, or external data. Creates a structured
+  escalation record that the orchestrator or human can resolve.
+
+schemas:
+  params_json_schema: specs/schemas/params/EscalateParams.json
+  state_fields_touched:
+    - /scratch_knowledge
+    - /plan
+
+write_set:
+  allowed_write_prefixes:
+    - /scratch_knowledge
+    - /plan
+
+write_recipe:
+  version: 1
+  containers:
+    - op: append
+      path: /scratch_knowledge/notes
+      value_required_keys: [id, content]
+    - op: put
+      path: /scratch_knowledge/key_values
+
+parameters:
+  required:
+    - name: escalation_kind
+      type: string
+      meaning: >
+        Category of escalation. One of: web_search, human_input,
+        missing_package, missing_credential, tool_disabled, external_data,
+        compute_resource, domain_expert.
+    - name: request
+      type: string
+      meaning: >
+        Actionable description of what's needed. Must be specific enough
+        for a human or orchestrator to resolve without additional context.
+
+triage_guidance: |
+  Propose Escalate when:
+  - A required tool/package is unavailable and no workaround exists
+  - Human judgment is needed for a critical decision
+  - External data or literature is needed but search tools are disabled
+  - The task requires capabilities beyond the current tool set
+  - A credential or API key is missing for a required service
+
+  Do NOT propose Escalate for:
+  - Problems solvable with available tools (use Work instead)
+  - Vague requests ("need more information" — be specific)
+  - Issues that can be resolved by trying a different approach
+
+action_guidance: |
+  ## Escalation Protocol
+  1. Clearly state what capability is needed and why
+  2. Document what you've already tried (avoid redundant escalation)
+  3. Record the escalation as an issue note in /scratch_knowledge/notes
+  4. Update relevant plan nodes to "blocked" if this blocks progress
+  5. Provide enough context for resolution without full state knowledge
+
+  ## Escalation Record
+  Create a note with:
+  - tags: [issue, escalation]
+  - content: "ESCALATION [{escalation_kind}]: {request}"
+
+  ## Anti-Patterns
+  - Escalating before trying available alternatives
+  - Vague requests ("need help" without specifics)
+  - Escalating for preference rather than necessity
+  - Not documenting what was attempted before escalation
+
+controller:
+  bucket: repair
+  proposable: true
+
+execution:
+  kind: commit
+  shape: linear
+  actor_id: Researcher
+  mcp_tools: true

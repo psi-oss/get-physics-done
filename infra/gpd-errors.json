@@ -1,0 +1,30 @@
+{
+  "name": "gpd-errors",
+  "description": "LLM physics error catalog and traceability matrix for GPD verification. 104 error classes with detection strategies mapped to 8 verification check categories.",
+  "transport": "stdio",
+  "command": "python",
+  "args": ["-m", "gpd.mcp.servers.errors_mcp"],
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-errors",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
+  },
+  "capabilities": [
+    "get_error_class",
+    "check_error_classes",
+    "get_detection_strategy",
+    "get_traceability",
+    "list_error_classes"
+  ],
+  "registry_prefix": "gpd_errors",
+  "prerequisites": [
+    "Install: uv pip install -e packages/gpd"
+  ],
+  "health_check": {
+    "tool": "list_error_classes",
+    "input": {},
+    "expect": "count >= 100 error classes loaded"
+  }
+}

@@ -1,0 +1,100 @@
+# CritiqueImprove Action — Base Bundle
+# Enhanced from hot-dag CritiqueImprove.yaml with structured remediation protocol.
+
+schema_version: 1
+action_id: CritiqueImprove
+title: CritiqueImprove
+summary: |
+  Pipeline action: receive a critique_report, then apply targeted fixes to
+  the state. Addresses issues identified by the Critic in priority order
+  (critical -> major -> minor). Produces a commit that improves state quality.
+
+schemas:
+  params_json_schema: specs/schemas/params/CritiqueImproveParams.json
+  state_fields_touched:
+    - /plan/sections
+    - /scratch_knowledge
+    - /pointers
+
+write_set:
+  allowed_write_prefixes:
+    - /plan/sections
+    - /scratch_knowledge
+    - /pointers
+
+write_recipe:
+  version: 1
+  containers:
+    - op: append
+      path: /scratch_knowledge/notes
+      value_required_keys: [id, content]
+    - op: put
+      path: /scratch_knowledge/key_values
+
+parameters:
+  required: []
+  optional:
+    - name: max_issues_K
+      type: integer
+      meaning: Engine-managed maximum number of issues to surface from the critique (from critique_report.data.max_issues_K).
+
+engine_managed_params:
+  max_issues_K:
+    attachment_kind: critique_report
+    pointer: /max_issues_K
+
+triage_guidance: |
+  Do NOT propose CritiqueImprove directly. It runs as part of the Critique -> CritiqueImprove pipeline.
+
+action_guidance: |
+  ## Remediation Protocol
+  1. Read the critique_report from attachments
+  2. Prioritize: fix critical issues first, then major, then minor
+  3. For each fix:
+     - Apply the specific write ops the critique suggested
+     - If the suggested fix is insufficient, apply a better fix and document why
+     - Record what was fixed in audit.message
+  4. Do NOT introduce new issues while fixing existing ones
+
+  ## Fix Quality Checks
+  - Every fixed note should now pass the original critique check
+  - New scratch knowledge notes have proper tags
+  - "Done" items have non-empty pointers
+  - No orphaned notes created during fixes
+
+controller:
+  bucket: repair
+  proposable: false
+execution:
+  kind: commit
+  shape: pipeline
+  actor_id: Researcher
+
+pipeline:
+  pre_steps:
+    - action_id: Critique
+      kwargs:
+        max_chars: 1200
+        max_issues_K: 5
+  attachments:
+    - kind: critique_report
+      name: critique_report
+      ptr_artifact_kind: critique_report
+      excerpt_from_artifact_kind: critique_report
+      excerpt_pointers:
+        - /messages/0
+        - /error
+      excerpt_max_chars: 1200
+      data_fields:
+        critique_id:
+          artifact_kind: critique_report
+          pointer: /critique_id
+        max_issues_K:
+          artifact_kind: critique_report
+          pointer: /max_issues_K
+      constraints:
+        - authoritative ledger pointer; do not fabricate
+  required_attachment_kinds:
+    - critique_report
+  required_artifact_kinds:
+    - critique_report

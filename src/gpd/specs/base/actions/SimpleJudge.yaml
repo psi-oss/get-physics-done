@@ -1,0 +1,64 @@
+# SimpleJudge Action — Base Bundle
+# Report-only: single-node rubric scoring.
+
+schema_version: 1
+action_id: SimpleJudge
+title: SimpleJudge (report-only)
+summary: |
+  Score a single node's state snapshot using a rubric vector.
+  Report-only — no DAG commit. Results stored as auxiliary data
+  on the node record in the cold ledger.
+
+schemas:
+  state_fields_touched: []
+
+write_set:
+  allowed_write_prefixes: []
+
+parameters:
+  required: []
+  optional:
+    - name: n_runs
+      type: integer
+      meaning: Number of independent judge samples per node (averaged).
+    - name: field_ptrs
+      type: object|null
+      meaning: Mapping from output key -> JSON pointer into the State snapshot used to build the Judge view.
+
+triage_guidance: |
+  NOT proposable. The scheduler injects SimpleJudge evaluations
+  for periodic quality assessment of individual nodes.
+
+report_guidance: |
+  SimpleJudge is a report action (no DAG commit; ledger-only). Any attempt to commit it should be rejected.
+
+  Use this action to generate aux-only judge signals (rubric_vector + uncertainty) for controller use.
+
+controller:
+  bucket: other
+  proposable: false
+
+execution:
+  kind: report
+  shape: node
+  actor_id: SimpleJudge
+
+report:
+  impl: agentic_builder.reporting:run_simple_judge_report
+  effects:
+    aux_writes:
+      - target: node_aux
+        key: simple_judge
+        data:
+          schema_version: 1
+          rubric_vector:
+            artifact_kind: simple_judge_summary
+            pointer: /rubric_vector
+          uncertainty:
+            artifact_kind: simple_judge_summary
+            pointer: /uncertainty
+          artifact_ptrs:
+            artifact_kind: simple_judge_summary
+            pointer: /artifact_ptrs
+            required: false
+            default: []

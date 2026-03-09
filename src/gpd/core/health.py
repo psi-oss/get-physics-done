@@ -1,0 +1,840 @@
+"""Comprehensive GPD system health dashboard.
+
+Aggregates validation and diagnostic checks across project structure, state
+consistency, convention completeness, config, roadmap, and more into a single
+report with auto-fix capability.
+
+Ported from experiments/get-physics-done/get-physics-done/src/health.js (1053 lines).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+import subprocess
+import sys
+from enum import StrEnum
+from pathlib import Path
+
+import logfire
+import yaml
+from pydantic import BaseModel, Field
+
+from gpd.core.config import GPDProjectConfig, load_config
+from gpd.core.constants import (
+    DECISION_THRESHOLD,
+    MIN_PYTHON_MAJOR,
+    MIN_PYTHON_MINOR,
+    OPTIONAL_PLANNING_FILES,
+    PLAN_SUFFIX,
+    RECOMMENDED_PYTHON_VERSION,
+    REQUIRED_PLANNING_DIRS,
+    REQUIRED_PLANNING_FILES,
+    REQUIRED_RETURN_FIELDS,
+    REQUIRED_SPECS_SUBDIRS,
+    STATE_LINES_TARGET,
+    SUMMARY_SUFFIX,
+    UNCOMMITTED_FILES_THRESHOLD,
+    VALID_RETURN_STATUSES,
+    ProjectLayout,
+)
+from gpd.core.conventions import KNOWN_CONVENTIONS
+from gpd.core.errors import GPDError
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.state import (
+    load_state_json,
+    state_validate,
+    sync_state_json,
+)
+from gpd.core.utils import (
+    atomic_write,
+    compare_phase_numbers,
+    phase_normalize,
+    safe_parse_int,
+    safe_read_file,
+)
+
+logger = logging.getLogger(__name__)
+
+# ─── Check Status ────────────────────────────────────────────────────────────
+
+
+class CheckStatus(StrEnum):
+    """Outcome of a single health check."""
+
+    OK = "ok"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+# ─── Pydantic Models ─────────────────────────────────────────────────────────
+
+
+class HealthCheck(BaseModel):
+    """Result of a single health check."""
+
+    status: CheckStatus
+    label: str
+    details: dict[str, object] = Field(default_factory=dict)
+    issues: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class HealthSummary(BaseModel):
+    """Aggregated counts from all health checks."""
+
+    ok: int = 0
+    warn: int = 0
+    fail: int = 0
+    total: int = 0
+
+
+class HealthReport(BaseModel):
+    """Full health report across all checks."""
+
+    overall: CheckStatus
+    summary: HealthSummary
+    checks: list[HealthCheck] = Field(default_factory=list)
+    fixes_applied: list[str] = Field(default_factory=list)
+
+
+# All thresholds, file lists, and return validation constants imported from constants.py
+
+
+# ─── Individual Health Checks ────────────────────────────────────────────────
+
+
+def check_environment() -> HealthCheck:
+    """Check Python version and git availability."""
+    details: dict[str, object] = {}
+    issues: list[str] = []
+
+    # Python version
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    details["python_version"] = py_version
+    if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
+        issues.append(f"Python {py_version} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR} required")
+
+    # Git available
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        details["git_version"] = result.stdout.strip()
+        if result.returncode != 0:
+            issues.append("git not functioning correctly")
+    except FileNotFoundError:
+        issues.append("git not found in PATH")
+        details["git_version"] = None
+    except subprocess.TimeoutExpired:
+        issues.append("git --version timed out")
+
+    status = CheckStatus.FAIL if issues else CheckStatus.OK
+    return HealthCheck(status=status, label="Environment", details=details, issues=issues)
+
+
+def check_project_structure(cwd: Path) -> HealthCheck:
+    """Check that required .planning/ files and directories exist."""
+    layout = ProjectLayout(cwd)
+    issues: list[str] = []
+    details: dict[str, object] = {}
+
+    for name in REQUIRED_PLANNING_FILES:
+        full = layout.planning / name
+        if full.exists():
+            details[name] = "present"
+        else:
+            details[name] = "missing"
+            issues.append(f"Required file missing: .planning/{name}")
+
+    for name in REQUIRED_PLANNING_DIRS:
+        full = layout.planning / name
+        if full.is_dir():
+            details[name] = "present"
+        else:
+            details[name] = "missing"
+            issues.append(f"Required directory missing: .planning/{name}/")
+
+    for name in OPTIONAL_PLANNING_FILES:
+        full = layout.planning / name
+        details[name] = "present" if full.exists() else "absent"
+
+    status = CheckStatus.FAIL if issues else CheckStatus.OK
+    return HealthCheck(status=status, label="Project Structure", details=details, issues=issues)
+
+
+def check_state_validity(cwd: Path) -> HealthCheck:
+    """Cross-check state.json and STATE.md consistency.
+
+    Delegates core validation to :func:`state_validate` and wraps the result.
+    """
+    result = state_validate(cwd)
+    issues = list(result.issues)
+    warnings = list(result.warnings)
+
+    # Additional: check phase ID format
+    layout = ProjectLayout(cwd)
+    try:
+        state_obj = json.loads(layout.state_json.read_text(encoding="utf-8"))
+        if isinstance(state_obj, dict) and state_obj.get("position", {}).get("current_phase") is not None:
+            phase = str(state_obj["position"]["current_phase"])
+            if not re.match(r"^\d{2}(\.\d+)*$", phase):
+                warnings.append(f'phase ID format: "{phase}" -- expected zero-padded')
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    details: dict[str, object] = {"has_json": layout.state_json.exists(), "has_md": layout.state_md.exists()}
+    status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
+    return HealthCheck(status=status, label="State Validity", details=details, issues=issues, warnings=warnings)
+
+
+def check_compaction_needed(cwd: Path) -> HealthCheck:
+    """Check if STATE.md needs compaction based on line/decision counts."""
+    md_path = ProjectLayout(cwd).state_md
+    content = safe_read_file(md_path)
+    if content is None:
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="State Compaction",
+            details={"reason": "no_state_file"},
+        )
+
+    line_count = len(content.split("\n"))
+
+    # Count decisions
+    dec_match = re.search(
+        r"###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+        content,
+        re.IGNORECASE,
+    )
+    decision_count = (
+        len(re.findall(r"^\s*-\s+\[Phase", dec_match.group(1), re.MULTILINE | re.IGNORECASE)) if dec_match else 0
+    )
+
+    triggers: list[str] = []
+    if line_count > STATE_LINES_TARGET:
+        triggers.append(f"lines: {line_count}/{STATE_LINES_TARGET}")
+    if decision_count > DECISION_THRESHOLD:
+        triggers.append(f"decisions: {decision_count}/{DECISION_THRESHOLD}")
+
+    warnings = [f"Compaction recommended: {', '.join(triggers)}"] if triggers else []
+    status = CheckStatus.WARN if triggers else CheckStatus.OK
+    return HealthCheck(
+        status=status,
+        label="State Compaction",
+        details={"lines": line_count, "decisions": decision_count, "target_lines": STATE_LINES_TARGET},
+        warnings=warnings,
+    )
+
+
+def check_roadmap_consistency(cwd: Path) -> HealthCheck:
+    """Check that ROADMAP.md phases match directories on disk."""
+    layout = ProjectLayout(cwd)
+    roadmap_path = layout.roadmap
+    phases_dir = layout.phases_dir
+    issues: list[str] = []
+    warnings: list[str] = []
+
+    content = safe_read_file(roadmap_path)
+    if content is None:
+        return HealthCheck(status=CheckStatus.FAIL, label="Roadmap Consistency", issues=["ROADMAP.md not found"])
+
+    # Extract phase numbers from ROADMAP
+    roadmap_phases: set[str] = set()
+    for m in re.finditer(r"(?<!#)#{2,4}(?!#)\s*Phase\s+(\d+(?:\.\d+)*)\s*:", content):
+        roadmap_phases.add(m.group(1))
+
+    # Phases on disk
+    disk_phases: set[str] = set()
+    if phases_dir.is_dir():
+        for entry in phases_dir.iterdir():
+            if entry.is_dir():
+                dm = re.match(r"^(\d+(?:\.\d+)*)", entry.name)
+                if dm:
+                    disk_phases.add(dm.group(1))
+
+    # Cross-check
+    for p in roadmap_phases:
+        if p not in disk_phases and phase_normalize(p) not in disk_phases:
+            warnings.append(f"Phase {p} in ROADMAP but no directory on disk")
+
+    for p in disk_phases:
+        unpadded = ".".join(str(int(seg)) for seg in p.split("."))
+        if p not in roadmap_phases and unpadded not in roadmap_phases:
+            warnings.append(f"Phase {p} on disk but not in ROADMAP")
+
+    # Sequential check
+    integer_phases = sorted(int(p) for p in disk_phases if "." not in p)
+    for i in range(1, len(integer_phases)):
+        if integer_phases[i] != integer_phases[i - 1] + 1:
+            warnings.append(f"Gap in phase numbering: {integer_phases[i - 1]} -> {integer_phases[i]}")
+
+    status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
+    return HealthCheck(
+        status=status,
+        label="Roadmap Consistency",
+        details={"roadmap_phases": len(roadmap_phases), "disk_phases": len(disk_phases)},
+        issues=issues,
+        warnings=warnings,
+    )
+
+
+def check_orphans(cwd: Path) -> HealthCheck:
+    """Detect orphan plans/summaries and empty phase directories."""
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
+    warnings: list[str] = []
+
+    if not phases_dir.is_dir():
+        return HealthCheck(status=CheckStatus.OK, label="Orphan Detection")
+
+    dirs = sorted(
+        (d for d in phases_dir.iterdir() if d.is_dir()),
+        key=lambda d: compare_phase_numbers(d.name, "0"),
+    )
+
+    for phase_dir in dirs:
+        files = [f.name for f in phase_dir.iterdir() if f.is_file()]
+        plans = [f for f in files if f.endswith(PLAN_SUFFIX)]
+        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX)]
+
+        # Summaries without matching plans
+        for summary in summaries:
+            plan_name = summary.replace(SUMMARY_SUFFIX, PLAN_SUFFIX)
+            if plan_name not in plans:
+                warnings.append(f"Orphan summary: {phase_dir.name}/{summary} (no matching plan)")
+
+        # Empty phase directories
+        if not plans and not summaries and not files:
+            warnings.append(f"Empty phase directory: {phase_dir.name}/")
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Orphan Detection", warnings=warnings)
+
+
+def check_convention_lock(cwd: Path) -> HealthCheck:
+    """Check convention lock completeness."""
+    warnings: list[str] = []
+    state_obj = load_state_json(cwd)
+
+    if state_obj is None:
+        return HealthCheck(status=CheckStatus.WARN, label="Convention Lock", warnings=["state.json not found"])
+
+    cl = state_obj.get("convention_lock")
+    if not cl:
+        return HealthCheck(
+            status=CheckStatus.WARN, label="Convention Lock", warnings=["No convention_lock in state.json"]
+        )
+
+    set_count = 0
+    total_count = 0
+    for key in KNOWN_CONVENTIONS:
+        total_count += 1
+        val = cl.get(key)
+        if val is not None and val != "null":
+            set_count += 1
+
+    unset = total_count - set_count
+    if unset > 0:
+        warnings.append(f"{unset}/{total_count} core conventions unset")
+
+    status = CheckStatus.WARN if unset > 0 else CheckStatus.OK
+    return HealthCheck(
+        status=status,
+        label="Convention Lock",
+        details={"set": set_count, "total": total_count},
+        warnings=warnings,
+    )
+
+
+def check_config(cwd: Path) -> HealthCheck:
+    """Validate project config.json."""
+    config_path = ProjectLayout(cwd).config_json
+
+    if not config_path.exists():
+        return HealthCheck(
+            status=CheckStatus.WARN,
+            label="Config",
+            warnings=["config.json not found (using defaults)"],
+        )
+
+    try:
+        config = load_config(cwd)
+        details: dict[str, object] = {
+            "commit_docs": config.commit_docs,
+            "model_profile": config.model_profile.value,
+            "autonomy": config.autonomy.value,
+            "research_mode": config.research_mode.value,
+        }
+        return HealthCheck(status=CheckStatus.OK, label="Config", details=details)
+    except (ValueError, OSError, GPDError) as e:
+        return HealthCheck(
+            status=CheckStatus.FAIL,
+            label="Config",
+            issues=[f"config.json parse error: {e}"],
+        )
+
+
+def check_plan_frontmatter(cwd: Path) -> HealthCheck:
+    """Check plan file frontmatter for 'wave' field and numbering gaps."""
+    phases_dir = ProjectLayout(cwd).phases_dir
+    warnings: list[str] = []
+    details: dict[str, object] = {"plans_checked": 0, "plans_missing_wave": 0, "numbering_gaps": 0}
+
+    if not phases_dir.is_dir():
+        return HealthCheck(status=CheckStatus.OK, label="Plan Frontmatter", details=details)
+
+    dirs = sorted(
+        (d for d in phases_dir.iterdir() if d.is_dir()),
+        key=lambda d: compare_phase_numbers(d.name, "0"),
+    )
+
+    for phase_dir in dirs:
+        plans = sorted(f.name for f in phase_dir.iterdir() if f.is_file() and f.name.endswith(PLAN_SUFFIX))
+
+        # Plan numbering gaps
+        plan_nums: list[int] = []
+        for p in plans:
+            pm = re.search(r"-(\d{2})-PLAN\.md$", p)
+            if pm:
+                plan_nums.append(int(pm.group(1)))
+
+        for i in range(1, len(plan_nums)):
+            if plan_nums[i] != plan_nums[i - 1] + 1:
+                warnings.append(f"Plan numbering gap in {phase_dir.name}: plan {plan_nums[i - 1]} -> {plan_nums[i]}")
+                details["numbering_gaps"] = int(details["numbering_gaps"]) + 1  # type: ignore[arg-type]
+
+        # Frontmatter field check
+        for plan_name in plans:
+            details["plans_checked"] = int(details["plans_checked"]) + 1  # type: ignore[arg-type]
+            plan_path = phase_dir / plan_name
+            content = safe_read_file(plan_path)
+            if content is None:
+                continue
+            try:
+                meta, _ = extract_frontmatter(content)
+            except FrontmatterParseError:
+                warnings.append(f"{phase_dir.name}/{plan_name}: YAML parse error")
+                continue
+            if meta.get("wave") is None:
+                warnings.append(f"{phase_dir.name}/{plan_name}: missing 'wave' in frontmatter")
+                details["plans_missing_wave"] = int(details["plans_missing_wave"]) + 1  # type: ignore[arg-type]
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Plan Frontmatter", details=details, warnings=warnings)
+
+
+def check_latest_return(cwd: Path) -> HealthCheck:
+    """Validate the gpd_return YAML block in the most recent SUMMARY file."""
+    phases_dir = ProjectLayout(cwd).phases_dir
+    warnings: list[str] = []
+    issues: list[str] = []
+    details: dict[str, object] = {}
+
+    # Find most recent SUMMARY file
+    latest: tuple[float, Path, str] | None = None
+    if phases_dir.is_dir():
+        for phase_dir in phases_dir.iterdir():
+            if not phase_dir.is_dir():
+                continue
+            for f in phase_dir.iterdir():
+                if f.is_file() and f.name.endswith(SUMMARY_SUFFIX):
+                    mtime = f.stat().st_mtime
+                    if latest is None or mtime > latest[0]:
+                        latest = (mtime, f, f"{phase_dir.name}/{f.name}")
+
+    if latest is None:
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="Latest Return Envelope",
+            details={"reason": "no_summaries"},
+        )
+
+    _, summary_path, summary_name = latest
+    details["file"] = summary_name
+
+    content = safe_read_file(summary_path)
+    if content is None:
+        issues.append(f"{summary_name}: cannot read file")
+        return HealthCheck(status=CheckStatus.FAIL, label="Latest Return Envelope", details=details, issues=issues)
+
+    return_match = re.search(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```", content)
+    if not return_match:
+        warnings.append(f"{summary_name}: no gpd_return YAML block")
+        return HealthCheck(
+            status=CheckStatus.WARN,
+            label="Latest Return Envelope",
+            details=details,
+            warnings=warnings,
+        )
+
+    try:
+        parsed = yaml.safe_load(return_match.group(1))
+    except yaml.YAMLError as e:
+        issues.append(f"{summary_name}: gpd_return YAML parse error: {e}")
+        return HealthCheck(status=CheckStatus.FAIL, label="Latest Return Envelope", details=details, issues=issues)
+
+    fields = (parsed.get("gpd_return") or {}) if isinstance(parsed, dict) else {}
+    details["fields_found"] = list(fields.keys())
+
+    for field_name in REQUIRED_RETURN_FIELDS:
+        if not fields.get(field_name):
+            issues.append(f"{summary_name}: missing required field '{field_name}' in gpd_return")
+
+    if fields.get("status") and fields["status"] not in VALID_RETURN_STATUSES:
+        issues.append(f"{summary_name}: invalid status '{fields['status']}'")
+
+    for numeric_field in ("tasks_completed", "tasks_total"):
+        val = fields.get(numeric_field)
+        if val is not None and safe_parse_int(val, None) is None:
+            issues.append(f"{summary_name}: {numeric_field} not a number")
+
+    status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
+    return HealthCheck(status=status, label="Latest Return Envelope", details=details, issues=issues, warnings=warnings)
+
+
+def check_git_status(cwd: Path) -> HealthCheck:
+    """Check for uncommitted files in .planning/."""
+    warnings: list[str] = []
+    details: dict[str, object] = {}
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", ".planning/"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        lines = [ln for ln in result.stdout.strip().split("\n") if ln.strip()] if result.stdout.strip() else []
+        uncommitted = len(lines)
+        details["uncommitted_files"] = uncommitted
+
+        if uncommitted > UNCOMMITTED_FILES_THRESHOLD:
+            warnings.append(f"{uncommitted} uncommitted files in .planning/")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        warnings.append("git status check failed")
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Git Status", details=details, warnings=warnings)
+
+
+# ─── Auto-Fix ────────────────────────────────────────────────────────────────
+
+
+def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
+    """Apply automatic fixes for known issues. Returns list of fix descriptions."""
+    layout = ProjectLayout(cwd)
+    fixes: list[str] = []
+
+    # Fix 1: Regenerate state.json from STATE.md if missing
+    state_check = next((c for c in checks if c.label == "State Validity"), None)
+    if state_check and state_check.details.get("has_md") and not state_check.details.get("has_json"):
+        md_path = layout.state_md
+        content = safe_read_file(md_path)
+        if content is not None:
+            try:
+                sync_state_json(cwd, content)
+                fixes.append("Regenerated state.json from STATE.md")
+                state_check.issues = [i for i in state_check.issues if "state.json not found" not in i]
+                state_check.status = CheckStatus.WARN if state_check.warnings else CheckStatus.OK
+            except OSError as e:
+                fixes.append(f"Failed to regenerate state.json: {e}")
+
+    # Fix 2: Create config.json if missing or malformed
+    config_check = next((c for c in checks if c.label == "Config"), None)
+    if config_check and (
+        any("not found" in w for w in config_check.warnings) or any("parse error" in i for i in config_check.issues)
+    ):
+        config_path = layout.config_json
+        try:
+            defaults = GPDProjectConfig()
+            config_dict = {
+                "model_profile": defaults.model_profile.value,
+                "commit_docs": defaults.commit_docs,
+                "search_gitignored": defaults.search_gitignored,
+                "branching_strategy": defaults.branching_strategy.value,
+                "phase_branch_template": defaults.phase_branch_template,
+                "milestone_branch_template": defaults.milestone_branch_template,
+                "workflow": {
+                    "research": defaults.research,
+                    "plan_checker": defaults.plan_checker,
+                    "verifier": defaults.verifier,
+                },
+                "parallelization": defaults.parallelization,
+                "brave_search": defaults.brave_search,
+            }
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
+            fixes.append("Created default config.json")
+            config_check.warnings = []
+            config_check.issues = []
+            config_check.status = CheckStatus.OK
+        except OSError as e:
+            fixes.append(f"Failed to create config.json: {e}")
+
+    return fixes
+
+
+# ─── Main Health Command ─────────────────────────────────────────────────────
+
+# Ordered list of checks to run (each is a (name, callable) pair)
+_ALL_CHECKS: list[tuple[str, object]] = [
+    ("environment", check_environment),
+    ("project_structure", check_project_structure),
+    ("state_validity", check_state_validity),
+    ("compaction", check_compaction_needed),
+    ("roadmap", check_roadmap_consistency),
+    ("orphans", check_orphans),
+    ("convention_lock", check_convention_lock),
+    ("plan_frontmatter", check_plan_frontmatter),
+    ("latest_return", check_latest_return),
+    ("config", check_config),
+    ("git_status", check_git_status),
+]
+
+
+def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
+    """Run all health checks and return a full report.
+
+    Args:
+        cwd: Project root directory.
+        fix: If True, attempt auto-fixes for common issues.
+    """
+    with logfire.span("gpd.health.run", **{"gpd.health.fix": fix}):
+        checks: list[HealthCheck] = []
+
+        for name, check_fn in _ALL_CHECKS:
+            with logfire.span(f"gpd.health.check.{name}"):
+                if name == "environment":
+                    checks.append(check_fn())  # type: ignore[operator]
+                else:
+                    checks.append(check_fn(cwd))  # type: ignore[operator]
+
+        fixes: list[str] = []
+        if fix:
+            fixes = _apply_fixes(cwd, checks)
+
+        ok_count = sum(1 for c in checks if c.status == CheckStatus.OK)
+        warn_count = sum(1 for c in checks if c.status == CheckStatus.WARN)
+        fail_count = sum(1 for c in checks if c.status == CheckStatus.FAIL)
+
+        overall = CheckStatus.FAIL if fail_count > 0 else (CheckStatus.WARN if warn_count > 0 else CheckStatus.OK)
+
+        report = HealthReport(
+            overall=overall,
+            summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(checks)),
+            checks=checks,
+            fixes_applied=fixes,
+        )
+
+        logger.info(
+            "health_report",
+            extra={"overall": overall, "ok": ok_count, "warn": warn_count, "fail": fail_count},
+        )
+        return report
+
+
+# ─── Doctor Command ─────────────────────────────────────────────────────────
+
+
+class DoctorReport(BaseModel):
+    """Cross-runtime installation verification report."""
+
+    overall: CheckStatus
+    version: str | None = None
+    summary: HealthSummary
+    checks: list[HealthCheck] = Field(default_factory=list)
+
+
+def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> DoctorReport:
+    """Cross-runtime installation verification.
+
+    Checks that GPD is correctly installed: agent files, reference
+    files, workflow files, template files, skill directories, Python version,
+    and package importability.
+
+    Args:
+        specs_dir: Path to the specs directory. Required (no automatic discovery).
+        version: Version string to include in the report.
+    """
+    if specs_dir is None:
+        raise ValueError(
+            "specs_dir is required. Pass the specs directory explicitly "
+            "(e.g., from SPECS_DIR in gpd or via CLI argument)."
+        )
+    if version is None:
+        import importlib.metadata
+
+        try:
+            version = importlib.metadata.version("gpd")
+        except importlib.metadata.PackageNotFoundError:
+            version = None
+    sd = specs_dir
+
+    with logfire.span("gpd.doctor.run"):
+        checks: list[HealthCheck] = []
+
+        # 1. Specs directory structure
+        missing = [d for d in REQUIRED_SPECS_SUBDIRS if not (sd / d).is_dir()]
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.FAIL if missing else CheckStatus.OK,
+                label="Specs Structure",
+                details={"specs_dir": str(sd), "missing": missing},
+                issues=[f"Missing directory: {d}/" for d in missing],
+            )
+        )
+
+        # 2. Agent files
+        agents_dir = sd / "agents"
+        agent_count = 0
+        agent_issues: list[str] = []
+        if agents_dir.is_dir():
+            agent_files = [f for f in agents_dir.iterdir() if f.name.startswith("gpd-") and f.suffix == ".md"]
+            agent_count = len(agent_files)
+            if agent_count == 0:
+                agent_issues.append("No gpd-*.md agent files found")
+        else:
+            agent_issues.append(f"Agents directory not found: {agents_dir}")
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.FAIL if agent_issues else CheckStatus.OK,
+                label="Agent Files",
+                details={"agents_dir": str(agents_dir), "agent_count": agent_count},
+                issues=agent_issues,
+            )
+        )
+
+        # 3. Key reference files
+        key_refs = [
+            "references/shared-protocols.md",
+            "references/verification-core.md",
+            "references/llm-physics-errors.md",
+        ]
+        missing_refs = [r for r in key_refs if not (sd / r).exists()]
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.OK if not missing_refs else CheckStatus.WARN,
+                label="Key References",
+                details={"checked": len(key_refs), "missing": len(missing_refs)},
+                warnings=[f"Missing reference: {r}" for r in missing_refs],
+            )
+        )
+
+        # 4. Workflow files
+        workflows_dir = sd / "workflows"
+        workflow_count = len([f for f in workflows_dir.iterdir() if f.suffix == ".md"]) if workflows_dir.is_dir() else 0
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.OK if workflow_count > 0 else CheckStatus.WARN,
+                label="Workflow Files",
+                details={"workflow_count": workflow_count},
+                warnings=[] if workflow_count > 0 else ["No workflow files found"],
+            )
+        )
+
+        # 5. Template files
+        templates_dir = sd / "templates"
+        template_count = sum(1 for _ in templates_dir.rglob("*.md")) if templates_dir.is_dir() else 0
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.OK if template_count > 0 else CheckStatus.WARN,
+                label="Template Files",
+                details={"template_count": template_count},
+                warnings=[] if template_count > 0 else ["No template files found"],
+            )
+        )
+
+        # 6. Python version
+        py_issues: list[str] = []
+        py_warnings: list[str] = []
+        if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
+            py_issues.append(
+                f"Python {sys.version_info.major}.{sys.version_info.minor} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}"
+            )
+        elif sys.version_info < RECOMMENDED_PYTHON_VERSION:
+            py_warnings.append(f"Python >= {RECOMMENDED_PYTHON_VERSION[0]}.{RECOMMENDED_PYTHON_VERSION[1]} recommended")
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.FAIL if py_issues else CheckStatus.WARN if py_warnings else CheckStatus.OK,
+                label="Python Version",
+                details={"version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"},
+                issues=py_issues,
+                warnings=py_warnings,
+            )
+        )
+
+        # 7. Package importability
+        import_issues: list[str] = []
+        for module in ("gpd.core.utils", "gpd.core.config", "gpd.core.state", "gpd.core.conventions"):
+            try:
+                __import__(module)
+            except ImportError as e:
+                import_issues.append(f"Cannot import {module}: {e}")
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.FAIL if import_issues else CheckStatus.OK,
+                label="Package Imports",
+                details={"modules_checked": 4},
+                issues=import_issues,
+            )
+        )
+
+        # 8. Skill directories
+        skills_dir = sd / "skills"
+        skill_count = (
+            sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
+            if skills_dir.is_dir()
+            else 0
+        )
+        checks.append(
+            HealthCheck(
+                status=CheckStatus.OK if skill_count > 0 else CheckStatus.WARN,
+                label="Skill Files",
+                details={"skill_count": skill_count},
+                warnings=[] if skill_count > 0 else ["No gpd-* skill directories found"],
+            )
+        )
+
+        # Version (passed as parameter, no gpd import needed)
+
+        ok_count = sum(1 for c in checks if c.status == CheckStatus.OK)
+        warn_count = sum(1 for c in checks if c.status == CheckStatus.WARN)
+        fail_count = sum(1 for c in checks if c.status == CheckStatus.FAIL)
+        overall = CheckStatus.FAIL if fail_count > 0 else CheckStatus.WARN if warn_count > 0 else CheckStatus.OK
+
+        logger.info("doctor_complete", extra={"overall": overall, "version": version})
+
+        return DoctorReport(
+            overall=overall,
+            version=version,
+            summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(checks)),
+            checks=checks,
+        )
+
+
+__all__ = [
+    "CheckStatus",
+    "DoctorReport",
+    "HealthCheck",
+    "HealthReport",
+    "HealthSummary",
+    "check_compaction_needed",
+    "check_config",
+    "check_convention_lock",
+    "check_environment",
+    "check_git_status",
+    "check_latest_return",
+    "check_orphans",
+    "check_plan_frontmatter",
+    "check_project_structure",
+    "check_roadmap_consistency",
+    "check_state_validity",
+    "run_doctor",
+    "run_health",
+]

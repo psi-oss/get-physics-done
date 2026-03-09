@@ -1,0 +1,53 @@
+{
+  "_description": "Intentional Python enhancements over JS. These are NOT bugs; they are documented Python-only features.",
+  "enhancements": [
+    {
+      "id": "key_aliases",
+      "divergence_number": 3,
+      "description": "Python accepts 13 short aliases (e.g., 'metric' -> 'metric_signature'). JS requires full field names.",
+      "rationale": "CLI ergonomics: physicists can type 'gpd convention set metric mostly-plus' instead of full field name.",
+      "aliases": {
+        "metric": "metric_signature",
+        "fourier": "fourier_convention",
+        "units": "natural_units",
+        "gauge": "gauge_choice",
+        "regularization": "regularization_scheme",
+        "renorm": "renormalization_scheme",
+        "renormalization": "renormalization_scheme",
+        "coordinates": "coordinate_system",
+        "spin": "spin_basis",
+        "normalization": "state_normalization",
+        "coupling": "coupling_convention",
+        "index": "index_positioning",
+        "ordering": "time_ordering",
+        "commutator": "commutation_convention"
+      }
+    },
+    {
+      "id": "value_aliases",
+      "divergence_number": 4,
+      "description": "Python normalizes variant notations (e.g., '+---' -> 'mostly-minus'). JS stores raw values.",
+      "rationale": "Prevents convention drift from notation variants that represent the same physics.",
+      "example_normalizations": {
+        "metric_signature": {
+          "(+,-,-,-)": "mostly-minus",
+          "+---": "mostly-minus",
+          "(-,+,+,+)": "mostly-plus",
+          "-+++": "mostly-plus",
+          "++++": "euclidean"
+        }
+      }
+    },
+    {
+      "id": "assert_convention",
+      "divergence_number": 5,
+      "description": "Python parses ASSERT_CONVENTION directives from Markdown/LaTeX/Python files. JS has no equivalent.",
+      "rationale": "Enables automated verification that code/documents use the locked conventions.",
+      "supported_formats": [
+        "<!-- ASSERT_CONVENTION: key=value -->",
+        "% ASSERT_CONVENTION: key=value",
+        "# ASSERT_CONVENTION: key=value"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "_description": "Convention diff operation parity: lock-to-lock diff produces same change/add/remove sets.",
+  "cases": [
+    {
+      "name": "no_changes",
+      "input": {
+        "lock_a": {},
+        "lock_b": {}
+      },
+      "expected": {
+        "changed_count": 0,
+        "added_count": 0,
+        "removed_count": 0
+      }
+    },
+    {
+      "name": "detect_change",
+      "input": {
+        "lock_a": {"metric_signature": "mostly-plus"},
+        "lock_b": {"metric_signature": "mostly-minus"}
+      },
+      "expected": {
+        "changed_count": 1,
+        "added_count": 0,
+        "removed_count": 0,
+        "changed_keys": ["metric_signature"]
+      }
+    },
+    {
+      "name": "detect_addition",
+      "input": {
+        "lock_a": {},
+        "lock_b": {"metric_signature": "mostly-plus"}
+      },
+      "expected": {
+        "changed_count": 0,
+        "added_count": 1,
+        "removed_count": 0,
+        "added_keys": ["metric_signature"]
+      }
+    },
+    {
+      "name": "detect_removal",
+      "input": {
+        "lock_a": {"metric_signature": "mostly-plus"},
+        "lock_b": {}
+      },
+      "expected": {
+        "changed_count": 0,
+        "added_count": 0,
+        "removed_count": 1,
+        "removed_keys": ["metric_signature"]
+      }
+    },
+    {
+      "name": "multiple_changes",
+      "input": {
+        "lock_a": {"metric_signature": "mostly-plus", "natural_units": "c = 1"},
+        "lock_b": {"metric_signature": "mostly-minus", "gauge_choice": "Lorenz"}
+      },
+      "expected": {
+        "changed_count": 1,
+        "added_count": 1,
+        "removed_count": 1,
+        "changed_keys": ["metric_signature"],
+        "added_keys": ["gauge_choice"],
+        "removed_keys": ["natural_units"]
+      }
+    }
+  ]
+}

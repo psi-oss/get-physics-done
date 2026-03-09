@@ -1,0 +1,588 @@
+"""Tests for gpd.core.phases — phase lifecycle and roadmap management."""
+
+from __future__ import annotations
+
+import textwrap
+from pathlib import Path
+
+import pytest
+
+from gpd.core.phases import (
+    MilestoneIncompleteError,
+    PhaseIncompleteError,
+    PhaseNotFoundError,
+    PhaseValidationError,
+    PlanEntry,
+    RoadmapNotFoundError,
+    find_phase,
+    get_milestone_info,
+    list_phases,
+    milestone_complete,
+    next_decimal_phase,
+    phase_add,
+    phase_complete,
+    phase_insert,
+    phase_plan_index,
+    phase_remove,
+    progress_render,
+    roadmap_analyze,
+    roadmap_get_phase,
+    validate_waves,
+)
+
+# ─── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _setup_project(tmp_path: Path) -> Path:
+    """Create a minimal GPD project structure and return project root."""
+    planning = tmp_path / ".planning"
+    planning.mkdir()
+    (planning / "phases").mkdir()
+    return tmp_path
+
+
+def _create_phase_dir(tmp_path: Path, name: str) -> Path:
+    """Create a phase directory and return its path."""
+    phase_dir = tmp_path / ".planning" / "phases" / name
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    return phase_dir
+
+
+def _create_roadmap(tmp_path: Path, content: str) -> Path:
+    """Write ROADMAP.md and return its path."""
+    roadmap = tmp_path / ".planning" / "ROADMAP.md"
+    roadmap.parent.mkdir(parents=True, exist_ok=True)
+    roadmap.write_text(textwrap.dedent(content))
+    return roadmap
+
+
+def _create_state(tmp_path: Path, content: str) -> Path:
+    """Write STATE.md and return its path."""
+    state = tmp_path / ".planning" / "STATE.md"
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(textwrap.dedent(content))
+    return state
+
+
+# ─── find_phase ────────────────────────────────────────────────────────────────
+
+
+def test_find_phase_exact_match(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan content")
+
+    result = find_phase(tmp_path, "1")
+    assert result is not None
+    assert result.found is True
+    assert result.phase_number == "01"
+    assert result.phase_name == "setup"
+    assert result.plans == ["a-PLAN.md"]
+    assert result.summaries == []
+    assert result.incomplete_plans == ["a-PLAN.md"]
+
+
+def test_find_phase_with_summary(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "02-compute")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("summary")
+
+    result = find_phase(tmp_path, "2")
+    assert result is not None
+    assert result.plans == ["a-PLAN.md"]
+    assert result.summaries == ["a-SUMMARY.md"]
+    assert result.incomplete_plans == []
+
+
+def test_find_phase_not_found(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = find_phase(tmp_path, "99")
+    assert result is None
+
+
+def test_find_phase_empty_string(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = find_phase(tmp_path, "")
+    assert result is None
+
+
+def test_find_phase_no_phases_dir(tmp_path: Path) -> None:
+    result = find_phase(tmp_path, "1")
+    assert result is None
+
+
+def test_find_phase_research_and_context(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "03-analysis")
+    (phase_dir / "RESEARCH.md").write_text("research")
+    (phase_dir / "CONTEXT.md").write_text("context")
+
+    result = find_phase(tmp_path, "3")
+    assert result is not None
+    assert result.has_research is True
+    assert result.has_context is True
+    assert result.has_verification is False
+
+
+def test_find_phase_decimal(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "03.1-hotfix")
+
+    result = find_phase(tmp_path, "3.1")
+    assert result is not None
+    assert result.phase_number == "03.1"
+    assert result.phase_name == "hotfix"
+
+
+# ─── list_phases ────────────────────────────────────────────────────────────────
+
+
+def test_list_phases_sorted(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "03-third")
+    _create_phase_dir(tmp_path, "01-first")
+    _create_phase_dir(tmp_path, "02-second")
+
+    result = list_phases(tmp_path)
+    assert result.count == 3
+    assert result.directories == ["01-first", "02-second", "03-third"]
+
+
+def test_list_phases_empty(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = list_phases(tmp_path)
+    assert result.count == 0
+    assert result.directories == []
+
+
+# ─── validate_waves ─────────────────────────────────────────────────────────────
+
+
+def test_validate_waves_valid(tmp_path: Path) -> None:
+    plans = [
+        PlanEntry(id="a", wave=1),
+        PlanEntry(id="b", wave=2, depends_on=["a"]),
+    ]
+    result = validate_waves(plans)
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_validate_waves_missing_dep(tmp_path: Path) -> None:
+    plans = [
+        PlanEntry(id="a", wave=1, depends_on=["nonexistent"]),
+    ]
+    result = validate_waves(plans)
+    assert result.valid is False
+    assert len(result.errors) == 1
+    assert "nonexistent" in result.errors[0]
+
+
+def test_validate_waves_same_wave_dependency(tmp_path: Path) -> None:
+    plans = [
+        PlanEntry(id="a", wave=1),
+        PlanEntry(id="b", wave=1, depends_on=["a"]),
+    ]
+    result = validate_waves(plans)
+    assert result.valid is False
+    assert any("earlier wave" in e for e in result.errors)
+
+
+def test_validate_waves_cycle_detection(tmp_path: Path) -> None:
+    plans = [
+        PlanEntry(id="a", wave=1, depends_on=["b"]),
+        PlanEntry(id="b", wave=1, depends_on=["a"]),
+    ]
+    result = validate_waves(plans)
+    assert result.valid is False
+    assert any("Circular" in e or "earlier wave" in e for e in result.errors)
+
+
+def test_validate_waves_gap_in_numbering(tmp_path: Path) -> None:
+    plans = [
+        PlanEntry(id="a", wave=1),
+        PlanEntry(id="b", wave=3),
+    ]
+    result = validate_waves(plans)
+    assert result.valid is False
+    assert any("Gap" in e for e in result.errors)
+
+
+# ─── roadmap_analyze ─────────────────────────────────────────────────────────────
+
+
+def test_roadmap_analyze_basic(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Initial Setup
+
+        ### Phase 1: Setup
+        **Goal:** Get started
+        **Plans:** 1 plans
+
+        ### Phase 2: Implementation
+        **Goal:** Build the thing
+        **Plans:** 0 plans
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("summary")
+
+    result = roadmap_analyze(tmp_path)
+    assert result.phase_count == 2
+    assert result.completed_phases == 1
+    assert len(result.milestones) == 1
+    assert result.milestones[0]["version"] == "v1.0"
+
+
+def test_roadmap_analyze_no_roadmap(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = roadmap_analyze(tmp_path)
+    assert result.phase_count == 0
+
+
+# ─── roadmap_get_phase ──────────────────────────────────────────────────────────
+
+
+def test_roadmap_get_phase_found(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup Phase
+        **Goal:** Initialize the project
+        Some details here.
+
+        ### Phase 2: Next Phase
+        **Goal:** Do more
+        """,
+    )
+
+    result = roadmap_get_phase(tmp_path, "1")
+    assert result.found is True
+    assert result.phase_name == "Setup Phase"
+    assert result.goal == "Initialize the project"
+
+
+def test_roadmap_get_phase_not_found(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: Only Phase\n")
+
+    result = roadmap_get_phase(tmp_path, "99")
+    assert result.found is False
+
+
+def test_roadmap_get_phase_no_roadmap(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = roadmap_get_phase(tmp_path, "1")
+    assert result.found is False
+    assert result.error == "ROADMAP.md not found"
+
+
+def test_roadmap_get_phase_invalid_number(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    with pytest.raises(PhaseValidationError):
+        roadmap_get_phase(tmp_path, "abc")
+
+
+# ─── phase_add ──────────────────────────────────────────────────────────────────
+
+
+def test_phase_add(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 1: Existing Phase
+        **Goal:** exist
+
+        ---
+        Progress tracking table
+        """,
+    )
+
+    result = phase_add(tmp_path, "New Feature")
+    assert result.phase_number == 2
+    assert result.padded == "02"
+    assert "new-feature" in result.slug
+    assert (tmp_path / result.directory).is_dir()
+
+    roadmap = (tmp_path / ".planning" / "ROADMAP.md").read_text()
+    assert "Phase 2: New Feature" in roadmap
+
+
+def test_phase_add_empty_description(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: X\n")
+
+    with pytest.raises(PhaseValidationError, match="description required"):
+        phase_add(tmp_path, "")
+
+
+def test_phase_add_no_roadmap(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    with pytest.raises(RoadmapNotFoundError):
+        phase_add(tmp_path, "Something")
+
+
+# ─── phase_insert ────────────────────────────────────────────────────────────────
+
+
+def test_phase_insert(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: First
+        **Goal:** do first
+
+        ### Phase 2: Second
+        **Goal:** do second
+        """,
+    )
+
+    result = phase_insert(tmp_path, "1", "Hotfix")
+    assert result.phase_number == "01.1"
+    assert result.after_phase == "1"
+    assert (tmp_path / result.directory).is_dir()
+
+
+def test_phase_insert_invalid_phase(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: X\n")
+    with pytest.raises(PhaseValidationError):
+        phase_insert(tmp_path, "abc", "Fix")
+
+
+# ─── next_decimal_phase ──────────────────────────────────────────────────────────
+
+
+def test_next_decimal_no_existing(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "03-analysis")
+
+    result = next_decimal_phase(tmp_path, "3")
+    assert result.found is True
+    assert result.next == "03.1"
+    assert result.existing == []
+
+
+def test_next_decimal_with_existing(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_phase_dir(tmp_path, "03-analysis")
+    _create_phase_dir(tmp_path, "03.1-fix")
+    _create_phase_dir(tmp_path, "03.2-patch")
+
+    result = next_decimal_phase(tmp_path, "3")
+    assert result.next == "03.3"
+    assert len(result.existing) == 2
+
+
+# ─── phase_remove ────────────────────────────────────────────────────────────────
+
+
+def test_phase_remove_basic(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: First
+        **Goal:** first
+
+        ### Phase 2: Second
+        **Goal:** second
+
+        ### Phase 3: Third
+        **Goal:** third
+        """,
+    )
+    _create_phase_dir(tmp_path, "01-first")
+    _create_phase_dir(tmp_path, "02-second")
+    _create_phase_dir(tmp_path, "03-third")
+
+    result = phase_remove(tmp_path, "2")
+    assert result.removed == "2"
+    assert result.roadmap_updated is True
+
+    roadmap = (tmp_path / ".planning" / "ROADMAP.md").read_text()
+    assert "Phase 2: Second" not in roadmap
+
+
+def test_phase_remove_with_summaries_needs_force(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "### Phase 1: X\n**Goal:** x\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+
+    with pytest.raises(PhaseValidationError, match="force"):
+        phase_remove(tmp_path, "1")
+
+
+# ─── phase_complete ──────────────────────────────────────────────────────────────
+
+
+def test_phase_complete_success(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 2: Build
+        **Goal:** build
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+    _create_phase_dir(tmp_path, "02-build")
+
+    result = phase_complete(tmp_path, "1")
+    assert result.completed_phase == "1"
+    assert result.all_plans_complete is True
+    assert result.next_phase == "02"
+    assert result.is_last_phase is False
+
+
+def test_phase_complete_not_found(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    with pytest.raises(PhaseNotFoundError):
+        phase_complete(tmp_path, "99")
+
+
+def test_phase_complete_incomplete(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+
+    with pytest.raises(PhaseIncompleteError):
+        phase_complete(tmp_path, "1")
+
+
+# ─── milestone_complete ──────────────────────────────────────────────────────────
+
+
+def test_milestone_complete_success(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## Milestone v1.0: Test\n### Phase 1: X\n**Goal:** x\n")
+
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone")
+
+    result = milestone_complete(tmp_path, "v1.0", name="Test Milestone")
+    assert result.version == "v1.0"
+    assert result.name == "Test Milestone"
+    assert result.phases == 1
+    assert result.plans == 1
+    assert result.archived.roadmap is True
+    assert result.milestones_updated is True
+
+
+def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## v1.0\n")
+
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+
+    with pytest.raises(MilestoneIncompleteError):
+        milestone_complete(tmp_path, "v1.0")
+
+
+def test_milestone_complete_empty_version(tmp_path: Path) -> None:
+    with pytest.raises(PhaseValidationError, match="version required"):
+        milestone_complete(tmp_path, "")
+
+
+# ─── get_milestone_info ──────────────────────────────────────────────────────────
+
+
+def test_get_milestone_info(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## Milestone v2.0: Advanced Features\n")
+
+    result = get_milestone_info(tmp_path)
+    assert result.version == "v2.0"
+    assert result.name == "Advanced Features"
+
+
+def test_get_milestone_info_no_roadmap(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = get_milestone_info(tmp_path)
+    assert result.version == "v1.0"
+    assert result.name == "milestone"
+
+
+# ─── progress_render ─────────────────────────────────────────────────────────────
+
+
+def test_progress_render_json(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## v1.0: Test\n")
+
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+
+    result = progress_render(tmp_path, "json")
+    assert result.percent == 100
+    assert result.total_plans_in_phase == 1
+    assert result.total_summaries == 1
+    assert len(result.phases) == 1
+
+
+def test_progress_render_bar(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## v1.0: Test\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+
+    result = progress_render(tmp_path, "bar")
+    assert result.percent == 0
+    assert result.total == 1
+
+
+def test_progress_render_table(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(tmp_path, "## v1.0: Test\n")
+    phase_dir = _create_phase_dir(tmp_path, "01-x")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+
+    result = progress_render(tmp_path, "table")
+    assert "| Phase |" in result.rendered
+    assert "Complete" in result.rendered
+
+
+# ─── phase_plan_index ────────────────────────────────────────────────────────────
+
+
+def test_phase_plan_index_basic(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\n---\n## Task 1\nDo stuff")
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\n---\n## Task 1\nMore stuff")
+
+    result = phase_plan_index(tmp_path, "1")
+    assert result.phase == "01"
+    assert len(result.plans) == 2
+    assert "1" in result.waves
+    assert "2" in result.waves
+    assert result.validation.valid is True
+
+
+def test_phase_plan_index_not_found(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    result = phase_plan_index(tmp_path, "99")
+    assert result.plans == []

@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSI Frame Viewer</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #0a0a0f;
+        color: #e0e0e0;
+        font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* Header bar */
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        background: #111118;
+        border-bottom: 1px solid #2a2a35;
+        flex-shrink: 0;
+      }
+      .header .title {
+        font-size: 13px;
+        color: #8888aa;
+      }
+      .header .title span {
+        color: #6c9eff;
+        font-weight: 600;
+      }
+      .header .stats {
+        font-size: 12px;
+        color: #555;
+      }
+      .header .stats .live {
+        color: #4caf50;
+      }
+
+      /* Main viewport */
+      .viewport {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #08080c;
+        position: relative;
+        min-height: 0;
+      }
+      .viewport img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        image-rendering: auto;
+      }
+      .viewport .empty {
+        color: #333;
+        font-size: 14px;
+        text-align: center;
+        line-height: 1.8;
+      }
+      .viewport .empty code {
+        background: #1a1a24;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #6c9eff;
+      }
+      .frame-label {
+        position: absolute;
+        bottom: 12px;
+        left: 16px;
+        font-size: 12px;
+        color: #888;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 4px 10px;
+        border-radius: 4px;
+      }
+
+      /* Filmstrip */
+      .filmstrip-container {
+        flex-shrink: 0;
+        border-top: 1px solid #2a2a35;
+        background: #0e0e14;
+      }
+      .filmstrip {
+        display: flex;
+        gap: 4px;
+        padding: 8px 12px;
+        overflow-x: auto;
+        scroll-behavior: smooth;
+      }
+      .filmstrip::-webkit-scrollbar {
+        height: 4px;
+      }
+      .filmstrip::-webkit-scrollbar-track {
+        background: #111;
+      }
+      .filmstrip::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 2px;
+      }
+      .thumb {
+        flex-shrink: 0;
+        width: 80px;
+        height: 60px;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        overflow: hidden;
+        opacity: 0.6;
+        transition:
+          opacity 0.15s,
+          border-color 0.15s;
+      }
+      .thumb:hover {
+        opacity: 0.9;
+      }
+      .thumb.active {
+        border-color: #6c9eff;
+        opacity: 1;
+      }
+      .thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      /* Controls bar */
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 16px;
+        background: #111118;
+        border-top: 1px solid #1a1a25;
+        flex-shrink: 0;
+        font-size: 12px;
+      }
+      .controls button {
+        background: #1a1a28;
+        border: 1px solid #2a2a3a;
+        color: #aaa;
+        padding: 4px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 12px;
+      }
+      .controls button:hover {
+        background: #252538;
+        color: #ddd;
+      }
+      .controls button.active {
+        background: #1a2a4a;
+        border-color: #3a5a8a;
+        color: #6c9eff;
+      }
+      .controls .spacer {
+        flex: 1;
+      }
+      .controls .frame-counter {
+        color: #555;
+      }
+      .controls .fps-control {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #666;
+      }
+      .controls .fps-control input[type="range"] {
+        width: 60px;
+        accent-color: #6c9eff;
+      }
+      .controls .fps-control .fps-val {
+        color: #6c9eff;
+        min-width: 32px;
+        text-align: right;
+      }
+      .controls .buffer-indicator {
+        color: #555;
+        font-size: 11px;
+      }
+      .controls .buffer-indicator .buffered {
+        color: #ff9800;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="title"><span>PSI</span> Frame Viewer</div>
+      <div class="stats">
+        <span class="live" id="status">connecting...</span>
+        &nbsp;&middot;&nbsp;
+        <span id="tool-name">—</span>
+      </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+      <div class="empty" id="placeholder">
+        Waiting for frames...<br /><br />
+        Push from Claude Code:<br />
+        <code
+          >curl -X POST http://localhost:PORT/api/frame -H 'Content-Type:
+          application/json' -d '{"data":"..."}'</code
+        >
+      </div>
+      <img id="main-frame" style="display: none" alt="Simulation frame" />
+      <div class="frame-label" id="frame-label" style="display: none"></div>
+    </div>
+
+    <div class="filmstrip-container">
+      <div class="filmstrip" id="filmstrip"></div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-play" class="active" title="Auto-advance to latest frame">
+        &#9654; Live
+      </button>
+      <button id="btn-replay" title="Replay all frames from start">
+        &#8634; Replay
+      </button>
+      <button id="btn-prev" title="Previous frame">&larr;</button>
+      <button id="btn-next" title="Next frame">&rarr;</button>
+      <div class="fps-control">
+        <span>FPS:</span>
+        <input
+          type="range"
+          id="fps-slider"
+          min="1"
+          max="30"
+          value="15"
+          title="Playback frame rate"
+        />
+        <span class="fps-val" id="fps-val">15</span>
+      </div>
+      <span class="buffer-indicator" id="buffer-info"></span>
+      <div class="spacer"></div>
+      <span class="frame-counter" id="counter">0 / 0</span>
+    </div>
+
+    <script>
+      (function () {
+        const mainImg = document.getElementById("main-frame");
+        const placeholder = document.getElementById("placeholder");
+        const filmstrip = document.getElementById("filmstrip");
+        const frameLabel = document.getElementById("frame-label");
+        const counter = document.getElementById("counter");
+        const status = document.getElementById("status");
+        const toolName = document.getElementById("tool-name");
+        const btnPlay = document.getElementById("btn-play");
+        const btnPrev = document.getElementById("btn-prev");
+        const btnNext = document.getElementById("btn-next");
+        const btnReplay = document.getElementById("btn-replay");
+        const fpsSlider = document.getElementById("fps-slider");
+        const fpsVal = document.getElementById("fps-val");
+        const bufferInfo = document.getElementById("buffer-info");
+
+        let frames = [];
+        let currentIndex = -1;
+        let liveMode = true;
+
+        // Playback buffer: incoming frames queue here, drained at target FPS
+        let frameBuffer = [];
+        let targetFps = 15;
+        let lastFrameTime = 0;
+        let rafId = null;
+        let replaying = false;
+
+        function ensureDataUri(data, format) {
+          if (data.startsWith("data:")) return data;
+          const mime = format === "png" ? "image/png" : "image/jpeg";
+          return "data:" + mime + ";base64," + data;
+        }
+
+        function showFrame(idx) {
+          if (idx < 0 || idx >= frames.length) return;
+          currentIndex = idx;
+          const f = frames[idx];
+          mainImg.src = ensureDataUri(f.data, f.format);
+          mainImg.style.display = "block";
+          placeholder.style.display = "none";
+
+          const label = f.label || f.tool || "";
+          if (label) {
+            frameLabel.textContent = label;
+            frameLabel.style.display = "block";
+          } else {
+            frameLabel.style.display = "none";
+          }
+
+          if (f.tool) toolName.textContent = f.tool;
+          counter.textContent = idx + 1 + " / " + frames.length;
+
+          // Update filmstrip selection
+          filmstrip.querySelectorAll(".thumb").forEach((el, i) => {
+            el.classList.toggle("active", i === idx);
+          });
+
+          // Scroll active thumb into view
+          const activeThumb = filmstrip.querySelector(".thumb.active");
+          if (activeThumb)
+            activeThumb.scrollIntoView({
+              behavior: "smooth",
+              inline: "center",
+              block: "nearest",
+            });
+        }
+
+        function clearAll() {
+          frames = [];
+          frameBuffer = [];
+          currentIndex = -1;
+          filmstrip.innerHTML = "";
+          mainImg.style.display = "none";
+          placeholder.style.display = "block";
+          frameLabel.style.display = "none";
+          counter.textContent = "0 / 0";
+          toolName.textContent = "\u2014";
+          bufferInfo.textContent = "";
+          liveMode = true;
+          btnPlay.classList.add("active");
+        }
+
+        function commitFrame(frame) {
+          // Actually add frame to display (called by playback timer)
+          const idx = frames.length;
+          frames.push(frame);
+
+          // Add thumbnail
+          const thumb = document.createElement("div");
+          thumb.className = "thumb";
+          const img = document.createElement("img");
+          img.src = ensureDataUri(frame.data, frame.format);
+          img.alt = "Frame " + idx;
+          thumb.appendChild(img);
+          thumb.addEventListener("click", () => {
+            liveMode = false;
+            btnPlay.classList.remove("active");
+            showFrame(idx);
+          });
+          filmstrip.appendChild(thumb);
+
+          if (liveMode) showFrame(idx);
+        }
+
+        function addFrame(frame) {
+          // Buffer the frame; rAF loop will drain at target FPS
+          frameBuffer.push(frame);
+          updateBufferInfo();
+        }
+
+        // requestAnimationFrame-based playback for accurate FPS timing
+        function playbackLoop(timestamp) {
+          const interval = 1000 / targetFps;
+          if (timestamp - lastFrameTime >= interval) {
+            if (frameBuffer.length > 0) {
+              const frame = frameBuffer.shift();
+              commitFrame(frame);
+              updateBufferInfo();
+            } else if (replaying && currentIndex < frames.length - 1) {
+              // Replay mode: advance through committed frames
+              showFrame(currentIndex + 1);
+            } else if (replaying && currentIndex >= frames.length - 1) {
+              // Replay finished
+              replaying = false;
+              btnReplay.classList.remove("active");
+            }
+            lastFrameTime = timestamp;
+          }
+          rafId = requestAnimationFrame(playbackLoop);
+        }
+
+        function updateBufferInfo() {
+          if (frameBuffer.length > 0) {
+            bufferInfo.innerHTML =
+              '<span class="buffered">' +
+              frameBuffer.length +
+              " buffered</span>";
+          } else if (replaying) {
+            bufferInfo.innerHTML = '<span class="buffered">replaying</span>';
+          } else {
+            bufferInfo.textContent = "";
+          }
+        }
+
+        // FPS slider
+        fpsSlider.addEventListener("input", () => {
+          targetFps = parseInt(fpsSlider.value, 10);
+          fpsVal.textContent = targetFps;
+        });
+
+        // Start rAF playback loop
+        rafId = requestAnimationFrame(playbackLoop);
+
+        // Toggle live mode
+        btnPlay.addEventListener("click", () => {
+          replaying = false;
+          btnReplay.classList.remove("active");
+          liveMode = !liveMode;
+          btnPlay.classList.toggle("active", liveMode);
+          if (liveMode && frames.length > 0) showFrame(frames.length - 1);
+        });
+
+        // Replay: play all committed frames from the beginning at target FPS
+        btnReplay.addEventListener("click", () => {
+          if (frames.length === 0) return;
+          liveMode = false;
+          btnPlay.classList.remove("active");
+          replaying = true;
+          btnReplay.classList.add("active");
+          showFrame(0);
+          updateBufferInfo();
+        });
+
+        btnPrev.addEventListener("click", () => {
+          liveMode = false;
+          replaying = false;
+          btnPlay.classList.remove("active");
+          btnReplay.classList.remove("active");
+          showFrame(currentIndex - 1);
+        });
+
+        btnNext.addEventListener("click", () => {
+          replaying = false;
+          btnReplay.classList.remove("active");
+          if (currentIndex + 1 >= frames.length) {
+            liveMode = true;
+            btnPlay.classList.add("active");
+          } else {
+            showFrame(currentIndex + 1);
+          }
+        });
+
+        // Keyboard nav
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowLeft") {
+            btnPrev.click();
+          } else if (e.key === "ArrowRight") {
+            btnNext.click();
+          } else if (e.key === " ") {
+            e.preventDefault();
+            btnPlay.click();
+          } else if (e.key === "r" || e.key === "R") {
+            btnReplay.click();
+          }
+        });
+
+        // Fetch history (in case viewer opened after frames were pushed)
+        fetch("/api/history")
+          .then((r) => r.json())
+          .then((data) => {
+            data.forEach((f) => commitFrame(f));
+          })
+          .catch(() => {});
+
+        // SSE connection
+        function connectSSE() {
+          const es = new EventSource("/api/events");
+          es.addEventListener("frame", (e) => {
+            const frame = JSON.parse(e.data);
+            addFrame(frame);
+          });
+          es.addEventListener("clear", () => {
+            clearAll();
+          });
+          es.addEventListener("ping", () => {});
+          es.onopen = () => {
+            status.textContent = "live";
+            status.style.color = "#4caf50";
+          };
+          es.onerror = () => {
+            status.textContent = "reconnecting...";
+            status.style.color = "#ff9800";
+            es.close();
+            setTimeout(connectSSE, 2000);
+          };
+        }
+        connectSSE();
+      })();
+    </script>
+  </body>
+</html>

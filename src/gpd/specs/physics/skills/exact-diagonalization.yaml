@@ -1,0 +1,4 @@
+name: "exact-diagonalization"
+description: "load_when:"
+domain: physics
+file: "references/protocols/exact-diagonalization.md"

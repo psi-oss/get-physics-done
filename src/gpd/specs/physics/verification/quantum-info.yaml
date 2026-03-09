@@ -1,0 +1,183 @@
+# Quantum Information Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-quantum-info.md
+
+schema_version: 2
+domain: quantum-info
+description: >
+  Verification checklist for quantum information and quantum computing. Covers
+  CPTP verification, density matrix validity, entanglement measures, entropy
+  bounds, channel capacity, error correction, circuit verification, and distance
+  measures.
+source_file: references/verification-domain-quantum-info.md
+subfields: [quantum-information, quantum-computing, quantum-error-correction]
+
+checks:
+  # --- CPTP verification ---
+
+  kraus_trace_preservation:
+    id: qi-cptp-01
+    name: Kraus trace preservation
+    description: >
+      sum_k K_k^dagger K_k = I (exact). Deviation > 1e-10 = bug in Kraus
+      operator construction.
+    condition: "||sum_k K_k^dagger K_k - I|| < 1e-10"
+    severity: critical
+
+  choi_positivity:
+    id: qi-cptp-02
+    name: Choi matrix positivity
+    description: >
+      J(E) >= 0 (positive semidefinite) for complete positivity. Any eigenvalue
+      < -1e-10 means channel is NOT completely positive.
+    condition: "min eigenvalue of J(E) >= -1e-10"
+    severity: critical
+
+  choi_trace_preservation:
+    id: qi-cptp-03
+    name: Choi trace preservation
+    description: >
+      Tr_B[J(E)] = I_A. WARNING: convention-dependent (normalized vs unnormalized
+      Choi). Always verify which convention is used.
+    condition: "Tr_B[J(E)] = I_A (or I_A/d depending on convention)"
+    severity: critical
+
+  # --- Density matrix ---
+
+  density_matrix_validity:
+    id: qi-dm-01
+    name: Density matrix validity
+    description: >
+      rho must be Hermitian (||rho - rho^dagger||_F < 1e-12), positive semidefinite
+      (min eigenvalue >= -1e-12), unit trace (|Tr(rho) - 1| < 1e-12), and
+      Tr(rho^2) <= 1.
+    condition: "Hermitian, PSD, Tr=1, Tr(rho^2) <= 1"
+    severity: critical
+
+  pure_state_entropy:
+    id: qi-dm-02
+    name: Pure state entropy equality
+    description: >
+      For bipartite pure state |psi_AB>: S(A) = S(B) exactly. If S(A) != S(B),
+      the state is mixed or there is a bug.
+    condition: "S(A) = S(B) for pure bipartite states"
+    severity: critical
+
+  # --- Entanglement ---
+
+  ppt_criterion:
+    id: qi-ent-01
+    name: PPT criterion (Peres-Horodecki)
+    description: >
+      Negative eigenvalue of partial transpose = entangled. For 2x2 and 2x3:
+      PPT is necessary AND sufficient for separability. For larger systems:
+      necessary but not sufficient.
+    condition: "min eigenvalue of rho^{T_B} determines entanglement"
+    severity: major
+
+  entanglement_monotone:
+    id: qi-ent-02
+    name: Entanglement monotone properties
+    description: >
+      E(rho) >= 0, E = 0 for separable, non-increasing under LOCC, invariant
+      under local unitaries. Verify for product state (must be 0) and maximally
+      entangled state (must be maximum).
+    condition: "E(product) = 0; E(max entangled) = max; E non-increasing under LOCC"
+    severity: critical
+
+  concurrence_bounds:
+    id: qi-ent-03
+    name: Concurrence bounds (two qubits)
+    description: >
+      C = max(0, lambda_1 - lambda_2 - lambda_3 - lambda_4) in [0,1].
+      Bell states: C=1. Werner state: C = max(0, (3p-1)/2).
+    condition: "0 <= C <= 1; C(Bell) = 1; C(Werner_p) = max(0, (3p-1)/2)"
+    severity: major
+
+  # --- Entropy ---
+
+  von_neumann_bounds:
+    id: qi-ent-04
+    name: Von Neumann entropy bounds
+    description: >
+      S(rho) >= 0. S(rho) <= log(d). S = 0 iff pure. S = log(d) iff maximally
+      mixed. If S < 0 or S > log(d): error.
+    condition: "0 <= S(rho) <= log(d)"
+    severity: critical
+
+  strong_subadditivity:
+    id: qi-ent-05
+    name: Strong subadditivity
+    description: >
+      S(ABC) + S(B) <= S(AB) + S(BC). Violation means at least one entropy
+      value is wrong.
+    condition: "S(ABC) + S(B) <= S(AB) + S(BC)"
+    severity: critical
+
+  mutual_information_bounds:
+    id: qi-ent-06
+    name: Quantum mutual information bounds
+    description: >
+      I(A:B) = S(A) + S(B) - S(AB) >= 0 and I(A:B) <= 2*min(S(A), S(B)).
+      If negative: entropy computation is wrong.
+    condition: "0 <= I(A:B) <= 2*min(S(A), S(B))"
+    severity: critical
+
+  holevo_bound:
+    id: qi-ent-07
+    name: Holevo bound
+    description: >
+      chi = S(rho) - sum_x p_x S(rho_x) >= 0 and chi <= log(d).
+      If chi < 0: entropy calculation error.
+    condition: "0 <= chi <= log(d)"
+    severity: major
+
+  # --- Error correction ---
+
+  knill_laflamme:
+    id: qi-qec-01
+    name: Knill-Laflamme conditions
+    description: >
+      P E_a^dagger E_b P = alpha_{ab} P for all error pairs. If proportionality
+      fails, the code does NOT correct this error set.
+    condition: "P E_a^dagger E_b P proportional to P for all a,b"
+    severity: critical
+
+  stabilizer_commutativity:
+    id: qi-qec-02
+    name: Stabilizer code commutativity
+    description: >
+      All stabilizer generators commute pairwise. -I not in S. Binary symplectic
+      rank = n-k. Distance from minimum weight normalizer element.
+    condition: "[S_i, S_j] = 0 for all pairs; rank = n-k"
+    severity: critical
+
+  # --- Circuit ---
+
+  unitary_check:
+    id: qi-circ-01
+    name: Unitary verification
+    description: >
+      U^dagger U = I. |det(U)| = 1. Gate fidelity F = |Tr(U_target^dagger
+      U_compiled)|^2 / d^2 > 1 - epsilon.
+    condition: "||U^dagger U - I|| < 1e-10"
+    severity: critical
+
+  # --- Distance measures ---
+
+  trace_distance_bounds:
+    id: qi-dist-01
+    name: Trace distance bounds
+    description: >
+      0 <= D(rho, sigma) <= 1. Contractivity under CPTP. Triangle inequality.
+      If D > 1 or D < 0: computation error.
+    condition: "0 <= D <= 1"
+    severity: critical
+
+  fidelity_bounds:
+    id: qi-dist-02
+    name: Fidelity bounds and Fuchs-van de Graaf
+    description: >
+      0 <= F <= 1. F(rho, rho) = 1. Multiplicativity for tensor products.
+      Fuchs-van de Graaf: 1 - sqrt(F) <= D <= sqrt(1-F).
+    condition: "0 <= F <= 1; Fuchs-van de Graaf satisfied"
+    severity: critical

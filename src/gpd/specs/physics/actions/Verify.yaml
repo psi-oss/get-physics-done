@@ -1,0 +1,128 @@
+# Verify Action — Physics Bundle
+# Physics-specific verification action with structured checks.
+
+schema_version: 1
+action_id: Verify
+title: Verify Physics Results
+summary: |
+  Systematic verification of physics results through dimensional analysis,
+  limiting cases, symmetry checks, conservation laws, and numerical validation.
+  Produces a structured verification report and updates knowledge item statuses.
+
+schemas:
+  state_fields_touched:
+    - /scratch_knowledge
+    - /pointers
+
+write_set:
+  allowed_write_prefixes:
+    - /scratch_knowledge
+    - /pointers
+
+write_recipe:
+  version: 1
+  containers:
+    - op: append
+      path: /scratch_knowledge/notes
+      value_required_keys: [id, content]
+    - op: put
+      path: /scratch_knowledge/key_values
+    - op: append
+      path: /pointers/logs
+      value_required_keys: [ptr, kind]
+
+parameters:
+  required:
+    - name: target_items
+      type: array
+      meaning: >
+        Knowledge item IDs to verify. Each item will be checked against
+        applicable verification dimensions.
+  optional:
+    - name: checks
+      type: array
+      meaning: >
+        Specific checks to run. Default: all applicable.
+        Options: dimensional, limiting_cases, symmetry, conservation,
+        numerical, sign_convention, index_consistency.
+    - name: reference_values
+      type: object
+      meaning: >
+        Known reference values for comparison (e.g., from literature).
+        Keys are quantity names, values are {value, units, source}.
+
+triage_guidance: |
+  Propose Verify when:
+  - A major calculation block has completed
+  - Results need cross-checking before use in downstream calculations
+  - New numerical results lack convergence/consistency analysis
+  - A branch needs quality validation before merging
+  - Convention compliance needs systematic checking
+
+  Verify is complementary to CritiqueImprove — Critique checks the state
+  structure, Verify checks the physics content.
+
+action_guidance: |
+  ## Verification Protocol
+  For each target knowledge item, run applicable checks:
+
+  ### 1. Dimensional Analysis
+  - Extract all equations from the item and its support evidence
+  - Verify dimensions of every term match
+  - Report: PASS/FAIL with the specific dimensional mismatch if any
+
+  ### 2. Limiting Cases
+  - Identify all relevant limiting cases for the result
+  - Evaluate the expression in each limit
+  - Compare against known results
+  - Report: PASS/FAIL with expected vs actual for each limit
+
+  ### 3. Symmetry Properties
+  - Identify symmetries the result should respect
+  - Verify the result transforms correctly under each symmetry
+  - Report: PASS/FAIL with the symmetry violation if any
+
+  ### 4. Conservation Laws
+  - Identify conserved quantities relevant to the calculation
+  - Verify conservation is maintained
+  - Report: PASS/FAIL with the violated conservation law if any
+
+  ### 5. Numerical Validation
+  - Substitute test values into analytic expressions
+  - Compare numerical results across different methods
+  - Check convergence of series/integrals
+  - Report: PASS/FAIL with numerical discrepancy if any
+
+  ### 6. Sign Convention
+  - Verify signs are consistent with the convention lock
+  - Check Wick rotation signs, metric contraction signs
+  - Report: PASS/FAIL with the sign inconsistency if any
+
+  ### 7. Index Consistency
+  - Verify all tensor indices are properly contracted
+  - Check upper/lower index placement
+  - Verify Einstein summation convention compliance
+  - Report: PASS/FAIL with the index error if any
+
+  ## Recording Verification Results
+  For each check:
+  1. Create an Evidence item in /scratch_knowledge: "Verification [{check_type}]: {PASS|FAIL} — {detail}"
+  2. Add edge: evidence -> tests -> target_finding
+  3. If FAIL: create an Issue item describing the failure
+  4. Update target item status: "verified" if all pass, "tentative" if some fail
+
+  ## Verification Report
+  Store a summary verification report in cold ledger:
+  - Total checks: N, Passed: P, Failed: F
+  - For each failure: check type, expected, actual, severity
+  - Overall verdict: VERIFIED / NEEDS_REVISION / CRITICAL_FAILURE
+
+controller:
+  bucket: execution
+  proposable: true
+
+execution:
+  kind: commit
+  shape: linear
+  actor_id: Researcher
+  mcp_tools: true

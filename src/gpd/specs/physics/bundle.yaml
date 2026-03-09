@@ -1,0 +1,35 @@
+# Physics Spec Bundle — Domain Overlay
+# Extends the base bundle with physics-specific guidance, protocols,
+# verification checklists, error catalogs, and convention management.
+# Merges with base/ at load time via bundle_loader.
+
+name: physics
+version: "1.0.0"
+domain: physics
+description: |
+  Physics research overlay for the agentic DAG search system.
+  Adds convention-aware actors, physics verification protocols,
+  104 LLM error classes, 47 computation protocols, 11 domain-specific
+  verification checklists, and subfield convention defaults.
+  Derived from the GPD (Get Physics Done) agent system.
+dependencies:
+  - base
+overrides:
+  gpd.conventions.enabled: true
+  gpd.conventions.commit_gate: true
+  gpd.conventions.assert_check: true
+  gpd.conventions.drift_detection: true
+  gpd.verification.enabled: true
+  gpd.verification.checks.dimensional: true
+  gpd.verification.checks.limiting_cases: true
+  gpd.verification.checks.symmetry: true
+  gpd.verification.checks.conservation: true
+  gpd.verification.checks.numerical: true
+  gpd.verification.checks.sign_convention: true
+  gpd.verification.checks.index_consistency: true
+  gpd.protocols.enabled: true
+  gpd.protocols.checkpoint_enforcement: true
+  gpd.errors.enabled: true
+  gpd.errors.classification: true
+  gpd.patterns.enabled: true
+  gpd.patterns.cross_project: true

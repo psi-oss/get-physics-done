@@ -1,0 +1,28 @@
+# Work Action — Physics Overlay
+# Adds physics-specific modes to the base Work action.
+
+schema_version: 1
+action_id: Work
+title: Work
+
+modes:
+  derivation:
+    title: "Work/derivation"
+    summary: "Analytic derivation work"
+    triage_guidance: "Propose when work involves symbolic derivation or algebraic manipulation."
+    action_guidance: "Apply derivation protocol with convention checks."
+  numerical_experiment:
+    title: "Work/numerical_experiment"
+    summary: "Numerical computation work"
+    triage_guidance: "Propose when work involves numerical computation or simulation."
+    action_guidance: "Focus on convergence and error budgets."
+  equation_derivation:
+    title: "Work/equation_derivation"
+    summary: "Derive equations from first principles"
+    triage_guidance: "Propose when specific equations need rigorous derivation."
+    action_guidance: "Track every step with dimensional analysis."
+  convergence_study:
+    title: "Work/convergence_study"
+    summary: "Systematic convergence analysis"
+    triage_guidance: "Propose when numerical convergence needs study."
+    action_guidance: "Vary parameters, measure convergence rates."

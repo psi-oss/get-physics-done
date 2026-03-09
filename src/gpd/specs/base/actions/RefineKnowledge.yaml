@@ -1,0 +1,93 @@
+# RefineKnowledge Action — Base Bundle
+# Targeted scratch knowledge maintenance and hygiene.
+
+schema_version: 1
+action_id: RefineKnowledge
+title: Refine Knowledge
+summary: |
+  Targeted scratch knowledge hygiene: clarify, split, merge, or retag
+  notes and key_values. Strict write-scope contract —
+  only touches declared target items.
+
+schemas:
+  params_json_schema: specs/schemas/params/RefineKnowledgeParams.json
+  state_fields_touched:
+    - /scratch_knowledge
+
+write_set:
+  allowed_write_prefixes:
+    - /scratch_knowledge
+
+write_recipe:
+  version: 1
+  containers:
+    - op: append
+      path: /scratch_knowledge/notes
+      value_required_keys: [id, content]
+    - op: put
+      path: /scratch_knowledge/key_values
+
+parameters:
+  required:
+    - name: target_item_ids
+      type: array
+      meaning: >
+        List of note IDs to operate on. Write-scope is
+        restricted to these items. New notes may be created (splits)
+        but unrelated items must not be modified.
+
+triage_guidance: |
+  Propose RefineKnowledge when:
+  - Scratch knowledge has orphaned or disconnected notes
+  - Duplicate or near-duplicate notes exist
+  - Note tags need correction (e.g., assumption promoted to finding after verification)
+  - Notes have stale content that doesn't reflect current evidence
+
+  Do NOT propose RefineKnowledge for:
+  - Adding new domain content (use Work or Ground)
+  - Wholesale restructuring (use Plan then Work)
+  - Fixing only one note (bundle with other maintenance)
+
+action_guidance: |
+  ## Refinement Operations
+
+  ### Clarify
+  - Rewrite vague content to be precise and testable
+  - Add missing tags
+  - Update references to point to actual evidence
+
+  ### Split
+  - If a note covers multiple distinct claims, split into separate notes
+  - Create new notes with unique IDs
+  - Mark the original as replaced (or delete if within scope)
+
+  ### Merge
+  - Combine duplicate notes into a canonical version
+  - Preserve the most complete content
+  - Remove or mark duplicates as replaced
+
+  ### Retag
+  - Change tags when warranted by evidence
+  - assumption -> finding: when evidence confirms it
+  - claim -> nogo: when evidence refutes it
+  - Update content accordingly
+
+  ### Key-Value Maintenance
+  - Add missing named results to /scratch_knowledge/key_values
+  - Update stale values with current results
+  - Remove obsolete entries
+
+  ## Write-Scope Contract
+  - ONLY modify notes listed in target_item_ids or newly created notes
+  - If you need to modify notes outside the target list, document the need
+    and propose a follow-up RefineKnowledge
+
+controller:
+  bucket: maintenance
+  proposable: true
+
+execution:
+  kind: commit
+  shape: linear
+  actor_id: Researcher
+  mcp_tools: true

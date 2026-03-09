@@ -1,0 +1,4 @@
+name: "wkb-semiclassical"
+description: "Physics verification protocol for WKB approximation, Bohr-Sommerfeld quantization, tunneling calculations, and semiclass"
+domain: physics
+file: "references/protocols/wkb-semiclassical.md"

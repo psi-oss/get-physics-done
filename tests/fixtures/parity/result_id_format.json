@@ -1,0 +1,55 @@
+{
+  "_description": "Result ID format parity: both JS and Python generate R-{phase}-{seq}-{7char} with base-36 timestamp suffix.",
+  "format": {
+    "pattern": "^R-\\d{2}(?:_\\d+)*-\\d{2}-[a-z0-9]{7}$",
+    "description": "R-{padded_phase}-{padded_seq}-{4char_base36_ts}{3char_random}",
+    "examples": [
+      "R-03-01-lxk7a2b",
+      "R-01-02-m1k3f9c"
+    ]
+  },
+  "cases": [
+    {
+      "name": "phase_3_first_result",
+      "input": {
+        "state": {
+          "position": {"current_phase": "3"},
+          "intermediate_results": []
+        }
+      },
+      "expected": {
+        "id_prefix": "R-03-01-",
+        "suffix_length": 7,
+        "suffix_charset": "0123456789abcdef"
+      }
+    },
+    {
+      "name": "phase_1_with_existing_results",
+      "input": {
+        "state": {
+          "position": {"current_phase": "1"},
+          "intermediate_results": [
+            {"id": "R-01-01-abc1234", "phase": "1"}
+          ]
+        }
+      },
+      "expected": {
+        "id_prefix": "R-01-02-",
+        "suffix_length": 7
+      }
+    },
+    {
+      "name": "sub_phase_uses_underscore",
+      "input": {
+        "state": {
+          "position": {"current_phase": "3.1"},
+          "intermediate_results": []
+        }
+      },
+      "expected": {
+        "id_prefix": "R-03_1-01-",
+        "suffix_length": 7
+      }
+    }
+  ]
+}

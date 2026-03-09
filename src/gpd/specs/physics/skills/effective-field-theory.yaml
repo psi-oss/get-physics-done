@@ -1,0 +1,4 @@
+name: "effective-field-theory"
+description: "load_when:"
+domain: physics
+file: "references/protocols/effective-field-theory.md"

@@ -1,0 +1,217 @@
+# LLM Physics Error Catalog — Extended Errors (31-60)
+# Less common but important errors across subfields.
+
+schema_version: 1
+catalog_id: llm-physics-errors-extended
+description: Extended LLM physics errors (subfield-specific, moderate frequency)
+
+errors:
+  - id: E031
+    name: path_integral_measure_error
+    category: computational
+    severity: critical
+    description: Missing or wrong path integral measure (Jacobian, ghost determinant).
+    detection: Check measure transforms correctly under field redefinitions.
+
+  - id: E032
+    name: anomaly_missed
+    category: computational
+    severity: critical
+    description: Quantum anomaly (chiral, trace, gravitational) not accounted for.
+    detection: Check triangle diagrams, index theorem, or Fujikawa method.
+
+  - id: E033
+    name: gauge_artifact_treated_as_physical
+    category: conceptual
+    severity: critical
+    description: Treating a gauge-dependent quantity as a physical observable.
+    detection: Verify gauge invariance of final results. Check Wilson loop vs A_mu.
+
+  - id: E034
+    name: wrong_representation_dimension
+    category: computational
+    severity: major
+    description: Using wrong dimension for a Lie algebra representation.
+    detection: Check dim(fund) = N for SU(N). Verify Casimir operators.
+
+  - id: E035
+    name: clebsch_gordan_error
+    category: computational
+    severity: major
+    description: Wrong Clebsch-Gordan coefficient or coupling rule.
+    detection: Verify orthogonality and completeness. Check phase convention.
+
+  - id: E036
+    name: infrared_divergence_unhandled
+    category: computational
+    severity: critical
+    description: IR divergence not properly regulated or cancelled.
+    detection: Check for mass singularities. Verify KLN theorem applies.
+
+  - id: E037
+    name: collinear_divergence_missed
+    category: computational
+    severity: major
+    description: Missing collinear divergence in massless limit.
+    detection: Check splitting functions. Verify DGLAP evolution.
+
+  - id: E038
+    name: instanton_contribution_ignored
+    category: approximation
+    severity: major
+    description: Ignoring non-perturbative instanton effects when they're relevant.
+    detection: Check if topology (theta term, tunneling) matters for the observable.
+
+  - id: E039
+    name: large_n_subleading_promoted
+    category: approximation
+    severity: major
+    description: Treating a 1/N suppressed contribution as leading order.
+    detection: Track N-counting for every diagram/contribution.
+
+  - id: E040
+    name: mean_field_beyond_validity
+    category: approximation
+    severity: major
+    description: Using mean-field result in regime where fluctuations dominate.
+    detection: Check Ginzburg criterion. Verify d > d_c (upper critical dimension).
+
+  - id: E041
+    name: spin_statistics_violation
+    category: conceptual
+    severity: critical
+    description: Violating spin-statistics theorem (wrong statistics for spin).
+    detection: Integer spin = bosons (commutators). Half-integer = fermions (anticommutators).
+
+  - id: E042
+    name: time_ordering_error
+    category: computational
+    severity: major
+    description: Wrong time ordering in propagator or correlation function.
+    detection: Verify T-product definition. Check theta function signs.
+
+  - id: E043
+    name: completeness_relation_error
+    category: computational
+    severity: major
+    description: Wrong or incomplete completeness relation inserted.
+    detection: Verify sum_n |n><n| = 1 with correct measure and states.
+
+  - id: E044
+    name: variational_principle_misapplied
+    category: conceptual
+    severity: major
+    description: Misapplying variational principle (wrong functional, wrong boundary terms).
+    detection: Check boundary terms in integration by parts. Verify correct action.
+
+  - id: E045
+    name: thermodynamic_potential_confusion
+    category: convention
+    severity: major
+    description: Confusing different thermodynamic potentials (F vs G vs Omega).
+    detection: Check which variables are held fixed. Verify Legendre transform.
+
+  - id: E046
+    name: order_of_limits_error
+    category: computational
+    severity: critical
+    description: Taking limits in the wrong order when they don't commute.
+    detection: Identify limits that might not commute (epsilon->0, N->infinity, etc.).
+
+  - id: E047
+    name: wrong_tensor_decomposition
+    category: computational
+    severity: major
+    description: Incorrect decomposition of tensor into irreducible representations.
+    detection: Verify dimensions add up. Check symmetry properties.
+
+  - id: E048
+    name: missing_surface_term
+    category: computational
+    severity: major
+    description: Dropping a surface term in integration by parts that doesn't vanish.
+    detection: Check boundary conditions explicitly. Surface terms on compact spaces.
+
+  - id: E049
+    name: naive_dimensional_analysis_failure
+    category: approximation
+    severity: major
+    description: Using dimensional analysis estimate when actual result differs by large factor.
+    detection: Check for large numerical factors (pi^n, combinatorial). Verify by calculation.
+
+  - id: E050
+    name: perturbation_series_divergent
+    category: approximation
+    severity: major
+    description: Trusting perturbation series beyond its radius of convergence.
+    detection: Check convergence radius. Look for factorial growth in coefficients.
+
+  - id: E051
+    name: eom_used_off_shell
+    category: conceptual
+    severity: critical
+    description: Using equations of motion inside a path integral where fields are off-shell.
+    detection: EOM can only be used for on-shell external legs, not internal lines.
+
+  - id: E052
+    name: background_field_confusion
+    category: conceptual
+    severity: major
+    description: Confusing background field with quantum fluctuation.
+    detection: Track which fields are background and which are integrated over.
+
+  - id: E053
+    name: wrong_statistical_ensemble
+    category: convention
+    severity: major
+    description: Using wrong statistical ensemble (canonical vs grand canonical vs microcanonical).
+    detection: Check which quantities are fixed vs fluctuating.
+
+  - id: E054
+    name: lattice_doubling_ignored
+    category: computational
+    severity: major
+    description: Fermion doubling on the lattice not handled (no Wilson/staggered/overlap).
+    detection: Check Nielsen-Ninomiya theorem. Verify fermion action.
+
+  - id: E055
+    name: scale_separation_violated
+    category: approximation
+    severity: major
+    description: EFT used when scale separation assumption is violated.
+    detection: Check ratio of scales. Verify higher-order corrections are small.
+
+  - id: E056
+    name: zero_mode_missed
+    category: computational
+    severity: critical
+    description: Missing zero mode in functional integral or determinant.
+    detection: Check for zero eigenvalues. Handle collective coordinates.
+
+  - id: E057
+    name: wrong_green_function_type
+    category: computational
+    severity: major
+    description: Using wrong type of Green's function (retarded vs advanced vs Feynman).
+    detection: Check causality requirements. Verify pole prescription.
+
+  - id: E058
+    name: classical_limit_error
+    category: approximation
+    severity: major
+    description: Wrong classical limit (hbar -> 0 must be taken carefully).
+    detection: Track all hbar factors. Verify WKB/semiclassical expansion.
+
+  - id: E059
+    name: topological_term_sign
+    category: computational
+    severity: major
+    description: Wrong sign or coefficient for topological terms (theta, Chern-Simons, WZW).
+    detection: Check against index theorem or topology conventions.
+
+  - id: E060
+    name: supersymmetry_algebra_error
+    category: convention
+    severity: major
+    description: Wrong SUSY algebra (anticommutator relations, central charges).
+    detection: Verify {Q_alpha, Q_beta^bar} = 2 sigma^mu P_mu with correct conventions.

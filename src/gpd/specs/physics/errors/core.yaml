@@ -1,0 +1,248 @@
+# LLM Physics Error Catalog — Core Errors (1-30)
+# The most common and dangerous LLM physics errors.
+# Each error class has: id, name, category, description, detection, severity.
+
+schema_version: 1
+catalog_id: llm-physics-errors-core
+description: Core LLM physics errors (most common, highest priority detection)
+
+errors:
+  - id: E001
+    name: metric_signature_mixing
+    category: convention
+    severity: critical
+    description: Mixing mostly-plus and mostly-minus metric signature in the same derivation.
+    detection: Check all metric contractions use the same signature. Compare g_{00} sign across expressions.
+    example: "Using eta = diag(+1,-1,-1,-1) in one equation and eta = diag(-1,+1,+1,+1) in the next."
+
+  - id: E002
+    name: gamma_matrix_convention_error
+    category: convention
+    severity: critical
+    description: Wrong Clifford algebra convention for gamma matrices.
+    detection: Verify {gamma^mu, gamma^nu} = 2*g^{mu nu} with YOUR metric signature.
+    example: "Using Weyl representation formulas with Dirac representation traces."
+
+  - id: E003
+    name: fourier_sign_error
+    category: convention
+    severity: critical
+    description: Inconsistent Fourier transform sign convention (e^{+ikx} vs e^{-ikx}).
+    detection: Track the sign in every Fourier transform and its inverse. They must be conjugate.
+    example: "Defining f(k) = int f(x)e^{-ikx}dx but using f(x) = int f(k)e^{-ikx}dk."
+
+  - id: E004
+    name: index_placement_error
+    category: convention
+    severity: major
+    description: Raising/lowering indices incorrectly or inconsistently.
+    detection: Every raised index must be lowered with g_{mu nu}. Check metric factors.
+    example: "Writing p_mu p^mu = p^2 > 0 for timelike momentum in mostly-minus convention."
+
+  - id: E005
+    name: hallucinated_ward_identity
+    category: hallucination
+    severity: critical
+    description: Claiming a Ward identity holds without verification.
+    detection: Ward identities must be derived or cited. Check if the symmetry actually exists.
+    example: "Asserting k_mu M^{mu nu} = 0 for a process where gauge invariance is broken."
+
+  - id: E006
+    name: hallucinated_fierz_identity
+    category: hallucination
+    severity: critical
+    description: Applying a Fierz identity in the wrong dimension or with wrong signs.
+    detection: Fierz identities are dimension-dependent. Verify for d=4 vs d=2 vs general d.
+    example: "Using 4D Fierz rearrangement in a 2D model."
+
+  - id: E007
+    name: wrong_symmetry_factor
+    category: computational
+    severity: major
+    description: Incorrect symmetry factor in Feynman diagram calculation.
+    detection: Count symmetry operations explicitly. Compare with textbook for simple diagrams.
+    example: "Missing 1/2! for identical internal lines in a self-energy diagram."
+
+  - id: E008
+    name: integration_measure_error
+    category: computational
+    severity: major
+    description: Missing or wrong factors of 2*pi in integration measures.
+    detection: Every d^dk loop integral needs the correct (2*pi)^d denominator.
+    example: "Writing int d^4k instead of int d^4k/(2*pi)^4 for a loop integral."
+
+  - id: E009
+    name: wick_rotation_sign
+    category: computational
+    severity: critical
+    description: Wrong sign or missing i factor in Wick rotation.
+    detection: k^0 -> i*k_E^4 introduces a factor of i. Track all such factors.
+    example: "Wick rotating without accounting for the Jacobian factor of i."
+
+  - id: E010
+    name: dropped_series_term
+    category: approximation
+    severity: major
+    description: Dropping a term in a series expansion that's actually the same order.
+    detection: Track the order of every term. Compare magnitudes before dropping.
+    example: "Keeping O(alpha) radiative correction but dropping O(alpha) tree-level effect."
+
+  - id: E011
+    name: wrong_contour_choice
+    category: computational
+    severity: critical
+    description: Choosing the wrong integration contour for a complex integral.
+    detection: Check poles are on the correct side. Verify contour closes correctly.
+    example: "Using retarded propagator contour when Feynman (time-ordered) is needed."
+
+  - id: E012
+    name: trace_normalization_error
+    category: convention
+    severity: major
+    description: Wrong normalization for trace of Lie algebra generators.
+    detection: Verify Tr(T^a T^b) = T(R) * delta^{ab} with the correct T(R) for your representation.
+    example: "Using Tr(T^a T^b) = delta^{ab}/2 for adjoint representation (should be C_2(G)*delta^{ab})."
+
+  - id: E013
+    name: analytic_continuation_error
+    category: computational
+    severity: critical
+    description: Incorrect analytic continuation across branch cuts.
+    detection: Identify all branch points. Specify sheet and cut structure explicitly.
+    example: "Continuing sqrt(s) across the branch cut without tracking the sign change."
+
+  - id: E014
+    name: wrong_degeneracy_factor
+    category: computational
+    severity: major
+    description: Missing or wrong spin/color/flavor degeneracy factors.
+    detection: Explicitly list all quantum numbers and their multiplicities.
+    example: "Missing factor of 2 for spin degeneracy in fermion loop."
+
+  - id: E015
+    name: regularization_scheme_mismatch
+    category: convention
+    severity: critical
+    description: Mixing results from different regularization schemes without conversion.
+    detection: Track the regularization scheme for every divergent quantity.
+    example: "Using dim-reg beta function coefficient with cutoff-regulated integral."
+
+  - id: E016
+    name: wrong_stat_factor
+    category: computational
+    severity: major
+    description: Wrong Bose-Einstein or Fermi-Dirac statistics sign.
+    detection: Fermion loops get (-1)^{n_loops}. Check all fermion loops.
+    example: "Missing (-1) for a closed fermion loop in a Feynman diagram."
+
+  - id: E017
+    name: renormalization_scale_confusion
+    category: convention
+    severity: major
+    description: Confusing the renormalization scale mu with other scales.
+    detection: Track mu dependence explicitly. Verify RG equation consistency.
+    example: "Setting mu = the physical mass when the calculation assumes mu = sqrt(s)."
+
+  - id: E018
+    name: bianchi_identity_misuse
+    category: hallucination
+    severity: major
+    description: Misapplying Bianchi identity (algebraic or differential).
+    detection: Verify which Bianchi identity applies. Check antisymmetry pattern.
+    example: "Applying algebraic Bianchi R_{[abc]d}=0 when differential Bianchi is needed."
+
+  - id: E019
+    name: wrong_commutator_sign
+    category: computational
+    severity: critical
+    description: Sign error in commutator/anticommutator of operators.
+    detection: Verify [A,B] = AB - BA explicitly. Check fermion anticommutator signs.
+    example: "[a, a^dagger] = -1 instead of +1 for bosonic creation/annihilation."
+
+  - id: E020
+    name: conformal_dimension_error
+    category: computational
+    severity: major
+    description: Wrong scaling dimension assignment for operators in CFT.
+    detection: Check unitarity bounds. Verify with OPE consistency.
+    example: "Assigning dimension 1 to a scalar in 4D when unitarity bound requires >= 1."
+
+  - id: E021
+    name: partition_function_overcounting
+    category: computational
+    severity: major
+    description: Overcounting states in partition function (missing 1/N! or gauge volume).
+    detection: Check for identical particle factors. Verify gauge fixing is complete.
+    example: "Missing 1/N! for N identical bosons in the canonical partition function."
+
+  - id: E022
+    name: saddle_point_wrong_regime
+    category: approximation
+    severity: major
+    description: Applying saddle point approximation outside its validity regime.
+    detection: Check that the exponent parameter is large. Verify saddle is isolated.
+    example: "Using steepest descent for an integral with N=2 (need N >> 1)."
+
+  - id: E023
+    name: adiabatic_assumption_violated
+    category: approximation
+    severity: major
+    description: Assuming adiabatic evolution when the timescale condition is violated.
+    detection: Compare the rate of parameter change to the energy gap.
+    example: "Using adiabatic theorem when the energy gap closes (level crossing)."
+
+  - id: E024
+    name: wrong_coupling_constant_value
+    category: computational
+    severity: major
+    description: Using wrong numerical value for a coupling constant.
+    detection: Cross-check coupling values against PDG or standard references.
+    example: "Using alpha_s = 0.118 at a scale where it should be ~0.3 (low energy)."
+
+  - id: E025
+    name: missing_counterterm
+    category: computational
+    severity: critical
+    description: Missing counterterm in a renormalized calculation.
+    detection: Every divergence must be cancelled by a counterterm. Check UV finiteness.
+    example: "Computing one-loop correction without the mass counterterm."
+
+  - id: E026
+    name: wrong_boundary_condition
+    category: computational
+    severity: critical
+    description: Applying wrong boundary conditions to a differential equation.
+    detection: Verify physical boundary conditions (regularity, normalizability, causality).
+    example: "Using periodic boundary conditions when the problem requires Dirichlet."
+
+  - id: E027
+    name: lorentz_invariance_violation
+    category: computational
+    severity: critical
+    description: Inadvertently breaking Lorentz invariance in a Lorentz-invariant theory.
+    detection: Check that final results transform correctly under Lorentz boosts.
+    example: "Frame-dependent result in a manifestly covariant calculation."
+
+  - id: E028
+    name: missing_vacuum_energy
+    category: computational
+    severity: major
+    description: Missing vacuum energy contribution or zero-point energy.
+    detection: Check if normal ordering was properly applied. Track vacuum diagrams.
+    example: "Computing Casimir effect without the zero-point energy subtraction."
+
+  - id: E029
+    name: hermiticity_violation
+    category: computational
+    severity: critical
+    description: Hamiltonian or observable is not Hermitian when it should be.
+    detection: Verify H = H^dagger. Check that eigenvalues are real.
+    example: "Writing H = p^2/2m + V(x) with complex V(x) for a physical system."
+
+  - id: E030
+    name: unitarity_violation
+    category: computational
+    severity: critical
+    description: S-matrix or evolution operator violates unitarity.
+    detection: Check S*S^dagger = 1. Verify optical theorem. Check probability conservation.
+    example: "Cross-section that exceeds the unitarity bound at high energy."

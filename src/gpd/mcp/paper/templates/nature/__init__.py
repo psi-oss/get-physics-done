@@ -1,0 +1,1 @@
+"""Nature LaTeX template."""

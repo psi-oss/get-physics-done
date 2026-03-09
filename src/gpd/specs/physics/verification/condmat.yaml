@@ -1,0 +1,166 @@
+# Condensed Matter Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-condmat.md
+
+schema_version: 2
+domain: condmat
+description: >
+  Verification checklist for condensed matter physics. Covers spectral sum rules,
+  Kramers-Kronig relations, spectral representations, Luttinger theorem,
+  Goldstone and Mermin-Wagner theorems, and subfield-specific checks.
+source_file: references/verification-domain-condmat.md
+subfields: [condensed-matter, solid-state, many-body]
+
+checks:
+  # --- Spectral sum rules ---
+
+  f_sum_rule:
+    id: cm-sr-01
+    name: f-sum rule (oscillator strength)
+    description: >
+      integral_0^inf omega Im[epsilon(omega)] d(omega) = (pi/2) omega_p^2.
+      Exact regardless of interactions. Failure indicates missing spectral weight,
+      wrong normalization, or incorrect electron count.
+    condition: "integral omega * Im[epsilon] d(omega) = (pi/2) omega_p^2"
+    severity: critical
+    test_template: |
+      def verify_f_sum_rule(omega, Im_epsilon, omega_p_sq, tol=0.05):
+          integral = np.trapz(omega * Im_epsilon, omega)
+          expected = (np.pi / 2) * omega_p_sq
+          return abs(integral - expected) / abs(expected) < tol
+
+  optical_sum_rule:
+    id: cm-sr-02
+    name: Optical sum rule (conductivity)
+    description: >
+      integral_0^inf Re[sigma(omega)] d(omega) = (pi/2)(n*e^2/m).
+    condition: "integral Re[sigma(omega)] d(omega) = (pi/2)(n*e^2/m)"
+    severity: critical
+
+  spectral_weight_sum:
+    id: cm-sr-03
+    name: Spectral weight sum rule
+    description: >
+      integral A(k, omega) d(omega)/(2*pi) = 1 for single-particle spectral function.
+    condition: "integral A(k, omega) d(omega)/(2*pi) = 1"
+    severity: critical
+
+  friedel_sum_rule:
+    id: cm-sr-04
+    name: Friedel sum rule
+    description: >
+      Z = (2/pi) sum_l (2l+1) delta_l(E_F). Phase shifts at Fermi energy
+      determine displaced charge.
+    condition: "Z = (2/pi) sum_l (2l+1) delta_l(E_F)"
+    severity: major
+
+  ward_identity_condmat:
+    id: cm-sr-05
+    name: Ward identity (charge conservation)
+    description: >
+      Gauge invariance of electromagnetic response: q_mu Pi^{mu nu} = 0
+      (transversality). Vertex corrections and self-energy related by Ward identity.
+    condition: "q_mu Pi^{mu nu} = 0"
+    severity: critical
+
+  # --- Kramers-Kronig ---
+
+  kramers_kronig_dielectric:
+    id: cm-kk-01
+    name: Kramers-Kronig (dielectric function)
+    description: >
+      Real and imaginary parts of epsilon(omega) are KK-related. Compute
+      independently, then verify KK transform of Im[epsilon] matches Re[epsilon].
+    condition: "KK transform of Im[epsilon] reproduces Re[epsilon]"
+    severity: critical
+    test_template: |
+      def verify_kramers_kronig(omega, Re_eps, Im_eps, tol=0.05):
+          Re_reconstructed = np.zeros_like(omega)
+          for i, w in enumerate(omega):
+              mask = np.abs(omega - w) > 1e-10
+              integrand = omega[mask] * Im_eps[mask] / (omega[mask]**2 - w**2)
+              Re_reconstructed[i] = 1 + (2/np.pi) * np.trapz(integrand, omega[mask])
+          return np.max(np.abs(Re_eps - Re_reconstructed)) / np.max(np.abs(Re_eps)) < tol
+
+  kramers_kronig_selfenergy:
+    id: cm-kk-02
+    name: Kramers-Kronig (self-energy)
+    description: >
+      Retarded self-energy Sigma^R(omega) satisfies KK relations. Critical for
+      DMFT analytic continuation.
+    condition: "Sigma^R(omega) satisfies KK relations"
+    severity: critical
+
+  lehmann_representation:
+    id: cm-kk-03
+    name: Lehmann spectral representation
+    description: >
+      G(omega) = integral rho(omega') / (omega - omega') d(omega'). Guarantees
+      correct analytic structure and spectral weight positivity.
+    condition: "G(omega) consistent with Lehmann representation, rho >= 0"
+    severity: major
+
+  # --- Fundamental theorems ---
+
+  luttinger_theorem:
+    id: cm-th-01
+    name: Luttinger theorem
+    description: >
+      Fermi surface volume unchanged by interactions in Fermi liquids.
+      Electron count enclosed by Fermi surface = total electron count.
+    condition: "V_FS(interacting) = V_FS(non-interacting)"
+    severity: major
+
+  goldstone_condmat:
+    id: cm-th-02
+    name: Goldstone theorem
+    description: >
+      Broken continuous symmetry implies gapless mode. Superfluid: phonon.
+      Magnet: magnon. Absence of expected Goldstone mode is an error.
+    condition: "gapless mode for each spontaneously broken continuous symmetry"
+    severity: critical
+
+  mermin_wagner:
+    id: cm-th-03
+    name: Mermin-Wagner theorem
+    description: >
+      No spontaneous breaking of continuous symmetry in d <= 2 at finite T
+      (short-range interactions). 2D calculation with long-range magnetic order
+      at finite T violates this theorem.
+    condition: "no continuous symmetry breaking in d <= 2 at T > 0"
+    severity: critical
+
+  spectral_positivity:
+    id: cm-pos-01
+    name: Spectral function positivity
+    description: >
+      A(k, omega) >= 0 everywhere. Negative spectral weight indicates error
+      in self-energy or analytic continuation.
+    condition: "A(k, omega) >= 0"
+    severity: critical
+
+  # --- Universal checks ---
+
+  dimensional:
+    id: cm-dim-01
+    name: Condensed matter dimensional analysis
+    description: >
+      Energy scales: J, t, U with correct relative dimensions. Correlation lengths
+      in lattice spacings. Conductivity: sigma ~ [charge]^2/[hbar] in 2D.
+      Susceptibilities: chi ~ 1/energy for magnetic.
+    severity: critical
+
+  sign_convention:
+    id: cm-sign-01
+    name: Sign conventions
+    description: >
+      Hopping sign (t > 0 convention), Fourier transform (e^{ikr} vs e^{-ikr}),
+      Matsubara frequencies (boson vs fermion), Green's function sign convention.
+    severity: major
+
+  limiting_cases:
+    id: cm-lim-01
+    name: Condensed matter limiting cases
+    description: >
+      Non-interacting limit (U -> 0), atomic limit (t -> 0), high-T (classical),
+      zero-T (ground state), continuum limit (a -> 0).
+    severity: critical

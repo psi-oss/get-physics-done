@@ -1,0 +1,32 @@
+{
+  "name": "gpd-blackboard",
+  "description": "GPD blackboard knowledge graph. Tools for searching, traversing, and proposing entries in the campaign-scoped research knowledge graph.",
+  "transport": "stdio",
+  "command": "python",
+  "args": ["-m", "gpd.mcp.servers.blackboard_server"],
+  "env": {
+    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}",
+    "BLACKBOARD_DB_PATH": "${BLACKBOARD_DB_PATH}",
+    "CAMPAIGN_ID": "${CAMPAIGN_ID:-default}"
+  },
+  "capabilities": [
+    "search_blackboard",
+    "get_entry",
+    "get_subgraph",
+    "find_by_type",
+    "find_related",
+    "propose_entry",
+    "list_entry_types",
+    "get_coverage"
+  ],
+  "registry_prefix": "gpd_blackboard",
+  "prerequisites": [
+    "gpd package: pip install -e packages/gpd",
+    "research-memory package: pip install -e packages/research-memory"
+  ],
+  "health_check": {
+    "tool": "list_entry_types",
+    "input": {},
+    "expect": "contains type_count"
+  }
+}

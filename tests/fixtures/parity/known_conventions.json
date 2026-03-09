@@ -1,0 +1,23 @@
+{
+  "_description": "Known conventions parity: both JS and Python must recognize the same 18 canonical convention fields.",
+  "known_conventions": [
+    "metric_signature",
+    "fourier_convention",
+    "natural_units",
+    "gauge_choice",
+    "regularization_scheme",
+    "renormalization_scheme",
+    "coordinate_system",
+    "spin_basis",
+    "state_normalization",
+    "coupling_convention",
+    "index_positioning",
+    "time_ordering",
+    "commutation_convention",
+    "levi_civita_sign",
+    "generator_normalization",
+    "covariant_derivative_sign",
+    "gamma_matrix_convention",
+    "creation_annihilation_order"
+  ]
+}

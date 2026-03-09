@@ -1,0 +1,121 @@
+"""Tests for adapter registry and tool_names module."""
+
+from __future__ import annotations
+
+import pytest
+
+from gpd.adapters import get_adapter, list_runtimes
+from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.tool_names import (
+    AGENTIC_BUILDER,
+    CLAUDE_CODE,
+    CODEX,
+    GEMINI,
+    OPENCODE,
+    RUNTIME_TABLES,
+    canonical,
+    translate,
+    translate_list,
+)
+
+
+class TestRegistry:
+    """Tests for the adapter registry (get_adapter / list_runtimes)."""
+
+    def test_list_runtimes_returns_all_five(self) -> None:
+        runtimes = list_runtimes()
+        assert set(runtimes) == {"claude-code", "codex", "gemini", "opencode", "agentic-builder"}
+
+    def test_list_runtimes_sorted(self) -> None:
+        runtimes = list_runtimes()
+        assert runtimes == sorted(runtimes)
+
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode", "agentic-builder"])
+    def test_get_adapter_returns_instance(self, runtime: str) -> None:
+        adapter = get_adapter(runtime)
+        assert isinstance(adapter, RuntimeAdapter)
+        assert adapter.runtime_name == runtime
+
+    def test_get_adapter_unknown_raises_key_error(self) -> None:
+        with pytest.raises(KeyError, match="Unknown runtime"):
+            get_adapter("nonexistent")
+
+    def test_get_adapter_returns_new_instance_each_call(self) -> None:
+        a = get_adapter("claude-code")
+        b = get_adapter("claude-code")
+        assert a is not b
+
+
+class TestToolNames:
+    """Tests for tool_names canonical/translate functions."""
+
+    def test_canonical_identity_for_canonical_names(self) -> None:
+        for name in ("file_read", "file_write", "shell", "search_files"):
+            assert canonical(name) == name
+
+    @pytest.mark.parametrize(
+        ("legacy", "expected"),
+        [
+            ("Read", "file_read"),
+            ("Write", "file_write"),
+            ("Edit", "file_edit"),
+            ("Bash", "shell"),
+            ("Grep", "search_files"),
+            ("Glob", "find_files"),
+            ("WebSearch", "web_search"),
+            ("WebFetch", "web_fetch"),
+            ("AskUserQuestion", "ask_user"),
+        ],
+    )
+    def test_canonical_legacy_aliases(self, legacy: str, expected: str) -> None:
+        assert canonical(legacy) == expected
+
+    def test_canonical_unknown_passthrough(self) -> None:
+        assert canonical("custom_tool") == "custom_tool"
+
+    @pytest.mark.parametrize(
+        ("canon", "runtime", "expected"),
+        [
+            ("file_read", "claude-code", "Read"),
+            ("file_read", "codex", "read_file"),
+            ("file_read", "gemini", "read_file"),
+            ("file_read", "opencode", "read_file"),
+            ("shell", "claude-code", "Bash"),
+            ("shell", "gemini", "run_shell_command"),
+            ("search_files", "gemini", "search_file_content"),
+            ("web_search", "gemini", "google_web_search"),
+            ("ask_user", "opencode", "question"),
+            ("slash_command", "opencode", "skill"),
+        ],
+    )
+    def test_translate_canonical_to_runtime(self, canon: str, runtime: str, expected: str) -> None:
+        assert translate(canon, runtime) == expected
+
+    def test_translate_legacy_name_auto_canonicalized(self) -> None:
+        assert translate("Read", "codex") == "read_file"
+        assert translate("Bash", "gemini") == "run_shell_command"
+
+    def test_translate_unknown_runtime_fallback(self) -> None:
+        assert translate("file_read", "unknown-runtime") == "file_read"
+
+    def test_translate_unknown_tool_fallback(self) -> None:
+        assert translate("custom_tool", "claude-code") == "custom_tool"
+
+    def test_translate_list(self) -> None:
+        result = translate_list(["file_read", "shell", "web_search"], "claude-code")
+        assert result == ["Read", "Bash", "WebSearch"]
+
+    def test_translate_list_empty(self) -> None:
+        assert translate_list([], "claude-code") == []
+
+    def test_all_runtime_tables_present(self) -> None:
+        assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode", "agentic-builder"}
+
+    def test_all_tables_have_same_canonical_keys(self) -> None:
+        keys = set(CLAUDE_CODE.keys())
+        for name, table in [("CODEX", CODEX), ("GEMINI", GEMINI), ("OPENCODE", OPENCODE), ("AB", AGENTIC_BUILDER)]:
+            assert set(table.keys()) == keys, f"{name} has different canonical keys than CLAUDE_CODE"
+
+    def test_agentic_builder_identity_mapping(self) -> None:
+        for canon, runtime_name in AGENTIC_BUILDER.items():
+            assert canon == runtime_name, f"agentic-builder should be identity for {canon}"

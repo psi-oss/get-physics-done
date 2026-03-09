@@ -1,0 +1,4 @@
+name: "fluid-dynamics-mhd"
+description: "load_when:"
+domain: physics
+file: "references/protocols/fluid-dynamics-mhd.md"

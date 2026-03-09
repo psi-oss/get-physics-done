@@ -1,0 +1,134 @@
+# Statistical Mechanics Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-statmech.md
+
+schema_version: 2
+domain: statmech
+description: >
+  Verification checklist for statistical mechanics. Covers thermodynamic sum
+  rules, consistency relations, phase transitions, detailed balance, and
+  KMS/fluctuation-dissipation relations.
+source_file: references/verification-domain-statmech.md
+subfields: [statistical-mechanics, thermodynamics, critical-phenomena]
+
+checks:
+  partition_function_limits:
+    id: sm-th-01
+    name: Partition function limiting behavior
+    description: >
+      Z -> (number of states) at T -> inf. Z -> exp(-beta*E_0) at T -> 0.
+      These are exact limits that any partition function must satisfy.
+    condition: "Z(T->inf) = Omega; Z(T->0) = exp(-beta*E_0)"
+    severity: critical
+    test_template: |
+      def verify_partition_function_limits(Z_func, E_0, num_states, tol=0.01):
+          Z_high_T = Z_func(1e10)  # very high T
+          Z_low_T = Z_func(1e-10)  # very low T
+          high_ok = abs(Z_high_T - num_states) / num_states < tol
+          low_ok = abs(np.log(Z_low_T) + E_0 * 1e10) < tol  # beta*E_0
+          return high_ok and low_ok
+
+  free_energy_convexity:
+    id: sm-th-02
+    name: Free energy convexity
+    description: >
+      F = U - TS minimized at equilibrium. F concave in T, convex in V.
+    condition: "d^2F/dT^2 <= 0; d^2F/dV^2 >= 0"
+    severity: critical
+
+  specific_heat_positivity:
+    id: sm-th-03
+    name: Specific heat positivity
+    description: >
+      C_V >= 0 always. C_V from fluctuations (<E^2> - <E>^2)/(k_BT^2) must
+      agree with dU/dT.
+    condition: "C_V >= 0; C_V(fluctuations) = C_V(derivative)"
+    severity: critical
+
+  entropy_positivity:
+    id: sm-th-04
+    name: Entropy positivity and third law
+    description: >
+      S >= 0 always. S -> 0 as T -> 0 (third law). Negative entropy is always
+      an error.
+    condition: "S >= 0; S(T->0) -> 0"
+    severity: critical
+
+  compressibility_positivity:
+    id: sm-th-05
+    name: Compressibility positivity
+    description: >
+      kappa >= 0 (mechanical stability). Negative compressibility indicates
+      thermodynamic instability or computational error.
+    condition: "kappa >= 0"
+    severity: critical
+
+  maxwell_relations:
+    id: sm-th-06
+    name: Maxwell relations
+    description: >
+      dS/dV|_T = dP/dT|_V, etc. Cross-derivatives of thermodynamic potentials
+      must be consistent.
+    condition: "all Maxwell relations satisfied"
+    severity: critical
+
+  detailed_balance:
+    id: sm-th-07
+    name: Detailed balance
+    description: >
+      W(A->B) * P_eq(A) = W(B->A) * P_eq(B). For Monte Carlo: acceptance ratio
+      P_acc(old->new)/P_acc(new->old) = exp(-beta*Delta E).
+    condition: "transition rates satisfy detailed balance"
+    severity: critical
+
+  clausius_clapeyron:
+    id: sm-pt-01
+    name: Clausius-Clapeyron relation
+    description: >
+      dP/dT = Delta S / Delta V at phase boundaries. Energy histogram: single
+      peak (continuous transition), double peak (first-order).
+    condition: "dP/dT = Delta S / Delta V at coexistence"
+    severity: major
+
+  compressibility_sum_rule:
+    id: sm-sr-01
+    name: Compressibility sum rule
+    description: >
+      Links S(q->0) to thermodynamic compressibility. Exact thermodynamic
+      identity connecting structure factor to bulk modulus.
+    condition: "S(q->0) consistent with kappa_T"
+    severity: major
+
+  ising_2d_exact:
+    id: sm-exact-01
+    name: 2D Ising exact results
+    description: >
+      T_c = 2J/ln(1+sqrt(2)) ~ 2.269J. Critical exponents: beta=1/8, gamma=7/4,
+      nu=1. Exact results for benchmarking.
+    condition: "T_c = 2J/ln(1+sqrt(2)); correct universality class"
+    severity: major
+
+  finite_size_scaling:
+    id: sm-fss-01
+    name: Finite-size scaling collapse
+    description: >
+      Data collapse with correct exponents at critical points. Scaling function
+      universal within universality class.
+    condition: "scaling collapse achieved with correct critical exponents"
+    severity: major
+
+  kms_condition:
+    id: sm-kms-01
+    name: KMS condition (quantum detailed balance)
+    description: >
+      S(-omega) = exp(-beta*omega) S(omega) relates positive and negative
+      frequency spectral weight. Classical limit: fluctuation-dissipation theorem.
+    condition: "S(-omega) / S(omega) = exp(-beta*omega)"
+    severity: critical
+
+  dimensional:
+    id: sm-dim-01
+    name: Statistical mechanics dimensions
+    description: >
+      F = -k_BT ln Z: [energy]. S = -dF/dT: [k_B]. C = T dS/dT: [k_B].
+      Susceptibility: appropriate for order parameter. Correlation length: [length].
+    severity: critical

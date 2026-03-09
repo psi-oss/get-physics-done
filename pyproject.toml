@@ -1,0 +1,100 @@
+[project]
+name = "get-physics-done"
+version = "0.1.0"
+description = "GPD — Get Physics Done: autonomous physics research orchestration"
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "typer>=0.21.1",
+    "rich>=13.7.1",
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+    "tenacity>=9.0",
+    "logfire>=1.0",
+    "structlog>=25.5.0",
+    # LLM / Agent
+    "pydantic-ai-slim[anthropic,retries]>=1.66.0",
+    "claude-agent-sdk>=0.1.19",
+    "mcp[cli]>=1.9.0",
+    # Scientific
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "statsmodels>=0.14.0",
+    # Utilities
+    "pybtex>=0.24",
+    "Pillow>=10.0",
+    "asyncpg>=0.31.0",
+]
+
+[project.optional-dependencies]
+# PSI platform integration (only needed inside the PSI monorepo)
+psi = [
+    "psi-mcp-shared",
+    "psi-contracts",
+    "psi-core",
+    "inference-providers",
+    "agentic-builder",
+    "psi-pipeline",
+    "research-memory",
+]
+viewer = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "sse-starlette>=1.6",
+    "jinja2>=3.1",
+]
+
+[project.entry-points."psi.strategies"]
+gpd_mcts = "gpd.strategy.mcts:GPDMCTSStrategy"
+
+[project.scripts]
+gpd = "gpd.cli:app"
+"gpd+" = "gpd.mcp.cli:app"
+"gpd-exp" = "gpd.exp.cli:main"
+"gpd-mcp-conventions" = "gpd.mcp.servers.conventions_server:main"
+"gpd-mcp-verification" = "gpd.mcp.servers.verification_server:main"
+"gpd-mcp-protocols" = "gpd.mcp.servers.protocols_server:main"
+"gpd-mcp-errors" = "gpd.mcp.servers.errors_mcp:main"
+"gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
+"gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
+"gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
+"gpd-mcp-blackboard" = "gpd.mcp.servers.blackboard_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpd"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/gpd/mcp/paper/templates" = "gpd/mcp/paper/templates"
+"src/gpd/mcp/viewer/templates" = "gpd/mcp/viewer/templates"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: tests requiring external services (database, etc.)",
+]
+filterwarnings = [
+    "ignore::logfire._internal.config.LogfireNotConfiguredWarning",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "TID251"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.Any".msg = "Use `object` instead of `Any` for top types."
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]

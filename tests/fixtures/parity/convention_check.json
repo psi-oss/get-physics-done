@@ -1,0 +1,49 @@
+{
+  "_description": "Convention check operation parity: same lock state produces same completeness result.",
+  "cases": [
+    {
+      "name": "empty_lock_all_missing",
+      "input": {
+        "lock": {}
+      },
+      "expected": {
+        "complete": false,
+        "set_count": 0,
+        "missing_count": 18,
+        "total": 18,
+        "custom_count": 0
+      }
+    },
+    {
+      "name": "partial_lock",
+      "input": {
+        "lock": {
+          "metric_signature": "mostly-plus",
+          "natural_units": "c = hbar = 1"
+        }
+      },
+      "expected": {
+        "complete": false,
+        "set_count": 2,
+        "missing_count": 16,
+        "total": 18,
+        "custom_count": 0
+      }
+    },
+    {
+      "name": "bogus_values_treated_as_unset",
+      "input": {
+        "lock": {
+          "metric_signature": "null",
+          "natural_units": "none"
+        }
+      },
+      "expected": {
+        "complete": false,
+        "set_count": 0,
+        "missing_count": 18,
+        "total": 18
+      }
+    }
+  ]
+}

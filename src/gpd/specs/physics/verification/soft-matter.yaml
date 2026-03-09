@@ -1,0 +1,169 @@
+# Soft Matter & Biophysics Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-soft-matter.md
+
+schema_version: 2
+domain: soft-matter
+description: >
+  Verification checklist for soft matter and biophysics. Covers equilibration,
+  thermodynamic consistency, scaling laws, force field validation, finite-size
+  effects, active matter, and conservation laws.
+source_file: references/verification-domain-soft-matter.md
+subfields: [soft-matter, biophysics, polymer-physics]
+
+checks:
+  # --- Equilibration ---
+
+  equilibration:
+    id: sft-eq-01
+    name: Equilibration verification
+    description: >
+      No drift in E(t), P(t), structural observables. Multiple independent runs
+      from different initial conditions must converge.
+    condition: "no systematic drift; independent runs converge"
+    severity: critical
+
+  autocorrelation:
+    id: sft-eq-02
+    name: Autocorrelation analysis
+    description: >
+      tau_auto for target observable. Effective independent samples
+      N_eff = N_total / (2*tau_auto). Block averaging with blocks >> tau_auto.
+    condition: "N_eff >> 1; blocks >> tau_auto"
+    severity: critical
+
+  # --- Thermodynamic consistency ---
+
+  equipartition:
+    id: sft-thermo-01
+    name: Equipartition theorem
+    description: >
+      <(1/2) m v_i^2> = (1/2) k_BT per degree of freedom. Kinetic temperature
+      must equal thermostat target within 1%.
+    condition: "|T_kinetic - T_target| / T_target < 0.01"
+    severity: critical
+
+  virial_pressure:
+    id: sft-thermo-02
+    name: Virial pressure consistency
+    description: >
+      P = N*k_BT/V + (1/3V)*<sum r_ij*f_ij>. Compare with equation of state
+      (e.g., Carnahan-Starling for hard spheres). Include tail corrections for LJ.
+    condition: "P(virial) consistent with equation of state"
+    severity: major
+
+  fluctuation_dissipation:
+    id: sft-thermo-03
+    name: Fluctuation-dissipation relations
+    description: >
+      kappa_T from fluctuations vs equation of state. C_V from energy fluctuations
+      vs finite-difference dE/dT. Must agree.
+    condition: "kappa_T(fluctuation) = kappa_T(EOS); C_V(fluctuation) = C_V(deriv)"
+    severity: critical
+
+  detailed_balance_mc:
+    id: sft-thermo-04
+    name: Detailed balance (Monte Carlo)
+    description: >
+      P_acc(old->new) / P_acc(new->old) = exp(-beta*Delta E). Energy histogram
+      must match Boltzmann distribution.
+    condition: "acceptance ratio satisfies detailed balance"
+    severity: critical
+
+  # --- Scaling ---
+
+  polymer_scaling:
+    id: sft-scale-01
+    name: Polymer scaling exponents
+    description: >
+      Flory exponent nu = 0.5876 (3D good solvent), nu = 1/2 (theta solvent),
+      R_g ~ N^{1/3} (poor solvent). R_ee^2/R_g^2 ~ 6.25 for SAW.
+    condition: "nu matches expected value for solvent quality"
+    severity: major
+
+  diffusion_coefficient:
+    id: sft-scale-02
+    name: Diffusion coefficient from MSD
+    description: >
+      D = lim MSD/(6t). Three regimes: ballistic, subdiffusive, diffusive.
+      Yeh-Hummer finite-size correction for periodic boundaries.
+    condition: "MSD linear in t at long times; D corrected for finite-size"
+    severity: major
+
+  critical_scaling:
+    id: sft-scale-03
+    name: Phase transition scaling
+    description: >
+      Critical exponents (beta, gamma, nu). Finite-size scaling data collapse.
+      Hyperscaling relation 2-alpha = d*nu.
+    condition: "data collapse with correct exponents; hyperscaling satisfied"
+    severity: major
+
+  # --- Force field validation ---
+
+  structural_validation:
+    id: sft-ff-01
+    name: Structural validation vs experiment
+    description: >
+      Compare R_g, g(r), persistence length with SAXS/SANS/NMR. Protein RMSD
+      < 2 A from crystal structure. Membrane area per lipid and thickness.
+    condition: "structural properties match experiment within expected error"
+    severity: major
+
+  energy_minimization:
+    id: sft-ff-02
+    name: Energy minimization sanity
+    description: >
+      E/N << k_BT * 100. No atom overlaps. No stretched bonds.
+    condition: "E/N reasonable; no overlaps or stretched bonds"
+    severity: critical
+
+  coarse_graining:
+    id: sft-ff-03
+    name: Coarse-graining validation
+    description: >
+      RDF g_CG(r) must match g_AA(r). Density, pressure, compressibility within
+      5%. Speed-up factor for dynamics.
+    condition: "g_CG matches g_AA; thermodynamics within 5%"
+    severity: major
+
+  # --- Finite-size effects ---
+
+  box_size:
+    id: sft-fs-01
+    name: Box size requirements
+    description: >
+      L > 3*R_g (polymer), L > 10*sigma+2*kappa^{-1} (colloid), L > 5*xi(T)
+      (near phase transition), L > 5*lambda_D (electrolyte).
+    condition: "box size satisfies domain-specific minimum"
+    severity: critical
+
+  # --- Active matter ---
+
+  active_matter_nonequilibrium:
+    id: sft-active-01
+    name: Active matter non-equilibrium signatures
+    description: >
+      Entropy production rate > 0. Broken detailed balance. Broken Onsager
+      reciprocity. Pressure is NOT a state function for active systems.
+      No free energy minimization applies.
+    condition: "non-equilibrium nature acknowledged; no equilibrium assumptions"
+    severity: critical
+
+  # --- Conservation ---
+
+  energy_conservation_nve:
+    id: sft-cons-01
+    name: Energy conservation (NVE)
+    description: >
+      |Delta E / E| < 1e-5 per tau. Energy fluctuations ~ (dt/tau)^4 for
+      velocity-Verlet.
+    condition: "|Delta E / E| < 1e-5 per tau"
+    severity: critical
+
+  momentum_conservation:
+    id: sft-cons-02
+    name: Momentum conservation
+    description: >
+      |P(t)| constant to machine precision. Drift = broken Newton's third law.
+    condition: "|P(t)| constant to machine precision"
+    severity: critical

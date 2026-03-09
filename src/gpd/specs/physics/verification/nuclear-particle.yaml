@@ -1,0 +1,126 @@
+# Nuclear & Particle Physics Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-nuclear-particle.md
+
+schema_version: 2
+domain: nuclear-particle
+description: >
+  Verification checklist for nuclear and particle physics. Covers crossing
+  symmetry, partial wave unitarity, chiral perturbation theory, parton
+  distributions, CKM matrix, heavy quark symmetry, and EFT matching.
+source_file: references/verification-domain-nuclear-particle.md
+subfields: [nuclear, particle, high-energy]
+
+checks:
+  crossing_symmetry:
+    id: np-cross-01
+    name: Crossing symmetry
+    description: >
+      A(s,t,u) related to A(t,s,u) by exchange. Mandelstam constraint:
+      s + t + u = sum of squared masses.
+    condition: "A(s,t,u) = A(t,s,u) for identical particles; s+t+u = sum m_i^2"
+    severity: critical
+
+  partial_wave_unitarity:
+    id: np-unit-01
+    name: Partial wave unitarity
+    description: >
+      |a_l(s)| <= 1. Per-partial-wave cross section bounded by 4*pi*(2l+1)/k^2.
+    condition: "|a_l| <= 1 for all partial waves"
+    severity: critical
+
+  weinberg_power_counting:
+    id: np-chpt-01
+    name: Weinberg power counting (ChPT)
+    description: >
+      D = 2 + 2L + sum_d (d-2)*N_d. No diagram at wrong order. NLO correction
+      should be O(m_pi^2/Lambda_chi^2) ~ 1-2%.
+    condition: "diagram order matches power counting"
+    severity: major
+
+  lec_naturalness:
+    id: np-chpt-02
+    name: Low-energy constant naturalness
+    description: >
+      NDA estimate |L_i^r(mu)| ~ 1/(4*pi*f_pi)^2 ~ 7e-4. Compare with
+      PDG/FLAG lattice averages.
+    condition: "|L_i^r| ~ 7e-4 (NDA order-of-magnitude)"
+    severity: major
+
+  momentum_sum_rule:
+    id: np-pdf-01
+    name: Momentum sum rule
+    description: >
+      integral_0^1 x * [sum_q (q + qbar) + g] dx = 1. Exact QCD constraint.
+    condition: "integral x*(q+qbar+g) dx = 1"
+    severity: critical
+
+  baryon_number_sum_rules:
+    id: np-pdf-02
+    name: Baryon number sum rules
+    description: >
+      integral [u-ubar] dx = 2, integral [d-dbar] dx = 1, integral [s-sbar] dx = 0.
+    condition: "valence quark number integrals match proton quantum numbers"
+    severity: critical
+
+  fragmentation_positivity:
+    id: np-pdf-03
+    name: Fragmentation function positivity
+    description: >
+      D_h^q(z, Q^2) >= 0 everywhere. Negative fragmentation function is unphysical.
+    condition: "D_h^q(z, Q^2) >= 0"
+    severity: critical
+
+  ckm_unitarity:
+    id: np-flav-01
+    name: CKM unitarity
+    description: >
+      Row/column sums = 1. Unitarity triangle angles alpha + beta + gamma = pi.
+      Jarlskog invariant J ~ 3e-5.
+    condition: "|V_ud|^2 + |V_us|^2 + |V_ub|^2 = 1; alpha+beta+gamma = pi"
+    severity: critical
+    test_template: |
+      def verify_ckm_unitarity(V_ud, V_us, V_ub, tol=0.001):
+          row_sum = abs(V_ud)**2 + abs(V_us)**2 + abs(V_ub)**2
+          return abs(row_sum - 1.0) < tol
+
+  heavy_quark_symmetry:
+    id: np-flav-02
+    name: Heavy quark symmetry (Isgur-Wise)
+    description: >
+      xi(1) = 1 (exact at zero recoil), xi(w) <= 1, xi'(1) < 0.
+    condition: "xi(1) = 1; xi(w) <= 1; xi'(1) < 0"
+    severity: major
+
+  branching_ratio_sum:
+    id: np-decay-01
+    name: Branching ratios sum to unity
+    description: >
+      Sum of all decay branching ratios = 1 exactly.
+    condition: "sum BR_i = 1"
+    severity: critical
+
+  color_factors:
+    id: np-qcd-01
+    name: QCD color factors
+    description: >
+      C_F = 4/3, C_A = 3, T_R = 1/2 for SU(3). Incorrect color factors are
+      a common source of factor-of-N errors.
+    condition: "C_F = 4/3, C_A = 3, T_R = 1/2"
+    severity: critical
+
+  matching_mu_independence:
+    id: np-eft-01
+    name: EFT matching scale independence
+    description: >
+      Physical observable O = C_i(mu) * <O_i>(mu) must be mu-independent within
+      estimated higher-order uncertainty.
+    condition: "dO_phys/d(mu) consistent with higher-order estimate"
+    severity: critical
+
+  dimensional:
+    id: np-dim-01
+    name: Nuclear/particle dimensional analysis
+    description: >
+      Cross sections: [area] (pb, fb). Decay rates: [1/time] (GeV in natural units).
+      Mandelstam variables: [energy^2].
+    severity: critical

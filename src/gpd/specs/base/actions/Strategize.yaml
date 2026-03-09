@@ -1,0 +1,94 @@
+# Strategize Action — Base Bundle
+# Enhanced from hot-dag Strategize.yaml with structured strategy framework,
+# evidence-based refinement, and risk posture calibration.
+
+schema_version: 1
+action_id: Strategize
+title: Strategize
+summary: |
+  Design and refine the high-level research methodology and approach.
+  Sets the conceptual direction: paradigm, tools, assumptions, evaluation priorities,
+  and risk posture. Informed by literature, evidence, and current state.
+
+schemas:
+  params_json_schema: specs/schemas/params/StrategizeParams.json
+  state_fields_touched:
+    - /strategy
+
+write_set:
+  allowed_write_prefixes:
+    - /strategy
+
+write_recipe:
+  version: 1
+  containers: []
+
+bundle_contract:
+  required_touch_prefixes:
+    - /strategy
+  require_unique_patches: true
+
+parameters:
+  required: []
+  optional:
+    - name: reason_tag
+      type: string|null
+      meaning: Short tag explaining why strategy is being refined.
+    - name: strategic_intent
+      type: string|null
+      meaning: One-line description of the strategic shift or focus.
+
+triage_guidance: |
+  Propose Strategize when:
+  - Branch lacks a crisp conceptual framing or methodological direction
+  - New evidence suggests the current approach is flawed or inefficient
+  - Multiple competing paradigms need explicit strategic prioritization
+  - Risk posture needs adjustment based on accumulated results
+  - Assumptions or success criteria need updating
+
+  Do NOT propose Strategize for:
+  - Detailed task decomposition (use Plan)
+  - Actual implementation (use Work)
+  - Simple restatement without strategic insight
+
+action_guidance: |
+  ## Strategy Structure
+  - framing: High-level methodological paradigm
+  - assumptions: Key testable assumptions (short bullets)
+  - success_criteria: Measurable, checkable outcomes
+  - risk_posture: "conservative" | "balanced" | "exploratory"
+
+  ## Strategy Quality
+  - Be informed by evidence: check /scratch_knowledge for Evidence, Issues, NoGos
+  - Make strategic distinctions: different branches should differ substantively
+  - Set clear success criteria: prefer checkable, specific outcomes
+  - Align risk posture with approach
+  - Keep fields concise to avoid truncation
+
+  ## Common Mistakes
+  - Writing detailed plans in /strategy (belongs in /plan)
+  - Strategizing without evidence when literature is available
+  - Creating strategies differing only in wording, not substance
+  - Writing to /plan or /scratch_knowledge (write-set violation)
+
+examples:
+  - name: Initial strategy based on evidence
+    writes_example: |
+      [
+        {"op":"set","path":"/strategy/framing","value":"Gradient-based optimization with physics-informed constraints."},
+        {"op":"set","path":"/strategy/assumptions","value":["Differentiable physics loss guides search effectively","Baseline converges within budget"]},
+        {"op":"set","path":"/strategy/success_criteria","value":["Achieve constraint satisfaction on validation cases","Outperform baseline by >= 20%"]},
+        {"op":"set","path":"/strategy/risk_posture","value":"balanced"}
+      ]
+
+controller:
+  bucket: maintenance
+  proposable: true
+  uniqueness:
+    scope: root_depth1
+    paths:
+      - /strategy
+execution:
+  kind: commit
+  shape: linear
+  actor_id: Researcher

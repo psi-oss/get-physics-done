@@ -1,0 +1,4 @@
+name: "electrodynamics"
+description: "load_when:"
+domain: physics
+file: "references/protocols/electrodynamics.md"

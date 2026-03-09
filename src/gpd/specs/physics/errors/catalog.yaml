@@ -1,0 +1,102 @@
+# LLM Physics Error Catalog — Index
+# Maps error categories to their reference files.
+# Total: 104 error classes across 6 files (core + extended + deep + field-theory + traceability + legacy).
+
+version: 1
+total_classes: 104
+
+# Error catalog files (loaded by the error awareness system)
+files:
+  core:
+    file: references/llm-errors-core.md
+    description: Core LLM physics error classes (most common).
+    id_range: E001-E030
+    count: 30
+    categories:
+      - sign_errors
+      - convention_mixing
+      - dimensional_errors
+      - factor_errors
+      - index_errors
+      - approximation_errors
+      - identity_errors
+      - boundary_condition_errors
+
+  extended:
+    file: references/llm-errors-extended.md
+    description: Extended domain-specific error patterns.
+    id_range: E031-E060
+    count: 30
+    categories:
+      - numerical_errors
+      - symmetry_errors
+      - gauge_errors
+      - thermodynamic_errors
+      - many_body_errors
+      - classical_mechanics_errors
+
+  deep:
+    file: references/llm-errors-deep.md
+    description: Deep domain error classes (subtle, hard-to-detect).
+    id_range: E061-E085
+    count: 25
+    categories:
+      - renormalization_errors
+      - topology_errors
+      - semiclassical_errors
+      - statistical_errors
+      - astro_errors
+      - quantum_info_errors
+
+  field_theory:
+    file: references/llm-errors-field-theory.md
+    description: Field theory specific error patterns.
+    id_range: E086-E104
+    count: 19
+    categories:
+      - propagator_errors
+      - vertex_errors
+      - diagram_errors
+      - regularization_errors
+      - running_coupling_errors
+      - anomaly_errors
+
+  traceability:
+    file: references/llm-errors-traceability.md
+    description: Error traceability and defense layer mappings.
+    count: 0
+    note: Maps error classes to defense layers. No new error IDs defined here.
+    categories:
+      - convention_propagation
+      - numerical_computation
+      - perturbation_theory
+      - integration_evaluation
+
+  legacy:
+    file: references/llm-physics-errors.md
+    description: Original unified error catalog (overlaps with above, kept for backward compat).
+    count: 0
+    note: Content has been split into the above files. Kept as a reference.
+
+# Severity distribution
+severity_distribution:
+  critical: 35
+  major: 42
+  minor: 27
+
+# Defense layers (from verification gap analysis)
+defense_layers:
+  - layer: convention_lock
+    catches: [convention_mixing, sign_errors, index_errors]
+  - layer: assert_convention
+    catches: [convention_propagation, normalization_errors]
+  - layer: dimensional_analysis
+    catches: [dimensional_errors, factor_errors]
+  - layer: limiting_cases
+    catches: [approximation_errors, boundary_condition_errors]
+  - layer: symmetry_checks
+    catches: [symmetry_errors, gauge_errors]
+  - layer: numerical_validation
+    catches: [numerical_errors, convergence_errors]
+  - layer: cross_phase_consistency
+    catches: [convention_drift, notation_inconsistency]

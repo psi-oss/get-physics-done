@@ -1,0 +1,27 @@
+{
+  "name": "gpd-verification",
+  "description": "GPD physics verification checks. Tools for running dimensional analysis, limiting case checks, symmetry verification, and coverage gap analysis.",
+  "transport": "stdio",
+  "command": "python",
+  "args": ["-m", "gpd.mcp.servers.verification_server"],
+  "env": {
+    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "capabilities": [
+    "run_check",
+    "get_checklist",
+    "dimensional_check",
+    "limiting_case_check",
+    "symmetry_check",
+    "get_verification_coverage"
+  ],
+  "registry_prefix": "gpd_verification",
+  "prerequisites": [
+    "gpd package: pip install -e packages/gpd"
+  ],
+  "health_check": {
+    "tool": "get_checklist",
+    "input": {"domain": "qft"},
+    "expect": "contains Ward identities"
+  }
+}

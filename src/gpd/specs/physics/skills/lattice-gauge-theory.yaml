@@ -1,0 +1,4 @@
+name: "lattice-gauge-theory"
+description: "load_when:"
+domain: physics
+file: "references/protocols/lattice-gauge-theory.md"

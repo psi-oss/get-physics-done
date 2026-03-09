@@ -1,0 +1,4 @@
+name: "finite-temperature-field-theory"
+description: "load_when:"
+domain: physics
+file: "references/protocols/finite-temperature-field-theory.md"

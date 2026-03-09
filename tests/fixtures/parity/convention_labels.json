@@ -1,0 +1,23 @@
+{
+  "_description": "Convention label parity: JS CONVENTION_LABELS must match Python CONVENTION_LABELS exactly.",
+  "labels": {
+    "metric_signature": "Metric signature",
+    "fourier_convention": "Fourier convention",
+    "natural_units": "Natural units",
+    "gauge_choice": "Gauge choice",
+    "regularization_scheme": "Regularization scheme",
+    "renormalization_scheme": "Renormalization scheme",
+    "coordinate_system": "Coordinate system",
+    "spin_basis": "Spin basis",
+    "state_normalization": "State normalization",
+    "coupling_convention": "Coupling convention",
+    "index_positioning": "Index positioning",
+    "time_ordering": "Time ordering",
+    "commutation_convention": "Commutation convention",
+    "levi_civita_sign": "Levi-Civita sign",
+    "generator_normalization": "Generator normalization",
+    "covariant_derivative_sign": "Covariant derivative sign",
+    "gamma_matrix_convention": "Gamma matrix convention",
+    "creation_annihilation_order": "Creation/annihilation order"
+  }
+}

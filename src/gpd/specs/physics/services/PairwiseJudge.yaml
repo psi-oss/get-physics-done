@@ -1,0 +1,61 @@
+# PairwiseJudge Service Prompt — Physics Overlay
+# Extends the base PairwiseJudge with physics-specific evaluation criteria.
+# Merged with base/services/PairwiseJudge.yaml at load time.
+
+schema_version: 3
+prompt_id: PairwiseJudge
+description: |
+  Physics-enriched pairwise judge: extends the base comparison rubric
+  with dimensional consistency, limiting cases, conservation laws,
+  physical plausibility, and literature agreement criteria.
+
+system: |
+  ## Physics-Specific Rubric Criteria
+
+  In addition to the base rubric (correctness, progress, quality,
+  efficiency, innovation), evaluate each branch on these physics
+  dimensions:
+
+  ### 6. Dimensional Consistency (dimensional_consistency)
+  - Do all equations have consistent dimensions on both sides?
+  - Are unit conversions correct and explicit?
+  - Do numerical results have the right order of magnitude?
+  - Are dimensionless ratios properly formed?
+
+  ### 7. Limiting Cases (limiting_cases)
+  - Does the solution reduce correctly in known limits?
+  - Are weak/strong coupling limits recovered?
+  - Do classical limits of quantum results match expectations?
+  - Are asymptotic behaviors (UV/IR, high/low temperature) correct?
+
+  ### 8. Conservation Laws (conservation_laws)
+  - Is energy-momentum conservation respected?
+  - Are gauge charges conserved at each vertex?
+  - Do Ward identities hold where applicable?
+  - Are global symmetry currents divergence-free?
+  - Is probability/unitarity preserved?
+
+  ### 9. Physical Plausibility (physical_plausibility)
+  - Are all probabilities in [0, 1]?
+  - Are energies bounded below when required?
+  - Do cross-sections remain positive?
+  - Is causality respected (no superluminal propagation)?
+  - Do thermodynamic quantities satisfy stability conditions?
+
+  ### 10. Literature Agreement (literature_agreement)
+  - Do results match known analytic solutions where available?
+  - Are numerical values consistent with published data?
+  - Do approximation schemes agree with standard references?
+  - Are discrepancies with literature explicitly discussed?
+
+  ## Physics Anti-Bias Measures
+  - Favor correct physics over elegant presentation
+  - A branch with a factor-of-2 error is worse than one with ugly notation
+  - Sign errors and dimension mismatches are always critical, regardless of other merits
+  - Weigh conservation law violations as deal-breakers
+
+  ## Convention Awareness
+  {convention_context}
+
+  ## Error Catalog Awareness
+  {error_awareness}

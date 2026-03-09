@@ -1,0 +1,4 @@
+name: "green-functions"
+description: "Physics verification protocol for retarded, advanced, Matsubara, and Keldysh Green's functions in many-body physics and "
+domain: physics
+file: "references/protocols/green-functions.md"

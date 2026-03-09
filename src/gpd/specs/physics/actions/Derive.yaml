@@ -1,0 +1,133 @@
+# Derive Action — Physics Bundle
+# Physics-specific action for rigorous step-by-step derivations.
+
+schema_version: 1
+action_id: Derive
+title: Derive
+summary: |
+  Perform a rigorous physics derivation with systematic verification at
+  each step. Enforces derivation discipline: explicit assumptions, tracked
+  signs/factors, dimensional consistency, and self-critique checkpoints.
+  Physics-only — not present in the base bundle.
+
+schemas:
+  state_fields_touched:
+    - /plan/sections
+    - /scratch_knowledge
+    - /pointers
+    - /intermediate_results
+
+write_set:
+  allowed_write_prefixes:
+    - /plan/sections
+    - /scratch_knowledge
+    - /pointers
+    - /intermediate_results
+
+write_recipe:
+  version: 1
+  containers:
+    - op: append
+      path: /scratch_knowledge/notes
+      value_required_keys: [id, content]
+    - op: put
+      path: /scratch_knowledge/key_values
+    - op: append
+      path: /pointers/logs
+      value_required_keys: [ptr, kind]
+    - op: append
+      path: /intermediate_results
+      value_required_keys: [id, equation, description, units, validity]
+
+parameters:
+  required:
+    - name: derivation_goal
+      type: string
+      meaning: >
+        What is being derived and in what regime. Example: "Derive the
+        one-loop beta function for QCD in dimensional regularization."
+  optional:
+    - name: starting_equation
+      type: string
+      meaning: The equation or relation to start from.
+    - name: target_form
+      type: string
+      meaning: Expected form of the final result (for verification).
+    - name: protocol
+      type: string
+      meaning: >
+        Computation protocol to follow (e.g., "perturbation_theory",
+        "path_integrals", "renormalization_group").
+
+triage_guidance: |
+  Propose Derive when:
+  - A new analytic result needs to be obtained step-by-step
+  - An existing result needs re-derivation for verification
+  - A calculation requires careful sign/factor tracking
+  - The derivation is long enough to benefit from checkpoints (> 5 steps)
+
+  Do NOT propose Derive for:
+  - Numerical computations (use PhysicsWork)
+  - Simple substitutions or lookups (use Work)
+  - Literature review (use Ground)
+
+action_guidance: |
+  ## Derivation Protocol
+  Execute the derivation as a sequence of verified steps:
+
+  ### Step 1: Setup
+  - State the starting equation (with source reference)
+  - List ALL assumptions explicitly
+  - Declare conventions: metric, normalization, coupling definitions
+  - State the target: what form should the final result take?
+  - Identify the computation protocol to follow
+
+  ### Step 2: Execute (for each derivation step)
+  For each algebraic/physical manipulation:
+  1. State what operation is being performed
+  2. Show the result
+  3. Verify dimensions are consistent
+  4. Track signs and numerical factors explicitly
+  5. Record intermediate results in /intermediate_results with dimensions and validity
+
+  ### Step 3: Checkpoint (every 3-4 steps)
+  Run the self-critique checkpoint:
+  - SIGN_CHECK: count sign changes, verify against expectation
+  - FACTOR_CHECK: list all factors of 2, pi, hbar introduced/removed
+  - CONVENTION_CHECK: verify conventions match the lock
+  - DIMENSION_CHECK: verify dimensions of current expression
+  - LIMIT_CHECK: does current expression reduce correctly in a known limit?
+
+  If any check fails: STOP. Document the discrepancy. Re-derive from the
+  last valid checkpoint. Record the error as an Issue knowledge item.
+
+  ### Step 4: Final Verification
+  - Check the final result against all known limiting cases
+  - Verify dimensions of the complete result
+  - Compare with literature if available (record as Evidence)
+  - Check symmetry properties are preserved
+  - Record the result as a Finding with support from Evidence items
+
+  ## Recording Results
+  - Store derivation steps in cold ledger (pointer in /pointers/logs)
+  - Record the final result as a Finding knowledge item in /scratch_knowledge
+  - Record each verified checkpoint as Evidence
+  - Record assumptions as Assumption items
+  - Connect via edges: evidence -> supports -> finding
+
+  ## Anti-Patterns
+  - Skipping intermediate steps ("it follows that...")
+  - Not tracking signs through Wick rotations or metric contractions
+  - Missing factors of 2pi in Fourier transforms
+  - Claiming "by symmetry" without verifying the symmetry holds
+  - Not checking limiting cases of the final result
+
+controller:
+  bucket: execution
+  proposable: true
+
+execution:
+  kind: commit
+  shape: linear
+  actor_id: Researcher
+  mcp_tools: true

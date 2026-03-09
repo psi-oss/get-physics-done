@@ -1,0 +1,107 @@
+# Mathematical Physics Verification Checklist — Physics Bundle
+# Derived from specs/references/verification-domain-mathematical-physics.md
+
+schema_version: 2
+domain: mathematical-physics
+description: >
+  Verification checklist for mathematical physics. Covers operator self-adjointness,
+  spectral theory, convergence, index theorems, topological invariants, anomaly
+  cancellation, and representation theory.
+source_file: references/verification-domain-mathematical-physics.md
+subfields: [mathematical-physics, integrable-systems, representation-theory]
+
+checks:
+  self_adjointness:
+    id: mp-op-01
+    name: Operator self-adjointness
+    description: >
+      Symmetric + D(A) = D(A*). Check <Af, g> = <f, Ag>, boundary terms vanish,
+      deficiency indices n_+ = n_- = 0 for essential self-adjointness.
+    condition: "D(A) = D(A*); <Af,g> = <f,Ag>"
+    severity: critical
+
+  spectral_completeness:
+    id: mp-op-02
+    name: Spectral theorem completeness
+    description: >
+      Eigenvalues must be REAL for self-adjoint. Eigenfunctions form complete set.
+    condition: "eigenvalues real; eigenfunctions complete"
+    severity: critical
+
+  perturbative_convergence:
+    id: mp-conv-01
+    name: Perturbative series convergence
+    description: >
+      Large-order a_n ~ n! * A^n * n^b (zero radius). Check Borel summability.
+    condition: "convergence characterized; Borel summability assessed"
+    severity: critical
+
+  limit_interchange:
+    id: mp-conv-02
+    name: Limit interchange justification
+    description: >
+      Interchange of limit and integral requires DCT or uniform convergence.
+    condition: "limit interchanges justified"
+    severity: critical
+
+  atiyah_singer:
+    id: mp-top-01
+    name: Atiyah-Singer index theorem
+    description: >
+      ind(D) = integral ch(V) * Td(M). Index must be INTEGER.
+    condition: "ind(D) is integer"
+    severity: critical
+
+  topological_integrality:
+    id: mp-top-02
+    name: Topological invariant integrality
+    description: >
+      Chern number integer. Berry phase mod 2*pi. Winding number integer.
+    condition: "topological invariants are integers"
+    severity: critical
+
+  anomaly_cancellation:
+    id: mp-top-03
+    name: Anomaly cancellation
+    description: >
+      sum Tr[T^a {T^b, T^c}] = 0 for all generators. 't Hooft matching UV/IR.
+    condition: "all anomaly coefficients vanish"
+    severity: critical
+
+  modular_invariance:
+    id: mp-top-04
+    name: Modular invariance (CFT)
+    description: >
+      Z(tau+1) = Z(tau) and Z(-1/tau) = Z(tau) under SL(2,Z).
+    condition: "Z invariant under SL(2,Z)"
+    severity: critical
+
+  representation_completeness:
+    id: mp-rep-01
+    name: Representation completeness
+    description: >
+      sum_R dim(R)^2 = |G| for finite groups. Character orthogonality.
+    condition: "sum dim(R)^2 = |G|"
+    severity: major
+
+  bulk_boundary:
+    id: mp-top-05
+    name: Bulk-boundary correspondence
+    description: >
+      Bulk topological invariant determines boundary mode count.
+    condition: "bulk invariant = boundary modes"
+    severity: critical
+
+  theorem_hypotheses:
+    id: mp-hyp-01
+    name: Theorem hypothesis verification
+    description: >
+      All hypotheses of applied theorems verified (compactness, connectedness, etc.).
+    severity: critical
+
+  dimensional:
+    id: mp-dim-01
+    name: Dimensional consistency
+    description: >
+      Topological invariants dimensionless. Operators have correct properties.
+    severity: critical
