@@ -19,11 +19,9 @@ dependencies = [
     # Scientific
     "numpy>=1.26.0",
     "scipy>=1.12.0",
-    "statsmodels>=0.14.0",
     # Utilities
     "pybtex>=0.24",
     "Pillow>=10.0",
-    "asyncpg>=0.31.0",
     "jinja2>=3.1",
 ]
 
@@ -41,7 +39,6 @@ viewer = [
 [project.scripts]
 gpd = "gpd.cli:app"
 "gpd+" = "gpd.mcp.cli:app"
-"gpd-exp" = "gpd.exp.cli:main"
 "gpd-mcp-conventions" = "gpd.mcp.servers.conventions_server:main"
 "gpd-mcp-verification" = "gpd.mcp.servers.verification_server:main"
 "gpd-mcp-protocols" = "gpd.mcp.servers.protocols_server:main"
