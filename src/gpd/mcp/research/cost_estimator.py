@@ -15,14 +15,17 @@ logger = logging.getLogger(__name__)
 
 MODAL_RATES_USD_PER_SECOND: dict[str, float] = {
     "T4": 0.000164,
+    "L4": 0.000222,
     "A10G": 0.000306,
     "L40S": 0.000542,
-    "A100-40GB": 0.000250,
+    "A100-40GB": 0.000389,
     "A100-80GB": 0.000450,
     "H100": 0.001380,
+    "H200": 0.001780,
+    "B200": 0.002780,
     "CPU": 0.0000131,
 }
-"""Modal per-second rates by GPU type (as of Feb 2026)."""
+"""Modal per-second rates by GPU type (as of Mar 2026)."""
 
 NON_PREEMPTIBLE_MULTIPLIER: float = 3.0
 """Multiplier for non-preemptible (production) workloads."""
@@ -131,52 +134,6 @@ def format_cost_display(estimate: CostEstimate) -> str:
     seconds_display = f"~{estimate.estimated_seconds:.0f}s"
     gpu_display = estimate.gpu_type or "CPU"
     return f"${low:.2f}-${high:.2f} ({gpu_display}, {seconds_display}, {estimate.confidence} confidence)"
-
-
-def estimate_milestone_cost_from_profile(
-    milestone: ResearchMilestone,
-    cost_profile: object,  # CostProfile from discovery.models
-) -> CostEstimate:
-    """Estimate cost using a tool's CostProfile metadata.
-
-    Reads gpu_type, estimated_seconds, and cost_per_call_usd directly
-    from the CostProfile rather than applying heuristic detection.
-
-    Args:
-        milestone: The milestone to estimate cost for.
-        cost_profile: CostProfile instance with compute metadata.
-
-    Returns:
-        CostEstimate with computed values.
-    """
-    gpu_type = getattr(cost_profile, "gpu_type", "CPU")
-    est_seconds = getattr(cost_profile, "estimated_seconds", 30.0)
-    cost_per_call = getattr(cost_profile, "cost_per_call_usd", 0.0)
-
-    # Add cold start overhead
-    total_seconds = est_seconds + COLD_START_OVERHEAD_SECONDS
-
-    # If cost_per_call is pre-computed, use it; otherwise compute from rate
-    if cost_per_call > 0:
-        # Scale pre-computed cost by cold-start ratio
-        estimated_cost = cost_per_call * (total_seconds / est_seconds) if est_seconds > 0 else cost_per_call
-    else:
-        base_rate = MODAL_RATES_USD_PER_SECOND.get(gpu_type, MODAL_RATES_USD_PER_SECOND["CPU"])
-        effective_rate = base_rate * REGIONAL_MULTIPLIER * NON_PREEMPTIBLE_MULTIPLIER
-        estimated_cost = total_seconds * effective_rate
-
-    sample_count = getattr(cost_profile, "sample_count", 0)
-    confidence = "HIGH" if sample_count >= 5 else "MEDIUM" if gpu_type in MODAL_RATES_USD_PER_SECOND else "LOW"
-
-    return CostEstimate(
-        gpu_type=gpu_type,
-        estimated_seconds=total_seconds,
-        rate_per_second=MODAL_RATES_USD_PER_SECOND.get(gpu_type, MODAL_RATES_USD_PER_SECOND["CPU"])
-        * REGIONAL_MULTIPLIER
-        * NON_PREEMPTIBLE_MULTIPLIER,
-        estimated_cost_usd=estimated_cost,
-        confidence=confidence,
-    )
 
 
 def format_three_level_cost_display(plan: ResearchPlan) -> dict[str, object]:
