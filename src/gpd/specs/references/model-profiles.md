@@ -24,6 +24,7 @@ On single-model platforms, all tiers resolve to null (use the platform's default
 | gpd-project-researcher   | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-research-synthesizer | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-debugger             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
+| map-content              | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-theory-mapper        | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
 | gpd-verifier             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-plan-checker         | tier-2        | tier-2      | tier-2        | tier-1   | tier-2          |

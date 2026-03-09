@@ -39,7 +39,7 @@ A physics research project typically contains:
 Load research mapping context:
 
 ```bash
-# Also handles `init map-codebase` (alias routed here by CLI)
+# Theory-specific initialization; generic folder exploration belongs to `map-content`.
 INIT=$(gpd init map-theory)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"

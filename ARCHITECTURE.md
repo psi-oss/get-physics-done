@@ -306,7 +306,7 @@ resolve_model(project_dir, agent_name)
 
 **Resolution priority**: `config.model_map[tier]` > tier string (e.g., `"tier-1"`)
 
-**Model profiles** control tier assignments per agent. 16 agents × 5 profiles:
+**Model profiles** control tier assignments per agent. 18 agents × 5 profiles:
 
 | Profile          | High-tier agents                          | Low-tier agents                    |
 |------------------|-------------------------------------------|------------------------------------|

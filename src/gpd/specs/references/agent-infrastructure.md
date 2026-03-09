@@ -81,7 +81,7 @@ All agents load conventions from `state.json convention_lock` at startup. Tier 1
 - Flag suspected convention mismatches to the orchestrator (do not resolve)
 - Do not write ASSERT_CONVENTION headers in output files
 
-Agents: project-researcher, phase-researcher, literature-reviewer, roadmapper, planner, plan-checker, research-synthesizer, theory-mapper, bibliographer, referee, experiment-designer
+Agents: project-researcher, phase-researcher, literature-reviewer, roadmapper, planner, plan-checker, research-synthesizer, map-content, theory-mapper, bibliographer, referee, experiment-designer
 
 **Tier 2 — Convention Enforcer (full tracking protocol, equation-working agents)**
 
@@ -169,6 +169,7 @@ Which agents commit their own work vs. return `files_written` for the orchestrat
 | gpd-literature-reviewer | No | Returns `files_written`; orchestrator commits |
 | gpd-experiment-designer | No | Returns `files_written`; orchestrator commits |
 | gpd-notation-coordinator | No | Returns `files_written`; orchestrator commits |
+| map-content | No | Returns a structured map; commits only if explicitly asked to write artifacts |
 | gpd-theory-mapper | No | Returns `files_written`; orchestrator commits |
 | gpd-roadmapper | No | Returns `files_written`; orchestrator commits |
 
