@@ -106,6 +106,36 @@ class TestConvertFrontmatterToGemini:
         result = _convert_frontmatter_to_gemini(content)
         assert "Task" not in result.split("---", 2)[1] if result.count("---") >= 2 else True
 
+    def test_sub_tags_stripped_without_frontmatter(self) -> None:
+        """Regression: <sub> tags must be stripped even when there is no frontmatter."""
+        content = "Text with <sub>subscript</sub> here"
+        result = _convert_frontmatter_to_gemini(content)
+        assert "<sub>" not in result
+        assert "*(subscript)*" in result
+
+    def test_sub_tags_stripped_with_unclosed_frontmatter(self) -> None:
+        """Regression: <sub> tags stripped even with malformed (unclosed) frontmatter."""
+        content = "---\nname: test\nText with <sub>subscript</sub> here"
+        result = _convert_frontmatter_to_gemini(content)
+        assert "<sub>" not in result
+        assert "*(subscript)*" in result
+
+    def test_duplicate_tools_deduplicated(self) -> None:
+        """Regression: tools appearing in both tools: and allowed-tools: are deduplicated."""
+        content = "---\nname: test\ntools: Read, Write\nallowed-tools:\n  - Read\n  - Bash\n---\nBody"
+        result = _convert_frontmatter_to_gemini(content)
+        # read_file should appear exactly once
+        parts = result.split("---")
+        frontmatter = parts[1] if len(parts) >= 3 else ""
+        assert frontmatter.count("read_file") == 1
+
+    def test_field_after_allowed_tools_preserved(self) -> None:
+        """Non-array field following allowed-tools is preserved in output."""
+        content = "---\nname: test\nallowed-tools:\n  - Read\n  - Bash\ndescription: A test\n---\nBody"
+        result = _convert_frontmatter_to_gemini(content)
+        assert "description: A test" in result
+        assert "read_file" in result
+
 
 class TestConvertToGeminiToml:
     def test_no_frontmatter(self) -> None:

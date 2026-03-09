@@ -98,11 +98,11 @@ def _convert_frontmatter_to_gemini(content: str) -> str:
     - ``<sub>`` tags in body stripped for terminal rendering
     """
     if not content.startswith("---"):
-        return content
+        return strip_sub_tags(content)
 
     end_index = content.find("---", 3)
     if end_index == -1:
-        return content
+        return strip_sub_tags(content)
 
     frontmatter = content[3:end_index].strip()
     body = content[end_index + 3 :]
@@ -151,10 +151,18 @@ def _convert_frontmatter_to_gemini(content: str) -> str:
         if not in_allowed_tools:
             new_lines.append(line)
 
+    # Deduplicate tools while preserving order
+    seen: set[str] = set()
+    unique_tools: list[str] = []
+    for tool in tools:
+        if tool not in seen:
+            seen.add(tool)
+            unique_tools.append(tool)
+
     # Add tools as YAML array (Gemini requires array format)
-    if tools:
+    if unique_tools:
         new_lines.append("tools:")
-        for tool in tools:
+        for tool in unique_tools:
             new_lines.append(f"  - {tool}")
 
     new_frontmatter = "\n".join(new_lines).strip()
