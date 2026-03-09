@@ -27,16 +27,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# PSI platform integration (only needed inside the PSI monorepo)
-psi = [
-    "psi-mcp-shared",
-    "psi-contracts",
-    "psi-core",
-    "inference-providers",
-    "agentic-builder",
-    "psi-pipeline",
-    "research-memory",
-]
+# PSI platform strategy bridge (only needed inside the PSI monorepo).
+# These packages are not on PyPI — they are PSI workspace packages.
+# Install via: pip install get-physics-done[psi] (from within the PSI monorepo only)
+# psi = ["psi-mcp-shared", "psi-contracts", "psi-core", "inference-providers", "agentic-builder", "psi-pipeline", "research-memory"]
 viewer = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
@@ -70,6 +64,9 @@ packages = ["src/gpd"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/gpd/mcp/paper/templates" = "gpd/mcp/paper/templates"
 "src/gpd/mcp/viewer/templates" = "gpd/mcp/viewer/templates"
+
+[tool.logfire]
+ignore_no_config = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

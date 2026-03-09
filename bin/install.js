@@ -151,20 +151,26 @@ async function main() {
   // Run gpd install <runtime> --global/--local
   log(`Installing GPD for ${RUNTIMES[runtime].name} (${scope})...`);
 
+  // Suppress logfire warning during install
+  const installEnv = { ...process.env, LOGFIRE_IGNORE_NO_CONFIG: "1" };
+
   // Try uv run gpd install first, fall back to gpd directly
   let result = spawnSync("uv", ["run", "gpd", "install", runtime, `--${scope}`], {
     stdio: "inherit",
+    env: installEnv,
   });
   if (result.status !== 0) {
     // Fallback: try gpd directly (if installed globally)
     result = spawnSync("gpd", ["install", runtime, `--${scope}`], {
       stdio: "inherit",
+      env: installEnv,
     });
   }
   if (result.status !== 0) {
     // Final fallback: run the Python module directly
     result = spawnSync(python, ["-m", "gpd.cli", "install", runtime, `--${scope}`], {
       stdio: "inherit",
+      env: installEnv,
     });
   }
 
