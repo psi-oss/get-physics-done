@@ -20,7 +20,9 @@ import logfire
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
+    PHASES_DIR_NAME,
     PLAN_SUFFIX,
+    PLANNING_DIR_NAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
     SUMMARY_SUFFIX,
@@ -558,7 +560,7 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
         return PhaseInfo(
             found=True,
-            directory=f".planning/phases/{match_dir}",
+            directory=f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{match_dir}",
             phase_number=phase_number,
             phase_name=phase_name,
             phase_slug=phase_slug,
@@ -1124,7 +1126,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             padded=padded,
             name=description,
             slug=slug,
-            directory=f".planning/phases/{dir_name}",
+            directory=f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
         )
 
 
@@ -1212,7 +1214,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             after_phase=after_phase,
             name=description,
             slug=slug,
-            directory=f".planning/phases/{dir_name}",
+            directory=f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
         )
 
 
@@ -1800,7 +1802,7 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     f"# Requirements Archive: {version} {milestone_name}\n\n"
                     f"**Archived:** {today}\n"
                     f"**Status:** SHIPPED\n\n"
-                    f"For current requirements, see `.planning/REQUIREMENTS.md`.\n\n---\n\n"
+                    f"For current requirements, see `{PLANNING_DIR_NAME}/REQUIREMENTS.md`.\n\n---\n\n"
                 )
                 atomic_write(archive_dir / f"{version}-REQUIREMENTS.md", archive_header + req_content)
 
