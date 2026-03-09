@@ -6,8 +6,10 @@ requires:
   files: [".planning/PROJECT.md"]
 allowed-tools:
   - read_file
-  - shell
   - write_file
+  - shell
+  - glob
+  - grep
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->

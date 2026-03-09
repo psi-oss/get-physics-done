@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 from mcp.server.fastmcp import FastMCP
 
@@ -37,6 +39,8 @@ from gpd.core.conventions import (
 )
 from gpd.core.errors import ConventionError
 from gpd.core.observability import gpd_span
+
+T = TypeVar("T")
 
 # MCP stdio uses stdout for JSON-RPC — redirect logging to stderr
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
@@ -173,6 +177,47 @@ def _save_lock_to_project(project_dir: str, lock: ConventionLock) -> None:
         atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
 
 
+def _update_lock_in_project(
+    project_dir: str,
+    mutate_fn: Callable[[ConventionLock], T],
+) -> tuple[ConventionLock, T]:
+    """Atomically load, mutate, and save a convention lock.
+
+    Holds the file lock for the entire read-modify-write cycle so that
+    concurrent ``convention_set`` calls cannot lose each other's writes
+    (TOCTOU race).
+
+    Returns (updated_lock, result_of_mutate_fn).
+    """
+    from gpd.core.utils import atomic_write, file_lock
+
+    state_path = ProjectLayout(Path(project_dir)).state_json
+    with file_lock(state_path):
+        # --- read ---
+        try:
+            raw = json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raw = {}
+        except json.JSONDecodeError as e:
+            raise ConventionError(f"Malformed state.json: {e}") from e
+
+        lock_data = raw.get("convention_lock", {})
+        if not isinstance(lock_data, dict):
+            lock_data = {}
+        lock = ConventionLock(**lock_data)
+
+        # --- mutate ---
+        result = mutate_fn(lock)
+
+        # --- write (only when the lock was actually changed) ---
+        new_lock_data = lock.model_dump(exclude_none=True)
+        if new_lock_data != lock_data:
+            raw["convention_lock"] = new_lock_data
+            atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
+
+    return lock, result
+
+
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
 
 
@@ -218,16 +263,19 @@ def convention_set(
     Custom conventions use the 'custom:' prefix: key="custom:my_convention".
     """
     with gpd_span("mcp.conventions.set", convention_key=key):
-        lock = _load_lock_from_project(project_dir)
-
-        # Handle custom conventions via custom: prefix
+        # Validate custom key eagerly (before acquiring the file lock).
         if key.startswith("custom:"):
             custom_key = key[len("custom:") :]
             if not custom_key:
                 raise ConventionError("Custom convention key cannot be empty")
-            result = _convention_set(lock, custom_key, value, force=force)
-        else:
-            result = _convention_set(lock, key, value, force=force)
+
+        def _mutate(lock: ConventionLock) -> object:
+            if key.startswith("custom:"):
+                return _convention_set(lock, key[len("custom:") :], value, force=force)
+            return _convention_set(lock, key, value, force=force)
+
+        # Atomic read-modify-write under file lock to prevent TOCTOU races.
+        _lock, result = _update_lock_in_project(project_dir, _mutate)
 
         if not result.updated:
             return {
@@ -237,8 +285,6 @@ def convention_set(
                 "requested_value": result.value,
                 "message": result.hint or f"Convention '{result.key}' already set. Use force=True to override.",
             }
-
-        _save_lock_to_project(project_dir, lock)
 
         response: dict[str, object] = {
             "status": "set",

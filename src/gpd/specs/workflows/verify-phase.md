@@ -59,7 +59,7 @@ Extract from init JSON: `phase_found`, `phase_dir`, `phase_number`, `phase_name`
 ERROR: Phase not found: ${PHASE_ARG}
 
 Available phases:
-$(gpd phases list)
+$(gpd phase list)
 ```
 
 Exit.

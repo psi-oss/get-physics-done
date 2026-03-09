@@ -293,7 +293,7 @@ Generate the error budget table for the target quantity:
 Resolve the target phase directory:
 
 ```bash
-TARGET_PHASE_INFO=$(gpd find-phase "${target_phase_number}")
+TARGET_PHASE_INFO=$(gpd phase find "${target_phase_number}")
 ```
 
 Extract `target_phase_dir` (the `directory` field) from the JSON result.

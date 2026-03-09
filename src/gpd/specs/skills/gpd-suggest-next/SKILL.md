@@ -7,6 +7,8 @@ requires:
 allowed-tools:
   - read_file
   - shell
+  - grep
+  - glob
 ---
 
 <!-- Tool names in allowed-tools use canonical GPD names. Adapters translate per runtime. -->

@@ -66,8 +66,8 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Load mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
-RESEARCH_MODE=$(gpd config-get research_mode --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
 ```
 
 Mode effects on the write-paper pipeline:

@@ -770,7 +770,13 @@ def ensure_state_schema(raw: dict | None) -> dict:
     Uses Pydantic model_validate to populate missing fields from ResearchState defaults
     and map legacy keys. Type-mismatched fields (e.g. string where list expected) are
     dropped so Pydantic fills them with defaults.
+
+    If validation still fails after top-level type fixup (e.g. wrong types inside nested
+    objects), the offending top-level keys are progressively removed until validation
+    succeeds. This guarantees the function never raises on any input dict.
     """
+    from pydantic import ValidationError
+
     if not raw or not isinstance(raw, dict):
         return default_state_dict()
 
@@ -785,7 +791,33 @@ def ensure_state_schema(raw: dict | None) -> dict:
             elif isinstance(default_val, dict) and not isinstance(normalized[key], dict):
                 del normalized[key]
 
-    return ResearchState.model_validate(normalized).model_dump()
+    try:
+        return ResearchState.model_validate(normalized).model_dump()
+    except ValidationError as exc:
+        # Extract the top-level field names that caused validation errors and
+        # progressively remove them so Pydantic fills defaults instead.
+        bad_keys: set[str] = set()
+        for err in exc.errors():
+            loc = err.get("loc", ())
+            if loc:
+                bad_keys.add(str(loc[0]))
+
+        if bad_keys:
+            for bk in bad_keys:
+                normalized.pop(bk, None)
+            try:
+                return ResearchState.model_validate(normalized).model_dump()
+            except ValidationError:
+                pass
+
+        # Last resort: return clean defaults (preserving any extra keys that
+        # the caller stored via ``extra = "allow"``).
+        logger.warning("state.json had irrecoverable schema errors; resetting to defaults")
+        result = default_state_dict()
+        for k, v in normalized.items():
+            if k not in result:
+                result[k] = v
+        return result
 
 
 # ─── Markdown Generator ───────────────────────────────────────────────────────

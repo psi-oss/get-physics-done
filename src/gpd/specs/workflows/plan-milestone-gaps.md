@@ -72,7 +72,7 @@ Find highest existing phase:
 
 ```bash
 # Get sorted phase list, extract last one
-PHASES=$(gpd phases list)
+PHASES=$(gpd phase list)
 HIGHEST=$(echo "$PHASES" | gpd json get .directories[-1] --default "")
 if [ -z "$HIGHEST" ]; then
   echo "ERROR: No existing phases found. Create phases with $gpd-plan-phase first."

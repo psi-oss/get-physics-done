@@ -429,7 +429,7 @@ gpd_return:
 **Exception:** If executing in Pattern C (main context, no subagent), you ARE the orchestrator — apply state updates directly:
 
 ```bash
-gpd state advance-plan
+gpd state advance
 gpd state update-progress
 gpd state record-metric \
   --phase "${phase}" --plan "${plan}" --duration "${DURATION}" \

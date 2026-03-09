@@ -25,7 +25,7 @@ Extract from init JSON: `milestone_version`, `milestone_name`, `phase_count`, `c
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ```
 
 **Mode-aware behavior:**
@@ -55,7 +55,7 @@ CHECKER_MODEL=$(gpd resolve-model gpd-consistency-checker --raw)
 
 ```bash
 # Get phases in milestone (sorted numerically, handles decimals)
-gpd phases list
+gpd phase list
 ```
 
 - Parse version from arguments or detect current from ROADMAP.md

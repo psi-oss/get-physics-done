@@ -439,7 +439,7 @@ if [ -f .planning/state.json ]; then
   mv .planning/state.json .planning/state.json.bak
 fi
 
-gpd state-snapshot --raw > /dev/null
+gpd state snapshot --raw > /dev/null
 if [ $? -ne 0 ]; then
   echo "WARNING: state-snapshot failed — restoring backup"
   if [ -f .planning/state.json.bak ]; then

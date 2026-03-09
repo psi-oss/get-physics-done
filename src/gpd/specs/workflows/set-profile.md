@@ -24,7 +24,7 @@ if $ARGUMENTS.profile not in ["deep-theory", "numerical", "exploratory", "review
 Ensure config exists and load current state:
 
 ```bash
-gpd config-ensure-section
+gpd config ensure-section
 INIT=$(gpd init progress --include state,config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"

@@ -225,7 +225,7 @@ Display banner:
 PHASE_DESC=$(gpd roadmap get-phase "${PHASE}" | gpd json get .section --default "")
 # Use requirements_content from INIT (already loaded via --include requirements)
 REQUIREMENTS=$(echo "$INIT" | gpd json get .requirements_content --default "" | grep -A100 "## Requirements" | head -50)
-STATE_SNAP=$(gpd state-snapshot)
+STATE_SNAP=$(gpd state snapshot)
 # Extract decisions from state-snapshot JSON: echo "$STATE_SNAP" | gpd json list .decisions
 ```
 

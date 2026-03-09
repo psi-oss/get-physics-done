@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.constants import (
+    CONFIG_FILENAME,
+    PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
@@ -183,7 +185,7 @@ def _compare_phase_numbers(a: str, b: str) -> int:
 
 def _load_config(cwd: Path) -> dict[str, object]:
     """Load project config.json with defaults. Returns flat dict."""
-    config_path = _planning_dir(cwd) / "config.json"
+    config_path = _planning_dir(cwd) / CONFIG_FILENAME
     result = dict(_CONFIG_DEFAULTS)
     try:
         raw = config_path.read_text(encoding="utf-8")
@@ -206,7 +208,7 @@ def _format_command(action: str) -> str:
 
 def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
     """Scan all phase directories and return analysis of each."""
-    phases_dir = _planning_dir(cwd) / "phases"
+    phases_dir = _planning_dir(cwd) / PHASES_DIR_NAME
     if not phases_dir.is_dir():
         return []
 

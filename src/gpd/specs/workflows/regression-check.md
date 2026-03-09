@@ -25,7 +25,7 @@ Parse JSON for: `phase_found`, `phase_dir`, `phase_number` (if scoped to single 
 ERROR: Phase not found: ${PHASE_ARG}
 
 Available phases:
-$(gpd phases list)
+$(gpd phase list)
 ```
 
 Exit.

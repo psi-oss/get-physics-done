@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+import threading
 
 from mcp.server.fastmcp import FastMCP
 
@@ -109,66 +110,74 @@ def _infer_category(skill_name: str) -> str:
 
 
 _skill_index_cache: list[dict[str, str]] | None = None
+_skill_index_lock = threading.Lock()
 
 
 def _load_skill_index() -> list[dict[str, str]]:
     """Load the list of available skills from the skills directory.
 
     Results are cached for the process lifetime since skill files on disk
-    do not change between MCP tool calls.
+    do not change between MCP tool calls.  A threading lock guards the
+    lazy initialisation so concurrent MCP tool calls cannot trigger a
+    double-load race.
     """
     global _skill_index_cache  # noqa: PLW0603
     if _skill_index_cache is not None:
         return _skill_index_cache
 
-    if not SKILLS_DIR.is_dir():
-        _skill_index_cache = []
-        return _skill_index_cache
+    with _skill_index_lock:
+        # Re-check after acquiring the lock (double-checked locking).
+        if _skill_index_cache is not None:
+            return _skill_index_cache
 
-    skills: list[dict[str, str]] = []
-    for entry in sorted(SKILLS_DIR.iterdir()):
-        if not entry.is_dir() or not entry.name.startswith("gpd-"):
-            continue
-        name = entry.name
-        # Try to read the first few lines for a description
-        desc = ""
-        prompt_file = entry / "prompt.md"
-        if not prompt_file.exists():
-            # Some skills may use a different file
-            md_files = list(entry.glob("*.md"))
-            if md_files:
-                prompt_file = md_files[0]
+        if not SKILLS_DIR.is_dir():
+            _skill_index_cache = []
+            return _skill_index_cache
 
-        if prompt_file.exists():
-            content = safe_read_file(prompt_file)
-            if content:
-                # Skip YAML frontmatter block (--- ... ---), then take
-                # the first non-empty, non-heading, non-comment line.
-                in_frontmatter = False
-                for line in content.splitlines():
-                    stripped = line.strip()
-                    if stripped == "---":
-                        in_frontmatter = not in_frontmatter
-                        continue
-                    if in_frontmatter:
-                        # Try to grab description from frontmatter field
-                        if stripped.startswith("description:"):
-                            desc = stripped[len("description:") :].strip()[:200]
-                        continue
-                    if stripped and not stripped.startswith("#") and not stripped.startswith("<!--"):
-                        if not desc:
-                            desc = stripped[:200]
-                        break
+        skills: list[dict[str, str]] = []
+        for entry in sorted(SKILLS_DIR.iterdir()):
+            if not entry.is_dir() or not entry.name.startswith("gpd-"):
+                continue
+            name = entry.name
+            # Try to read the first few lines for a description
+            desc = ""
+            prompt_file = entry / "prompt.md"
+            if not prompt_file.exists():
+                # Some skills may use a different file
+                md_files = list(entry.glob("*.md"))
+                if md_files:
+                    prompt_file = md_files[0]
 
-        skills.append(
-            {
-                "name": name,
-                "category": _infer_category(name),
-                "description": desc,
-            }
-        )
-    _skill_index_cache = skills
-    return skills
+            if prompt_file.exists():
+                content = safe_read_file(prompt_file)
+                if content:
+                    # Skip YAML frontmatter block (--- ... ---), then take
+                    # the first non-empty, non-heading, non-comment line.
+                    in_frontmatter = False
+                    for line in content.splitlines():
+                        stripped = line.strip()
+                        if stripped == "---":
+                            in_frontmatter = not in_frontmatter
+                            continue
+                        if in_frontmatter:
+                            # Try to grab description from frontmatter field
+                            if stripped.startswith("description:"):
+                                desc = stripped[len("description:") :].strip()[:200]
+                            continue
+                        if stripped and not stripped.startswith("#") and not stripped.startswith("<!--"):
+                            if not desc:
+                                desc = stripped[:200]
+                            break
+
+            skills.append(
+                {
+                    "name": name,
+                    "category": _infer_category(name),
+                    "description": desc,
+                }
+            )
+        _skill_index_cache = skills
+        return skills
 
 
 @mcp.tool()

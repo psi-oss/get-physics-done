@@ -25,6 +25,7 @@ from gpd.core.constants import (
     CONFIG_FILENAME,
     DEFAULT_MAX_INCLUDE_CHARS,
     ENV_MAX_INCLUDE_CHARS,
+    PHASES_DIR_NAME,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
     ROADMAP_FILENAME,
@@ -268,7 +269,7 @@ def _try_find_phase(cwd: Path, phase: str) -> dict | None:
 
 def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
     """Minimal phase discovery without the full phases module."""
-    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
     if not phases_dir.is_dir():
         return None
 
@@ -822,7 +823,7 @@ def init_milestone_op(cwd: Path) -> dict:
     milestone = _try_get_milestone_info(cwd)
 
     # Count phases
-    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
     phase_count = 0
     completed_phases = 0
     try:
@@ -922,7 +923,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
     milestone = _try_get_milestone_info(cwd)
 
     # Analyze phases
-    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
     phases: list[dict[str, object]] = []
     current_phase: dict[str, object] | None = None
     next_phase: dict[str, object] | None = None

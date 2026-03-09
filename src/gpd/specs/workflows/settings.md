@@ -12,7 +12,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 Ensure config exists and load current state:
 
 ```bash
-gpd config-ensure-section
+gpd config ensure-section
 INIT=$(gpd init progress --include state,config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"

@@ -129,10 +129,10 @@ AskUserQuestion: "Survey the research landscape for new investigations before de
 
 ```bash
 # If "Survey first": persist true
-gpd config-set workflow.research true
+gpd config set workflow.research true
 
 # If "Skip survey": persist false
-gpd config-set workflow.research false
+gpd config set workflow.research false
 ```
 
 **If "Survey first":**

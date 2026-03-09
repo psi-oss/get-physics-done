@@ -51,7 +51,7 @@ Extract: `phase_found`, `phase_dir`, `phase_number`, `commit_docs`, `roadmap_exi
 ERROR: Phase not found: ${target_phase}
 
 Available phases:
-$(gpd phases list)
+$(gpd phase list)
 
 Usage: $gpd-revise-phase <phase-number> "<reason>"
 ```

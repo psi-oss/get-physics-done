@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+import threading
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -275,13 +276,18 @@ class ProtocolStore:
 # ---------------------------------------------------------------------------
 
 _store: ProtocolStore | None = None
+_store_lock = threading.Lock()
 
 
 def _get_store() -> ProtocolStore:
-    global _store
-    if _store is None:
-        _store = ProtocolStore(PROTOCOLS_DIR)
-    return _store
+    """Return the lazily-initialised protocol store (thread-safe)."""
+    global _store  # noqa: PLW0603
+    if _store is not None:
+        return _store
+    with _store_lock:
+        if _store is None:
+            _store = ProtocolStore(PROTOCOLS_DIR)
+        return _store
 
 
 mcp = FastMCP("gpd-protocols")

@@ -234,6 +234,99 @@ def test_ensure_state_schema_legacy_project_key():
     assert result["project_reference"]["current_focus"] == "Testing"
 
 
+def test_ensure_state_schema_empty_dict():
+    """An empty {} must produce a valid default state without crashing."""
+    result = ensure_state_schema({})
+    assert "position" in result
+    assert "decisions" in result
+    assert result["position"]["progress_percent"] == 0
+
+
+def test_ensure_state_schema_extra_unknown_fields():
+    """Unknown top-level keys are preserved via extra='allow'."""
+    result = ensure_state_schema({"_version": 1, "_synced_at": "2025-01-01", "custom_field": "kept"})
+    assert result["_version"] == 1
+    assert result["_synced_at"] == "2025-01-01"
+    assert result["custom_field"] == "kept"
+    # Standard fields still present
+    assert "position" in result
+    assert "decisions" in result
+
+
+def test_ensure_state_schema_wrong_type_nested_int_for_string():
+    """An int where a string is expected in a nested model should not crash."""
+    result = ensure_state_schema({"position": {"status": 42}})
+    # position key gets dropped due to validation error; defaults applied
+    assert isinstance(result, dict)
+    assert "position" in result
+    assert result["position"]["status"] is None  # default
+
+
+def test_ensure_state_schema_wrong_type_string_for_int():
+    """A non-numeric string where int is expected should not crash."""
+    result = ensure_state_schema({"position": {"progress_percent": "fifty"}})
+    assert isinstance(result, dict)
+    assert result["position"]["progress_percent"] == 0  # default
+
+
+def test_ensure_state_schema_numeric_string_for_int():
+    """A numeric string like '50' should coerce to int via Pydantic."""
+    result = ensure_state_schema({"position": {"progress_percent": "50"}})
+    assert result["position"]["progress_percent"] == 50
+
+
+def test_ensure_state_schema_ints_in_string_list():
+    """Ints in a list[str|dict] field should not crash."""
+    result = ensure_state_schema({"active_calculations": [1, 2, 3]})
+    assert isinstance(result["active_calculations"], list)
+
+
+def test_ensure_state_schema_bad_nested_decision():
+    """Decisions with wrong sub-field types should not crash."""
+    result = ensure_state_schema({"decisions": [{"phase": 1, "summary": 42}]})
+    assert isinstance(result["decisions"], list)
+
+
+def test_ensure_state_schema_convention_lock_wrong_type():
+    """Convention lock with int values where strings expected should not crash."""
+    result = ensure_state_schema({"convention_lock": {"metric_signature": 42}})
+    assert isinstance(result["convention_lock"], dict)
+
+
+def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():
+    """When one top-level key has type errors, other valid keys survive."""
+    result = ensure_state_schema({
+        "position": {"status": 42},  # bad: int for str
+        "blockers": ["still valid"],
+    })
+    assert result["blockers"] == ["still valid"]
+
+
+def test_ensure_state_schema_version_not_checked():
+    """_version=999 is accepted (no version gating)."""
+    result = ensure_state_schema({"_version": 999})
+    assert result["_version"] == 999
+
+
+def test_ensure_state_schema_non_dict_input():
+    """A list or other non-dict input returns defaults."""
+    result = ensure_state_schema([1, 2, 3])
+    assert "position" in result
+    assert "decisions" in result
+
+
+def test_ensure_state_schema_string_for_session():
+    """session as a non-dict value is corrected at the top-level type check."""
+    result = ensure_state_schema({"session": "bad"})
+    assert isinstance(result["session"], dict)
+
+
+def test_ensure_state_schema_list_for_session():
+    """session as a list is corrected at the top-level type check."""
+    result = ensure_state_schema({"session": ["bad"]})
+    assert isinstance(result["session"], dict)
+
+
 # ─── field helpers ────────────────────────────────────────────────────────────
 
 

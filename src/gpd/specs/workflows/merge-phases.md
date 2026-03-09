@@ -34,8 +34,8 @@ Exit.
 **Validate both phases exist and resolve directories:**
 
 ```bash
-SOURCE_INFO=$(gpd find-phase "${SOURCE_PHASE}")
-TARGET_INFO=$(gpd find-phase "${TARGET_PHASE}")
+SOURCE_INFO=$(gpd phase find "${SOURCE_PHASE}")
+TARGET_INFO=$(gpd phase find "${TARGET_PHASE}")
 ```
 
 **If either phase not found:** Error with available phases from roadmap.

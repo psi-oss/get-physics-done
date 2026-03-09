@@ -180,7 +180,7 @@ Then find the current phase directory:
 
 ```bash
 CURRENT_PHASE_NUM="${current_phase.number}"
-PHASE_DIR=$(gpd find-phase "$CURRENT_PHASE_NUM" --raw)
+PHASE_DIR=$(gpd phase find "$CURRENT_PHASE_NUM" --raw)
 if [ $? -ne 0 ]; then
   echo "ERROR: Could not find phase directory for phase $CURRENT_PHASE_NUM"
   # STOP — display the error to the user and do not proceed.

@@ -70,7 +70,7 @@ Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `re
 ERROR: Phase not found: ${PHASE_ARG}
 
 Available phases:
-$(gpd phases list)
+$(gpd phase list)
 
 Usage: $gpd-verify-work <phase-number>
 ```

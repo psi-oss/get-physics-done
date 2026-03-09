@@ -59,7 +59,7 @@ echo "$PHASE_INFO" | gpd json get .section --default ""
 cat .planning/REQUIREMENTS.md 2>/dev/null
 cat "${phase_dir}/"*-CONTEXT.md 2>/dev/null
 # Decisions from state-snapshot (structured JSON)
-gpd state-snapshot | gpd json get .decisions --default "[]"
+gpd state snapshot | gpd json get .decisions --default "[]"
 ```
 
 ## Step 4: Spawn Researcher

@@ -26,6 +26,7 @@ from gpd.core.constants import (
     MIN_PYTHON_MINOR,
     OPTIONAL_PLANNING_FILES,
     PLAN_SUFFIX,
+    PLANNING_DIR_NAME,
     RECOMMENDED_PYTHON_VERSION,
     REQUIRED_PLANNING_DIRS,
     REQUIRED_PLANNING_FILES,
@@ -502,7 +503,7 @@ def check_git_status(cwd: Path) -> HealthCheck:
 
     try:
         result = subprocess.run(
-            ["git", "status", "--porcelain", ".planning/"],
+            ["git", "status", "--porcelain", f"{PLANNING_DIR_NAME}/"],
             cwd=cwd,
             capture_output=True,
             text=True,

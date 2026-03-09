@@ -34,7 +34,7 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ```
 
 **Mode-aware behavior:**

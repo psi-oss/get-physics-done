@@ -133,7 +133,7 @@ This runs in parallel - all issues investigated simultaneously.
 
 ```bash
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger --raw)
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ```
 
 **Mode-aware behavior:**

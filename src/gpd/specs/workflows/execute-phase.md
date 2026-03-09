@@ -280,7 +280,7 @@ fi
 Load plan inventory with wave grouping in one call:
 
 ```bash
-PLAN_INDEX=$(gpd phase-plan-index "${phase_number}")
+PLAN_INDEX=$(gpd phase index "${phase_number}")
 ```
 
 Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `autonomous`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
@@ -475,7 +475,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    **IMPORTANT: Executor subagents MUST NOT write STATE.md directly.** Return state updates (position, decisions, metrics) in the structured return envelope. The orchestrator applies them sequentially after each agent completes. This prevents parallel write conflicts where multiple agents overwrite each other's STATE.md changes.
 
    After each plan completes successfully (not just after each wave), the **orchestrator** runs:
-   1. `gpd state advance-plan` immediately
+   1. `gpd state advance` immediately
    2. `gpd state record-metric` for the completed plan
    3. This ensures crash recovery loses at most ONE plan's state, not an entire wave
 

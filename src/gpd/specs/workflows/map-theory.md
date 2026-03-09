@@ -52,7 +52,7 @@ Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `exis
 **Read mode settings:**
 
 ```bash
-RESEARCH_MODE=$(gpd config-get research_mode --raw 2>/dev/null || echo "balanced")
+RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**

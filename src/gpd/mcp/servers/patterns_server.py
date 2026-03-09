@@ -16,6 +16,7 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
+from gpd.core.constants import PATTERNS_DIR_NAME
 from gpd.core.observability import gpd_span
 from gpd.core.patterns import (
     VALID_CATEGORIES,
@@ -27,11 +28,16 @@ from gpd.core.patterns import (
     pattern_search,
     pattern_seed,
 )
+from gpd.specs import SPECS_DIR
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-patterns")
 
 mcp = FastMCP("gpd-patterns")
+
+# Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
+# env vars are not set.  Falls back to the bundled specs directory.
+_DEFAULT_PATTERNS_ROOT = SPECS_DIR / PATTERNS_DIR_NAME
 
 
 @mcp.tool()
@@ -52,14 +58,14 @@ def lookup_pattern(
     """
     with gpd_span("mcp.patterns.lookup", domain=domain or "", category=category or ""):
         if keywords:
-            result = pattern_search(keywords)
+            result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
             return {
                 "count": result.count,
                 "patterns": [p.model_dump() for p in result.matches],
                 "query": result.query,
             }
 
-        result = pattern_list(domain=domain, category=category)
+        result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
         return {
             "count": result.count,
             "patterns": [p.model_dump() for p in result.patterns],
@@ -100,6 +106,7 @@ def add_pattern(
             description=description,
             detection=detection,
             prevention=prevention,
+            root=_DEFAULT_PATTERNS_ROOT,
         )
         return result.model_dump()
 
@@ -115,7 +122,7 @@ def promote_pattern(pattern_id: str) -> dict:
         pattern_id: Pattern ID (e.g., "qft-sign-error-fourier-convention-switch").
     """
     with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
-        result = pattern_promote(pattern_id)
+        result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
         return result.model_dump()
 
 
@@ -128,7 +135,7 @@ def seed_patterns() -> dict:
     and statistical mechanics. Idempotent — safe to call multiple times.
     """
     with gpd_span("mcp.patterns.seed"):
-        result = pattern_seed()
+        result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
         return result.model_dump()
 
 
