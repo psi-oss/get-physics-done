@@ -10,7 +10,6 @@ summary: |
   with explicit provenance tracking.
 
 schemas:
-  params_json_schema: specs/schemas/params/MergeParams.json
   state_fields_touched:
     - /plan
     - /scratch_knowledge

@@ -10,7 +10,6 @@ summary: |
   Scheduler-injected when state size approaches the token limit.
 
 schemas:
-  params_json_schema: specs/schemas/params/CompactParams.json
   state_fields_touched:
     - /plan/sections
     - /scratch_knowledge

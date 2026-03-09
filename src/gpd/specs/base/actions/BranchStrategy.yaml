@@ -10,7 +10,6 @@ summary: |
   Scheduler-injected — NOT proposable by Referee.
 
 schemas:
-  params_json_schema: specs/schemas/params/BranchStrategyParams.json
   state_fields_touched:
     - /strategy
     - /gpd/branch_intent

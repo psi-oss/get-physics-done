@@ -10,7 +10,6 @@ summary: |
   escalation record that the orchestrator or human can resolve.
 
 schemas:
-  params_json_schema: specs/schemas/params/EscalateParams.json
   state_fields_touched:
     - /scratch_knowledge
     - /plan

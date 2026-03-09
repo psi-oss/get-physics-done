@@ -11,7 +11,6 @@ summary: |
   state consistency, and retrieves cold-ledger artifacts into hot context.
 
 schemas:
-  params_json_schema: specs/schemas/params/GroundParams.json
   state_fields_touched:
     - /scratch_knowledge
     - /pointers

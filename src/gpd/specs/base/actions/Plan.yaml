@@ -11,7 +11,6 @@ summary: |
   so leaf nodes are immediately executable. Include validation checkpoints where helpful.
 
 schemas:
-  params_json_schema: specs/schemas/params/PlanParams.json
   state_fields_touched:
     - /plan
     - /plan/summary

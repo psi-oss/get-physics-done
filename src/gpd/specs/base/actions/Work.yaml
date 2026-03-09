@@ -12,7 +12,6 @@ summary: |
   Records outcomes in the knowledge graph and maintains pointer discipline.
 
 schemas:
-  params_json_schema: specs/schemas/params/WorkParams.json
   state_fields_touched:
     - /plan/sections
     - /scratch_knowledge

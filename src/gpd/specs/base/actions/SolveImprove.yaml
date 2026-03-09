@@ -10,7 +10,6 @@ summary: |
   Records findings and updates plan status based on evaluation results.
 
 schemas:
-  params_json_schema: specs/schemas/params/SolveImproveParams.json
   state_fields_touched:
     - /plan/sections
     - /scratch_knowledge

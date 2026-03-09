@@ -10,7 +10,6 @@ summary: |
   only touches declared target items.
 
 schemas:
-  params_json_schema: specs/schemas/params/RefineKnowledgeParams.json
   state_fields_touched:
     - /scratch_knowledge
 

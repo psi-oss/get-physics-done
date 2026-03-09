@@ -10,7 +10,6 @@ summary: |
   (critical -> major -> minor). Produces a commit that improves state quality.
 
 schemas:
-  params_json_schema: specs/schemas/params/CritiqueImproveParams.json
   state_fields_touched:
     - /plan/sections
     - /scratch_knowledge
