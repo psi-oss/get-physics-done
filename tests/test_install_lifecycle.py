@@ -620,3 +620,232 @@ class TestPathReplacementInInstalledContent:
                 if md_file.suffix == ".md":
                     content = md_file.read_text(encoding="utf-8")
                     assert "{GPD_INSTALL_DIR}" not in content, f"{md_file.name} has unreplaced {{GPD_INSTALL_DIR}}"
+
+
+# ---------------------------------------------------------------------------
+# Idempotency: install twice produces identical results
+# ---------------------------------------------------------------------------
+
+
+class TestInstallIdempotent:
+    """Installing twice (without uninstall) should be safe and produce the same result."""
+
+    def test_claude_code_install_twice(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        result1 = adapter.install(gpd_root, target, is_global=True)
+        result2 = adapter.install(gpd_root, target, is_global=True)
+
+        assert result1["commands"] == result2["commands"]
+        assert result1["agents"] == result2["agents"]
+        assert (target / "commands" / "gpd").is_dir()
+        assert (target / "get-physics-done" / "VERSION").exists()
+        assert (target / MANIFEST_NAME).exists()
+
+    def test_gemini_install_twice(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        result1 = adapter.install(gpd_root, target, is_global=True)
+        result2 = adapter.install(gpd_root, target, is_global=True)
+
+        assert result1["commands"] == result2["commands"]
+        assert result1["agents"] == result2["agents"]
+        assert (target / "commands" / "gpd").is_dir()
+
+    def test_codex_install_twice(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        result1 = adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
+        result2 = adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
+
+        assert result1["commands"] == result2["commands"]
+        assert result1["agents"] == result2["agents"]
+        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        assert len(gpd_skills) > 0
+
+    def test_opencode_install_twice(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("opencode")
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        result1 = adapter.install(gpd_root, target)
+        result2 = adapter.install(gpd_root, target)
+
+        assert result1["commands"] == result2["commands"]
+        assert result1["agents"] == result2["agents"]
+        command_dir = target / "command"
+        gpd_commands = [f for f in command_dir.iterdir() if f.name.startswith("gpd-") and f.suffix == ".md"]
+        assert len(gpd_commands) > 0
+
+
+# ---------------------------------------------------------------------------
+# Uninstall when not installed: should be safe (no crash)
+# ---------------------------------------------------------------------------
+
+
+class TestUninstallWhenNotInstalled:
+    """Uninstalling from a directory with no GPD artifacts should not crash."""
+
+    def test_claude_code_uninstall_empty(self, tmp_path: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        result = adapter.uninstall(target)
+        assert result["removed"] == []
+
+    def test_gemini_uninstall_empty(self, tmp_path: Path) -> None:
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        result = adapter.uninstall(target)
+        assert result["removed"] == []
+
+    def test_codex_uninstall_empty(self, tmp_path: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        result = adapter.uninstall(target, skills_dir=skills_dir)
+        assert result["removed"] == []
+
+    def test_opencode_uninstall_empty(self, tmp_path: Path) -> None:
+        from gpd.adapters.opencode import uninstall_opencode
+
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        result = uninstall_opencode(target, config_dir=target)
+        assert result["commands"] == 0
+        assert result["agents"] == 0
+        assert result["hooks"] == 0
+        assert result["dirs"] == 0
+
+    def test_uninstall_nonexistent_subdirs(self, tmp_path: Path) -> None:
+        """Uninstall when target exists but has no commands/, agents/, etc."""
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+        # Just put a random file in target
+        (target / "other.txt").write_text("not gpd", encoding="utf-8")
+
+        result = adapter.uninstall(target)
+        assert result["removed"] == []
+        assert (target / "other.txt").exists()  # Non-GPD content preserved
+
+
+# ---------------------------------------------------------------------------
+# Install then immediately uninstall: clean state
+# ---------------------------------------------------------------------------
+
+
+class TestInstallThenUninstallClean:
+    """Install then immediate uninstall should leave a clean directory."""
+
+    def test_claude_code_clean_after_cycle(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=True)
+        adapter.uninstall(target)
+
+        # GPD artifacts gone
+        assert not (target / "commands" / "gpd").exists()
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        assert not (target / "gpd-local-patches").exists()
+        # Agents dir may exist but no gpd-* files
+        agents = target / "agents"
+        if agents.exists():
+            gpd_agents = [f for f in agents.iterdir() if f.name.startswith("gpd-")]
+            assert len(gpd_agents) == 0
+
+    def test_codex_clean_after_cycle(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
+        adapter.uninstall(target, skills_dir=skills_dir)
+
+        assert not (target / "get-physics-done").exists()
+        assert not (target / MANIFEST_NAME).exists()
+        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        assert len(gpd_skills) == 0
+
+
+# ---------------------------------------------------------------------------
+# Uninstall with corrupted config files
+# ---------------------------------------------------------------------------
+
+
+class TestUninstallCorruptedConfigs:
+    """Uninstall should not crash when config files are corrupted."""
+
+    def test_opencode_corrupted_settings_json(self, tmp_path: Path, gpd_root: Path) -> None:
+        """Corrupted settings.json should not prevent OpenCode uninstall."""
+        from gpd.adapters.opencode import uninstall_opencode
+
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter = get_adapter("opencode")
+        adapter.install(gpd_root, target)
+
+        # Corrupt settings.json
+        (target / "settings.json").write_text("{{{not valid json!!!", encoding="utf-8")
+
+        # Uninstall should still succeed
+        uninstall_opencode(target, config_dir=target)
+        assert not (target / "get-physics-done").exists()
+        # Commands should be cleaned
+        command_dir = target / "command"
+        gpd_cmds = [f for f in command_dir.iterdir() if f.name.startswith("gpd-")] if command_dir.exists() else []
+        assert len(gpd_cmds) == 0
+
+    def test_opencode_corrupted_opencode_json(self, tmp_path: Path, gpd_root: Path) -> None:
+        """Corrupted opencode.json should not prevent OpenCode uninstall."""
+        from gpd.adapters.opencode import uninstall_opencode
+
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter = get_adapter("opencode")
+        adapter.install(gpd_root, target)
+
+        # Corrupt opencode.json
+        (target / "opencode.json").write_text("NOT JSON AT ALL", encoding="utf-8")
+
+        # Uninstall should still succeed
+        uninstall_opencode(target, config_dir=target)
+        assert not (target / "get-physics-done").exists()
+
+    def test_gemini_corrupted_settings_json(self, tmp_path: Path, gpd_root: Path) -> None:
+        """Corrupted settings.json should not prevent Gemini uninstall."""
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        # Corrupt settings.json (Gemini uses read_settings which handles this)
+        (target / "settings.json").write_text("{{{broken", encoding="utf-8")
+
+        # Should not crash
+        adapter.uninstall(target)
+        assert not (target / "commands" / "gpd").exists()
+        assert not (target / "get-physics-done").exists()
