@@ -66,7 +66,9 @@ def json_get(stdin_text: str, key: str, default: str | None = None) -> str:
     try:
         data = json.loads(stdin_text)
     except json.JSONDecodeError:
-        return default if default is not None else ""
+        if default is not None:
+            return default
+        raise ValueError(f"Invalid JSON input: {stdin_text[:80]!r}")
 
     result = _resolve_path(data, key)
     if result is None:

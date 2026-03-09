@@ -1466,8 +1466,11 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     if not section:
         return StateGetResult(content=content)
 
+    # Normalize snake_case → Title Case (e.g. "current_phase" → "Current Phase")
+    section_norm = section.replace("_", " ")
+
     # Try **field:** value
-    field_escaped = _escape_regex(section)
+    field_escaped = _escape_regex(section_norm)
     field_match = re.search(rf"\*\*{field_escaped}:\*\*\s*(.*)", content, re.IGNORECASE)
     if field_match:
         return StateGetResult(value=field_match.group(1).strip(), section_name=section)
@@ -1537,11 +1540,14 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
         failed: list[str] = []
 
         for field, value in patches.items():
-            if field.lower() == "status" and not is_valid_status(value):
+            # Normalize snake_case → Title Case (e.g. "current_plan" → "Current Plan")
+            field_norm = field.replace("_", " ")
+
+            if field_norm.lower() == "status" and not is_valid_status(value):
                 failed.append(field)
                 continue
 
-            escaped = _escape_regex(field)
+            escaped = _escape_regex(field_norm)
             pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
             if pattern.search(content):
                 safe_val = str(value)

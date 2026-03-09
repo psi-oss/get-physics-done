@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
@@ -60,6 +61,11 @@ def test_json_get_returns_json_for_non_strings():
 
 def test_json_get_default_on_bad_json():
     assert json_get("not json", ".key", default="safe") == "safe"
+
+
+def test_json_get_raises_on_bad_json_no_default():
+    with pytest.raises(ValueError, match="Invalid JSON"):
+        json_get("not json", ".key")
 
 
 def test_json_get_default_on_empty_string():

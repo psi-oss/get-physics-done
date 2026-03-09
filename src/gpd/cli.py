@@ -1670,7 +1670,10 @@ def verify_path(
     """Verify whether a file or directory path exists."""
     from gpd.core.commands import cmd_verify_path_exists
 
-    _output(cmd_verify_path_exists(_get_cwd(), target_path))
+    result = cmd_verify_path_exists(_get_cwd(), target_path)
+    _output(result)
+    if not result.exists:
+        raise typer.Exit(code=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1692,7 +1695,11 @@ def json_get_cmd(
     from gpd.core.json_utils import json_get
 
     stdin_text = sys.stdin.read()
-    result = json_get(stdin_text, key, default=default)
+    try:
+        result = json_get(stdin_text, key, default=default)
+    except ValueError as exc:
+        console.print(f"[red]error:[/red] {exc}", stderr=True)
+        raise typer.Exit(code=1) from None
     console.print(result, highlight=False)
 
 
