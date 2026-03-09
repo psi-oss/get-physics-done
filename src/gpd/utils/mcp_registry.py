@@ -264,7 +264,7 @@ def get_available_mcps() -> dict:
 
                 tools = list(STANDARD_TOOLS)
 
-                tool_pattern = r'@(?:self\.)?mcp\.tool\(\)\s*\n\s*(?:async\s+)?def\s+(\w+)\s*\([^)]*\)(?:\s*->[^:]+)?:\s*\n\s*(?:"""([^"]*?)""")?'
+                tool_pattern = r'@(?:self\.)?mcp\.tool\(\)\s*\n\s*(?:async\s+)?def\s+(\w+)\s*\([^)]*\)(?:\s*->[^:]+)?:\s*\n\s*(?:"""([\s\S]*?)""")?'
                 matches = re.findall(tool_pattern, content, re.MULTILINE)
 
                 custom_tool_names: set[str] = set()
