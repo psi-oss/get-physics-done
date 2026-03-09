@@ -20,7 +20,6 @@ from gpd.mcp.subagents.status_display import SubagentDisplay, run_with_status
 from gpd.mcp.subagents.tool_spec import ToolSpec, ToolSpecDrafter
 
 __all__ = [
-    "FixEstimate",
     "SpecialistManager",
     "SubagentDisplay",
     "SubagentOrchestrator",
@@ -35,6 +34,5 @@ __all__ = [
     "ToolSpecDrafter",
     "create_tool_specialist",
     "estimate_fix_cost",
-    "run_with_status",
     "should_use_specialist",
 ]

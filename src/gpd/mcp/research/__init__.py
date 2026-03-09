@@ -40,7 +40,6 @@ from gpd.mcp.research.schemas import (
 
 __all__ = [
     "ApprovalGate",
-    "CitationEntry",
     "CostEstimate",
     "MODAL_RATES_USD_PER_SECOND",
     "MilestoneResult",
@@ -58,6 +57,5 @@ __all__ = [
     "find_substitute_tool",
     "format_cost_display",
     "make_retry_decorator",
-    "prompt_plan_approval",
     "simplify_milestone",
 ]

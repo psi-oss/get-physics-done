@@ -13,9 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
-    "ACTIVE_TRACE_FILENAME",
     "CONFIG_FILENAME",
-    "CONVENTIONS_FILENAME",
     "DECISION_THRESHOLD",
     "DEFAULT_MAX_INCLUDE_CHARS",
     "ENV_DATA_DIR",
@@ -41,16 +39,11 @@ __all__ = [
     "SEED_PATTERN_INITIAL_OCCURRENCES",
     "STANDALONE_PLAN",
     "STANDALONE_SUMMARY",
-    "STATE_ARCHIVE_FILENAME",
-    "STATE_JSON_BACKUP_FILENAME",
     "STATE_JSON_FILENAME",
-    "STATE_JSON_INTENT_SUFFIX",
     "STATE_LINES_BUDGET",
     "STATE_LINES_TARGET",
     "STATE_MD_FILENAME",
-    "STATE_WRITE_INTENT_FILENAME",
     "SUMMARY_SUFFIX",
-    "TRACES_DIR_NAME",
     "UNCOMMITTED_FILES_THRESHOLD",
     "VALID_RETURN_STATUSES",
     "VERIFICATION_SUFFIX",
@@ -94,9 +87,6 @@ STATE_ARCHIVE_FILENAME = "STATE-ARCHIVE.md"
 
 STATE_JSON_BACKUP_FILENAME = "state.json.bak"
 """Backup of state.json for crash recovery."""
-
-STATE_JSON_INTENT_SUFFIX = ".intent"
-"""Suffix for intent-marker files used in crash recovery."""
 
 STATE_WRITE_INTENT_FILENAME = ".state-write-intent"
 """Intent marker file for atomic dual-write crash recovery."""
