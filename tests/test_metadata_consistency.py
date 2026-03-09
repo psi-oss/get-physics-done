@@ -75,7 +75,6 @@ def test_pattern_domain_counts_match_source_of_truth() -> None:
         "src/gpd/cli.py"
     )
     assert f"Error pattern library (8 categories, {domain_count} domains)" in _read("ARCHITECTURE.md")
-    assert f"expect {domain_count} domains" in _read("MANUAL-TEST-PLAN.md")
 
 
 def test_mcp_server_count_matches_security_and_architecture_docs() -> None:

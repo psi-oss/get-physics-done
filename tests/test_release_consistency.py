@@ -130,13 +130,13 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
 
 
-def test_manual_test_plan_covers_public_readme_install() -> None:
+def test_contributing_docs_cover_release_validation_flow() -> None:
     repo_root = _repo_root()
-    content = (repo_root / "MANUAL-TEST-PLAN.md").read_text(encoding="utf-8")
+    content = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
-    assert "Phase 0: Public Release Smoke Test" in content
-    assert "npx github:physicalsuperintelligence/get-physics-done" in content
-    assert "follow only the public README instructions" in content
+    assert "uv run pytest tests/test_release_consistency.py -v" in content
+    assert "Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`." in content
+    assert "Keep public artifacts present and up to date" in content
 
 
 def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
@@ -145,7 +145,6 @@ def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
         "src/gpd/mcp/launch.py",
         "src/gpd/mcp/pipeline.py",
         "src/gpd/mcp/discovery/sources.py",
-        "MANUAL-TEST-PLAN.md",
     )
     disallowed_markers = (
         "fix-mcps",
