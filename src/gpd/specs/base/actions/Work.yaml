@@ -113,7 +113,7 @@ modes:
   implementation:
     title: "Work/implementation"
     summary: "Code or solution implementation"
-    triage_guidance: "Propose when the next step is building or coding a solution component."
+    triage_guidance: "Propose when the next step is building or implementing a solution component."
     action_guidance: "Focus on implementing the approach described in the plan."
   validation:
     title: "Work/validation"

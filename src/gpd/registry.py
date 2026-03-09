@@ -68,7 +68,10 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
         return {}, text
     yaml_str = match.group(1)
     body = text[match.end() :]
-    meta = yaml.safe_load(yaml_str) or {}
+    try:
+        meta = yaml.safe_load(yaml_str) or {}
+    except yaml.YAMLError:
+        return {}, text
     if not isinstance(meta, dict):
         return {}, text
     return meta, body

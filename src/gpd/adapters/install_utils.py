@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging as _logging
+import logging
 import os
 import re
 from pathlib import Path
@@ -349,7 +349,15 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
     (Read, Write, Edit) in prose.
     """
     # Globally safe to replace everywhere (unique names)
-    safe_global = ["WebSearch", "WebFetch", "TodoWrite", "AskUserQuestion", "SlashCommand", "NotebookEdit", "ToolSearch"]
+    safe_global = [
+        "WebSearch",
+        "WebFetch",
+        "TodoWrite",
+        "AskUserQuestion",
+        "SlashCommand",
+        "NotebookEdit",
+        "ToolSearch",
+    ]
     for claude_name in safe_global:
         target = tool_map.get(claude_name)
         if target:
@@ -911,7 +919,7 @@ def verify_file_installed(file_path: str | Path, description: str) -> bool:
 # Shared install steps — used by multiple adapters
 # ---------------------------------------------------------------------------
 
-_install_logger = _logging.getLogger("gpd.adapters.install")
+_install_logger = logging.getLogger(__name__)
 
 
 def validate_package_integrity(gpd_root: Path) -> None:

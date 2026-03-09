@@ -22,7 +22,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 
 from gpd import registry
 from gpd.adapters import get_adapter
@@ -458,22 +457,25 @@ class TestMultiRuntimeSameTarget:
 class TestRegistryInvalidYaml:
     """Registry parsing a .md file with invalid YAML frontmatter."""
 
-    def test_invalid_yaml_in_frontmatter_raises(self, tmp_path: Path) -> None:
-        """yaml.safe_load raises on truly invalid YAML; _parse_agent_file should propagate."""
+    def test_invalid_yaml_in_frontmatter_returns_fallback(self, tmp_path: Path) -> None:
+        """Invalid YAML in frontmatter is caught; _parse_agent_file returns fallback AgentDef."""
         f = tmp_path / "bad-yaml.md"
         # Tabs in YAML values can cause parse errors
         f.write_text(
             "---\nname: [unclosed bracket\n  bad: :\n---\nBody.\n",
             encoding="utf-8",
         )
-        with pytest.raises(yaml.YAMLError):
-            _parse_agent_file(f, source="agents")
+        agent = _parse_agent_file(f, source="agents")
+        # Falls back to stem name since frontmatter parsing failed
+        assert agent.name == "bad-yaml"
+        assert agent.source == "agents"
 
     def test_registry_frontmatter_with_invalid_yaml_returns_empty(self) -> None:
-        """_parse_frontmatter in registry: invalid YAML raises yaml.YAMLError."""
+        """_parse_frontmatter in registry: invalid YAML returns empty dict gracefully."""
         text = "---\n: : : invalid\n---\nBody."
-        with pytest.raises(yaml.YAMLError):
-            _parse_frontmatter(text)
+        meta, body = _parse_frontmatter(text)
+        assert meta == {}
+        assert body == text
 
     def test_valid_yaml_non_dict_returns_empty(self) -> None:
         """Non-dict YAML frontmatter falls back gracefully."""
