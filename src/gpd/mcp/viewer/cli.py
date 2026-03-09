@@ -82,6 +82,7 @@ def push(
     tool: str = typer.Option("", "--tool", "-t", help="MCP tool name"),
     label: str = typer.Option("", "--label", "-l", help="Frame label"),
     port: int = typer.Option(DEFAULT_PORT, "--port", "-p", help="Viewer server port"),
+    host: str = typer.Option(DEFAULT_HOST, "--host", help="Viewer server host"),
 ) -> None:
     """Push a frame to a running viewer.
 
@@ -91,9 +92,10 @@ def push(
         echo "base64..." | gpd-plus view push -
     """
     port = _get_port(port)
+    host = _get_host(host)
     import httpx
 
-    base_url = f"http://localhost:{port}"
+    base_url = f"http://{host}:{port}"
 
     # Read from file (extract frames from MCP response JSON)
     if file:

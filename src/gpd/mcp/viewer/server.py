@@ -55,6 +55,8 @@ class FrameStore:
                     q.put_nowait(frame)
                 except asyncio.QueueFull:
                     dead.append(q)
+            if dead:
+                logger.warning("Dropping %d slow SSE subscriber(s)", len(dead))
             for q in dead:
                 self._subscribers.remove(q)
             return idx
@@ -77,6 +79,15 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.store = FrameStore()
     app.state.start_time = time.time()
     yield
+    # On shutdown, drain subscribers so SSE generators exit cleanly
+    store: FrameStore = app.state.store
+    async with store._lock:
+        for q in store._subscribers:
+            try:
+                q.put_nowait(None)
+            except asyncio.QueueFull:
+                pass
+        store._subscribers.clear()
 
 
 def create_app() -> FastAPI:
@@ -150,16 +161,16 @@ def create_app() -> FastAPI:
 
         async def generator() -> AsyncGenerator[dict[str, str], None]:
             try:
-                while True:
-                    if await request.is_disconnected():
-                        break
+                while not await request.is_disconnected():
                     try:
-                        frame = await asyncio.wait_for(q.get(), timeout=15.0)
+                        frame = await asyncio.wait_for(q.get(), timeout=5.0)
                         if frame is None:
                             yield {"event": "clear", "data": "{}"}
                         else:
                             yield {"event": "frame", "data": frame.model_dump_json()}
                     except TimeoutError:
+                        # Ping keeps the connection alive and lets us
+                        # re-check is_disconnected() promptly.
                         yield {"event": "ping", "data": json.dumps({"t": time.time()})}
             finally:
                 await store.unsubscribe(q)

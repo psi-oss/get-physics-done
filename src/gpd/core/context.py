@@ -15,7 +15,16 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from gpd.core.constants import DEFAULT_MAX_INCLUDE_CHARS, ENV_MAX_INCLUDE_CHARS
+from gpd.core.constants import (
+    CONFIG_FILENAME,
+    DEFAULT_MAX_INCLUDE_CHARS,
+    ENV_MAX_INCLUDE_CHARS,
+    PLANNING_DIR_NAME,
+    PROJECT_FILENAME,
+    ROADMAP_FILENAME,
+    STATE_JSON_FILENAME,
+    STATE_MD_FILENAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +39,7 @@ _IGNORE_DIRS = frozenset(
     {
         "node_modules",
         ".git",
-        ".planning",
+        PLANNING_DIR_NAME,
         ".claude",
         ".codex",
         ".gemini",
@@ -183,13 +192,15 @@ def load_config(cwd: Path) -> dict:
         "brave_search": False,
     }
 
-    config_path = cwd / ".planning" / "config.json"
+    config_path = cwd / PLANNING_DIR_NAME / CONFIG_FILENAME
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return dict(defaults)
     except (json.JSONDecodeError, ValueError) as exc:
-        raise ValueError(f"Malformed config.json: {exc}. Fix or delete .planning/config.json") from exc
+        raise ValueError(
+            f"Malformed {CONFIG_FILENAME}: {exc}. Fix or delete {PLANNING_DIR_NAME}/{CONFIG_FILENAME}"
+        ) from exc
 
     def _get(key: str, section: str | None = None, field: str | None = None) -> object:
         """Look up key at top level, then in nested section. Returns _SENTINEL if not found."""
@@ -347,7 +358,7 @@ def _resolve_model(cwd: Path, agent_type: str) -> str:
         tier = agent_models.get(profile) or agent_models.get("review", "tier-2")
     model_map = None
     # Config may have a custom model_map
-    config_path = cwd / ".planning" / "config.json"
+    config_path = cwd / PLANNING_DIR_NAME / CONFIG_FILENAME
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
         model_map = raw.get("model_map")
@@ -379,7 +390,7 @@ def _try_find_phase(cwd: Path, phase: str) -> dict | None:
 
 def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
     """Minimal phase discovery without the full phases module."""
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     if not phases_dir.is_dir():
         return None
 
@@ -445,7 +456,7 @@ def _try_get_milestone_info(cwd: Path) -> dict:
 
 def _get_milestone_fallback(cwd: Path) -> dict:
     """Minimal milestone extraction without the full phases module."""
-    roadmap_path = cwd / ".planning" / "ROADMAP.md"
+    roadmap_path = cwd / PLANNING_DIR_NAME / ROADMAP_FILENAME
     content = _safe_read_file(roadmap_path)
     if content is None:
         return {"version": "v1.0", "name": "milestone"}
@@ -477,7 +488,7 @@ _PLATFORM = _detect_platform()
 # ─── Context Assemblers ──────────────────────────────────────────────────────
 
 
-def init_execute_phase(cwd: Path, phase: str, includes: set[str] | None = None) -> dict:
+def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None = None) -> dict:
     """Assemble context for phase execution.
 
     Args:
@@ -531,26 +542,26 @@ def init_execute_phase(cwd: Path, phase: str, includes: set[str] | None = None) 
         "milestone_name": milestone["name"],
         "milestone_slug": _generate_slug(milestone["name"]),
         # File existence
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "config_exists": _path_exists(cwd, ".planning/config.json"),
         # Platform
         "platform": _PLATFORM,
     }
 
     # Include file contents if requested
-    planning = cwd / ".planning"
+    planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / "STATE.md")
+        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
     if "config" in includes:
-        result["config_content"] = _safe_read_file_truncated(planning / "config.json")
+        result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / "ROADMAP.md")
+        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
 
     return result
 
 
-def init_plan_phase(cwd: Path, phase: str, includes: set[str] | None = None) -> dict:
+def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = None) -> dict:
     """Assemble context for phase planning.
 
     Args:
@@ -591,17 +602,17 @@ def init_plan_phase(cwd: Path, phase: str, includes: set[str] | None = None) -> 
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # Environment
         "planning_exists": _path_exists(cwd, ".planning"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         # Platform
         "platform": _PLATFORM,
     }
 
     # Include file contents
-    planning = cwd / ".planning"
+    planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / "STATE.md")
+        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
     if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / "ROADMAP.md")
+        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
     if "requirements" in includes:
         result["requirements_content"] = _safe_read_file_truncated(planning / "REQUIREMENTS.md")
     if "context" in includes and phase_info and phase_info.get("directory"):
@@ -708,8 +719,8 @@ def init_new_milestone(cwd: Path) -> dict:
         "current_milestone_name": milestone["name"],
         # File existence
         "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
         "platform": _PLATFORM,
     }
@@ -724,7 +735,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         slug = slug[:40]
 
     # Find next quick task number
-    quick_dir = cwd / ".planning" / "quick"
+    quick_dir = cwd / PLANNING_DIR_NAME / "quick"
     next_num = 1
     try:
         existing = []
@@ -756,7 +767,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         "quick_dir": ".planning/quick",
         "task_dir": f".planning/quick/{next_num}-{slug}" if slug else None,
         # File existence
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "planning_exists": _path_exists(cwd, ".planning"),
         # Platform
         "platform": _PLATFORM,
@@ -769,7 +780,7 @@ def init_resume(cwd: Path) -> dict:
 
     # Check for interrupted agent
     interrupted_agent_id = None
-    agent_id_file = cwd / ".planning" / "current-agent-id.txt"
+    agent_id_file = cwd / PLANNING_DIR_NAME / "current-agent-id.txt"
     try:
         interrupted_agent_id = agent_id_file.read_text(encoding="utf-8").strip() or None
     except FileNotFoundError:
@@ -777,8 +788,8 @@ def init_resume(cwd: Path) -> dict:
 
     return {
         # File existence
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
         "planning_exists": _path_exists(cwd, ".planning"),
         # Agent state
@@ -793,7 +804,7 @@ def init_resume(cwd: Path) -> dict:
     }
 
 
-def init_verify_work(cwd: Path, phase: str) -> dict:
+def init_verify_work(cwd: Path, phase: str | None) -> dict:
     """Assemble context for work verification."""
     if not phase:
         raise ValueError("phase required for init verify-work")
@@ -853,20 +864,20 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "has_validation": phase_info.get("has_validation", False) if phase_info else False,
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # File existence
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "planning_exists": _path_exists(cwd, ".planning"),
         # Platform
         "platform": _PLATFORM,
     }
 
-    planning = cwd / ".planning"
+    planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / "STATE.md")
+        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
     if "config" in includes:
-        result["config_content"] = _safe_read_file_truncated(planning / "config.json")
+        result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / "ROADMAP.md")
+        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
 
     return result
 
@@ -876,7 +887,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
     config = load_config(cwd)
     now = datetime.now(UTC)
 
-    pending_dir = cwd / ".planning" / "todos" / "pending"
+    pending_dir = cwd / PLANNING_DIR_NAME / "todos" / "pending"
     todos: list[dict[str, str]] = []
 
     try:
@@ -933,7 +944,7 @@ def init_milestone_op(cwd: Path) -> dict:
     milestone = _try_get_milestone_info(cwd)
 
     # Count phases
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     phase_count = 0
     completed_phases = 0
     try:
@@ -950,7 +961,7 @@ def init_milestone_op(cwd: Path) -> dict:
         pass
 
     # Check archived milestones
-    milestones_dir = cwd / ".planning" / "milestones"
+    milestones_dir = cwd / PLANNING_DIR_NAME / "milestones"
     archived_milestones: list[str] = []
     try:
         archived_milestones = sorted(d.name for d in milestones_dir.iterdir() if d.is_dir())
@@ -978,8 +989,8 @@ def init_milestone_op(cwd: Path) -> dict:
         "archive_count": len(archived_milestones),
         # File existence
         "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "milestones_exists": _path_exists(cwd, ".planning/milestones"),
         "phases_dir_exists": _path_exists(cwd, ".planning/phases"),
         # Platform
@@ -992,7 +1003,7 @@ def init_map_theory(cwd: Path) -> dict:
     config = load_config(cwd)
 
     # Check for existing research maps
-    research_map_dir = cwd / ".planning" / "research-map"
+    research_map_dir = cwd / PLANNING_DIR_NAME / "research-map"
     existing_maps: list[str] = []
     try:
         existing_maps = sorted(f.name for f in research_map_dir.iterdir() if f.is_file() and f.name.endswith(".md"))
@@ -1033,7 +1044,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
     milestone = _try_get_milestone_info(cwd)
 
     # Analyze phases
-    phases_dir = cwd / ".planning" / "phases"
+    phases_dir = cwd / PLANNING_DIR_NAME / "phases"
     phases: list[dict[str, object]] = []
     current_phase: dict[str, object] | None = None
     next_phase: dict[str, object] | None = None
@@ -1084,7 +1095,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
 
     # Check for paused work
     paused_at: str | None = None
-    state_content = _safe_read_file(cwd / ".planning" / "STATE.md")
+    state_content = _safe_read_file(cwd / PLANNING_DIR_NAME / STATE_MD_FILENAME)
     if state_content:
         status_match = re.search(r"\*\*Status:\*\*\s*(.+)", state_content)
         if status_match and status_match.group(1).strip() == "Paused":
@@ -1114,21 +1125,21 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         "has_work_in_progress": current_phase is not None,
         # File existence
         "project_exists": _path_exists(cwd, ".planning/PROJECT.md"),
-        "roadmap_exists": _path_exists(cwd, ".planning/ROADMAP.md"),
-        "state_exists": _path_exists(cwd, ".planning/STATE.md"),
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
         "platform": _PLATFORM,
     }
 
     # Include file contents
-    planning = cwd / ".planning"
+    planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / "STATE.md")
+        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
     if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / "ROADMAP.md")
+        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
     if "project" in includes:
-        result["project_content"] = _safe_read_file_truncated(planning / "PROJECT.md")
+        result["project_content"] = _safe_read_file_truncated(planning / PROJECT_FILENAME)
     if "config" in includes:
-        result["config_content"] = _safe_read_file_truncated(planning / "config.json")
+        result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
 
     return result

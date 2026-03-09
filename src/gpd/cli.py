@@ -15,6 +15,7 @@ All commands support ``--raw`` for JSON output and ``--cwd`` for working directo
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -38,6 +39,8 @@ def _output(data: object) -> None:
     if _raw:
         if hasattr(data, "model_dump"):
             console.print_json(json.dumps(data.model_dump(), default=str))
+        elif dataclasses.is_dataclass(data) and not isinstance(data, type):
+            console.print_json(json.dumps(dataclasses.asdict(data), default=str))
         elif isinstance(data, dict):
             console.print_json(json.dumps(data, default=str))
         else:
@@ -45,6 +48,8 @@ def _output(data: object) -> None:
     else:
         if hasattr(data, "model_dump"):
             _pretty_print(data.model_dump())
+        elif dataclasses.is_dataclass(data) and not isinstance(data, type):
+            _pretty_print(dataclasses.asdict(data))
         elif isinstance(data, dict):
             _pretty_print(data)
         else:
@@ -1071,7 +1076,7 @@ def init_quick(
     """Assemble context for a quick task."""
     from gpd.core.context import init_quick
 
-    text = " ".join(description) if description else ""
+    text = " ".join(description) if description else None
     _output(init_quick(_get_cwd(), text))
 
 

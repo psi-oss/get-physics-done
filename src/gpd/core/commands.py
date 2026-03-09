@@ -17,7 +17,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from gpd.core.constants import PLAN_SUFFIX, SUMMARY_SUFFIX, VERIFICATION_SUFFIX
+from gpd.core.constants import (
+    PLAN_SUFFIX,
+    REQUIRED_RETURN_FIELDS,
+    SUMMARY_SUFFIX,
+    VALID_RETURN_STATUSES,
+    VERIFICATION_SUFFIX,
+)
 from gpd.core.errors import ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, splice_frontmatter
 from gpd.core.observability import instrument_gpd_function
@@ -140,10 +146,6 @@ class RegressionCheckResult(BaseModel):
     passed: bool
     issues: list[RegressionIssue] = Field(default_factory=list)
     phases_checked: int = 0
-
-
-VALID_RETURN_STATUSES = ("completed", "checkpoint", "blocked", "failed")
-REQUIRED_RETURN_FIELDS = ("status", "phase", "plan", "tasks_completed", "tasks_total")
 
 
 class ValidateReturnResult(BaseModel):
@@ -751,7 +753,7 @@ def cmd_validate_return(file_path: Path) -> ValidateReturnResult:
 
     # Validate status value
     if fields.get("status") and fields["status"] not in VALID_RETURN_STATUSES:
-        errors.append(f"Invalid status '{fields['status']}'. Must be one of: {', '.join(VALID_RETURN_STATUSES)}")
+        errors.append(f"Invalid status '{fields['status']}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}")
 
     # Validate task counts are numbers
     for count_field in ("tasks_completed", "tasks_total"):

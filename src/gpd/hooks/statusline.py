@@ -10,6 +10,8 @@ import os
 import sys
 from pathlib import Path
 
+from gpd.core.constants import PLANNING_DIR_NAME, STATE_JSON_FILENAME
+
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
 _CONTEXT_WARN_THRESHOLD = 63
@@ -42,7 +44,7 @@ def _debug(msg: str) -> None:
 
 def _read_position(workspace_dir: str) -> str:
     """Read research position from .planning/state.json."""
-    state_file = Path(workspace_dir) / ".planning" / "state.json"
+    state_file = Path(workspace_dir) / PLANNING_DIR_NAME / STATE_JSON_FILENAME
     if not state_file.exists():
         return ""
     try:
