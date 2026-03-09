@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from gpd.mcp.paper.bibliography import CitationSource, citation_keys_for_sources
 from gpd.mcp.paper.generator import (
     FigureCaption,
     ReproducibilityInfo,
@@ -143,6 +144,45 @@ class TestGeneratePaper:
         assert len(config.figures) == 1
         assert config.figures[0].caption == "A nice figure caption."
         assert config.journal == "prl"
+        assert config.attribution_footer == "Generated with Get Physics Done (PSI)"
+
+    @pytest.mark.asyncio
+    async def test_generate_paper_uses_bibliography_citation_keys(self, monkeypatch):
+        import gpd.mcp.paper.generator as gen_mod
+
+        citations = [
+            CitationSource(source_type="paper", title="Paper 1", authors=["Einstein, Albert"], year="1905"),
+            CitationSource(source_type="paper", title="Paper 2", authors=["A. Einstein"], year="1905"),
+        ]
+        plan = SectionPlan(sections=[{"title": "Introduction", "key_points": ["Background"]}])
+        monkeypatch.setattr(gen_mod, "_get_section_planner", lambda: _make_mock_agent(_make_mock_run(plan)))
+
+        captured_prompts: list[str] = []
+
+        async def mock_section_run(prompt, model=None, model_settings=None):
+            captured_prompts.append(prompt)
+            result = MagicMock()
+            result.output = SectionContent(content="Some LaTeX content.")
+            return result
+
+        section_writer = MagicMock()
+        section_writer.run = AsyncMock(side_effect=mock_section_run)
+        monkeypatch.setattr(gen_mod, "_get_section_writer", lambda: section_writer)
+
+        config = await generate_paper(
+            research_summary="We studied turbulence.",
+            title="Turbulence Study",
+            authors=[Author(name="Test Author")],
+            abstract="We studied turbulence.",
+            figures=[],
+            citations=citations,
+            journal="prl",
+        )
+
+        expected_keys = citation_keys_for_sources(citations)
+        assert len(config.sections) == 1
+        assert captured_prompts
+        assert f"Available citation keys: {expected_keys}" in captured_prompts[0]
 
     @pytest.mark.asyncio
     async def test_generate_paper_with_appendix(self, monkeypatch):

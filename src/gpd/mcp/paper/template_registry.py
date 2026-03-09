@@ -78,6 +78,7 @@ def render_paper(config: PaperConfig) -> str:
         acknowledgments=config.acknowledgments,
         bib_file=config.bib_file,
         appendix_sections=config.appendix_sections,
+        attribution_footer=config.attribution_footer,
     )
 
     # Apply LaTeX sanitization as a safety net

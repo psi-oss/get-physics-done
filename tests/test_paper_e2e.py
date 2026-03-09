@@ -68,11 +68,44 @@ class TestBuildPaper:
         assert (tmp_path / "paper.tex").exists()
         tex_content = (tmp_path / "paper.tex").read_text()
         assert r"\documentclass" in tex_content
+        assert "Generated with Get Physics Done (PSI)" in tex_content
         assert (tmp_path / "references.bib").exists()
         bib_content = (tmp_path / "references.bib").read_text()
         assert len(bib_content) > 0
         assert output.tex_content != ""
         assert output.success is True
+
+    @pytest.mark.asyncio
+    async def test_build_paper_prepares_config_figures(self, tmp_path, monkeypatch):
+        from gpd.mcp.paper.compiler import build_paper
+
+        fig_path = tmp_path / "velocity.png"
+        Image.new("RGB", (200, 200), color="blue").save(fig_path)
+
+        config = PaperConfig(
+            title="Figure Paper",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="See Fig.~\\ref{fig:velocity}.")],
+            figures=[FigureRef(path=fig_path, caption="Velocity field.", label="velocity")],
+        )
+
+        mock_result = CompilationResult(success=True, pdf_path=tmp_path / "paper.pdf")
+        (tmp_path / "paper.pdf").write_bytes(b"%PDF-fake")
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        monkeypatch.setattr("gpd.mcp.paper.compiler.check_class_file", lambda dc: (True, "ok"))
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+
+        output = await build_paper(config, tmp_path)
+
+        prepared_path = tmp_path / "figures" / fig_path.name
+        assert output.success is True
+        assert output.figures_dir == tmp_path / "figures"
+        assert prepared_path.exists()
+        assert str(prepared_path) in output.tex_content
 
 
 # ---- Full pipeline smoke test ----
@@ -144,7 +177,7 @@ class TestFullPipeline:
             enrich=False,
         )
 
-        output = await build_paper(config, tmp_path, bib_data=bib, figures=config.figures)
+        output = await build_paper(config, tmp_path, bib_data=bib)
         assert output.success is True
         assert output.tex_content != ""
 

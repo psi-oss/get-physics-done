@@ -16,7 +16,7 @@ The name GPD is an explicit nod to [GSD (Get Shit Done)](https://github.com/gsd-
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That bootstrap command checks for Python 3.11+, installs GPD, and then walks you through installing it into Claude Code, Gemini CLI, Codex, or OpenCode.
+That bootstrap command checks for Python 3.11+, installs GPD with the full unified CLI surface (`gpd session`, `gpd pipeline`, and `gpd view`), and then walks you through installing it into Claude Code, Gemini CLI, Codex, or OpenCode.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 

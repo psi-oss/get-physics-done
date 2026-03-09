@@ -1,4 +1,4 @@
-"""Tests for ToolCatalog, Modal reconciler, and lazy per-category discovery."""
+"""Tests for ToolCatalog, hosted reconciliation, and lazy per-category discovery."""
 
 from __future__ import annotations
 
@@ -70,10 +70,10 @@ def _make_mock_skills() -> dict:
 
 
 def _make_test_config() -> MCPSourcesConfig:
-    """Return a test config that only has a modal source."""
+    """Return a test config that only has an explicitly configured hosted source."""
     return MCPSourcesConfig(
         sources={
-            "gpd-modal": SourceConfig(type="modal", app_name="gpd-mcp-servers"),
+            "hosted": SourceConfig(type="modal", app_name="physics-suite"),
         },
     )
 
@@ -89,14 +89,14 @@ class TestCheckDeploymentStatus:
     def test_reads_passed_list(self, tmp_path: Path) -> None:
         import json
 
-        status_path = tmp_path / "infra" / "modal" / "deployment_status.json"
+        status_path = tmp_path / "infra" / "mcp" / "deployment_status.json"
         status_path.parent.mkdir(parents=True)
         status_path.write_text(json.dumps({"passed": ["openfoam", "su2", "lammps"]}))
         result = check_deployment_status(tmp_path)
         assert result == {"openfoam", "su2", "lammps"}
 
     def test_handles_malformed_json(self, tmp_path: Path) -> None:
-        status_path = tmp_path / "infra" / "modal" / "deployment_status.json"
+        status_path = tmp_path / "infra" / "mcp" / "deployment_status.json"
         status_path.parent.mkdir(parents=True)
         status_path.write_text("not valid json{{{")
         result = check_deployment_status(tmp_path)
@@ -109,14 +109,38 @@ class TestReconcileModal:
             ToolEntry(name="openfoam", description="CFD", source="modal"),
             ToolEntry(name="su2", description="CFD", source="modal"),
         ]
-        with patch(
-            "gpd.mcp.discovery.reconciler.check_deployment_status",
-            return_value={"openfoam", "su2"},
+        with (
+            patch(
+                "gpd.mcp.discovery.reconciler.check_deployment_status",
+                return_value={"openfoam", "su2"},
+            ),
+            patch(
+                "gpd.mcp.discovery.reconciler._check_modal_live",
+                side_effect=[("openfoam", True), ("su2", True)],
+            ),
         ):
-            reconcile_modal(tools)
+            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
 
         assert tools[0].status == MCPStatus.available
         assert tools[1].status == MCPStatus.available
+
+    def test_marks_passed_but_not_live_tools_as_stale(self) -> None:
+        tools = [
+            ToolEntry(name="openfoam", description="CFD", source="modal"),
+        ]
+        with (
+            patch(
+                "gpd.mcp.discovery.reconciler.check_deployment_status",
+                return_value={"openfoam"},
+            ),
+            patch(
+                "gpd.mcp.discovery.reconciler._check_modal_live",
+                return_value=("openfoam", False),
+            ),
+        ):
+            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
+
+        assert tools[0].status == MCPStatus.stale
 
     def test_marks_tools_not_in_passed_as_unavailable(self) -> None:
         tools = [
@@ -132,7 +156,7 @@ class TestReconcileModal:
                 return_value=("missing_tool", False),
             ),
         ):
-            reconcile_modal(tools, max_workers=1)
+            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
 
         assert tools[0].status == MCPStatus.unavailable
 
@@ -141,11 +165,17 @@ class TestReconcileModal:
             ToolEntry(name="sympy", description="Math", source="local", status=MCPStatus.available),
             ToolEntry(name="openfoam", description="CFD", source="modal"),
         ]
-        with patch(
-            "gpd.mcp.discovery.reconciler.check_deployment_status",
-            return_value={"openfoam"},
+        with (
+            patch(
+                "gpd.mcp.discovery.reconciler.check_deployment_status",
+                return_value={"openfoam"},
+            ),
+            patch(
+                "gpd.mcp.discovery.reconciler._check_modal_live",
+                return_value=("openfoam", True),
+            ),
         ):
-            reconcile_modal(tools)
+            reconcile_modal(tools, app_name="physics-suite")
 
         # Local tool status unchanged
         assert tools[0].status == MCPStatus.available
@@ -167,9 +197,45 @@ class TestReconcileModal:
                 return_value=("new_tool", True),
             ),
         ):
-            reconcile_modal(tools, max_workers=1)
+            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
 
         assert tools[0].status == MCPStatus.available
+
+
+class TestToolCatalogExternalSource:
+    def test_loads_external_services_from_resolved_env_path(self, monkeypatch, tmp_path: Path) -> None:
+        services_path = tmp_path / "external_services.yaml"
+        services_path.write_text(
+            """
+services:
+  ext_solver:
+    description: External FEM solver
+    overview: Runs external finite-element jobs
+    domains:
+      - Finite element
+    tools:
+      - name: solve
+        description: Solve a model
+""".strip(),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("TEST_EXTERNAL_ROOT", str(tmp_path))
+
+        config = MCPSourcesConfig(
+            sources={
+                "external": SourceConfig(
+                    type="external",
+                    services_file="${TEST_EXTERNAL_ROOT}/external_services.yaml",
+                )
+            }
+        )
+
+        catalog = ToolCatalog(config)
+        all_tools = catalog.get_all_tools()
+
+        assert "ext_solver" in all_tools
+        assert all_tools["ext_solver"].categories == ["fem"]
+        assert all_tools["ext_solver"].tools[0]["name"] == "solve"
 
 
 # -- ToolCatalog tests --
@@ -301,7 +367,7 @@ class TestToolCatalogToolCount:
 
 class TestToolCatalogGracefulDegradation:
     def test_handles_missing_gpd_mcp_shared(self) -> None:
-        """Catalog should return empty results if gpd-mcp-shared is unavailable."""
+        """Catalog should return empty results if hosted registry metadata is unavailable."""
         config = _make_test_config()
         catalog = ToolCatalog(config)
 

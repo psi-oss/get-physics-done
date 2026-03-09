@@ -92,10 +92,71 @@ def _build_tool_catalog_prompt(tools: list[ToolEntry]) -> str:
     return "\n".join(lines)
 
 
-def _build_selection_prompt(problem_description: str, tool_catalog: str) -> str:
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    """Return values without duplicates while preserving order."""
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        deduped.append(value)
+    return deduped
+
+
+def normalize_selection(
+    selection: ToolSelection,
+    available_tools: list[ToolEntry],
+    detected_categories: list[str] | None = None,
+) -> ToolSelection:
+    """Validate and normalize selector output against the actual candidate tools."""
+    candidate_names = {tool.name.lower(): tool.name for tool in available_tools}
+    invalid_names: set[str] = set()
+    seen_names: set[str] = set()
+    normalized_tools: list[SelectedTool] = []
+
+    for selected in sorted(selection.tools, key=lambda tool: tool.priority):
+        canonical_name = candidate_names.get(selected.mcp.strip().lower())
+        if canonical_name is None:
+            invalid_names.add(selected.mcp)
+            continue
+        if canonical_name in seen_names:
+            continue
+        seen_names.add(canonical_name)
+        if selected.mcp == canonical_name:
+            normalized_tools.append(selected)
+        else:
+            normalized_tools.append(selected.model_copy(update={"mcp": canonical_name}))
+
+    if invalid_names:
+        logger.warning("Selector returned invalid tools outside the candidate set: %s", sorted(invalid_names))
+
+    categories = (
+        _dedupe_preserve_order(detected_categories)
+        if detected_categories is not None
+        else _dedupe_preserve_order(selection.physics_categories)
+    )
+
+    selection.tools = normalized_tools[:MAX_TOOLS]
+    selection.physics_categories = categories
+    if not selection.tools and invalid_names:
+        selection.confidence = 0.0
+
+    return selection
+
+
+def _build_selection_prompt(
+    problem_description: str,
+    tool_catalog: str,
+    detected_categories: list[str] | None = None,
+) -> str:
     """Build the user prompt for the selection agent."""
+    categories_block = ""
+    if detected_categories:
+        categories_block = f"## Detected Physics Categories\n{', '.join(detected_categories)}\n\n"
     return (
         f"## Physics Problem\n{problem_description}\n\n"
+        f"{categories_block}"
         f"## Available MCP Tools\n{tool_catalog}\n\n"
         "Select the most relevant tools for this physics problem. Explain your reasoning."
     )
@@ -113,24 +174,29 @@ class ToolSelectionAgent:
             retries=2,
         )
 
-    async def select(self, problem_description: str, available_tools: list[ToolEntry]) -> ToolSelection:
+    async def select(
+        self,
+        problem_description: str,
+        available_tools: list[ToolEntry],
+        detected_categories: list[str] | None = None,
+    ) -> ToolSelection:
         """Select tools for a physics problem using LLM reasoning.
 
         If the LLM returns more than MAX_TOOLS, truncates to the top MAX_TOOLS
         by priority (priority 1 first, then 2, then 3).
         """
         catalog_prompt = _build_tool_catalog_prompt(available_tools)
-        prompt = _build_selection_prompt(problem_description, catalog_prompt)
+        prompt = _build_selection_prompt(problem_description, catalog_prompt, detected_categories)
 
         result = await self._agent.run(prompt, model_settings=self._model_settings)
-        selection = result.output
+        return normalize_selection(result.output, available_tools, detected_categories)
 
-        if len(selection.tools) > MAX_TOOLS:
-            selection.tools = sorted(selection.tools, key=lambda t: t.priority)[:MAX_TOOLS]
-
-        return selection
-
-    def select_sync(self, problem_description: str, available_tools: list[ToolEntry]) -> ToolSelection:
+    def select_sync(
+        self,
+        problem_description: str,
+        available_tools: list[ToolEntry],
+        detected_categories: list[str] | None = None,
+    ) -> ToolSelection:
         """Synchronous wrapper for CLI contexts where async is not available."""
         try:
             loop = asyncio.get_running_loop()
@@ -141,19 +207,20 @@ class ToolSelectionAgent:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, self.select(problem_description, available_tools))
+                future = pool.submit(asyncio.run, self.select(problem_description, available_tools, detected_categories))
                 return future.result()
-        return asyncio.run(self.select(problem_description, available_tools))
+        return asyncio.run(self.select(problem_description, available_tools, detected_categories))
 
 
 async def select_tools(
     problem_description: str,
     available_tools: list[ToolEntry],
     model: str = GPD_DEFAULT_MODEL,
+    detected_categories: list[str] | None = None,
 ) -> ToolSelection:
     """Module-level convenience function for one-shot tool selection.
 
     Creates a ToolSelectionAgent and calls select().
     """
     agent = ToolSelectionAgent(model=model)
-    return await agent.select(problem_description, available_tools)
+    return await agent.select(problem_description, available_tools, detected_categories)

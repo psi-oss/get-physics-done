@@ -10,26 +10,37 @@ import asyncio
 import atexit
 import logging
 import os
+import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from gpd.mcp.subagents.cost_estimator import TIMEOUT_BUFFER_MULTIPLIER
-from gpd.mcp.subagents.models import SubagentResult, SubagentStatus
+from gpd.mcp.subagents.models import SubagentResult, SubagentStatus, SubagentStatusKind
 
 logger = logging.getLogger(__name__)
 
-# Track symlinks for cleanup
+TIMEOUT_BUFFER_MULTIPLIER: float = 1.5
+
+SDK_INSTALL_HINT = "claude-agent-sdk not installed. Run: pip install claude-agent-sdk"
+DEFAULT_EMPTY_RESULT_TEXT = "Subagent finished without a result message."
+
 _SYMLINK_CLEANUP: list[str] = []
+_TEMP_DIR_CLEANUP: list[str] = []
 
 
 def _cleanup_symlinks() -> None:
     """Remove temporary symlinks created for AF_UNIX path workaround."""
     for link in _SYMLINK_CLEANUP:
         try:
-            os.unlink(link)
+            if os.path.lexists(link):
+                os.unlink(link)
         except OSError:
             pass
+    _SYMLINK_CLEANUP.clear()
+
+    for link_dir in _TEMP_DIR_CLEANUP:
+        shutil.rmtree(link_dir, ignore_errors=True)
+    _TEMP_DIR_CLEANUP.clear()
 
 
 atexit.register(_cleanup_symlinks)
@@ -49,9 +60,27 @@ def _get_short_cwd(cwd: str) -> str:
     link_path = str(Path(link_dir) / "w")
     os.symlink(cwd, link_path)
     _SYMLINK_CLEANUP.append(link_path)
-    _SYMLINK_CLEANUP.append(link_dir)
+    _TEMP_DIR_CLEANUP.append(link_dir)
     logger.debug("Created short symlink %s -> %s for AF_UNIX workaround", link_path, cwd)
     return link_path
+
+
+def _emit_status(
+    on_status: Callable[[SubagentStatus], None] | None,
+    *,
+    source: str,
+    message: str,
+    kind: SubagentStatusKind = SubagentStatusKind.UPDATE,
+) -> None:
+    """Send a status event if a callback is registered."""
+    if on_status is None:
+        return
+
+    trimmed = message.strip()
+    if not trimmed:
+        return
+
+    on_status(SubagentStatus(source=source, message=trimmed, kind=kind))
 
 
 class SubagentSDK:
@@ -69,7 +98,7 @@ class SubagentSDK:
         cwd: str,
         max_turns: int = 50,
         max_budget_usd: float = 5.0,
-        timeout_seconds: int = 300,
+        timeout_seconds: float = 300.0,
         on_status: Callable[[SubagentStatus], None] | None = None,
     ) -> SubagentResult:
         """Spawn a subagent and wait for its result.
@@ -100,7 +129,7 @@ class SubagentSDK:
                 query,
             )
         except ImportError:
-            raise RuntimeError("claude-agent-sdk not installed. Run: pip install claude-agent-sdk") from None
+            raise RuntimeError(SDK_INSTALL_HINT) from None
 
         short_cwd = _get_short_cwd(cwd)
 
@@ -117,29 +146,22 @@ class SubagentSDK:
         buffered_timeout = timeout_seconds * TIMEOUT_BUFFER_MULTIPLIER
 
         try:
-            result = SubagentResult(success=False, result_text="No result received")
+            result = SubagentResult(success=False, result_text=DEFAULT_EMPTY_RESULT_TEXT)
 
             async def _run() -> SubagentResult:
                 nonlocal result
                 async for message in query(prompt=prompt, options=options):
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
-                            if isinstance(block, TextBlock) and on_status:
-                                first_line = block.text.split("\n")[0][:100]
-                                on_status(
-                                    SubagentStatus(
-                                        agent_name="subagent",
-                                        message=first_line,
-                                        is_subagent_message=False,
-                                    )
-                                )
-                            elif isinstance(block, ToolUseBlock) and on_status:
-                                on_status(
-                                    SubagentStatus(
-                                        agent_name=block.name,
-                                        message=f"Using tool: {block.name}",
-                                        is_subagent_message=True,
-                                    )
+                            if isinstance(block, TextBlock):
+                                first_line = block.text.strip().splitlines()[0] if block.text.strip() else ""
+                                _emit_status(on_status, source="subagent", message=first_line)
+                            elif isinstance(block, ToolUseBlock):
+                                _emit_status(
+                                    on_status,
+                                    source=block.name,
+                                    message="Tool call started",
+                                    kind=SubagentStatusKind.TOOL,
                                 )
                     elif isinstance(message, ResultMessage):
                         result = SubagentResult(
@@ -153,9 +175,16 @@ class SubagentSDK:
 
             return await asyncio.wait_for(_run(), timeout=buffered_timeout)
 
-        except TimeoutError:
-            logger.warning("Subagent timed out after %.0f seconds", buffered_timeout)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Subagent timed out after %.1f buffered seconds (configured %.1f seconds)",
+                buffered_timeout,
+                timeout_seconds,
+            )
             return SubagentResult(
                 success=False,
-                result_text="Subagent timed out",
+                result_text=(
+                    f"Subagent timed out after {buffered_timeout:.1f}s "
+                    f"(configured timeout {timeout_seconds:.1f}s)."
+                ),
             )

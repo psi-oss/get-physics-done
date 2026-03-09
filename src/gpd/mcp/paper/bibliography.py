@@ -116,14 +116,32 @@ def _source_to_entry(source: CitationSource, existing_keys: set[str]) -> tuple[s
     return key, Entry(entry_type, fields)
 
 
-def create_bibliography(sources: list[CitationSource]) -> BibliographyData:
-    """Convert all citation sources to a BibliographyData object."""
-    bib = BibliographyData()
+def bibliography_entries_from_sources(sources: list[CitationSource]) -> list[tuple[str, Entry]]:
+    """Build ordered `(key, entry)` pairs for citation sources.
+
+    This is the single key-generation path for bibliography emission so
+    other parts of the pipeline can reuse the exact emitted citation keys.
+    """
+    entries: list[tuple[str, Entry]] = []
     existing_keys: set[str] = set()
 
     for source in sources:
         key, entry = _source_to_entry(source, existing_keys)
         existing_keys.add(key)
+        entries.append((key, entry))
+
+    return entries
+
+
+def citation_keys_for_sources(sources: list[CitationSource]) -> list[str]:
+    """Return bibliography keys in the exact order they will be emitted."""
+    return [key for key, _entry in bibliography_entries_from_sources(sources)]
+
+
+def create_bibliography(sources: list[CitationSource]) -> BibliographyData:
+    """Convert all citation sources to a BibliographyData object."""
+    bib = BibliographyData()
+    for key, entry in bibliography_entries_from_sources(sources):
         bib.entries[key] = entry
 
     return bib

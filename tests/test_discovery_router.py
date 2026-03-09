@@ -1,16 +1,10 @@
-"""Tests for auto-substitute fallback, MCP Builder contract, and full module exports."""
+"""Tests for auto-substitute fallback and full module exports."""
 
 from __future__ import annotations
 
-import pytest
-
 from gpd.mcp.discovery.fallback import (
     AutoSubstituteResult,
-    MCPBuilderRequest,
-    MCPBuilderResult,
     find_substitute,
-    request_mcp_build,
-    should_request_build,
 )
 from gpd.mcp.discovery.models import MCPStatus, ToolEntry
 
@@ -152,78 +146,6 @@ class TestAutoSubstituteResult:
         assert result.substitute_tool is None
 
 
-# -- MCP Builder contract tests --
-
-
-class TestMCPBuilderModels:
-    def test_request_creation(self) -> None:
-        req = MCPBuilderRequest(
-            capability_gap="protein folding simulation",
-            research_context="Studying protein misfolding in Alzheimer's",
-        )
-        assert req.capability_gap == "protein folding simulation"
-        assert req.priority == "normal"
-
-    def test_request_urgent_priority(self) -> None:
-        req = MCPBuilderRequest(
-            capability_gap="missing solver",
-            research_context="blocked",
-            priority="urgent",
-        )
-        assert req.priority == "urgent"
-
-    def test_result_success(self) -> None:
-        result = MCPBuilderResult(
-            success=True,
-            mcp_name="protein_folding",
-            deploy_url="https://modal.com/protein_folding",
-        )
-        assert result.success is True
-        assert result.mcp_name == "protein_folding"
-
-    def test_result_failure(self) -> None:
-        result = MCPBuilderResult(
-            success=False,
-            error_message="Build failed: missing dependencies",
-        )
-        assert result.success is False
-        assert result.mcp_name is None
-
-
-class TestRequestMCPBuild:
-    async def test_raises_without_catalog(self) -> None:
-        """Phase 6: request_mcp_build raises ValueError without catalog."""
-        req = MCPBuilderRequest(
-            capability_gap="test",
-            research_context="test",
-        )
-        with pytest.raises(ValueError, match="ToolCatalog required"):
-            await request_mcp_build(req)
-
-
-# -- should_request_build tests --
-
-
-class TestShouldRequestBuild:
-    def test_returns_true_when_no_substitute(self) -> None:
-        result = AutoSubstituteResult(
-            original_tool="missing_tool",
-            substitute_tool=None,
-            reason="No substitute",
-            confidence=0.0,
-        )
-        assert should_request_build("missing_tool", result) is True
-
-    def test_returns_false_when_substitute_exists(self) -> None:
-        result = AutoSubstituteResult(
-            original_tool="openfoam",
-            substitute_tool="su2",
-            reason="Found substitute",
-            confidence=0.7,
-        )
-        assert should_request_build("openfoam", result) is False
-
-
 # -- Full module export tests --
 
 
@@ -234,14 +156,12 @@ class TestFullModuleExports:
             display_selection,
             find_substitute,
             reevaluate_tools,
-            request_mcp_build,
             route_and_select,
             select_tools,
         )
 
         # Verify key types are actual classes/functions
         assert callable(find_substitute)
-        assert callable(request_mcp_build)
         assert callable(select_tools)
         assert callable(display_selection)
         assert callable(route_and_select)

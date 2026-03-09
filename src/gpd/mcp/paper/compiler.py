@@ -16,7 +16,7 @@ from pathlib import Path
 from gpd.mcp.paper.bibliography import BibliographyData, write_bib_file
 from gpd.mcp.paper.figures import prepare_figures
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import FigureRef, PaperConfig, PaperOutput
+from gpd.mcp.paper.models import PaperConfig, PaperOutput
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
@@ -184,7 +184,6 @@ async def build_paper(
     config: PaperConfig,
     output_dir: Path,
     bib_data: BibliographyData | None = None,
-    figures: list[FigureRef] | None = None,
 ) -> PaperOutput:
     """Orchestrate the full paper build pipeline.
 
@@ -195,13 +194,14 @@ async def build_paper(
     5. Compile to PDF
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    figures_dir = output_dir / "figures"
+    figures_dir: Path | None = None
     errors: list[str] = []
 
     # 1. Prepare figures
-    if figures:
+    if config.figures:
+        figures_dir = output_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
-        prepared = prepare_figures(figures, figures_dir, config.journal)
+        prepared = prepare_figures(config.figures, figures_dir, config.journal)
         config = config.model_copy(update={"figures": prepared})
 
     # 2. Write .bib file
@@ -224,7 +224,7 @@ async def build_paper(
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,
-            figures_dir=figures_dir if figures else None,
+            figures_dir=figures_dir,
             pdf_path=None,
             success=False,
             errors=errors,
@@ -239,7 +239,7 @@ async def build_paper(
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
-        figures_dir=figures_dir if figures else None,
+        figures_dir=figures_dir,
         pdf_path=result.pdf_path,
         success=result.success,
         errors=errors,

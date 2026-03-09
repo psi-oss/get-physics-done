@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from pathlib import Path
 
 from gpd.mcp.session.models import SessionState
 
 logger = logging.getLogger(__name__)
+
+_FTS_OPERATOR_TOKENS = {"AND", "OR", "NOT", "NEAR"}
+_QUERY_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 class SearchIndex:
@@ -149,36 +153,36 @@ class SearchIndex:
             msg = "SearchIndex is closed"
             raise RuntimeError(msg)
 
+        raw_query = query.strip()
+        if not raw_query:
+            return []
+
+        rows: list[sqlite3.Row]
         if self._fts5_available:
-            rows = self._conn.execute(
-                """SELECT
-                       s.session_id,
-                       m.project_name,
-                       m.session_name,
-                       snippet(session_search, 3, '<b>', '</b>', '...', 32) AS context_snippet,
-                       bm25(session_search) AS rank
-                   FROM session_search s
-                   JOIN session_meta m ON s.session_id = m.session_id
-                   WHERE session_search MATCH ?
-                   ORDER BY rank
-                   LIMIT ?""",
-                (query, limit),
-            ).fetchall()
+            match_query = self._build_match_query(raw_query)
+            if match_query:
+                try:
+                    rows = self._conn.execute(
+                        """SELECT
+                               s.session_id,
+                               m.project_name,
+                               m.session_name,
+                               snippet(session_search, 3, '<b>', '</b>', '...', 32) AS context_snippet,
+                               bm25(session_search) AS rank
+                           FROM session_search s
+                           JOIN session_meta m ON s.session_id = m.session_id
+                           WHERE session_search MATCH ?
+                           ORDER BY rank
+                           LIMIT ?""",
+                        (match_query, limit),
+                    ).fetchall()
+                except sqlite3.OperationalError:
+                    logger.debug("FTS5 search failed for query %r; falling back to LIKE", raw_query, exc_info=True)
+                    rows = self._search_like(raw_query, limit)
+            else:
+                rows = self._search_like(raw_query, limit)
         else:
-            like_pattern = f"%{query}%"
-            rows = self._conn.execute(
-                """SELECT
-                       session_id,
-                       project_name,
-                       session_name,
-                       '' AS context_snippet,
-                       0 AS rank
-                   FROM session_meta
-                   WHERE project_name LIKE ? OR session_name LIKE ?
-                   ORDER BY created_at DESC
-                   LIMIT ?""",
-                (like_pattern, like_pattern, limit),
-            ).fetchall()
+            rows = self._search_like(raw_query, limit)
 
         return [
             {
@@ -190,6 +194,75 @@ class SearchIndex:
             }
             for row in rows
         ]
+
+    def _search_like(self, query: str, limit: int) -> list[sqlite3.Row]:
+        """Fallback substring search that treats user input literally."""
+        if self._conn is None:
+            msg = "SearchIndex is closed"
+            raise RuntimeError(msg)
+
+        like_pattern = self._escape_like_pattern(query)
+        if self._fts5_available:
+            rows = self._conn.execute(
+                """SELECT
+                       s.session_id,
+                       m.project_name,
+                       m.session_name,
+                       '' AS context_snippet,
+                       0 AS rank
+                   FROM session_search s
+                   JOIN session_meta m ON s.session_id = m.session_id
+                   WHERE s.project_name LIKE ? ESCAPE '\\'
+                      OR s.session_name LIKE ? ESCAPE '\\'
+                      OR s.milestone_text LIKE ? ESCAPE '\\'
+                      OR s.research_text LIKE ? ESCAPE '\\'
+                      OR s.tool_text LIKE ? ESCAPE '\\'
+                      OR s.error_text LIKE ? ESCAPE '\\'
+                      OR s.tags LIKE ? ESCAPE '\\'
+                   ORDER BY m.created_at DESC
+                   LIMIT ?""",
+                (
+                    like_pattern,
+                    like_pattern,
+                    like_pattern,
+                    like_pattern,
+                    like_pattern,
+                    like_pattern,
+                    like_pattern,
+                    limit,
+                ),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT
+                       session_id,
+                       project_name,
+                       session_name,
+                       '' AS context_snippet,
+                       0 AS rank
+                   FROM session_meta
+                   WHERE project_name LIKE ? ESCAPE '\\' OR session_name LIKE ? ESCAPE '\\'
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (like_pattern, like_pattern, limit),
+            ).fetchall()
+        return list(rows)
+
+    def _build_match_query(self, query: str) -> str:
+        """Translate raw user text into a safe literal-token FTS query."""
+        tokens = _QUERY_TOKEN_RE.findall(query)
+        if len(tokens) > 1:
+            filtered_tokens = [token for token in tokens if token.upper() not in _FTS_OPERATOR_TOKENS]
+            if filtered_tokens:
+                tokens = filtered_tokens
+
+        escaped_tokens = [f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens if token]
+        return " AND ".join(escaped_tokens)
+
+    def _escape_like_pattern(self, query: str) -> str:
+        """Escape SQLite LIKE wildcards so raw queries stay literal."""
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return f"%{escaped}%"
 
     def search_structured(
         self,

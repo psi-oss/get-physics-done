@@ -1,20 +1,11 @@
-"""MCP tool discovery layer for GPD.
-
-Public API for discovering available MCP tools from configured sources
-(Modal deployments, local servers, external endpoints, custom configs),
-LLM-driven tool selection, physics category routing, auto-substitute
-fallback, and MCP Builder subagent contract.
-"""
+"""MCP tool discovery layer for GPD."""
 
 from __future__ import annotations
 
 from gpd.mcp.discovery.catalog import ToolCatalog
 from gpd.mcp.discovery.fallback import (
     AutoSubstituteResult,
-    MCPBuilderRequest,
-    MCPBuilderResult,
     find_substitute,
-    request_mcp_build,
 )
 from gpd.mcp.discovery.models import (
     PHYSICS_CATEGORIES,
@@ -40,8 +31,6 @@ from gpd.mcp.discovery.sources import get_default_config, load_sources_config
 
 __all__ = [
     "AutoSubstituteResult",
-    "MCPBuilderRequest",
-    "MCPBuilderResult",
     "MCPSourcesConfig",
     "MCPStatus",
     "PHYSICS_CATEGORIES",
@@ -58,7 +47,6 @@ __all__ = [
     "get_default_config",
     "load_sources_config",
     "reevaluate_tools",
-    "request_mcp_build",
     "route_and_select",
     "select_tools",
 ]

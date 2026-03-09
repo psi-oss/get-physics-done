@@ -1,9 +1,9 @@
-"""ToolCatalog -- lazy per-category MCP tool discovery with Modal reconciliation.
+"""ToolCatalog -- lazy per-category MCP tool discovery with optional hosted checks.
 
-Loads tools from multiple configured sources (Modal registry, external services,
-local MCP servers, custom endpoints). Discovery is lazy: per-category tool
-reconciliation against Modal only happens when a specific physics category
-is requested.
+Loads tools from multiple configured sources (hosted registry, external
+services, local MCP servers, custom endpoints). Discovery is lazy:
+per-category reconciliation for hosted tools only happens when a specific
+physics category is requested.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from gpd.mcp.discovery.models import (
     categorize_tool,
 )
 from gpd.mcp.discovery.reconciler import reconcile_modal
+from gpd.mcp.discovery.sources import load_external_services_file
 from gpd.mcp.research.cost_estimator import MODAL_RATES_USD_PER_SECOND
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class ToolCatalog:
     """Lazy-loaded, category-cached MCP tool catalog.
 
     Loads the full catalog from all configured sources on first access.
-    Per-category reconciliation against Modal only happens when
+    Per-category reconciliation for hosted tools only happens when
     get_tools_for_category() is called for a specific category.
     """
 
@@ -59,7 +60,7 @@ class ToolCatalog:
         """Build the complete catalog from all configured sources.
 
         Loads from:
-        1. Modal source: gpd-mcp-shared registry + SKILLS_SUMMARY
+        1. Optional hosted registry metadata
         2. External source: external_services.yaml
         3. Local source: known local MCP servers
         4. Custom source: inline endpoint definitions
@@ -84,7 +85,7 @@ class ToolCatalog:
         return catalog
 
     def _load_modal_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
-        """Load tools from gpd-mcp-shared registry with SKILLS_SUMMARY metadata."""
+        """Load tools from optional hosted registry metadata."""
         entries: dict[str, ToolEntry] = {}
 
         from gpd.utils.mcp_registry import get_available_mcps, get_skills_summary
@@ -137,7 +138,7 @@ class ToolCatalog:
                     estimated_seconds=est_seconds,
                     cost_per_call_usd=cost_per_call,
                 ),
-                modal_app_name=source_config.app_name,
+                deployment_name=source_config.app_name,
             )
 
         return entries
@@ -150,22 +151,35 @@ class ToolCatalog:
         if not services_file:
             return entries
 
-        try:
-            from infra.mcp.registry.loader import load_external_services
-
-            services = load_external_services(services_file)
-        except (ImportError, OSError):
+        services = load_external_services_file(services_file)
+        if not services:
             return entries
 
         for svc_id, svc in services.items():
-            tools = [{"name": t.get("name", ""), "desc": t.get("description", "")} for t in svc.get("tools", [])]
+            raw_tools = svc.get("tools", [])
+            tools = (
+                [{"name": str(t.get("name", "")), "desc": str(t.get("description", ""))} for t in raw_tools if isinstance(t, dict)]
+                if isinstance(raw_tools, list)
+                else []
+            )
+            raw_domains = svc.get("domains", [])
+            domains = [str(domain) for domain in raw_domains] if isinstance(raw_domains, list) else []
+            raw_categories = svc.get("categories", [])
+            categories = (
+                [str(category) for category in raw_categories]
+                if isinstance(raw_categories, list) and raw_categories
+                else categorize_tool(svc_id, domains)
+            )
+            overview = str(svc.get("overview", ""))[:OVERVIEW_PREVIEW_MAX_CHARS]
             entries[svc_id] = ToolEntry(
                 name=svc_id,
                 description=svc.get("description", f"{svc_id} external service"),
                 source="external",
                 status=MCPStatus.available,
-                categories=["uncategorized"],
+                categories=categories,
+                domains=domains,
                 tools=tools,
+                overview=overview,
             )
 
         return entries
@@ -219,7 +233,7 @@ class ToolCatalog:
         On first access per category:
         1. Loads the full catalog if not loaded
         2. Filters tools by category
-        3. Reconciles Modal deployment status for matching tools
+        3. Reconciles hosted deployment status for matching tools
         4. Caches the result
 
         Subsequent calls return cached results without re-reconciling.
@@ -233,14 +247,14 @@ class ToolCatalog:
         matching = [t for t in self._full_catalog.values() if category in t.categories]
 
         if category not in self._reconciled_categories:
-            # Find the modal app name from sources config
-            app_name = "gpd-mcp-servers"
+            app_name = ""
             for src in self._sources.sources.values():
-                if src.type == "modal":
+                if src.type == "modal" and src.app_name:
                     app_name = src.app_name
                     break
 
-            reconcile_modal(matching, app_name=app_name)
+            if app_name and any(tool.source == "modal" for tool in matching):
+                reconcile_modal(matching, app_name=app_name)
             self._reconciled_categories.add(category)
 
         self._category_cache[category] = matching
@@ -250,7 +264,7 @@ class ToolCatalog:
         """Return the full catalog without reconciliation.
 
         For browsing and counting, not execution. Does not trigger
-        Modal reconciliation.
+        hosted reconciliation.
         """
         if self._full_catalog is None:
             self._full_catalog = self._load_full_catalog()
@@ -276,7 +290,7 @@ class ToolCatalog:
                     "cost_per_call": f"${entry.cost_profile.cost_per_call_usd:.4f}",
                     "last_checked": entry.last_checked or "never",
                     "staleness": staleness_label,
-                    "modal_app": entry.modal_app_name,
+                    "deployment": entry.deployment_name,
                     "source": entry.source,
                 }
             )
@@ -292,13 +306,13 @@ class ToolCatalog:
             try:
                 if self._full_catalog is None:
                     return
-                app_name = "gpd-mcp-servers"
+                app_name = ""
                 for src in self._sources.sources.values():
-                    if src.type == "modal":
+                    if src.type == "modal" and src.app_name:
                         app_name = src.app_name
                         break
                 modal_tools = [t for t in self._full_catalog.values() if t.source == "modal"]
-                if modal_tools:
+                if modal_tools and app_name:
                     reconcile_modal(modal_tools, app_name=app_name)
                 logger.info("Background refresh complete: %d tools checked", len(modal_tools))
             except Exception as exc:

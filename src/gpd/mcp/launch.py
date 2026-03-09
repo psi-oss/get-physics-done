@@ -398,21 +398,18 @@ you MUST follow this structured pipeline. Do NOT just chat about the topic — r
 
 
 def _build_auto_startup() -> str:
-    """Return the auto-startup MCP validation section."""
-    return """## AUTO-STARTUP: VALIDATE MODAL MCP DEPLOYMENTS
+    """Return the startup MCP diagnostic section."""
+    return """## AUTO-STARTUP: CHECK MODAL MCP HEALTH
 IMMEDIATELY when this session starts, BEFORE the user types anything, run this in the background:
 `gpd pipeline fix-mcps`
-This checks whether physics MCP services are deployed and reachable on Modal.
+This is a diagnostic sample check for Modal-backed physics MCPs. By default it tests
+three representative services, not the full configured MCP registry, and it does not
+redeploy or repair anything.
 
 If the output shows broken MCPs (broken_count > 0):
 1. Read the "action" field — it describes which MCPs are down and why.
-2. Use the MCP Builder to redeploy the broken services. The MCP Builder handles:
-   - Validating MCP server code (syntax, imports, tool definitions)
-   - Redeploying to Modal (`modal deploy`)
-   - Adding/revising tool definitions
-   - Testing the redeployed service
-3. Briefly tell the user: "Redeploying N MCP servers in the background via MCP Builder."
-4. Do NOT block the research pipeline — run fixes in parallel.
+2. Briefly warn the user that the sampled Modal MCP services are unavailable.
+3. Continue with the remaining available tools. Do NOT attempt autonomous redeployment.
 
 If all MCPs are found (broken_count == 0), say nothing.
 If Modal credentials are missing, warn the user once."""
@@ -423,10 +420,11 @@ def _build_stage_1_discover() -> str:
     return """### Stage 1: DISCOVER TOOLS
 Run: `gpd pipeline discover "THE RESEARCH QUESTION"`
 This selects the best MCP simulation/analysis tools for the problem.
-The output includes each tool's name, description, capabilities, domains, and operations.
+The output includes each selected tool's name, reason, priority, status, description,
+overview, domains, and operations.
 
 Show the user:
-- The selected tools with their capabilities and selection reasons
+- The selected tools with their status, operations, and selection reasons
 - Physics categories detected
 - Confidence score
 
@@ -719,9 +717,11 @@ If it fails, show the error and attempt to fix."""
 def _build_work_dir_rules() -> str:
     """Return the WORK DIRECTORY section."""
     return """## WORK DIRECTORY
-Use `~/.gpd/sessions/SESSION_ID/work/` as WORK_DIR.
-Create it at the start: `mkdir -p ~/.gpd/sessions/$(date +%Y%m%d-%H%M%S)/work`
-All pipeline artifacts (plan.json, results/, paper/) go here."""
+The pipeline accepts any writable WORK_DIR. Prefer a project-local directory such as
+`./.gpd-mcp-work/$(date +%Y%m%d-%H%M%S)`.
+Create it before saving discovery output: `mkdir -p ./.gpd-mcp-work/$(date +%Y%m%d-%H%M%S)`
+All pipeline artifacts (tools.json, plan.json, results/, paper/) go there, and you must
+reuse the same WORK_DIR for every pipeline stage in the session."""
 
 
 def _build_rules() -> str:

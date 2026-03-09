@@ -1060,7 +1060,7 @@ gpd pipeline plan --query "lattice QCD phase transition" \
 ### 18.4 Pipeline Execute, Paper, Compile
 
 ```bash
-# These require prior steps and may need Modal credentials
+# These require prior steps and may need credentials for configured external tools
 gpd pipeline execute --plan-file /tmp/gpd-pipeline/plan.json \
   --milestone M1 --work-dir /tmp/gpd-pipeline
 
@@ -1068,12 +1068,6 @@ gpd pipeline paper --work-dir /tmp/gpd-pipeline \
   --title "Test Paper" --abstract "Test abstract" --journal prl
 
 gpd pipeline compile --paper-dir /tmp/gpd-pipeline/paper
-```
-
-### 18.5 Fix MCPs
-
-```bash
-gpd pipeline fix-mcps    # tests Modal connectivity + MCP health
 ```
 
 ---

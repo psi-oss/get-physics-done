@@ -19,6 +19,7 @@ from gpd.mcp.discovery.selector import (
     ToolSelectionAgent,
     _build_selection_prompt,
     _build_tool_catalog_prompt,
+    normalize_selection,
 )
 
 # -- Test fixtures --
@@ -137,6 +138,11 @@ class TestBuildSelectionPrompt:
         assert "## Physics Problem" in prompt
         assert "## Available MCP Tools" in prompt
 
+    def test_includes_detected_categories_when_provided(self) -> None:
+        prompt = _build_selection_prompt("simulate airfoil", "tool_catalog_here", ["cfd", "multiphysics"])
+        assert "## Detected Physics Categories" in prompt
+        assert "cfd, multiphysics" in prompt
+
 
 # -- ToolSelectionAgent tests --
 
@@ -162,12 +168,30 @@ class TestToolSelectionAgent:
             agent = ToolSelectionAgent()
 
         with patch.object(agent._agent, "run", new_callable=AsyncMock, return_value=mock_result):
-            result = await agent.select("test problem", [_make_tool("t", ["cfd"])])
+            result = await agent.select("test problem", [_make_tool(f"t{i}", ["cfd"]) for i in range(20)])
 
         assert len(result.tools) <= MAX_TOOLS
         # Should be sorted by priority (1s first)
         priorities = [t.priority for t in result.tools]
         assert priorities == sorted(priorities)
+
+
+class TestNormalizeSelection:
+    def test_drops_unknown_tools_and_preserves_detected_categories(self) -> None:
+        selection = ToolSelection(
+            tools=[
+                SelectedTool(mcp="OpenFOAM", reason="Correct tool, wrong case", priority=1),
+                SelectedTool(mcp="invented_tool", reason="Hallucinated", priority=2),
+            ],
+            reasoning="Test reasoning",
+            physics_categories=["quantum"],
+            confidence=0.8,
+        )
+
+        result = normalize_selection(selection, [_make_tool("openfoam", ["cfd"])], detected_categories=["cfd"])
+
+        assert [tool.mcp for tool in result.tools] == ["openfoam"]
+        assert result.physics_categories == ["cfd"]
 
 
 # -- PhysicsRouter tests --
@@ -210,6 +234,27 @@ class TestPhysicsRouterRouteAndSelect:
 
         # Should have called selector.select
         mock_selector.select.assert_called_once()
+
+    async def test_filters_selector_output_to_actual_candidates(self) -> None:
+        catalog = _make_mock_catalog()
+        mock_selector = MagicMock()
+        mock_selector.select = AsyncMock(
+            return_value=ToolSelection(
+                tools=[
+                    SelectedTool(mcp="OpenFOAM", reason="case mismatch", priority=1),
+                    SelectedTool(mcp="fake_tool", reason="hallucinated", priority=2),
+                ],
+                reasoning="Test reasoning",
+                physics_categories=["quantum"],
+                confidence=0.9,
+            )
+        )
+
+        router = PhysicsRouter(catalog, selector=mock_selector)
+        result = await router.route_and_select("fluid flow around an airfoil with turbulence")
+
+        assert [tool.mcp for tool in result.tools] == ["openfoam"]
+        assert result.physics_categories == ["cfd"]
 
     async def test_returns_empty_selection_when_no_tools(self) -> None:
         """route_and_select returns empty selection when catalog has no tools."""

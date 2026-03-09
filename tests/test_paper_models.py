@@ -29,6 +29,7 @@ class TestModels:
         assert config.figures == []
         assert config.appendix_sections == []
         assert config.bib_file == "references"
+        assert config.attribution_footer == "Generated with Get Physics Done (PSI)"
 
     def test_paper_config_full(self):
         config = PaperConfig(
@@ -142,6 +143,7 @@ class TestTemplates:
         assert r"\begin{abstract}" in tex
         assert r"\section{Introduction}" in tex
         assert r"\bibliography{references}" in tex
+        assert "Generated with Get Physics Done (PSI)" in tex
 
     def test_render_apj_paper(self):
         from gpd.mcp.paper.template_registry import render_paper

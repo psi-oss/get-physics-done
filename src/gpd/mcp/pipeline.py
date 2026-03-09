@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 import typer
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 app = typer.Typer(name="pipeline", help="GPD research pipeline stages")
 
@@ -30,9 +30,58 @@ class DiscoveredTool(BaseModel):
     priority: int
     description: str = ""
     overview: str = ""
-    domains: list[str] = []
+    categories: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
     status: str = "unknown"
-    operations: list[str] = []
+    operations: list[str] = Field(default_factory=list)
+    cost_profile: dict[str, object] = Field(default_factory=dict)
+    gpu_type: str = "CPU"
+    estimated_seconds: float = 30.0
+    cost_per_call_usd: float = 0.0
+
+
+def _as_float(value: object, default: float) -> float:
+    """Best-effort float coercion for pipeline JSON inputs."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Best-effort list[str] coercion for pipeline JSON inputs."""
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _build_tool_metadata_registry(available_tools: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+    """Build canonical cost metadata for planner consumption from discovered-tool JSON."""
+    registry: dict[str, dict[str, object]] = {}
+    for tool in available_tools:
+        tool_name = str(tool.get("name", "")).strip()
+        if not tool_name:
+            continue
+
+        raw_cost_profile = tool.get("cost_profile", {})
+        cost_profile = raw_cost_profile if isinstance(raw_cost_profile, dict) else {}
+
+        registry[tool_name] = {
+            "gpu_type": str(tool.get("gpu_type", cost_profile.get("gpu_type", "CPU"))),
+            "estimated_seconds": _as_float(
+                tool.get(
+                    "estimated_seconds",
+                    tool.get("est_seconds", cost_profile.get("estimated_seconds", cost_profile.get("est_seconds", 30.0))),
+                ),
+                30.0,
+            ),
+            "domains": _as_str_list(tool.get("domains", [])),
+            "cost_per_call_usd": _as_float(
+                tool.get("cost_per_call_usd", cost_profile.get("cost_per_call_usd", 0.0)),
+                0.0,
+            ),
+        }
+    return registry
 
 
 def _json_out(data: dict) -> None:
@@ -77,17 +126,23 @@ def discover(
         enriched_tools = []
         for t in selection.tools:
             entry = all_tools.get(t.mcp)
+            cost_profile = entry.cost_profile.model_dump() if entry else {}
             tool = DiscoveredTool(
                 name=t.mcp,
                 reason=t.reason,
                 priority=t.priority,
                 description=entry.description if entry else "",
                 overview=entry.overview if entry else "",
+                categories=entry.categories if entry else [],
                 domains=entry.domains if entry else [],
                 status=entry.status.value if entry else "unknown",
                 operations=[
                     f"{op.get('name', '')}: {op.get('desc', '')}" for op in (entry.tools[:10] if entry else [])
                 ],
+                cost_profile=cost_profile,
+                gpu_type=str(cost_profile.get("gpu_type", "CPU")),
+                estimated_seconds=_as_float(cost_profile.get("estimated_seconds", 30.0), 30.0),
+                cost_per_call_usd=_as_float(cost_profile.get("cost_per_call_usd", 0.0), 0.0),
             )
             enriched_tools.append(tool.model_dump())
 
@@ -130,19 +185,7 @@ def plan(
         from gpd.mcp.research.cost_estimator import format_three_level_cost_display
         from gpd.mcp.research.planner import ResearchPlanner
 
-        # Build tool_metadata_registry from CostProfile (populated during discovery, Plan 02-01)
-        tool_metadata_registry: dict[str, dict[str, object]] = {}
-        for tool in available_tools:
-            tool_name = tool.get("name", "")
-            if not tool_name:
-                continue
-            # Read cost profile fields if present (populated by catalog enrichment)
-            cp = tool.get("cost_profile", {}) if isinstance(tool.get("cost_profile"), dict) else {}
-            tool_metadata_registry[tool_name] = {
-                "gpu_type": tool.get("gpu_type", cp.get("gpu_type", "CPU")),
-                "estimated_seconds": tool.get("est_seconds", cp.get("estimated_seconds", 30.0)),
-                "domains": tool.get("domains", []),
-            }
+        tool_metadata_registry = _build_tool_metadata_registry(available_tools)
 
         planner = ResearchPlanner()
         plan_result = asyncio.run(
@@ -345,85 +388,3 @@ def compile_cmd(
         _json_err(f"Compilation failed: {exc}")
 
 
-@app.command("fix-mcps")
-def fix_mcps(
-    mcps: list[str] = typer.Argument(None, help="Specific MCP names to check (default: sample of 3)"),
-) -> None:
-    """Diagnose Modal MCP deployment health.
-
-    Checks Modal connectivity and tests whether physics MCP services are
-    deployed and reachable. Outputs JSON diagnostics so Claude can delegate
-    fixes to the MCP Builder.
-
-    This does NOT fix anything locally — all fixes go through the MCP Builder
-    which handles validation, redeployment, and Modal service management.
-    """
-    import os
-
-    try:
-        import modal
-    except ImportError:
-        _json_err("modal package not installed. Run: uv pip install modal")
-        return
-
-    env = os.environ.get("MODAL_ENVIRONMENT", "experiments")
-
-    # Check Modal credentials
-    try:
-        _ = modal.config._profile  # noqa: SLF001 — lightweight credential check
-    except Exception:
-        _json_out(
-            {
-                "modal_connected": False,
-                "modal_env": env,
-                "error": "Modal credentials not configured. Run: modal token set",
-                "action": "Configure Modal credentials, then use MCP Builder to validate deployments.",
-                "test_results": {},
-            }
-        )
-        return
-
-    # Determine which MCPs to test
-    if not mcps:
-        mcps = ["qutip", "sandpile", "lammps"]
-
-    test_results: dict[str, dict] = {}
-    for mcp_name in mcps:
-        # Modal naming convention: gpd-mcp-{name}, {Name}Service
-        app_name = f"gpd-mcp-{mcp_name.replace('_', '-')}"
-        # Build class name: "qe_epw" → "QeEpwService"
-        class_name = "".join(part.capitalize() for part in mcp_name.split("_")) + "Service"
-        try:
-            cls = modal.Cls.from_name(app_name, class_name, environment_name=env)
-            cls.hydrate()  # Forces server-side validation of deployment
-            test_results[mcp_name] = {"status": "found", "app": app_name, "class": class_name}
-        except Exception as exc:
-            error_type = type(exc).__name__
-            test_results[mcp_name] = {
-                "status": "not_found",
-                "app": app_name,
-                "class": class_name,
-                "error": f"{error_type}: {exc}",
-            }
-
-    found = [name for name, r in test_results.items() if r["status"] == "found"]
-    broken = [name for name, r in test_results.items() if r["status"] != "found"]
-
-    action = None
-    if broken:
-        broken_details = "; ".join(f"{name}: {test_results[name]['error']}" for name in broken)
-        action = f"Use MCP Builder to redeploy these failing MCPs: {', '.join(broken)}. Details: {broken_details}"
-
-    _json_out(
-        {
-            "modal_connected": len(found) > 0 or len(broken) == 0,
-            "modal_env": env,
-            "tested_count": len(mcps),
-            "found_count": len(found),
-            "broken_count": len(broken),
-            "found": found,
-            "broken": broken,
-            "test_results": test_results,
-            "action": action,
-        }
-    )

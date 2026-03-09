@@ -98,6 +98,12 @@ class TestDisplaySearchResults:
         output = console.export_text()
         assert "3 matches" in output
 
+    def test_query_with_rich_markup_is_rendered_literally(self) -> None:
+        console = Console(record=True, width=80)
+        display_search_results(console, [], "[quantum]")
+        output = console.export_text()
+        assert "[quantum]" in output
+
 
 class TestDisplayHistory:
     """Tests for history display with project grouping."""
@@ -161,6 +167,15 @@ class TestDisplayHistory:
         second_idx = next(i for i, line in enumerate(lines) if "second" in line)
         first_idx = next(i for i, line in enumerate(lines) if "first" in line)
         assert second_idx < first_idx
+
+    def test_project_names_with_markup_are_rendered_literally(self) -> None:
+        console = Console(record=True, width=80)
+        sessions = [_make_session(project_name="[project-alpha]", session_name="run-1")]
+
+        display_history(console, sessions, group_by_project=True)
+
+        output = console.export_text()
+        assert "[project-alpha]" in output
 
 
 class TestGetCachedMcpCount:

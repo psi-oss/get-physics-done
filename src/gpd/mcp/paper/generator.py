@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from gpd.core.model_defaults import GPD_DEFAULT_MODEL, resolve_model_and_settings
-from gpd.mcp.paper.bibliography import CitationSource
+from gpd.mcp.paper.bibliography import CitationSource, citation_keys_for_sources
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 from gpd.utils.latex import clean_latex_fences, sanitize_latex
 
@@ -198,10 +198,7 @@ async def generate_paper(
     base_model, model_settings = resolve_model_and_settings(model)
 
     # Build citation key list for context
-    cite_keys = [
-        f"{(c.authors[0].split()[-1] if c.authors[0].strip() else 'unknown') if c.authors else 'unknown'}{c.year}"
-        for c in citations
-    ]
+    cite_keys = citation_keys_for_sources(citations)
     fig_labels = [f.label for f in figures]
 
     # 1. Plan sections

@@ -22,7 +22,7 @@ class MCPStatus(StrEnum):
     """Deployment status of an MCP tool."""
 
     available = "available"
-    """Confirmed live on Modal or local."""
+    """Confirmed live on a hosted or local source."""
 
     stale = "stale"
     """In registry but not confirmed after a live check."""
@@ -80,8 +80,8 @@ class ToolEntry(BaseModel):
     staleness_seconds: float = 0.0
     """Seconds since last check."""
 
-    modal_app_name: str = ""
-    """Modal app name for display."""
+    deployment_name: str = ""
+    """Hosted deployment name for display."""
 
 
 class PhysicsCategory(BaseModel):
@@ -219,17 +219,17 @@ class SourceConfig(BaseModel):
     type: str
     """Source type: 'modal', 'local', 'external', 'custom'."""
 
-    app_name: str = "gpd-mcp-servers"
-    """Modal app name (for modal type)."""
+    app_name: str = ""
+    """Hosted deployment name (for modal type)."""
 
-    env: str = "dev"
-    """Modal environment."""
+    env: str = ""
+    """Hosted environment name, when applicable."""
 
-    registry: str = "gpd-mcp-shared"
-    """Registry to use for catalog."""
+    registry: str = ""
+    """Registry identifier to use for catalog metadata."""
 
     reconcile: bool = True
-    """Whether to check Modal deployment status."""
+    """Whether to check hosted deployment status when supported."""
 
     config_dir: str = ""
     """For local type: directory with MCP configs."""

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import re
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
 from gpd.mcp.session.models import SessionState
+
+_QUERY_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+_FTS_OPERATOR_TOKENS = {"AND", "OR", "NOT", "NEAR"}
 
 
 def format_elapsed(seconds: float) -> str:
@@ -39,28 +44,29 @@ def display_search_results(
     context snippet with the query term highlighted in bold yellow.
     """
     if not results:
-        console.print(f"No sessions found for '{query}'", style="dim")
+        console.print(Text(f"No sessions found for '{query}'", style="dim"))
         return
 
-    console.print(f"[bold]Search results for '{query}' ({len(results)} matches)[/]")
+    console.print(Text(f"Search results for '{query}' ({len(results)} matches)", style="bold"))
     console.print()
 
+    highlight_terms = _query_terms(query)
     for result in results:
         session_name = result.get("session_name", "")
         project_name = result.get("project_name", "")
         snippet = str(result.get("context_snippet", ""))
 
-        # Highlight query term in snippet using rich Text
         highlighted = Text(snippet)
-        start = 0
-        query_lower = query.lower()
         snippet_lower = snippet.lower()
-        while True:
-            idx = snippet_lower.find(query_lower, start)
-            if idx == -1:
-                break
-            highlighted.stylize("bold yellow", idx, idx + len(query))
-            start = idx + len(query)
+        for term in highlight_terms:
+            start = 0
+            term_lower = term.lower()
+            while True:
+                idx = snippet_lower.find(term_lower, start)
+                if idx == -1:
+                    break
+                highlighted.stylize("bold yellow", idx, idx + len(term))
+                start = idx + len(term)
 
         body = Text()
         body.append(f"Project: {project_name}\n", style="cyan")
@@ -95,10 +101,7 @@ def display_history(
     if not group_by_project:
         sorted_sessions = sorted(sessions, key=lambda s: s.created_at, reverse=True)
         for session in sorted_sessions:
-            marker = _status_marker(session.status)
-            elapsed = format_elapsed(session.elapsed_seconds)
-            date_str = session.created_at.strftime("%b %d")
-            console.print(f"  {marker}  {session.session_name}  ({elapsed}, {date_str})  {session.status}")
+            console.print(_history_line(session))
         return
 
     # Group by project
@@ -107,14 +110,11 @@ def display_history(
         groups.setdefault(session.project_name, []).append(session)
 
     for project_name, group_sessions in groups.items():
-        console.print(f"[bold cyan]{project_name}[/]")
+        console.print(Text(project_name, style="bold cyan"))
         # Sort ascending by created_at within each group
         group_sessions.sort(key=lambda s: s.created_at)
         for session in group_sessions:
-            marker = _status_marker(session.status)
-            elapsed = format_elapsed(session.elapsed_seconds)
-            date_str = session.created_at.strftime("%b %d")
-            console.print(f"  {marker}  {session.session_name}  ({elapsed}, {date_str})  {session.status}")
+            console.print(_history_line(session))
         console.print()
 
 
@@ -127,3 +127,25 @@ def _status_marker(status: str) -> str:
         "interrupted": "x",
     }
     return markers.get(status, "?")
+
+
+def _history_line(session: SessionState) -> Text:
+    """Build one literal-safe history line."""
+    marker = _status_marker(session.status)
+    elapsed = format_elapsed(session.elapsed_seconds)
+    date_str = session.created_at.strftime("%b %d")
+
+    line = Text(f"  {marker}  ")
+    line.append(session.session_name)
+    line.append(f"  ({elapsed}, {date_str})  {session.status}")
+    return line
+
+
+def _query_terms(query: str) -> list[str]:
+    """Extract highlight terms from a raw user search query."""
+    terms = _QUERY_TOKEN_RE.findall(query)
+    if len(terms) > 1:
+        filtered_terms = [term for term in terms if term.upper() not in _FTS_OPERATOR_TOKENS]
+        if filtered_terms:
+            terms = filtered_terms
+    return terms or ([query] if query else [])

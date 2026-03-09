@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
 
@@ -99,6 +100,20 @@ def test_install_docs_use_only_public_npx_flow() -> None:
             assert marker not in content, f"{relative_path} should not mention {marker!r}"
 
 
+def test_standard_install_includes_viewer_surface_dependencies() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies: list[str] = project["dependencies"]
+
+    for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette", "httpx"):
+        assert any(item.startswith(dependency) for item in dependencies), f"Missing runtime dependency for {dependency}"
+
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    user_guide = (repo_root / "docs/USER-GUIDE.md").read_text(encoding="utf-8")
+    assert "gpd view" in readme
+    assert "gpd view" in user_guide
+
+
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     repo_root = _repo_root()
     expected = "npx github:physicalsuperintelligence/get-physics-done"
@@ -122,6 +137,39 @@ def test_manual_test_plan_covers_public_readme_install() -> None:
     assert "Phase 0: Public Release Smoke Test" in content
     assert "npx github:physicalsuperintelligence/get-physics-done" in content
     assert "follow only the public README instructions" in content
+
+
+def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
+    repo_root = _repo_root()
+    paths = (
+        "src/gpd/mcp/launch.py",
+        "src/gpd/mcp/pipeline.py",
+        "src/gpd/mcp/discovery/sources.py",
+        "MANUAL-TEST-PLAN.md",
+    )
+    disallowed_markers = (
+        "fix-mcps",
+        "MCP Builder",
+        "modal token set",
+        "MODAL_ENVIRONMENT",
+        "gpd-mcp-servers",
+        "gpd-modal",
+    )
+
+    for relative_path in paths:
+        content = (repo_root / relative_path).read_text(encoding="utf-8")
+        for marker in disallowed_markers:
+            assert marker not in content, f"{relative_path} should not mention {marker!r}"
+
+
+def test_architecture_runtime_formats_match_release_behavior() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "ARCHITECTURE.md").read_text(encoding="utf-8")
+
+    assert "`commands/gpd/*.toml`" in content
+    assert "`command/gpd-*.md`" in content
+    assert "| Google Gemini CLI | `GeminiAdapter`" in content
+    assert "| OpenCode          | `OpenCodeAdapter`" in content
 
 
 def test_initial_release_date_matches_launch_plan() -> None:

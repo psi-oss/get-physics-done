@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.text import Text
 
 import gpd
 from gpd.mcp.config import DB_PATH, SESSIONS_DIR, ensure_dirs
@@ -39,17 +41,43 @@ def _content_counts() -> tuple[int, int]:
     return len(list_commands()), len(list_agents())
 
 
-def _launch_or_exit(session_manager: SessionManager, cwd: Path) -> None:
-    """Launch the interactive session and propagate failures as CLI exits."""
-    with graceful_shutdown(session_manager):
-        try:
-            exit_code = launch_session(cwd=cwd)
-        except FileNotFoundError as exc:
-            console.print(f"[bold red]{exc}[/]")
-            raise typer.Exit(code=1) from None
+def _raw_requested(ctx: typer.Context | None) -> bool:
+    """Return whether the root CLI requested raw JSON output."""
+    if ctx is None:
+        return False
+    root = ctx.find_root()
+    return bool(root.params.get("raw", False))
 
-    if exit_code:
-        raise typer.Exit(code=exit_code)
+
+def _print_json(payload: object) -> None:
+    """Render a JSON payload to stdout."""
+    console.print_json(json.dumps(payload, default=str))
+
+
+def _print_error(message: str, *, raw_output: bool) -> None:
+    """Render a session CLI error consistently."""
+    if raw_output:
+        _print_json({"error": message})
+        return
+    console.print(Text(message, style="bold red"))
+
+
+def _launch_or_exit(session_manager: SessionManager, cwd: Path, *, raw_output: bool) -> None:
+    """Launch the interactive session and propagate failures as CLI exits."""
+    try:
+        with graceful_shutdown(session_manager):
+            exit_code = launch_session(cwd=cwd)
+    except OSError as exc:
+        session_manager.discard_active_session()
+        _print_error(str(exc), raw_output=raw_output)
+        raise typer.Exit(code=1) from None
+
+    if exit_code == 0:
+        session_manager.finalize("paused")
+        return
+
+    session_manager.finalize("interrupted")
+    raise typer.Exit(code=exit_code)
 
 
 def _resolve_working_directory(ctx: typer.Context) -> Path:
@@ -79,6 +107,8 @@ def main(
         return
 
     working_dir = _resolve_working_directory(ctx)
+    project_name = _default_project_name(working_dir)
+    raw_output = _raw_requested(ctx)
     ensure_dirs()
     search_index = SearchIndex(DB_PATH)
     session_manager = SessionManager(SESSIONS_DIR, search_index)
@@ -86,65 +116,80 @@ def main(
     try:
         if search:
             results = search_index.search(search)
-            display_search_results(console, results, search)
+            if raw_output:
+                _print_json(results)
+            else:
+                display_search_results(console, results, search)
             raise typer.Exit()
 
         if history:
             sessions = session_manager.list_sessions()
-            display_history(console, sessions)
+            if raw_output:
+                _print_json([session.model_dump(mode="json") for session in sessions])
+            else:
+                display_history(console, sessions)
             raise typer.Exit()
 
         command_count, agent_count = _content_counts()
 
         if resume or session_id:
             try:
-                loaded = session_manager.load(session_id) if session_id else session_manager.get_latest_session()
+                loaded = session_manager.load(session_id) if session_id else session_manager.get_latest_session(project_name)
             except FileNotFoundError:
-                console.print(f"[bold red]No session found with ID '{session_id}'.[/]")
+                _print_error(f"No session found with ID '{session_id}'.", raw_output=raw_output)
+                raise typer.Exit(code=1) from None
+            except ValueError as exc:
+                _print_error(str(exc), raw_output=raw_output)
                 raise typer.Exit(code=1) from None
             if loaded is None:
-                console.print("[bold red]No session found to resume.[/]")
+                _print_error(f"No session found to resume for project '{project_name}'.", raw_output=raw_output)
                 raise typer.Exit(code=1)
 
-            if not session_id:
-                session_manager._active_session = loaded
+            session_manager.activate(loaded)
 
             warnings = validate_resume(loaded)
-            for warning in warnings:
-                console.print(f"  [yellow]Warning:[/] {warning}")
+            if not raw_output:
+                for warning in warnings:
+                    console.print(Text(f"  Warning: {warning}", style="yellow"))
 
-            show_resume_banner(console, gpd.__version__, loaded.session_name)
             loaded.status = "active"
-            session_manager.save(loaded)
-            console.print(f"  Loaded {command_count} commands and {agent_count} agents", style="dim")
-            _launch_or_exit(session_manager, working_dir)
+            if not raw_output:
+                show_resume_banner(console, gpd.__version__, loaded.session_name)
+                console.print(f"  Loaded {command_count} commands and {agent_count} agents", style="dim")
+            _launch_or_exit(session_manager, working_dir, raw_output=raw_output)
             return
 
         mcp_count = get_cached_mcp_count()
         refresh_mcp_count_background()
 
-        latest = session_manager.get_latest_session()
+        latest = session_manager.get_latest_session(project_name)
         session_summary = build_session_card(latest) if latest else None
 
-        show_full_logo(console, gpd.__version__, mcp_count, session_summary)
-        console.print(f"  {command_count} built-in commands and {agent_count} agents ready", style="dim")
+        if not raw_output:
+            show_full_logo(console, gpd.__version__, mcp_count, session_summary)
+            console.print(f"  {command_count} built-in commands and {agent_count} agents ready", style="dim")
 
         session_manager.create(
-            project_name=_default_project_name(working_dir),
+            project_name=project_name,
             session_name=f"session-{datetime.now().strftime('%Y%m%d-%H%M')}",
+            persist=False,
         )
-        _launch_or_exit(session_manager, working_dir)
+        _launch_or_exit(session_manager, working_dir, raw_output=raw_output)
     finally:
         search_index.close()
 
 
 @session_app.command("reindex")
-def reindex() -> None:
+def reindex(ctx: typer.Context) -> None:
     """Rebuild the FTS5 search index from session JSON files."""
     ensure_dirs()
+    raw_output = _raw_requested(ctx)
     search_index = SearchIndex(DB_PATH)
     try:
         count = search_index.rebuild_index(SESSIONS_DIR)
-        console.print(f"Rebuilt search index: {count} sessions indexed")
+        if raw_output:
+            _print_json({"count": count})
+        else:
+            console.print(f"Rebuilt search index: {count} sessions indexed")
     finally:
         search_index.close()

@@ -7,6 +7,7 @@ plans based on intermediate research findings.
 
 from __future__ import annotations
 
+import datetime
 import logging
 from uuid import uuid4
 
@@ -270,14 +271,37 @@ def _build_rich_tool_context(tools: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
-def _find_invalid_tool_refs(plan: ResearchPlan, valid_names: set[str]) -> set[str]:
-    """Find tool names in milestones that aren't in the valid set."""
-    invalid: set[str] = set()
-    for milestone in plan.milestones:
-        for tool_name in milestone.tools:
-            if tool_name not in valid_names:
-                invalid.add(tool_name)
-    return invalid
+def _build_tool_name_context(valid_tool_names: set[str]) -> str:
+    """Build a compact tool-name context block for validation retries."""
+    if not valid_tool_names:
+        return "(no validated tool catalog available)"
+
+    return "\n".join(f"- {tool_name}" for tool_name in sorted(valid_tool_names))
+
+
+def _collect_plan_validation_errors(
+    plan: ResearchPlan,
+    valid_tool_names: set[str],
+) -> list[str]:
+    """Collect tool-reference and DAG validation errors for a plan candidate."""
+    errors = plan.validate_tool_references(valid_tool_names)
+    errors.extend(plan.validate_no_cycles())
+    return errors
+
+
+def _derive_evolution_tool_names(
+    plan: ResearchPlan,
+    tool_metadata_registry: dict[str, dict[str, object]],
+    available_tools: list[dict[str, object]] | None,
+) -> set[str]:
+    """Derive the tool names an evolved plan is allowed to reference."""
+    valid_tool_names = {t.get("name", "") for t in (available_tools or []) if t.get("name")}
+    valid_tool_names.update(tool_name for milestone in plan.milestones for tool_name in milestone.tools)
+
+    milestone_ids = {milestone.milestone_id for milestone in plan.milestones}
+    valid_tool_names.update(tool_name for tool_name in tool_metadata_registry if tool_name not in milestone_ids)
+
+    return {tool_name for tool_name in valid_tool_names if tool_name}
 
 
 def _find_down_tools(
@@ -318,6 +342,48 @@ class ResearchPlanner:
             system_prompt=EVOLUTION_SYSTEM_PROMPT,
         )
 
+    async def _run_agent_until_valid(
+        self,
+        agent: Agent[None, ResearchPlan],
+        prompt: str,
+        valid_tool_names: set[str],
+        validation_context: str,
+    ) -> ResearchPlan:
+        """Run an agent and retry with validation feedback until the plan is valid."""
+        current_prompt = prompt
+        last_errors: list[str] = []
+
+        for attempt in range(MAX_VALIDATION_RETRIES + 1):
+            result = await agent.run(current_prompt, model_settings=self._model_settings)
+            plan = result.output
+            errors = _collect_plan_validation_errors(plan, valid_tool_names)
+            if not errors:
+                return plan
+
+            last_errors = errors
+            logger.warning(
+                "Plan validation failed (attempt %d/%d): %s",
+                attempt + 1,
+                MAX_VALIDATION_RETRIES + 1,
+                errors,
+            )
+
+            if attempt == MAX_VALIDATION_RETRIES:
+                raise PlanValidationError(
+                    f"Plan validation failed after {MAX_VALIDATION_RETRIES + 1} attempts: {errors}"
+                )
+
+            error_block = "\n".join(f"- {error}" for error in errors)
+            current_prompt = (
+                f"{prompt}\n\n"
+                f"VALIDATION ERRORS FROM PREVIOUS ATTEMPT ({attempt + 1}/{MAX_VALIDATION_RETRIES + 1}):\n"
+                f"{error_block}\n\n"
+                f"Allowed tools and catalog context:\n{validation_context}\n\n"
+                "Return the complete corrected ResearchPlan. Use only allowed tools and keep the DAG acyclic."
+            )
+
+        raise AssertionError("Unreachable validation loop exit")
+
     async def generate_plan(
         self,
         query: str,
@@ -326,13 +392,13 @@ class ResearchPlanner:
     ) -> ResearchPlan:
         """Generate a research plan from a query using the LLM planner.
 
-        Calls the planner agent, validates the DAG, estimates costs, and
-        sets default approval gates. Retries once if cycles are detected.
+        Calls the planner agent, validates tool references and the DAG after
+        each LLM attempt, estimates costs, and sets default approval gates.
 
         Args:
             query: The research question to decompose.
             available_tools: List of tool metadata dicts with name/description.
-            tool_metadata_registry: Mapping of milestone_id to tool metadata for cost estimation.
+            tool_metadata_registry: Cost metadata keyed by tool name, milestone_id, or both.
 
         Returns:
             A fully costed and validated ResearchPlan.
@@ -341,47 +407,13 @@ class ResearchPlanner:
         valid_tool_names = {t.get("name", "") for t in available_tools if t.get("name")}
 
         prompt = f"Research question: {query}\n\nAvailable MCP tools (ONLY use these names):\n{tools_context}"
-
-        result = await self._plan_agent.run(prompt, model_settings=self._model_settings)
-        plan = result.output
-
-        # Validate tool references with retry budget (per MCP-02)
-        if valid_tool_names:
-            for attempt in range(MAX_VALIDATION_RETRIES + 1):
-                invalid_refs = _find_invalid_tool_refs(plan, valid_tool_names)
-                if not invalid_refs:
-                    break
-
-                if attempt < MAX_VALIDATION_RETRIES:
-                    error_msg = f"Tools not in catalog: {sorted(invalid_refs)}"
-                    logger.warning(
-                        "Plan references unknown tools (attempt %d/%d): %s",
-                        attempt + 1,
-                        MAX_VALIDATION_RETRIES + 1,
-                        error_msg,
-                    )
-                    retry_prompt = (
-                        f"Research question: {query}\n\n"
-                        f"Available MCP tools (ONLY use these names):\n{tools_context}\n\n"
-                        f"VALIDATION ERROR (attempt {attempt + 2}/{MAX_VALIDATION_RETRIES + 1}): {error_msg}\n"
-                        f"Full tool catalog with ALL valid tool names:\n{tools_context}\n"
-                        f"Regenerate the plan using ONLY tools from the catalog above."
-                    )
-                    result = await self._plan_agent.run(retry_prompt, model_settings=self._model_settings)
-                    plan = result.output
-                else:
-                    raise PlanValidationError(
-                        f"Plan references non-existent tools after "
-                        f"{MAX_VALIDATION_RETRIES + 1} attempts: {sorted(invalid_refs)}"
-                    )
-
-        # Validate DAG -- retry once with error feedback if cycles found
-        errors = plan.validate_no_cycles()
-        if errors:
-            logger.warning("Plan has DAG errors, retrying: %s", errors)
-            error_feedback = f"{prompt}\n\nPrevious plan had errors: {errors}\nPlease fix the dependency graph."
-            result = await self._plan_agent.run(error_feedback, model_settings=self._model_settings)
-            plan = result.output
+        validation_context = tools_context if valid_tool_names else _build_tool_name_context(valid_tool_names)
+        plan = await self._run_agent_until_valid(
+            self._plan_agent,
+            prompt,
+            valid_tool_names,
+            validation_context,
+        )
 
         # Advisory for milestones with >2 tool calls (per MCP-02 decision)
         for i, milestone in enumerate(plan.milestones):
@@ -393,15 +425,14 @@ class ResearchPlanner:
                     len(milestone.tools),
                 )
 
-        # Self-healing: detect down tools and flag for MCP Builder (per MCP-02 decision)
+        # Warn when the plan references tools that are currently unavailable.
         down_tools = _find_down_tools(plan, available_tools)
         if down_tools:
             logger.warning(
-                "Plan references %d down tool(s) that need repair: %s",
+                "Plan references %d unavailable tool(s): %s",
                 len(down_tools),
                 down_tools,
             )
-            plan.down_tools_needing_repair = down_tools
 
         # Set plan_id
         plan.plan_id = uuid4().hex[:12]
@@ -414,18 +445,8 @@ class ResearchPlanner:
         # Build approval_gates list
         plan.approval_gates = [m.milestone_id for m in plan.milestones if m.approval_gate != ApprovalGate.NONE]
 
-        # Re-key registry from tool names to milestone IDs for cost estimation.
-        # estimate_plan_cost looks up by milestone_id, but callers build registries
-        # keyed by tool name. Merge metadata from each milestone's tools.
-        milestone_registry: dict[str, dict[str, object]] = {}
-        for milestone in plan.milestones:
-            for tool_name in milestone.tools:
-                if tool_name in tool_metadata_registry:
-                    milestone_registry[milestone.milestone_id] = tool_metadata_registry[tool_name]
-                    break  # Use first matching tool's metadata
-
         # Estimate costs
-        plan.total_cost_estimate = estimate_plan_cost(plan, milestone_registry)
+        plan.total_cost_estimate = estimate_plan_cost(plan, tool_metadata_registry)
 
         return plan
 
@@ -435,6 +456,7 @@ class ResearchPlanner:
         completed_results: dict[str, MilestoneResult],
         latest_milestone_id: str,
         tool_metadata_registry: dict[str, dict[str, object]],
+        available_tools: list[dict[str, object]] | None = None,
     ) -> tuple[ResearchPlan, list[PlanEvolution]]:
         """Evolve a plan based on completed milestone results.
 
@@ -447,7 +469,8 @@ class ResearchPlanner:
             plan: Current research plan.
             completed_results: Mapping of milestone_id to MilestoneResult.
             latest_milestone_id: ID of the most recently completed milestone.
-            tool_metadata_registry: Tool metadata for cost estimation.
+            tool_metadata_registry: Cost metadata keyed by tool name, milestone_id, or both.
+            available_tools: Optional discovered tool catalog used to validate new tool refs.
 
         Returns:
             Tuple of (updated_plan, list_of_evolution_entries).
@@ -464,9 +487,18 @@ class ResearchPlanner:
             f"Latest completed: {latest_milestone_id}\n\n"
             "Should the remaining milestones be modified?"
         )
-
-        result = await self._evolution_agent.run(prompt, model_settings=self._model_settings)
-        new_plan = result.output
+        valid_tool_names = _derive_evolution_tool_names(plan, tool_metadata_registry, available_tools)
+        validation_context = (
+            _build_rich_tool_context(available_tools)
+            if available_tools
+            else _build_tool_name_context(valid_tool_names)
+        )
+        new_plan = await self._run_agent_until_valid(
+            self._evolution_agent,
+            prompt,
+            valid_tool_names,
+            validation_context,
+        )
 
         # Build original milestone lookup for comparison
         original_ids = {m.milestone_id for m in plan.milestones}
@@ -474,8 +506,6 @@ class ResearchPlanner:
         original_map = {m.milestone_id: m for m in plan.milestones}
 
         evolutions: list[PlanEvolution] = []
-        import datetime
-
         timestamp = datetime.datetime.now(tz=datetime.UTC).isoformat()
         new_version = plan.version + 1
 
@@ -551,22 +581,13 @@ class ResearchPlanner:
         new_plan.evolution_log = [*plan.evolution_log, *evolutions]
         new_plan.approval_gates = [m.milestone_id for m in new_plan.milestones if m.approval_gate != ApprovalGate.NONE]
 
-        # Re-key registry from tool names to milestone IDs (same as generate_plan)
-        evo_milestone_registry: dict[str, dict[str, object]] = {}
-        for milestone in new_plan.milestones:
-            for tool_name in milestone.tools:
-                if tool_name in tool_metadata_registry:
-                    evo_milestone_registry[milestone.milestone_id] = tool_metadata_registry[tool_name]
-                    break
-
         # Re-estimate costs on new/modified milestones
         changed_ids = added | set(modified)
         for milestone in new_plan.milestones:
             if milestone.milestone_id in changed_ids:
-                metadata = evo_milestone_registry.get(milestone.milestone_id, {})
-                milestone.cost_estimate = estimate_milestone_cost(milestone, metadata)
+                milestone.cost_estimate = estimate_milestone_cost(milestone, tool_metadata_registry)
 
-        new_plan.total_cost_estimate = estimate_plan_cost(new_plan, evo_milestone_registry)
+        new_plan.total_cost_estimate = estimate_plan_cost(new_plan, tool_metadata_registry)
 
         return new_plan, evolutions
 

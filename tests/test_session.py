@@ -153,6 +153,73 @@ class TestSessionManager:
         parsed = json.loads(path.read_text())
         assert parsed["session_id"] == session.session_id
 
+    def test_create_without_persist_defers_initial_write(self, session_manager: SessionManager, tmp_path: Path) -> None:
+        session = session_manager.create("deferred-project", "deferred-session", persist=False)
+
+        path = tmp_path / "sessions" / f"{session.session_id}.json"
+        assert not path.exists()
+        assert session_manager.active_session is not None
+
+    def test_finalize_marks_session_paused(self, session_manager: SessionManager, tmp_path: Path) -> None:
+        session = session_manager.create("proj", "finalize-test", persist=False)
+
+        session_manager.finalize("paused")
+
+        path = tmp_path / "sessions" / f"{session.session_id}.json"
+        saved = SessionState.model_validate_json(path.read_text(encoding="utf-8"))
+        assert saved.status == "paused"
+        assert session_manager.active_session is None
+
+    def test_load_corrupt_session_raises_value_error(self, session_manager: SessionManager, tmp_path: Path) -> None:
+        path = tmp_path / "sessions" / "broken.json"
+        path.write_text("{not-valid-json", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="corrupt"):
+            session_manager.load("broken")
+
+    def test_get_latest_session_scopes_to_project_and_skips_corrupt(self, session_manager: SessionManager, tmp_path: Path) -> None:
+        stale = SessionState.new(
+            session_id="stale001",
+            project_name="project-alpha",
+            session_name="older-valid",
+        )
+        other = SessionState.new(
+            session_id="other001",
+            project_name="project-beta",
+            session_name="newest-other-project",
+        )
+
+        stale_path = tmp_path / "sessions" / "stale001.json"
+        other_path = tmp_path / "sessions" / "other001.json"
+        broken_path = tmp_path / "sessions" / "broken001.json"
+        stale_path.write_text(stale.model_dump_json(indent=2), encoding="utf-8")
+        time.sleep(0.05)
+        other_path.write_text(other.model_dump_json(indent=2), encoding="utf-8")
+        time.sleep(0.05)
+        broken_path.write_text("{not-valid-json", encoding="utf-8")
+
+        latest = session_manager.get_latest_session("project-alpha")
+
+        assert latest is not None
+        assert latest.session_id == "stale001"
+
+    def test_list_sessions_skips_corrupt_files_before_limit(self, session_manager: SessionManager, tmp_path: Path) -> None:
+        valid = SessionState.new(
+            session_id="valid001",
+            project_name="physics",
+            session_name="valid-session",
+        )
+
+        broken_path = tmp_path / "sessions" / "broken001.json"
+        valid_path = tmp_path / "sessions" / "valid001.json"
+        valid_path.write_text(valid.model_dump_json(indent=2), encoding="utf-8")
+        time.sleep(0.05)
+        broken_path.write_text("{not-valid-json", encoding="utf-8")
+
+        sessions = session_manager.list_sessions(limit=1)
+
+        assert [session.session_id for session in sessions] == ["valid001"]
+
 
 class TestSearchIndex:
     """Tests for SQLite FTS5 search index."""
@@ -189,6 +256,31 @@ class TestSearchIndex:
 
         results = search_index.search("xyznonexistent")
         assert results == []
+
+    def test_search_treats_raw_query_as_literal_terms(self, search_index: SearchIndex) -> None:
+        session = SessionState.new(
+            session_id="search002",
+            project_name="quantum-gravity",
+            session_name="operator-test",
+        )
+        session.research_findings.append("discovered graviton emission pattern")
+        search_index.index_session(session)
+
+        results = search_index.search('graviton OR "pattern"')
+
+        assert len(results) == 1
+        assert results[0]["session_id"] == "search002"
+
+    def test_search_empty_for_symbol_only_query(self, search_index: SearchIndex) -> None:
+        session = SessionState.new(
+            session_id="search003",
+            project_name="symbols",
+            session_name="wildcards",
+        )
+        session.research_findings.append("100% stable _value output")
+        search_index.index_session(session)
+
+        assert search_index.search('"""') == []
 
     def test_search_structured_filters(self, search_index: SearchIndex) -> None:
         s1 = SessionState.new(

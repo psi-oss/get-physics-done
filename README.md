@@ -18,7 +18,7 @@ Install GPD with `npx`:
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+, installs the GPD Python package, and then runs the runtime installer.
+That command checks for Python 3.11+, installs the GPD Python package with the full unified CLI surface (`gpd session`, `gpd pipeline`, and `gpd view`), and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 

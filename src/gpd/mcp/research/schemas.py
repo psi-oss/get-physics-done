@@ -74,6 +74,28 @@ class RetryPolicy(BaseModel):
     """Error types worth retrying. Empty list means all errors are retryable."""
 
 
+class ToolCallCostEstimate(BaseModel):
+    """Estimated cost for a single tool call within a milestone."""
+
+    tool_name: str
+    """Tool name or aggregate label for the estimated call."""
+
+    gpu_type: str = ""
+    """GPU type identifier (e.g., 'A10G', 'T4', 'CPU')."""
+
+    estimated_seconds: float = 0.0
+    """Estimated compute time in seconds."""
+
+    rate_per_second: float = 0.0
+    """Effective USD rate per second."""
+
+    estimated_cost_usd: float = 0.0
+    """Point estimate of cost in USD."""
+
+    confidence: str = "LOW"
+    """Confidence level: LOW, MEDIUM, or HIGH."""
+
+
 class CostEstimate(BaseModel):
     """Modal compute cost estimate for a milestone or plan."""
 
@@ -91,6 +113,9 @@ class CostEstimate(BaseModel):
 
     confidence: str = "LOW"
     """Confidence level: LOW, MEDIUM, or HIGH."""
+
+    tool_call_estimates: list[ToolCallCostEstimate] = Field(default_factory=list)
+    """Per-tool-call estimates used to build this aggregate cost."""
 
     @property
     def estimated_cost_range(self) -> tuple[float, float]:
@@ -270,12 +295,18 @@ class ResearchPlan(BaseModel):
     evolution_log: list[PlanEvolution] = Field(default_factory=list)
     """History of plan changes during execution."""
 
-    down_tools_needing_repair: list[str] = Field(default_factory=list)
-    """Tools referenced in the plan that exist in catalog but are currently unavailable.
+    def validate_tool_references(self, valid_tool_names: set[str]) -> list[str]:
+        """Check milestone tool references against the known tool catalog."""
+        if not valid_tool_names:
+            return []
 
-    Populated by plan validation when tools have status 'unavailable'.
-    Signals the executor/orchestrator to trigger MCP Builder self-healing.
-    """
+        errors: list[str] = []
+        for milestone in self.milestones:
+            unknown = sorted(tool_name for tool_name in milestone.tools if tool_name not in valid_tool_names)
+            if unknown:
+                errors.append(f"Milestone '{milestone.milestone_id}' references unknown tools: {unknown}")
+
+        return errors
 
     def validate_no_cycles(self) -> list[str]:
         """Check the milestone DAG for cycles using graphlib.TopologicalSorter.

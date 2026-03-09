@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -17,8 +18,11 @@ from gpd.mcp.discovery.models import (
 )
 from gpd.mcp.discovery.sources import (
     get_default_config,
+    load_external_services_file,
     load_sources_config,
     resolve_env_vars,
+    resolve_project_root,
+    resolve_source_path,
 )
 
 # -- MCPStatus tests --
@@ -195,6 +199,27 @@ class TestResolveEnvVars:
         assert resolve_env_vars("${SET_VAR:-default}") == "actual"
 
 
+class TestResolveProjectRoot:
+    def test_prefers_explicit_project_root(self, tmp_path: Path) -> None:
+        assert resolve_project_root(tmp_path) == tmp_path
+
+
+class TestResolveSourcePath:
+    def test_resolves_relative_path_against_project_root(self, tmp_path: Path) -> None:
+        resolved = resolve_source_path("infra/mcp/registry/external_services.yaml", project_root=tmp_path)
+        assert resolved == (tmp_path / "infra" / "mcp" / "registry" / "external_services.yaml").resolve()
+
+    def test_returns_none_for_unresolved_env_var(self) -> None:
+        os.environ.pop("MISSING_SOURCE_ROOT", None)
+        assert resolve_source_path("${MISSING_SOURCE_ROOT}/external.yaml") is None
+
+
+class TestLoadExternalServicesFile:
+    def test_returns_empty_mapping_for_missing_file(self, tmp_path: Path) -> None:
+        result = load_external_services_file(str(tmp_path / "missing.yaml"))
+        assert result == {}
+
+
 # -- load_sources_config tests --
 
 
@@ -202,27 +227,25 @@ class TestLoadSourcesConfig:
     def test_returns_default_config(self) -> None:
         config = load_sources_config()
         assert config.version == "1.0.0"
-        assert "gpd-modal" in config.sources
         assert config == get_default_config()
+        assert set(config.sources) == {"external", "local"}
 
 
 # -- get_default_config tests --
 
 
 class TestGetDefaultConfig:
-    def test_has_three_sources(self) -> None:
+    def test_has_public_sources_only(self) -> None:
         config = get_default_config()
-        assert len(config.sources) == 3
-        assert "gpd-modal" in config.sources
+        assert len(config.sources) == 2
         assert "external" in config.sources
         assert "local" in config.sources
 
-    def test_gpd_modal_source(self) -> None:
+    def test_external_source_uses_public_registry(self) -> None:
         config = get_default_config()
-        modal_src = config.sources["gpd-modal"]
-        assert modal_src.type == "modal"
-        assert modal_src.app_name == "gpd-mcp-servers"
-        assert modal_src.reconcile is True
+        external_src = config.sources["external"]
+        assert external_src.type == "external"
+        assert external_src.services_file == "${GPD_ROOT:-.}/infra/mcp/registry/external_services.yaml"
 
     def test_local_source_has_configs(self) -> None:
         config = get_default_config()

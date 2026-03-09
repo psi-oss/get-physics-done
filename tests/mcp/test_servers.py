@@ -482,31 +482,72 @@ class TestSkillsServer:
     """Tests for gpd.mcp.servers.skills_server tool functions."""
 
     @pytest.fixture(autouse=True)
-    def _mock_skills_dir(self, tmp_path):
-        """Create a fake SKILLS_DIR with a few test skill directories."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
+    def _mock_skill_registry(self, tmp_path):
+        """Create fake commands/spec skills and patch the shared registry paths."""
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        specs_skills_dir = tmp_path / "skills"
+        specs_skills_dir.mkdir()
 
-        # Create a few skill directories
-        exec_dir = skills_dir / "gpd-execute-phase"
-        exec_dir.mkdir()
-        (exec_dir / "prompt.md").write_text("# Execute Phase\nExecute all plans in a phase.")
+        (commands_dir / "execute-phase.md").write_text(
+            "---\n"
+            "name: gpd:execute-phase\n"
+            "description: Execute all plans in a phase.\n"
+            "---\n"
+            "\n"
+            "Canonical execute command.\n",
+            encoding="utf-8",
+        )
+        (commands_dir / "plan-phase.md").write_text(
+            "---\n"
+            "name: gpd:plan-phase\n"
+            "description: Create detailed execution plan.\n"
+            "---\n"
+            "\n"
+            "Canonical plan command.\n",
+            encoding="utf-8",
+        )
 
-        plan_dir = skills_dir / "gpd-plan-phase"
-        plan_dir.mkdir()
-        (plan_dir / "prompt.md").write_text("# Plan Phase\nCreate detailed execution plan.")
+        stale_exec = specs_skills_dir / "gpd-execute-phase"
+        stale_exec.mkdir()
+        (stale_exec / "SKILL.md").write_text(
+            "---\n"
+            "name: gpd-execute-phase\n"
+            "description: Stale execute skill.\n"
+            "---\n"
+            "\n"
+            "Stale execute spec that should be ignored.\n",
+            encoding="utf-8",
+        )
 
-        verify_dir = skills_dir / "gpd-verify-work"
-        verify_dir.mkdir()
-        (verify_dir / "prompt.md").write_text("# Verify Work\nVerify research results.")
+        debugger = specs_skills_dir / "gpd-debugger"
+        debugger.mkdir()
+        (debugger / "SKILL.md").write_text(
+            "---\n"
+            "name: gpd-debugger\n"
+            "description: Debugger fallback skill.\n"
+            "---\n"
+            "\n"
+            "Spec-only debugger skill.\n",
+            encoding="utf-8",
+        )
 
-        # Non-GPD directory (should be ignored)
-        other = skills_dir / "not-a-gpd-skill"
-        other.mkdir()
-        (other / "prompt.md").write_text("# Other\nNot a GPD skill.")
+        ignored = specs_skills_dir / "not-a-gpd-skill"
+        ignored.mkdir()
+        (ignored / "SKILL.md").write_text(
+            "---\nname: not-a-gpd-skill\ndescription: Ignore me.\n---\n\nIgnored.\n",
+            encoding="utf-8",
+        )
 
-        with patch("gpd.mcp.servers.skills_server.SKILLS_DIR", skills_dir):
+        with (
+            patch("gpd.registry.COMMANDS_DIR", commands_dir),
+            patch("gpd.registry.SPECS_SKILLS_DIR", specs_skills_dir),
+        ):
+            from gpd.registry import invalidate_cache
+
+            invalidate_cache()
             yield
+            invalidate_cache()
 
     def test_list_skills(self):
         from gpd.mcp.servers.skills_server import list_skills
@@ -516,6 +557,7 @@ class TestSkillsServer:
         names = {s["name"] for s in result["skills"]}
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
+        assert "gpd-debugger" in names
 
     def test_list_skills_by_category(self):
         from gpd.mcp.servers.skills_server import list_skills
@@ -535,7 +577,8 @@ class TestSkillsServer:
 
         result = get_skill("gpd-execute-phase")
         assert result["name"] == "gpd-execute-phase"
-        assert "Execute" in result["content"]
+        assert "Canonical execute command" in result["content"]
+        assert "Stale execute spec" not in result["content"]
         assert result["file_count"] == 1
 
     def test_get_skill_not_found(self):
@@ -571,6 +614,13 @@ class TestSkillsServer:
         assert result["total_skills"] == 3
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
+
+    def test_get_skill_accepts_registry_key_alias(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("execute-phase")
+        assert result["name"] == "gpd-execute-phase"
+        assert "Canonical execute command" in result["content"]
 
     def test_infer_category(self):
         from gpd.mcp.servers.skills_server import _infer_category

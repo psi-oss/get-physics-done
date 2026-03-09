@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from gpd.mcp.launch import _build_tool_catalog_summary, _load_gpd_questioning
+from gpd.mcp.launch import _build_auto_startup, _build_tool_catalog_summary, _build_work_dir_rules, _load_gpd_questioning
 
 # ---------------------------------------------------------------------------
 # _load_gpd_questioning tests
@@ -109,3 +109,19 @@ def test_build_tool_catalog_when_config_fails():
     assert isinstance(result, str)
     assert "MCP" in result
     assert "tool" in result.lower()
+
+
+def test_auto_startup_mentions_sample_check_and_no_redeploy():
+    """Startup instructions should match the diagnostic-only fix-mcps behavior."""
+    result = _build_auto_startup()
+    assert "sample check" in result.lower()
+    assert "not the full configured mcp registry" in result.lower()
+    assert "do not attempt autonomous redeployment" in result.lower()
+
+
+def test_work_dir_rules_match_runtime_behavior():
+    """WORK_DIR guidance should use a generic writable directory, not session JSON storage."""
+    result = _build_work_dir_rules()
+    assert "any writable work_dir" in result.lower()
+    assert ".gpd-mcp-work" in result
+    assert "tools.json" in result

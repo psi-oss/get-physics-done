@@ -379,6 +379,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
+    { name = "fastapi" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "logfire" },
     { name = "mcp", extra = ["cli"] },
@@ -388,19 +390,16 @@ dependencies = [
     { name = "pydantic-ai-slim", extra = ["anthropic", "retries"] },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "sse-starlette" },
     { name = "tenacity" },
     { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.optional-dependencies]
 scientific = [
     { name = "numpy" },
     { name = "scipy" },
-]
-viewer = [
-    { name = "fastapi" },
-    { name = "sse-starlette" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.dev-dependencies]
@@ -412,7 +411,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.1.19" },
-    { name = "fastapi", marker = "extra == 'viewer'", specifier = ">=0.100" },
+    { name = "fastapi", specifier = ">=0.100" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "logfire", specifier = ">=1.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.9.0" },
@@ -424,12 +424,12 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.1" },
     { name = "scipy", marker = "extra == 'scientific'", specifier = ">=1.12.0" },
-    { name = "sse-starlette", marker = "extra == 'viewer'", specifier = ">=1.6" },
+    { name = "sse-starlette", specifier = ">=1.6" },
     { name = "tenacity", specifier = ">=9.0" },
     { name = "typer", specifier = ">=0.21.1" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'viewer'", specifier = ">=0.20" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.20" },
 ]
-provides-extras = ["scientific", "viewer"]
+provides-extras = ["scientific"]
 
 [package.metadata.requires-dev]
 dev = [

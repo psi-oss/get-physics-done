@@ -163,8 +163,8 @@ Subclasses override individual hooks as needed.
 |-------------------|---------------------------|-------------|----------------------|---------------------|
 | Claude Code       | `ClaudeCodeAdapter`       | `.claude`   | `commands/gpd/*.md`  | `agents/gpd-*.md`   |
 | OpenAI Codex      | `CodexAdapter`            | `.codex`    | Skills in `~/.agents/skills/gpd-*/` | `agents/gpd-*.md` |
-| Google Gemini CLI | `GeminiAdapter`           | `.gemini`   | `commands/gpd/*.md`  | `agents/gpd-*.md`   |
-| OpenCode          | `OpenCodeAdapter`         | `.opencode` | `commands/gpd/*.md`  | `agents/gpd-*.md`   |
+| Google Gemini CLI | `GeminiAdapter`           | `.gemini`   | `commands/gpd/*.toml` | `agents/gpd-*.md`   |
+| OpenCode          | `OpenCodeAdapter`         | `.opencode` | `command/gpd-*.md`    | `agents/gpd-*.md`   |
 
 ### Tool Name Translation
 

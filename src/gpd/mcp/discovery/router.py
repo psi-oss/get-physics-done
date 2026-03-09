@@ -13,7 +13,7 @@ from gpd.core.model_defaults import GPD_DEFAULT_MODEL
 from gpd.mcp.discovery.catalog import ToolCatalog
 from gpd.mcp.discovery.fallback import AutoSubstituteResult, find_substitute
 from gpd.mcp.discovery.models import PHYSICS_CATEGORIES, ToolEntry
-from gpd.mcp.discovery.selector import ToolSelection, ToolSelectionAgent
+from gpd.mcp.discovery.selector import ToolSelection, ToolSelectionAgent, normalize_selection
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,8 @@ class PhysicsRouter:
                 confidence=0.0,
             )
 
-        return await self._selector.select(problem_description, tools)
+        selection = await self._selector.select(problem_description, tools, categories)
+        return normalize_selection(selection, tools, detected_categories=categories)
 
     def handle_tool_failure(self, failed_tool: str, available_tools: list[ToolEntry]) -> AutoSubstituteResult:
         """Handle a tool failure by finding a substitute from the same physics category."""

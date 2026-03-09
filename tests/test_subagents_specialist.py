@@ -5,8 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import patch
 
+import pytest
+
 from gpd.mcp.discovery.models import ToolEntry
 from gpd.mcp.subagents.specialist import (
+    SpecialistLifecycle,
     SpecialistManager,
     create_tool_specialist,
     should_use_specialist,
@@ -54,6 +57,13 @@ def test_create_specialist_has_tool_list_in_prompt():
     assert "create_simulation" in definition.prompt
 
 
+def test_create_specialist_prompt_matches_read_only_surface():
+    """Prompt should describe the specialist's actual read-only role."""
+    definition = _patched_create(_make_tool("openfoam"))
+    assert "read-only specialist" in definition.prompt.lower()
+    assert "do not execute the mcp tool directly" in definition.prompt.lower()
+
+
 def test_create_specialist_no_task_tool():
     """Specialist should not have Task, Write, or Bash tools."""
     definition = _patched_create(_make_tool())
@@ -70,7 +80,7 @@ def test_specialist_manager_caches():
         first = manager.get_or_create(tool)
         second = manager.get_or_create(tool)
     assert first is second
-    assert manager._active_count == 1
+    assert manager.active_count == 1
 
 
 def test_specialist_manager_multiple_tools():
@@ -91,7 +101,18 @@ def test_specialist_manager_remove():
         manager.get_or_create(_make_tool("openfoam"))
         manager.remove("openfoam")
     assert manager.active_specialist_names == []
-    assert manager._active_count == 0
+    assert manager.active_count == 0
+
+
+def test_specialist_manager_keeps_persistent_specialists():
+    """Persistent specialists stay cached until clear()."""
+    with patch.dict("sys.modules", {"claude_agent_sdk": type("M", (), {"AgentDefinition": FakeAgentDefinition})()}):
+        manager = SpecialistManager()
+        manager.get_or_create(_make_tool("openfoam"))
+        manager.set_lifecycle("openfoam", SpecialistLifecycle.PERSISTENT)
+        removed = manager.remove("openfoam")
+    assert removed is False
+    assert manager.active_specialist_names == ["openfoam"]
 
 
 def test_specialist_manager_clear():
@@ -102,7 +123,7 @@ def test_specialist_manager_clear():
         manager.get_or_create(_make_tool("lammps"))
         manager.get_or_create(_make_tool("su2"))
         manager.clear()
-    assert manager._active_count == 0
+    assert manager.active_count == 0
     assert manager.active_specialist_names == []
 
 
@@ -119,3 +140,9 @@ def test_should_use_specialist_above_threshold():
 def test_should_use_specialist_custom_threshold():
     """Custom threshold should be respected."""
     assert should_use_specialist(2, threshold=1) is True
+
+
+def test_should_use_specialist_rejects_negative_threshold():
+    """Threshold validation should reject nonsensical values."""
+    with pytest.raises(ValueError, match="threshold must be non-negative"):
+        should_use_specialist(1, threshold=-1)

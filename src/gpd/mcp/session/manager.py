@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from gpd.mcp.session.models import SessionState
 from gpd.mcp.session.search import SearchIndex
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -36,6 +41,8 @@ class SessionManager:
         project_name: str,
         session_name: str,
         tags: list[str] | None = None,
+        *,
+        persist: bool = True,
     ) -> SessionState:
         """Create a new session and persist it immediately."""
         now = datetime.now(tz=UTC)
@@ -48,8 +55,17 @@ class SessionManager:
             tags=tags,
         )
         self._active_session = session
-        self.save(session)
+        if persist:
+            self.save(session)
         return session
+
+    def activate(self, session: SessionState) -> None:
+        """Mark an already-loaded session as the current active session."""
+        self._active_session = session
+
+    def discard_active_session(self) -> None:
+        """Drop the in-memory active session without persisting changes."""
+        self._active_session = None
 
     def save(self, session: SessionState | None = None) -> None:
         """Save session state atomically to JSON and update search index."""
@@ -98,7 +114,12 @@ class SessionManager:
             msg = f"Session file not found: {path}"
             raise FileNotFoundError(msg)
 
-        session = SessionState.model_validate_json(path.read_text(encoding="utf-8"))
+        try:
+            session = SessionState.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError, ValueError) as exc:
+            msg = f"Session file is corrupt: {path}"
+            raise ValueError(msg) from exc
+
         self._active_session = session
         return session
 
@@ -123,31 +144,59 @@ class SessionManager:
             self.save()
             self._active_session = None
 
-    def get_latest_session(self) -> SessionState | None:
-        """Return the most recently modified session, or None."""
-        json_files = sorted(
-            self._sessions_dir.glob("*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        for f in json_files:
-            try:
-                return SessionState.model_validate_json(f.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
+    def finalize(self, status: str = "paused") -> None:
+        """Persist the active session with a terminal non-active status."""
+        if self._active_session is None:
+            return
+
+        self._active_session.status = status
+        self.save()
+        self._active_session = None
+
+    def get_latest_session(self, project_name: str | None = None) -> SessionState | None:
+        """Return the most recently modified valid session, optionally scoped to a project."""
+        for session in self._iter_sessions(project_name=project_name, limit=1):
+            return session
         return None
 
-    def list_sessions(self, limit: int = 50) -> list[SessionState]:
-        """List sessions sorted by modification time (newest first)."""
-        json_files = sorted(
-            self._sessions_dir.glob("*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+    def list_sessions(self, limit: int = 50, project_name: str | None = None) -> list[SessionState]:
+        """List valid sessions sorted by modification time (newest first)."""
+        return list(self._iter_sessions(project_name=project_name, limit=limit))
+
+    def _iter_sessions(
+        self,
+        *,
+        project_name: str | None = None,
+        limit: int | None = None,
+    ) -> list[SessionState]:
+        """Yield valid sessions in newest-first order, skipping unreadable files."""
         sessions: list[SessionState] = []
-        for path in json_files[:limit]:
-            try:
-                sessions.append(SessionState.model_validate_json(path.read_text(encoding="utf-8")))
-            except (OSError, ValueError):
+        for path in self._sorted_session_files():
+            session = self._read_session_file(path)
+            if session is None:
                 continue
+            if project_name is not None and session.project_name != project_name:
+                continue
+            sessions.append(session)
+            if limit is not None and len(sessions) >= limit:
+                break
         return sessions
+
+    def _sorted_session_files(self) -> list[Path]:
+        """Return session files ordered by newest mtime first."""
+        dated_paths: list[tuple[float, Path]] = []
+        for path in self._sessions_dir.glob("*.json"):
+            try:
+                dated_paths.append((path.stat().st_mtime, path))
+            except OSError:
+                logger.warning("Skipping unreadable session file metadata: %s", path)
+        dated_paths.sort(key=lambda item: item[0], reverse=True)
+        return [path for _, path in dated_paths]
+
+    def _read_session_file(self, path: Path) -> SessionState | None:
+        """Read a session file, returning None when the file is corrupt."""
+        try:
+            return SessionState.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError, ValueError):
+            logger.warning("Skipping corrupt session file: %s", path)
+            return None

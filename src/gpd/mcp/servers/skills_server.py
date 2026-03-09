@@ -1,6 +1,6 @@
 """MCP server for GPD skill discovery and routing.
 
-Reads skill definitions from specs/skills/ and provides discovery,
+Reads skill definitions from the shared GPD registry and provides discovery,
 content retrieval, auto-routing, and prompt injection support.
 
 Usage:
@@ -14,20 +14,16 @@ from __future__ import annotations
 import logging
 import re
 import sys
-import threading
 
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.observability import gpd_span
-from gpd.core.utils import safe_read_file
-from gpd.specs import SPECS_DIR
+from gpd.registry import get_command, list_commands
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-skills")
 
 mcp = FastMCP("gpd-skills")
-
-SKILLS_DIR = SPECS_DIR / "skills"
 
 # Category mapping: skill name prefix -> category
 _CATEGORY_MAP: dict[str, str] = {
@@ -109,75 +105,53 @@ def _infer_category(skill_name: str) -> str:
     return "other"
 
 
-_skill_index_cache: list[dict[str, str]] | None = None
-_skill_index_lock = threading.Lock()
+def _canonical_skill_name(registry_name: str, source: str) -> str:
+    """Map registry command names to the canonical gpd-* skill namespace."""
+    if source == "commands" and not registry_name.startswith("gpd-"):
+        return f"gpd-{registry_name}"
+    return registry_name
 
 
 def _load_skill_index() -> list[dict[str, str]]:
-    """Load the list of available skills from the skills directory.
+    """Load available skills from the canonical GPD command registry.
 
-    Results are cached for the process lifetime since skill files on disk
-    do not change between MCP tool calls.  A threading lock guards the
-    lazy initialisation so concurrent MCP tool calls cannot trigger a
-    double-load race.
+    The registry already applies the intended precedence:
+    ``commands/`` overrides legacy ``specs/skills/`` entries with the same
+    logical command. This keeps the MCP skills surface aligned with the rest
+    of the stack instead of serving stale specs-only content.
     """
-    global _skill_index_cache  # noqa: PLW0603
-    if _skill_index_cache is not None:
-        return _skill_index_cache
+    skills: list[dict[str, str]] = []
+    for registry_name in list_commands():
+        command = get_command(registry_name)
+        skill_name = _canonical_skill_name(registry_name, command.source)
+        if not skill_name.startswith("gpd-"):
+            continue
+        skills.append(
+            {
+                "name": skill_name,
+                "category": _infer_category(skill_name),
+                "description": command.description,
+                "registry_name": registry_name,
+            }
+        )
+    skills.sort(key=lambda item: item["name"])
+    return skills
 
-    with _skill_index_lock:
-        # Re-check after acquiring the lock (double-checked locking).
-        if _skill_index_cache is not None:
-            return _skill_index_cache
 
-        if not SKILLS_DIR.is_dir():
-            _skill_index_cache = []
-            return _skill_index_cache
+def _resolve_skill(name: str) -> dict[str, str] | None:
+    """Resolve a canonical skill name or registry key to a skill record."""
+    for skill in _load_skill_index():
+        if name == skill["name"] or name == skill["registry_name"]:
+            return skill
+    return None
 
-        skills: list[dict[str, str]] = []
-        for entry in sorted(SKILLS_DIR.iterdir()):
-            if not entry.is_dir() or not entry.name.startswith("gpd-"):
-                continue
-            name = entry.name
-            # Try to read the first few lines for a description
-            desc = ""
-            prompt_file = entry / "prompt.md"
-            if not prompt_file.exists():
-                # Some skills may use a different file
-                md_files = list(entry.glob("*.md"))
-                if md_files:
-                    prompt_file = md_files[0]
 
-            if prompt_file.exists():
-                content = safe_read_file(prompt_file)
-                if content:
-                    # Skip YAML frontmatter block (--- ... ---), then take
-                    # the first non-empty, non-heading, non-comment line.
-                    in_frontmatter = False
-                    for line in content.splitlines():
-                        stripped = line.strip()
-                        if stripped == "---":
-                            in_frontmatter = not in_frontmatter
-                            continue
-                        if in_frontmatter:
-                            # Try to grab description from frontmatter field
-                            if stripped.startswith("description:"):
-                                desc = stripped[len("description:") :].strip()[:200]
-                            continue
-                        if stripped and not stripped.startswith("#") and not stripped.startswith("<!--"):
-                            if not desc:
-                                desc = stripped[:200]
-                            break
-
-            skills.append(
-                {
-                    "name": name,
-                    "category": _infer_category(name),
-                    "description": desc,
-                }
-            )
-        _skill_index_cache = skills
-        return skills
+def _public_skill(skill: dict[str, str]) -> dict[str, str]:
+    return {
+        "name": skill["name"],
+        "category": skill["category"],
+        "description": skill["description"],
+    }
 
 
 @mcp.tool()
@@ -191,7 +165,7 @@ def list_skills(category: str | None = None) -> dict:
         category: Optional category to filter by.
     """
     with gpd_span("mcp.skills.list", category=category or ""):
-        skills = _load_skill_index()
+        skills = [_public_skill(skill) for skill in _load_skill_index()]
         if category:
             skills = [s for s in skills if s["category"] == category]
 
@@ -213,26 +187,20 @@ def get_skill(name: str) -> dict:
         name: Skill name (e.g., "gpd-execute-phase", "gpd-plan-phase").
     """
     with gpd_span("mcp.skills.get", skill_name=name):
-        skill_dir = SKILLS_DIR / name
-        if not skill_dir.is_dir():
+        skill = _resolve_skill(name)
+        if skill is None:
             return {
                 "error": f"Skill {name!r} not found",
-                "available": [d.name for d in SKILLS_DIR.iterdir() if d.is_dir() and d.name.startswith("gpd-")][:10],
+                "available": [entry["name"] for entry in _load_skill_index()[:10]],
             }
 
-        # Collect all markdown files in the skill directory
-        content_parts: list[str] = []
-        for md_file in sorted(skill_dir.glob("*.md")):
-            text = safe_read_file(md_file)
-            if text:
-                content_parts.append(text)
+        command = get_command(skill["registry_name"])
 
-        content = "\n\n---\n\n".join(content_parts) if content_parts else ""
         return {
-            "name": name,
-            "category": _infer_category(name),
-            "content": content,
-            "file_count": len(content_parts),
+            "name": skill["name"],
+            "category": skill["category"],
+            "content": command.content,
+            "file_count": 1,
         }
 
 
@@ -250,6 +218,7 @@ def route_skill(task_description: str) -> dict:
         skills = _load_skill_index()
         if not skills:
             return {"error": "No skills available", "suggestion": None}
+        available_names = {skill["name"] for skill in skills}
 
         # Keyword scoring
         words = set(re.sub(r"[^a-z0-9\s-]", "", task_description.lower()).split())
@@ -280,6 +249,8 @@ def route_skill(task_description: str) -> dict:
 
         scored: list[tuple[int, str]] = []
         for skill_name, keywords in command_keywords.items():
+            if skill_name not in available_names:
+                continue
             score = sum(1 for kw in keywords if kw in words)
             if score > 0:
                 scored.append((score, skill_name))
@@ -296,10 +267,12 @@ def route_skill(task_description: str) -> dict:
                 "task_description": task_description,
             }
 
+        fallback = "gpd-help" if "gpd-help" in available_names else skills[0]["name"]
+
         return {
-            "suggestion": "gpd-help",
+            "suggestion": fallback,
             "confidence": 0.1,
-            "alternatives": ["gpd-progress", "gpd-discover"],
+            "alternatives": [name for name in ("gpd-progress", "gpd-discover") if name in available_names],
             "task_description": task_description,
             "note": "No strong match found — try /gpd:help for available commands",
         }
@@ -313,7 +286,7 @@ def get_skill_index() -> dict:
     to make it aware of available GPD capabilities.
     """
     with gpd_span("mcp.skills.index"):
-        skills = _load_skill_index()
+        skills = [_public_skill(skill) for skill in _load_skill_index()]
         by_category: dict[str, list[str]] = {}
         for s in skills:
             cat = s["category"]

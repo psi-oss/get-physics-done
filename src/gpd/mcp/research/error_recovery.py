@@ -29,6 +29,16 @@ from gpd.mcp.research.schemas import (
 
 logger = logging.getLogger(__name__)
 
+STRUCTURAL_FAILURE_STATUSES = {"skipped", "error", "failed", "failure", "unavailable"}
+
+
+class StructuralToolExecutionError(RuntimeError):
+    """Raised when a tool returned a structurally unsuccessful result payload."""
+
+    def __init__(self, message: str, outputs: list[dict[str, object]]) -> None:
+        super().__init__(message)
+        self.outputs = outputs
+
 
 class CircuitBreaker:
     """Per-tool failure tracking with configurable threshold.
@@ -134,8 +144,8 @@ async def execute_tool_call(
 
     The tool_router is a callable (from Phase 3) that takes
     (tool_name, arguments) and returns a result dict. When tool_router
-    is None, returns a "skipped" result indicating the hosting runtime should
-    call the tool directly.
+    is None, returns a "skipped" result. Callers must treat that as
+    an unexecuted tool call, not a successful execution.
 
     Args:
         tool_name: Name of the MCP tool to call.
@@ -156,6 +166,64 @@ async def execute_tool_call(
         }
     result = await tool_router(tool_name, arguments)
     return result
+
+
+def _milestone_execution_signature(milestone: ResearchMilestone) -> tuple[str, tuple[str, ...], str]:
+    """Return the milestone fields that currently influence tool execution inputs."""
+    return (
+        milestone.description,
+        tuple(milestone.expected_outputs),
+        milestone.success_criteria,
+    )
+
+
+def _build_tool_arguments(
+    milestone: ResearchMilestone,
+    prior_results: dict[str, MilestoneResult],
+    recovery_strategy: str,
+) -> dict[str, object]:
+    """Build the execution payload passed to the routed tool call."""
+    return {
+        "milestone": milestone.milestone_id,
+        "description": milestone.description,
+        "depends_on": milestone.depends_on,
+        "expected_outputs": milestone.expected_outputs,
+        "success_criteria": milestone.success_criteria,
+        "recovery_strategy": recovery_strategy,
+        "prior_results": {
+            result_id: {
+                "summary": result.result_summary,
+                "is_error": result.is_error,
+                "error_message": result.error_message,
+            }
+            for result_id, result in prior_results.items()
+        },
+    }
+
+
+def _get_structural_failure_messages(
+    tool_names: list[str],
+    outputs: list[dict[str, object]],
+) -> list[str]:
+    """Return human-readable failure messages for structurally unsuccessful outputs."""
+    failures: list[str] = []
+    for tool_name, output in zip(tool_names, outputs, strict=False):
+        status = str(output.get("status", "")).lower()
+        if status in STRUCTURAL_FAILURE_STATUSES:
+            reason = output.get("reason") or output.get("error") or output.get("message") or status
+            failures.append(f"{tool_name} returned status '{status}': {reason}")
+            continue
+
+        if output.get("success") is False:
+            reason = output.get("reason") or output.get("error") or output.get("message") or "success=false"
+            failures.append(f"{tool_name} reported failure: {reason}")
+            continue
+
+        if output.get("ok") is False:
+            reason = output.get("reason") or output.get("error") or output.get("message") or "ok=false"
+            failures.append(f"{tool_name} reported failure: {reason}")
+
+    return failures
 
 
 async def simplify_milestone(
@@ -202,11 +270,31 @@ async def simplify_milestone(
     result = await agent.run(prompt, model_settings=model_settings)
     simplified = result.output
 
-    # If the agent returned essentially the same milestone, it cannot be simplified
-    if simplified.description == milestone.description and simplified.expected_outputs == milestone.expected_outputs:
+    if simplified.tools != milestone.tools:
+        logger.warning(
+            "Ignoring unsupported simplification for %s because it changed tools: %s -> %s",
+            milestone.milestone_id,
+            milestone.tools,
+            simplified.tools,
+        )
         return None
 
-    return simplified
+    updated_fields: dict[str, object] = {}
+    if simplified.description != milestone.description:
+        updated_fields["description"] = simplified.description
+    if simplified.expected_outputs != milestone.expected_outputs:
+        updated_fields["expected_outputs"] = simplified.expected_outputs
+    if simplified.success_criteria != milestone.success_criteria:
+        updated_fields["success_criteria"] = simplified.success_criteria
+
+    if not updated_fields:
+        return None
+
+    narrowed = milestone.model_copy(update=updated_fields)
+    if _milestone_execution_signature(narrowed) == _milestone_execution_signature(milestone):
+        return None
+
+    return narrowed
 
 
 async def find_substitute_tool(
@@ -254,15 +342,22 @@ async def find_substitute_tool(
     result = await agent.run(prompt, model_settings=model_settings)
     substitute = result.output
 
-    # If no tools were suggested, substitution failed
     if not substitute.tools:
         return None
 
-    # If the same tools came back, no substitute was found
     if substitute.tools == milestone.tools:
         return None
 
-    return substitute
+    available_tool_names = {t.get("name", "") for t in available_tools if t.get("name")}
+    if available_tool_names and any(tool_name not in available_tool_names for tool_name in substitute.tools):
+        logger.warning(
+            "Ignoring unsupported substitute for %s because it referenced unknown tools: %s",
+            milestone.milestone_id,
+            substitute.tools,
+        )
+        return None
+
+    return milestone.model_copy(update={"tools": substitute.tools})
 
 
 async def execute_milestone_with_recovery(
@@ -296,15 +391,25 @@ async def execute_milestone_with_recovery(
     attempt_count = 0
     tool_outputs: list[dict[str, object]] = []
     citations: list[str] = []
+    last_failure_message = ""
 
     # --- Phase 1: Direct execution with retry ---
     retry_decorator = make_retry_decorator(milestone.retry_policy)
 
-    async def _execute_tools(ms: ResearchMilestone) -> list[dict[str, object]]:
+    async def _execute_tools(ms: ResearchMilestone, recovery_strategy: str) -> list[dict[str, object]]:
         outputs = []
         for tool_name in ms.tools:
-            result = await execute_tool_call(tool_name, {"milestone": ms.milestone_id}, tool_router)
+            result = await execute_tool_call(
+                tool_name,
+                _build_tool_arguments(ms, prior_results, recovery_strategy),
+                tool_router,
+            )
             outputs.append(result)
+
+        failure_messages = _get_structural_failure_messages(ms.tools, outputs)
+        if failure_messages:
+            raise StructuralToolExecutionError("; ".join(failure_messages), outputs)
+
         return outputs
 
     try:
@@ -319,7 +424,7 @@ async def execute_milestone_with_recovery(
                     milestone,
                     {"current": attempt_count, "max": milestone.retry_policy.max_retries + 1},
                 )
-            return await _execute_tools(milestone)
+            return await _execute_tools(milestone, "direct")
 
         tool_outputs = await _retried_execution()
         elapsed = time.monotonic() - start_time
@@ -331,11 +436,22 @@ async def execute_milestone_with_recovery(
             attempt_count=attempt_count,
             elapsed_seconds=elapsed,
         )
-    except (TimeoutError, ConnectionError, RuntimeError):
+    except StructuralToolExecutionError as exc:
+        tool_outputs = exc.outputs
+        last_failure_message = str(exc)
         logger.warning(
-            "All retries exhausted for milestone %s after %d attempts",
+            "Direct execution produced structural failures for milestone %s after %d attempts: %s",
             milestone.milestone_id,
             attempt_count,
+            last_failure_message,
+        )
+    except (TimeoutError, ConnectionError, RuntimeError) as exc:
+        last_failure_message = str(exc)
+        logger.warning(
+            "All retries exhausted for milestone %s after %d attempts: %s",
+            milestone.milestone_id,
+            attempt_count,
+            last_failure_message,
         )
 
     # --- Phase 2: Simplify ---
@@ -346,7 +462,7 @@ async def execute_milestone_with_recovery(
         simplified = await simplify_milestone(milestone)
         if simplified is not None:
             attempt_count += 1
-            tool_outputs = await _execute_tools(simplified)
+            tool_outputs = await _execute_tools(simplified, "simplified")
             elapsed = time.monotonic() - start_time
             return MilestoneResult(
                 milestone_id=milestone.milestone_id,
@@ -356,8 +472,17 @@ async def execute_milestone_with_recovery(
                 attempt_count=attempt_count,
                 elapsed_seconds=elapsed,
             )
-    except (TimeoutError, ConnectionError, RuntimeError):
-        logger.warning("Simplified execution also failed for milestone %s", milestone.milestone_id)
+    except StructuralToolExecutionError as exc:
+        tool_outputs = exc.outputs
+        last_failure_message = str(exc)
+        logger.warning(
+            "Simplified execution produced structural failures for milestone %s: %s",
+            milestone.milestone_id,
+            last_failure_message,
+        )
+    except (TimeoutError, ConnectionError, RuntimeError) as exc:
+        last_failure_message = str(exc)
+        logger.warning("Simplified execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message)
 
     # --- Phase 3: Substitute ---
     if dashboard_callback:
@@ -367,7 +492,7 @@ async def execute_milestone_with_recovery(
         substitute = await find_substitute_tool(milestone, available_tools or [])
         if substitute is not None:
             attempt_count += 1
-            tool_outputs = await _execute_tools(substitute)
+            tool_outputs = await _execute_tools(substitute, "substitute")
             elapsed = time.monotonic() - start_time
             return MilestoneResult(
                 milestone_id=milestone.milestone_id,
@@ -377,18 +502,30 @@ async def execute_milestone_with_recovery(
                 attempt_count=attempt_count,
                 elapsed_seconds=elapsed,
             )
-    except (TimeoutError, ConnectionError, RuntimeError):
-        logger.warning("Substitute execution also failed for milestone %s", milestone.milestone_id)
+    except StructuralToolExecutionError as exc:
+        tool_outputs = exc.outputs
+        last_failure_message = str(exc)
+        logger.warning(
+            "Substitute execution produced structural failures for milestone %s: %s",
+            milestone.milestone_id,
+            last_failure_message,
+        )
+    except (TimeoutError, ConnectionError, RuntimeError) as exc:
+        last_failure_message = str(exc)
+        logger.warning("Substitute execution also failed for milestone %s: %s", milestone.milestone_id, last_failure_message)
 
     # --- Phase 4: Exhausted ---
     if dashboard_callback:
         dashboard_callback("exhausted", milestone, {})
 
     elapsed = time.monotonic() - start_time
+    error_message = f"All recovery strategies exhausted after {attempt_count} attempts"
+    if last_failure_message:
+        error_message = f"{error_message}: {last_failure_message}"
     return MilestoneResult(
         milestone_id=milestone.milestone_id,
         is_error=True,
-        error_message=f"All recovery strategies exhausted after {attempt_count} attempts",
+        error_message=error_message,
         error_type="all_recovery_exhausted",
         tool_outputs=tool_outputs,
         citations=citations,

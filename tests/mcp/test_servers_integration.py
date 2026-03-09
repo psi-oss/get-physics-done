@@ -325,10 +325,9 @@ class TestErrorsMcpIntegration:
     """Integration tests for errors_mcp using real catalog files on disk."""
 
     def test_list_error_classes_returns_real_data(self):
-        from gpd.mcp.servers.errors_mcp import list_error_classes
-
         # Force fresh store (reset singleton)
         import gpd.mcp.servers.errors_mcp as _mod
+        from gpd.mcp.servers.errors_mcp import list_error_classes
 
         _mod._store = None
 
@@ -385,10 +384,9 @@ class TestProtocolsServerIntegration:
     """Integration tests for protocols_server using real protocol .md files."""
 
     def test_list_protocols_real_files(self):
-        from gpd.mcp.servers.protocols_server import list_protocols
-
         # Force fresh store (reset singleton)
         import gpd.mcp.servers.protocols_server as _mod
+        from gpd.mcp.servers.protocols_server import list_protocols
 
         _mod._store = None
 
@@ -459,8 +457,6 @@ class TestPatternsServerIntegration:
     """Integration tests for patterns_server with real seed data."""
 
     def test_seed_patterns_idempotent(self, tmp_path: Path):
-        from gpd.mcp.servers.patterns_server import seed_patterns
-
         from gpd.core.patterns import pattern_seed
 
         # Seed into a temp location
@@ -535,12 +531,12 @@ class TestSkillsServerIntegration:
 
     @pytest.fixture(autouse=True)
     def _reset_cache(self):
-        """Clear the skill index cache so each test loads from disk."""
-        import gpd.mcp.servers.skills_server as _mod
+        """Clear the shared registry cache so each test loads current disk state."""
+        from gpd.registry import invalidate_cache
 
-        _mod._skill_index_cache = None
+        invalidate_cache()
         yield
-        _mod._skill_index_cache = None
+        invalidate_cache()
 
     def test_list_skills_returns_real_skills(self):
         from gpd.mcp.servers.skills_server import list_skills
@@ -587,6 +583,17 @@ class TestSkillsServerIntegration:
             assert "error" not in result
             assert result["name"] == "gpd-debugger"
             assert result["file_count"] >= 1
+
+    def test_get_skill_prefers_canonical_command_over_legacy_spec(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-help")
+
+        assert isinstance(result, dict)
+        assert "error" not in result
+        assert result["name"] == "gpd-help"
+        assert "$gpd-help" in result["content"]
+        assert "/gpd:help" not in result["content"]
 
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill

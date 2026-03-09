@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from gpd.mcp.paper.bibliography import (
     CitationSource,
     build_bibliography,
+    citation_keys_for_sources,
     create_bibliography,
     enrich_from_arxiv,
     enrich_with_ads,
@@ -47,6 +48,13 @@ class TestBibtexCreation:
         keys = list(bib.entries.keys())
         assert len(keys) == 2
         assert keys[0] != keys[1]
+
+    def test_citation_keys_match_bibliography_emission(self):
+        sources = [
+            CitationSource(source_type="paper", title="Paper 1", authors=["Einstein, Albert"], year="1905"),
+            CitationSource(source_type="paper", title="Paper 2", authors=["A. Einstein"], year="1905"),
+        ]
+        assert citation_keys_for_sources(sources) == list(create_bibliography(sources).entries.keys())
 
     def test_create_bibliography_multiple(self):
         sources = [
