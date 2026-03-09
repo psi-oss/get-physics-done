@@ -14,41 +14,9 @@ from importlib.resources import files
 from jinja2 import BaseLoader, Environment, TemplateNotFound
 
 from gpd.mcp.paper.models import PaperConfig
+from gpd.utils.latex import clean_latex_fences, sanitize_latex
 
 logger = logging.getLogger(__name__)
-
-# Lazy-import pipeline.latex_utils to avoid hard dependency at import time.
-# These functions are optional safety nets; if unavailable, skip them.
-_sanitize_latex = None
-_clean_latex_fences = None
-
-
-def _local_clean_latex_fences(raw: str) -> str:
-    """Strip markdown code fences from LLM output (local fallback)."""
-    latex = raw.strip()
-    if "```latex" in latex:
-        latex = latex.split("```latex", 1)[1].split("```", 1)[0].strip()
-    elif "```" in latex:
-        parts = latex.split("```")
-        if len(parts) >= 3:
-            latex = parts[1].strip()
-    return latex
-
-
-def _load_latex_utils() -> None:
-    """Load latex_utils functions on first use."""
-    global _sanitize_latex, _clean_latex_fences  # noqa: PLW0603
-    if _sanitize_latex is not None:
-        return
-    try:
-        from pipeline.latex_utils import clean_latex_fences, sanitize_latex
-
-        _sanitize_latex = sanitize_latex
-        _clean_latex_fences = clean_latex_fences
-    except ImportError:
-        logger.debug("pipeline.latex_utils not available; using local fallbacks")
-        _sanitize_latex = lambda x: x  # noqa: E731
-        _clean_latex_fences = _local_clean_latex_fences
 
 
 class _PackageTemplateLoader(BaseLoader):
@@ -113,8 +81,7 @@ def render_paper(config: PaperConfig) -> str:
     )
 
     # Apply LaTeX sanitization as a safety net
-    _load_latex_utils()
-    rendered = _clean_latex_fences(rendered)
-    rendered = _sanitize_latex(rendered)
+    rendered = clean_latex_fences(rendered)
+    rendered = sanitize_latex(rendered)
 
     return rendered

@@ -160,19 +160,16 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
-        try:
-            from psi_core.latex import try_autofix
+        from gpd.utils.latex import try_autofix
 
-            tex_content = tex_path.read_text(encoding="utf-8")
-            fix_result = try_autofix(tex_content, log)
-            if fix_result.was_modified and fix_result.fixed_content:
-                tex_path.write_text(fix_result.fixed_content, encoding="utf-8")
-                logger.info("Applied autofix: %s", fix_result.fixes_applied)
-                await run_cmd(base_cmd, cwd)
-                if pdf_path.exists():
-                    return CompilationResult(success=True, pdf_path=pdf_path)
-        except ImportError:
-            logger.debug("psi_core.latex.try_autofix not available")
+        tex_content = tex_path.read_text(encoding="utf-8")
+        fix_result = try_autofix(tex_content, log)
+        if fix_result.was_modified and fix_result.fixed_content:
+            tex_path.write_text(fix_result.fixed_content, encoding="utf-8")
+            logger.info("Applied autofix: %s", fix_result.fixes_applied)
+            await run_cmd(base_cmd, cwd)
+            if pdf_path.exists():
+                return CompilationResult(success=True, pdf_path=pdf_path)
 
         return CompilationResult(success=False, error="Compilation failed", log=log[-5000:])
 

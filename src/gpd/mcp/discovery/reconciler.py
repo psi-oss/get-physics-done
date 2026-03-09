@@ -58,15 +58,12 @@ def _resolve_deployment_status_path(psi_root: Path | None) -> Path | None:
     if env_root:
         return Path(env_root) / "infra" / "modal" / "deployment_status.json"
 
-    # Try to infer from psi_mcp_shared's path resolution
-    try:
-        from psi_mcp_shared._paths import _find_project_root
+    # Try to infer from GPD's path resolution
+    from gpd.utils.paths import find_project_root
 
-        project_root = _find_project_root()
-        if project_root is not None:
-            return project_root / "infra" / "modal" / "deployment_status.json"
-    except ImportError:
-        pass
+    project_root = find_project_root()
+    if project_root is not None:
+        return project_root / "infra" / "modal" / "deployment_status.json"
 
     return None
 

@@ -82,11 +82,7 @@ class ToolCatalog:
         """Load tools from psi-mcp-shared registry with SKILLS_SUMMARY metadata."""
         entries: dict[str, ToolEntry] = {}
 
-        try:
-            from psi_mcp_shared.registry import get_available_mcps, get_skills_summary
-        except ImportError:
-            logger.warning("psi-mcp-shared not available, skipping Modal source")
-            return entries
+        from gpd.utils.mcp_registry import get_available_mcps, get_skills_summary
 
         mcps = get_available_mcps()
         skills = get_skills_summary()

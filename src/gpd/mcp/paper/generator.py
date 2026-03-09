@@ -16,39 +16,9 @@ from pydantic_ai import Agent
 from gpd.core.model_defaults import GPD_DEFAULT_MODEL, resolve_model_and_settings
 from gpd.mcp.paper.bibliography import CitationSource
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+from gpd.utils.latex import clean_latex_fences, sanitize_latex
 
 logger = logging.getLogger(__name__)
-
-# Lazy-import pipeline.latex_utils to avoid hard dependency at import time.
-_sanitize_latex = None
-_clean_latex_fences = None
-
-
-def _local_clean_latex_fences(raw: str) -> str:
-    """Strip markdown code fences from LLM output (local fallback)."""
-    latex = raw.strip()
-    if "```latex" in latex:
-        latex = latex.split("```latex", 1)[1].split("```", 1)[0].strip()
-    elif "```" in latex:
-        parts = latex.split("```")
-        if len(parts) >= 3:
-            latex = parts[1].strip()
-    return latex
-
-
-def _load_latex_utils() -> None:
-    global _sanitize_latex, _clean_latex_fences  # noqa: PLW0603
-    if _sanitize_latex is not None:
-        return
-    try:
-        from pipeline.latex_utils import clean_latex_fences, sanitize_latex
-
-        _sanitize_latex = sanitize_latex
-        _clean_latex_fences = clean_latex_fences
-    except ImportError:
-        logger.debug("pipeline.latex_utils not available; using local fallbacks")
-        _sanitize_latex = lambda x: x  # noqa: E731
-        _clean_latex_fences = _local_clean_latex_fences
 
 
 # ---- Pydantic output models for agents ----
@@ -224,8 +194,6 @@ async def generate_paper(
     4. Build reproducibility appendix
     5. Assemble PaperConfig
     """
-    _load_latex_utils()
-
     # Resolve effort suffix → (base model ID, provider-specific settings)
     base_model, model_settings = resolve_model_and_settings(model)
 
@@ -259,8 +227,8 @@ async def generate_paper(
         )
         sec_result = await _get_section_writer().run(prompt, model=base_model, model_settings=model_settings)
         content = sec_result.output.content
-        content = _clean_latex_fences(content)
-        content = _sanitize_latex(content)
+        content = clean_latex_fences(content)
+        content = sanitize_latex(content)
         sections.append(Section(title=sec_title, content=content))
 
     # 3. Generate figure captions
@@ -273,8 +241,8 @@ async def generate_paper(
             f"Research context: {research_summary[:500]}"
         )
         cap_result = await _get_caption_writer().run(caption_prompt, model=base_model, model_settings=model_settings)
-        caption = _clean_latex_fences(cap_result.output.caption)
-        caption = _sanitize_latex(caption)
+        caption = clean_latex_fences(cap_result.output.caption)
+        caption = sanitize_latex(caption)
         updated_figures.append(fig.model_copy(update={"caption": caption}))
 
     # 4. Build reproducibility appendix
