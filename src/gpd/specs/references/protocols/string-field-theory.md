@@ -30,6 +30,8 @@ String field theory (SFT) is an off-shell formulation of string interactions. It
 - See `conformal-bootstrap.md` for boundary CFT data and crossing constraints when comparing with worldsheet or holographic results
 - See `numerical-computation.md` for level-truncation convergence and numerical stability
 
+For worldsheet backgrounds, D-brane constructions, compactification data, or duality context behind the chosen SFT background, also load `subfields/string-theory.md`.
+
 ## Step 1: Declare the SFT Formulation and Conventions
 
 Before any computation, state explicitly:

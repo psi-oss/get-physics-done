@@ -51,13 +51,13 @@ When a research project spans multiple subfields, use this guide to identify the
 | CMB, large-scale structure, N-body                   | Cosmology             | GR for metric perturbations                                    |
 | de Sitter space, cosmological horizons, dS/CFT       | GR & Cosmology        | QFT for fields in curved spacetime; Mathematical Physics for representation theory |
 | Black hole information, Page curve, replica wormholes, holography | Quantum Gravity | GR for geometry; QFT for matter entanglement and EFT control |
-| Worldsheet CFT, D-branes, compactification, moduli stabilization, swampland | String Theory | QFT for low-energy EFT; Mathematical Physics for modular/CFT structure; Quantum Gravity for holography or black-hole applications |
+| Worldsheet CFT, D-branes, compactification, moduli stabilization, swampland | String Theory | QFT for low-energy EFT; Mathematical Physics for modular/CFT structure; Quantum Gravity for holography or black-hole applications; String Field Theory for off-shell control or tachyon condensation |
 | Higher-form symmetries, non-invertible defects, center symmetry, anomalies | QFT | Mathematical Physics for categorical/topological structure; Condensed Matter for topological-order applications |
 | Superfields, BPS bounds, localization, Seiberg-Witten, superconformal index | QFT | Mathematical Physics for representation theory; GR for supergravity or holography |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |
 | Collider physics, PDFs, cross sections               | Nuclear/Particle      | QFT for calculational methods                                  |
-| Open/closed string interactions, tachyon condensation, BRST string vertices | String Field Theory | QFT for BRST/BV language; Mathematical Physics for homotopy algebra; GR for background geometry |
+| Open/closed string interactions, tachyon condensation, BRST string vertices | String Field Theory | QFT for BRST/BV language; Mathematical Physics for homotopy algebra; String Theory for worldsheet CFT, D-branes, compactification, or duality physics; GR for background geometry |
 | Global fits, SMEFT, public likelihoods, recasting    | Nuclear/Particle      | QFT for matching/running; Mathematical Physics for statistics-aware inference structure |
 | CFD, turbulence, MHD                                 | Fluid Dynamics/Plasma | Stat Mech for turbulence theory                                |
 | Black holes, gravitational waves, spacetime geometry | General Relativity    | QFT for Hawking radiation                                      |

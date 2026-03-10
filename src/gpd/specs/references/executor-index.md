@@ -26,7 +26,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `protocols/phenomenology.md`, and `executor-subfield-guide.md` §Nuclear & Particle Physics |
 | **Astrophysics** | `verification-domain-astrophysics.md`, `executor-subfield-guide.md` §Astrophysics |
 | **Mathematical physics** | `verification-domain-mathematical-physics.md`, `executor-subfield-guide.md` §Mathematical Physics, plus `protocols/conformal-bootstrap.md` or `protocols/holography-ads-cft.md` for CFT-heavy problems |
-| **String field theory** | `verification-domain-string-field-theory.md`, `protocols/string-field-theory.md`, and `executor-subfield-guide.md` §String Field Theory |
+| **String field theory** | `subfields/string-field-theory.md`, `verification-domain-string-field-theory.md`, `protocols/string-field-theory.md`, and `executor-subfield-guide.md` §String Field Theory; add `subfields/string-theory.md` when worldsheet, D-brane, or compactification input is part of the setup |
 | **Conformal bootstrap / CFT** | `verification-domain-mathematical-physics.md`, `protocols/conformal-bootstrap.md`, and `subfields/qft.md` or `subfields/mathematical-physics.md` depending on whether the project is field-theoretic or structural |
 | **Numerical computation** | `protocols/numerical-computation.md`, `protocols/symbolic-to-numerical.md`, `verification-numerical.md` |
 | **Paper writing** | `figure-generation-templates.md`, `bibtex-standards.md` |

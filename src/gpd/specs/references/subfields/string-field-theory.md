@@ -118,6 +118,12 @@ What kind of SFT problem is it?
     └── Scattering / on-shell amplitude? → compare with worldsheet factorization
 ```
 
+## Common Collaboration Patterns
+
+- **String field theory + string theory:** Use `subfields/string-theory.md` when the problem depends on worldsheet CFT, D-brane constructions, compactification, or duality dictionary rather than on off-shell SFT structure alone
+- **String field theory + mathematical physics:** Homotopy algebra, BV structure, and cyclicity questions often also need `subfields/mathematical-physics.md`
+- **String field theory + holography:** When an SFT background is interpreted holographically, also load `protocols/holography-ads-cft.md` and the relevant string-theory context
+
 ## Project Scope by Career Stage
 
 | Level | Typical scope | Example |

@@ -22,7 +22,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/supersymmetry.md`, `protocols/holography-ads-cft.md`, `protocols/de-sitter-space.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/renormalization-group.md`, `protocols/group-theory.md`, and `protocols/topological-methods.md`.
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/supersymmetry.md`, `protocols/holography-ads-cft.md`, `protocols/de-sitter-space.md`, `protocols/path-integrals.md`, `protocols/string-field-theory.md` (for off-shell formulations), `protocols/effective-field-theory.md`, `protocols/renormalization-group.md`, `protocols/group-theory.md`, and `protocols/topological-methods.md`.
 
 **Worldsheet CFT and BRST Structure:**
 
@@ -57,6 +57,7 @@ context_cost: medium
 - String field theory is the right language when off-shell control, tachyon condensation, picture-changing ambiguities, or formal unitarity/UV arguments are central
 - The relevant algebraic structure (`A_infinity`, `L_infinity`, BV) and the worldsheet input data should be stated explicitly
 - Do not import string-field-theory conclusions into ordinary worldsheet perturbation theory unless the map between the two formulations is clear
+- For dedicated SFT workflows, load `subfields/string-field-theory.md` and `protocols/string-field-theory.md`
 
 ## Key Tools and Software
 
@@ -131,7 +132,7 @@ What regime of string theory?
 ├── Conjectural EFT consistency criteria
 │   └── Swampland reasoning + explicit string constructions
 └── Off-shell or non-perturbative formalism
-    └── String field theory
+    └── String field theory (also load `subfields/string-field-theory.md`)
 ```
 
 ## Common Collaboration Patterns

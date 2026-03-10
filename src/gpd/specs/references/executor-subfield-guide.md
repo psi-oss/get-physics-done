@@ -47,11 +47,12 @@ For deep domain guidance, load the appropriate subfield and verification files:
 
 ## String Theory
 
-- **Framework declaration:** State whether the task is perturbative worldsheet string theory, D-brane/duality physics, compactification/moduli stabilization, swampland reasoning, or string field theory. Do not flatten them into generic "stringy effects."
+- **Framework declaration:** State whether the task is perturbative worldsheet string theory, D-brane/duality physics, compactification/moduli stabilization, or swampland reasoning. Do not flatten them into generic "stringy effects."
 - **Worldsheet consistency first:** For perturbative spectra or amplitudes, verify central-charge balance, BRST/GSO conditions, level matching, and modular invariance before interpreting spacetime states or couplings.
 - **Expansion bookkeeping:** Keep `alpha'` and `g_s` separate. Higher-derivative corrections, string loops, and non-perturbative effects are different approximation layers and should never be merged into one generic uncertainty.
 - **Compactification discipline:** State the internal geometry, flux/orientifold data, tadpole conditions, stabilized moduli, and the hierarchy among the low-energy scale, KK scale, and string scale. A 4d EFT is not controlled until this hierarchy is explicit.
 - **Conjectural vs. established claims:** Swampland arguments, de Sitter constructions, and phenomenological statements must be labeled by their status: theorem, explicit example, controlled approximation, or conjecture. Do not present active debates as settled.
+- **Off-shell handoff:** If the task is genuinely off-shell string field theory, switch to the `String Field Theory` section below rather than treating it as generic string theory.
 
 ## Renormalization Group
 
