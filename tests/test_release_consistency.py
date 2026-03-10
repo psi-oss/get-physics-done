@@ -223,6 +223,18 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
+def test_ci_workflow_uses_uv_locked_pytest_matrix() -> None:
+    repo_root = _repo_root()
+    workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+
+    assert "actions/checkout@v4" in workflow
+    assert "actions/setup-python@v5" in workflow
+    assert 'python-version: ["3.11", "3.12"]' in workflow
+    assert "astral-sh/setup-uv@v4" in workflow
+    assert "uv sync --dev" in workflow
+    assert "uv run pytest tests/ -v" in workflow
+
+
 def test_public_docs_keep_runtime_surface_first() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
@@ -233,6 +245,40 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     assert ".gpd/observability/" in readme
     assert "STATE.md: concise human-readable continuity state" in readme
     assert "fabricate opaque provider internals" in readme
+
+
+def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "Claude Code and Gemini CLI use `/gpd:...`" in readme
+    assert "Codex installs `$gpd-...` skills" in readme
+    assert "OpenCode uses `/gpd-...`" in readme
+    assert "> /gpd:new-project        # Claude Code / Gemini CLI" in readme
+    assert "> $gpd-new-project        # Codex" in readme
+    assert "> /gpd-new-project        # OpenCode" in readme
+
+
+def test_public_runtime_command_table_has_unique_entries() -> None:
+    repo_root = _repo_root()
+    lines = (repo_root / "README.md").read_text(encoding="utf-8").splitlines()
+
+    in_table = False
+    commands: list[str] = []
+    for line in lines:
+        if line == "## Key In-Runtime Commands":
+            in_table = True
+            continue
+        if in_table and line.startswith("## "):
+            break
+        if not in_table or not line.startswith("| `"):
+            continue
+        command = line.split("`", 2)[1]
+        commands.append(command)
+
+    assert commands, "expected README key-command table entries"
+    assert len(commands) == len(set(commands))
+
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     repo_root = _repo_root()

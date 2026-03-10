@@ -71,6 +71,7 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 Runtime syntax differs slightly, but the workflow is the same across all four.
 
 After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
+Claude Code and Gemini CLI use `/gpd:...`, Codex installs `$gpd-...` skills, and OpenCode uses `/gpd-...`.
 
 Gemini-specific note:
 - GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
@@ -111,7 +112,7 @@ Wave 3: plans that depend on earlier waves
 - **Project**: the overall research workspace and its persistent context.
 - **Milestone**: a major research checkpoint such as a paper submission, revision cycle, or result package. One project can have multiple milestones.
 - **Phase**: one coherent chunk of work inside a milestone. Integer phases are planned work; decimal phases like `2.1` are inserted later when urgent work appears.
-- **Plan**: the detailed execution breakdown for a phase, created by `/gpd:plan-phase N`.
+- **Plan**: the detailed execution breakdown for a phase, created by the runtime-specific `plan-phase N` command.
 - **Wave**: not a separate top-level planning object, but the execution order inside a phase. Plans in the same wave can run in parallel; later waves depend on earlier ones.
 
 Phase numbers continue across the whole project, so a new milestone may start at `Phase 6` rather than resetting to `Phase 1`.
@@ -119,7 +120,9 @@ Phase numbers continue across the whole project, so a new milestone may start at
 ## Example
 
 ```text
-> /gpd:new-project
+> /gpd:new-project        # Claude Code / Gemini CLI
+> $gpd-new-project        # Codex
+> /gpd-new-project        # OpenCode
 > Derive the equations of motion for a double pendulum using Lagrangian mechanics
 
 GPD will:
@@ -135,20 +138,19 @@ These commands run inside your installed AI runtime after GPD has been installed
 
 | Command | What it does |
 |---------|--------------|
-| `/gpd:new-project` | Start a new research project |
-| `/gpd:plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
-| `/gpd:execute-phase N` | Execute all tasks in phase `N` |
-| `/gpd:verify-work` | Run verification checks against current work |
-| `/gpd:peer-review` | Run standalone peer review on a manuscript before submission |
-| `/gpd:progress` | Show project state and recommend the next step |
-| `/gpd:discuss-phase N` | Explore a phase before committing to a plan |
-| `/gpd:quick` | Run a smaller task with a lighter workflow |
-| `/gpd:write-paper` | Draft a manuscript from completed research artifacts |
-| `/gpd:peer-review` | Run standalone peer review on a manuscript before submission |
-| `/gpd:respond-to-referees` | Structure referee responses and revise the manuscript |
-| `/gpd:arxiv-submission` | Validate and package the manuscript for arXiv |
+| `new-project` | Start a new research project |
+| `plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
+| `execute-phase N` | Execute all tasks in phase `N` |
+| `verify-work` | Run verification checks against current work |
+| `peer-review` | Run standalone peer review on a manuscript before submission |
+| `progress` | Show project state and recommend the next step |
+| `discuss-phase N` | Explore a phase before committing to a plan |
+| `quick` | Run a smaller task with a lighter workflow |
+| `write-paper` | Draft a manuscript from completed research artifacts |
+| `respond-to-referees` | Structure referee responses and revise the manuscript |
+| `arxiv-submission` | Validate and package the manuscript for arXiv |
 
-Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
+Use the runtime-specific prefix and separator from the table above: `/gpd:...` for Claude Code and Gemini CLI, `$gpd-...` for Codex, and `/gpd-...` for OpenCode.
 
 ## Validation Commands
 
