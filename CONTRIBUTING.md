@@ -35,7 +35,7 @@ Cross-runtime release checks:
 
 ## Release-Facing Guardrails
 
-- Public install docs should use `npx -y get-physics-done`.
+- Public install docs should use `npx -y get-physics-done@latest`.
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.

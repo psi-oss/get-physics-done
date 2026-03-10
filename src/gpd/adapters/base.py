@@ -95,7 +95,7 @@ class RuntimeAdapter(abc.ABC):
     @property
     def update_command(self) -> str:
         """Public bootstrap command that updates this runtime install."""
-        base = "npx -y get-physics-done"
+        base = "npx -y get-physics-done@latest"
         return f"{base} {self.install_flag}".strip()
 
     # ---------------------------------------------------------------------------

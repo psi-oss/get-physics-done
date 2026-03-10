@@ -25,7 +25,7 @@ Bootstrap prerequisites:
 Install GPD with `npx`:
 
 ```bash
-npx -y get-physics-done
+npx -y get-physics-done@latest
 ```
 
 Or install directly from GitHub:
@@ -39,26 +39,26 @@ The `-y` skips npm's package-install confirmation prompt. That command checks fo
 If you want to skip the prompts, pass the runtime selection and scope directly:
 
 ```bash
-npx -y get-physics-done --claude --global
+npx -y get-physics-done@latest --claude --global
 ```
 
 To install every supported runtime in one pass:
 
 ```bash
-npx -y get-physics-done --all --global
+npx -y get-physics-done@latest --all --global
 ```
 
 For a project-local install instead of a global one:
 
 ```bash
-npx -y get-physics-done --codex --local
+npx -y get-physics-done@latest --codex --local
 ```
 
 To refresh an existing managed environment, you can either reinstall the matching release or upgrade directly from the latest GitHub `main` source:
 
 ```bash
-npx -y get-physics-done --reinstall --claude --local
-npx -y get-physics-done --upgrade --claude --local
+npx -y get-physics-done@latest --reinstall --claude --local
+npx -y get-physics-done@latest --upgrade --claude --local
 ```
 
 `--reinstall` force-reinstalls that companion Python package version into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
@@ -68,15 +68,15 @@ npx -y get-physics-done --upgrade --claude --local
 Use the same `npx` bootstrap entrypoint to remove GPD:
 
 ```bash
-npx -y get-physics-done --uninstall
+npx -y get-physics-done@latest --uninstall
 ```
 
 That opens the uninstall flow, lets you choose the runtime and scope, and asks for a final confirmation before removing anything. You can also preselect the runtime and scope directly:
 
 ```bash
-npx -y get-physics-done --uninstall --claude --global
-npx -y get-physics-done --uninstall --codex --local
-npx -y get-physics-done --uninstall --all --global
+npx -y get-physics-done@latest --uninstall --claude --global
+npx -y get-physics-done@latest --uninstall --codex --local
+npx -y get-physics-done@latest --uninstall --all --global
 ```
 
 This removes GPD from the selected runtime config. It does not delete your project's `.gpd/` research artifacts or the shared files under `~/.gpd`. If you want a full wipe after uninstalling from all runtimes, remove `~/.gpd/` manually, or use `GPD_HOME` if you installed GPD there.

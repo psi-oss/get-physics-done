@@ -358,7 +358,7 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        assert "npx -y get-physics-done" in result
+        assert "npx -y get-physics-done@latest" in result
 
     def test_known_runtime_does_not_call_detect_install_scope(self, tmp_path: Path) -> None:
         """When get_adapter succeeds, detect_install_scope should not be called (lazy evaluation)."""

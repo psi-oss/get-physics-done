@@ -18,7 +18,7 @@
   ],
   "registry_prefix": "gpd_skills",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done"
+    "Install GPD first: npx -y get-physics-done@latest"
   ],
   "health_check": {
     "tool": "list_skills",

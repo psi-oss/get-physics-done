@@ -189,7 +189,7 @@ def test_arxiv_descriptor_tracks_required_dependency_surface() -> None:
     assert any(item.startswith("arxiv-mcp-server") for item in dependencies)
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
-    assert descriptor["prerequisites"] == ["Install GPD first: npx -y get-physics-done"]
+    assert descriptor["prerequisites"] == ["Install GPD first: npx -y get-physics-done@latest"]
 
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:

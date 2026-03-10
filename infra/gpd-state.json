@@ -21,7 +21,7 @@
   ],
   "registry_prefix": "gpd_state",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done"
+    "Install GPD first: npx -y get-physics-done@latest"
   ],
   "health_check": {
     "tool": "get_config",

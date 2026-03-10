@@ -3,14 +3,14 @@
  * GPD bootstrap installer — installs or uninstalls Get Physics Done.
  *
  * Usage:
- *   npx -y get-physics-done
- *   npx -y get-physics-done --claude --global
- *   npx -y get-physics-done --gemini --global
- *   npx -y get-physics-done --codex --local
- *   npx -y get-physics-done --opencode --global
- *   npx -y get-physics-done --all --global
- *   npx -y get-physics-done --uninstall
- *   npx -y get-physics-done --uninstall --claude --global
+ *   npx -y get-physics-done@latest
+ *   npx -y get-physics-done@latest --claude --global
+ *   npx -y get-physics-done@latest --gemini --global
+ *   npx -y get-physics-done@latest --codex --local
+ *   npx -y get-physics-done@latest --opencode --global
+ *   npx -y get-physics-done@latest --all --global
+ *   npx -y get-physics-done@latest --uninstall
+ *   npx -y get-physics-done@latest --uninstall --claude --global
  */
 
 const fs = require("fs");
@@ -820,7 +820,7 @@ function printBanner() {
 }
 
 function printHelp() {
-  const installCommand = "npx -y get-physics-done";
+  const installCommand = "npx -y get-physics-done@latest";
   console.log(` ${yellow}Usage:${reset} ${installCommand} [options]`);
   console.log("");
   console.log(` ${yellow}Options:${reset}`);

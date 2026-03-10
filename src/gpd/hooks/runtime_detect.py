@@ -197,7 +197,7 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
 
 def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
     """Return the public bootstrap command to update a given runtime install."""
-    base = "npx -y get-physics-done"
+    base = "npx -y get-physics-done@latest"
     try:
         command = get_adapter(runtime).update_command
     except KeyError:
