@@ -410,7 +410,7 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
         )
 
     valid = len(issues) == 0
-    ready = valid and checksum_coverage == 100.0 and seed_coverage == 100.0
+    ready = valid and checksum_coverage == 100.0 and seed_coverage == 100.0 and not warnings
     return ReproducibilityValidationResult(
         valid=valid,
         issues=issues,

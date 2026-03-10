@@ -470,6 +470,23 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
 
+    def test_review_preflight_arxiv_submission_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "ARTIFACT-MANIFEST.json").unlink()
+        (paper_dir / "BIBLIOGRAPHY-AUDIT.json").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["artifact_manifest"]["passed"] is False
+        assert checks["bibliography_audit"]["passed"] is False
+
     def test_validate_paper_quality_command(self, gpd_project: Path) -> None:
         quality_path = gpd_project / "paper-quality.json"
         quality_path.write_text(
@@ -530,6 +547,39 @@ class TestReviewValidationCommands:
         assert payload["ready_for_submission"] is True
         assert payload["journal"] == "prd"
 
+    def test_validate_paper_quality_command_fails_on_blockers(self, gpd_project: Path) -> None:
+        quality_path = gpd_project / "paper-quality-blocked.json"
+        quality_path.write_text(
+            json.dumps(
+                {
+                    "title": "Blocked paper",
+                    "journal": "jhep",
+                    "citations": {
+                        "citation_keys_resolve": {"satisfied": 1, "total": 2},
+                        "missing_placeholders": {"passed": False},
+                        "key_prior_work_cited": {"passed": False},
+                        "hallucination_free": {"passed": False},
+                    },
+                    "verification": {
+                        "report_passed": {"passed": False},
+                        "must_haves_verified": {"satisfied": 0, "total": 2},
+                        "key_result_confidences": ["UNRELIABLE"],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "paper-quality", str(quality_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["ready_for_submission"] is False
+
     def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
         manifest_path = gpd_project / "reproducibility-ready.json"
         manifest_path.write_text(
@@ -585,3 +635,37 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is True
         assert payload["ready_for_review"] is True
+
+    def test_validate_reproducibility_manifest_stdin_strict_fails_when_not_review_ready(self) -> None:
+        manifest = {
+            "paper_title": "Needs more metadata",
+            "date": "2026-03-10",
+            "environment": {
+                "python_version": "3.12.1",
+                "package_manager": "uv",
+                "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                "lock_file": "uv.lock",
+                "system_requirements": {},
+            },
+            "execution_steps": [{"name": "run", "command": "python scripts/run.py"}],
+            "expected_results": [{"quantity": "x", "expected_value": "1", "tolerance": "0.1", "script": "scripts/run.py"}],
+            "output_files": [{"path": "results/out.json", "checksum_sha256": "a" * 64}],
+            "resource_requirements": [],
+            "verification_steps": ["rerun"],
+            "minimum_viable": "",
+            "recommended": "",
+            "last_verified": "",
+            "last_verified_platform": "",
+        }
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "reproducibility-manifest", "-", "--strict"],
+            input=json.dumps(manifest),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+        assert payload["ready_for_review"] is False

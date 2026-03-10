@@ -154,6 +154,7 @@ def test_validate_reproducibility_manifest_warns_on_incomplete_review_metadata()
     result = validate_reproducibility_manifest(manifest)
 
     assert result.valid is True
+    assert result.ready_for_review is False
     warning_fields = {warning.field for warning in result.warnings}
     assert "resource_requirements" in warning_fields
     assert "minimum_viable" in warning_fields

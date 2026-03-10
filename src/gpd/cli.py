@@ -2148,7 +2148,7 @@ def validate_reproducibility_manifest_cmd(
     payload = _load_json_document(input_path)
     result = validate_reproducibility_manifest(payload)
     _output(result)
-    if not result.valid or (strict and not result.ready_for_review):
+    if not result.valid or (strict and (not result.ready_for_review or bool(result.warnings))):
         raise typer.Exit(code=1)
 
 
