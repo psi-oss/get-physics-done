@@ -668,25 +668,6 @@ def file_hash(file_path: str | Path) -> str:
     return h.hexdigest()
 
 
-def count_files_recursive(directory: str | Path) -> int:
-    """Count all files recursively in *directory*.
-
-    Returns 0 if the directory does not exist.
-    """
-    directory = Path(directory)
-    if not directory.is_dir():
-        return 0
-    count = 0
-    for entry in directory.iterdir():
-        if entry.is_symlink():
-            continue
-        if entry.is_dir():
-            count += count_files_recursive(entry)
-        else:
-            count += 1
-    return count
-
-
 def generate_manifest(directory: str | Path, base_dir: str | Path | None = None) -> dict[str, str]:
     """Recursively collect all files in *directory* with their SHA-256 hashes.
 

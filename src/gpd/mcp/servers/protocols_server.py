@@ -91,6 +91,8 @@ def _infer_domain(name: str, _load_when: list[str]) -> str:
         "holography-ads-cft",
         "quantum-error-correction",
         "resummation",
+        "asymptotic-symmetries",
+        "generalized-symmetries",
     }
     computational = {
         "monte-carlo",
@@ -127,6 +129,8 @@ def _infer_domain(name: str, _load_when: list[str]) -> str:
         "fluid-dynamics-mhd": "fluid_plasma",
         "open-quantum-systems": "quantum_info",
         "quantum-many-body": "condensed_matter",
+        "de-sitter-space": "gr_cosmology",
+        "phenomenology": "nuclear_particle",
     }
 
     if name in domain_standalone:

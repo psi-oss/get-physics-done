@@ -59,7 +59,7 @@ Default: `remaining`
 
 Parse `config_content` for `model_profile` field. Default: `review`.
 
-The profile determines which tier each agent uses. Simplified summary (see `references/model-profiles.md` for the full 16-agent table):
+The profile determines which tier each agent uses. Simplified summary (see `references/model-profiles.md` for the full 17-agent table):
 
 | Profile       | Executor       | Verifier | Planner | Researcher     |
 | ------------- | -------------- | -------- | ------- | -------------- |

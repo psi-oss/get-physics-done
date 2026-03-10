@@ -366,7 +366,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Domain | File | What It Covers |
 |---|---|---|
 | QFT / Particle / GR | `verification-domain-qft.md` | Ward identities, unitarity, crossing symmetry, gauge invariance |
-| Condensed Matter / QI / AMO | `verification-domain-condmat.md` | f-sum rule, Luttinger theorem, Kramers-Kronig, Goldstone modes |
+| Condensed Matter | `verification-domain-condmat.md` | f-sum rule, Luttinger theorem, Kramers-Kronig, Goldstone modes |
 | Statistical Mechanics / Cosmology | `verification-domain-statmech.md` | Detailed balance, thermodynamic limit, finite-size scaling, critical exponents |
 | Fluid Dynamics / Plasma Physics | `verification-domain-fluid-plasma.md` | MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws, CFL, div(B) |
 | General Relativity / Cosmology | `verification-domain-gr-cosmology.md` | Coordinate invariance, ADM consistency, energy conditions, Friedmann equations |

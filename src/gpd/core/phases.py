@@ -922,6 +922,8 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
                 continue
 
             task_count = len(re.findall(r"##\s*Task\s*\d+", content, re.IGNORECASE))
+            if task_count == 0:
+                task_count = len(re.findall(r"<task\b", content, re.IGNORECASE))
             wave = safe_parse_int(fm.get("wave"), 1)
 
             autonomous = True

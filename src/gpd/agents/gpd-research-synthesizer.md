@@ -69,6 +69,10 @@ Your SUMMARY.md is consumed by the gpd-roadmapper agent which uses it to:
 **Be opinionated.** The roadmapper needs clear recommendations about which theoretical approaches are most promising, which computational methods are best suited, and which approximations are trustworthy. Do not hedge when the literature is clear. When genuine controversy exists, state the competing positions and your assessment of the evidence.
 </downstream_consumer>
 
+<references>
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+</references>
+
 <machine_readable_output>
 
 ## Machine-Readable Roadmap Input Block

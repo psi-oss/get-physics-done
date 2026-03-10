@@ -278,16 +278,24 @@ def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
     if not phases_dir.is_dir():
         return None
 
-    # Normalize: strip leading zeros for matching
-    normalized = re.sub(r"^0+(\d)", r"\1", phase.strip())
+    # Normalize: zero-pad top-level to 2 digits to match phases.phase_normalize
+    _stripped = phase.strip().lstrip("0") or "0"
+    _parts = _stripped.split(".", 1)
+    _top = _parts[0].zfill(2)
+    normalized = f"{_top}.{_parts[1]}" if len(_parts) > 1 else _top
 
     for d in sorted(phases_dir.iterdir()):
         if not d.is_dir():
             continue
         name = d.name
         # Strip leading zeros from the directory's numeric prefix for comparison
-        dir_prefix_match = re.match(r"^0*(\d+(?:\.\d+)*)", name)
-        dir_normalized = dir_prefix_match.group(1) if dir_prefix_match else name
+        dir_prefix_match = re.match(r"^(\d+(?:\.\d+)*)", name)
+        if dir_prefix_match:
+            _dir_parts = dir_prefix_match.group(1).split(".", 1)
+            _dir_top = _dir_parts[0].zfill(2)
+            dir_normalized = f"{_dir_top}.{_dir_parts[1]}" if len(_dir_parts) > 1 else _dir_top
+        else:
+            dir_normalized = name
         if dir_normalized == normalized or dir_normalized.startswith(normalized + ".") or name.startswith(normalized + "-") or name.startswith(normalized + "."):
             dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", name)
             phase_number = dir_match.group(1) if dir_match else normalized

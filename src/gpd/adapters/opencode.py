@@ -26,6 +26,7 @@ from gpd.adapters.install_utils import (
     PATCHES_DIR_NAME,
     compute_path_prefix,
     convert_tool_references_in_body,
+    expand_at_includes,
     file_hash,
     generate_manifest,
     get_global_dir,
@@ -271,6 +272,7 @@ def copy_agents_as_agent_files(
 
         content = entry.read_text(encoding="utf-8")
         content = replace_placeholders(content, path_prefix)
+        content = expand_at_includes(content, str(agents_src.parent), path_prefix)
         content = convert_claude_to_opencode_frontmatter(content)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
@@ -709,13 +711,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         specs_dir = gpd_root / "specs"
         skill_dest = target_dir / "get-physics-done"
         skill_dest.mkdir(parents=True, exist_ok=True)
-        try:
-            for subdir_name in ("references", "templates", "workflows"):
-                src_subdir = specs_dir / subdir_name
-                if src_subdir.is_dir():
+        for subdir_name in ("references", "templates", "workflows"):
+            src_subdir = specs_dir / subdir_name
+            if src_subdir.is_dir():
+                try:
                     copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
-        except Exception as exc:
-            failures.append(f"get-physics-done: {exc}")
+                except Exception as exc:
+                    failures.append(f"get-physics-done/{subdir_name}: {exc}")
         self._gpd_files_count = sum(1 for _ in skill_dest.rglob("*") if _.is_file())
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:

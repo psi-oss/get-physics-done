@@ -41,6 +41,10 @@ Your files feed the roadmap:
 
 @{GPD_INSTALL_DIR}/references/researcher-shared.md
 
+<references>
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+</references>
+
 <research_modes>
 
 | Mode                        | Trigger                             | Scope                                                                                            | Output Focus                                                      |

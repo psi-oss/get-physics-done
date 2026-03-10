@@ -50,6 +50,7 @@ If CONTEXT.md exists, add verification dimension: **Context Compliance**
 - `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal verification checks and priority patterns
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield
 - `@{GPD_INSTALL_DIR}/references/llm-physics-errors.md` -- Common LLM physics errors to check against
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <core_principle>

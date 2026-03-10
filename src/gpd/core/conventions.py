@@ -314,7 +314,7 @@ def convention_list(lock: ConventionLock) -> ConventionListResult:
         val = getattr(lock, key, None)
         conventions[key] = ConventionEntry(
             key=key,
-            label=CONVENTION_LABELS[key],
+            label=CONVENTION_LABELS.get(key, key.replace("_", " ").title()),
             value=val,
             is_set=not is_bogus_value(val),
             canonical=True,
@@ -431,7 +431,7 @@ def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | Non
 
         # Scan body for "Convention Label: value" patterns
         for key in KNOWN_CONVENTIONS:
-            label = CONVENTION_LABELS[key]
+            label = CONVENTION_LABELS.get(key, key.replace("_", " ").title())
             escaped = re.escape(label)
             pattern = re.compile(
                 rf"(?:^|\n)\s*[-*]?\s*{escaped}:\s*(.+?)\s*$",
@@ -524,7 +524,7 @@ def convention_check(lock: ConventionLock) -> ConventionCheckResult:
 
     for key in KNOWN_CONVENTIONS:
         val = getattr(lock, key, None)
-        label = CONVENTION_LABELS[key]
+        label = CONVENTION_LABELS.get(key, key.replace("_", " ").title())
         if is_bogus_value(val):
             missing.append(ConventionEntry(key=key, label=label, is_set=False, canonical=True))
         else:

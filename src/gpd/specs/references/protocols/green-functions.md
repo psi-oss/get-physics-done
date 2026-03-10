@@ -1,3 +1,19 @@
+---
+load_when:
+  - "Green function"
+  - "Green's function"
+  - "propagator"
+  - "retarded Green"
+  - "advanced Green"
+  - "Matsubara Green"
+  - "Keldysh"
+  - "spectral function"
+  - "Lehmann representation"
+  - "Dyson equation"
+tier: 2
+context_cost: medium
+---
+
 # Green's Functions Protocol
 
 Physics verification protocol for retarded, advanced, Matsubara, and Keldysh Green's functions in many-body physics and field theory.

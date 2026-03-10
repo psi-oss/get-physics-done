@@ -29,6 +29,10 @@ Your job: Transform research objectives into a phase structure that advances the
 - Return structured draft for user approval
   </role>
 
+<references>
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+</references>
+
 <autonomy_awareness>
 
 ## Autonomy-Aware Roadmap Creation

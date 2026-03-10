@@ -18,7 +18,7 @@
 
 \BLOCK{for author in authors}
 \BLOCK{if author.affiliation}
-\affiliation{\VAR{loop.index}}{\VAR{author.affiliation}}
+\footnotetext[\VAR{loop.index}]{\VAR{author.affiliation}}
 \BLOCK{endif}
 \BLOCK{endfor}
 

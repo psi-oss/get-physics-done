@@ -40,10 +40,10 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 
 <files_to_read>
 Read these files at execution start using the file_read tool:
-- Workflow: get-physics-done/workflows/execute-plan.md
-- Summary template: get-physics-done/templates/summary.md
-- Checkpoints ref: get-physics-done/references/checkpoints.md
-- Validation ref: get-physics-done/references/verification-core.md
+- Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
+- Summary template: {GPD_INSTALL_DIR}/templates/summary.md
+- Checkpoints ref: {GPD_INSTALL_DIR}/references/checkpoints.md
+- Validation ref: {GPD_INSTALL_DIR}/references/verification-core.md
 - Plan: {phase_dir}/{plan_file}
 - State: .gpd/STATE.md
 - Config: .gpd/config.json (if exists)

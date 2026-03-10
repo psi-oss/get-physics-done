@@ -126,6 +126,7 @@ In rapid mode, prioritize equations tagged in SUMMARY.md frontmatter as downstre
 <references>
 - `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal verification checks for cross-phase consistency validation
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, conventions, and validation strategies per physics subfield
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/contradiction-resolution-example.md` -- Worked example of resolving contradictions with confidence weighting (load when encountering conflicting claims between phases)

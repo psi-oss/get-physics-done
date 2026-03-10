@@ -555,9 +555,8 @@ Usage: `/gpd:arxiv-submission`
 Structured literature review for a physics research topic.
 
 - Citation network analysis and open question identification
-- Spawns gpd-literature-reviewer agent
+- Spawns gpd-bibliographer agent for citation verification
 - Creates structured review with key papers, methods, and gaps
-- Spawns gpd-bibliographer to verify citations
 
 Usage: `/gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 

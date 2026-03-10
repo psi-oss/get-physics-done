@@ -1,3 +1,19 @@
+---
+load_when:
+  - "WKB"
+  - "semiclassical"
+  - "Bohr-Sommerfeld"
+  - "tunneling"
+  - "turning point"
+  - "connection formula"
+  - "eikonal"
+  - "stationary phase"
+  - "saddle point"
+  - "instanton"
+tier: 2
+context_cost: medium
+---
+
 # WKB and Semiclassical Methods Protocol
 
 Physics verification protocol for WKB approximation, Bohr-Sommerfeld quantization, tunneling calculations, and semiclassical path integral methods.

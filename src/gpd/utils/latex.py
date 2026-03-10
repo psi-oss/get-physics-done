@@ -353,8 +353,11 @@ _EMOJI_RE = re.compile(
 # Build a math-mode variant of the mapping that strips $...$ wrappers.
 # Inside math regions we need the bare command (e.g. \alpha), not $\alpha$.
 _DOLLAR_WRAP_RE = re.compile(r"^\$(.+)\$$")
+_TEXT_MODE_ONLY = {"\u00a9", "\u00c5", "\u2013", "\u2014", "\u2026"}
 _UNICODE_TO_LATEX_MATH: dict[str, str] = {}
 for _char, _cmd in _UNICODE_TO_LATEX.items():
+    if _char in _TEXT_MODE_ONLY:
+        continue
     _m = _DOLLAR_WRAP_RE.match(_cmd)
     _UNICODE_TO_LATEX_MATH[_char] = _m.group(1) if _m else _cmd
 

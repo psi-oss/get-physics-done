@@ -58,7 +58,11 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | Domain | File |
 |---|---|
 | QFT / particle / GR | `verification-domain-qft.md` |
-| Condensed matter / QI / AMO | `verification-domain-condmat.md` |
+| Condensed matter | `verification-domain-condmat.md` |
+| Quantum info | `verification-domain-quantum-info.md` |
+| AMO | `verification-domain-amo.md` |
+| Soft matter | `verification-domain-soft-matter.md` |
+| Fluid / plasma | `verification-domain-fluid-plasma.md` |
 | Statistical mechanics / cosmology / fluids | `verification-domain-statmech.md` |
 | General relativity / cosmology | `verification-domain-gr-cosmology.md` |
 | Quantum gravity / holography | `verification-domain-gr-cosmology.md` + `verification-domain-qft.md` |

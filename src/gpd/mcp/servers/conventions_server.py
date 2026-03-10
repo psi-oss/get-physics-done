@@ -299,7 +299,7 @@ def convention_set(
         canonical = normalize_key(key)
         options = CONVENTION_OPTIONS.get(canonical, [])
         if options and result.value not in options:
-            response["warning"] = f"Non-standard value '{value}' for '{canonical}'. Known options: {options}"
+            response["warning"] = f"Non-standard value '{result.value}' for '{canonical}'. Known options: {options}"
 
         return response
 

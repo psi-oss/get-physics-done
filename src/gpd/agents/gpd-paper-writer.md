@@ -87,6 +87,7 @@ The paper-writer adapts its approach based on project research mode.
 - `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Standard format for notation tables and symbol definitions
 - `@{GPD_INSTALL_DIR}/templates/latex-preamble.md` -- Standard LaTeX preamble, macros, equation labeling, and figure conventions
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)

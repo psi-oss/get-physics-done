@@ -51,6 +51,7 @@ Spawned by the plan-phase orchestrator (integrated) or the research-phase comman
 <references>
 - `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification, research agent shared protocol
 - `@{GPD_INSTALL_DIR}/references/researcher-shared.md` -- Shared research philosophy, tool strategy, confidence levels, pitfalls, pre-submission checklist
+- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/research-modes.md` -- Research mode system (explore/balanced/exploit/adaptive) that controls research depth and breadth

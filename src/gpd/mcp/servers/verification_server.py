@@ -99,6 +99,18 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
         {"check": "Free energy extensive in system size", "check_ids": "5.1,5.3"},
         {"check": "Diffusion coefficient positive", "check_ids": "5.12"},
     ],
+    "algebraic_qft": [
+        {"check": "Wightman axioms satisfied (temperedness, spectral condition, locality)", "check_ids": "5.3,5.4"},
+        {"check": "Haag-Kastler net isotony and locality verified", "check_ids": "5.3"},
+        {"check": "Reeh-Schlieder property accounted for", "check_ids": "5.10"},
+        {"check": "PCT theorem assumptions validated", "check_ids": "5.4"},
+    ],
+    "string_field_theory": [
+        {"check": "BRST cohomology correctly identifies physical states", "check_ids": "5.3,5.9"},
+        {"check": "Ghost number conservation at each vertex", "check_ids": "5.4"},
+        {"check": "L_infinity / A_infinity relations verified", "check_ids": "5.4"},
+        {"check": "Gauge invariance of observables confirmed", "check_ids": "5.3,5.9"},
+    ],
 }
 
 # ─── Error Class Catalog (104 classes) ────────────────────────────────────────
