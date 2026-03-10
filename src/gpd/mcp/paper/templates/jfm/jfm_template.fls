@@ -1,6 +1,0 @@
-PWD /Users/sergio/GitHub/get-physics-done/src/gpd/mcp/paper/templates/jfm
-INPUT /usr/local/texlive/2025/texmf.cnf
-INPUT /usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf
-INPUT /usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT /Users/sergio/GitHub/get-physics-done/src/gpd/mcp/paper/templates/jfm/jfm_template.tex
-OUTPUT jfm_template.log
