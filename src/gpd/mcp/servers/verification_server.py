@@ -320,7 +320,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
             result["mismatches"] = mismatches
         results.append(result)
 
-    all_valid = all(r.get("valid", False) for r in results)
+    all_valid = bool(results) and all(r.get("valid", False) for r in results)
     return {
         "all_consistent": all_valid,
         "checked_count": len(results),
@@ -505,6 +505,11 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
             uncovered.append(
                 {
                     "error_class_id": ec_id,
+                    "name": "Unknown",
+                    "required_checks": [],
+                    "active_checks": [],
+                    "domains": [],
+                    "missing_checks": [],
                     "status": "unknown",
                     "message": f"Error class {ec_id} not in coverage database",
                 }

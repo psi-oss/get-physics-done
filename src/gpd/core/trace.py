@@ -232,8 +232,7 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     started_at = _now_iso()
 
     line = json.dumps({"timestamp": started_at, "type": "trace_start", "phase": phase, "plan": plan})
-    with trace_file.open("a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    _append_line(trace_file, line)
 
     # NOTE: active.file stores an absolute path as a string.  If the project
     # directory is moved/renamed after a trace is started, active traces and

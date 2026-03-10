@@ -282,6 +282,21 @@ _UNICODE_TO_LATEX: dict[str, str] = {
     "\u00bd": r"$\frac{1}{2}$",
     "\u00bc": r"$\frac{1}{4}$",
     "\u00be": r"$\frac{3}{4}$",
+    # Astrophysics / miscellaneous symbols (must be mapped before emoji strip)
+    "\u2605": r"$\bigstar$",       # ★ black star
+    "\u2606": r"$\star$",          # ☆ white star
+    "\u2609": r"$\odot$",          # ☉ solar symbol
+    "\u263f": r"$\mercury$",       # ☿ Mercury  (wasysym)
+    "\u2640": r"$\venus$",         # ♀ Venus    (wasysym)
+    "\u2641": r"$\earth$",         # ♁ Earth    (wasysym)
+    "\u2642": r"$\mars$",          # ♂ Mars     (wasysym)
+    "\u2643": r"$\jupiter$",       # ♃ Jupiter  (wasysym)
+    "\u2644": r"$\saturn$",        # ♄ Saturn   (wasysym)
+    "\u2645": r"$\uranus$",        # ♅ Uranus   (wasysym)
+    "\u2646": r"$\neptune$",       # ♆ Neptune  (wasysym)
+    "\u2647": r"$\pluto$",         # ♇ Pluto    (wasysym)
+    "\u2713": r"$\checkmark$",     # ✓ check mark
+    "\u2717": r"$\times$",         # ✗ ballot X
     # Typography
     "\u2013": "--",
     "\u2014": "---",
@@ -299,7 +314,13 @@ _EMOJI_RE = re.compile(
     "\U0001f900-\U0001f9ff"  # supplemental symbols & pictographs
     "\U0001fa00-\U0001fa6f"  # chess symbols, extended-A
     "\U0001fa70-\U0001faff"  # symbols & pictographs extended-A
-    "\U00002600-\U000027bf"  # misc symbols, dingbats (expanded to 27bf)
+    "\U00002600-\U00002604"  # misc symbols before ★
+    "\U00002607-\U00002608"  # misc symbols between ☆ and ☉
+    "\U0000260a-\U0000263e"  # misc symbols between ☉ and ☿
+    "\U00002648-\U000026ff"  # misc symbols after ♇ (incl. zodiac)
+    "\U00002700-\U00002712"  # dingbats before ✓
+    "\U00002714-\U00002716"  # dingbats between ✓ and ✗
+    "\U00002718-\U000027bf"  # dingbats after ✗
     "\U00002b50-\U00002b55"  # additional stars and circles
     "\U0000fe00-\U0000fe0f"  # variation selectors
     "\U0000200d"             # zero-width joiner
@@ -311,8 +332,7 @@ _EMOJI_RE = re.compile(
     "\U000025b6"             # play button
     "\U000025c0"             # reverse button
     "\U000025fb-\U000025fe"  # medium squares
-    "\U00002614-\U00002615"  # umbrella, hot beverage
-    "\U00002648-\U00002653"  # zodiac signs
+    # U+2614-2615 and U+2648-2653 already covered by ranges above
     "\U0001f004"             # mahjong tile
     "\U0001f0cf"             # joker
     "\U0001f170-\U0001f171"  # negative squared letters

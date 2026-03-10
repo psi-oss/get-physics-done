@@ -6,6 +6,7 @@ Shows: model | current task | directory | research position | context usage.
 """
 
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -167,7 +168,7 @@ def main() -> None:
         session_id = session_value if isinstance(session_value, str) else ""
         remaining = _mapping(data.get("context_window")).get("remaining_percentage")
 
-        ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) else ""
+        ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
         position = _read_position(workspace_dir)
         task = _read_current_task(session_id)
         gpd_update = _check_update()

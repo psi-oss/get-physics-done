@@ -40,7 +40,11 @@ async def test_latexmk_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_manual_multipass_rejects_pdf_when_any_pass_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_manual_multipass_succeeds_when_early_pass_fails_but_last_pass_ok(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pass 1 often exits non-zero (unresolved citations). If the last pass
+    succeeds and a PDF exists, compilation should be treated as success."""
     tex_path = tmp_path / "paper.tex"
     tex_path.write_text(r"\documentclass{article}\begin{document}test\end{document}", encoding="utf-8")
     pdf_path = tmp_path / "paper.pdf"
@@ -61,9 +65,35 @@ async def test_manual_multipass_rejects_pdf_when_any_pass_fails(tmp_path, monkey
 
     result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
 
+    assert result.success is True
+    assert result.pdf_path == pdf_path
+
+
+@pytest.mark.asyncio
+async def test_manual_multipass_fails_when_last_pass_nonzero_and_no_pdf(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the last pass exits non-zero and no PDF exists, compilation fails."""
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text(r"\documentclass{article}\begin{document}test\end{document}", encoding="utf-8")
+
+    returncodes = iter([1, 0, 1])
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        return _FakeProcess(returncode=next(returncodes), stdout=b"pdflatex output", stderr=b"")
+
+    def fake_which(binary: str) -> str | None:
+        if binary == "pdflatex":
+            return "/usr/bin/pdflatex"
+        return None
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", fake_which)
+
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+
     assert result.success is False
     assert result.pdf_path is None
-    assert result.error == "pdflatex pass 1 exited with code 1"
     assert result.log is not None
     assert "pdflatex output" in result.log
 

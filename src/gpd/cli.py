@@ -202,6 +202,12 @@ class _GPDTyper(typer.Typer):
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
+        except TimeoutError as exc:
+            if _raw:
+                err_console.print_json(json.dumps({"error": str(exc)}))
+            else:
+                err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
+            raise SystemExit(1) from None
 
 
 app = _GPDTyper(
@@ -726,13 +732,6 @@ def _load_state_dict() -> dict:
         _error(f"Malformed state.json: {e}")
 
 
-def _save_state_dict(state: dict) -> None:
-    """Save a state dict back to state.json and regenerate STATE.md."""
-    from gpd.core.state import save_state_json
-
-    save_state_json(_get_cwd(), state)
-
-
 @result_app.command("list")
 def result_list(
     phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
@@ -850,7 +849,10 @@ def verify_summary(
     """Verify a SUMMARY.md file."""
     from gpd.core.frontmatter import verify_summary
 
-    _output(verify_summary(_get_cwd(), Path(path), check_file_count=check_count))
+    result = verify_summary(_get_cwd(), Path(path), check_file_count=check_count)
+    _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
 
 
 @verify_app.command("plan")
@@ -860,7 +862,10 @@ def verify_plan(
     """Verify plan file structure."""
     from gpd.core.frontmatter import verify_plan_structure
 
-    _output(verify_plan_structure(_get_cwd(), Path(path)))
+    result = verify_plan_structure(_get_cwd(), Path(path))
+    _output(result)
+    if not result.valid:
+        raise typer.Exit(code=1)
 
 
 @verify_app.command("phase")
@@ -870,7 +875,10 @@ def verify_phase(
     """Verify phase completeness (all plans have summaries, etc.)."""
     from gpd.core.frontmatter import verify_phase_completeness
 
-    _output(verify_phase_completeness(_get_cwd(), phase))
+    result = verify_phase_completeness(_get_cwd(), phase)
+    _output(result)
+    if not result.complete:
+        raise typer.Exit(code=1)
 
 
 @verify_app.command("references")
@@ -880,7 +888,10 @@ def verify_references(
     """Verify all internal references resolve."""
     from gpd.core.frontmatter import verify_references
 
-    _output(verify_references(_get_cwd(), Path(path)))
+    result = verify_references(_get_cwd(), Path(path))
+    _output(result)
+    if not result.valid:
+        raise typer.Exit(code=1)
 
 
 @verify_app.command("commits")
@@ -890,7 +901,10 @@ def verify_commits(
     """Verify that commit hashes exist in git history."""
     from gpd.core.frontmatter import verify_commits
 
-    _output(verify_commits(_get_cwd(), hashes))
+    result = verify_commits(_get_cwd(), hashes)
+    _output(result)
+    if not result.all_valid:
+        raise typer.Exit(code=1)
 
 
 @verify_app.command("artifacts")
@@ -900,7 +914,10 @@ def verify_artifacts(
     """Verify all artifacts referenced in a plan exist."""
     from gpd.core.frontmatter import verify_artifacts
 
-    _output(verify_artifacts(_get_cwd(), Path(plan_path)))
+    result = verify_artifacts(_get_cwd(), Path(plan_path))
+    _output(result)
+    if not result.all_passed:
+        raise typer.Exit(code=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

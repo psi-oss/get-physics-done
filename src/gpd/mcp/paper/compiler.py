@@ -216,7 +216,11 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         record_result("pdflatex pass 3", returncode, log)
 
         pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if not compile_errors and pdf_path.exists():
+        if pdf_path.exists() and not compile_errors:
+            return CompilationResult(success=True, pdf_path=pdf_path)
+        # Only the last pass matters: earlier passes often exit non-zero
+        # due to unresolved references/citations (expected behaviour).
+        if pdf_path.exists() and returncode == 0:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
@@ -241,7 +245,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             record_result("pdflatex autofix pass 2", returncode, log)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if not compile_errors and pdf_path.exists():
+            if pdf_path.exists() and (not compile_errors or returncode == 0):
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
         error = compile_errors[0] if compile_errors else "Compilation failed"

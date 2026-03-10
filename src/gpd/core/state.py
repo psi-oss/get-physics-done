@@ -1109,7 +1109,9 @@ def _recover_intent_locked(cwd: Path) -> None:
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
-    if json_tmp_exists and md_tmp_exists and json_valid:
+    md_valid = md_tmp_exists and md_tmp.stat().st_size > 0
+
+    if json_tmp_exists and md_tmp_exists and json_valid and md_valid:
         # Both temp files ready and valid — complete the interrupted write
         os.rename(json_tmp, json_path)
         os.rename(md_tmp, md_path)
@@ -1130,11 +1132,6 @@ def _recover_intent_locked(cwd: Path) -> None:
         intent_file.unlink(missing_ok=True)
     except OSError:
         pass
-
-
-def _recover_intent(cwd: Path) -> None:
-    with _state_lock(cwd):
-        _recover_intent_locked(cwd)
 
 
 def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:

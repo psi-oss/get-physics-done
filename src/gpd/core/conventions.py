@@ -356,11 +356,11 @@ def convention_diff(lock_a: ConventionLock, lock_b: ConventionLock) -> Conventio
         norm_a = normalize_value(key, val_a) if val_a is not None else None
         norm_b = normalize_value(key, val_b) if val_b is not None else None
         if norm_a is None and norm_b is not None:
-            added.append(ConventionDiff(key=key, to_value=val_b))
+            added.append(ConventionDiff(key=key, to_value=norm_b))
         elif norm_a is not None and norm_b is None:
-            removed.append(ConventionDiff(key=key, from_value=val_a))
+            removed.append(ConventionDiff(key=key, from_value=norm_a))
         elif norm_a is not None and norm_b is not None and norm_a != norm_b:
-            changed.append(ConventionDiff(key=key, from_value=val_a, to_value=val_b))
+            changed.append(ConventionDiff(key=key, from_value=norm_a, to_value=norm_b))
 
     # Compare custom conventions
     all_custom_keys = set(lock_a.custom_conventions) | set(lock_b.custom_conventions)
@@ -370,11 +370,11 @@ def convention_diff(lock_a: ConventionLock, lock_b: ConventionLock) -> Conventio
         norm_a = normalize_value(key, val_a) if val_a is not None else None
         norm_b = normalize_value(key, val_b) if val_b is not None else None
         if norm_a is None and norm_b is not None:
-            added.append(ConventionDiff(key=key, to_value=val_b))
+            added.append(ConventionDiff(key=key, to_value=norm_b))
         elif norm_a is not None and norm_b is None:
-            removed.append(ConventionDiff(key=key, from_value=val_a))
+            removed.append(ConventionDiff(key=key, from_value=norm_a))
         elif norm_a is not None and norm_b is not None and norm_a != norm_b:
-            changed.append(ConventionDiff(key=key, from_value=val_a, to_value=val_b))
+            changed.append(ConventionDiff(key=key, from_value=norm_a, to_value=norm_b))
 
     return ConventionDiffResult(changed=changed, added=added, removed=removed)
 
@@ -485,20 +485,26 @@ def convention_diff_phases(
             ),
         )
 
-    all_keys = set(conv1 or {}) | set(conv2 or {})
     changed: list[ConventionDiff] = []
     added: list[ConventionDiff] = []
     removed: list[ConventionDiff] = []
 
+    # Normalize keys before comparison
+    norm_conv1 = {normalize_key(k): v for k, v in (conv1 or {}).items()}
+    norm_conv2 = {normalize_key(k): v for k, v in (conv2 or {}).items()}
+    all_keys = set(norm_conv1) | set(norm_conv2)
+
     for key in sorted(all_keys):
-        val1 = (conv1 or {}).get(key)
-        val2 = (conv2 or {}).get(key)
-        if val1 is None and val2 is not None:
-            added.append(ConventionDiff(key=key, to_value=str(val2)))
-        elif val1 is not None and val2 is None:
-            removed.append(ConventionDiff(key=key, from_value=str(val1)))
-        elif val1 is not None and val2 is not None and str(val1) != str(val2):
-            changed.append(ConventionDiff(key=key, from_value=str(val1), to_value=str(val2)))
+        val1 = norm_conv1.get(key)
+        val2 = norm_conv2.get(key)
+        norm1 = normalize_value(key, str(val1)) if val1 is not None else None
+        norm2 = normalize_value(key, str(val2)) if val2 is not None else None
+        if norm1 is None and norm2 is not None:
+            added.append(ConventionDiff(key=key, to_value=norm2))
+        elif norm1 is not None and norm2 is None:
+            removed.append(ConventionDiff(key=key, from_value=norm1))
+        elif norm1 is not None and norm2 is not None and norm1 != norm2:
+            changed.append(ConventionDiff(key=key, from_value=norm1, to_value=norm2))
 
     note = None
     if not conv1:

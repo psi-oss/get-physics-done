@@ -681,7 +681,7 @@ def _remove_gpd_mcp_toml_sections(content: str) -> str:
         escaped = re.escape(key)
         # Remove [mcp_servers.key] and [mcp_servers.key.env] sections until the next section.
         content = re.sub(
-            rf"^\[mcp_servers\.{escaped}(?:\.env)?\]\n(?:[^\[]*\n)*",
+            rf"^\[mcp_servers\.{escaped}(?:\.env)?\]\n(?:(?!\[)[^\n]*\n)*",
             "",
             content,
             flags=re.MULTILINE,

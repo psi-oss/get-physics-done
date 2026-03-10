@@ -1418,21 +1418,21 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                 None,
             )
 
-        # Check for executed work
-        if target_dir and not force:
-            target_path = phases_dir / target_dir
-            summaries = [
-                f.name for f in target_path.iterdir() if f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY
-            ]
-            if summaries:
-                raise PhaseValidationError(
-                    f"Phase {target_phase} has {len(summaries)} executed plan(s). Use force=True to remove anyway."
-                )
-
         renamed_dirs: list[RenameEntry] = []
         renamed_files: list[RenameEntry] = []
 
         with file_lock(roadmap_path):
+            # Check for executed work (inside lock to avoid TOCTOU race)
+            if target_dir and not force:
+                target_path = phases_dir / target_dir
+                summaries = [
+                    f.name for f in target_path.iterdir() if f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY
+                ]
+                if summaries:
+                    raise PhaseValidationError(
+                        f"Phase {target_phase} has {len(summaries)} executed plan(s). Use force=True to remove anyway."
+                    )
+
             # Step 1: Update ROADMAP.md
             roadmap_content = roadmap_path.read_text(encoding="utf-8")
             roadmap_phase_num = phase_unpad(target_phase)
@@ -1847,12 +1847,12 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                         state_content,
                     )
 
-                    if next_phase_name:
-                        state_content = re.sub(
-                            r"(\*\*Current Phase Name:\*\*\s*).*",
-                            rf"\g<1>{next_phase_name.replace('-', ' ')}",
-                            state_content,
-                        )
+                    phase_name_display = next_phase_name.replace('-', ' ') if next_phase_name else (next_phase_num or "\u2014")
+                    state_content = re.sub(
+                        r"(\*\*Current Phase Name:\*\*\s*).*",
+                        rf"\g<1>{phase_name_display}",
+                        state_content,
+                    )
 
                     state_content = re.sub(
                         r"(\*\*Status:\*\*\s*).*",

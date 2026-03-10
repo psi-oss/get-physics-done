@@ -86,7 +86,7 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
 
 def _convert_svg(source: Path, output_dir: Path) -> Path:
     """Convert SVG to PDF using cairosvg or inkscape."""
-    dest = output_dir / f"{source.stem}.pdf"
+    dest = _unique_dest(output_dir, Path(f"{source.stem}.pdf"))
 
     # Try cairosvg first
     try:
@@ -94,7 +94,7 @@ def _convert_svg(source: Path, output_dir: Path) -> Path:
 
         cairosvg.svg2pdf(url=str(source), write_to=str(dest))
         return dest
-    except ImportError:
+    except Exception:
         pass
 
     # Fall back to inkscape
@@ -117,7 +117,7 @@ def _convert_tiff(source: Path, output_dir: Path) -> Path:
     """Convert TIFF to PNG using Pillow."""
     from PIL import Image
 
-    dest = output_dir / f"{source.stem}.png"
+    dest = _unique_dest(output_dir, Path(f"{source.stem}.png"))
     with Image.open(source) as img:
         img.save(dest, "PNG")
     return dest

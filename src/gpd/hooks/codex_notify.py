@@ -76,6 +76,9 @@ def main() -> None:
         _debug(f"codex-notify stdin parse error: {exc}")
         return
 
+    if not isinstance(data, dict):
+        return
+
     if data.get("type") != "agent-turn-complete":
         return
 

@@ -489,10 +489,10 @@ def check_latest_return(cwd: Path) -> HealthCheck:
     details["fields_found"] = list(fields.keys())
 
     for field_name in REQUIRED_RETURN_FIELDS:
-        if not fields.get(field_name):
+        if field_name not in fields or fields[field_name] is None:
             issues.append(f"{summary_name}: missing required field '{field_name}' in gpd_return")
 
-    if fields.get("status") and fields["status"] not in VALID_RETURN_STATUSES:
+    if fields.get("status") and str(fields["status"]).lower() not in VALID_RETURN_STATUSES:
         issues.append(f"{summary_name}: invalid status '{fields['status']}'")
 
     for numeric_field in ("tasks_completed", "tasks_total"):
@@ -620,7 +620,8 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
     # Fix 2: Create config.json if missing or malformed
     config_check = next((c for c in checks if c.label == "Config"), None)
     if config_check and (
-        any("not found" in w for w in config_check.warnings) or any("parse error" in i for i in config_check.issues)
+        any("not found" in w for w in config_check.warnings)
+        or any("Malformed" in i or "JSONDecodeError" in i for i in config_check.issues)
     ):
         config_path = layout.config_json
         try:

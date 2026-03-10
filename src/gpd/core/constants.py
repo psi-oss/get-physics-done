@@ -398,8 +398,9 @@ class ProjectLayout:
 
     def trace_file(self, phase: str, plan: str) -> Path:
         """Return path to a trace JSONL file for a given phase+plan."""
+        safe_phase = "".join(c if c.isalnum() or c in "._-" else "-" for c in phase)
         safe_plan = "".join(c if c.isalnum() or c in "._-" else "-" for c in plan)
-        return self.traces_dir / f"{phase}-{safe_plan}.jsonl"
+        return self.traces_dir / f"{safe_phase}-{safe_plan}.jsonl"
 
     def plan_file(self, phase_name: str, plan_id: str) -> Path:
         """Return path to a numbered plan file within a phase."""

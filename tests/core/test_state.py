@@ -419,6 +419,35 @@ def test_research_state_model():
     assert isinstance(dumped["decisions"], list)
 
 
+def test_is_valid_status_rejects_prefix():
+    """Prefixes of valid statuses must not be accepted."""
+    assert is_valid_status("Exec") is False
+    assert is_valid_status("Plan") is False
+
+
+def test_extract_field_does_not_cross_newline():
+    """state_extract_field must not capture text from the next line."""
+    assert state_extract_field("**Status:**\n**Phase:** 3", "Status") is None
+
+
+def test_decision_emdash_in_rationale_preserved():
+    """An em-dash inside the rationale must not truncate the text."""
+    s = default_state_dict()
+    s["decisions"] = [
+        {
+            "phase": "2",
+            "summary": "Pick gauge",
+            "rationale": "Lorenz gauge — simplifies Fourier — standard choice",
+        }
+    ]
+    md = generate_state_markdown(s)
+    parsed = parse_state_md(md)
+    assert len(parsed["decisions"]) == 1
+    rat = parsed["decisions"][0]["rationale"]
+    assert rat is not None
+    assert "standard choice" in rat
+
+
 def test_valid_statuses_is_list():
     assert isinstance(VALID_STATUSES, list)
     assert "Executing" in VALID_STATUSES

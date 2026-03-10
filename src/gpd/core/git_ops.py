@@ -76,6 +76,8 @@ _NAN_PATTERN = re.compile(
         | -?inf          # inf / -inf
         | -?Inf
         | -?INF
+        | \.nan           # YAML .nan
+        | -?\.inf         # YAML .inf / -.inf
     )
     (?:$|[\s,.\]\);:!?])  # followed by end, whitespace, or delimiter/punctuation
     """,

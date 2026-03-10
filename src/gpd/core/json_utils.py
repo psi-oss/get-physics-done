@@ -180,6 +180,9 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         else:
             steps.append((segment, False))
 
+    if not steps:
+        return {"file": str(fp), "path": path, "updated": False, "error": "empty path"}
+
     # Traverse / create intermediate containers
     current: object = data
     for step_key, is_idx in steps[:-1]:
@@ -196,18 +199,21 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
             break
 
     # Set the final value
+    updated = False
     final_key, final_is_idx = steps[-1]
     if final_is_idx and isinstance(current, list):
         try:
             current[final_key] = parsed_value  # type: ignore[index]
+            updated = True
         except (IndexError, TypeError):
             pass
     elif isinstance(current, dict):
         current[final_key] = parsed_value  # type: ignore[index]
+        updated = True
 
     fp.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(fp, json.dumps(data, indent=2) + "\n")
-    return {"file": str(fp), "path": path, "updated": True}
+    return {"file": str(fp), "path": path, "updated": updated}
 
 
 def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, object]:

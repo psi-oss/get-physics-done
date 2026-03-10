@@ -322,7 +322,13 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
 
     # Coerce verified to bool
     if "verified" in updates:
-        updates["verified"] = bool(updates["verified"]) or str(updates["verified"]).strip().lower() == "true"
+        raw = updates["verified"]
+        if isinstance(raw, bool):
+            updates["verified"] = raw
+        elif isinstance(raw, str):
+            updates["verified"] = raw.strip().lower() in ("true", "1", "yes")
+        else:
+            updates["verified"] = bool(raw)
 
     updated_fields: list[str] = []
     for field in RESULT_FIELDS:
