@@ -44,7 +44,7 @@ Construct a directed graph: edges from providers to consumers.
 
 ## Step 3: Generate Graph Visualization
 
-There is not yet a supported standalone `gpd dependency-graph` helper. Build the graph directly from `ROADMAP.md` plus SUMMARY frontmatter, then present it in the format that best fits the user's request:
+Build the graph directly from `ROADMAP.md` plus SUMMARY frontmatter, then present it in the format that best fits the user's request:
 
 - ASCII for quick terminal inspection
 - Mermaid for markdown embedding
