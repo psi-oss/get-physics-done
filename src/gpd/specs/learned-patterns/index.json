@@ -299,26 +299,6 @@
         "pole",
         "analytic-continuation"
       ]
-    },
-    {
-      "id": "qft-sign-error-test-pattern-for-mcp-phase-15",
-      "file": "patterns-by-domain/qft/sign-error-test-pattern-for-mcp-phase-15.md",
-      "domain": "qft",
-      "category": "sign-error",
-      "severity": "medium",
-      "confidence": "confirmed",
-      "title": "Test pattern for MCP phase 15",
-      "first_seen": "2026-03-09",
-      "last_seen": "2026-03-09",
-      "occurrence_count": 2,
-      "tags": [
-        "test",
-        "pattern",
-        "for",
-        "mcp",
-        "phase",
-        "description"
-      ]
     }
   ]
 }

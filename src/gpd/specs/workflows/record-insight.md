@@ -1,5 +1,5 @@
 <purpose>
-Record a project-specific learning insight to `.planning/INSIGHTS.md`. This is an internal workflow used by agents after discovering patterns worth preserving for the project.
+Record a project-specific learning insight to `.gpd/INSIGHTS.md`. This is an internal workflow used by agents after discovering patterns worth preserving for the project.
 </purpose>
 
 <required_reading>
@@ -9,19 +9,19 @@ Read all files referenced by the invoking prompt's execution_context before star
 <process>
 
 <step name="check_insights_file">
-Check if `.planning/INSIGHTS.md` exists:
+Check if `.gpd/INSIGHTS.md` exists:
 
 ```bash
-test -f .planning/INSIGHTS.md && echo "EXISTS" || echo "MISSING"
+test -f .gpd/INSIGHTS.md && echo "EXISTS" || echo "MISSING"
 ```
 
 **If MISSING:** Create from template:
 
 ```bash
-mkdir -p .planning
+mkdir -p .gpd
 ```
 
-Write `.planning/INSIGHTS.md`:
+Write `.gpd/INSIGHTS.md`:
 
 ```markdown
 # Project Insights
@@ -52,10 +52,10 @@ Accumulated project-specific lessons discovered during research. Agents consult 
 </step>
 
 <step name="check_duplicates">
-Read existing `.planning/INSIGHTS.md` and check whether the insight to be recorded is already present.
+Read existing `.gpd/INSIGHTS.md` and check whether the insight to be recorded is already present.
 
 ```bash
-grep -i "{brief_description_keyword}" .planning/INSIGHTS.md 2>/dev/null
+grep -i "{brief_description_keyword}" .gpd/INSIGHTS.md 2>/dev/null
 ```
 
 **If found:** Do not duplicate. Report: "Insight already recorded."
@@ -77,7 +77,7 @@ Map the insight category to the appropriate section:
 </step>
 
 <step name="append_insight">
-Append the new insight as a table row to the appropriate section in `.planning/INSIGHTS.md`.
+Append the new insight as a table row to the appropriate section in `.gpd/INSIGHTS.md`.
 
 **Row format:**
 
@@ -99,10 +99,10 @@ Append the new insight as a table row to the appropriate section in `.planning/I
 Commit the insight:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/INSIGHTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/INSIGHTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: record project insight - {brief description}" --files .planning/INSIGHTS.md
+gpd commit "docs: record project insight - {brief description}" --files .gpd/INSIGHTS.md
 ```
 
 Confirm: "Recorded insight: {brief description}"
@@ -112,7 +112,7 @@ Confirm: "Recorded insight: {brief description}"
 
 <success_criteria>
 
-- [ ] `.planning/INSIGHTS.md` exists (created if needed)
+- [ ] `.gpd/INSIGHTS.md` exists (created if needed)
 - [ ] No duplicate insight recorded
 - [ ] Insight appended to correct section with all fields populated
 - [ ] Committed to git with descriptive message

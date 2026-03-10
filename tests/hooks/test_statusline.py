@@ -86,48 +86,48 @@ class TestReadPosition:
         assert _read_position(str(tmp_path)) == ""
 
     def test_valid_state_with_phase_only(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 3, "total_phases": 10}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P3/10"
 
     def test_valid_state_with_phase_and_plan(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 2, "total_phases": 5, "current_plan": 1, "total_plans_in_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P2/5 plan 1/3"
 
     def test_empty_position_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_phase_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"total_phases": 5}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_total_phases_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_corrupt_json_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text("not valid json{{{")
         assert _read_position(str(tmp_path)) == ""
 
     def test_no_position_key_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({"other": "data"}))
         assert _read_position(str(tmp_path)) == ""

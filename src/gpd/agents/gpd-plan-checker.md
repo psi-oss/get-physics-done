@@ -92,7 +92,7 @@ Same methodology (goal-backward), different timing, different subject matter.
 
 ## Profile-Aware Checking Rigor
 
-The active model profile (from `.planning/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
+The active model profile (from `.gpd/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
 
 **deep-theory:** All 16 dimensions checked at maximum rigor. Require explicit justification for every approximation. Flag any task without validation step.
 

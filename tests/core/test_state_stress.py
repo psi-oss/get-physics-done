@@ -38,8 +38,8 @@ from gpd.core.state import (
 
 
 def _bootstrap_project(tmp_path: Path, state_dict: dict | None = None) -> Path:
-    """Create a minimal .planning/ project with STATE.md + state.json."""
-    planning = tmp_path / ".planning"
+    """Create a minimal .gpd/ project with STATE.md + state.json."""
+    planning = tmp_path / ".gpd"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -83,7 +83,7 @@ class TestEmptyStateMd:
 
     def test_snapshot_with_empty_state_md(self, tmp_path: Path) -> None:
         """state_snapshot falls back gracefully when STATE.md is minimal."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         (planning / "STATE.md").write_text("# State\n")
@@ -148,7 +148,7 @@ class TestAllNullFields:
 
     def test_load_all_null_state_json(self, tmp_path: Path) -> None:
         """load_state_json recovers from state.json where all values are null."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         null_state = dict.fromkeys(default_state_dict())
@@ -225,7 +225,7 @@ class TestConcurrentAccess:
         assert not errors, f"Concurrent writes produced errors: {errors}"
 
         # Verify the file is still valid JSON after all writes
-        json_path = cwd / ".planning" / "state.json"
+        json_path = cwd / ".gpd" / "state.json"
         loaded = json.loads(json_path.read_text(encoding="utf-8"))
         assert "position" in loaded
 
@@ -442,7 +442,7 @@ class TestMissingSections:
 
     def test_load_state_json_missing_both_sections(self, tmp_path: Path) -> None:
         """load_state_json handles state.json with no position and no session."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         raw = {"decisions": [], "blockers": ["Something"]}
@@ -457,7 +457,7 @@ class TestMissingSections:
 
     def test_snapshot_missing_position_in_json(self, tmp_path: Path) -> None:
         """state_snapshot tolerates state.json that has no 'position' key."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         raw = {"decisions": [], "blockers": []}

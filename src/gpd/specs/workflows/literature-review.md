@@ -267,10 +267,10 @@ Map the state-of-the-art:
 Ensure the output directory exists:
 
 ```bash
-mkdir -p .planning/literature
+mkdir -p .gpd/literature
 ```
 
-Write `.planning/literature/{slug}-REVIEW.md`:
+Write `.gpd/literature/{slug}-REVIEW.md`:
 
 ```markdown
 ---
@@ -393,7 +393,7 @@ Verify all citations in the literature review.
 
 Mode: Audit bibliography
 
-Review file: .planning/literature/{slug}-REVIEW.md
+Review file: .gpd/literature/{slug}-REVIEW.md
 
 For every reference listed in the Full Reference List and cited in the body:
 1. Run the hallucination detection protocol (Steps 1-5) against INSPIRE, ADS, arXiv
@@ -401,7 +401,7 @@ For every reference listed in the Full Reference List and cited in the body:
 3. Flag any hallucinated or inaccurate citations
 4. Correct metadata errors where possible
 
-Write results to .planning/literature/{slug}-CITATION-AUDIT.md
+Write results to .gpd/literature/{slug}-CITATION-AUDIT.md
 
 Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 )
@@ -437,7 +437,7 @@ Format:
 
 **Topic:** {topic}
 **Papers reviewed:** {N}
-**Report:** .planning/literature/{slug}-REVIEW.md
+**Report:** .gpd/literature/{slug}-REVIEW.md
 
 **Key takeaways:**
 
@@ -448,7 +448,7 @@ Format:
 **Open questions identified:** {N}
 **Active controversies:** {N}
 **Recommended starting point:** {key reference}
-**Citation verification:** {all verified | N issues found -- see .planning/literature/{slug}-CITATION-AUDIT.md}
+**Citation verification:** {all verified | N issues found -- see .gpd/literature/{slug}-CITATION-AUDIT.md}
 ```
 
 If the review is incomplete (too broad, need user guidance):

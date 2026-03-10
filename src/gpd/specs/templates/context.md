@@ -4,7 +4,7 @@ template_version: 1
 
 # Phase Context Template
 
-Template for `.planning/phases/XX-name/{phase}-CONTEXT.md` - captures research decisions for a phase.
+Template for `.gpd/phases/XX-name/{phase}-CONTEXT.md` - captures research decisions for a phase.
 
 **Purpose:** Document decisions that downstream agents need. The researcher-agent uses this to know WHAT to investigate in the literature. The planner-agent uses this to know WHAT calculations are locked vs flexible.
 
@@ -264,7 +264,7 @@ The output should answer: "What does the researcher-agent need to investigate in
 
 **After creation:**
 
-- File lives in phase directory: `.planning/phases/XX-name/{phase}-CONTEXT.md`
+- File lives in phase directory: `.gpd/phases/XX-name/{phase}-CONTEXT.md`
 - `gpd-phase-researcher` uses decisions to focus literature investigation
 - `gpd-planner` uses decisions + research to create executable tasks
 - Downstream agents should NOT need to ask the researcher again about captured decisions

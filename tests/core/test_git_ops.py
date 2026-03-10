@@ -129,7 +129,7 @@ class TestCommit:
             (0, "", ""),       # git commit
             (0, "abc1234", ""),  # git rev-parse
         ]
-        result = cmd_commit(tmp_path, "test: commit message", files=[".planning/STATE.md"])
+        result = cmd_commit(tmp_path, "test: commit message", files=[".gpd/STATE.md"])
         assert result.committed is True
         assert result.sha == "abc1234"
         assert result.message == "test: commit message"
@@ -173,9 +173,9 @@ class TestCommit:
             (0, "def5678", ""),  # rev-parse
         ]
         cmd_commit(tmp_path, "test: default staging")
-        # Verify the git add was called with .planning/
+        # Verify the git add was called with .gpd/
         add_call = mock_git.call_args_list[0]
-        assert ".planning/" in add_call[0][1]
+        assert ".gpd/" in add_call[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -191,10 +191,10 @@ class TestCommitCLI:
         mock_commit.return_value = CommitResult(
             committed=True,
             message="test: message",
-            files=[".planning/STATE.md"],
+            files=[".gpd/STATE.md"],
             sha="abc1234",
         )
-        result = runner.invoke(app, ["commit", "test: message", "--files", ".planning/STATE.md"])
+        result = runner.invoke(app, ["commit", "test: message", "--files", ".gpd/STATE.md"])
         assert result.exit_code == 0
         mock_commit.assert_called_once()
 
@@ -214,7 +214,7 @@ class TestCommitCLI:
             passed=True,
             files_checked=1,
         )
-        result = runner.invoke(app, ["pre-commit-check", "--files", ".planning/STATE.md"])
+        result = runner.invoke(app, ["pre-commit-check", "--files", ".gpd/STATE.md"])
         assert result.exit_code == 0
         mock_check.assert_called_once()
 

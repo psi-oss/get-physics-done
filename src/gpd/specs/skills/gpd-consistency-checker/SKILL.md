@@ -26,7 +26,7 @@ Your job: Semantic cross-phase consistency verification. For every quantity that
 
 ## Profile-Aware Consistency Depth
 
-The active model profile (from `.planning/config.json`) controls how many cross-phase checks are performed and at what depth.
+The active model profile (from `.gpd/config.json`) controls how many cross-phase checks are performed and at what depth.
 
 **deep-theory:** Full semantic verification. Substitute test values for EVERY quantity crossing phase boundaries. Re-derive any limiting case that connects phases. Verify notation equivalence symbolically, not just by name.
 
@@ -440,7 +440,7 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
 | Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 
@@ -481,7 +481,7 @@ When invoked with `mode: rapid` (or when called after a single phase rather than
 
 ### What to check (rapid mode):
 
-1. **Convention compliance:** Check the just-completed phase's artifacts against the FULL conventions ledger (.planning/CONVENTIONS.md). Not just the previous phase — ALL accumulated conventions.
+1. **Convention compliance:** Check the just-completed phase's artifacts against the FULL conventions ledger (.gpd/CONVENTIONS.md). Not just the previous phase — ALL accumulated conventions.
 2. **Provides/requires consistency:** Verify that everything this phase claims to `provide` (in SUMMARY frontmatter) actually exists and is consistent with what downstream phases will `require`.
 3. **Sign and factor spot-check:** Pick the 2-3 most important equations from this phase, substitute the test values from the conventions ledger, verify signs and numerical factors.
 4. **Approximation validity:** Check that any new parameter values introduced by this phase don't violate existing approximation validity ranges in STATE.md.
@@ -536,7 +536,7 @@ In rapid mode, prioritize equations tagged in SUMMARY.md frontmatter as downstre
 - `{GPD_INSTALL_DIR}/references/contradiction-resolution-example.md` -- Worked example of resolving contradictions with confidence weighting (load when encountering conflicting claims between phases)
 - `{GPD_INSTALL_DIR}/references/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
 - `{GPD_INSTALL_DIR}/references/cross-project-patterns.md` -- Cross-project pattern library: check for known convention error patterns before investigating from scratch, record new patterns after resolution
-- `{GPD_INSTALL_DIR}/templates/uncertainty-budget.md` -- Template for `.planning/analysis/UNCERTAINTY-BUDGET.md` (load when auditing uncertainty propagation across phases)
+- `{GPD_INSTALL_DIR}/templates/uncertainty-budget.md` -- Template for `.gpd/analysis/UNCERTAINTY-BUDGET.md` (load when auditing uncertainty propagation across phases)
 </references>
 
 <core_principle>
@@ -593,7 +593,7 @@ When verifying cross-phase consistency:
 
 **Conventions Ledger:**
 
-- `.planning/CONVENTIONS.md` -- ALL accumulated conventions across the project
+- `.gpd/CONVENTIONS.md` -- ALL accumulated conventions across the project
 - Convention change entries with conversion procedures
 - Cross-convention compatibility notes
 
@@ -642,7 +642,7 @@ Before starting consistency checks, consult the pattern library for known conven
 
 ```bash
 # Search for patterns relevant to this project's physics domain
-gpd pattern search "$(python3 -c "import json; print(json.load(open('.planning/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
+gpd pattern search "$(python3 -c "import json; print(json.load(open('.gpd/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
 ```
 
 If patterns are found:
@@ -654,8 +654,8 @@ If patterns are found:
 Also check the project-level error patterns:
 
 ```bash
-if [ -f .planning/ERROR-PATTERNS.md ]; then
-  cat .planning/ERROR-PATTERNS.md
+if [ -f .gpd/ERROR-PATTERNS.md ]; then
+  cat .gpd/ERROR-PATTERNS.md
 fi
 ```
 
@@ -665,9 +665,9 @@ For each relevant error pattern, add targeted cross-phase checks matching the pa
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
-Then read `.planning/CONVENTIONS.md` in its entirety. This is the accumulated record of every physics convention adopted across the project lifetime. Cross-check it against state.json convention_lock — any discrepancy between CONVENTIONS.md and state.json should be flagged as a consistency issue.
+Then read `.gpd/CONVENTIONS.md` in its entirety. This is the accumulated record of every physics convention adopted across the project lifetime. Cross-check it against state.json convention_lock — any discrepancy between CONVENTIONS.md and state.json should be flagged as a consistency issue.
 
-**If `.planning/CONVENTIONS.md` does not exist:** Create it from the template at @{GPD_INSTALL_DIR}/templates/conventions.md, then populate it by scanning all existing phase artifacts for convention choices (metric signature, unit system, Fourier convention, etc.). Commit the new file before proceeding.
+**If `.gpd/CONVENTIONS.md` does not exist:** Create it from the template at @{GPD_INSTALL_DIR}/templates/conventions.md, then populate it by scanning all existing phase artifacts for convention choices (metric signature, unit system, Fourier convention, etc.). Commit the new file before proceeding.
 
 **For each convention entry, extract:**
 
@@ -782,7 +782,7 @@ When a convention legitimately changes mid-project, verify the transition is han
 
 ### 4a. The change is documented with a decision
 
-Check that `.planning/DECISIONS.md` has an entry for this convention change. Convention changes without documented rationale are red flags --- they may be accidental drift rather than deliberate choices.
+Check that `.gpd/DECISIONS.md` has an entry for this convention change. Convention changes without documented rationale are red flags --- they may be accidental drift rather than deliberate choices.
 
 ### 4b. All expressions in the new phase use the new convention consistently
 
@@ -1315,10 +1315,10 @@ Return structured report to milestone auditor:
 ```bash
 # Determine the scope (phase or milestone) from the arguments
 # For phase-level checks:
-Write to: .planning/phases/{scope}/CONSISTENCY-CHECK.md
+Write to: .gpd/phases/{scope}/CONSISTENCY-CHECK.md
 
 # For milestone-level checks:
-Write to: .planning/CONSISTENCY-CHECK.md
+Write to: .gpd/CONSISTENCY-CHECK.md
 ```
 
 Always use the Write tool to persist the report. The structured return to the auditor is in addition to the on-disk copy, not a replacement.

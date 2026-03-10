@@ -3,14 +3,12 @@
 Targets (prioritized by risk):
   1. state_record_metric       — state-mutating: appends metric rows
   2. state_record_session      — state-mutating: updates session fields
-  3. migrate_state_to_json     — state-mutating: one-time migration from MD
-  4. save_state_json_locked    — state-mutating: atomic dual-write core
-  5. state_json_lock_target    — query: returns lock path
-  6. verify_phase_completeness — validation: plan/summary matching
-  7. fill_template             — template: generates pre-filled files
-  8. validate_phase_waves      — validation: wave dependency checks
-  9. list_phase_files          — query: lists plans/summaries across phases
- 10. walk_for_nan / safe_parse_json / safe_parse_yaml / safe_parse_int /
+  3. save_state_json_locked    — state-mutating: atomic dual-write core
+  4. verify_phase_completeness — validation: plan/summary matching
+  5. fill_template             — template: generates pre-filled files
+  6. validate_phase_waves      — validation: wave dependency checks
+  7. list_phase_files          — query: lists plans/summaries across phases
+  8. walk_for_nan / safe_parse_json / safe_parse_yaml / safe_parse_int /
      safe_read_file / safe_read_file_truncated / format_progress_bar /
      phase_top_level / file_lock — pure helpers, widely used
 """
@@ -23,9 +21,7 @@ from pathlib import Path
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
-    migrate_state_to_json,
     save_state_json_locked,
-    state_json_lock_target,
     state_record_metric,
     state_record_session,
 )
@@ -53,8 +49,8 @@ def _bootstrap_project(
     current_phase: str = "03",
     status: str = "Executing",
 ) -> Path:
-    """Create a minimal .planning/ project with STATE.md + state.json."""
-    planning = tmp_path / ".planning"
+    """Create a minimal .gpd/ project with STATE.md + state.json."""
+    planning = tmp_path / ".gpd"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -113,7 +109,7 @@ class TestStateRecordMetric:
     def test_record_metric_updates_state_md(self, tmp_path: Path) -> None:
         cwd = _bootstrap_project(tmp_path)
         state_record_metric(cwd, phase="03", plan="01", duration="45min", tasks="5", files="3")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "Phase 03 P01" in md
         assert "45min" in md
         assert "5 tasks" in md
@@ -139,7 +135,7 @@ class TestStateRecordMetric:
         cwd = _bootstrap_project(tmp_path)
         state_record_metric(cwd, phase="03", plan="01", duration="20min")
         state_record_metric(cwd, phase="03", plan="02", duration="30min")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "Phase 03 P01" in md
         assert "Phase 03 P02" in md
 
@@ -147,7 +143,7 @@ class TestStateRecordMetric:
         cwd = _bootstrap_project(tmp_path)
         result = state_record_metric(cwd, phase="03", plan="01", duration="15min", tasks=None, files=None)
         assert result.recorded is True
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         # Should use dash placeholders for missing optional fields
         assert "- tasks" in md or "15min" in md
 
@@ -169,13 +165,13 @@ class TestStateRecordSession:
     def test_record_session_updates_stopped_at(self, tmp_path: Path) -> None:
         cwd = _bootstrap_with_session_fields(tmp_path)
         state_record_session(cwd, stopped_at="Task 7 of phase 03")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "Task 7 of phase 03" in md
 
     def test_record_session_updates_resume_file(self, tmp_path: Path) -> None:
         cwd = _bootstrap_with_session_fields(tmp_path)
         state_record_session(cwd, resume_file="my-resume.md")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "my-resume.md" in md
 
     def test_record_session_no_state_file(self, tmp_path: Path) -> None:
@@ -187,89 +183,20 @@ class TestStateRecordSession:
         """When resume_file is not provided, it should write 'None'."""
         cwd = _bootstrap_with_session_fields(tmp_path)
         state_record_session(cwd, stopped_at="Done")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         # The session section should have been updated
         assert "Done" in md
 
     def test_record_session_syncs_json(self, tmp_path: Path) -> None:
         cwd = _bootstrap_with_session_fields(tmp_path)
         state_record_session(cwd, stopped_at="Phase 2 Plan 3")
-        json_path = cwd / ".planning" / "state.json"
+        json_path = cwd / ".gpd" / "state.json"
         stored = json.loads(json_path.read_text(encoding="utf-8"))
         assert isinstance(stored, dict)
 
 
 # ---------------------------------------------------------------------------
-# 3. migrate_state_to_json
-# ---------------------------------------------------------------------------
-
-
-class TestMigrateStateToJson:
-    """Tests for migrate_state_to_json."""
-
-    def test_migrate_creates_json_from_md(self, tmp_path: Path) -> None:
-        """When state.json doesn't exist, migrate should create it from STATE.md."""
-        planning = tmp_path / ".planning"
-        planning.mkdir()
-        (planning / "phases").mkdir()
-
-        state = default_state_dict()
-        state["position"]["current_phase"] = "02"
-        state["position"]["status"] = "Planning"
-        state["position"]["current_plan"] = "1"
-        md = generate_state_markdown(state)
-        (planning / "STATE.md").write_text(md, encoding="utf-8")
-        # Deliberately NOT creating state.json
-
-        result = migrate_state_to_json(tmp_path)
-        assert result is not None
-        assert isinstance(result, dict)
-
-        # state.json should now exist
-        json_path = planning / "state.json"
-        assert json_path.exists()
-        stored = json.loads(json_path.read_text(encoding="utf-8"))
-        assert stored["position"]["current_phase"] == "02"
-
-    def test_migrate_noop_when_json_exists(self, tmp_path: Path) -> None:
-        """If state.json already exists, migrate should just load and return it."""
-        cwd = _bootstrap_project(tmp_path)
-        result = migrate_state_to_json(cwd)
-        assert result is not None
-        assert isinstance(result, dict)
-
-    def test_migrate_returns_none_when_no_state(self, tmp_path: Path) -> None:
-        """No .planning/ at all -> returns None."""
-        planning = tmp_path / ".planning"
-        planning.mkdir()
-        result = migrate_state_to_json(tmp_path)
-        assert result is None
-
-    def test_migrate_preserves_decisions(self, tmp_path: Path) -> None:
-        """Decisions in STATE.md should be migrated to state.json."""
-        planning = tmp_path / ".planning"
-        planning.mkdir()
-        (planning / "phases").mkdir()
-
-        state = default_state_dict()
-        state["position"]["current_phase"] = "01"
-        state["position"]["status"] = "Executing"
-        state["position"]["current_plan"] = "1"
-        state["decisions"] = [
-            {"phase": "1", "summary": "Use SI units", "rationale": "consistency"},
-        ]
-        md = generate_state_markdown(state)
-        (planning / "STATE.md").write_text(md, encoding="utf-8")
-
-        result = migrate_state_to_json(tmp_path)
-        assert result is not None
-        decisions = result.get("decisions", [])
-        # At least one decision should be present
-        assert len(decisions) >= 1
-
-
-# ---------------------------------------------------------------------------
-# 4. save_state_json_locked
+# 3. save_state_json_locked
 # ---------------------------------------------------------------------------
 
 
@@ -278,7 +205,7 @@ class TestSaveStateJsonLocked:
 
     def test_save_writes_both_files(self, tmp_path: Path) -> None:
         """save_state_json_locked should write state.json AND STATE.md."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
 
@@ -301,7 +228,7 @@ class TestSaveStateJsonLocked:
         assert "Planning" in md
 
     def test_save_creates_backup(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
 
         state = default_state_dict()
@@ -317,7 +244,7 @@ class TestSaveStateJsonLocked:
     def test_save_overwrites_existing(self, tmp_path: Path) -> None:
         """Saving again should overwrite previous content."""
         cwd = _bootstrap_project(tmp_path)
-        json_path = cwd / ".planning" / "state.json"
+        json_path = cwd / ".gpd" / "state.json"
 
         state = default_state_dict()
         state["position"]["current_phase"] = "99"
@@ -331,7 +258,7 @@ class TestSaveStateJsonLocked:
 
     def test_save_cleans_intent_marker(self, tmp_path: Path) -> None:
         """After successful write, the intent marker should be removed."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
 
         state = default_state_dict()
@@ -344,25 +271,7 @@ class TestSaveStateJsonLocked:
 
 
 # ---------------------------------------------------------------------------
-# 5. state_json_lock_target
-# ---------------------------------------------------------------------------
-
-
-class TestStateJsonLockTarget:
-    """Tests for state_json_lock_target."""
-
-    def test_returns_state_json_path(self, tmp_path: Path) -> None:
-        target = state_json_lock_target(tmp_path)
-        assert target.name == "state.json"
-        assert ".planning" in str(target)
-
-    def test_returns_path_object(self, tmp_path: Path) -> None:
-        target = state_json_lock_target(tmp_path)
-        assert isinstance(target, Path)
-
-
-# ---------------------------------------------------------------------------
-# 6. verify_phase_completeness
+# 4. verify_phase_completeness
 # ---------------------------------------------------------------------------
 
 
@@ -373,7 +282,7 @@ class TestVerifyPhaseCompleteness:
         from gpd.core.frontmatter import verify_phase_completeness
 
         # Create a phase with matching plans and summaries
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -395,7 +304,7 @@ class TestVerifyPhaseCompleteness:
     def test_incomplete_phase_missing_summary(self, tmp_path: Path) -> None:
         from gpd.core.frontmatter import verify_phase_completeness
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "02-core"
@@ -419,7 +328,7 @@ class TestVerifyPhaseCompleteness:
     def test_phase_not_found(self, tmp_path: Path) -> None:
         from gpd.core.frontmatter import verify_phase_completeness
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         (planning / "ROADMAP.md").write_text("# Roadmap\n")
@@ -441,7 +350,7 @@ class TestValidatePhaseWaves:
     def test_valid_waves(self, tmp_path: Path) -> None:
         from gpd.core.phases import validate_phase_waves
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -465,7 +374,7 @@ class TestValidatePhaseWaves:
     def test_phase_not_found(self, tmp_path: Path) -> None:
         from gpd.core.phases import validate_phase_waves
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         (planning / "ROADMAP.md").write_text("# Roadmap\n")
@@ -486,7 +395,7 @@ class TestListPhaseFiles:
     def test_list_plans(self, tmp_path: Path) -> None:
         from gpd.core.phases import list_phase_files
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -506,7 +415,7 @@ class TestListPhaseFiles:
     def test_list_summaries(self, tmp_path: Path) -> None:
         from gpd.core.phases import list_phase_files
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -526,7 +435,7 @@ class TestListPhaseFiles:
     def test_list_files_no_phases_dir(self, tmp_path: Path) -> None:
         from gpd.core.phases import list_phase_files
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         # No phases/ directory
         (planning / "ROADMAP.md").write_text("# Roadmap\n")
@@ -538,7 +447,7 @@ class TestListPhaseFiles:
     def test_list_files_filter_by_phase(self, tmp_path: Path) -> None:
         from gpd.core.phases import list_phase_files
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
 
@@ -559,7 +468,7 @@ class TestListPhaseFiles:
     def test_list_all_files(self, tmp_path: Path) -> None:
         from gpd.core.phases import list_phase_files
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -907,7 +816,7 @@ class TestProjectLayoutPredicates:
 
         layout = ProjectLayout(tmp_path)
         assert layout.config_json.name == "config.json"
-        assert layout.config_json.parent == tmp_path / ".planning"
+        assert layout.config_json.parent == tmp_path / ".gpd"
 
     def test_conventions_md(self, tmp_path: Path) -> None:
         from gpd.core.constants import ProjectLayout
@@ -1072,7 +981,7 @@ class TestCheckLatestReturn:
     def test_no_summaries_is_ok(self, tmp_path: Path) -> None:
         from gpd.core.health import check_latest_return
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "phases").mkdir()
         (planning / "state.json").write_text("{}")
@@ -1087,7 +996,7 @@ class TestCheckLatestReturn:
     def test_summary_with_valid_return(self, tmp_path: Path) -> None:
         from gpd.core.health import check_latest_return
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"
@@ -1120,7 +1029,7 @@ class TestCheckLatestReturn:
     def test_summary_without_return_block(self, tmp_path: Path) -> None:
         from gpd.core.health import check_latest_return
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         phases_dir = planning / "phases"
         phase_dir = phases_dir / "01-setup"

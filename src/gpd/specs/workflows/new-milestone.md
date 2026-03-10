@@ -110,10 +110,10 @@ Keep Accumulated Context section from previous milestone.
 Delete MILESTONE-CONTEXT.md if exists (consumed).
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/PROJECT.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start milestone v[X.Y] [Name]" --files .planning/PROJECT.md .planning/STATE.md
+gpd commit "docs: start milestone v[X.Y] [Name]" --files .gpd/PROJECT.md .gpd/STATE.md
 ```
 
 ## 7. Literature Survey Decision
@@ -147,7 +147,7 @@ gpd config set workflow.research false
 ```
 
 ```bash
-mkdir -p .planning/research
+mkdir -p .gpd/research
 ```
 
 Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dimension-specific fields:
@@ -178,7 +178,7 @@ Focus ONLY on what's needed for the NEW research questions.
 <quality_gate>{GATES}</quality_gate>
 
 <output>
-Write to: .planning/research/{FILE}
+Write to: .gpd/research/{FILE}
 Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="{DIMENSION} survey")
@@ -207,14 +207,14 @@ Synthesize literature survey outputs into SUMMARY.md.
 
 <files_to_read>
 Read these files using the Read tool:
-- .planning/research/PRIOR-WORK.md
-- .planning/research/METHODS.md
-- .planning/research/COMPUTATIONAL.md
-- .planning/research/PITFALLS.md
+- .gpd/research/PRIOR-WORK.md
+- .gpd/research/METHODS.md
+- .gpd/research/COMPUTATIONAL.md
+- .gpd/research/PITFALLS.md
 </files_to_read>
 
 <output>
-Write to: .planning/research/SUMMARY.md
+Write to: .gpd/research/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
@@ -238,10 +238,10 @@ Display key findings from SUMMARY.md:
 **Commit literature survey:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/research/PRIOR-WORK.md .planning/research/METHODS.md .planning/research/COMPUTATIONAL.md .planning/research/PITFALLS.md .planning/research/SUMMARY.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md .gpd/research/SUMMARY.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: complete literature survey" --files .planning/research/PRIOR-WORK.md .planning/research/METHODS.md .planning/research/COMPUTATIONAL.md .planning/research/PITFALLS.md .planning/research/SUMMARY.md
+gpd commit "docs: complete literature survey" --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md .gpd/research/SUMMARY.md
 ```
 
 **If "Skip survey":** Continue to Step 8.
@@ -320,10 +320,10 @@ If "adjust": Return to scoping.
 **Commit objectives:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: define milestone v[X.Y] objectives" --files .planning/REQUIREMENTS.md
+gpd commit "docs: define milestone v[X.Y] objectives" --files .gpd/REQUIREMENTS.md
 ```
 
 ## 9. Create Roadmap
@@ -343,11 +343,11 @@ Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 
 <files_to_read>
 Read these files using the Read tool before proceeding:
-- .planning/PROJECT.md
-- .planning/REQUIREMENTS.md
-- .planning/research/SUMMARY.md (if exists, skip if not found)
-- .planning/config.json
-- .planning/MILESTONES.md (if exists, skip if not found)
+- .gpd/PROJECT.md
+- .gpd/REQUIREMENTS.md
+- .gpd/research/SUMMARY.md (if exists, skip if not found)
+- .gpd/config.json
+- .gpd/MILESTONES.md (if exists, skip if not found)
 </files_to_read>
 
 <instructions>
@@ -404,10 +404,10 @@ Success criteria:
 **Commit roadmap** (after approval):
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
+gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md
 ```
 
 ## 10. Done
@@ -421,10 +421,10 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .plannin
 
 | Artifact       | Location                    |
 |----------------|-----------------------------|
-| Project        | `.planning/PROJECT.md`      |
-| Literature     | `.planning/research/`       |
-| Objectives     | `.planning/REQUIREMENTS.md`   |
-| Roadmap        | `.planning/ROADMAP.md`      |
+| Project        | `.gpd/PROJECT.md`      |
+| Literature     | `.gpd/research/`       |
+| Objectives     | `.gpd/REQUIREMENTS.md`   |
+| Roadmap        | `.gpd/ROADMAP.md`      |
 
 **[N] phases** | **[X] objectives** | Ready to investigate
 

@@ -31,10 +31,10 @@ Structural separation eliminates these failure modes by ensuring the verifier ca
 | Phase goal        | ROADMAP.md                                    | What the research should achieve                              |
 | Must-haves        | PLAN.md frontmatter only (`must_haves:` YAML) | Testable success criteria (truths, artifacts, key_links)      |
 | Artifact files    | Disk (paths from must_haves)                  | The actual research outputs to inspect                        |
-| STATE.md          | .planning/STATE.md                            | Project conventions, active approximations, unit system       |
-| config.json       | .planning/config.json                         | Project configuration                                         |
-| INSIGHTS.md       | .planning/INSIGHTS.md (if exists)             | Known problem patterns for extra scrutiny                     |
-| ERROR-PATTERNS.md | .planning/ERROR-PATTERNS.md (if exists)       | Previous error patterns to check against                      |
+| STATE.md          | .gpd/STATE.md                            | Project conventions, active approximations, unit system       |
+| config.json       | .gpd/config.json                         | Project configuration                                         |
+| INSIGHTS.md       | .gpd/INSIGHTS.md (if exists)             | Known problem patterns for extra scrutiny                     |
+| ERROR-PATTERNS.md | .gpd/ERROR-PATTERNS.md (if exists)       | Previous error patterns to check against                      |
 
 ### DOES NOT RECEIVE (process information)
 

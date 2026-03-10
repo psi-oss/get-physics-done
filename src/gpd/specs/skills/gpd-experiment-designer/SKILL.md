@@ -406,7 +406,7 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
 | Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 
@@ -457,8 +457,8 @@ Extract from init JSON: `phase_dir`, `plans`, `conventions`.
 
 Also read:
 
-- `.planning/CONVENTIONS.md` for unit system, parameter definitions
-- `.planning/STATE.md` for current position and prior results
+- `.gpd/CONVENTIONS.md` for unit system, parameter definitions
+- `.gpd/STATE.md` for current position and prior results
 - Phase RESEARCH.md for method recommendations and literature values
 - Phase PLAN.md for the computational tasks requiring experiment design
 

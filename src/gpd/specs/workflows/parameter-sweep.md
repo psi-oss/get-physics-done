@@ -49,7 +49,7 @@ fi
 **If no phase specified:** Create a sweep-specific directory:
 
 ```bash
-SWEEP_DIR=".planning/phases/XX-sweep"
+SWEEP_DIR=".gpd/phases/XX-sweep"
 mkdir -p "$SWEEP_DIR"
 ```
 
@@ -264,8 +264,8 @@ Execute the sweep plans using wave-based parallel execution following the execut
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
        - Plan: ${SWEEP_DIR}/sweep-{PADDED_INDEX}-PLAN.md
-       - State: .planning/STATE.md
-       - Config: .planning/config.json (if exists)
+       - State: .gpd/STATE.md
+       - Config: .gpd/config.json (if exists)
        </files_to_read>
 
        <success_criteria>
@@ -556,12 +556,12 @@ Re-run feature identification on the merged dataset.
 **Commit all sweep artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "data(phase-${phase_number}): parameter sweep - ${OBSERVABLE} vs ${PARAM_NAME}" \
-  --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .planning/STATE.md
+  --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md
 ```
 
 **Present final results:**

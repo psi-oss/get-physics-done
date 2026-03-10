@@ -395,7 +395,7 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
 | Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 
@@ -1085,12 +1085,12 @@ When files are written and returning to orchestrator:
 
 **Files written:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md
+- .gpd/ROADMAP.md
+- .gpd/STATE.md
 
 **Updated:**
 
-- .planning/REQUIREMENTS.md (traceability section)
+- .gpd/REQUIREMENTS.md (traceability section)
 
 ### Summary
 
@@ -1123,8 +1123,8 @@ When files are written and returning to orchestrator:
 
 User can review actual files:
 
-- `cat .planning/ROADMAP.md`
-- `cat .planning/STATE.md`
+- `cat .gpd/ROADMAP.md`
+- `cat .gpd/STATE.md`
 
 {If gaps found during creation:}
 
@@ -1150,9 +1150,9 @@ After incorporating user feedback and updating files:
 
 **Files updated:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md (if needed)
-- .planning/REQUIREMENTS.md (if traceability changed)
+- .gpd/ROADMAP.md
+- .gpd/STATE.md (if needed)
+- .gpd/REQUIREMENTS.md (if traceability changed)
 
 ### Updated Summary
 

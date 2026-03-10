@@ -3,7 +3,7 @@ name: gpd:execute-phase
 description: Execute all plans in a phase with wave-based parallelization
 argument-hint: "<phase-number> [--gaps-only]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
   state: "phase_planned"
 allowed-tools:
   - Read
@@ -48,8 +48,8 @@ Phase: $ARGUMENTS
 
 - `--gaps-only` -- Execute only gap closure plans (plans with `gap_closure: true` in frontmatter). Use after verify-work creates fix plans.
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <inline_guidance>

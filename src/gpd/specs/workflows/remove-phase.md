@@ -82,7 +82,7 @@ Present removal summary and confirm:
 Removing Phase {target}: {Name}
 
 This will:
-- Delete: .planning/phases/{target}-{slug}/
+- Delete: .gpd/phases/{target}-{slug}/
 - Renumber all subsequent phases
 - Update: ROADMAP.md, STATE.md
 
@@ -123,11 +123,11 @@ Extract from result: `removed`, `directory_deleted`, `renamed_directories`, `ren
 Stage and commit the removal:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit "chore: remove phase {target} ({original-phase-name})" \
-  --files .planning/phases/ .planning/ROADMAP.md .planning/STATE.md .planning/state.json
+  --files .gpd/phases/ .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json
 ```
 
 The commit message preserves the historical record of what was removed.
@@ -140,7 +140,7 @@ Present completion summary:
 Phase {target} ({original-name}) removed.
 
 Changes:
-- Deleted: .planning/phases/{target}-{slug}/
+- Deleted: .gpd/phases/{target}-{slug}/
 - Renumbered: {N} directories and {M} files
 - Updated: ROADMAP.md, STATE.md
 - Committed: chore: remove phase {target} ({original-name})

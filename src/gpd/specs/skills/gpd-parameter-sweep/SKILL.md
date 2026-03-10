@@ -30,8 +30,8 @@ Execute a systematic parameter sweep: vary one or more parameters across a range
 <context>
 Phase: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -48,8 +48,8 @@ Follow the workflow steps: define parameter space (sweep/fixed params, observabl
 ## 3. Generate Report
 
 Write SWEEP-{slug}.md and data files per the workflow specification. Save to:
-- Phase target: `.planning/phases/XX-name/SWEEP-{slug}.md` + data files
-- Standalone: `.planning/analysis/sweep-{slug}/`
+- Phase target: `.gpd/phases/XX-name/SWEEP-{slug}.md` + data files
+- Standalone: `.gpd/analysis/sweep-{slug}/`
 
 ## 4. Present Results
 

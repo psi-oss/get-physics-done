@@ -187,7 +187,7 @@ class PhaseInfo(BaseModel):
     """Information about a discovered phase directory."""
 
     found: bool
-    directory: str  # Relative path: .planning/phases/XX-name
+    directory: str  # Relative path: .gpd/phases/XX-name
     phase_number: str
     phase_name: str | None
     phase_slug: str | None
@@ -443,7 +443,7 @@ def _sorted_phases(dirs: list[str]) -> list[str]:
 
 
 def _planning_path(cwd: Path) -> Path:
-    return ProjectLayout(cwd).planning
+    return ProjectLayout(cwd).gpd
 
 
 def _phases_dir(cwd: Path) -> Path:

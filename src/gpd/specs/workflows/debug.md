@@ -24,15 +24,15 @@ Detection: If `$ARGUMENTS` contains `--batch` or if `gaps_from_verification` con
 </mode_detection>
 
 <paths>
-DEBUG_DIR=.planning/debug
+DEBUG_DIR=.gpd/debug
 
 Ensure the debug directory exists before writing:
 
 ```bash
-mkdir -p .planning/debug
+mkdir -p .gpd/debug
 ```
 
-Debug files use the `.planning/debug/` path (hidden directory with leading dot).
+Debug files use the `.gpd/debug/` path (hidden directory with leading dot).
 </paths>
 
 <quick_triage>
@@ -267,7 +267,7 @@ For each gap in the Gaps section, add artifacts and missing fields:
     - "Add energy conservation monitoring per timestep"
     - "Verify energy drift < 1e-10 over 10^6 steps"
   physics_impact: "Energy drift causes systematic heating, affecting all thermodynamic averages"
-  debug_session: .planning/debug/energy-not-conserved.md
+  debug_session: .gpd/debug/energy-not-conserved.md
 ```
 
 Update status in frontmatter to "diagnosed".

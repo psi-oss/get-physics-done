@@ -26,7 +26,7 @@ runner = CliRunner()
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
 
     state = {
@@ -100,16 +100,16 @@ class TestConventionCommands:
         _invoke("convention", "set", "metric_signature", "(+,-,-,-)", "--force")
 
     def test_check_empty_state(self, gpd_project: Path) -> None:
-        (gpd_project / ".planning" / "state.json").write_text("{}")
+        (gpd_project / ".gpd" / "state.json").write_text("{}")
         _invoke("convention", "check")
 
     def test_check_no_state_file(self, gpd_project: Path) -> None:
-        (gpd_project / ".planning" / "state.json").unlink()
+        (gpd_project / ".gpd" / "state.json").unlink()
         _invoke("convention", "check")
 
     def test_set_persists(self, gpd_project: Path) -> None:
         _invoke("convention", "set", "fourier_convention", "physics")
-        state = json.loads((gpd_project / ".planning" / "state.json").read_text())
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
         assert state["convention_lock"]["fourier_convention"] == "physics"
 
 

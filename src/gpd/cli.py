@@ -1596,7 +1596,7 @@ def summary_extract(
 
 @app.command("todo-complete")
 def todo_complete(
-    filename: str = typer.Argument(..., help="Todo filename in .planning/todos/pending/"),
+    filename: str = typer.Argument(..., help="Todo filename in .gpd/todos/pending/"),
 ) -> None:
     """Mark a todo as completed (move from pending/ to done/)."""
     from gpd.core.commands import cmd_todo_complete
@@ -1826,11 +1826,11 @@ def commit(
 ) -> None:
     """Stage planning files and create a git commit.
 
-    If --files is not specified, stages all .planning/ changes.
+    If --files is not specified, stages all .gpd/ changes.
 
     Examples::
 
-        gpd commit "docs: update roadmap" --files .planning/ROADMAP.md
+        gpd commit "docs: update roadmap" --files .gpd/ROADMAP.md
         gpd commit "wip: phase 3 progress"
     """
     from gpd.core.git_ops import cmd_commit
@@ -1851,7 +1851,7 @@ def pre_commit_check(
 
     Examples::
 
-        gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md
+        gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md
     """
     from gpd.core.git_ops import cmd_pre_commit_check
 

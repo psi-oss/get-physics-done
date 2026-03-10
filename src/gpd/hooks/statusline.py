@@ -43,7 +43,7 @@ def _debug(msg: str) -> None:
 
 
 def _read_position(workspace_dir: str) -> str:
-    """Read research position from .planning/state.json."""
+    """Read research position from .gpd/state.json."""
     state_file = Path(workspace_dir) / PLANNING_DIR_NAME / STATE_JSON_FILENAME
     if not state_file.exists():
         return ""

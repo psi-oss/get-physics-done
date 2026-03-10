@@ -163,7 +163,7 @@ gpd CLI commands can fail. Handle errors explicitly:
 if ! gpd state advance-plan; then
   echo "ERROR: state advance-plan failed. Check STATE.md format."
   # Read STATE.md to diagnose
-  cat .planning/STATE.md
+  cat .gpd/STATE.md
   # Retry once after diagnosis, or flag for human review
 fi
 
@@ -175,7 +175,7 @@ gpd state advance-plan  # might silently fail
 
 | Failure | Cause | Fix |
 |---------|-------|-----|
-| `ENOENT` | STATE.md or target file missing | Verify `.planning/STATE.md` exists before calling |
+| `ENOENT` | STATE.md or target file missing | Verify `.gpd/STATE.md` exists before calling |
 | `Parse error` | Malformed frontmatter or markdown | Read file, fix formatting, retry |
 | `No phase/plan found` | STATE.md has unexpected structure | Check Current Phase/Plan fields in STATE.md |
 | Non-zero exit with no output | Python crash or missing dependency | Check `python --version`, verify gpd CLI path |
@@ -242,7 +242,7 @@ gpd_return:
   files_written:
     - "derivations/hamiltonian.tex"
     - "scripts/compute_spectrum.py"
-    - ".planning/phases/XX-name/{phase}-{plan}-SUMMARY.md"
+    - ".gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md"
   issues:
     - "Lanczos solver required increased basis size (auto-fixed: Rule 2)"
   next_actions:
@@ -270,7 +270,7 @@ Include ALL checkpoints (previous + new if continuation agent).
 ## Final Commit
 
 ```bash
-gpd commit "docs({phase}-{plan}): complete [plan-name] research plan" --files ${phase_dir}/{phase}-{plan}-SUMMARY.md ${phase_dir}/{phase}-{plan}-LOG.md ${phase_dir}/{phase}-{plan}-STATE-TRACKING.md .planning/STATE.md
+gpd commit "docs({phase}-{plan}): complete [plan-name] research plan" --files ${phase_dir}/{phase}-{plan}-SUMMARY.md ${phase_dir}/{phase}-{plan}-LOG.md ${phase_dir}/{phase}-{plan}-STATE-TRACKING.md .gpd/STATE.md
 ```
 
 Separate from per-task checkpoints --- captures execution metadata only.

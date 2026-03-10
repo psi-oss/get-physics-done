@@ -3,7 +3,7 @@ name: gpd-show-phase
 description: Inspect a single phase's artifacts, status, and results
 argument-hint: "<phase-number>"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
 allowed-tools:
   - read_file
   - shell
@@ -28,8 +28,8 @@ Use this when you want a deep look at one specific phase rather than overall pro
 Phase: $ARGUMENTS (required)
 - Phase number to inspect (e.g., "3", "2.1")
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

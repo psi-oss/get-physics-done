@@ -23,7 +23,7 @@ Extract from init JSON: `project_exists`, `roadmap_exists`, `phases`, `phase_cou
 
 **File contents (from --include):** `roadmap_content`, `config_content`.
 
-If `project_exists` is false (no `.planning/` directory):
+If `project_exists` is false (no `.gpd/` directory):
 
 ```
 No planning structure found.
@@ -182,7 +182,7 @@ If error in response, display the error message and exit.
 <step name="actual_cost_tracking">
 ## Actual Cost Tracking
 
-After each agent spawn completes, record usage to `.planning/cost-log.json`:
+After each agent spawn completes, record usage to `.gpd/cost-log.json`:
 
 ```json
 {

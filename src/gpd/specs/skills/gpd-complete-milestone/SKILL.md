@@ -3,7 +3,7 @@ name: gpd-complete-milestone
 description: Archive completed research milestone and prepare for next phase of investigation
 argument-hint: <version>
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
   recommended: ["audit-milestone"]
 allowed-tools:
   - read_file
@@ -30,10 +30,10 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 
 <context>
 **Project files:**
-- `.planning/ROADMAP.md`
-- `.planning/REQUIREMENTS.md`
-- `.planning/STATE.md`
-- `.planning/PROJECT.md`
+- `.gpd/ROADMAP.md`
+- `.gpd/REQUIREMENTS.md`
+- `.gpd/STATE.md`
+- `.gpd/PROJECT.md`
 
 **User input:**
 
@@ -48,7 +48,7 @@ If `--dry-run` flag is present, show what would be archived and deleted (milesto
 
 0. **Check for audit:**
 
-   - Look for `.planning/v{{version}}-MILESTONE-AUDIT.md`
+   - Look for `.gpd/v{{version}}-MILESTONE-AUDIT.md`
    - If missing or stale: recommend `$gpd-audit-milestone` first
    - If audit status is `gaps_found`: recommend `$gpd-plan-milestone-gaps` first
    - If audit status is `passed`: proceed to step 1
@@ -90,17 +90,17 @@ If `--dry-run` flag is present, show what would be archived and deleted (milesto
 
 4. **Archive milestone:**
 
-   - Create `.planning/milestones/v{{version}}-ROADMAP.md`
+   - Create `.gpd/milestones/v{{version}}-ROADMAP.md`
    - Extract full phase details from ROADMAP.md
    - Fill milestone-archive.md template
    - Update ROADMAP.md to one-line summary with link
 
 5. **Archive requirements:**
 
-   - Create `.planning/milestones/v{{version}}-REQUIREMENTS.md`
+   - Create `.gpd/milestones/v{{version}}-REQUIREMENTS.md`
    - Mark all requirements for this milestone as complete (checkboxes checked)
    - Note requirement outcomes (validated, adjusted, deferred, ruled out by physics)
-   - Delete `.planning/REQUIREMENTS.md` (fresh one created for next milestone)
+   - Delete `.gpd/REQUIREMENTS.md` (fresh one created for next milestone)
 
 5b. **Promote patterns:**
 
@@ -131,9 +131,9 @@ If `--dry-run` flag is present, show what would be archived and deleted (milesto
 
 <success_criteria>
 
-- Milestone archived to `.planning/milestones/v{{version}}-ROADMAP.md`
-- Requirements archived to `.planning/milestones/v{{version}}-REQUIREMENTS.md`
-- `.planning/REQUIREMENTS.md` deleted (fresh for next milestone)
+- Milestone archived to `.gpd/milestones/v{{version}}-ROADMAP.md`
+- Requirements archived to `.gpd/milestones/v{{version}}-REQUIREMENTS.md`
+- `.gpd/REQUIREMENTS.md` deleted (fresh for next milestone)
 - ROADMAP.md collapsed to one-line entry
 - PROJECT.md updated with current state of research
 - Pattern promotion reviewed (INSIGHTS.md checked for global library candidates)

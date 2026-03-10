@@ -1,11 +1,11 @@
 ---
 template_version: 1
-purpose: Canonical schema for .planning/state.json — the machine-readable research state sidecar
+purpose: Canonical schema for .gpd/state.json — the machine-readable research state sidecar
 ---
 
 # state.json Schema
 
-Canonical schema for `.planning/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Canonical schema for `.gpd/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
 
 Source of truth: `default_state_dict()` in `gpd.core.state`.
 
@@ -251,7 +251,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 {
   "last_date": "2026-02-15T14:30:00.000Z",
   "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": ".planning/phases/03/.continue-here"
+  "resume_file": ".gpd/phases/03/.continue-here"
 }
 ```
 

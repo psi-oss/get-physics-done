@@ -22,9 +22,9 @@ Use `--fix` to automatically repair detected issues.
 </objective>
 
 <context>
-@.planning/STATE.md
-@.planning/state.json
-@.planning/config.json
+@.gpd/STATE.md
+@.gpd/state.json
+@.gpd/config.json
 </context>
 
 <process>

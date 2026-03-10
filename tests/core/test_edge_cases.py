@@ -1,7 +1,7 @@
 """Edge case tests ported from the legacy integration suite.
 
 Covers the 5 deep edge cases:
-1. Empty .planning/phases/ directory but state references a phase
+1. Empty .gpd/phases/ directory but state references a phase
 2. ROADMAP.md has phases in wrong numerical order
 3. Two plans in same wave modify same file (file overlap)
 4. SUMMARY.md with frontmatter but empty body
@@ -43,25 +43,25 @@ from gpd.core.phases import (
 
 
 def _setup_project(tmp_path: Path) -> Path:
-    (tmp_path / ".planning" / "phases").mkdir(parents=True)
+    (tmp_path / ".gpd" / "phases").mkdir(parents=True)
     return tmp_path
 
 
 def _create_phase(tmp_path: Path, name: str) -> Path:
-    d = tmp_path / ".planning" / "phases" / name
+    d = tmp_path / ".gpd" / "phases" / name
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def _write_roadmap(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".planning" / "ROADMAP.md"
+    p = tmp_path / ".gpd" / "ROADMAP.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
 
 
 def _write_state(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".planning" / "STATE.md"
+    p = tmp_path / ".gpd" / "STATE.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
@@ -71,16 +71,16 @@ def _write_state(tmp_path: Path, content: str) -> Path:
 
 
 class TestEdgeMissingPhasesDir:
-    """Empty .planning/phases/ dir or missing entirely while state references phases.
+    """Empty .gpd/phases/ dir or missing entirely while state references phases.
 
-    Ported from the legacy suite's "deep edge: missing .planning/phases/" case.
+    Ported from the legacy suite's "deep edge: missing .gpd/phases/" case.
     """
 
     def test_progress_handles_missing_phases_dir(self, tmp_path: Path) -> None:
         """progress json returns 0% and empty phases when no phases dir exists."""
-        (tmp_path / ".planning").mkdir(parents=True)
+        (tmp_path / ".gpd").mkdir(parents=True)
         _write_roadmap(tmp_path, "## v1.0\n")
-        # No .planning/phases/ directory at all
+        # No .gpd/phases/ directory at all
 
         result = progress_render(tmp_path, "json")
         assert result.percent == 0
@@ -94,14 +94,14 @@ class TestEdgeMissingPhasesDir:
         assert result.directories == []
 
     def test_find_phase_with_no_phases_dir(self, tmp_path: Path) -> None:
-        """find_phase returns None when .planning/phases/ doesn't exist."""
-        (tmp_path / ".planning").mkdir(parents=True)
+        """find_phase returns None when .gpd/phases/ doesn't exist."""
+        (tmp_path / ".gpd").mkdir(parents=True)
         result = find_phase(tmp_path, "5")
         assert result is None
 
     def test_roadmap_analyze_no_phases_dir(self, tmp_path: Path) -> None:
         """roadmap_analyze works when phases dir is missing — reports no_directory."""
-        (tmp_path / ".planning").mkdir(parents=True)
+        (tmp_path / ".gpd").mkdir(parents=True)
         _write_roadmap(
             tmp_path,
             """\

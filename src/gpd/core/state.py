@@ -102,6 +102,8 @@ __all__ = [
     "validate_state_transition",
 ]
 
+EM_DASH = "\u2014"
+
 # ─── Pydantic State Models ────────────────────────────────────────────────────
 
 
@@ -265,6 +267,8 @@ class AdvancePlanResult(BaseModel):
 
 class RecordMetricResult(BaseModel):
     """Returned by :func:`state_record_metric`."""
+
+    model_config = ConfigDict(frozen=True)
 
     recorded: bool
     error: str | None = None
@@ -1078,7 +1082,7 @@ def generate_state_markdown(raw: dict) -> str:
 
 
 def _planning_dir(cwd: Path) -> Path:
-    return ProjectLayout(cwd).planning
+    return ProjectLayout(cwd).gpd
 
 
 def _state_json_path(cwd: Path) -> Path:
@@ -1352,82 +1356,6 @@ def save_state_json(cwd: Path, state_obj: dict) -> None:
     with file_lock(_state_json_path(cwd)):
         save_state_json_locked(cwd, state_obj)
 
-
-def state_json_lock_target(cwd: Path) -> Path:
-    """Return the lock target path for state.json."""
-    return _state_json_path(cwd)
-
-
-# ─── Migration ─────────────────────────────────────────────────────────────────
-
-
-def migrate_state_to_json(cwd: Path) -> dict | None:
-    """Migrate STATE.md to state.json if not already done."""
-    json_path = _state_json_path(cwd)
-    if json_path.exists():
-        return load_state_json(cwd)
-
-    md_path = _state_md_path(cwd)
-    try:
-        content = md_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return None
-
-    parsed = parse_state_md(content)
-    s = default_state_dict()
-
-    # Project reference
-    s["project_reference"]["core_research_question"] = parsed["project"]["core_question"]
-    s["project_reference"]["current_focus"] = parsed["project"]["current_focus"]
-    if parsed["project"]["project_md_updated"]:
-        s["project_reference"]["project_md_updated"] = parsed["project"]["project_md_updated"]
-
-    # Position
-    s["position"]["current_phase"] = parsed["position"]["current_phase"]
-    s["position"]["current_phase_name"] = parsed["position"]["current_phase_name"]
-    if parsed["position"]["total_phases"] is not None:
-        s["position"]["total_phases"] = parsed["position"]["total_phases"]
-    s["position"]["current_plan"] = parsed["position"]["current_plan"]
-    if parsed["position"]["total_plans_in_phase"] is not None:
-        s["position"]["total_plans_in_phase"] = parsed["position"]["total_plans_in_phase"]
-    s["position"]["status"] = parsed["position"]["status"]
-    s["position"]["last_activity"] = parsed["position"]["last_activity"]
-    s["position"]["last_activity_desc"] = parsed["position"]["last_activity_desc"]
-    s["position"]["paused_at"] = parsed["position"]["paused_at"]
-    if parsed["position"]["progress_percent"] is not None:
-        s["position"]["progress_percent"] = parsed["position"]["progress_percent"]
-
-    # Lists
-    s["active_calculations"] = parsed["active_calculations"]
-    s["intermediate_results"] = parsed["intermediate_results"]
-    s["open_questions"] = parsed["open_questions"]
-
-    # Metrics
-    if parsed["metrics"]:
-        s["performance_metrics"]["rows"] = parsed["metrics"]
-
-    # Decisions
-    s["decisions"] = [
-        {"phase": d.get("phase") or "?", "summary": d.get("summary", ""), "rationale": d.get("rationale")}
-        for d in parsed["decisions"]
-    ]
-
-    # Blockers
-    s["blockers"] = parsed["blockers"]
-
-    # Session
-    if parsed["session"]["last_date"]:
-        s["session"]["last_date"] = parsed["session"]["last_date"]
-    if parsed["session"]["stopped_at"]:
-        s["session"]["stopped_at"] = parsed["session"]["stopped_at"]
-    if parsed["session"]["resume_file"]:
-        s["session"]["resume_file"] = parsed["session"]["resume_file"]
-
-    save_state_json(cwd, s)
-    return s
-
-
-EM_DASH = "—"
 
 # ─── State Commands ────────────────────────────────────────────────────────────
 

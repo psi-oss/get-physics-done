@@ -68,8 +68,8 @@ gpd phase list
 For each phase directory, read the VERIFICATION.md:
 
 ```bash
-cat .planning/phases/01-*/*-VERIFICATION.md
-cat .planning/phases/02-*/*-VERIFICATION.md
+cat .gpd/phases/01-*/*-VERIFICATION.md
+cat .gpd/phases/02-*/*-VERIFICATION.md
 # etc.
 ```
 
@@ -133,7 +133,7 @@ For each requirement in REQUIREMENTS.md mapped to this milestone:
 
 ## 6. Aggregate into v{version}-MILESTONE-AUDIT.md
 
-Create `.planning/v{version}-MILESTONE-AUDIT.md` with:
+Create `.gpd/v{version}-MILESTONE-AUDIT.md` with:
 
 ```yaml
 ---
@@ -171,7 +171,7 @@ Plus full markdown report with tables for requirements, phases, consistency, ope
 
 ## 7. Optional: Mock Peer Review
 
-If enabled in config (`referee_review: true` in `.planning/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps.
+If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps.
 
 **Check config or ask user:**
 
@@ -179,7 +179,7 @@ If enabled in config (`referee_review: true` in `.planning/config.json`) or if t
 REFEREE_ENABLED=$(python3 -c "
 import json, pathlib
 try:
-    c = json.loads(pathlib.Path('.planning/config.json').read_text())
+    c = json.loads(pathlib.Path('.gpd/config.json').read_text())
     v = c.get('referee_review')
     print('unset' if v is None else str(v).lower())
 except Exception:
@@ -216,11 +216,11 @@ Milestone: {milestone_version} -- {milestone_name}
 
 Files to read:
 - ROADMAP.md (research goals and phase structure)
-- All SUMMARY.md files from completed phases in .planning/phases/
+- All SUMMARY.md files from completed phases in .gpd/phases/
 - STATE.md (conventions, notation, parameters)
 - All VERIFICATION.md files from completed phases
 - Any manuscript .tex files (if they exist)
-- .planning/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
+- .gpd/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
 
 Evaluate across all 10 dimensions:
 1. Correctness -- dimensional analysis, limiting cases, sign conventions
@@ -234,7 +234,7 @@ Evaluate across all 10 dimensions:
 9. Presentation quality -- organization, figures
 10. Publishability -- overall assessment
 
-Write report to .planning/REFEREE-REPORT.md
+Write report to .gpd/REFEREE-REPORT.md
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )
@@ -252,7 +252,7 @@ Read the report and include a summary in the presented results:
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Major issues:** {N}
 **Minor issues:** {N}
-**Report:** .planning/REFEREE-REPORT.md
+**Report:** .gpd/REFEREE-REPORT.md
 
 {2-3 sentence summary of key findings}
 ```
@@ -275,7 +275,7 @@ Output this markdown directly (not as a code block). Route based on status:
 ## Milestone {version} -- Audit Passed
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 All requirements covered. Cross-phase consistency verified. Research is complete and coherent.
 
@@ -298,7 +298,7 @@ $gpd-complete-milestone {version}
 ## Milestone {version} -- Gaps Found
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 ### Unsatisfied Requirements
 
@@ -333,7 +333,7 @@ $gpd-plan-milestone-gaps
 
 **Also available:**
 
-- cat .planning/v{version}-MILESTONE-AUDIT.md -- see full report
+- cat .gpd/v{version}-MILESTONE-AUDIT.md -- see full report
 - $gpd-complete-milestone {version} -- proceed anyway (accept open questions)
 
 ---
@@ -345,7 +345,7 @@ $gpd-plan-milestone-gaps
 ## Milestone {version} -- Open Questions Review
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 All requirements met. No critical blockers. Accumulated open questions need review.
 

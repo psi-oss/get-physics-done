@@ -1,6 +1,6 @@
 <planning_config>
 
-Configuration options for `.planning/` directory behavior in physics research projects.
+Configuration options for `.gpd/` directory behavior in physics research projects.
 
 <config_schema>
 
@@ -66,15 +66,15 @@ Configuration options for `.planning/` directory behavior in physics research pr
 
 **When `commit_docs: false`:**
 
-- Skip all `git add`/`git commit` for `.planning/` files
-- User must add `.planning/` to `.gitignore`
+- Skip all `git add`/`git commit` for `.gpd/` files
+- User must add `.gpd/` to `.gitignore`
 - Useful for: private research notes, draft calculations, preliminary explorations
 
 **Using gpd CLI (preferred):**
 
 ```bash
 # Commit with automatic commit_docs + gitignore checks:
-gpd commit "docs: update state" --files .planning/STATE.md
+gpd commit "docs: update state" --files .gpd/STATE.md
 
 # Load config via init progress (returns JSON):
 INIT=$(gpd init progress --include state,config)
@@ -85,12 +85,12 @@ INIT=$(gpd init execute-phase "1")
 # commit_docs is included in all init command outputs
 ```
 
-**Auto-detection:** If `.planning/` is gitignored, `commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `.planning/` in `.gitignore`.
+**Auto-detection:** If `.gpd/` is gitignored, `commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `.gpd/` in `.gitignore`.
 
 **Commit via CLI (handles checks automatically):**
 
 ```bash
-gpd commit "docs: update state" --files .planning/STATE.md
+gpd commit "docs: update state" --files .gpd/STATE.md
 ```
 
 The CLI checks `commit_docs` config and gitignore status internally -- no manual conditionals needed.
@@ -184,13 +184,13 @@ Individual phases can override this for specific calculations that need tighter 
 **When `search_gitignored: false` (default):**
 
 - Standard rg behavior (respects .gitignore)
-- Direct path searches work: `rg "pattern" .planning/` finds files
-- Broad searches skip gitignored: `rg "pattern"` skips `.planning/`
+- Direct path searches work: `rg "pattern" .gpd/` finds files
+- Broad searches skip gitignored: `rg "pattern"` skips `.gpd/`
 
 **When `search_gitignored: true`:**
 
-- Add `--no-ignore` to broad rg searches that should include `.planning/`
-- Only needed when searching entire repo and expecting `.planning/` matches
+- Add `--no-ignore` to broad rg searches that should include `.gpd/`
+- Only needed when searching entire repo and expecting `.gpd/` matches
 
 **Note:** Most GPD operations use direct file reads or explicit paths, which work regardless of gitignore status.
 
@@ -212,12 +212,12 @@ To use uncommitted mode:
 2. **Add to .gitignore:**
 
    ```
-   .planning/
+   .gpd/
    ```
 
-3. **Existing tracked files:** If `.planning/` was previously tracked:
+3. **Existing tracked files:** If `.gpd/` was previously tracked:
    ```bash
-   git rm -r --cached .planning/
+   git rm -r --cached .gpd/
    git commit -m "chore: stop tracking planning docs"
    ```
 

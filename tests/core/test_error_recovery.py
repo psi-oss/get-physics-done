@@ -55,14 +55,14 @@ from gpd.core.utils import safe_parse_json, safe_parse_yaml, safe_read_file
 
 
 def _make_planning(tmp_path: Path) -> Path:
-    """Create minimal .planning/ structure and return project root."""
-    planning = tmp_path / ".planning"
+    """Create minimal .gpd/ structure and return project root."""
+    planning = tmp_path / ".gpd"
     planning.mkdir(parents=True, exist_ok=True)
     return tmp_path
 
 
 def _write_state_json(cwd: Path, obj: dict) -> Path:
-    """Write state.json to .planning/ and return the path."""
+    """Write state.json to .gpd/ and return the path."""
     p = ProjectLayout(cwd).state_json
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(obj, indent=2), encoding="utf-8")
@@ -70,7 +70,7 @@ def _write_state_json(cwd: Path, obj: dict) -> Path:
 
 
 def _write_state_md(cwd: Path, content: str) -> Path:
-    """Write STATE.md to .planning/ and return the path."""
+    """Write STATE.md to .gpd/ and return the path."""
     p = ProjectLayout(cwd).state_md
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
@@ -82,7 +82,7 @@ MINIMAL_STATE_MD = """\
 
 ## Project Reference
 
-See: .planning/PROJECT.md
+See: .gpd/PROJECT.md
 
 **Core research question:** Test question
 **Current focus:** Testing recovery
@@ -123,7 +123,7 @@ See: .planning/PROJECT.md
 
 **Last session:** 2026-03-09
 **Stopped At:** Phase 01, Plan 01, Task 2
-**Resume File:** .planning/phases/01-test/01-test-01-PLAN.md
+**Resume File:** .gpd/phases/01-test/01-test-01-PLAN.md
 """
 
 

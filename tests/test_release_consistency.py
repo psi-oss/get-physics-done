@@ -130,8 +130,25 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
 
     assert "`--claude`" in readme
     assert "`--gemini`" in readme
+    assert "`--codex`" in readme
+    assert "`--opencode`" in readme
+    assert "npx github:physicalsuperintelligence/get-physics-done --codex --local" in content
+    assert "npx github:physicalsuperintelligence/get-physics-done --opencode --global" in content
     assert 'args.includes("--claude")' in content
     assert 'args.includes("--gemini")' in content
+    assert 'args.includes(`--${key}`)' in content
+    assert '"codex": { name: "Codex" }' in content
+    assert '"opencode": { name: "OpenCode" }' in content
+
+
+def test_export_workflow_uses_release_attribution_footer() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")
+
+    assert "<p><em>Generated with Get Physics Done (PSI)" in content
+    assert "{\\footnotesize\\textit{Generated with Get Physics Done (PSI)}}" in content
+    assert "Attribution: Generated with Get Physics Done (PSI)" in content
+    assert "Tool: GPD (Get Physics Done)" not in content
 
 
 def test_public_cli_surface_is_unified() -> None:

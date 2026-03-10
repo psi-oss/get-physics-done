@@ -151,9 +151,9 @@ class TestExpandAtIncludes:
         assert "home=/custom/foo" in result
 
     def test_planning_paths_skipped(self, tmp_path: Path) -> None:
-        """.planning/ paths are project-specific, should not be expanded."""
+        """.gpd/ paths are project-specific, should not be expanded."""
         gpd_dir = self._make_src(tmp_path, {})
-        content = "@.planning/research/notes.md"
+        content = "@.gpd/research/notes.md"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert result == content
 

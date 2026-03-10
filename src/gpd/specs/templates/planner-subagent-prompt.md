@@ -121,8 +121,8 @@ Return what changed.
 | Placeholder | Source |
 | --- | --- |
 | `{phase_number}` | `gpd init plan-phase` |
-| `{research_mode}` | `.planning/config.json` or init JSON |
-| `{autonomy}` | `.planning/config.json` or init JSON |
+| `{research_mode}` | `.gpd/config.json` or init JSON |
+| `{autonomy}` | `.gpd/config.json` or init JSON |
 | `{state_content}` | `state_content` from init JSON |
 | `{roadmap_content}` | `roadmap_content` from init JSON |
 | `{requirements_content}` | `requirements_content` from init JSON |

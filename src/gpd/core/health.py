@@ -137,13 +137,13 @@ def check_environment() -> HealthCheck:
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
-    """Check that required .planning/ files and directories exist."""
+    """Check that required .gpd/ files and directories exist."""
     layout = ProjectLayout(cwd)
     issues: list[str] = []
     details: dict[str, object] = {}
 
     for name in REQUIRED_PLANNING_FILES:
-        full = layout.planning / name
+        full = layout.gpd / name
         if full.exists():
             details[name] = "present"
         else:
@@ -151,7 +151,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             issues.append(f"Required file missing: {PLANNING_DIR_NAME}/{name}")
 
     for name in REQUIRED_PLANNING_DIRS:
-        full = layout.planning / name
+        full = layout.gpd / name
         if full.is_dir():
             details[name] = "present"
         else:
@@ -159,7 +159,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             issues.append(f"Required directory missing: {PLANNING_DIR_NAME}/{name}/")
 
     for name in OPTIONAL_PLANNING_FILES:
-        full = layout.planning / name
+        full = layout.gpd / name
         details[name] = "present" if full.exists() else "absent"
 
     status = CheckStatus.FAIL if issues else CheckStatus.OK
@@ -497,7 +497,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
 
 
 def check_git_status(cwd: Path) -> HealthCheck:
-    """Check for uncommitted files in .planning/."""
+    """Check for uncommitted files in .gpd/."""
     warnings: list[str] = []
     details: dict[str, object] = {}
 

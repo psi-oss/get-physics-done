@@ -35,8 +35,8 @@ Output: Original phase marked as superseded, replacement phase created with inhe
 <context>
 Arguments: $ARGUMENTS (format: <phase-number> "<reason for revision>")
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>

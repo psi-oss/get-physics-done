@@ -14,8 +14,8 @@ Read all files referenced by the invoking prompt's execution_context before star
 **Check both state files exist:**
 
 ```bash
-STATE_MD=".planning/STATE.md"
-STATE_JSON=".planning/state.json"
+STATE_MD=".gpd/STATE.md"
+STATE_JSON=".gpd/state.json"
 
 MD_EXISTS=$(test -f "$STATE_MD" && echo true || echo false)
 JSON_EXISTS=$(test -f "$STATE_JSON" && echo true || echo false)
@@ -34,18 +34,18 @@ Exit.
 state.json is derived from STATE.md. Regenerate it by backing up state.json and triggering a state read:
 
 ```bash
-if [ -f .planning/state.json ]; then
-  mv .planning/state.json .planning/state.json.bak
+if [ -f .gpd/state.json ]; then
+  mv .gpd/state.json .gpd/state.json.bak
 fi
 
 gpd state snapshot --raw > /dev/null
 if [ $? -ne 0 ]; then
   echo "WARNING: state-snapshot failed — restoring backup"
-  if [ -f .planning/state.json.bak ]; then
-    mv .planning/state.json.bak .planning/state.json
+  if [ -f .gpd/state.json.bak ]; then
+    mv .gpd/state.json.bak .gpd/state.json
   fi
 else
-  rm -f .planning/state.json.bak
+  rm -f .gpd/state.json.bak
 fi
 ```
 
@@ -61,7 +61,7 @@ This is unusual — STATE.md is the primary file. Regenerate:
 STATUS=$(python3 -c "
 import json, pathlib
 try:
-    s = json.loads(pathlib.Path('.planning/state.json').read_text())
+    s = json.loads(pathlib.Path('.gpd/state.json').read_text())
     print((s.get('position') or {}).get('status', 'Not started') or 'Not started')
 except Exception:
     print('Not started')
@@ -82,10 +82,10 @@ Exit.
 
 ```bash
 # Read STATE.md
-cat .planning/STATE.md
+cat .gpd/STATE.md
 
 # Read state.json
-cat .planning/state.json
+cat .gpd/state.json
 ```
 
 **Parse STATE.md into comparable fields:**
@@ -151,12 +151,12 @@ Update `_synced_at` timestamp in state.json and exit.
 
 ```bash
 # File modification times
-MD_MOD=$(stat -f %m .planning/STATE.md 2>/dev/null || stat -c %Y .planning/STATE.md 2>/dev/null || echo 0)
-JSON_MOD=$(stat -f %m .planning/state.json 2>/dev/null || stat -c %Y .planning/state.json 2>/dev/null || echo 0)
+MD_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
+JSON_MOD=$(stat -f %m .gpd/state.json 2>/dev/null || stat -c %Y .gpd/state.json 2>/dev/null || echo 0)
 
 # Git history for more precise tracking
-MD_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .planning/STATE.md 2>/dev/null)
-JSON_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .planning/state.json 2>/dev/null)
+MD_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .gpd/STATE.md 2>/dev/null)
+JSON_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .gpd/state.json 2>/dev/null)
 ```
 
 **Recency rules:**
@@ -205,18 +205,18 @@ Wait for user confirmation.
 Regenerate state.json from STATE.md by backing it up and triggering a state read (which merges parsed markdown fields INTO existing JSON backup, preserving `convention_lock`, `intermediate_results`, `approximations`, and `propagated_uncertainties`):
 
 ```bash
-if [ -f .planning/state.json ]; then
-  mv .planning/state.json .planning/state.json.bak
+if [ -f .gpd/state.json ]; then
+  mv .gpd/state.json .gpd/state.json.bak
 fi
 
 gpd state snapshot --raw > /dev/null
 if [ $? -ne 0 ]; then
   echo "WARNING: state-snapshot failed — restoring backup"
-  if [ -f .planning/state.json.bak ]; then
-    mv .planning/state.json.bak .planning/state.json
+  if [ -f .gpd/state.json.bak ]; then
+    mv .gpd/state.json.bak .gpd/state.json
   fi
 else
-  rm -f .planning/state.json.bak
+  rm -f .gpd/state.json.bak
 fi
 ```
 
@@ -238,7 +238,7 @@ gpd state patch \
 python3 -c "
 import json, pathlib
 try:
-    j = json.loads(pathlib.Path('.planning/state.json').read_text())
+    j = json.loads(pathlib.Path('.gpd/state.json').read_text())
     pos = j.get('position') or {}
     print('Phase:', pos.get('current_phase', 'unknown'))
     print('Status:', pos.get('status', 'unknown'))
@@ -253,12 +253,12 @@ except Exception as e:
 **Commit reconciled state:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "fix: reconcile STATE.md and state.json divergence" \
-  --files .planning/STATE.md .planning/state.json
+  --files .gpd/STATE.md .gpd/state.json
 ```
 </step>
 
@@ -291,7 +291,7 @@ Both files are now consistent.
 
 <failure_handling>
 
-- **STATE.md corrupt (unparseable):** If STATE.md cannot be parsed, check if state.json is valid and offer to regenerate STATE.md from it. If both are corrupt, suggest restoring from git: `git checkout HEAD~1 -- .planning/STATE.md .planning/state.json`
+- **STATE.md corrupt (unparseable):** If STATE.md cannot be parsed, check if state.json is valid and offer to regenerate STATE.md from it. If both are corrupt, suggest restoring from git: `git checkout HEAD~1 -- .gpd/STATE.md .gpd/state.json`
 - **state.json corrupt (invalid JSON):** Delete state.json — it will be regenerated automatically from STATE.md on next access (any `gpd state` command triggers the fallback parser).
 - **Regeneration still fails:** Fall back to manual reconciliation — read STATE.md, write state.json directly using `gpd state` subcommands.
 - **Both files very old (neither recently committed):** Warn user that both files may be stale. Suggest checking git log for the most recent good state.

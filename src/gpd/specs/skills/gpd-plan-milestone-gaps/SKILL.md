@@ -2,7 +2,7 @@
 name: gpd-plan-milestone-gaps
 description: Create phases to close all gaps identified by research milestone audit
 requires:
-  files: [".planning/v*-MILESTONE-AUDIT.md"]
+  files: [".gpd/v*-MILESTONE-AUDIT.md"]
 allowed-tools:
   - read_file
   - write_file
@@ -40,15 +40,15 @@ Physics research gaps fall into distinct categories that map naturally to phase 
 
 <context>
 **Audit results:**
-Glob: .planning/v*-MILESTONE-AUDIT.md (use most recent)
+Glob: .gpd/v*-MILESTONE-AUDIT.md (use most recent)
 
 **Original intent (for prioritization):**
-@.planning/PROJECT.md
-@.planning/REQUIREMENTS.md
+@.gpd/PROJECT.md
+@.gpd/REQUIREMENTS.md
 
 **Current state:**
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>

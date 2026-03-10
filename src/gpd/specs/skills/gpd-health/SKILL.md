@@ -3,7 +3,7 @@ name: gpd-health
 description: Run project health checks and optionally auto-fix issues
 argument-hint: "[--fix]"
 requires:
-  files: [".planning/PROJECT.md"]
+  files: [".gpd/PROJECT.md"]
 allowed-tools:
   - read_file
   - write_file

@@ -30,7 +30,7 @@ from gpd.core.phases import (
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
     (planning / "phases").mkdir()
     return tmp_path
@@ -38,14 +38,14 @@ def _setup_project(tmp_path: Path) -> Path:
 
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
     """Create a phase directory and return its path."""
-    phase_dir = tmp_path / ".planning" / "phases" / name
+    phase_dir = tmp_path / ".gpd" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     return phase_dir
 
 
 def _create_roadmap(tmp_path: Path, content: str) -> Path:
     """Write ROADMAP.md and return its path."""
-    roadmap = tmp_path / ".planning" / "ROADMAP.md"
+    roadmap = tmp_path / ".gpd" / "ROADMAP.md"
     roadmap.parent.mkdir(parents=True, exist_ok=True)
     roadmap.write_text(textwrap.dedent(content))
     return roadmap
@@ -263,7 +263,7 @@ class TestRenumbering20Phases:
         assert result.removed == "1"
         assert len(result.renamed_directories) == 19
 
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
         assert len(remaining) == 19
         # First directory should now be "01-phase-2" (originally phase 2, renumbered to 01)
@@ -283,7 +283,7 @@ class TestRenumbering20Phases:
         assert result.removed == "10"
         assert len(result.renamed_directories) == 10  # phases 11-20 renumbered
 
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
         assert len(remaining) == 19
 
@@ -397,7 +397,7 @@ class TestPhaseRemoveOnlyPhase:
         assert result.directory_deleted == "01-solo"
         assert result.renamed_directories == []
 
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         remaining = [d for d in phases_dir.iterdir() if d.is_dir()]
         assert remaining == []
 
@@ -432,7 +432,7 @@ class TestPhaseRemoveLastPhase:
         assert result.directory_deleted == "03-third"
         assert result.renamed_directories == []
 
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
         assert remaining == ["01-first", "02-second"]
 
@@ -714,7 +714,7 @@ class TestNextDecimalEdgeCases:
 
     def test_next_decimal_no_phases_dir(self, tmp_path: Path) -> None:
         """If the phases directory doesn't exist, still returns a result."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         # Don't create phases dir
 
@@ -759,7 +759,7 @@ class TestPhaseRemoveDecimalRenumbering:
 
         phase_remove(tmp_path, "1.1", force=True)
 
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
         assert "01-base" in remaining
         assert "01.1-sub" in remaining

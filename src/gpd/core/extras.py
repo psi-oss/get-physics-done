@@ -51,6 +51,8 @@ class Approximation(BaseModel):
 class ApproximationCheckResult(BaseModel):
     """Result of checking all approximations against their validity ranges."""
 
+    model_config = ConfigDict(frozen=True)
+
     valid: list[Approximation] = Field(default_factory=list)
     marginal: list[Approximation] = Field(default_factory=list)
     invalid: list[Approximation] = Field(default_factory=list)
@@ -276,7 +278,10 @@ def approximation_check(state: dict) -> ApproximationCheckResult:
 
     Categorizes each approximation as valid, marginal, invalid, or unchecked.
     """
-    result = ApproximationCheckResult()
+    valid: list[Approximation] = []
+    marginal: list[Approximation] = []
+    invalid: list[Approximation] = []
+    unchecked: list[Approximation] = []
 
     for approx_dict in state.get("approximations", []):
         approx = Approximation(**approx_dict)
@@ -284,20 +289,22 @@ def approximation_check(state: dict) -> ApproximationCheckResult:
         range_str = approx.validity_range
 
         if val is None or not range_str:
-            result.unchecked.append(approx)
+            unchecked.append(approx)
             continue
 
-        check = check_approximation_validity(val, range_str)
-        if check is None:
-            result.unchecked.append(approx)
-        elif check == "valid":
-            result.valid.append(approx)
-        elif check == "marginal":
-            result.marginal.append(approx)
+        status = check_approximation_validity(val, range_str)
+        if status is None:
+            unchecked.append(approx)
+        elif status == "valid":
+            valid.append(approx)
+        elif status == "marginal":
+            marginal.append(approx)
         else:
-            result.invalid.append(approx)
+            invalid.append(approx)
 
-    return result
+    return ApproximationCheckResult(
+        valid=valid, marginal=marginal, invalid=invalid, unchecked=unchecked
+    )
 
 
 # ─── Uncertainty Commands ────────────────────────────────────────────────────────

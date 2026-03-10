@@ -51,8 +51,8 @@ Follow the workflow steps: identify numerical computations, classify methods, de
 ## 3. Generate Report
 
 Write CONVERGENCE.md per the workflow specification. Save to:
-- Phase target: `.planning/phases/XX-name/CONVERGENCE.md`
-- File target: `.planning/analysis/convergence-{slug}.md`
+- Phase target: `.gpd/phases/XX-name/CONVERGENCE.md`
+- File target: `.gpd/analysis/convergence-{slug}.md`
 
 ## 4. Present Results
 

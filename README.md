@@ -66,7 +66,7 @@ GPD also locks conventions for up to 18 physics fields across a project so notat
 
 ## How Work Is Structured
 
-GPD's main workflow in `.planning/` is organized like this:
+GPD's main workflow in `.gpd/` is organized like this:
 
 ```text
 Project

@@ -32,7 +32,7 @@ Routes to the compact-state workflow which handles:
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

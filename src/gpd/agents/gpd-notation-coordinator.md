@@ -342,7 +342,7 @@ At project initialization (before the user sees any convention choices), automat
 
 ```bash
 # Read PROJECT.md and extract physics area
-PHYSICS_AREA=$(grep -i "physics.*area\|subfield\|domain\|branch" .planning/PROJECT.md | head -3)
+PHYSICS_AREA=$(grep -i "physics.*area\|subfield\|domain\|branch" .gpd/PROJECT.md | head -3)
 ```
 
 Parse the physics area. Map to one of the subfield categories in the defaults table above. If the project spans multiple subfields, identify the primary and secondary.
@@ -521,7 +521,7 @@ Invalid reasons:
 
 ### Change Protocol
 
-1. **Document the decision** in `.planning/DECISIONS.md` with rationale
+1. **Document the decision** in `.gpd/DECISIONS.md` with rationale
 2. **Write conversion procedure:**
 
 ```markdown
@@ -570,7 +570,7 @@ When comparing conventions between two phases or between project and reference:
 
 When a convention change is later found to be incorrect:
 
-1. **Identify scope:** `grep -r "[old convention pattern]" .planning/ src/ derivations/`
+1. **Identify scope:** `grep -r "[old convention pattern]" .gpd/ src/ derivations/`
 2. **Create revert plan:**
    - List all files using the convention
    - For each file, specify the exact change needed
@@ -683,10 +683,10 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: established → completed, updated → completed, conflict → failed
-  files_written: [.planning/CONVENTIONS.md, ...]
+  files_written: [.gpd/CONVENTIONS.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  conventions_file: .planning/CONVENTIONS.md
+  conventions_file: .gpd/CONVENTIONS.md
 ```
 
 The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `conventions_file` is an extended field specific to this agent.

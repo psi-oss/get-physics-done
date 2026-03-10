@@ -13,7 +13,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Display accumulated physics error patterns from `.planning/ERROR-PATTERNS.md`. Optionally filter by category.
+Display accumulated physics error patterns from `.gpd/ERROR-PATTERNS.md`. Optionally filter by category.
 
 Error patterns are recorded by the debugger after confirming root causes. They capture project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
 
@@ -31,14 +31,14 @@ Categories:
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/error-patterns.md
-@.planning/ERROR-PATTERNS.md
+@.gpd/ERROR-PATTERNS.md
 </execution_context>
 
 <process>
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".planning" ]; then
+if [ ! -d ".gpd" ]; then
   echo "Error: No GPD project found. Run /gpd:new-project first."
   exit 1
 fi
@@ -46,7 +46,7 @@ fi
 
 <step name="check_file">
 ```bash
-test -f .planning/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
+test -f .gpd/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 
 **If MISSING:**
@@ -66,7 +66,7 @@ Exit.
 </step>
 
 <step name="read_patterns">
-Read `.planning/ERROR-PATTERNS.md`.
+Read `.gpd/ERROR-PATTERNS.md`.
 
 **If $ARGUMENTS provided (category filter):**
 
@@ -103,7 +103,7 @@ Display the full contents formatted as:
 
 ```bash
 gpd init learned-patterns 2>/dev/null || true
-DOMAIN=$(grep -m1 "domain:" .planning/PROJECT.md 2>/dev/null | sed 's/.*: *//' || echo "")
+DOMAIN=$(grep -m1 "domain:" .gpd/PROJECT.md 2>/dev/null | sed 's/.*: *//' || echo "")
 GLOBAL=$(gpd pattern list ${DOMAIN:+--domain "$DOMAIN"} --raw 2>/dev/null)
 ```
 

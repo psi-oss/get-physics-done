@@ -407,7 +407,7 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
 | Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 

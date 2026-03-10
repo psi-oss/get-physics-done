@@ -32,7 +32,7 @@ User's issue: $ARGUMENTS
 Check for active sessions:
 
 ```bash
-ls .planning/debug/*.md 2>/dev/null | grep -v resolved | head -5
+ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | head -5
 ```
 
 </context>
@@ -143,7 +143,7 @@ Physics debugging follows a hierarchy of checks, ordered from cheapest to most e
   </common_physics_errors>
 
 <debug_file>
-Create: .planning/debug/{slug}.md
+Create: .gpd/debug/{slug}.md
 </debug_file>
 ```
 
@@ -197,7 +197,7 @@ Continue debugging {slug}. Evidence is in the debug file.
 </objective>
 
 <prior_state>
-Debug file: @.planning/debug/{slug}.md
+Debug file: @.gpd/debug/{slug}.md
 </prior_state>
 
 <checkpoint_response>

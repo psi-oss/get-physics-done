@@ -2,7 +2,7 @@
 name: gpd:resume-work
 description: Resume research from previous session with full context restoration
 requires:
-  files: [".planning/ROADMAP.md", ".planning/STATE.md"]
+  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
   - Read
   - Bash

@@ -105,7 +105,7 @@ class TestVerifyPathExists:
 
 class TestTodoComplete:
     def _setup_todo(self, tmp_path: Path, filename: str = "fix-bug.md") -> Path:
-        pending = tmp_path / ".planning" / "todos" / "pending"
+        pending = tmp_path / ".gpd" / "todos" / "pending"
         pending.mkdir(parents=True)
         todo = pending / filename
         todo.write_text("---\ntitle: Fix bug\narea: core\n---\n\nFix the bug.\n")
@@ -119,14 +119,14 @@ class TestTodoComplete:
         assert result.date == date.today().isoformat()
 
         # Source should be gone
-        assert not (tmp_path / ".planning" / "todos" / "pending" / "fix-bug.md").exists()
+        assert not (tmp_path / ".gpd" / "todos" / "pending" / "fix-bug.md").exists()
         # Dest should exist
-        done_path = tmp_path / ".planning" / "todos" / "done" / "fix-bug.md"
+        done_path = tmp_path / ".gpd" / "todos" / "done" / "fix-bug.md"
         assert done_path.exists()
         assert "completed:" in done_path.read_text()
 
     def test_not_found_raises(self, tmp_path: Path):
-        (tmp_path / ".planning" / "todos" / "pending").mkdir(parents=True)
+        (tmp_path / ".gpd" / "todos" / "pending").mkdir(parents=True)
         with pytest.raises(ValidationError, match="Todo not found"):
             cmd_todo_complete(tmp_path, "nonexistent.md")
 
@@ -140,7 +140,7 @@ class TestTodoComplete:
 
 class TestScaffold:
     def _setup_phase(self, tmp_path: Path, phase_dir: str = "03-core-work") -> Path:
-        d = tmp_path / ".planning" / "phases" / phase_dir
+        d = tmp_path / ".gpd" / "phases" / phase_dir
         d.mkdir(parents=True)
         return d
 
@@ -148,7 +148,7 @@ class TestScaffold:
         result = cmd_scaffold(tmp_path, "phase-dir", phase="5", name="Integration Tests")
         assert result.created is True
         assert "05-integration-tests" in (result.directory or "")
-        assert (tmp_path / ".planning" / "phases" / "05-integration-tests").is_dir()
+        assert (tmp_path / ".gpd" / "phases" / "05-integration-tests").is_dir()
 
     def test_scaffold_context(self, tmp_path: Path):
         self._setup_phase(tmp_path)
@@ -189,7 +189,7 @@ class TestScaffold:
             cmd_scaffold(tmp_path, "context")
 
     def test_nonexistent_phase_raises(self, tmp_path: Path):
-        (tmp_path / ".planning" / "phases").mkdir(parents=True)
+        (tmp_path / ".gpd" / "phases").mkdir(parents=True)
         with pytest.raises(ValidationError, match="Phase 99 directory not found"):
             cmd_scaffold(tmp_path, "context", phase="99")
 
@@ -264,7 +264,7 @@ class TestSummaryExtract:
 
 class TestHistoryDigest:
     def _setup_phases(self, tmp_path: Path) -> None:
-        phases_dir = tmp_path / ".planning" / "phases"
+        phases_dir = tmp_path / ".gpd" / "phases"
         for name in ("01-setup", "02-core"):
             d = phases_dir / name
             d.mkdir(parents=True)
@@ -307,7 +307,7 @@ class TestHistoryDigest:
         assert result.methods == []
 
     def test_no_phases_dir(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
+        (tmp_path / ".gpd").mkdir()
         result = cmd_history_digest(tmp_path)
         assert result.phases == {}
 
@@ -317,7 +317,7 @@ class TestHistoryDigest:
 
 class TestRegressionCheck:
     def _setup_complete_phases(self, tmp_path: Path) -> None:
-        phases = tmp_path / ".planning" / "phases"
+        phases = tmp_path / ".gpd" / "phases"
         for name in ("01-setup", "02-core"):
             d = phases / name
             d.mkdir(parents=True)
@@ -335,7 +335,7 @@ class TestRegressionCheck:
     def test_convention_conflict(self, tmp_path: Path):
         self._setup_complete_phases(tmp_path)
         # Add a conflicting convention in phase 2
-        phase2_dir = tmp_path / ".planning" / "phases" / "02-core"
+        phase2_dir = tmp_path / ".gpd" / "phases" / "02-core"
         (phase2_dir / "02-core-01-SUMMARY.md").write_text(
             "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
         )
@@ -347,7 +347,7 @@ class TestRegressionCheck:
 
     def test_verification_gap(self, tmp_path: Path):
         self._setup_complete_phases(tmp_path)
-        phase1_dir = tmp_path / ".planning" / "phases" / "01-setup"
+        phase1_dir = tmp_path / ".gpd" / "phases" / "01-setup"
         (phase1_dir / "01-setup-VERIFICATION.md").write_text(
             "---\nstatus: gaps_found\nscore: 2/5 checks verified\n---\n\n# Verification\n"
         )
@@ -358,7 +358,7 @@ class TestRegressionCheck:
         assert issues[0].gap_count == 3
 
     def test_quick_mode_limits_phases(self, tmp_path: Path):
-        phases = tmp_path / ".planning" / "phases"
+        phases = tmp_path / ".gpd" / "phases"
         for i in range(1, 6):
             name = f"{str(i).zfill(2)}-phase{i}"
             d = phases / name

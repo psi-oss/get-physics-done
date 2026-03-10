@@ -7,7 +7,7 @@ template_version: 1
 
 # Research Summary Template
 
-Template for `.planning/research/SUMMARY.md` - executive summary of research analysis with roadmap implications.
+Template for `.gpd/research/SUMMARY.md` - executive summary of research analysis with roadmap implications.
 
 <template>
 

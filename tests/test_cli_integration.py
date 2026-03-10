@@ -27,7 +27,7 @@ runner = CliRunner()
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
 
     state = {
@@ -176,11 +176,11 @@ class TestSlug:
 
 class TestVerifyPath:
     def test_verify_existing_file(self, gpd_project: Path) -> None:
-        result = _invoke("verify-path", ".planning/state.json")
+        result = _invoke("verify-path", ".gpd/state.json")
         assert "file" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_existing_directory(self) -> None:
-        result = _invoke("verify-path", ".planning")
+        result = _invoke("verify-path", ".gpd")
         assert "directory" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_nonexistent_path(self) -> None:
@@ -189,7 +189,7 @@ class TestVerifyPath:
         assert "False" in result.output or "false" in result.output
 
     def test_verify_path_raw(self, gpd_project: Path) -> None:
-        result = _invoke("--raw", "verify-path", ".planning/state.json")
+        result = _invoke("--raw", "verify-path", ".gpd/state.json")
         parsed = json.loads(result.output)
         assert parsed["exists"] is True
         assert parsed["type"] == "file"
@@ -262,8 +262,8 @@ class TestRegressionCheck:
 
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
-        gpd_project / ".planning" / "phases" / "01-test-phase"
-        p2 = gpd_project / ".planning" / "phases" / "02-phase-two"
+        gpd_project / ".gpd" / "phases" / "01-test-phase"
+        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention
         (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
@@ -396,7 +396,7 @@ class TestConfigCommands:
 
     def test_config_get_nested_key(self, gpd_project: Path) -> None:
         """Test dot-path access for nested keys."""
-        config_path = gpd_project / ".planning" / "config.json"
+        config_path = gpd_project / ".gpd" / "config.json"
         config_path.write_text(json.dumps({"nested": {"key": "value"}}))
         result = _invoke("--raw", "config", "get", "nested.key")
         parsed = json.loads(result.output)
@@ -410,14 +410,14 @@ class TestConfigCommands:
 
         # Verify it persisted
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["new_key"] == "new_value"
 
     def test_config_set_nested_key(self, gpd_project: Path) -> None:
         _invoke("config", "set", "section.subsection", "deep_value")
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["section"]["subsection"] == "deep_value"
 
@@ -425,7 +425,7 @@ class TestConfigCommands:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""
         _invoke("config", "set", "count", "42")
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["count"] == 42
 
@@ -437,11 +437,11 @@ class TestConfigCommands:
 
     def test_config_ensure_section_creates(self, gpd_project: Path) -> None:
         """ensure-section without config.json should create defaults."""
-        (gpd_project / ".planning" / "config.json").unlink()
+        (gpd_project / ".gpd" / "config.json").unlink()
         result = _invoke("--raw", "config", "ensure-section")
         parsed = json.loads(result.output)
         assert parsed["created"] is True
-        assert (gpd_project / ".planning" / "config.json").exists()
+        assert (gpd_project / ".gpd" / "config.json").exists()
 
     def test_config_help(self) -> None:
         result = _invoke("config", "--help")
@@ -457,7 +457,7 @@ class TestConfigCommands:
 class TestTemplateCommands:
     def test_template_select(self, gpd_project: Path) -> None:
         """select should classify a plan file as minimal/standard/complex."""
-        plan_path = ".planning/phases/01-test-phase/01-PLAN.md"
+        plan_path = ".gpd/phases/01-test-phase/01-PLAN.md"
         result = _invoke("--raw", "template", "select", plan_path)
         parsed = json.loads(result.output)
         assert "template_type" in parsed
@@ -666,7 +666,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".planning/phases/01-test-phase/01-SUMMARY.md",
+            ".gpd/phases/01-test-phase/01-SUMMARY.md",
         )
         parsed = json.loads(result.output)
         assert parsed["one_liner"] == "Set up project"
@@ -676,7 +676,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".planning/phases/01-test-phase/01-SUMMARY.md",
+            ".gpd/phases/01-test-phase/01-SUMMARY.md",
             "--field",
             "one_liner",
         )

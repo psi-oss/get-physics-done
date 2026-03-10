@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_check, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .planning/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
+Interactive configuration of GPD workflow agents (research, plan_check, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .gpd/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
 </purpose>
 
 <required_reading>
@@ -20,12 +20,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Creates `.planning/config.json` with defaults if missing and loads current config values.
+Creates `.gpd/config.json` with defaults if missing and loads current config values.
 </step>
 
 <step name="read_current">
 ```bash
-cat .planning/config.json
+cat .gpd/config.json
 ```
 
 Parse current values (default to `true` / first option if not present):
@@ -243,7 +243,7 @@ Merge new settings into existing config.json:
 }
 ```
 
-Write updated config to `.planning/config.json`.
+Write updated config to `.gpd/config.json`.
 </step>
 
 <step name="confirm">

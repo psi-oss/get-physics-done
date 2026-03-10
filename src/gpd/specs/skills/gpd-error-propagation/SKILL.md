@@ -30,8 +30,8 @@ Systematic uncertainty propagation through a derivation chain. Traces how input 
 <context>
 Target: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -48,8 +48,8 @@ Follow the workflow steps: map the derivation chain, classify error sources (sta
 ## 3. Generate Report
 
 Write ERROR-BUDGET.md per the workflow specification. Save to:
-- Phase target: `.planning/phases/XX-name/ERROR-BUDGET.md`
-- Project-wide: `.planning/analysis/error-budget-{target}.md`
+- Phase target: `.gpd/phases/XX-name/ERROR-BUDGET.md`
+- Project-wide: `.gpd/analysis/error-budget-{target}.md`
 
 ## 4. Present Results
 

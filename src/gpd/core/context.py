@@ -31,7 +31,13 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import ValidationError
 from gpd.core.utils import (
+    generate_slug as _generate_slug_impl,
+)
+from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
+)
+from gpd.core.utils import (
+    phase_normalize as _phase_normalize_impl,
 )
 from gpd.core.utils import (
     safe_read_file as _safe_read_file,
@@ -90,27 +96,22 @@ def _path_exists(cwd: Path, target: str) -> bool:
 
 
 def _generate_slug(text: str | None) -> str | None:
-    """Generate a URL-friendly slug from text."""
+    """Generate a URL-friendly slug from text.
+
+    Thin wrapper around :func:`gpd.core.utils.generate_slug` that also
+    accepts ``None`` (returning ``None`` immediately).
+    """
     if not text:
         return None
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug or None
+    return _generate_slug_impl(text)
 
 
 def _normalize_phase_name(phase: str) -> str:
-    """Pad top-level phase number to 2 digits. E.g. '3' -> '03', '3.1' -> '03.1'."""
-    match = re.match(r"^(\d+(?:\.\d+)*)", phase)
-    if not match:
-        return phase
-    parts = match.group(1).split(".")
-    normalized = []
-    for i, p in enumerate(parts):
-        try:
-            v = int(p)
-            normalized.append(str(v).zfill(2) if i == 0 else str(v))
-        except ValueError:
-            normalized.append(p)
-    return ".".join(normalized)
+    """Pad top-level phase number to 2 digits. E.g. '3' -> '03', '3.1' -> '03.1'.
+
+    Delegates to :func:`gpd.core.utils.phase_normalize`.
+    """
+    return _phase_normalize_impl(phase)
 
 
 
@@ -184,7 +185,7 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
 
 
 def load_config(cwd: Path) -> dict:
-    """Load .planning/config.json with defaults.
+    """Load .gpd/config.json with defaults.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical
     implementation) and converts the result to a plain dict for backward

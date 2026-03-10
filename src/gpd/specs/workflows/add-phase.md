@@ -39,7 +39,7 @@ fi
 Check `roadmap_exists` from init JSON. If false:
 
 ```
-ERROR: No roadmap found (.planning/ROADMAP.md)
+ERROR: No roadmap found (.gpd/ROADMAP.md)
 Run $gpd-new-project to initialize.
 ```
 
@@ -62,7 +62,7 @@ The CLI handles:
 - Finding the highest existing integer phase number
 - Calculating next phase number (max + 1)
 - Generating slug from description
-- Creating the phase directory (`.planning/phases/{NN}-{slug}/`)
+- Creating the phase directory (`.gpd/phases/{NN}-{slug}/`)
 - Inserting the phase entry into ROADMAP.md with Goal, Depends on, and Plans sections
 
 Extract from result: `phase_number`, `padded`, `name`, `slug`, `directory`.
@@ -92,10 +92,10 @@ Present completion summary:
 ```
 Phase {N} added to current milestone:
 - Description: {description}
-- Directory: .planning/phases/{phase-num}-{slug}/
+- Directory: .gpd/phases/{phase-num}-{slug}/
 - Status: Not planned yet
 
-Roadmap updated: .planning/ROADMAP.md
+Roadmap updated: .gpd/ROADMAP.md
 
 ---
 

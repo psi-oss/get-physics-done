@@ -309,6 +309,8 @@ class CodexAdapter(RuntimeAdapter):
         gpd_root: Path,
         target_dir: Path,
         *,
+        # is_global defaults to True here (base class defaults to False) because
+        # Codex CLI typically installs globally to ~/.codex + ~/.agents/skills/.
         is_global: bool = True,
         skills_dir: Path | None = None,
     ) -> dict[str, object]:

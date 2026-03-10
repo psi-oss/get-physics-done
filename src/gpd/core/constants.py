@@ -1,8 +1,8 @@
 """Centralized constants for the GPD package.
 
 All filesystem names, file suffixes, environment variable names, and
-structural constants live here. Every module that needs a planning
-directory name, a file suffix, or an env var MUST import from this module
+structural constants live here. Every module that needs the project
+metadata directory name, a file suffix, or an env var MUST import from this module
 instead of using hardcoded string literals.
 
 Layer 1 code: no external imports beyond stdlib.
@@ -47,13 +47,24 @@ __all__ = [
     "UNCOMMITTED_FILES_THRESHOLD",
     "VALID_RETURN_STATUSES",
     "VERIFICATION_SUFFIX",
+    "CONVENTIONS_FILENAME",
+    "TRACES_DIR_NAME",
+    "ACTIVE_TRACE_FILENAME",
+    "STATE_ARCHIVE_FILENAME",
+    "STATE_JSON_BACKUP_FILENAME",
+    "STATE_WRITE_INTENT_FILENAME",
+    "SPECS_REFERENCES_DIR",
+    "SPECS_AGENTS_DIR",
+    "SPECS_WORKFLOWS_DIR",
+    "SPECS_TEMPLATES_DIR",
+    "SPECS_SKILLS_DIR",
 ]
 
 # ─── Planning Directory Layout ────────────────────────────────────────────────
-# These define the on-disk layout of a GPD project's .planning/ directory.
+# These define the on-disk layout of a GPD project's .gpd/ directory.
 
-PLANNING_DIR_NAME = ".planning"
-"""Top-level planning directory inside a project root."""
+PLANNING_DIR_NAME = ".gpd"
+"""Top-level GPD metadata directory inside a project root."""
 
 STATE_JSON_FILENAME = "state.json"
 """Machine-readable authoritative state file."""
@@ -74,10 +85,10 @@ CONVENTIONS_FILENAME = "CONVENTIONS.md"
 """Human-readable convention documentation."""
 
 PHASES_DIR_NAME = "phases"
-"""Subdirectory under .planning/ containing per-phase directories."""
+"""Subdirectory under .gpd/ containing per-phase directories."""
 
 TRACES_DIR_NAME = "traces"
-"""Subdirectory under .planning/ for execution trace JSONL files."""
+"""Subdirectory under .gpd/ for execution trace JSONL files."""
 
 ACTIVE_TRACE_FILENAME = ".active-trace"
 """Marker file in traces/ indicating the currently recording trace."""
@@ -164,13 +175,13 @@ REQUIRED_PLANNING_FILES: tuple[str, ...] = (
     STATE_JSON_FILENAME,
     PROJECT_FILENAME,
 )
-"""Files that must exist in .planning/ for a valid project."""
+"""Files that must exist in .gpd/ for a valid project."""
 
 REQUIRED_PLANNING_DIRS: tuple[str, ...] = (PHASES_DIR_NAME,)
-"""Directories that must exist in .planning/ for a valid project."""
+"""Directories that must exist in .gpd/ for a valid project."""
 
 OPTIONAL_PLANNING_FILES: tuple[str, ...] = (CONFIG_FILENAME, CONVENTIONS_FILENAME)
-"""Files that are checked but not required in .planning/."""
+"""Files that are checked but not required in .gpd/."""
 
 
 # ─── Specs Doctor Required Subdirs ────────────────────────────────────────────
@@ -230,71 +241,71 @@ class ProjectLayout:
     """Configurable project directory structure.
 
     Centralizes ALL path construction for a GPD project so that no module
-    needs to hardcode ``".planning"`` or filename strings.  Every path-
+    needs to hardcode ``".gpd"`` or filename strings.  Every path-
     producing helper in state.py, phases.py, health.py, trace.py, config.py,
     and query.py should delegate to an instance of this class.
 
     Example::
 
         layout = ProjectLayout(project_root)
-        state_json = layout.state_json        # project_root / ".planning" / "state.json"
-        traces     = layout.traces_dir        # project_root / ".planning" / "traces"
+        state_json = layout.state_json        # project_root / ".gpd" / "state.json"
+        traces     = layout.traces_dir        # project_root / ".gpd" / "traces"
         phase_dir  = layout.phase_dir("01-setup")
     """
 
-    __slots__ = ("root", "planning")
+    __slots__ = ("root", "gpd")
 
-    def __init__(self, root: Path, planning_dir: str = PLANNING_DIR_NAME) -> None:
+    def __init__(self, root: Path, gpd_dir: str = PLANNING_DIR_NAME) -> None:
         self.root = root
-        self.planning = root / planning_dir
+        self.gpd = root / gpd_dir
 
-    # ── Top-level planning files ──────────────────────────────────────────
+    # ── Top-level GPD files ───────────────────────────────────────────────
 
     @property
     def state_json(self) -> Path:
-        return self.planning / STATE_JSON_FILENAME
+        return self.gpd / STATE_JSON_FILENAME
 
     @property
     def state_md(self) -> Path:
-        return self.planning / STATE_MD_FILENAME
+        return self.gpd / STATE_MD_FILENAME
 
     @property
     def roadmap(self) -> Path:
-        return self.planning / ROADMAP_FILENAME
+        return self.gpd / ROADMAP_FILENAME
 
     @property
     def project_md(self) -> Path:
-        return self.planning / PROJECT_FILENAME
+        return self.gpd / PROJECT_FILENAME
 
     @property
     def config_json(self) -> Path:
-        return self.planning / CONFIG_FILENAME
+        return self.gpd / CONFIG_FILENAME
 
     @property
     def conventions_md(self) -> Path:
-        return self.planning / CONVENTIONS_FILENAME
+        return self.gpd / CONVENTIONS_FILENAME
 
     @property
     def state_archive(self) -> Path:
-        return self.planning / STATE_ARCHIVE_FILENAME
+        return self.gpd / STATE_ARCHIVE_FILENAME
 
     @property
     def state_json_backup(self) -> Path:
-        return self.planning / STATE_JSON_BACKUP_FILENAME
+        return self.gpd / STATE_JSON_BACKUP_FILENAME
 
     @property
     def state_intent(self) -> Path:
-        return self.planning / STATE_WRITE_INTENT_FILENAME
+        return self.gpd / STATE_WRITE_INTENT_FILENAME
 
     # ── Directories ───────────────────────────────────────────────────────
 
     @property
     def phases_dir(self) -> Path:
-        return self.planning / PHASES_DIR_NAME
+        return self.gpd / PHASES_DIR_NAME
 
     @property
     def traces_dir(self) -> Path:
-        return self.planning / TRACES_DIR_NAME
+        return self.gpd / TRACES_DIR_NAME
 
     # ── Derived paths ─────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ name: gpd:progress
 description: Check research progress, show context, and route to next action (execute or plan)
 argument-hint: "[--brief] [--full] [--reconcile]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
 allowed-tools:
   - Read
   - Bash
@@ -53,7 +53,7 @@ Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `pha
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
-If `project_exists` is false (no `.planning/` directory):
+If `project_exists` is false (no `.gpd/` directory):
 
 ```
 No planning structure found.
@@ -121,7 +121,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 - Use phase-level `has_context` and `has_research` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending tasks: use `init todos` or `list-todos`
-- Check for active debug sessions: `ls .planning/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
+- Check for active debug sessions: `ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
 
 ## Step 6: Report
 
@@ -184,9 +184,9 @@ CONTEXT: [done if has_context | - if not]
 List files in the current phase directory:
 
 ```bash
-ls -1 .planning/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
 ```
 
 State: "This phase has {X} plans, {Y} summaries."
@@ -197,7 +197,7 @@ Check for VERIFICATION.md files with gaps or review requirements. This includes 
 
 ```bash
 # Check for validation with gaps or review requirements
-grep -l -E "status: (gaps_found|diagnosed|human_needed|expert_needed)" .planning/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
+grep -l -E "status: (gaps_found|diagnosed|human_needed|expert_needed)" .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
 ```
 
 Track:
@@ -211,7 +211,7 @@ If `validation_with_gaps > 0`, check whether gap-closure plans already exist but
 ```bash
 # Check for gap_closure plans without matching SUMMARYs
 GAP_PLANS_UNEXECUTED=0
-for plan in .planning/phases/[current-phase-dir]/*-PLAN.md; do
+for plan in .gpd/phases/[current-phase-dir]/*-PLAN.md; do
   if grep -q "gap_closure: true" "$plan" 2>/dev/null; then
     SUMMARY="${plan%-PLAN.md}-SUMMARY.md"
     if [ ! -f "$SUMMARY" ]; then

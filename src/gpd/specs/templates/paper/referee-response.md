@@ -6,7 +6,7 @@ template_version: 1
 
 # Referee Response Template
 
-Template for `.planning/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
+Template for `.gpd/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
 
 ---
 

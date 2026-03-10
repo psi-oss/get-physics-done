@@ -36,7 +36,7 @@ _HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
 
 def _extract_sections(body: str) -> list[dict[str, str | int]]:
     """Extract H2/H3 sections from markdown body."""
-    sections: list[dict[str, str]] = []
+    sections: list[dict[str, str | int]] = []
     matches = list(_HEADING_RE.finditer(body))
     for i, match in enumerate(matches):
         level = len(match.group(1))

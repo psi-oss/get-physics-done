@@ -22,7 +22,7 @@ Use this when a plan, execution, or verification produced incorrect results and 
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

@@ -332,7 +332,7 @@ Use values from init: `phase_dir`, `phase_slug`, `padded_phase`.
 If `phase_dir` is null (phase exists in roadmap but no directory):
 
 ```bash
-phase_dir=".planning/phases/${padded_phase}-${phase_slug}"
+phase_dir=".gpd/phases/${padded_phase}-${phase_slug}"
 mkdir -p "${phase_dir}"
 ```
 
@@ -425,7 +425,7 @@ Write file.
 Present summary and next steps:
 
 ```
-Created: .planning/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
+Created: .gpd/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 ## Decisions Captured
 

@@ -41,7 +41,7 @@ Topic: $ARGUMENTS
 Check for existing reviews:
 
 ```bash
-ls .planning/literature/*.md 2>/dev/null | head -10
+ls .gpd/literature/*.md 2>/dev/null | head -10
 ```
 
 </context>
@@ -74,7 +74,7 @@ After all gathered, confirm scope and proceed.
 ## 2. Check Existing Reviews
 
 ```bash
-ls .planning/literature/*.md 2>/dev/null
+ls .gpd/literature/*.md 2>/dev/null
 ```
 
 **If exists for same topic:** Offer: 1) Update with recent papers, 2) View existing, 3) Start fresh.
@@ -149,7 +149,7 @@ A physics literature review follows a structured protocol:
    </source_hierarchy>
 
 <output>
-Write to: .planning/literature/{slug}-REVIEW.md
+Write to: .gpd/literature/{slug}-REVIEW.md
 
 Structure:
 
@@ -216,7 +216,7 @@ Continue literature review: {topic}. Prior state in review file.
 </objective>
 
 <prior_state>
-Review file: @.planning/literature/{slug}-REVIEW.md
+Review file: @.gpd/literature/{slug}-REVIEW.md
 </prior_state>
 
 <checkpoint_response>

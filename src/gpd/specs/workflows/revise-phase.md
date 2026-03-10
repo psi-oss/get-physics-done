@@ -60,8 +60,8 @@ Exit.
 
 Also read:
 
-- `.planning/ROADMAP.md` -- full roadmap structure
-- `.planning/STATE.md` -- current position and accumulated context
+- `.gpd/ROADMAP.md` -- full roadmap structure
+- `.gpd/STATE.md` -- current position and accumulated context
 - All artifacts in the target phase directory:
 
 ```bash
@@ -133,7 +133,7 @@ Read ROADMAP.md to find all phases that come after the target phase. For each su
 # Search for references to the target phase in downstream phases
 ```
 
-Use Grep to search `.planning/phases/` for references to the target phase number, its results, or its key outputs.
+Use Grep to search `.gpd/phases/` for references to the target phase number, its results, or its key outputs.
 
 Build an impact assessment:
 
@@ -179,7 +179,7 @@ Mark the original phase as superseded in ROADMAP.md.
 
 **Add a SUPERSEDED.md file to the original phase directory:**
 
-Write `.planning/phases/{target_dir}/SUPERSEDED.md`:
+Write `.gpd/phases/{target_dir}/SUPERSEDED.md`:
 
 ```markdown
 # Phase {target}: SUPERSEDED
@@ -212,7 +212,7 @@ The replacement phase number is `{target}.1` (or `{target}.2`, `{target}.3`, etc
 
 ```bash
 # Check for existing decimal phases under this integer
-ls -d .planning/phases/${target_integer}.* 2>/dev/null
+ls -d .gpd/phases/${target_integer}.* 2>/dev/null
 ```
 
 Use the next available decimal.
@@ -233,7 +233,7 @@ The CLI handles directory creation and ROADMAP.md insertion.
 
 **Pre-populate CONTEXT.md in the replacement phase:**
 
-Write `.planning/phases/{replacement_dir}/CONTEXT.md`:
+Write `.gpd/phases/{replacement_dir}/CONTEXT.md`:
 
 ```markdown
 # Phase {replacement_number}: Context
@@ -268,9 +268,9 @@ This phase supersedes Phase {target} ({original_name}).
 
 ### Reference
 
-- Original phase: `.planning/phases/{target_dir}/`
-- Original summary: `.planning/phases/{target_dir}/{target}-01-SUMMARY.md` (etc.)
-- Supersession record: `.planning/phases/{target_dir}/SUPERSEDED.md`
+- Original phase: `.gpd/phases/{target_dir}/`
+- Original summary: `.gpd/phases/{target_dir}/{target}-01-SUMMARY.md` (etc.)
+- Supersession record: `.gpd/phases/{target_dir}/SUPERSEDED.md`
 ```
 
 </step>
@@ -284,7 +284,7 @@ Find all downstream phases that depend on the superseded phase and update their 
 # Find phases that reference the superseded phase
 ```
 
-Use Grep to search `.planning/phases/` and `.planning/ROADMAP.md` for:
+Use Grep to search `.gpd/phases/` and `.gpd/ROADMAP.md` for:
 
 - "Phase {target}" references
 - "Depends on.\*{target}" patterns
@@ -342,10 +342,10 @@ Do NOT edit STATE.md directly — always use gpd state commands to maintain stat
 Stage and commit all changes:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(phase-${target_padded}): supersede and replace — ${reason}" --files .planning/
+gpd commit "docs(phase-${target_padded}): supersede and replace — ${reason}" --files .gpd/
 ```
 </step>
 

@@ -42,33 +42,6 @@ class SpecialistLifecycle(StrEnum):
     PERSISTENT = "persistent"
 
 
-AgentLifecycle = SpecialistLifecycle
-"""Backward-compatible alias for the old lifecycle enum name."""
-
-
-def analyze_tool_reuse(plan: object) -> dict[str, SpecialistLifecycle]:
-    """Analyze plan for tool reuse patterns to determine agent allocation.
-
-    Tools used in >1 milestone get "persistent" agents (session-scoped).
-    Tools used in exactly 1 milestone get "ephemeral" agents (single-use).
-
-    Args:
-        plan: ResearchPlan object with milestones attribute.
-
-    Returns:
-        Dict mapping tool_name -> SpecialistLifecycle value.
-    """
-    tool_milestone_count: dict[str, int] = {}
-    for milestone in getattr(plan, "milestones", []):
-        for tool in getattr(milestone, "tools", []):
-            tool_milestone_count[tool] = tool_milestone_count.get(tool, 0) + 1
-
-    return {
-        tool: SpecialistLifecycle.PERSISTENT if count > 1 else SpecialistLifecycle.EPHEMERAL
-        for tool, count in tool_milestone_count.items()
-    }
-
-
 def _parse_lifecycle(lifecycle: SpecialistLifecycle | str) -> SpecialistLifecycle:
     """Normalize lifecycle inputs and reject unknown values."""
     return lifecycle if isinstance(lifecycle, SpecialistLifecycle) else SpecialistLifecycle(lifecycle)

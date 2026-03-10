@@ -1,5 +1,5 @@
 <purpose>
-Display and search the cumulative decision log from .planning/DECISIONS.md. Supports filtering by phase number or keyword, and presents formatted output with summary statistics.
+Display and search the cumulative decision log from .gpd/DECISIONS.md. Supports filtering by phase number or keyword, and presents formatted output with summary statistics.
 </purpose>
 
 <required_reading>
@@ -12,7 +12,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 Check if the decision log exists:
 
 ```bash
-cat .planning/DECISIONS.md 2>/dev/null
+cat .gpd/DECISIONS.md 2>/dev/null
 ```
 
 **If file doesn't exist or has no entries (only header row):**
@@ -21,7 +21,7 @@ cat .planning/DECISIONS.md 2>/dev/null
 No decisions logged yet.
 
 Decisions are recorded automatically during phase transitions ($gpd-progress).
-You can also add entries manually to .planning/DECISIONS.md.
+You can also add entries manually to .gpd/DECISIONS.md.
 
 ---
 
@@ -130,7 +130,7 @@ Only show this for unfiltered or phase-filtered views (skip for keyword searches
 
 <success_criteria>
 
-- [ ] Decision log loaded from .planning/DECISIONS.md
+- [ ] Decision log loaded from .gpd/DECISIONS.md
 - [ ] Arguments parsed correctly (phase number vs keyword vs impact)
 - [ ] Filter applied to table rows
 - [ ] Filtered results displayed in compact table

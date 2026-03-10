@@ -121,8 +121,8 @@ field effects).
 
 ## Notation and Conventions
 
-See `.planning/CONVENTIONS.md` for all notation and sign conventions.
-See `.planning/NOTATION_GLOSSARY.md` for symbol definitions.
+See `.gpd/CONVENTIONS.md` for all notation and sign conventions.
+See `.gpd/NOTATION_GLOSSARY.md` for symbol definitions.
 
 ## Unit System
 
@@ -137,7 +137,7 @@ Dimensionless parameters:
 
 ## Requirements
 
-See `.planning/REQUIREMENTS.md` for the detailed requirements specification.
+See `.gpd/REQUIREMENTS.md` for the detailed requirements specification.
 
 Key requirement categories:
 - DERV: Derive the MHD KH dispersion relation from linearized ideal MHD
@@ -173,7 +173,7 @@ Key requirement categories:
 | Incompressible limit | Simplifies dispersion relation to algebraic form; compressible case is qualitatively similar but much more complex | Adopted |
 | Equal-density case as primary | Cleanest physics; unequal densities treated as extension | Adopted |
 
-Full log: `.planning/DECISIONS.md`
+Full log: `.gpd/DECISIONS.md`
 
 ---
 
@@ -644,7 +644,7 @@ key-files:
     - "derivations/mhd_kh_dispersion.py"
     - "derivations/mhd_kh_dispersion.tex"
   modified:
-    - ".planning/NOTATION_GLOSSARY.md"
+    - ".gpd/NOTATION_GLOSSARY.md"
 
 key-decisions:
   - "Used total pressure (gas + magnetic) continuity rather than separate gas pressure + Maxwell stress matching -- equivalent but cleaner"
@@ -739,7 +739,7 @@ Each task was committed atomically:
 - `derivations/mhd_kh_dispersion.py` - SymPy derivation of dispersion relation from jump conditions
 - `derivations/mhd_kh_dispersion.tex` - LaTeX writeup of full derivation
 - `derivations/verify_limits.py` - Automated verification of B=0 and equal-density limits
-- `.planning/NOTATION_GLOSSARY.md` - Added gamma, v_A, M_A, B_c definitions
+- `.gpd/NOTATION_GLOSSARY.md` - Added gamma, v_A, M_A, B_c definitions
 
 ## Next Phase Readiness
 

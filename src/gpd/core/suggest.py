@@ -286,7 +286,7 @@ def _item_text(item: object, fallback_keys: tuple[str, ...] = ("text",)) -> str:
 
 
 def _count_pending_todos(cwd: Path) -> int:
-    """Count .md files in .planning/todos/pending/."""
+    """Count .md files in .gpd/todos/pending/."""
     pending_dir = _planning_dir(cwd) / "todos" / "pending"
     if not pending_dir.is_dir():
         return 0

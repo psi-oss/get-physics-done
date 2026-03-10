@@ -1,5 +1,5 @@
 <purpose>
-Display accumulated physics error patterns from `.planning/ERROR-PATTERNS.md`. Optionally filter by category. Error patterns are recorded by the debugger after confirming root causes, capturing project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
+Display accumulated physics error patterns from `.gpd/ERROR-PATTERNS.md`. Optionally filter by category. Error patterns are recorded by the debugger after confirming root causes, capturing project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
 </purpose>
 
 <required_reading>
@@ -12,7 +12,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 Check if the error patterns file exists:
 
 ```bash
-test -f .planning/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
+test -f .gpd/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 
 **If MISSING:**
@@ -32,7 +32,7 @@ Exit.
 </step>
 
 <step name="read_patterns">
-Read `.planning/ERROR-PATTERNS.md`.
+Read `.gpd/ERROR-PATTERNS.md`.
 
 Parse the patterns table. Each row contains:
 

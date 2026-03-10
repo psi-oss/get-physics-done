@@ -259,7 +259,7 @@ DEFAULT_COST_PER_MILLION: dict[str, TierCost] = {
 
 
 class GPDProjectConfig(BaseModel):
-    """Configuration for a GPD project, loaded from .planning/config.json.
+    """Configuration for a GPD project, loaded from .gpd/config.json.
 
     Named GPDProjectConfig to avoid collision with contracts.GPDConfig
     which controls feature-flag toggles. This model controls project-level
@@ -332,7 +332,7 @@ def _resolve_parallelization(parsed: dict) -> bool:
 
 @instrument_gpd_function("config.load")
 def load_config(project_dir: Path) -> GPDProjectConfig:
-    """Load GPD config from .planning/config.json with defaults.
+    """Load GPD config from .gpd/config.json with defaults.
 
     Raises on malformed JSON. Returns defaults if file doesn't exist.
     """

@@ -45,8 +45,8 @@ Read these files at execution start using the Read tool:
 - Checkpoints ref: get-physics-done/references/checkpoints.md
 - Validation ref: get-physics-done/references/verification-core.md
 - Plan: {phase_dir}/{plan_file}
-- State: .planning/STATE.md
-- Config: .planning/config.json (if exists)
+- State: .gpd/STATE.md
+- Config: .gpd/config.json (if exists)
 </files_to_read>
 
 <verification_before_continuing>
@@ -84,7 +84,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 | `{checkpoint_type}`       | From checkpoint return              | `human-verify`                                                            |
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
-| `{phase_dir}`             | Phase directory path                | `.planning/phases/03-phase-diagram`                                       |
+| `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |
 | `{phase}`                 | Phase prefix                        | `03`                                                                      |
 | `{plan}`                  | Plan prefix                         | `03`                                                                      |

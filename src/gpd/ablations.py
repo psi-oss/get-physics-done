@@ -78,7 +78,7 @@ class AblationPoint:
     """
 
     subsystem: str
-    flag_keys: list[str]
+    flag_keys: tuple[str, ...]
     description: str
     layer: str
 
@@ -89,44 +89,44 @@ ABLATION_POINTS: dict[str, AblationPoint] = {
     # --- Top-level kill switch ---
     "GPD": AblationPoint(
         subsystem="GPD",
-        flag_keys=["gpd.enabled"],
+        flag_keys=("gpd.enabled",),
         description="Master kill switch — disables ALL GPD components",
         layer="core",
     ),
     # --- Convention enforcement ---
     "CONVENTIONS": AblationPoint(
         subsystem="CONVENTIONS",
-        flag_keys=[
+        flag_keys=(
             "gpd.conventions.enabled",
             "gpd.conventions.commit_gate",
             "gpd.conventions.assert_check",
             "gpd.conventions.drift_detection",
-        ],
+        ),
         description="All convention enforcement (lock validation, assertion checks, drift detection)",
         layer="core",
     ),
     "COMMIT_GATE": AblationPoint(
         subsystem="COMMIT_GATE",
-        flag_keys=["gpd.conventions.commit_gate"],
+        flag_keys=("gpd.conventions.commit_gate",),
         description="CommitGate convention invariant hooks only",
         layer="core",
     ),
     "ASSERT_CHECK": AblationPoint(
         subsystem="ASSERT_CHECK",
-        flag_keys=["gpd.conventions.assert_check"],
+        flag_keys=("gpd.conventions.assert_check",),
         description="ASSERT_CONVENTION directive validation only",
         layer="core",
     ),
     "DRIFT_DETECTION": AblationPoint(
         subsystem="DRIFT_DETECTION",
-        flag_keys=["gpd.conventions.drift_detection"],
+        flag_keys=("gpd.conventions.drift_detection",),
         description="Convention drift detection across phases",
         layer="core",
     ),
     # --- Verification checks ---
     "VERIFICATION": AblationPoint(
         subsystem="VERIFICATION",
-        flag_keys=[
+        flag_keys=(
             "gpd.verification.enabled",
             "gpd.verification.checks.dimensional",
             "gpd.verification.checks.limiting_cases",
@@ -135,95 +135,95 @@ ABLATION_POINTS: dict[str, AblationPoint] = {
             "gpd.verification.checks.numerical",
             "gpd.verification.checks.sign_convention",
             "gpd.verification.checks.index_consistency",
-        ],
+        ),
         description="All verification checks (dimensional, limiting cases, symmetry, etc.)",
         layer="core",
     ),
     "DIMENSIONAL": AblationPoint(
         subsystem="DIMENSIONAL",
-        flag_keys=["gpd.verification.checks.dimensional"],
+        flag_keys=("gpd.verification.checks.dimensional",),
         description="Dimensional analysis verification check",
         layer="core",
     ),
     "LIMITING_CASES": AblationPoint(
         subsystem="LIMITING_CASES",
-        flag_keys=["gpd.verification.checks.limiting_cases"],
+        flag_keys=("gpd.verification.checks.limiting_cases",),
         description="Limiting case verification check",
         layer="core",
     ),
     "SYMMETRY": AblationPoint(
         subsystem="SYMMETRY",
-        flag_keys=["gpd.verification.checks.symmetry"],
+        flag_keys=("gpd.verification.checks.symmetry",),
         description="Symmetry verification check",
         layer="core",
     ),
     "CONSERVATION": AblationPoint(
         subsystem="CONSERVATION",
-        flag_keys=["gpd.verification.checks.conservation"],
+        flag_keys=("gpd.verification.checks.conservation",),
         description="Conservation law verification check",
         layer="core",
     ),
     "NUMERICAL": AblationPoint(
         subsystem="NUMERICAL",
-        flag_keys=["gpd.verification.checks.numerical"],
+        flag_keys=("gpd.verification.checks.numerical",),
         description="Numerical consistency verification check",
         layer="core",
     ),
     "SIGN_CONVENTION": AblationPoint(
         subsystem="SIGN_CONVENTION",
-        flag_keys=["gpd.verification.checks.sign_convention"],
+        flag_keys=("gpd.verification.checks.sign_convention",),
         description="Sign convention verification check",
         layer="core",
     ),
     "INDEX_CONSISTENCY": AblationPoint(
         subsystem="INDEX_CONSISTENCY",
-        flag_keys=["gpd.verification.checks.index_consistency"],
+        flag_keys=("gpd.verification.checks.index_consistency",),
         description="Index consistency verification check",
         layer="core",
     ),
     # --- Protocols ---
     "PROTOCOLS": AblationPoint(
         subsystem="PROTOCOLS",
-        flag_keys=["gpd.protocols.enabled", "gpd.protocols.checkpoint_enforcement"],
+        flag_keys=("gpd.protocols.enabled", "gpd.protocols.checkpoint_enforcement"),
         description="All protocol enforcement (checkpoint gates, protocol loading)",
         layer="core",
     ),
     "CHECKPOINT": AblationPoint(
         subsystem="CHECKPOINT",
-        flag_keys=["gpd.protocols.checkpoint_enforcement"],
+        flag_keys=("gpd.protocols.checkpoint_enforcement",),
         description="Checkpoint enforcement within protocols",
         layer="core",
     ),
     # --- Error detection ---
     "ERRORS": AblationPoint(
         subsystem="ERRORS",
-        flag_keys=["gpd.errors.enabled", "gpd.errors.classification"],
+        flag_keys=("gpd.errors.enabled", "gpd.errors.classification"),
         description="Error detection and classification system",
         layer="core",
     ),
     # --- Pattern library ---
     "PATTERNS": AblationPoint(
         subsystem="PATTERNS",
-        flag_keys=["gpd.patterns.enabled", "gpd.patterns.cross_project"],
+        flag_keys=("gpd.patterns.enabled", "gpd.patterns.cross_project"),
         description="Error pattern library (intra- and cross-project)",
         layer="core",
     ),
     "CROSS_PROJECT": AblationPoint(
         subsystem="CROSS_PROJECT",
-        flag_keys=["gpd.patterns.cross_project"],
+        flag_keys=("gpd.patterns.cross_project",),
         description="Cross-project pattern sharing only",
         layer="core",
     ),
     # --- Diagnostics ---
     "TRACING": AblationPoint(
         subsystem="TRACING",
-        flag_keys=["gpd.diagnostics.tracing"],
+        flag_keys=("gpd.diagnostics.tracing",),
         description="JSONL execution tracing",
         layer="core",
     ),
     "HEALTH_CHECKS": AblationPoint(
         subsystem="HEALTH_CHECKS",
-        flag_keys=["gpd.diagnostics.health_checks"],
+        flag_keys=("gpd.diagnostics.health_checks",),
         description="Diagnostic health check dashboard",
         layer="core",
     ),

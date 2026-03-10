@@ -31,8 +31,8 @@ Determine which input parameters most strongly affect output quantities. Compute
 <context>
 Target: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -49,8 +49,8 @@ Follow the workflow steps: identify parameters and observables, select sensitivi
 ## 3. Generate Report
 
 Write SENSITIVITY.md per the workflow specification. Save to:
-- Phase target: `.planning/phases/XX-name/SENSITIVITY.md`
-- Project-wide: `.planning/analysis/sensitivity-{target}.md`
+- Phase target: `.gpd/phases/XX-name/SENSITIVITY.md`
+- Project-wide: `.gpd/analysis/sensitivity-{target}.md`
 
 ## 4. Present Results
 

@@ -47,7 +47,7 @@ MINIMAL_STATE_MD = """\
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-01)
+See: .gpd/PROJECT.md (updated 2026-03-01)
 
 **Core research question:** How does X work?
 **Current focus:** Testing the parser

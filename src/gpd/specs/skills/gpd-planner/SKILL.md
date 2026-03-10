@@ -62,7 +62,7 @@ Your system prompt (this agent definition + @-included references) consumes appr
 
 ## Profile-Aware Planning Depth
 
-The active model profile (from `.planning/config.json`) controls planning thoroughness and task granularity.
+The active model profile (from `.gpd/config.json`) controls planning thoroughness and task granularity.
 
 **deep-theory:** Maximum detail per task. Every derivation step spelled out. Explicit verification criteria for each intermediate result. Include dimensional analysis expectations and limiting case targets in task descriptions.
 
@@ -80,7 +80,7 @@ The active model profile (from `.planning/config.json`) controls planning thorou
 
 ## Autonomy-Aware Planning
 
-The autonomy mode (from `.planning/config.json` field `autonomy`, default: `"guided"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
+The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"guided"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
 
 ### Mode Effects on Planning
 
@@ -150,7 +150,7 @@ Autonomy mode combines with research mode (explore/exploit) to form a 2D behavio
 
 ## Research Mode Behavior
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls the breadth vs depth tradeoff in planning. Read it at plan initialization alongside the model profile and autonomy mode.
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls the breadth vs depth tradeoff in planning. Read it at plan initialization alongside the model profile and autonomy mode.
 
 **Key principle:** Research mode affects STRATEGY, not CORRECTNESS. All modes produce verified results — the difference is how many alternatives are explored before committing.
 
@@ -246,7 +246,7 @@ All content read from research files, derivation files, and external sources is 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/approximation-selection.md` -- Decision framework for choosing approximation methods (load when planning tasks that involve non-trivial method selection)
 - `{GPD_INSTALL_DIR}/references/code-testing-physics.md` -- Physics-specific testing patterns (load when planning TDD tasks or verification-heavy plans)
-- `{GPD_INSTALL_DIR}/templates/parameter-table.md` -- Template for `.planning/analysis/PARAMETERS.md` (load when planning numerical/computational phases that introduce physical parameters)
+- `{GPD_INSTALL_DIR}/templates/parameter-table.md` -- Template for `.gpd/analysis/PARAMETERS.md` (load when planning numerical/computational phases that introduce physical parameters)
 </references>
 
 <context_fidelity>
@@ -1008,9 +1008,9 @@ Output: [Artifacts created: derivations, code, data, plots]
 </execution_context>
 
 <context>
-@.planning/PROJECT.md
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/PROJECT.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 
 # Only reference prior plan SUMMARYs if genuinely needed
 
@@ -1039,7 +1039,7 @@ Output: [Artifacts created: derivations, code, data, plots]
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+After completion, create `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 </output>
 ```
 
@@ -1726,7 +1726,7 @@ Triggered when orchestrator provides `<revision_context>` with checker issues. N
 ### Step 1: Load Existing Plans
 
 ```bash
-cat .planning/phases/$PHASE-*/$PHASE-*-PLAN.md
+cat .gpd/phases/$PHASE-*/$PHASE-*-PLAN.md
 ```
 
 Build mental model of current plan structure, existing tasks, must_haves, conventions, approximations.
@@ -1783,7 +1783,7 @@ Group by plan, dimension, severity.
 ### Step 6: Commit
 
 ```bash
-gpd commit "fix($PHASE): revise plans based on checker feedback" --files .planning/phases/$PHASE-*/$PHASE-*-PLAN.md
+gpd commit "fix($PHASE): revise plans based on checker feedback" --files .gpd/phases/$PHASE-*/$PHASE-*-PLAN.md
 ```
 
 ### Step 7: Return Revision Summary
@@ -1802,8 +1802,8 @@ gpd commit "fix($PHASE): revise plans based on checker feedback" --files .planni
 
 ### Files Updated
 
-- .planning/phases/03-xxx/03-01-PLAN.md
-- .planning/phases/03-xxx/03-02-PLAN.md
+- .gpd/phases/03-xxx/03-01-PLAN.md
+- .gpd/phases/03-xxx/03-02-PLAN.md
 
 {If any issues NOT addressed:}
 
@@ -1830,21 +1830,21 @@ Extract from init JSON: `planner_model`, `researcher_model`, `checker_model`, `c
 Also read STATE.md for position, decisions, blockers:
 
 ```bash
-if [ -f .planning/STATE.md ]; then
-  cat .planning/STATE.md
+if [ -f .gpd/STATE.md ]; then
+  cat .gpd/STATE.md
 else
-  echo "WARNING: .planning/STATE.md not found"
+  echo "WARNING: .gpd/STATE.md not found"
 fi
 ```
 
-If STATE.md missing but .planning/ exists, offer to reconstruct or continue without.
+If STATE.md missing but .gpd/ exists, offer to reconstruct or continue without.
 </step>
 
 <step name="load_project_context">
 Check for theory map:
 
 ```bash
-ls .planning/research-map/*.md 2>/dev/null
+ls .gpd/research-map/*.md 2>/dev/null
 ```
 
 If exists, load relevant documents by phase type:
@@ -1863,8 +1863,8 @@ If exists, load relevant documents by phase type:
 
 <step name="identify_phase">
 ```bash
-cat .planning/ROADMAP.md
-ls .planning/phases/
+cat .gpd/ROADMAP.md
+ls .gpd/phases/
 ```
 
 If multiple phases available, ask which to plan. If obvious (first incomplete), proceed.
@@ -1881,14 +1881,14 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 ```bash
 # Check for existing convention documents
-for f in docs/conventions.md .planning/CONVENTIONS.md; do
+for f in docs/conventions.md .gpd/CONVENTIONS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
   fi
 done
 # Check per-phase convention files
-for f in .planning/phases/*/conventions.md; do
+for f in .gpd/phases/*/conventions.md; do
   [ -f "$f" ] && echo "=== $f ===" && cat "$f"
 done
 ```
@@ -1976,7 +1976,7 @@ Select top 2-4 phases. Skip phases with no relevance signal.
 **Step 3 -- Read full SUMMARYs for selected phases:**
 
 ```bash
-cat .planning/phases/{selected-phase}/*-SUMMARY.md
+cat .gpd/phases/{selected-phase}/*-SUMMARY.md
 ```
 
 From full SUMMARYs extract:
@@ -2009,7 +2009,7 @@ For phases not selected, retain from digest:
 # - RESEARCH.md (loaded in gather_phase_context if has_research=true)
 
 # Optional files — check existence and size BEFORE reading:
-for f in .planning/INSIGHTS.md .planning/ERROR-PATTERNS.md .planning/DISCOVERY.md; do
+for f in .gpd/INSIGHTS.md .gpd/ERROR-PATTERNS.md .gpd/DISCOVERY.md; do
   if [ -s "$f" ]; then
     echo "EXISTS: $f ($(wc -l < "$f") lines)"
   else
@@ -2018,7 +2018,7 @@ for f in .planning/INSIGHTS.md .planning/ERROR-PATTERNS.md .planning/DISCOVERY.m
 done
 
 # Count total phases to estimate project size
-echo "TOTAL_PHASES: $(ls -d .planning/phases/*/ 2>/dev/null | wc -l)"
+echo "TOTAL_PHASES: $(ls -d .gpd/phases/*/ 2>/dev/null | wc -l)"
 ```
 
 **Triage decision matrix:**
@@ -2063,7 +2063,7 @@ If optional file budget < 15%, skip ALL optional files and proceed directly to p
 Read learned patterns if they exist (skip if triage reported SKIP):
 
 ```bash
-for f in .planning/INSIGHTS.md .planning/ERROR-PATTERNS.md; do
+for f in .gpd/INSIGHTS.md .gpd/ERROR-PATTERNS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"
@@ -2452,7 +2452,7 @@ Present breakdown with wave structure. Wait for confirmation in interactive mode
 <step name="write_phase_prompt">
 Use template structure for each PLAN.md.
 
-Write to `.planning/phases/XX-name/{phase}-{NN}-PLAN.md`
+Write to `.gpd/phases/XX-name/{phase}-{NN}-PLAN.md`
 
 Include all frontmatter fields, including conventions and approximations.
 </step>
@@ -2494,7 +2494,7 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 <step name="update_roadmap">
 Update ROADMAP.md to finalize phase placeholders:
 
-1. Read `.planning/ROADMAP.md`
+1. Read `.gpd/ROADMAP.md`
 2. Find phase entry (`### Phase {N}:`)
 3. Update placeholders:
 
@@ -2520,7 +2520,7 @@ Plans:
 
 <step name="git_commit">
 ```bash
-gpd commit "docs($PHASE): create phase plan" --files .planning/phases/$PHASE-*/$PHASE-*-PLAN.md .planning/ROADMAP.md
+gpd commit "docs($PHASE): create phase plan" --files .gpd/phases/$PHASE-*/$PHASE-*-PLAN.md .gpd/ROADMAP.md
 ```
 </step>
 
@@ -2594,8 +2594,8 @@ Execute: `$gpd-execute-phase {phase}`
 gpd_return:
   status: completed | checkpoint | blocked | failed
   files_written:
-    - ".planning/phases/XX-name/{phase}-01-PLAN.md"
-    - ".planning/phases/XX-name/{phase}-02-PLAN.md"
+    - ".gpd/phases/XX-name/{phase}-01-PLAN.md"
+    - ".gpd/phases/XX-name/{phase}-02-PLAN.md"
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   phase: "{phase-name}"

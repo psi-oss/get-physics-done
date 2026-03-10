@@ -56,7 +56,7 @@ If exists: Offer update/view/skip options.
 ```bash
 # Phase section from roadmap (already loaded in PHASE_INFO)
 echo "$PHASE_INFO" | gpd json get .section --default ""
-cat .planning/REQUIREMENTS.md 2>/dev/null
+cat .gpd/REQUIREMENTS.md 2>/dev/null
 cat "${phase_dir}/"*-CONTEXT.md 2>/dev/null
 # Decisions from state-snapshot (structured JSON)
 gpd state snapshot | gpd json get .decisions --default "[]"
@@ -123,7 +123,7 @@ Structure your research around these areas:
 </physics_research_directives>
 
 <output>
-Write to: .planning/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 </output>",
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}"

@@ -1,5 +1,5 @@
 <purpose>
-Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
+Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks tasks in `.gpd/quick/`, and updates STATE.md's "Quick Tasks Completed" table. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
 </purpose>
 
 <required_reading>
@@ -49,15 +49,15 @@ Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `n
 - `autonomy=guided` (default): Execute without pausing (quick tasks are inherently lightweight).
 - `autonomy=autonomous/yolo`: Execute and commit without pausing.
 
-**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.planning/`. Run `$gpd-new-project` first.
+**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `$gpd-new-project` first.
 
-Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.planning/` to exist for directory structure.
+Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.gpd/` to exist for directory structure.
 
 ---
 
 **Step 3: Create task directory**
 
-Use `task_dir` from init JSON (`.planning/quick/${next_num}-${slug}`):
+Use `task_dir` from init JSON (`.gpd/quick/${next_num}-${slug}`):
 
 ```bash
 QUICK_DIR="${task_dir}"
@@ -90,7 +90,7 @@ Task(
 **Description:** ${DESCRIPTION}
 
 **Project State:**
-Read the file at .planning/STATE.md
+Read the file at .gpd/STATE.md
 
 </planning_context>
 
@@ -139,7 +139,7 @@ Task(
 Execute quick task ${next_num}.
 
 Plan: Read the file at ${QUICK_DIR}/${next_num}-PLAN.md
-Project state: Read the file at .planning/STATE.md
+Project state: Read the file at .gpd/STATE.md
 
 <constraints>
 - Execute all tasks in the plan
@@ -218,10 +218,10 @@ This ensures the table content added via Edit is synced to state.json. Do NOT sk
 Stage and commit quick task artifacts:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .planning/STATE.md
+gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md
 ```
 
 Get final commit hash:
@@ -251,11 +251,11 @@ Ready for next task: $gpd-quick
 
 <success_criteria>
 
-- [ ] `.planning/` directory exists
+- [ ] `.gpd/` directory exists
 - [ ] User provides task description
 - [ ] Slug generated (lowercase, hyphens, max 40 chars)
 - [ ] Next number calculated (001, 002, 003...)
-- [ ] Directory created at `.planning/quick/NNN-slug/`
+- [ ] Directory created at `.gpd/quick/NNN-slug/`
 - [ ] `${next_num}-PLAN.md` created by planner
 - [ ] `${next_num}-SUMMARY.md` created by executor
 - [ ] STATE.md updated with quick task row

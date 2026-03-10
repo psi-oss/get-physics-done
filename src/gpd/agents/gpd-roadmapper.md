@@ -45,7 +45,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 ## Research Mode Effects
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. 8-15 phases.
 - **balanced**: Linear phase sequence with verification checkpoints. Single approach. 5-10 phases.
@@ -970,12 +970,12 @@ When files are written and returning to orchestrator:
 
 **Files written:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md
+- .gpd/ROADMAP.md
+- .gpd/STATE.md
 
 **Updated:**
 
-- .planning/REQUIREMENTS.md (traceability section)
+- .gpd/REQUIREMENTS.md (traceability section)
 
 ### Summary
 
@@ -1008,8 +1008,8 @@ When files are written and returning to orchestrator:
 
 User can review actual files:
 
-- `cat .planning/ROADMAP.md`
-- `cat .planning/STATE.md`
+- `cat .gpd/ROADMAP.md`
+- `cat .gpd/STATE.md`
 
 {If gaps found during creation:}
 
@@ -1035,9 +1035,9 @@ After incorporating user feedback and updating files:
 
 **Files updated:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md (if needed)
-- .planning/REQUIREMENTS.md (if traceability changed)
+- .gpd/ROADMAP.md
+- .gpd/STATE.md (if needed)
+- .gpd/REQUIREMENTS.md (if traceability changed)
 
 ### Updated Summary
 

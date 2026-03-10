@@ -28,7 +28,7 @@ Use this for:
 </execution_context>
 
 <context>
-@.planning/ROADMAP.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>
@@ -63,7 +63,7 @@ Display the graph, gap analysis, and critical path. Highlight any cycles or unsa
 
 ## Step 6: Optionally Write
 
-Offer to write the graph and analysis to `.planning/DEPENDENCY-GRAPH.md`.
+Offer to write the graph and analysis to `.gpd/DEPENDENCY-GRAPH.md`.
 </process>
 
 <success_criteria>
@@ -73,5 +73,5 @@ Offer to write the graph and analysis to `.planning/DEPENDENCY-GRAPH.md`.
 - [ ] Graph visualization generated (ASCII, Mermaid, or DOT)
 - [ ] Dependency validation run (cycles, gaps, unsatisfied requirements)
 - [ ] Results presented clearly with any issues highlighted
-- [ ] Optional write to .planning/DEPENDENCY-GRAPH.md offered
+- [ ] Optional write to .gpd/DEPENDENCY-GRAPH.md offered
       </success_criteria>

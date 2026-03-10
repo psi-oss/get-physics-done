@@ -33,8 +33,8 @@ Scope: $ARGUMENTS (optional)
 - If a number (e.g., "3"): validate conventions only for that phase
 - If empty: validate conventions across all completed phases
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

@@ -13,7 +13,7 @@ allowed-tools:
 ---
 
 <role>
-You are a GPD theory mapper. You explore a physics research project for a specific focus area and write analysis documents directly to `.planning/research-map/`.
+You are a GPD theory mapper. You explore a physics research project for a specific focus area and write analysis documents directly to `.gpd/research-map/`.
 
 You are spawned by `$gpd-map-theory` with one of four focus areas:
 
@@ -80,7 +80,7 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 ## Output Consumers
 
-Documents written to `.planning/research-map/` are consumed by:
+Documents written to `.gpd/research-map/` are consumed by:
 
 **gpd-planner (`$gpd-plan-phase`):**
 
@@ -187,7 +187,7 @@ Read key files identified during exploration. Use Glob and Grep liberally. For L
 </step>
 
 <step name="write_documents">
-Write document(s) to `.planning/research-map/` using the templates below.
+Write document(s) to `.gpd/research-map/` using the templates below.
 
 **Document naming:** UPPERCASE.md (e.g., FORMALISM.md, ARCHITECTURE.md)
 
@@ -211,8 +211,8 @@ Format:
 
 **Focus:** {focus}
 **Documents written:**
-- `.planning/research-map/{DOC1}.md` ({N} lines)
-- `.planning/research-map/{DOC2}.md` ({N} lines)
+- `.gpd/research-map/{DOC1}.md` ({N} lines)
+- `.gpd/research-map/{DOC2}.md` ({N} lines)
 
 Ready for orchestrator summary.
 ```
@@ -342,7 +342,7 @@ When re-running `$gpd-map-theory` on a project that already has theory documents
 ### Detecting Existing Maps
 
 ```bash
-ls -la .planning/research-map/*.md 2>/dev/null
+ls -la .gpd/research-map/*.md 2>/dev/null
 ```
 
 If theory documents exist, this is an incremental update, not a fresh mapping.
@@ -353,7 +353,7 @@ If theory documents exist, this is an incremental update, not a fresh mapping.
 
 ```bash
 # Get the theory document's date from its "Analysis Date" line
-LAST_MAP_DATE=$(grep "Analysis Date" .planning/research-map/FORMALISM.md 2>/dev/null | head -1)
+LAST_MAP_DATE=$(grep "Analysis Date" .gpd/research-map/FORMALISM.md 2>/dev/null | head -1)
 
 # Find project files modified after the last mapping
 # (Requires knowing the date format — extract YYYY-MM-DD from the line)
@@ -365,11 +365,11 @@ Use git to find what changed since the theory documents were last written:
 
 ```bash
 # Find the commit that last modified theory docs
-LAST_MAP_COMMIT=$(git log -1 --format=%H -- .planning/research-map/ 2>/dev/null)
+LAST_MAP_COMMIT=$(git log -1 --format=%H -- .gpd/research-map/ 2>/dev/null)
 
-# Find project files changed since then (excluding .planning/)
+# Find project files changed since then (excluding .gpd/)
 if [ -n "$LAST_MAP_COMMIT" ]; then
-  git diff --name-only "$LAST_MAP_COMMIT" -- . ':!.planning/' 2>/dev/null
+  git diff --name-only "$LAST_MAP_COMMIT" -- . ':!.gpd/' 2>/dev/null
 fi
 ```
 
@@ -420,7 +420,7 @@ Before using any theory document, check if it's stale:
 
 ```bash
 # Check each theory document against project files it references
-for doc in .planning/research-map/*.md; do
+for doc in .gpd/research-map/*.md; do
   if [ -f "$doc" ]; then
     DOC_MTIME=$(stat -f '%m' "$doc" 2>/dev/null || stat -c '%Y' "$doc" 2>/dev/null)
 
@@ -466,8 +466,8 @@ When spawned for any focus area, report staleness in the confirmation:
 
 **Focus:** {focus}
 **Documents written:**
-- `.planning/research-map/{DOC1}.md` ({N} lines)
-- `.planning/research-map/{DOC2}.md` ({N} lines)
+- `.gpd/research-map/{DOC1}.md` ({N} lines)
+- `.gpd/research-map/{DOC2}.md` ({N} lines)
 
 **Staleness of other theory docs:**
 - FORMALISM.md: CURRENT
@@ -526,8 +526,8 @@ If a document fails any criterion, flag it in the confirmation:
 
 **Focus:** methodology
 **Documents written:**
-- `.planning/research-map/CONVENTIONS.md` (180 lines) — Quality: COMPLETE/HIGH/VERIFIED/ACTIONABLE
-- `.planning/research-map/VALIDATION.md` (95 lines) — Quality: PARTIAL/MEDIUM/PLAUSIBLE/PARTIALLY ACTIONABLE
+- `.gpd/research-map/CONVENTIONS.md` (180 lines) — Quality: COMPLETE/HIGH/VERIFIED/ACTIONABLE
+- `.gpd/research-map/VALIDATION.md` (95 lines) — Quality: PARTIAL/MEDIUM/PLAUSIBLE/PARTIALLY ACTIONABLE
   ⚠️ VALIDATION.md has limited coverage: no test scripts found in project, numerical
   validation section based on code comments only. Recommend running $gpd-verify-work
   after Phase 1 execution to fill gaps.
@@ -631,7 +631,7 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
-  files_written: [.planning/research-map/{focus}.md, ...]
+  files_written: [.gpd/research-map/{focus}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   focus: "theory | computation | methodology | status"
@@ -645,7 +645,7 @@ The four base fields (`status`, `files_written`, `issues`, `next_actions`) are r
 
 - [ ] Focus area parsed correctly
 - [ ] Research project explored thoroughly for focus area
-- [ ] All documents for focus area written to `.planning/research-map/`
+- [ ] All documents for focus area written to `.gpd/research-map/`
 - [ ] Documents follow template structure
 - [ ] File paths and equation locators included throughout documents
 - [ ] Physics terminology used precisely

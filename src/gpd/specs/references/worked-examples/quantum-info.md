@@ -84,8 +84,8 @@ Local workstation (sufficient for phenomenological noise Monte Carlo with d <= 9
 
 ## Notation and Conventions
 
-See `.planning/CONVENTIONS.md` for all notation and sign conventions.
-See `.planning/NOTATION_GLOSSARY.md` for symbol definitions.
+See `.gpd/CONVENTIONS.md` for all notation and sign conventions.
+See `.gpd/NOTATION_GLOSSARY.md` for symbol definitions.
 
 ## Unit System
 
@@ -93,7 +93,7 @@ Dimensionless (error probabilities are pure numbers). All quantities are probabi
 
 ## Requirements
 
-See `.planning/REQUIREMENTS.md` for the detailed requirements specification.
+See `.gpd/REQUIREMENTS.md` for the detailed requirements specification.
 
 Key requirement categories: SIMU (simulation code), CALC (threshold extraction), VALD (validation against known limits)
 
@@ -121,7 +121,7 @@ Key requirement categories: SIMU (simulation code), CALC (threshold extraction),
 | Rotated surface code | More efficient than unrotated (n = d^2 vs 2d^2 - 1) | Adopted |
 | d_max = 9 | Statistical convergence feasible on local hardware | Adopted |
 
-Full log: `.planning/DECISIONS.md`
+Full log: `.gpd/DECISIONS.md`
 
 ---
 

@@ -3,7 +3,7 @@ name: gpd-audit-milestone
 description: Audit research milestone completion against original research goals
 argument-hint: "[version]"
 requires:
-  files: [".planning/ROADMAP.md", ".planning/STATE.md"]
+  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
   - read_file
   - glob
@@ -29,16 +29,16 @@ Verify a research milestone achieved its definition of done. Check whether the o
 Version: $ARGUMENTS (optional — defaults to current milestone)
 
 **Original Research Goals:**
-@.planning/PROJECT.md
-@.planning/REQUIREMENTS.md
+@.gpd/PROJECT.md
+@.gpd/REQUIREMENTS.md
 
 **Planned Work:**
-@.planning/ROADMAP.md
-@.planning/config.json (if exists)
+@.gpd/ROADMAP.md
+@.gpd/config.json (if exists)
 
 **Completed Work:**
-Glob: .planning/phases/_/_-SUMMARY.md
-Glob: .planning/phases/_/_-VERIFICATION.md
+Glob: .gpd/phases/_/_-SUMMARY.md
+Glob: .gpd/phases/_/_-VERIFICATION.md
 </context>
 
 <inline_guidance>

@@ -763,10 +763,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         specs_dir = gpd_root / "specs"
         skill_dest = target_dir / "get-physics-done"
         skill_dest.mkdir(parents=True, exist_ok=True)
-        for subdir_name in ("references", "templates", "workflows"):
-            src_subdir = specs_dir / subdir_name
-            if src_subdir.is_dir():
-                copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
+        try:
+            for subdir_name in ("references", "templates", "workflows"):
+                src_subdir = specs_dir / subdir_name
+                if src_subdir.is_dir():
+                    copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
+        except Exception as exc:
+            failures.append(f"get-physics-done: {exc}")
         self._gpd_files_count = sum(1 for _ in skill_dest.rglob("*") if _.is_file())
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -780,7 +783,10 @@ class OpenCodeAdapter(RuntimeAdapter):
         skill_dest = target_dir / "get-physics-done"
         skill_dest.mkdir(parents=True, exist_ok=True)
         version_dest = skill_dest / "VERSION"
-        version_dest.write_text(version, encoding="utf-8")
+        try:
+            version_dest.write_text(version, encoding="utf-8")
+        except Exception as exc:
+            failures.append(f"VERSION: {exc}")
 
     def _install_hooks(self, gpd_root: Path, target_dir: Path, failures: list[str]) -> None:
         hooks_src = gpd_root / "hooks"
@@ -788,10 +794,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         if hooks_src.exists():
             hooks_dest = target_dir / "hooks"
             hooks_dest.mkdir(parents=True, exist_ok=True)
-            for entry in hooks_src.iterdir():
-                if entry.is_file() and not entry.name.startswith("__"):
-                    shutil.copy2(entry, hooks_dest / entry.name)
-                    self._hooks_count += 1
+            try:
+                for entry in hooks_src.iterdir():
+                    if entry.is_file() and not entry.name.startswith("__"):
+                        shutil.copy2(entry, hooks_dest / entry.name)
+                        self._hooks_count += 1
+            except Exception as exc:
+                failures.append(f"hooks: {exc}")
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         configure_opencode_permissions(target_dir)

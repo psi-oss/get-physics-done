@@ -25,7 +25,7 @@ MAX_INCLUDE_EXPANSION_DEPTH = 10
 
 # Subdirectories of specs/ that make up the installed get-physics-done/ content.
 # Shared by all adapters.
-GPD_CONTENT_DIRS = ("references", "templates", "workflows")
+GPD_CONTENT_DIRS = ("references", "templates", "workflows", "learned-patterns")
 
 # Hook script filenames by purpose.
 HOOK_SCRIPTS: dict[str, str] = {
@@ -444,8 +444,8 @@ def expand_at_includes(
 
         >>> expand_at_includes("no includes here", "/src", "~/.claude/")
         'no includes here'
-        >>> expand_at_includes("@.planning/notes.md", "/src", "~/.claude/")
-        '@.planning/notes.md'
+        >>> expand_at_includes("@.gpd/notes.md", "/src", "~/.claude/")
+        '@.gpd/notes.md'
     """
     if depth > MAX_INCLUDE_EXPANSION_DEPTH:
         return content
@@ -486,8 +486,8 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        # .planning/ relative paths — project-specific, skip
-        if include_path.startswith(".planning/"):
+        # .gpd/ relative paths — project-specific, skip
+        if include_path.startswith(".gpd/"):
             result.append(line)
             continue
 

@@ -40,7 +40,7 @@ STATE_CONTENT=$(echo "$INIT" | gpd json get .state_content --default "")
 CONFIG_CONTENT=$(echo "$INIT" | gpd json get .config_content --default "")
 ```
 
-If `.planning/` missing: error.
+If `.gpd/` missing: error.
 </step>
 
 <step name="verify_conventions">
@@ -166,11 +166,11 @@ Fresh context per subagent preserves peak quality. Main context stays lean.
 
 <step name="init_agent_tracking">
 ```bash
-if [ ! -f .planning/agent-history.json ]; then
-  echo '{"version":"1.0","max_entries":50,"entries":[]}' > .planning/agent-history.json
+if [ ! -f .gpd/agent-history.json ]; then
+  echo '{"version":"1.0","max_entries":50,"entries":[]}' > .gpd/agent-history.json
 fi
-if [ -f .planning/current-agent-id.txt ]; then
-  INTERRUPTED_ID=$(cat .planning/current-agent-id.txt)
+if [ -f .gpd/current-agent-id.txt ]; then
+  INTERRUPTED_ID=$(cat .gpd/current-agent-id.txt)
   echo "Found interrupted agent: $INTERRUPTED_ID"
 fi
 ```
@@ -209,7 +209,7 @@ This IS the execution instructions. Follow exactly. If plan references CONTEXT.m
 
 <step name="previous_phase_check">
 ```bash
-ls .planning/phases/*/*-SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
+ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
 ```
 > **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
 
@@ -500,14 +500,14 @@ Task work already committed per-task. Run pre-commit validation, then commit pla
 
 ```bash
 # Validate staged files before final commit (physics checks, format checks)
-PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .planning/STATE.md .planning/ROADMAP.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .gpd/STATE.md .gpd/ROADMAP.md 2>&1) || true
 echo "$PRE_CHECK"
 ```
 
 If pre-commit-check reports issues, review them but proceed with the commit — issues are advisory at this stage since task work is already committed.
 
 ```bash
-gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .planning/STATE.md .planning/ROADMAP.md
+gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .gpd/STATE.md .gpd/ROADMAP.md
 ```
 
 </step>

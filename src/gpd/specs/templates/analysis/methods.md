@@ -9,7 +9,7 @@ template_version: 1
 
 # Methods Template
 
-Template for `.planning/analysis/METHODS.md` - captures the mathematical and computational methods used.
+Template for `.gpd/analysis/METHODS.md` - captures the mathematical and computational methods used.
 
 **Purpose:** Document what methods are used to go from theory to results. Focused on "what mathematical techniques and computational tools execute the physics."
 

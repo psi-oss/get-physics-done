@@ -28,7 +28,7 @@ fi
 ```
 
 - Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`
-- **If `state_exists` is true:** Read `.planning/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
+- **If `state_exists` is true:** Read `.gpd/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
 - **If `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via AskUserQuestion (unit system, sign conventions, normalization)
 
 Convention context is critical for theory-experiment comparison: unit mismatches and convention mismatches are the two most common sources of discrepancy.
@@ -279,10 +279,10 @@ Save to:
 - **Standalone** (no phase context):
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
-Write to `.planning/analysis/comparison-{slug}.md`
+Write to `.gpd/analysis/comparison-{slug}.md`
 
 ## 6. Generate Comparison Figures
 
@@ -340,7 +340,7 @@ Where `${COMPARISON_OUTPUT_PATH}` is the path chosen in step 5 (phase-scoped or 
 </process>
 
 <output>
-COMPARISON.md written to `.planning/analysis/comparison-{slug}.md` with full quantified comparison.
+COMPARISON.md written to `.gpd/analysis/comparison-{slug}.md` with full quantified comparison.
 </output>
 
 <success_criteria>

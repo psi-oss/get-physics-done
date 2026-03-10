@@ -140,9 +140,6 @@ def _check_frontmatter(content: str, detail: FileCheckDetail) -> None:
     try:
         meta, _ = extract_frontmatter(content)
         detail.frontmatter_valid = True
-        if not meta:
-            # Empty frontmatter is valid but worth noting
-            detail.frontmatter_valid = True
     except FrontmatterParseError as exc:
         detail.frontmatter_valid = False
         detail.warnings.append(f"Frontmatter YAML parse error: {exc}")
@@ -204,12 +201,12 @@ def cmd_commit(
     message: str,
     files: list[str] | None = None,
 ) -> CommitResult:
-    """Stage specified files (or all .planning/ changes) and create a git commit.
+    """Stage specified files (or all .gpd/ changes) and create a git commit.
 
     Args:
         cwd: Project root directory.
         message: Commit message.
-        files: Specific files to stage. If empty/None, stages all .planning/ changes.
+        files: Specific files to stage. If empty/None, stages all .gpd/ changes.
 
     Returns:
         CommitResult with committed status, SHA, and any error.

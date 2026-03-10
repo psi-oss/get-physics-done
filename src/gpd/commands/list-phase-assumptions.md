@@ -71,10 +71,10 @@ Output: Conversational output only (no file creation) -- ends with "What do you 
 Phase number: $ARGUMENTS (required)
 
 **Load project state first:**
-@.planning/STATE.md
+@.gpd/STATE.md
 
 **Load roadmap:**
-@.planning/ROADMAP.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

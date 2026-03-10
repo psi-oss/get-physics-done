@@ -90,7 +90,7 @@ If the check fails, resolve convention mismatches before proceeding. New calcula
 **Check for existing referee response file:**
 
 ```bash
-ls .planning/paper/REFEREE_RESPONSE*.md 2>/dev/null
+ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ```
 
 If found, load as continuation context (user may be resuming an interrupted session).
@@ -103,7 +103,7 @@ Ask the user to provide referee reports via one of:
 
 1. **Paste directly** -- user pastes report text into the conversation
 2. **File path** -- user provides a path to the report file(s)
-3. **Existing file** -- check `.planning/paper/referee-report-*.md` or `paper/referee-reports/`
+3. **Existing file** -- check `.gpd/paper/referee-report-*.md` or `paper/referee-reports/`
 
 **Parse each referee's comments into structured items:**
 
@@ -152,7 +152,7 @@ Read the template:
 cat {GPD_INSTALL_DIR}/templates/paper/referee-response.md
 ```
 
-Create `.planning/paper/REFEREE_RESPONSE.md` using the template structure, populated with:
+Create `.gpd/paper/REFEREE_RESPONSE.md` using the template structure, populated with:
 
 - Paper metadata (journal, manuscript ID, dates)
 - Decision summary from editor
@@ -163,18 +163,18 @@ Create `.planning/paper/REFEREE_RESPONSE.md` using the template structure, popul
 For second-round responses, create `REFEREE_RESPONSE_R2.md` instead.
 
 ```bash
-mkdir -p .planning/paper
+mkdir -p .gpd/paper
 ```
 
 Commit the initial response file:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/paper/REFEREE_RESPONSE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: create referee response structure" \
-  --files .planning/paper/REFEREE_RESPONSE.md
+  --files .gpd/paper/REFEREE_RESPONSE.md
 ```
 
 </step>
@@ -424,12 +424,12 @@ raised. Below we provide point-by-point responses.
 **Commit all revision artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: referee response and manuscript revisions" \
-  --files .planning/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
+  --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
 ```
 
 **Present completion summary:**
@@ -452,7 +452,7 @@ gpd commit \
 
 ### Files
 
-- Response tracking: .planning/paper/REFEREE_RESPONSE.md
+- Response tracking: .gpd/paper/REFEREE_RESPONSE.md
 - Response letter: paper/response-letter.tex
 - Revised manuscript: {paper_dir}/*.tex
 

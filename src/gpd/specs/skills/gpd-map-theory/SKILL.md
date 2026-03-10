@@ -16,11 +16,11 @@ allowed-tools:
 <objective>
 Map an existing physics research project using parallel gpd-theory-mapper agents.
 
-Each mapper agent explores a focus area and **writes documents directly** to `.planning/research-map/`. The orchestrator only receives confirmations, keeping context usage minimal.
+Each mapper agent explores a focus area and **writes documents directly** to `.gpd/research-map/`. The orchestrator only receives confirmations, keeping context usage minimal.
 
 Maps the **theoretical architecture** of the research: formalism, computational implementations, conventions, validation status, and open questions.
 
-Output: .planning/research-map/ folder with 7 structured documents about the research project state.
+Output: .gpd/research-map/ folder with 7 structured documents about the research project state.
 </objective>
 
 <execution_context>
@@ -31,7 +31,7 @@ Output: .planning/research-map/ folder with 7 structured documents about the res
 Focus area: $ARGUMENTS (optional - if provided, tells agents to focus on specific subsystem, theory sector, or computational domain)
 
 **Load project state if exists:**
-Check for .planning/STATE.md - loads context if project already initialized
+Check for .gpd/STATE.md - loads context if project already initialized
 
 **This command can run:**
 
@@ -56,8 +56,8 @@ Check for .planning/STATE.md - loads context if project already initialized
   </when_to_use>
 
 <process>
-1. Check if .planning/research-map/ already exists (offer to refresh or skip)
-2. Create .planning/research-map/ directory structure
+1. Check if .gpd/research-map/ already exists (offer to refresh or skip)
+2. Create .gpd/research-map/ directory structure
 3. Spawn 4 parallel gpd-theory-mapper agents:
    - Agent 1: theory focus -> writes FORMALISM.md, REFERENCES.md
      - FORMALISM.md: Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes
@@ -78,7 +78,7 @@ Check for .planning/STATE.md - loads context if project already initialized
 
 <success_criteria>
 
-- [ ] .planning/research-map/ directory created
+- [ ] .gpd/research-map/ directory created
 - [ ] All 7 research map documents written by mapper agents
 - [ ] Documents follow template structure
 - [ ] Parallel agents completed without errors

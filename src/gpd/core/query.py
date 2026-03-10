@@ -298,7 +298,7 @@ def query(
 ) -> QueryResult:
     """Search across all phase results.
 
-    Scans all .planning/phases/SUMMARY.md files, matching frontmatter fields
+    Scans all .gpd/phases/SUMMARY.md files, matching frontmatter fields
     and body text against the provided search terms.
     """
     summaries = collect_summaries(cwd)

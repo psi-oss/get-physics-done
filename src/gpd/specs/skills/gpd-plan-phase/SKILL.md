@@ -4,7 +4,7 @@ description: Create detailed execution plan for a phase (PLAN.md) with verificat
 argument-hint: "[phase] [--research] [--skip-research] [--gaps] [--skip-verify] [--light] [--inline-discuss]"
 agent: gpd-planner
 requires:
-  files: [".planning/ROADMAP.md", ".planning/STATE.md"]
+  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
   - read_file
   - write_file

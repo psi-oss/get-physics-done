@@ -28,7 +28,7 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
-**If `state_exists` is false but `.planning/` exists:** Offer reconstruct or continue.
+**If `state_exists` is false but `.gpd/` exists:** Offer reconstruct or continue.
 
 When `parallelization` is false, plans within a wave execute sequentially.
 
@@ -423,8 +423,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        - Checkpoints ref: {GPD_INSTALL_DIR}/references/checkpoints.md
        - Validation ref: {GPD_INSTALL_DIR}/references/verification-core.md (+ domain-specific verification file)
        - Plan: {phase_dir}/{plan_file}
-       - State: .planning/STATE.md
-       - Config: .planning/config.json (if exists)
+       - State: .gpd/STATE.md
+       - Config: .gpd/config.json (if exists)
        </files_to_read>
 
        <success_criteria>
@@ -513,7 +513,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    VERIFY_BETWEEN=$(python3 -c "
    import json, pathlib
    try:
-       c = json.loads(pathlib.Path('.planning/config.json').read_text())
+       c = json.loads(pathlib.Path('.gpd/config.json').read_text())
        v = (c.get('workflow') or {}).get('verify_between_waves')
        print('auto' if v is None else str(v).lower())
    except Exception:
@@ -525,7 +525,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
      PROFILE=$(python3 -c "
    import json, pathlib
    try:
-       c = json.loads(pathlib.Path('.planning/config.json').read_text())
+       c = json.loads(pathlib.Path('.gpd/config.json').read_text())
        print(c.get('model_profile', 'review'))
    except Exception:
        print('review')
@@ -895,8 +895,8 @@ for SUMMARY in "${phase_dir}"/*-SUMMARY.md; do
   grep -E '\.(pdf|png|eps|svg|jpg|jpeg|tiff)' "$SUMMARY" 2>/dev/null
 done
 
-# Also scan for generated plot files in the phase directory and .planning/
-find "${phase_dir}" .planning/paper/ -maxdepth 2 \( -name "*.pdf" -o -name "*.png" -o -name "*.eps" \) 2>/dev/null | \
+# Also scan for generated plot files in the phase directory and .gpd/
+find "${phase_dir}" .gpd/paper/ -maxdepth 2 \( -name "*.pdf" -o -name "*.png" -o -name "*.eps" \) 2>/dev/null | \
   grep -iE "fig|plot|phase_diag|spectrum|convergence|diagram" 2>/dev/null
 ```
 
@@ -908,15 +908,15 @@ Read the figure tracker template:
 cat {GPD_INSTALL_DIR}/templates/paper/figure-tracker.md
 ```
 
-**If `.planning/paper/FIGURE_TRACKER.md` already exists:** Append new figures to the existing registry. Do not overwrite existing entries.
+**If `.gpd/paper/FIGURE_TRACKER.md` already exists:** Append new figures to the existing registry. Do not overwrite existing entries.
 
 **If it does not exist:** Create it from the template:
 
 ```bash
-mkdir -p .planning/paper
+mkdir -p .gpd/paper
 ```
 
-Write `.planning/paper/FIGURE_TRACKER.md` with:
+Write `.gpd/paper/FIGURE_TRACKER.md` with:
 
 - One entry per discovered figure/plot
 - `Source phase` set to the current phase number
@@ -928,17 +928,17 @@ Write `.planning/paper/FIGURE_TRACKER.md` with:
 Commit:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/paper/FIGURE_TRACKER.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/FIGURE_TRACKER.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs(phase-${phase_number}): update figure tracker" \
-  --files .planning/paper/FIGURE_TRACKER.md
+  --files .gpd/paper/FIGURE_TRACKER.md
 ```
 
 **If no figures found:** Skip silently (not all phases produce visual outputs).
 
-**Experimental comparison artifact:** If any plan in this phase compared theoretical predictions with experimental or observational data (PHENO-type objectives, or plans whose SUMMARY mentions "experimental comparison", "pull", "chi-squared", or "theory vs data"), create `.planning/paper/EXPERIMENTAL_COMPARISON.md` using `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md`. Populate with comparison tables, pull values, and discrepancy classifications from the plan SUMMARYs. Skip if no experimental comparison was performed.
+**Experimental comparison artifact:** If any plan in this phase compared theoretical predictions with experimental or observational data (PHENO-type objectives, or plans whose SUMMARY mentions "experimental comparison", "pull", "chi-squared", or "theory vs data"), create `.gpd/paper/EXPERIMENTAL_COMPARISON.md` using `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md`. Populate with comparison tables, pull values, and discrepancy classifications from the plan SUMMARYs. Skip if no experimental comparison was performed.
 
 </step>
 
@@ -1051,12 +1051,12 @@ checkpoint_tags: [{ list of all remaining gpd-checkpoint tags for this phase }]
 Commit recovery document:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${RECOVERY_FILE}" .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${RECOVERY_FILE}" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs(phase-${phase_number}): phase recovery report" \
-  --files "${RECOVERY_FILE}" .planning/STATE.md
+  --files "${RECOVERY_FILE}" .gpd/STATE.md
 ```
 
 **5. Offer actionable next steps based on failure pattern:**
@@ -1194,7 +1194,7 @@ Task(
   - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
   - Plan: {phase_dir}/{FAILED_PLAN}-PLAN.md
   - Previous SUMMARY: {phase_dir}/{FAILED_PLAN}-SUMMARY.md
-  - State: .planning/STATE.md
+  - State: .gpd/STATE.md
   </files_to_read>",
   description="Targeted re-execution of {FAILED_PLAN}"
 )
@@ -1272,8 +1272,8 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 Read these files using the Read tool:
 - Verification: {phase_dir}/{phase}-VERIFICATION.md
 - All SUMMARY.md files in {phase_dir}/
-- State: .planning/STATE.md
-- Roadmap: .planning/ROADMAP.md
+- State: .gpd/STATE.md
+- Roadmap: .gpd/ROADMAP.md
 </files_to_read>
 
 Focus on the gaps that were marked as 'failed' or 'diagnosed' in the previous verification.
@@ -1312,7 +1312,7 @@ Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your ro
 Check phase {PHASE_NUMBER} results against the full conventions ledger and all accumulated project state.
 Read conventions from state.json via: gpd convention list
 And from SUMMARY.md frontmatter convention fields.
-Read: .planning/STATE.md, .planning/state.json
+Read: .gpd/STATE.md, .gpd/state.json
 Read: All SUMMARY.md files from phase {PHASE_NUMBER}
 
 Return consistency_status with any issues found.
@@ -1358,7 +1358,7 @@ Resolve convention inconsistencies found by consistency checker after phase {PHA
 </issues>
 
 <project_context>
-Read: .planning/STATE.md, .planning/state.json, .planning/CONVENTIONS.md
+Read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
 Read: All SUMMARY.md files from phase {PHASE_NUMBER}
 Load conventions: gpd convention list
 </project_context>
@@ -1399,10 +1399,10 @@ Mark phase complete in ROADMAP.md (date, status).
 Follow the full transition protocol. Read `{GPD_INSTALL_DIR}/workflows/transition.md` using the Read tool for PROJECT.md evolution, DECISIONS.md updates, and parallel phase detection.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md "${phase_dir}"/*-VERIFICATION.md .planning/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md "${phase_dir}"/*-VERIFICATION.md .gpd/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(phase-${phase_number}): complete phase execution" --files .planning/ROADMAP.md .planning/STATE.md "${phase_dir}"/*-VERIFICATION.md .planning/REQUIREMENTS.md
+gpd commit "docs(phase-${phase_number}): complete phase execution" --files .gpd/ROADMAP.md .gpd/STATE.md "${phase_dir}"/*-VERIFICATION.md .gpd/REQUIREMENTS.md
 ```
 
 </step>

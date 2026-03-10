@@ -19,11 +19,11 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 
 **Creates/Updates:**
 
-- `.planning/PROJECT.md` — updated with new milestone goals
-- `.planning/research/` — domain and literature research (optional, NEW research objectives only)
-- `.planning/REQUIREMENTS.md` — scoped requirements for this milestone
-- `.planning/ROADMAP.md` — phase structure (continues numbering)
-- `.planning/STATE.md` — reset for new milestone
+- `.gpd/PROJECT.md` — updated with new milestone goals
+- `.gpd/research/` — domain and literature research (optional, NEW research objectives only)
+- `.gpd/REQUIREMENTS.md` — scoped requirements for this milestone
+- `.gpd/ROADMAP.md` — phase structure (continues numbering)
+- `.gpd/STATE.md` — reset for new milestone
 
 **After:** `$gpd-plan-phase [N]` to start execution.
 </objective>
@@ -40,13 +40,13 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 Milestone name: $ARGUMENTS (optional - will prompt if not provided)
 
 **Load project context:**
-@.planning/PROJECT.md
-@.planning/STATE.md
-@.planning/MILESTONES.md
-@.planning/config.json
+@.gpd/PROJECT.md
+@.gpd/STATE.md
+@.gpd/MILESTONES.md
+@.gpd/config.json
 
 **Load milestone context (if exists, from $gpd-discuss-phase):**
-@.planning/MILESTONE-CONTEXT.md
+@.gpd/MILESTONE-CONTEXT.md
 </context>
 
 <process>

@@ -161,7 +161,7 @@ Task(prompt="
   <files_to_read>
   Read these files at execution start using the Read tool:
   - Plan: {phase_dir}/{plan_file}
-  - State: .planning/STATE.md
+  - State: .gpd/STATE.md
   </files_to_read>
 
   Execute the plan...

@@ -65,7 +65,7 @@ When a computed result is very small compared to individual terms that contribut
 
 ## Profile-Aware Execution Style
 
-The active model profile (from `.planning/config.json`) controls how you execute research tasks — not just which model tier is used, but how much detail, rigor, and documentation you apply.
+The active model profile (from `.gpd/config.json`) controls how you execute research tasks — not just which model tier is used, but how much detail, rigor, and documentation you apply.
 
 | Profile | Execution Style | Checkpoint Frequency | Documentation Level |
 |---|---|---|---|
@@ -83,7 +83,7 @@ The active model profile (from `.planning/config.json`) controls how you execute
 
 ## Autonomy Mode Behavior
 
-The autonomy mode (from `.planning/config.json` field `autonomy`) controls how much human interaction occurs during execution. Read it at `load_project_state` alongside the model profile.
+The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much human interaction occurs during execution. Read it at `load_project_state` alongside the model profile.
 
 **Key principle:** Autonomy affects DECISION AUTHORITY, not CORRECTNESS. Physics guards (self-critique, dimensional analysis, convention checks, mini-checklists) run at every autonomy level. The difference is who decides when physics choices arise.
 
@@ -398,15 +398,15 @@ Extract from init JSON: `executor_model`, `checkpoint_docs`, `phase_dir`, `plans
 Also read STATE.md for position, decisions, blockers:
 
 ```bash
-if [ -f .planning/STATE.md ]; then
-  cat .planning/STATE.md
+if [ -f .gpd/STATE.md ]; then
+  cat .gpd/STATE.md
 else
-  echo "WARNING: .planning/STATE.md not found"
+  echo "WARNING: .gpd/STATE.md not found"
 fi
 ```
 
-If STATE.md missing but .planning/ exists: offer to reconstruct or continue without.
-If .planning/ missing: Error --- project not initialized.
+If STATE.md missing but .gpd/ exists: offer to reconstruct or continue without.
+If .gpd/ missing: Error --- project not initialized.
 </step>
 
 <step name="load_plan">
@@ -428,13 +428,13 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol. If 
 
 ```bash
 # FALLBACK — read state.json convention_lock directly
-if [ ! -f .planning/state.json ]; then
-  echo "WARNING: .planning/state.json not found — no conventions loaded"
+if [ ! -f .gpd/state.json ]; then
+  echo "WARNING: .gpd/state.json not found — no conventions loaded"
 else
   python3 -c "
 import json, sys
 try:
-    state = json.load(open('.planning/state.json'))
+    state = json.load(open('.gpd/state.json'))
     lock = state.get('convention_lock', {})
     if not lock:
         print('WARNING: convention_lock is empty in state.json')
@@ -477,7 +477,7 @@ This enables automated verification by the pre-commit check (L3) and verifier ag
 **Check cross-project pattern library for known pitfalls in this physics domain.**
 
 ```bash
-gpd pattern search "$(python3 -c "import json; print(json.load(open('.planning/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
+gpd pattern search "$(python3 -c "import json; print(json.load(open('.gpd/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
 ```
 
 If patterns exist, note them for this session — they represent errors to avoid and techniques that work. For patterns with severity `critical` or `high`, keep them in working memory as "watch for" items during derivation and computation. When a step matches a known pattern's trigger conditions, apply the prevention method before proceeding.
@@ -863,9 +863,9 @@ Load during `execute_tasks` step when performing verification. Key minimums alwa
 - **Code:** known-answer tests, regression tests, scaling, reproducibility
 - **Figures:** labels+units, legends, physical reasonableness
 
-Research log location: `.planning/phases/XX-name/{phase}-{plan}-LOG.md` --- write entries DURING execution, not after.
+Research log location: `.gpd/phases/XX-name/{phase}-{plan}-LOG.md` --- write entries DURING execution, not after.
 
-State tracking location: `.planning/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md` --- update after each task.
+State tracking location: `.gpd/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md` --- update after each task.
 </verification_flows>
 
 <task_checkpoint_protocol>
@@ -889,7 +889,7 @@ After all tasks complete, load the completion protocols reference for detailed S
 **Read:** `{GPD_INSTALL_DIR}/references/executor-completion.md`
 
 Key requirements (always in memory — sufficient if the Read above fails):
-- SUMMARY.md location: `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+- SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 - Frontmatter MUST declare `verification_inputs` with test values for every result
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
@@ -993,10 +993,10 @@ If any gpd command fails twice, make the state update manually via Edit tool and
 ```bash
 gpd commit \
   "docs({phase}-{plan}): complete [plan-name] research plan" \
-  --files .planning/phases/XX-name/{phase}-{plan}-SUMMARY.md \
-         .planning/phases/XX-name/{phase}-{plan}-LOG.md \
-         .planning/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md \
-         .planning/STATE.md
+  --files .gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md \
+         .gpd/phases/XX-name/{phase}-{plan}-LOG.md \
+         .gpd/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md \
+         .gpd/STATE.md
 ```
 
 </state_updates_and_completion>

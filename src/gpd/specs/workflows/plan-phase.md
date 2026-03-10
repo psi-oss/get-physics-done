@@ -73,7 +73,7 @@ This is NOT the full discuss-phase flow — just the 2-3 most impactful question
 **If `phase_found` is false:** Validate phase exists in ROADMAP.md. If valid, create the directory using `phase_slug` and `padded_phase` from init:
 
 ```bash
-mkdir -p ".planning/phases/${padded_phase}-${phase_slug}"
+mkdir -p ".gpd/phases/${padded_phase}-${phase_slug}"
 ```
 
 **Existing artifacts from init:** `has_research`, `has_plans`, `plan_count`.
@@ -109,7 +109,7 @@ HYPOTHESIS_SECTION=$(echo "$STATE_CONTENT" | grep -A5 "## Active Hypothesis")
 
 ```bash
 HYPOTHESIS_SLUG=$(echo "$HYPOTHESIS_SECTION" | grep "Branch:" | sed 's/.*hypothesis\///')
-HYPOTHESIS_FILE=".planning/hypotheses/${HYPOTHESIS_SLUG}/HYPOTHESIS.md"
+HYPOTHESIS_FILE=".gpd/hypotheses/${HYPOTHESIS_SLUG}/HYPOTHESIS.md"
 HYPOTHESIS_CONTENT=$(cat "$HYPOTHESIS_FILE" 2>/dev/null)
 ```
 
@@ -182,7 +182,7 @@ elif [ "$RESEARCH_MODE" = "exploit" ]; then
   # Skip to step 6
 elif [ "$RESEARCH_MODE" = "adaptive" ]; then
   # Adaptive: check if approach is validated in prior phase summaries
-  VALIDATED=$(ls .planning/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -l "approach_validated: true" 2>/dev/null | head -1)
+  VALIDATED=$(ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -l "approach_validated: true" 2>/dev/null | head -1)
   if [ -n "$VALIDATED" ]; then
     echo "Research mode: adaptive — approach validated, using existing research (exploit-style)"
     # Skip to step 6
@@ -193,7 +193,7 @@ elif [ "$RESEARCH_MODE" = "adaptive" ]; then
 else
   # Balanced (default): check staleness before skipping
   RESEARCH_MOD=$(stat -f %m "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null || stat -c %Y "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null || echo 0)
-  STATE_MOD=$(stat -f %m .planning/STATE.md 2>/dev/null || stat -c %Y .planning/STATE.md 2>/dev/null || echo 0)
+  STATE_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
   DIFF_DAYS=$(( (STATE_MOD - RESEARCH_MOD) / 86400 ))
 
   if [ "$DIFF_DAYS" -gt 1 ]; then
@@ -765,7 +765,7 @@ $gpd-execute-phase {X}
 
 **Also available:**
 
-- cat .planning/phases/{phase-dir}/\*-PLAN.md -- review plans
+- cat .gpd/phases/{phase-dir}/\*-PLAN.md -- review plans
 - $gpd-plan-phase {X} --research -- re-research first
 
 ---
@@ -774,7 +774,7 @@ $gpd-execute-phase {X}
 
 <success_criteria>
 
-- [ ] .planning/ directory validated
+- [ ] .gpd/ directory validated
 - [ ] Phase validated against roadmap
 - [ ] Phase directory created if needed
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents

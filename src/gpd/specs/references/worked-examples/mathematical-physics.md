@@ -90,8 +90,8 @@ Journal of Mathematical Physics or Annals of Physics -- both accept rigorous res
 
 ## Notation and Conventions
 
-See `.planning/CONVENTIONS.md` for all notation and sign conventions.
-See `.planning/NOTATION_GLOSSARY.md` for symbol definitions.
+See `.gpd/CONVENTIONS.md` for all notation and sign conventions.
+See `.gpd/NOTATION_GLOSSARY.md` for symbol definitions.
 
 ## Unit System
 

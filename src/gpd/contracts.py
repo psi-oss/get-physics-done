@@ -7,10 +7,12 @@ top-level project configuration.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConventionLock(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     metric_signature: str | None = None
     fourier_convention: str | None = None
     natural_units: str | None = None

@@ -22,7 +22,7 @@ Quick mode is the same system with a shorter path:
 
 - Spawns gpd-planner (quick mode) + gpd-executor(s)
 - Skips gpd-phase-researcher, gpd-plan-checker, gpd-verifier
-- Quick tasks live in `.planning/quick/` separate from planned phases
+- Quick tasks live in `.gpd/quick/` separate from planned phases
 - Updates STATE.md "Quick Tasks Completed" table (NOT ROADMAP.md)
 
 Use when: You know exactly what to do and the task is small enough to not need research or verification.
@@ -44,7 +44,7 @@ Typical quick tasks in physics research:
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <inline_guidance>

@@ -132,7 +132,7 @@ class TestConventionsServer:
     def test_convention_lock_status(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {
             "convention_lock": {
@@ -148,7 +148,7 @@ class TestConventionsServer:
     def test_convention_lock_status_empty_project(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         result = convention_lock_status(str(tmp_path))
         assert result["set_count"] == 0
@@ -156,7 +156,7 @@ class TestConventionsServer:
     def test_convention_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -167,7 +167,7 @@ class TestConventionsServer:
     def test_convention_set_already_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"convention_lock": {"metric_signature": "(+,-,-,-)"}}
         (planning / "state.json").write_text(json.dumps(state))
@@ -178,7 +178,7 @@ class TestConventionsServer:
     def test_convention_set_custom_key(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -688,7 +688,7 @@ class TestStateServer:
         mock_info = MagicMock()
         mock_info.phase_number = "01"
         mock_info.phase_name = "Setup"
-        mock_info.directory = ".planning/phases/01-setup"
+        mock_info.directory = ".gpd/phases/01-setup"
         mock_info.phase_slug = "01-setup"
         mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
         mock_info.summaries = ["summary-01.md", "summary-02.md"]

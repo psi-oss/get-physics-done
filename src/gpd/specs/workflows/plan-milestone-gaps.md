@@ -14,7 +14,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 ```bash
 # Find the most recent audit file
-ls -t .planning/v*-MILESTONE-AUDIT.md 2>/dev/null | head -1
+ls -t .gpd/v*-MILESTONE-AUDIT.md 2>/dev/null | head -1
 ```
 
 Parse YAML frontmatter to extract structured gaps:
@@ -139,16 +139,16 @@ Add new phases to current milestone:
 ## 7. Create Phase Directories
 
 ```bash
-mkdir -p ".planning/phases/{NN}-{name}"
+mkdir -p ".gpd/phases/{NN}-{name}"
 ```
 
 ## 8. Commit Roadmap Update
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files .planning/ROADMAP.md
+gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files .gpd/ROADMAP.md
 ```
 
 ## 9. Offer Next Steps
@@ -174,7 +174,7 @@ gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files .planning/ROA
 **Also available:**
 
 - `$gpd-execute-phase {N}` -- if plans already exist
-- `cat .planning/ROADMAP.md` -- see updated roadmap
+- `cat .gpd/ROADMAP.md` -- see updated roadmap
 
 ---
 

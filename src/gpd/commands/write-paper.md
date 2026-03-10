@@ -51,16 +51,16 @@ Check for existing drafts:
 
 ```bash
 ls paper/ manuscript/ draft/ 2>/dev/null
-ls .planning/paper/*.md 2>/dev/null
+ls .gpd/paper/*.md 2>/dev/null
 find . -name "*.tex" -maxdepth 2 2>/dev/null | head -10
 ```
 
 Load research context:
 
 ```bash
-cat .planning/ROADMAP.md 2>/dev/null
-ls .planning/phases/*/SUMMARY.md 2>/dev/null
-cat .planning/research-map/FORMALISM.md 2>/dev/null
+cat .gpd/ROADMAP.md 2>/dev/null
+ls .gpd/phases/*/SUMMARY.md 2>/dev/null
+cat .gpd/research-map/FORMALISM.md 2>/dev/null
 ```
 
 </context>

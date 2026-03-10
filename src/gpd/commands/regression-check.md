@@ -21,7 +21,7 @@ Re-verify all previously verified physics truths across completed phases to dete
 
 **The principle:** Every truth marked VERIFIED in a phase's VERIFICATION.md should remain verifiable against the current project state. If it doesn't, something changed that invalidated the original verification.
 
-Output: `.planning/REGRESSION-REPORT.md` with re-check results, regressions flagged with severity and affected phases, and recommended fixes.
+Output: `.gpd/REGRESSION-REPORT.md` with re-check results, regressions flagged with severity and affected phases, and recommended fixes.
 </objective>
 
 <execution_context>
@@ -33,8 +33,8 @@ Scope: $ARGUMENTS (optional)
 - If a number (e.g., "3"): re-check truths only for that phase
 - If empty: re-check truths across all completed phases
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

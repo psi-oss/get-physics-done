@@ -404,13 +404,13 @@ overall_status: validated | partially_validated | not_validated
 Ensure output directory exists:
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
 Save to:
 
 - Phase target: `${phase_dir}/NUMERICAL-VALIDATION.md`
-- File target: `.planning/analysis/numerical-{slug}.md`
+- File target: `.gpd/analysis/numerical-{slug}.md`
 
 **Commit the report:**
 

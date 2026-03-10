@@ -9,7 +9,7 @@ template_version: 1
 
 # Pitfalls Research Template
 
-Template for `.planning/research/PITFALLS.md` -- survey of known subtleties, common errors, and pitfalls in the research domain.
+Template for `.gpd/research/PITFALLS.md` -- survey of known subtleties, common errors, and pitfalls in the research domain.
 
 <template>
 

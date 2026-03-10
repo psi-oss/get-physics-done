@@ -6,7 +6,7 @@ template_version: 1
 
 # Debug Template
 
-Template for `.planning/debug/[slug].md` - active debug session tracking for physics calculations.
+Template for `.gpd/debug/[slug].md` - active debug session tracking for physics calculations.
 
 ---
 
@@ -188,7 +188,7 @@ files_changed: []
 
 - status -> "resolved"
 - Update Resolution.lessons_learned
-- Move file to .planning/debug/resolved/
+- Move file to .gpd/debug/resolved/
 
 </lifecycle>
 

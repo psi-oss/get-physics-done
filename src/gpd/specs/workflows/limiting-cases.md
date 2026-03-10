@@ -347,13 +347,13 @@ The limit N → ∞, V → ∞ with N/V fixed introduces subtleties that can inv
 Ensure output directory exists:
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
 Save to:
 
 - Phase target: `${phase_dir}/LIMITING-CASES.md`
-- File target: `.planning/analysis/limits-{slug}.md`
+- File target: `.gpd/analysis/limits-{slug}.md`
 
 ## 7. Present Results and Route
 

@@ -6,6 +6,7 @@
  *   npx github:physicalsuperintelligence/get-physics-done
  *   npx github:physicalsuperintelligence/get-physics-done --claude --global
  *   npx github:physicalsuperintelligence/get-physics-done --gemini --global
+ *   npx github:physicalsuperintelligence/get-physics-done --codex --local
  *   npx github:physicalsuperintelligence/get-physics-done --opencode --global
  */
 

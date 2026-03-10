@@ -959,7 +959,7 @@ Literature reviews are living documents. New papers appear, results are updated,
 **Step 1: Load existing review**
 
 ```bash
-cat .planning/literature/{slug}-REVIEW.md
+cat .gpd/literature/{slug}-REVIEW.md
 ```
 
 Parse the YAML frontmatter to extract: date, paper_count, field_assessment, tier counts.
@@ -1235,7 +1235,7 @@ Comprehensive literature reviews often exceed a single context window. This prot
 At the end of each session (whether complete or checkpointed), write a machine-readable state file:
 
 ```yaml
-# .planning/literature/{slug}-STATE.yaml
+# .gpd/literature/{slug}-STATE.yaml
 session: {N}
 date: {today}
 status: {in_progress | complete}
@@ -1274,8 +1274,8 @@ When spawned to continue an existing review:
 **Step 1: Load state**
 
 ```bash
-cat .planning/literature/{slug}-STATE.yaml
-cat .planning/literature/{slug}-REVIEW.md
+cat .gpd/literature/{slug}-STATE.yaml
+cat .gpd/literature/{slug}-REVIEW.md
 ```
 
 **Step 2: Assess what's done and what's needed**
@@ -1308,8 +1308,8 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 ```markdown
 ## CHECKPOINT: SESSION {N} COMPLETE
 
-**Review file:** .planning/literature/{slug}-REVIEW.md (partial)
-**State file:** .planning/literature/{slug}-STATE.yaml
+**Review file:** .gpd/literature/{slug}-REVIEW.md (partial)
+**State file:** .gpd/literature/{slug}-STATE.yaml
 
 **This session:**
 - Papers reviewed: {N} (Tier 1: {X}, Tier 2: {Y}, Tier 3: {Z})
@@ -1334,7 +1334,7 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 
 ### Alternative: CONTINUATION.md Format
 
-For human-readable checkpoints (complementary to STATE.yaml), write `.planning/literature/{slug}-CONTINUATION.md`:
+For human-readable checkpoints (complementary to STATE.yaml), write `.gpd/literature/{slug}-CONTINUATION.md`:
 
 ```markdown
 ---
@@ -1416,7 +1416,7 @@ When reaching a checkpoint, return:
 - Key findings: {brief summary}
 - Field assessment so far: {settled/active/debated/speculative}
 
-**Review file:** .planning/literature/{slug}-REVIEW.md (partial, updated to current point)
+**Review file:** .gpd/literature/{slug}-REVIEW.md (partial, updated to current point)
 ```
 
 </checkpoint_protocol>
@@ -1471,7 +1471,7 @@ When in doubt, verify with WebSearch. The cost of a redundant search is negligib
 **Topic:** {topic}
 **Papers reviewed:** {count} (Tier 1: {N}, Tier 2: {N}, Tier 3: {N})
 **Field assessment:** {settled / active_research / active_debate / speculative}
-**Output:** .planning/literature/{slug}-REVIEW.md
+**Output:** .gpd/literature/{slug}-REVIEW.md
 
 ### Key Takeaways
 
@@ -1532,7 +1532,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: REVIEW COMPLETE → completed, REVIEW INCONCLUSIVE → checkpoint
-  files_written: [.planning/literature/{slug}-REVIEW.md]
+  files_written: [.gpd/literature/{slug}-REVIEW.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   papers_reviewed: {count}

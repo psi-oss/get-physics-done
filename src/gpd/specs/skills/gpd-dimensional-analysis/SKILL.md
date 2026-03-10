@@ -34,8 +34,8 @@ Interpretation:
 Load unit system:
 
 ```bash
-cat .planning/research-map/FORMALISM.md 2>/dev/null | grep -A 10 "Unit System"
-cat .planning/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Conventions"
+cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 10 "Unit System"
+cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Conventions"
 ```
 
 </context>
@@ -48,7 +48,7 @@ cat .planning/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and C
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".planning" ]; then
+if [ ! -d ".gpd" ]; then
   echo "Error: No GPD project found. Run $gpd-new-project first."
   exit 1
 fi

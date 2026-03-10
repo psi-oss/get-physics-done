@@ -298,7 +298,7 @@ def cmd_scaffold(
         context      — CONTEXT.md in the phase directory
         validation   — VALIDATION.md in the phase directory
         verification — VERIFICATION.md in the phase directory
-        phase-dir    — Create a new phase directory under .planning/phases/
+        phase-dir    — Create a new phase directory under .gpd/phases/
 
     Raises:
         ValidationError: If required args are missing or type is unknown.
@@ -489,7 +489,7 @@ def _merge_list_or_string(target_set: set[str], value: object) -> None:
 def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     """Build a digest of project history from phase SUMMARY files.
 
-    Scans .planning/phases/*/SUMMARY.md for frontmatter fields:
+    Scans .gpd/phases/*/SUMMARY.md for frontmatter fields:
     dependency-graph.provides, dependency-graph.affects, patterns-established,
     key-decisions, and methods.added.
     """

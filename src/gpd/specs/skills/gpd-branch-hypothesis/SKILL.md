@@ -3,7 +3,7 @@ name: gpd-branch-hypothesis
 description: Create a hypothesis branch for parallel investigation of an alternative approach
 argument-hint: "<description>"
 requires:
-  files: [".planning/ROADMAP.md", ".planning/STATE.md"]
+  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
   - read_file
   - write_file
@@ -36,8 +36,8 @@ Common triggers:
 <context>
 Arguments: $ARGUMENTS (format: <description of hypothesis>)
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

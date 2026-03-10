@@ -36,10 +36,10 @@ Extract research decisions that downstream agents need -- researcher and planner
 Phase number: $ARGUMENTS (required)
 
 **Load project state:**
-@.planning/STATE.md
+@.gpd/STATE.md
 
 **Load roadmap:**
-@.planning/ROADMAP.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

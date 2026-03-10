@@ -18,8 +18,8 @@ This is the fastest way to answer "what should I do next?" without reading throu
 </objective>
 
 <context>
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

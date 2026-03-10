@@ -29,7 +29,7 @@ from gpd.core.query import (
 @pytest.fixture
 def project_dir(tmp_path: Path) -> Path:
     """Create a project with phase SUMMARY files for testing."""
-    phases_dir = tmp_path / ".planning" / "phases"
+    phases_dir = tmp_path / ".gpd" / "phases"
 
     # Phase 01
     p01 = phases_dir / "01-formalism"
@@ -104,7 +104,7 @@ def project_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def empty_project(tmp_path: Path) -> Path:
     """Create a project with no phases."""
-    (tmp_path / ".planning").mkdir()
+    (tmp_path / ".gpd").mkdir()
     return tmp_path
 
 
@@ -248,7 +248,7 @@ class TestCollectSummaries:
         assert s03.plan is None  # SUMMARY.md has no plan prefix
 
     def test_skips_parse_errors(self, tmp_path: Path) -> None:
-        phases_dir = tmp_path / ".planning" / "phases" / "01-test"
+        phases_dir = tmp_path / ".gpd" / "phases" / "01-test"
         phases_dir.mkdir(parents=True)
         (phases_dir / "01-01-SUMMARY.md").write_text("---\nbad: [yaml: {{\n---\n")
         summaries = collect_summaries(tmp_path)

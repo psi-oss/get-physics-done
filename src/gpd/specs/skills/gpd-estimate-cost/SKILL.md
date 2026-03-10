@@ -31,8 +31,8 @@ Use this to understand the cost implications before executing phases, especially
 <context>
 Scope: $ARGUMENTS (optional — defaults to "remaining")
 
-@.planning/ROADMAP.md
-@.planning/config.json
+@.gpd/ROADMAP.md
+@.gpd/config.json
 </context>
 
 <process>

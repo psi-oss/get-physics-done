@@ -6,7 +6,7 @@ template_version: 1
 
 # Parameter Table Template
 
-Template for `.planning/analysis/PARAMETERS.md` - tracks all physical parameters, their values, units, and valid ranges.
+Template for `.gpd/analysis/PARAMETERS.md` - tracks all physical parameters, their values, units, and valid ranges.
 
 **Purpose:** Central registry of physical parameters used across the research project. Ensures consistent values, prevents unit errors, and documents parameter choices with physical justification.
 

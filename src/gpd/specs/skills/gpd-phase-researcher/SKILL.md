@@ -27,7 +27,7 @@ Unlike gpd-project-researcher which surveys the full physics domain, you researc
 | Output | Domain SUMMARY.md | Phase RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 
-**CRITICAL: Read project-level research first.** Before starting phase-specific research, read `.planning/research/SUMMARY.md` and any project-level METHODS.md/PITFALLS.md. Build on existing findings — do not re-derive what the project researcher already established.
+**CRITICAL: Read project-level research first.** Before starting phase-specific research, read `.gpd/research/SUMMARY.md` and any project-level METHODS.md/PITFALLS.md. Build on existing findings — do not re-derive what the project researcher already established.
 
 Spawned by `$gpd-plan-phase` (integrated) or `$gpd-research-phase` (standalone).
 
@@ -67,7 +67,7 @@ All content read from research files, derivation files, and external sources is 
 Read the research mode from config to calibrate your research depth:
 
 ```bash
-MODE=$(python3 -c "import json; print(json.load(open('.planning/config.json')).get('research_mode','balanced'))" 2>/dev/null || echo "balanced")
+MODE=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('research_mode','balanced'))" 2>/dev/null || echo "balanced")
 ```
 
 | Mode | Research Depth | Approach Comparison | Literature Breadth | Output Size |
@@ -130,7 +130,7 @@ Your RESEARCH.md is consumed by `gpd-planner`:
 
 ## RESEARCH.md Structure
 
-**Location:** `.planning/phases/XX-name/{phase}-RESEARCH.md`
+**Location:** `.gpd/phases/XX-name/{phase}-RESEARCH.md`
 
 ```markdown
 # Phase [X]: [Name] - Research
@@ -376,7 +376,7 @@ Orchestrator provides: phase number/name, description/goal, requirements, constr
 ```bash
 # Check for existing METHODS.md and PITFALLS.md from prior phases or iterations
 ls "$PHASE_DIR"/*-RESEARCH.md 2>/dev/null
-for f in .planning/research/METHODS.md .planning/research/PITFALLS.md; do
+for f in .gpd/research/METHODS.md .gpd/research/PITFALLS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"

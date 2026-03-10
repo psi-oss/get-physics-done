@@ -28,7 +28,7 @@ Provide the equation or topic to derive as an argument (e.g., `$gpd-derive-equat
   </objective>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <execution_context>

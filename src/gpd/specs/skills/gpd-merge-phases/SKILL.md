@@ -35,8 +35,8 @@ Format: `<source-phase> <target-phase>` — first argument is the source phase, 
 Source phase: first argument (e.g., "2.1")
 Target phase: second argument (e.g., "2")
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

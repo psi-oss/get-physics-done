@@ -6,7 +6,7 @@ template_version: 1
 
 # Milestone Archive Template
 
-This template is used by the complete-milestone workflow to create archive files in `.planning/milestones/`.
+This template is used by the complete-milestone workflow to create archive files in `.gpd/milestones/`.
 
 ---
 
@@ -119,7 +119,7 @@ Plans:
 
 ---
 
-_For current project status, see .planning/ROADMAP.md_
+_For current project status, see .gpd/ROADMAP.md_
 
 ---
 
@@ -144,8 +144,8 @@ _For current project status, see .planning/ROADMAP.md_
 
 **Archive location:**
 
-- Save to `.planning/milestones/{milestone-name}.md`
-- Example: `.planning/milestones/paper-i-submitted.md`
+- Save to `.gpd/milestones/{milestone-name}.md`
+- Example: `.gpd/milestones/paper-i-submitted.md`
 
 **After archiving:**
 

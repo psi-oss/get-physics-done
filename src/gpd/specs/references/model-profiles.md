@@ -222,7 +222,7 @@ When selecting a profile, consider not just the token cost tradeoff (shown in th
 Orchestrators resolve model before spawning:
 
 ```
-1. Read .planning/config.json
+1. Read .gpd/config.json
 2. Get model_profile (default: "review")
 3. Look up agent in table above
 4. Pass model parameter to Task call
@@ -232,7 +232,7 @@ Orchestrators resolve model before spawning:
 
 Runtime: `$gpd-set-profile <profile>`
 
-Per-project default: Set in `.planning/config.json`:
+Per-project default: Set in `.gpd/config.json`:
 
 ```json
 {

@@ -3,7 +3,7 @@ name: gpd-verify-work
 description: Verify research results through physics consistency checks
 argument-hint: "[phase] [--dimensional] [--limits] [--convergence] [--regression] [--all]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
   state: "phase_executed"
 allowed-tools:
   - read_file
@@ -37,8 +37,8 @@ Phase: $ARGUMENTS (optional)
 - If provided: Verify specific phase (e.g., "4")
 - If not provided: Check for active sessions or prompt for phase
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

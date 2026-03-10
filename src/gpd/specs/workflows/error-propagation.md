@@ -15,8 +15,8 @@ Uncertainties propagate. Every intermediate result in a derivation chain carries
 <required_reading>
 Read these reference and template files using the Read tool:
 - {GPD_INSTALL_DIR}/references/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (verification checks, phase handoff format, catastrophic cancellation detection)
-- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.planning/analysis/UNCERTAINTY-BUDGET.md)
-- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.planning/analysis/PARAMETERS.md)
+- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.gpd/analysis/UNCERTAINTY-BUDGET.md)
+- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.gpd/analysis/PARAMETERS.md)
 </required_reading>
 
 <process>
@@ -91,7 +91,7 @@ target_quantity
 Read each phase's SUMMARY.md `provides` and `requires` sections to map the phase-level flow:
 
 ```bash
-for phase_dir in .planning/phases/*/; do
+for phase_dir in .gpd/phases/*/; do
   grep -A 10 "provides\|requires" "$phase_dir/SUMMARY.md" 2>/dev/null
 done
 ```
@@ -134,12 +134,12 @@ For each node in the dependency tree, catalog all uncertainty sources.
 
 ```bash
 # Compare modification times: state.json must not be older than STATE.md
-STATE_MD_MOD=$(stat -f %m .planning/STATE.md 2>/dev/null || stat -c %Y .planning/STATE.md 2>/dev/null || echo 0)
-STATE_JSON_MOD=$(stat -f %m .planning/state.json 2>/dev/null || stat -c %Y .planning/state.json 2>/dev/null || echo 0)
+STATE_MD_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
+STATE_JSON_MOD=$(stat -f %m .gpd/state.json 2>/dev/null || stat -c %Y .gpd/state.json 2>/dev/null || echo 0)
 
 if [ "$STATE_JSON_MOD" -lt "$STATE_MD_MOD" ]; then
   echo "WARNING: state.json is older than STATE.md — deleting state.json for regeneration"
-  rm -f .planning/state.json
+  rm -f .gpd/state.json
 fi
 ```
 
@@ -321,10 +321,10 @@ Record the error budget as a research artifact in STATE.md.
 ## 7. Commit
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md .planning/STATE.md
+gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md
 ```
 
 Present results:

@@ -31,7 +31,7 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 <context>
 Paper directory: $ARGUMENTS (optional, defaults to `paper/` or `manuscript/`)
 
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

@@ -31,8 +31,8 @@ Execute a systematic parameter sweep: vary one or more parameters across a range
 <context>
 Phase: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -191,8 +191,8 @@ Fixed: {param} = {value}, {param} = {value}
 ```
 
 Save to:
-- Phase target: `.planning/phases/XX-name/SWEEP-{slug}.md` + data files
-- Standalone: `.planning/analysis/sweep-{slug}/`
+- Phase target: `.gpd/phases/XX-name/SWEEP-{slug}.md` + data files
+- Standalone: `.gpd/analysis/sweep-{slug}/`
 
 ## 6. Common Pitfalls
 

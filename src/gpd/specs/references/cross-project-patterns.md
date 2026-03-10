@@ -33,7 +33,7 @@ learned-patterns/
   index.json
 ```
 
-**Why the global install directory:** This directory persists across all projects and sessions. Project-local `.planning/INSIGHTS.md` captures project-specific lessons; the global library captures cross-project patterns.
+**Why the global install directory:** This directory persists across all projects and sessions. Project-local `.gpd/INSIGHTS.md` captures project-specific lessons; the global library captures cross-project patterns.
 
 **Each pattern file** follows the `learned-pattern.md` template (see `templates/learned-pattern.md`). Filenames use the format `{category}-{short-slug}.md` (e.g., `sign-error-metric-signature.md`, `factor-error-fourier-convention.md`).
 
@@ -51,7 +51,7 @@ The index provides fast lookup without reading every pattern file. Agents filter
   "patterns": [
     {
       "id": "qft-sign-error-metric-signature",
-      "file": "patterns-by-domain/qft/sign-error-metric-signature.md",
+      "file": "patterns-by-domain/qft/sign-error-metric-signature-mismatch.md",
       "domain": "qft",
       "category": "sign-error",
       "severity": "critical",
@@ -95,7 +95,7 @@ Patterns enter the library from three sources. Each writes to both the project-l
 When the debugger (gpd-debugger) resolves a debug session and identifies a root cause:
 
 1. The `Resolution.lessons_learned` field in the debug file captures the project-specific lesson
-2. The debugger writes the same lesson to the project's `.planning/INSIGHTS.md`
+2. The debugger writes the same lesson to the project's `.gpd/INSIGHTS.md`
 3. The debugger checks whether a matching pattern already exists in the global library:
    - **No match:** Create a new pattern file from the `learned-pattern.md` template with confidence `single_observation`. Add entry to `index.json`.
    - **Match found:** Update `last_seen`, increment `occurrence_count`. If confidence was `single_observation` and this is a different project, upgrade to `confirmed`.
@@ -131,7 +131,7 @@ Different agents read patterns at different points in the workflow.
 During the `consult_learned_patterns` step of plan creation:
 
 1. Read `index.json`
-2. Filter by domain tags matching the current project's domain (from `.planning/PROJECT.md`)
+2. Filter by domain tags matching the current project's domain (from `.gpd/PROJECT.md`)
 3. Sort by: severity (critical first), then confidence (systematic > confirmed > single_observation), then occurrence_count (descending)
 4. Read the top 5 most relevant pattern files
 5. Incorporate prevention guidance into plan structure:
@@ -196,7 +196,7 @@ Patterns evolve through a confidence progression and can eventually be archived.
 
 ## Integration with Agents
 
-> **Status:** Agent definitions reference the global pattern library. gpd-planner reads top 5 patterns by severity during `consult_learned_patterns`. gpd-verifier checks domain-matching patterns during verification setup. gpd-executor reads critical/high patterns before starting work. gpd-debugger reads existing patterns before investigating and writes/updates patterns after confirming root causes. Agents also use project-local `.planning/INSIGHTS.md` and `.planning/ERROR-PATTERNS.md` for within-project pattern learning.
+> **Status:** Agent definitions reference the global pattern library. gpd-planner reads top 5 patterns by severity during `consult_learned_patterns`. gpd-verifier checks domain-matching patterns during verification setup. gpd-executor reads critical/high patterns before starting work. gpd-debugger reads existing patterns before investigating and writes/updates patterns after confirming root causes. Agents also use project-local `.gpd/INSIGHTS.md` and `.gpd/ERROR-PATTERNS.md` for within-project pattern learning.
 
 Each agent integrates with the pattern library at specific points in its workflow.
 
@@ -245,12 +245,12 @@ Each agent integrates with the pattern library at specific points in its workflo
 
 ## Relationship to Project-Local INSIGHTS.md
 
-The global pattern library and project-local `.planning/INSIGHTS.md` serve complementary roles:
+The global pattern library and project-local `.gpd/INSIGHTS.md` serve complementary roles:
 
 | Aspect     | INSIGHTS.md                           | Global Pattern Library                            |
 | ---------- | ------------------------------------- | ------------------------------------------------- |
 | Scope      | Single project                        | All projects                                      |
-| Location   | `.planning/INSIGHTS.md`               | `learned-patterns/`    |
+| Location   | `.gpd/INSIGHTS.md`               | `learned-patterns/`    |
 | Content    | Project-specific findings and lessons | Generalized error patterns and prevention methods |
 | Lifetime   | Lives with the project                | Persists indefinitely                             |
 | Written by | Debugger, executor                    | Debugger, verifier                                |
@@ -268,7 +268,7 @@ When the pattern library does not yet exist (first GPD session on a machine):
 
 1. Agents that attempt to read `index.json` and find it missing should create the directory structure:
    ```
-   mkdir -p learned-patterns/patterns-by-domain/{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical}
+   mkdir -p learned-patterns/patterns-by-domain/{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical,soft-matter,quantum-info}
    ```
 2. Create an empty `index.json`:
    ```json

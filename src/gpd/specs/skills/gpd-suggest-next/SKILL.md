@@ -3,7 +3,7 @@ name: gpd-suggest-next
 description: Suggest the most impactful next action based on current project state
 argument-hint: ""
 requires:
-  files: [".planning/PROJECT.md"]
+  files: [".gpd/PROJECT.md"]
 allowed-tools:
   - read_file
   - shell

@@ -82,7 +82,7 @@ Exit.
 **First: Check for active verification sessions**
 
 ```bash
-find .planning/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | head -5
+find .gpd/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | head -5
 ```
 
 **If active sessions exist AND no $ARGUMENTS provided:**
@@ -455,9 +455,9 @@ Update frontmatter.updated timestamp.
 
 **REQUIREMENTS.md traceability update (on pass only):**
 
-If the check passed AND the check name or expected outcome corresponds to a requirement ID (REQ-*) from `.planning/REQUIREMENTS.md`, update the requirement's status:
+If the check passed AND the check name or expected outcome corresponds to a requirement ID (REQ-*) from `.gpd/REQUIREMENTS.md`, update the requirement's status:
 
-1. Read `.planning/REQUIREMENTS.md` (skip if file doesn't exist)
+1. Read `.gpd/REQUIREMENTS.md` (skip if file doesn't exist)
 2. Search for the matching REQ-ID in the requirements table
 3. Update the requirement row's validation status:
    - Change status cell to `Validated`
@@ -533,7 +533,7 @@ Read phase SUMMARY.md files (current and prior phases). Find quantities consumed
 
 ```bash
 # Check if prior phases declared uncertainty budgets
-for PRIOR_SUMMARY in $(ls .planning/phases/*/SUMMARY.md 2>/dev/null | sort); do
+for PRIOR_SUMMARY in $(ls .gpd/phases/*/SUMMARY.md 2>/dev/null | sort); do
   grep -l "Uncertainty Budget\|uncertainty\|±\|\\\\pm" "$PRIOR_SUMMARY" 2>/dev/null
 done
 ```
@@ -767,9 +767,9 @@ Task(
 
 <files_to_read>
 Read these files using the Read tool:
-- Validation with diagnoses: .planning/phases/{phase_dir}/{phase}-VERIFICATION.md
-- State: .planning/STATE.md
-- Roadmap: .planning/ROADMAP.md
+- Validation with diagnoses: .gpd/phases/{phase_dir}/{phase}-VERIFICATION.md
+- State: .gpd/STATE.md
+- Roadmap: .gpd/ROADMAP.md
 </files_to_read>
 
 </planning_context>
@@ -822,7 +822,7 @@ Task(
 **Phase Goal:** Close diagnosed gaps from research validation
 
 <files_to_read>
-Read all PLAN.md files in .planning/phases/{phase_dir}/ using the Read tool.
+Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the Read tool.
 </files_to_read>
 
 </verification_context>
@@ -868,7 +868,7 @@ Task(
 **Mode:** revision
 
 <files_to_read>
-Read all PLAN.md files in .planning/phases/{phase_dir}/ using the Read tool.
+Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the Read tool.
 </files_to_read>
 
 **Checker issues:**

@@ -34,8 +34,8 @@ Interpretation:
 Load known framework:
 
 ```bash
-cat .planning/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Known Limiting Cases"
-cat .planning/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
+cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Known Limiting Cases"
+cat .gpd/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
 ```
 
 </context>
@@ -48,7 +48,7 @@ cat .planning/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Case
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".planning" ]; then
+if [ ! -d ".gpd" ]; then
   echo "Error: No GPD project found. Run $gpd-new-project first."
   exit 1
 fi

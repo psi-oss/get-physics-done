@@ -7,7 +7,7 @@ template_version: 1
 
 # Validation Template
 
-Template for `.planning/analysis/VALIDATION.md` - captures the validation strategy for the research.
+Template for `.gpd/analysis/VALIDATION.md` - captures the validation strategy for the research.
 
 **Purpose:** Document how results are verified. Guide for adding validation checks that match existing patterns. Covers analytical limits, numerical tests, and comparisons with literature.
 

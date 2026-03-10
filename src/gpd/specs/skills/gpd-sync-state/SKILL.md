@@ -31,8 +31,8 @@ Routes to the sync-state workflow which handles conflict detection and resolutio
 </execution_context>
 
 <context>
-@.planning/STATE.md
-@.planning/state.json
+@.gpd/STATE.md
+@.gpd/state.json
 </context>
 
 <process>

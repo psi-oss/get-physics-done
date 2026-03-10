@@ -150,7 +150,7 @@ All affected locations updated:
 
 **Bug:** `execute-plan.md` referenced `gpd cost-track` which was commented out. Listed in help text but the call was dead code.
 
-**Status:** Fixed. Both `cost-track` and `cost-report` are fully implemented in the command layer with CLI routing. `cost-track` appends JSONL entries to `.planning/cost-tracking.jsonl`, `cost-report` aggregates by agent/phase with variance analysis. The `execute-plan.md` step `track_cost` has been uncommented to call `cost-track` after each plan execution.
+**Status:** Fixed. Both `cost-track` and `cost-report` are fully implemented in the command layer with CLI routing. `cost-track` appends JSONL entries to `.gpd/cost-tracking.jsonl`, `cost-report` aggregates by agent/phase with variance analysis. The `execute-plan.md` step `track_cost` has been uncommented to call `cost-track` after each plan execution.
 
 ### 23. pre-commit-check Only Used in 2 Workflows
 

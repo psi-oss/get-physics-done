@@ -100,7 +100,7 @@ CONV_COMPLETE=$(echo "$CONV_CHECK" | python3 -c "import json,sys; print(json.loa
 PLACEHOLDERS=$(grep -cE 'TODO|FIXME|PENDING|TBD|\[RESULT PENDING\]' paper/*.tex 2>/dev/null || echo 0)
 
 # 5. Check verification
-VERIF_STATUS=$(grep 'status:' .planning/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | grep -o 'passed\|gaps_found\|human_needed')
+VERIF_STATUS=$(grep 'status:' .gpd/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | grep -o 'passed\|gaps_found\|human_needed')
 ```
 
 The scoring is presented as a table to the researcher with specific items to fix for each category that scored below maximum.

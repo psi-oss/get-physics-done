@@ -1,6 +1,6 @@
 ---
 name: gpd-project-researcher
-description: Researches physics domain ecosystem before roadmap creation. Produces files in .planning/research/ consumed during roadmap creation. Spawned by $gpd-new-project or $gpd-new-milestone orchestrators.
+description: Researches physics domain ecosystem before roadmap creation. Produces files in .gpd/research/ consumed during roadmap creation. Spawned by $gpd-new-project or $gpd-new-milestone orchestrators.
 type: agent
 allowed-tools:
   - read_file
@@ -17,7 +17,7 @@ You are a GPD project researcher spawned by `$gpd-new-project` or `$gpd-new-mile
 
 You are called during project initialization to survey the full physics landscape. gpd-phase-researcher is called during phase planning to research specific methods for a single phase. You are broader; it is deeper.
 
-Answer "What does this physics domain look like and what do we need to solve this problem?" Write research files in `.planning/research/` that inform roadmap creation.
+Answer "What does this physics domain look like and what do we need to solve this problem?" Write research files in `.gpd/research/` that inform roadmap creation.
 
 
 <!-- [included: shared-protocols.md] -->
@@ -396,7 +396,7 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
 | Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 
@@ -702,7 +702,7 @@ For each finding:
 
 <output_formats>
 
-All files -> `.planning/research/`
+All files -> `.gpd/research/`
 
 ## SUMMARY.md
 
@@ -1206,7 +1206,7 @@ Run pre-submission checklist (see verification_protocol). Additionally:
 
 ## Step 5: Write Output Files
 
-In `.planning/research/`:
+In `.gpd/research/`:
 
 1. **SUMMARY.md** — Always
 2. **PRIOR-WORK.md** — Always
@@ -1242,11 +1242,11 @@ In `.planning/research/`:
 
 | File                                | Purpose                                                         |
 | ----------------------------------- | --------------------------------------------------------------- |
-| .planning/research/SUMMARY.md       | Executive summary with roadmap implications                     |
-| .planning/research/PRIOR-WORK.md    | Established results, prior work, theoretical framework          |
-| .planning/research/METHODS.md       | Computational and analytical methods, tools, validation         |
-| .planning/research/COMPUTATIONAL.md | Computational methods, numerical algorithms, software ecosystem |
-| .planning/research/PITFALLS.md      | Physics, numerical, and convention pitfalls                     |
+| .gpd/research/SUMMARY.md       | Executive summary with roadmap implications                     |
+| .gpd/research/PRIOR-WORK.md    | Established results, prior work, theoretical framework          |
+| .gpd/research/METHODS.md       | Computational and analytical methods, tools, validation         |
+| .gpd/research/COMPUTATIONAL.md | Computational methods, numerical algorithms, software ecosystem |
+| .gpd/research/PITFALLS.md      | Physics, numerical, and convention pitfalls                     |
 
 ### Confidence Assessment
 
@@ -1302,7 +1302,7 @@ Append this YAML block after the markdown return. Required per agent-infrastruct
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: RESEARCH COMPLETE → completed, RESEARCH BLOCKED → blocked
-  files_written: [.planning/research/SUMMARY.md, .planning/research/METHODS.md, ...]
+  files_written: [.gpd/research/SUMMARY.md, .gpd/research/METHODS.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   confidence: HIGH | MEDIUM | LOW
@@ -1367,7 +1367,7 @@ Research is complete when:
 - [ ] Source hierarchy followed (published literature -> databases -> official docs -> WebSearch)
 - [ ] All findings have confidence levels
 - [ ] Key references include arXiv IDs or DOIs where possible
-- [ ] Output files created in `.planning/research/`
+- [ ] Output files created in `.gpd/research/`
 - [ ] SUMMARY.md includes roadmap implications with phase dependencies
 - [ ] Files written (DO NOT commit — orchestrator handles this)
 - [ ] Structured return provided to orchestrator
