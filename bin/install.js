@@ -210,32 +210,7 @@ function sourceInstallCandidates(version) {
     );
   }
 
-  if (repoGitUrl) {
-    candidates.push(
-      {
-        label: `GitHub HTTPS git checkout for v${version}`,
-        spec: `git+${repoGitUrl}@v${version}`,
-        probe: {
-          kind: "git",
-          repoUrl: repoGitUrl,
-          ref: `v${version}`,
-          refNamespace: "tags",
-        },
-      },
-      {
-        label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-        spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
-        noCache: true,
-        probe: {
-          kind: "git",
-          repoUrl: repoGitUrl,
-          ref: GITHUB_FALLBACK_BRANCH,
-          refNamespace: "heads",
-        },
-      }
-    );
-  }
-
+  // SSH git candidates first — uses existing SSH keys without prompting for credentials.
   if (repoSshUrl) {
     candidates.push(
       {
@@ -255,6 +230,33 @@ function sourceInstallCandidates(version) {
         probe: {
           kind: "git",
           repoUrl: repoSshUrl,
+          ref: GITHUB_FALLBACK_BRANCH,
+          refNamespace: "heads",
+        },
+      }
+    );
+  }
+
+  // HTTPS git candidates last — may prompt for username/password if no credential helper.
+  if (repoGitUrl) {
+    candidates.push(
+      {
+        label: `HTTPS git checkout for v${version}`,
+        spec: `git+${repoGitUrl}@v${version}`,
+        probe: {
+          kind: "git",
+          repoUrl: repoGitUrl,
+          ref: `v${version}`,
+          refNamespace: "tags",
+        },
+      },
+      {
+        label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+        spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+        noCache: true,
+        probe: {
+          kind: "git",
+          repoUrl: repoGitUrl,
           ref: GITHUB_FALLBACK_BRANCH,
           refNamespace: "heads",
         },
