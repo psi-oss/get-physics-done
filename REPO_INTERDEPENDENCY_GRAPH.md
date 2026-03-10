@@ -158,7 +158,7 @@ flowchart TD
   `authority`
   Fallback version source when installed metadata is unavailable.
 
-- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, logfire, mcp[cli], pytest, pytest-asyncio, hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
+- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, mcp[cli], pytest, pytest-asyncio, hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
   `external-package`
 
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`

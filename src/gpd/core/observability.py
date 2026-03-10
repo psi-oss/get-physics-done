@@ -67,9 +67,9 @@ class ObservabilitySession(BaseModel):
     session_id: str
     started_at: str
     last_event_at: str
-    cwd: str
+    cwd: str = ""
     source: str = "python"
-    pid: int
+    pid: int | None = None
     command: str | None = None
     status: str = "active"
     metadata: dict[str, object] = Field(default_factory=dict)
@@ -176,9 +176,14 @@ def _extract_cwd(value: object | None) -> Path | None:
 
 
 def _project_root(cwd: Path | None = None) -> Path | None:
-    candidate = cwd or _session_cwd_var.get()
-    if candidate is None:
-        candidate = Path.cwd()
+    if cwd is not None:
+        candidate = cwd
+    else:
+        pwd = Path.cwd()
+        if ProjectLayout(pwd).gpd.exists():
+            candidate = pwd
+        else:
+            candidate = _session_cwd_var.get() or pwd
     layout = ProjectLayout(candidate)
     if not layout.gpd.exists():
         return None
@@ -281,7 +286,7 @@ def ensure_session(
     existing_id = _session_id_var.get()
     if existing_id and _session_cwd_var.get() == resolved_cwd:
         existing = _load_session_meta(layout, existing_id)
-        if existing is not None:
+        if existing is not None and existing.status == "active":
             return existing
 
     now = _now_iso()

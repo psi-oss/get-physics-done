@@ -169,7 +169,7 @@ GPD now keeps a project-local observability trail under `.gpd/observability/` al
 - `sessions/*.jsonl`: per-session event streams for reconstruction and handoff
 - `current-session.json`: latest session metadata for status and resume tooling
 - `.gpd/traces/`: plan-local execution traces for detailed debugging and post-mortem review
-- `STATE.md`: concise human-readable continuity state, not the full event ledger
+- STATE.md: concise human-readable continuity state, not the full event ledger
 
 These layers complement each other: traces are narrow and plan-specific, while observability is broader and session-oriented.
 
