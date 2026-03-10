@@ -218,6 +218,39 @@ class TestConfigureOpenCodePermissions:
         modified = configure_opencode_permissions(tmp_path)
         assert modified is False
 
+    def test_normalizes_legacy_absolute_default_config_key(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        config_dir = tmp_path / ".config" / "opencode"
+        config_dir.mkdir(parents=True)
+        legacy_absolute_key = f"{config_dir.as_posix()}/get-physics-done/*"
+        (config_dir / "opencode.json").write_text(
+            json.dumps(
+                {
+                    "permission": {
+                        "read": {legacy_absolute_key: "allow"},
+                        "external_directory": {legacy_absolute_key: "allow"},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        modified = configure_opencode_permissions(config_dir)
+
+        assert modified is True
+        config = json.loads((config_dir / "opencode.json").read_text(encoding="utf-8"))
+        preferred_key = "~/.config/opencode/get-physics-done/*"
+        assert config["permission"]["read"][preferred_key] == "allow"
+        assert config["permission"]["external_directory"][preferred_key] == "allow"
+        assert legacy_absolute_key not in config["permission"]["read"]
+        assert legacy_absolute_key not in config["permission"]["external_directory"]
+
 
 class TestInstall:
     def test_local_install_uses_relative_gpd_paths(
@@ -304,6 +337,38 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_uninstall_removes_legacy_absolute_default_permission_key(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        adapter = OpenCodeAdapter()
+        monkeypatch.setenv("HOME", str(tmp_path))
+        target = tmp_path / ".config" / "opencode"
+        target.mkdir(parents=True)
+        legacy_absolute_key = f"{target.as_posix()}/get-physics-done/*"
+        (target / "opencode.json").write_text(
+            json.dumps(
+                {
+                    "permission": {
+                        "read": {legacy_absolute_key: "allow"},
+                        "external_directory": {legacy_absolute_key: "allow"},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        read_permissions = cleaned.get("permission", {}).get("read", {})
+        external_permissions = cleaned.get("permission", {}).get("external_directory", {})
+        assert legacy_absolute_key not in read_permissions
+        assert legacy_absolute_key not in external_permissions
+
     def test_uninstall_removes_only_exact_managed_permission_keys(
         self,
         gpd_root: Path,

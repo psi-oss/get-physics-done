@@ -989,10 +989,17 @@ def remove_stale_agents(agents_dest: Path, new_agent_names: set[str]) -> None:
             existing.unlink()
 
 
-def ensure_update_hook(settings: dict[str, object], update_check_command: str) -> None:
-    """Add SessionStart update-check hook if not already present.
+def _is_hook_command_for_script(command: object, hook_filename: str) -> bool:
+    """Return True when *command* points at *hook_filename*."""
+    return isinstance(command, str) and hook_filename in command
 
-    Works for any runtime using settings.json hooks (Claude Code, Gemini).
+
+def ensure_update_hook(settings: dict[str, object], update_check_command: str) -> None:
+    """Ensure SessionStart has one up-to-date GPD update-check hook.
+
+    Rewrites stale managed commands in place so reinstalls repair interpreter
+    or path drift instead of preserving broken entries forever. Also deduplicates
+    multiple managed update hooks while preserving unrelated SessionStart hooks.
     """
     hooks = settings.setdefault("hooks", {})
     if not isinstance(hooks, dict):
@@ -1004,21 +1011,61 @@ def ensure_update_hook(settings: dict[str, object], update_check_command: str) -
         session_start = []
         hooks["SessionStart"] = session_start
 
+    normalized_session_start: list[object] = []
+    managed_hook_found = False
+    changed = False
+
     for entry in session_start:
         if not isinstance(entry, dict):
+            normalized_session_start.append(entry)
             continue
         entry_hooks = entry.get("hooks")
         if not isinstance(entry_hooks, list):
+            normalized_session_start.append(entry)
             continue
-        for h in entry_hooks:
-            if not isinstance(h, dict):
-                continue
-            cmd = h.get("command", "")
-            if isinstance(cmd, str) and "check_update.py" in cmd:
-                return
 
-    session_start.append({"hooks": [{"type": "command", "command": update_check_command}]})
-    _install_logger.info("Configured update check hook")
+        normalized_hooks: list[object] = []
+        for hook in entry_hooks:
+            if not isinstance(hook, dict):
+                normalized_hooks.append(hook)
+                continue
+
+            cmd = hook.get("command", "")
+            if not _is_hook_command_for_script(cmd, HOOK_SCRIPTS["check_update"]):
+                normalized_hooks.append(hook)
+                continue
+
+            if managed_hook_found:
+                changed = True
+                continue
+
+            managed_hook_found = True
+            desired_hook = dict(hook)
+            if desired_hook.get("type") != "command" or desired_hook.get("command") != update_check_command:
+                desired_hook["type"] = "command"
+                desired_hook["command"] = update_check_command
+                changed = True
+            normalized_hooks.append(desired_hook)
+
+        if normalized_hooks != entry_hooks:
+            changed = True
+            if not normalized_hooks:
+                continue
+            normalized_entry = dict(entry)
+            normalized_entry["hooks"] = normalized_hooks
+            normalized_session_start.append(normalized_entry)
+        else:
+            normalized_session_start.append(entry)
+
+    if not managed_hook_found:
+        normalized_session_start.append({"hooks": [{"type": "command", "command": update_check_command}]})
+        changed = True
+        _install_logger.info("Configured update check hook")
+    elif changed:
+        _install_logger.info("Updated update check hook")
+
+    if changed:
+        hooks["SessionStart"] = normalized_session_start
 
 
 def finish_install(
@@ -1063,7 +1110,7 @@ def build_hook_command(
 
     Shared by Claude Code and Gemini adapters.
     """
-    command_interpreter = interpreter or _hook_python_interpreter()
+    command_interpreter = interpreter or hook_python_interpreter()
     if is_global or explicit_target:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")
         return f"{shlex.quote(command_interpreter)} {shlex.quote(hooks_path)}"
@@ -1082,8 +1129,8 @@ def _rmtree(p: Path) -> None:
     shutil.rmtree(str(p), ignore_errors=True)
 
 
-def _hook_python_interpreter() -> str:
-    """Return the interpreter that is currently running GPD.
+def hook_python_interpreter() -> str:
+    """Return the interpreter that should run installed GPD hook scripts.
 
     Hook scripts import ``gpd.*`` modules, so they need the same interpreter
     used for the active install process.

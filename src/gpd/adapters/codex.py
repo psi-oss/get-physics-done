@@ -28,6 +28,7 @@ from gpd.adapters.install_utils import (
     PATCHES_DIR_NAME,
     convert_tool_references_in_body,
     expand_at_includes,
+    hook_python_interpreter,
     pre_install_cleanup,
     remove_stale_agents,
     replace_placeholders,
@@ -236,11 +237,6 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
 
     new_frontmatter = "\n".join(new_lines).strip()
     return f"---\n{new_frontmatter}\n---{body}"
-
-
-def _codex_hook_interpreter() -> str:
-    """Return the interpreter used to install Codex hook commands."""
-    return sys.executable or "python3"
 
 
 def _toml_string(value: str) -> str:
@@ -876,12 +872,12 @@ def _parse_notify_assignment(line: str) -> list[str] | None:
 
 
 def _build_notify_line(desired_path: str) -> str:
-    return f"notify = [{_toml_string(_codex_hook_interpreter())}, {_toml_string(desired_path)}]"
+    return f"notify = [{_toml_string(hook_python_interpreter())}, {_toml_string(desired_path)}]"
 
 
 def _build_notify_wrapper_line(existing_notify: list[str], desired_path: str) -> str:
     existing_cmd = " ".join(shlex.quote(arg) for arg in existing_notify)
-    gpd_cmd = f"{shlex.quote(_codex_hook_interpreter())} {shlex.quote(desired_path)}"
+    gpd_cmd = f"{shlex.quote(hook_python_interpreter())} {shlex.quote(desired_path)}"
     shell_script = (
         'tmp="$(mktemp "${TMPDIR:-/tmp}/gpd-codex-notify.XXXXXX")" || exit 0; '
         'cat > "$tmp"; '

@@ -237,6 +237,27 @@ class TestInstall:
         assert f'"{(target / "hooks" / "codex_notify.py").as_posix()}"' in content
         assert '".codex/hooks/codex_notify.py"' not in content
 
+    def test_reinstall_rewrites_stale_managed_notify_interpreter(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "config.toml").write_text(
+            '# GPD update notification\nnotify = ["python3", ".codex/hooks/codex_notify.py"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert 'notify = ["/custom/venv/bin/python", ".codex/hooks/codex_notify.py"]' in content
+        assert 'notify = ["python3", ".codex/hooks/codex_notify.py"]' not in content
+
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()

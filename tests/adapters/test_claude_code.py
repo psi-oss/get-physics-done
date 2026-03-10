@@ -146,6 +146,44 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .claude/hooks/check_update.py" in cmds
 
+    def test_reinstall_rewrites_stale_managed_update_hook(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {"hooks": [{"type": "command", "command": "python3 .claude/hooks/check_update.py"}]},
+                            {"hooks": [{"type": "command", "command": "python3 .claude/hooks/check_update.py"}]},
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
+        assert cmds.count("/custom/venv/bin/python .claude/hooks/check_update.py") == 1
+        assert "python3 .claude/hooks/check_update.py" not in cmds
+
     def test_install_with_explicit_target_uses_absolute_hook_paths(
         self,
         adapter: ClaudeCodeAdapter,

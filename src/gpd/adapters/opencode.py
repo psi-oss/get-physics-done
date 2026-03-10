@@ -290,7 +290,17 @@ def copy_agents_as_agent_files(
 
 
 def _opencode_managed_permission_key(config_dir: Path) -> str:
-    """Return the exact permission key managed by GPD for *config_dir*."""
+    """Return the preferred permission key managed by GPD for *config_dir*."""
+    return _opencode_managed_permission_keys(config_dir)[0]
+
+
+def _opencode_managed_permission_keys(config_dir: Path) -> tuple[str, ...]:
+    """Return all managed permission key variants for *config_dir*.
+
+    The first key is the current preferred representation. Additional keys are
+    legacy aliases that should be normalized away on reinstall and removed on
+    uninstall.
+    """
     actual_config_dir = config_dir.expanduser()
     default_config_dir = (Path.home() / ".config" / "opencode").expanduser()
     try:
@@ -298,10 +308,11 @@ def _opencode_managed_permission_key(config_dir: Path) -> str:
     except OSError:
         is_default_config_dir = actual_config_dir == default_config_dir
 
+    absolute_key = f"{actual_config_dir.as_posix()}/get-physics-done/*"
     if is_default_config_dir:
-        return "~/.config/opencode/get-physics-done/*"
+        return ("~/.config/opencode/get-physics-done/*", absolute_key)
 
-    return f"{actual_config_dir.as_posix()}/get-physics-done/*"
+    return (absolute_key,)
 
 
 def configure_opencode_permissions(config_dir: Path) -> bool:
@@ -328,13 +339,18 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     if "permission" not in config or not isinstance(config["permission"], dict):
         config["permission"] = {}
 
-    gpd_path = _opencode_managed_permission_key(config_dir)
+    managed_keys = _opencode_managed_permission_keys(config_dir)
+    gpd_path = managed_keys[0]
 
     modified = False
 
     # Configure read permission
     if "read" not in config["permission"] or not isinstance(config["permission"]["read"], dict):
         config["permission"]["read"] = {}
+    for stale_key in managed_keys[1:]:
+        if stale_key in config["permission"]["read"]:
+            del config["permission"]["read"][stale_key]
+            modified = True
     if config["permission"]["read"].get(gpd_path) != "allow":
         config["permission"]["read"][gpd_path] = "allow"
         modified = True
@@ -344,6 +360,10 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
         config["permission"]["external_directory"], dict
     ):
         config["permission"]["external_directory"] = {}
+    for stale_key in managed_keys[1:]:
+        if stale_key in config["permission"]["external_directory"]:
+            del config["permission"]["external_directory"][stale_key]
+            modified = True
     if config["permission"]["external_directory"].get(gpd_path) != "allow":
         config["permission"]["external_directory"][gpd_path] = "allow"
         modified = True
@@ -551,13 +571,14 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
         modified = False
 
         if oc_config is not None and isinstance(oc_config.get("permission"), dict):
-            managed_key = _opencode_managed_permission_key(oc_config_dir)
+            managed_keys = _opencode_managed_permission_keys(oc_config_dir)
             for perm_type in ("read", "external_directory"):
                 perm_dict = oc_config["permission"].get(perm_type)
                 if isinstance(perm_dict, dict):
-                    if managed_key in perm_dict:
-                        del perm_dict[managed_key]
-                        modified = True
+                    for managed_key in managed_keys:
+                        if managed_key in perm_dict:
+                            del perm_dict[managed_key]
+                            modified = True
                     if not perm_dict:
                         del oc_config["permission"][perm_type]
             if not oc_config["permission"]:

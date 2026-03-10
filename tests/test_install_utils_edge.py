@@ -20,6 +20,7 @@ from gpd.adapters.install_utils import (
     build_hook_command,
     copy_with_path_replacement,
     convert_tool_references_in_body,
+    ensure_update_hook,
     expand_at_includes,
     generate_manifest,
     parse_jsonc,
@@ -306,6 +307,41 @@ class TestBuildHookCommand:
         )
 
         assert command == f"/custom/venv/bin/python {tmp_path / 'hooks' / 'statusline.py'}"
+
+
+class TestEnsureUpdateHook:
+    """Tests for managed update-hook repair and deduplication."""
+
+    def test_rewrites_stale_managed_command_and_preserves_other_hooks(self) -> None:
+        settings = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "matcher": "startup",
+                        "hooks": [
+                            {"type": "command", "command": "python3 .claude/hooks/check_update.py"},
+                            {"type": "command", "command": "echo keep-me"},
+                        ],
+                    },
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "python3 .claude/hooks/check_update.py"},
+                        ]
+                    },
+                ]
+            }
+        }
+
+        ensure_update_hook(settings, "/custom/venv/bin/python .claude/hooks/check_update.py")
+
+        session_start = settings["hooks"]["SessionStart"]
+        assert len(session_start) == 1
+        assert session_start[0]["matcher"] == "startup"
+        commands = [hook["command"] for hook in session_start[0]["hooks"] if isinstance(hook, dict)]
+        assert commands == [
+            "/custom/venv/bin/python .claude/hooks/check_update.py",
+            "echo keep-me",
+        ]
 
 
 # =========================================================================

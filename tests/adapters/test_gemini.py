@@ -244,6 +244,38 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .gemini/hooks/check_update.py" in cmds
 
+    def test_reinstall_rewrites_stale_managed_update_hook(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {"hooks": [{"type": "command", "command": "python3 .gemini/hooks/check_update.py"}]},
+                            {"hooks": [{"type": "command", "command": "python3 .gemini/hooks/check_update.py"}]},
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        adapter.install(gpd_root, target)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
+        assert cmds.count("/custom/venv/bin/python .gemini/hooks/check_update.py") == 1
+        assert "python3 .gemini/hooks/check_update.py" not in cmds
+
     def test_install_with_explicit_target_uses_absolute_hook_paths(
         self,
         adapter: GeminiAdapter,
