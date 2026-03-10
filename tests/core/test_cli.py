@@ -7,6 +7,7 @@ be fully ported yet and have their own test suites.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -29,6 +30,18 @@ def test_version_subcommand():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
     assert "gpd" in result.output
+
+
+def test_raw_version_option_outputs_json():
+    result = runner.invoke(app, ["--raw", "--version"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["result"].startswith("gpd ")
+
+
+def test_raw_version_subcommand_outputs_json():
+    result = runner.invoke(app, ["--raw", "version"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["result"].startswith("gpd ")
 
 
 def test_help():
@@ -190,6 +203,18 @@ def test_raw_json_output(mock_load):
     result = runner.invoke(app, ["--raw", "state", "load"])
     assert result.exit_code == 0
     assert "current_phase" in result.output
+
+
+def test_raw_json_get_outputs_literal_json_value():
+    result = runner.invoke(app, ["--raw", "json", "get", ".x"], input='{"x": 1}\n')
+    assert result.exit_code == 0
+    assert json.loads(result.output) == "1"
+
+
+def test_raw_json_get_error_outputs_json():
+    result = runner.invoke(app, ["--raw", "json", "get", ".x"], input="not json\n")
+    assert result.exit_code == 1
+    assert "Invalid JSON input" in json.loads(result.output)["error"]
 
 
 # ─── convention subcommands ─────────────────────────────────────────────────

@@ -12,8 +12,18 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    from packaging.version import InvalidVersion, Version
+except ModuleNotFoundError:
+    try:
+        from pip._vendor.packaging.version import InvalidVersion, Version
+    except ModuleNotFoundError:
+        InvalidVersion = ValueError
+        Version = None
+
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
+PYPI_PACKAGE_NAME = "get-physics-done"
 
 
 def _debug(msg: str) -> None:
@@ -22,10 +32,10 @@ def _debug(msg: str) -> None:
 
 
 def _version_files() -> list[Path]:
-    """Return VERSION file candidates: project-local first, then global, across runtimes."""
+    """Return VERSION file candidates, preferring the active runtime's install first."""
     from gpd.hooks.runtime_detect import get_gpd_install_dirs
 
-    return [d / "VERSION" for d in get_gpd_install_dirs()]
+    return [d / "VERSION" for d in get_gpd_install_dirs(prefer_active=True)]
 
 
 def _read_installed_version() -> str:
@@ -49,19 +59,31 @@ def _read_installed_version() -> str:
 
 
 def _is_older_than(a: str, b: str) -> bool:
-    """Return True if semver string *a* is strictly older than *b*."""
+    """Return True if version *a* is strictly older than *b*."""
+    normalized_a = a.strip().lstrip("v")
+    normalized_b = b.strip().lstrip("v")
 
-    def parts(v: str) -> list[int]:
-        segs = v.split(".")
-        return [int(s) for s in segs[:3]] + [0] * (3 - len(segs))
+    if Version is not None:
+        try:
+            return Version(normalized_a) < Version(normalized_b)
+        except InvalidVersion as exc:
+            _debug(f"Version parsing failed for {a!r} vs {b!r}: {exc}")
 
-    pa, pb = parts(a), parts(b)
-    for va, vb in zip(pa, pb, strict=False):
-        if va < vb:
-            return True
-        if va > vb:
-            return False
-    return False
+    def parts(v: str) -> tuple[int, int, int]:
+        numeric_parts: list[int] = []
+        for segment in v.split("."):
+            digits = []
+            for ch in segment:
+                if not ch.isdigit():
+                    break
+                digits.append(ch)
+            numeric_parts.append(int("".join(digits)) if digits else 0)
+            if len(numeric_parts) == 3:
+                break
+        numeric_parts.extend([0] * (3 - len(numeric_parts)))
+        return tuple(numeric_parts[:3])
+
+    return parts(normalized_a) < parts(normalized_b)
 
 
 def _do_check(cache_file: Path) -> None:
@@ -72,7 +94,7 @@ def _do_check(cache_file: Path) -> None:
     try:
         import urllib.request
 
-        with urllib.request.urlopen("https://pypi.org/pypi/gpd/json", timeout=10) as resp:
+        with urllib.request.urlopen(f"https://pypi.org/pypi/{PYPI_PACKAGE_NAME}/json", timeout=10) as resp:
             data = json.loads(resp.read())
             latest = data["info"]["version"]
     except Exception as exc:

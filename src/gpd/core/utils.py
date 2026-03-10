@@ -233,8 +233,17 @@ def _walk_nan(obj: object, prefix: str, found: list[str]) -> None:
 
 # ─── File Helpers ───────────────────────────────────────────────────────────────
 
+
+def _max_include_chars_from_env() -> int:
+    """Return a valid include limit from the environment or the default."""
+    parsed = safe_parse_int(os.environ.get(ENV_MAX_INCLUDE_CHARS), DEFAULT_MAX_INCLUDE_CHARS)
+    if parsed is None or parsed <= 0:
+        return DEFAULT_MAX_INCLUDE_CHARS
+    return parsed
+
+
 # Maximum characters to include when reading files for context
-MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_INCLUDE_CHARS)))
+MAX_INCLUDE_CHARS = _max_include_chars_from_env()
 
 
 def safe_read_file(path: Path) -> str | None:

@@ -53,6 +53,13 @@ _RUNTIME_ENV_SIGNALS: list[tuple[str, str]] = [
 ALL_RUNTIMES = [RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE]
 
 
+def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
+    """Return runtimes in default order, optionally promoting one runtime to the front."""
+    if preferred_runtime not in ALL_RUNTIMES:
+        return list(ALL_RUNTIMES)
+    return [preferred_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != preferred_runtime]
+
+
 def detect_active_runtime() -> str:
     """Detect which AI agent is currently active.
 
@@ -124,9 +131,22 @@ def get_update_cache_files() -> list[Path]:
     ]
 
 
-def get_gpd_install_dirs() -> list[Path]:
-    """Return GPD installation directories for all known runtimes (both local and global)."""
-    return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
+def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
+    """Return GPD installation directories for all known runtimes.
+
+    When ``prefer_active`` is true, check the active runtime's local/global
+    install locations before scanning other runtimes.
+    """
+    if not prefer_active:
+        return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
+
+    dirs: list[Path] = []
+    cwd = Path.cwd()
+    home = Path.home()
+    for runtime in _prioritized_runtimes(detect_active_runtime()):
+        dirs.append(cwd / LOCAL_RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
+        dirs.append(home / RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
+    return _unique_paths(dirs)
 
 
 def update_command_for_runtime(runtime: str) -> str:

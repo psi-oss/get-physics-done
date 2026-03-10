@@ -339,6 +339,36 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_uninstall_removes_only_exact_managed_permission_keys(
+        self,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        adapter = OpenCodeAdapter()
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        config_path = target / "opencode.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        managed_key = f"{target.as_posix()}/get-physics-done/*"
+        preserved_read_key = f"{target.as_posix()}/custom-get-physics-done-archive/*"
+        preserved_external_key = f"{target.as_posix()}/nested/get-physics-done-backup/*"
+        config["permission"]["read"][preserved_read_key] = "allow"
+        config["permission"]["external_directory"][preserved_external_key] = "allow"
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(config_path.read_text(encoding="utf-8"))
+        read_permissions = cleaned.get("permission", {}).get("read", {})
+        external_permissions = cleaned.get("permission", {}).get("external_directory", {})
+        assert managed_key not in read_permissions
+        assert managed_key not in external_permissions
+        assert read_permissions[preserved_read_key] == "allow"
+        assert external_permissions[preserved_external_key] == "allow"
+
     def test_uninstall_cleans_local_opencode_json(
         self,
         gpd_root: Path,

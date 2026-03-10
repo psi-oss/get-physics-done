@@ -8,6 +8,7 @@ and generates LaTeX embedding snippets.
 from __future__ import annotations
 
 import logging
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -120,11 +121,11 @@ def get_dpi_for_journal(journal: str) -> int:
     return spec.dpi
 
 
-def check_figure_resolution(path: Path, journal: str) -> tuple[bool, str]:
+def check_figure_resolution(path: Path, journal: str, double_column: bool = False) -> tuple[bool, str]:
     """Check if a raster figure meets the journal's resolution requirement.
 
     For vector formats (PDF, SVG, EPS), always passes.
-    For raster formats, checks if pixel width >= column_width_cm * dpi / 2.54.
+    For raster formats, checks against the single- or double-column target width.
 
     Returns:
         (passes, message) tuple.
@@ -134,7 +135,9 @@ def check_figure_resolution(path: Path, journal: str) -> tuple[bool, str]:
         return True, "vector format"
 
     spec = get_journal_spec(journal)
-    min_width_px = int(spec.column_width_cm * spec.dpi / 2.54)
+    target_width_cm = spec.double_width_cm if double_column else spec.column_width_cm
+    layout = "double-column" if double_column else "single-column"
+    min_width_px = math.ceil(target_width_cm * spec.dpi / 2.54)
 
     try:
         from PIL import Image
@@ -142,8 +145,8 @@ def check_figure_resolution(path: Path, journal: str) -> tuple[bool, str]:
         with Image.open(path) as img:
             width_px = img.size[0]
             if width_px >= min_width_px:
-                return True, f"width {width_px}px >= {min_width_px}px required"
-            return False, f"width {width_px}px < {min_width_px}px required for {journal} at {spec.dpi} DPI"
+                return True, f"{layout} width {width_px}px >= {min_width_px}px required"
+            return False, f"{layout} width {width_px}px < {min_width_px}px required for {journal} at {spec.dpi} DPI"
     except (ImportError, OSError) as exc:
         return True, f"cannot check resolution: {exc}"
 
@@ -183,7 +186,7 @@ def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) ->
         normalized_path = normalize_figure(fig.path, output_dir)
 
         # Check resolution
-        passes, msg = check_figure_resolution(normalized_path, journal)
+        passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)
         if not passes:
             logger.warning("Figure %s below resolution requirement: %s", fig.label, msg)
 

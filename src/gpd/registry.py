@@ -138,6 +138,18 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     )
 
 
+def _validate_command_name(path: Path, command: CommandDef) -> None:
+    """Reject command metadata that drifts from its registry filename."""
+    if not command.name.startswith("gpd:"):
+        return
+    expected_name = f"gpd:{path.stem}"
+    if command.name != expected_name:
+        raise ValueError(
+            f"Command frontmatter name {command.name!r} does not match file stem {path.stem!r}; "
+            f"expected {expected_name!r}"
+        )
+
+
 # ─── Cache ───────────────────────────────────────────────────────────────────
 
 
@@ -194,6 +206,7 @@ def _discover_commands() -> dict[str, CommandDef]:
     if COMMANDS_DIR.is_dir():
         for path in sorted(COMMANDS_DIR.glob("*.md")):
             cmd = _parse_command_file(path, source="commands")
+            _validate_command_name(path, cmd)
             result[path.stem] = cmd
 
     return result

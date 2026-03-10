@@ -48,6 +48,7 @@ _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 _GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
 _GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
+_MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
 _TOOL_REFERENCE_MAP = reference_translation_map("codex")
 
 
@@ -82,6 +83,43 @@ def _resolve_codex_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: 
     if is_global:
         return get_codex_skills_dir()
     return target_dir / "skills"
+
+
+def _load_manifest_codex_skills_dir(target_dir: Path) -> Path | None:
+    """Return the install-time Codex skills dir recorded in the local manifest."""
+    manifest_path = target_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return None
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    if not isinstance(manifest, dict):
+        return None
+
+    manifest_skills_dir = manifest.get(_MANIFEST_CODEX_SKILLS_DIR_KEY)
+    if isinstance(manifest_skills_dir, str) and manifest_skills_dir:
+        return Path(manifest_skills_dir)
+
+    return None
+
+
+def _resolve_codex_uninstall_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: Path | None = None) -> Path:
+    """Resolve the skills dir to clean during uninstall.
+
+    Prefer the install-time path captured in the manifest so global uninstalls
+    still remove the correct shared skills even if env vars drift later.
+    """
+    if skills_dir is not None:
+        return skills_dir
+
+    manifest_skills_dir = _load_manifest_codex_skills_dir(target_dir)
+    if manifest_skills_dir is not None:
+        return manifest_skills_dir
+
+    return _resolve_codex_skills_dir(target_dir, is_global=is_global)
 
 
 def _is_global_codex_target(target_dir: Path) -> bool:
@@ -358,7 +396,10 @@ class CodexAdapter(RuntimeAdapter):
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
-        write_manifest(target_dir, version, codex_skills_dir=str(self._skills_dir))
+        manifest = write_manifest(target_dir, version, codex_skills_dir=str(self._skills_dir))
+        manifest[_MANIFEST_CODEX_SKILLS_DIR_KEY] = str(self._skills_dir)
+        manifest_path = target_dir / MANIFEST_NAME
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     def uninstall(
         self,
@@ -371,7 +412,7 @@ class CodexAdapter(RuntimeAdapter):
         Removes only GPD-specific files/directories, preserves user content.
         """
         if skills_dir is None:
-            skills_dir = _resolve_codex_skills_dir(
+            skills_dir = _resolve_codex_uninstall_skills_dir(
                 target_dir,
                 is_global=_is_global_codex_target(target_dir),
             )

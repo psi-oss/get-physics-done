@@ -470,25 +470,18 @@ function formatRuntimeList(runtimes) {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
-function printBannerBox(lines) {
-  const width = Math.max(...lines.map((line) => line.length));
-  const border = "─".repeat(width + 2);
-  console.log(`${cyan}╭${border}╮${reset}`);
-  for (const line of lines) {
-    console.log(`${cyan}│ ${line.padEnd(width)} │${reset}`);
-  }
-  console.log(`${cyan}╰${border}╯${reset}`);
-}
-
 function printBanner() {
   console.log("");
-  printBannerBox([
-    "  ____ ____  ____      ∿  λ  ∫",
-    " / ___|  _ \\|  _ \\     Get Physics Done",
-    " | |  _| |_) | | | |    Open-source AI copilot for physics research",
-    " | |_| |  __/| |_| |    Claude Code · Gemini CLI · Codex · OpenCode",
-    `  \\____|_|   |____/     v${packageVersion}`,
-  ]);
+  console.log(`${cyan} ██████╗ ██████╗ ██████╗`);
+  console.log(`██╔════╝ ██╔══██╗██╔══██╗`);
+  console.log(`██║  ███╗██████╔╝██║  ██║`);
+  console.log(`██║   ██║██╔═══╝ ██║  ██║`);
+  console.log(`╚██████╔╝██║     ██████╔╝`);
+  console.log(` ╚═════╝ ╚═╝     ╚═════╝${reset}`);
+  console.log("");
+  console.log(` ${bold}Get Physics Done${reset} ${dim}v${packageVersion}${reset}`);
+  console.log(" Open-source AI copilot for physics research");
+  console.log(" for Claude Code, Gemini CLI, Codex, and OpenCode.");
   console.log("");
 }
 

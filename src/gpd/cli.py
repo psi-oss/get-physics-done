@@ -97,12 +97,55 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
+def _print_version(*, ctx: typer.Context | None = None) -> None:
+    """Emit the CLI version using the active raw/non-raw output contract."""
+    value = f"gpd {gpd.__version__}"
+    raw_requested = False
+    if ctx is not None:
+        meta_raw = ctx.meta.get("raw_requested")
+        if isinstance(meta_raw, bool):
+            raw_requested = meta_raw
+    if not raw_requested:
+        raw_requested = _raw
+    if raw_requested:
+        console.print_json(json.dumps({"result": value}))
+    else:
+        console.print(value)
+
+
+def _raw_option_callback(ctx: typer.Context, _: typer.CallbackParam, value: bool) -> bool:
+    """Capture --raw early enough for the eager --version option."""
+    global _raw  # noqa: PLW0603
+    ctx.meta["raw_requested"] = value
+    _raw = value
+    return value
+
+
+def _version_option_callback(ctx: typer.Context, _: typer.CallbackParam, value: bool) -> bool:
+    """Handle --version before Typer requires a subcommand."""
+    if value:
+        _print_version(ctx=ctx)
+        raise typer.Exit()
+    return value
+
+
+def _json_cli_output(data: object) -> None:
+    """Emit literal JSON for the lightweight JSON subcommands."""
+    if _raw:
+        console.print_json(json.dumps(data, default=str))
+    else:
+        console.print(data, highlight=False)
+
+
 # ─── App setup ──────────────────────────────────────────────────────────────
 
 class _GPDTyper(typer.Typer):
     """Typer subclass that catches GPDError and prints a user-friendly message."""
 
     def __call__(self, *args: object, **kwargs: object) -> object:
+        global _raw, _cwd  # noqa: PLW0603
+        _raw = False
+        _cwd = Path(".")
         try:
             return super().__call__(*args, **kwargs)
         except GPDError as exc:
@@ -121,18 +164,23 @@ app = _GPDTyper(
 )
 
 
-def _version_callback(value: bool) -> None:
-    if value:
-        console.print(f"gpd {gpd.__version__}")
-        raise typer.Exit()
-
-
 @app.callback()
 def main(
-    raw: bool = typer.Option(False, "--raw", help="Output raw JSON for programmatic consumption"),
+    raw: bool = typer.Option(
+        False,
+        "--raw",
+        help="Output raw JSON for programmatic consumption",
+        callback=_raw_option_callback,
+        is_eager=True,
+    ),
     cwd: str = typer.Option(".", "--cwd", help="Working directory (default: current)"),
     version: bool = typer.Option(
-        False, "--version", "-v", help="Show version", callback=_version_callback, is_eager=True
+        False,
+        "--version",
+        "-v",
+        help="Show version",
+        callback=_version_option_callback,
+        is_eager=True,
     ),
 ) -> None:
     """GPD — Get Physics Done."""
@@ -1721,9 +1769,8 @@ def json_get_cmd(
     try:
         result = json_get(stdin_text, key, default=default)
     except ValueError as exc:
-        err_console.print(f"[red]error:[/red] {exc}")
-        raise typer.Exit(code=1) from None
-    console.print(result, highlight=False)
+        _error(str(exc))
+    _json_cli_output(result)
 
 
 @json_app.command("keys")
@@ -1738,7 +1785,7 @@ def json_keys_cmd(
     stdin_text = sys.stdin.read()
     result = json_keys(stdin_text, key)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("list")
@@ -1753,7 +1800,7 @@ def json_list_cmd(
     stdin_text = sys.stdin.read()
     result = json_list(stdin_text, key)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("pluck")
@@ -1769,7 +1816,7 @@ def json_pluck_cmd(
     stdin_text = sys.stdin.read()
     result = json_pluck(stdin_text, key, field)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("set")
@@ -1806,7 +1853,7 @@ def json_sum_lengths_cmd(
 
     stdin_text = sys.stdin.read()
     result = json_sum_lengths(stdin_text, keys)
-    console.print(result, highlight=False)
+    _json_cli_output(result)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1864,25 +1911,21 @@ def pre_commit_check(
 @app.command("version")
 def version_cmd() -> None:
     """Show GPD version."""
-    console.print(f"gpd {gpd.__version__}")
+    _print_version()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # install — Install GPD into a runtime
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _render_gpd_banner(version: str) -> str:
-    lines = (
-        "  ____ ____  ____      ∿  λ  ∫",
-        " / ___|  _ \\|  _ \\     Get Physics Done",
-        " | |  _| |_) | | | |    Open-source AI copilot for physics research",
-        " | |_| |  __/| |_| |    Claude Code · Gemini CLI · Codex · OpenCode",
-        f"  \\____|_|   |____/     v{version}",
-    )
-    width = max(len(line) for line in lines)
-    border = "─" * (width + 2)
-    body = [f"│ {line.ljust(width)} │" for line in lines]
-    return "\n".join((f"╭{border}╮", *body, f"╰{border}╯"))
+_GPD_BANNER = r"""
+ ██████╗ ██████╗ ██████╗
+██╔════╝ ██╔══██╗██╔══██╗
+██║  ███╗██████╔╝██║  ██║
+██║   ██║██╔═══╝ ██║  ██║
+╚██████╔╝██║     ██████╔╝
+ ╚═════╝ ╚═╝     ╚═════╝
+"""
 
 
 def _prompt_runtimes() -> list[str]:
@@ -2029,8 +2072,8 @@ def install(
         selected = list(runtimes)
     else:
         # Interactive mode
-        console.print(_render_gpd_banner(gpd.__version__), style="bold blue")
-        console.print()
+        console.print(_GPD_BANNER, style="bold blue")
+        console.print(f"[bold]GPD v{gpd.__version__}[/] — Get Physics Done\n")
         selected = _prompt_runtimes()
 
     # Resolve location

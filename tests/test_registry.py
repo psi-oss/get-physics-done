@@ -260,6 +260,16 @@ class TestDiscovery:
         assert "my-cmd" in result
         assert "gpd:my-cmd" not in result
 
+    def test_command_name_mismatch_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text("---\nname: gpd:plan-phase\n---\nBody.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+
+        with pytest.raises(ValueError, match="does not match file stem"):
+            registry._discover_commands()
+
     def test_agents_keyed_by_declared_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()

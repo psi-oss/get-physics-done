@@ -119,6 +119,18 @@ class TestResolutionCheck:
         passes, msg = check_figure_resolution(png, "prl")
         assert passes is False
 
+    def test_check_resolution_double_column_uses_double_width(self, tmp_path):
+        png = tmp_path / "wide-ish.png"
+        Image.new("RGB", (2500, 50)).save(png)
+
+        single_passes, single_msg = check_figure_resolution(png, "prl")
+        double_passes, double_msg = check_figure_resolution(png, "prl", double_column=True)
+
+        assert single_passes is True
+        assert "single-column" in single_msg
+        assert double_passes is False
+        assert "double-column" in double_msg
+
 
 # ---- LaTeX generation ----
 
@@ -172,3 +184,19 @@ class TestPrepare:
         for fig in result:
             assert fig.path.exists()
             assert fig.path.parent == out
+
+    def test_prepare_figures_warns_for_underresolved_double_column(self, tmp_path, caplog):
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        src = input_dir / "wide-ish.png"
+        Image.new("RGB", (2500, 100), color="green").save(src)
+
+        figures = [
+            FigureRef(path=src, caption="Wide Fig", label="wide", double_column=True),
+        ]
+
+        with caplog.at_level("WARNING"):
+            result = prepare_figures(figures, tmp_path / "output", "prl")
+
+        assert len(result) == 1
+        assert any("double-column width" in message for message in caplog.messages)

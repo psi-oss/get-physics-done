@@ -285,6 +285,21 @@ def copy_agents_as_agent_files(
 # ---------------------------------------------------------------------------
 
 
+def _opencode_managed_permission_key(config_dir: Path) -> str:
+    """Return the exact permission key managed by GPD for *config_dir*."""
+    actual_config_dir = config_dir.expanduser()
+    default_config_dir = (Path.home() / ".config" / "opencode").expanduser()
+    try:
+        is_default_config_dir = actual_config_dir.resolve() == default_config_dir.resolve()
+    except OSError:
+        is_default_config_dir = actual_config_dir == default_config_dir
+
+    if is_default_config_dir:
+        return "~/.config/opencode/get-physics-done/*"
+
+    return f"{actual_config_dir.as_posix()}/get-physics-done/*"
+
+
 def configure_opencode_permissions(config_dir: Path) -> bool:
     """Configure OpenCode permissions to allow reading GPD reference docs.
 
@@ -306,12 +321,7 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     if "permission" not in config or not isinstance(config["permission"], dict):
         config["permission"] = {}
 
-    # Build the GPD path using the actual config directory
-    default_config_dir = Path.home() / ".config" / "opencode"
-    if config_dir == default_config_dir:
-        gpd_path = "~/.config/opencode/get-physics-done/*"
-    else:
-        gpd_path = f"{str(config_dir).replace(os.sep, '/')}/get-physics-done/*"
+    gpd_path = _opencode_managed_permission_key(config_dir)
 
     modified = False
 
@@ -591,12 +601,12 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         modified = False
 
         if oc_config is not None and isinstance(oc_config.get("permission"), dict):
+            managed_key = _opencode_managed_permission_key(oc_config_dir)
             for perm_type in ("read", "external_directory"):
                 perm_dict = oc_config["permission"].get(perm_type)
                 if isinstance(perm_dict, dict):
-                    keys_to_remove = [k for k in perm_dict if "get-physics-done" in k]
-                    for k in keys_to_remove:
-                        del perm_dict[k]
+                    if managed_key in perm_dict:
+                        del perm_dict[managed_key]
                         modified = True
                     if not perm_dict:
                         del oc_config["permission"][perm_type]

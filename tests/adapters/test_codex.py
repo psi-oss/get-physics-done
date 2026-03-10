@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -261,6 +262,38 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_global_uninstall_uses_manifest_skills_dir_when_env_drifts(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        original_shared_skills = tmp_path / "shared-skills-a"
+        monkeypatch.setenv("CODEX_CONFIG_DIR", str(target))
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(original_shared_skills))
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        assert manifest["codex_skills_dir"] == str(original_shared_skills)
+
+        drifted_shared_skills = tmp_path / "shared-skills-b"
+        preserved_skill = drifted_shared_skills / "gpd-foreign"
+        preserved_skill.mkdir(parents=True)
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(drifted_shared_skills))
+
+        adapter.uninstall(target)
+
+        assert not any(
+            entry.is_dir() and entry.name.startswith("gpd-")
+            for entry in original_shared_skills.iterdir()
+        )
+        assert (preserved_skill / "SKILL.md").exists()
+
     def test_local_uninstall_uses_target_skills_dir_by_default(
         self,
         adapter: CodexAdapter,

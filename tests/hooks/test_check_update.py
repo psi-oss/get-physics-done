@@ -18,6 +18,7 @@ from gpd.hooks.check_update import (
     _read_installed_version,
     main,
 )
+from gpd.hooks.runtime_detect import RUNTIME_CODEX
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -50,6 +51,15 @@ class TestIsOlderThan:
         # "0.0.0" vs any real version
         assert _is_older_than("0.0.0", "0.1.0") is True
 
+    def test_pep440_dev_release_is_older_than_final(self) -> None:
+        assert _is_older_than("1.2.3.dev4", "1.2.3") is True
+
+    def test_pep440_rc_is_older_than_final(self) -> None:
+        assert _is_older_than("2.0.0rc1", "2.0.0") is True
+
+    def test_pep440_post_release_is_not_older_than_base_release(self) -> None:
+        assert _is_older_than("1.2.3.post1", "1.2.3") is False
+
 
 # ─── _read_installed_version ───────────────────────────────────────────────
 
@@ -81,6 +91,29 @@ class TestReadInstalledVersion:
             patch("gpd.hooks.check_update._version_files", return_value=[]),
         ):
             assert _read_installed_version() == "0.0.0"
+
+    def test_pep440_dev_metadata_version_is_retained(self) -> None:
+        """Real PEP 440 dev releases are valid installed versions, not fallback sentinels."""
+        with patch("gpd.version.__version__", "1.2.3.dev4"):
+            assert _read_installed_version() == "1.2.3.dev4"
+
+    def test_version_file_fallback_prefers_active_runtime(self, tmp_path: Path) -> None:
+        """Fallback VERSION scan checks the active runtime's install before unrelated runtimes."""
+        home = tmp_path / "home"
+        claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
+        codex_version = home / ".codex" / "get-physics-done" / "VERSION"
+        claude_version.parent.mkdir(parents=True)
+        codex_version.parent.mkdir(parents=True)
+        claude_version.write_text("1.0.0\n")
+        codex_version.write_text("2.0.0\n")
+
+        with (
+            patch("gpd.version.__version__", "0.0.0-dev"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_installed_version() == "2.0.0"
 
 
 # ─── _do_check — PyPI unreachable ─────────────────────────────────────────
@@ -117,13 +150,14 @@ class TestDoCheck:
 
         with (
             patch("gpd.hooks.check_update._read_installed_version", return_value="1.0.0"),
-            patch("urllib.request.urlopen", return_value=mock_resp),
+            patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen,
         ):
             _do_check(cache_file)
 
         cache = json.loads(cache_file.read_text())
         assert cache["update_available"] is True
         assert cache["latest"] == "2.0.0"
+        assert mock_urlopen.call_args.args[0] == "https://pypi.org/pypi/get-physics-done/json"
 
     def test_pypi_returns_same_version(self, tmp_path: Path) -> None:
         """When PyPI returns same version, update_available=False."""

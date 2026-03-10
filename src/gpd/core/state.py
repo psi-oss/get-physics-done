@@ -1222,12 +1222,10 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         if parsed.get("metrics") and len(parsed["metrics"]) > 0:
             merged["performance_metrics"] = {"rows": parsed["metrics"]}
 
-        # Bullet sections: only populate from MD when JSON has no data
+        # Bullet sections are fully represented in markdown, so markdown wins.
         for field in ("active_calculations", "intermediate_results", "open_questions"):
-            parsed_list = parsed.get(field) or []
-            existing_list = merged.get(field) or []
-            if parsed_list and not existing_list:
-                merged[field] = parsed_list
+            if field in parsed:
+                merged[field] = parsed.get(field) or []
     else:
         merged = ensure_state_schema(parsed)
 
