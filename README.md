@@ -2,6 +2,8 @@
 
 ### Built by physicists, for physicists
 
+[![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
+
 Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
