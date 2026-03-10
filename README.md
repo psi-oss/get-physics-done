@@ -145,6 +145,7 @@ gpd view
 
 - The integrated terminal `gpd session` launcher currently supports Claude Code only.
 - On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
+- On Codex, subagent support currently requires launching Codex from the CLI and enabling `/experimental`.
 - `gpd view` remains available from the terminal on any install.
 
 ## Citation

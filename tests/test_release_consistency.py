@@ -197,6 +197,7 @@ def test_public_docs_note_current_terminal_cli_limitations() -> None:
     assert "## Known Limitations" in readme
     assert "The integrated terminal `gpd session` launcher currently supports Claude Code only." in readme
     assert "On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly." in readme
+    assert "On Codex, subagent support currently requires launching Codex from the CLI and enabling `/experimental`." in readme
 
 
 def test_standard_install_includes_viewer_surface_dependencies() -> None:
