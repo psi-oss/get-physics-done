@@ -25,6 +25,12 @@ Bootstrap prerequisites:
 Install GPD with `npx`:
 
 ```bash
+npx -y get-physics-done
+```
+
+Or install directly from GitHub:
+
+```bash
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
@@ -33,26 +39,26 @@ The `-y` skips npm's package-install confirmation prompt. That command checks fo
 If you want to skip the prompts, pass the runtime selection and scope directly:
 
 ```bash
-npx -y github:physicalsuperintelligence/get-physics-done --claude --global
+npx -y get-physics-done --claude --global
 ```
 
 To install every supported runtime in one pass:
 
 ```bash
-npx -y github:physicalsuperintelligence/get-physics-done --all --global
+npx -y get-physics-done --all --global
 ```
 
 For a project-local install instead of a global one:
 
 ```bash
-npx -y github:physicalsuperintelligence/get-physics-done --codex --local
+npx -y get-physics-done --codex --local
 ```
 
 To refresh an existing managed environment, you can either reinstall the matching release or upgrade directly from the latest GitHub `main` source:
 
 ```bash
-npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local
-npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local
+npx -y get-physics-done --reinstall --claude --local
+npx -y get-physics-done --upgrade --claude --local
 ```
 
 `--reinstall` force-reinstalls the matching Python package into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.

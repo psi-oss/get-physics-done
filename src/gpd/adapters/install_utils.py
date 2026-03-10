@@ -975,7 +975,7 @@ def validate_package_integrity(gpd_root: Path) -> None:
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
                 f"Package integrity check failed: missing {required}/. "
-                "Try reinstalling: npx -y github:physicalsuperintelligence/get-physics-done"
+                "Try reinstalling: npx -y get-physics-done"
             )
 
 

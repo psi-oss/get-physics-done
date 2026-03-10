@@ -50,10 +50,10 @@ class TestRegistry:
     @pytest.mark.parametrize(
         ("runtime", "expected"),
         [
-            ("claude-code", "npx -y github:physicalsuperintelligence/get-physics-done --claude"),
-            ("codex", "npx -y github:physicalsuperintelligence/get-physics-done --codex"),
-            ("gemini", "npx -y github:physicalsuperintelligence/get-physics-done --gemini"),
-            ("opencode", "npx -y github:physicalsuperintelligence/get-physics-done --opencode"),
+            ("claude-code", "npx -y get-physics-done --claude"),
+            ("codex", "npx -y get-physics-done --codex"),
+            ("gemini", "npx -y get-physics-done --gemini"),
+            ("opencode", "npx -y get-physics-done --opencode"),
         ],
     )
     def test_update_command_is_adapter_owned(self, runtime: str, expected: str) -> None:

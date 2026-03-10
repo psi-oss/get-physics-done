@@ -337,7 +337,7 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        assert "npx -y github:physicalsuperintelligence/get-physics-done" in result
+        assert "npx -y get-physics-done" in result
 
 
 # ─── main() integration ───────────────────────────────────────────────────

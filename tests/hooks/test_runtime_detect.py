@@ -350,7 +350,7 @@ class TestUpdateCommand:
     """Tests for update_command_for_runtime."""
 
     def test_unknown_runtime_uses_plain_bootstrap_command(self) -> None:
-        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y github:physicalsuperintelligence/get-physics-done"
+        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y get-physics-done"
 
     def test_claude_runtime_uses_claude_flag(self) -> None:
         assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(" --claude")

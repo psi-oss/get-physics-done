@@ -145,9 +145,9 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
     assert "`--codex`" in readme
     assert "`--opencode`" in readme
     assert "`--all`" in readme
-    assert "npx -y github:physicalsuperintelligence/get-physics-done --all --global" in readme
-    assert "npx -y github:physicalsuperintelligence/get-physics-done --codex --local" in content
-    assert "npx -y github:physicalsuperintelligence/get-physics-done --opencode --global" in content
+    assert "npx -y get-physics-done --all --global" in readme
+    assert "npx -y get-physics-done --codex --local" in content
+    assert "npx -y get-physics-done --opencode --global" in content
     assert 'args.includes("--all")' in content
     assert 'args.includes("--claude")' in content
     assert 'args.includes("--gemini")' in content
@@ -165,8 +165,8 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
 
     assert "`--reinstall`" in readme
     assert "`--upgrade`" in readme
-    assert "npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local" in readme
-    assert "npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local" in readme
+    assert "npx -y get-physics-done --reinstall --claude --local" in readme
+    assert "npx -y get-physics-done --upgrade --claude --local" in readme
     assert "--reinstall" in content
     assert "--upgrade" in content
     assert "Reinstall the matching Python release in ~/.gpd/venv" in content
@@ -195,7 +195,7 @@ def test_public_cli_surface_is_unified() -> None:
 
 def test_install_docs_use_only_public_npx_flow() -> None:
     repo_root = _repo_root()
-    npx_command = "npx -y github:physicalsuperintelligence/get-physics-done"
+    npx_command = "npx -y get-physics-done"
     disallowed_markers = (
         "uv tool install",
         "python3 -m pip install",
@@ -301,7 +301,7 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
 
     repo_root = _repo_root()
-    expected = "npx -y github:physicalsuperintelligence/get-physics-done"
+    expected = "npx -y get-physics-done"
     stale_markers = (
         "packages/gpd",
         "uv pip install -e",
@@ -328,7 +328,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "uv run pytest tests/test_release_consistency.py -v" in content
     assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
     assert "Cross-runtime release checks:" in content
-    assert "Public install docs should use `npx -y github:physicalsuperintelligence/get-physics-done`." in content
+    assert "Public install docs should use `npx -y get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
 
 

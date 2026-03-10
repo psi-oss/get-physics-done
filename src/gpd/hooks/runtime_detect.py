@@ -195,7 +195,7 @@ def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
         RUNTIME_OPENCODE: "--opencode",
     }
     install_flag = install_flag_map.get(runtime)
-    base = "npx -y github:physicalsuperintelligence/get-physics-done"
+    base = "npx -y get-physics-done"
     if install_flag is None:
         return base
 

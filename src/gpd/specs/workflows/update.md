@@ -42,7 +42,7 @@ PY
   esac
 fi
 
-UPDATE_COMMAND="npx -y github:physicalsuperintelligence/get-physics-done $GPD_RUNTIME_FLAG $INSTALL_SCOPE$TARGET_DIR_ARG"
+UPDATE_COMMAND="npx -y get-physics-done $GPD_RUNTIME_FLAG $INSTALL_SCOPE$TARGET_DIR_ARG"
 PATCH_META="$GPD_CONFIG_DIR/gpd-local-patches/backup-meta.json"
 
 printf '%s\n%s\n%s\n%s\n%s\n' \
