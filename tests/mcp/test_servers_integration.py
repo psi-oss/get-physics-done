@@ -447,6 +447,16 @@ class TestProtocolsServerIntegration:
         names = [p["name"] for p in result["protocols"]]
         assert "perturbation-theory" in names
 
+    def test_route_protocol_finds_string_field_theory(self):
+        from gpd.mcp.servers.protocols_server import route_protocol
+
+        result = route_protocol("open superstring field theory tachyon condensation")
+
+        assert isinstance(result, dict)
+        assert result["match_count"] >= 1
+        names = [p["name"] for p in result["protocols"]]
+        assert "string-field-theory" in names
+
 
 # ===========================================================================
 # 6. Patterns Server

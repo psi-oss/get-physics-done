@@ -10,7 +10,7 @@ context_cost: medium
 
 # Verification Quick Reference
 
-Compact reference for physics verification. For full procedures, worked examples, and code templates, see the modular verification files: `verification-core.md` (universal checks), `verification-numerical.md` (convergence/statistics), `verification-domain-qft.md` (QFT/particle), `verification-domain-condmat.md` (condensed matter), `verification-domain-statmech.md` (stat mech/cosmo), `verification-domain-gr-cosmology.md` (GR/cosmology), `verification-domain-amo.md` (AMO/quantum optics), `verification-domain-nuclear-particle.md` (nuclear/particle), `verification-domain-astrophysics.md` (astrophysics/stellar), `verification-domain-mathematical-physics.md` (mathematical physics), `verification-domain-quantum-info.md` (quantum information/computing), `verification-domain-soft-matter.md` (soft matter/biophysics), `verification-domain-fluid-plasma.md` (fluid dynamics/MHD/plasma).
+Compact reference for physics verification. For full procedures, worked examples, and code templates, see the modular verification files: `verification-core.md` (universal checks), `verification-numerical.md` (convergence/statistics), `verification-domain-qft.md` (QFT/particle), `verification-domain-condmat.md` (condensed matter), `verification-domain-statmech.md` (stat mech/cosmo), `verification-domain-gr-cosmology.md` (GR/cosmology), `verification-domain-amo.md` (AMO/quantum optics), `verification-domain-nuclear-particle.md` (nuclear/particle), `verification-domain-astrophysics.md` (astrophysics/stellar), `verification-domain-mathematical-physics.md` (mathematical physics), `verification-domain-string-field-theory.md` (string field theory), `verification-domain-quantum-info.md` (quantum information/computing), `verification-domain-soft-matter.md` (soft matter/biophysics), `verification-domain-fluid-plasma.md` (fluid dynamics/MHD/plasma).
 
 ---
 
@@ -135,6 +135,12 @@ Don't wait until the end. Validate after every intermediate step:
 - Fidelity F ∈ [0,1]
 - No-cloning: any apparent cloning must violate unitarity
 
+### String Field Theory
+- `Q_B^2 = 0` in the chosen background and Hilbert space
+- Ghost number and picture number match every field, vertex, and gauge parameter
+- Gauge-invariant observables stabilize under increasing truncation level
+- Tachyon-vacuum or marginal-deformation benchmarks match canonical SFT results
+
 ---
 
 ## Common LLM Error Patterns (Top 5)
@@ -155,6 +161,7 @@ For the full catalog of 101 LLM physics error classes, see `llm-physics-errors.m
 - `verification-core.md` — Universal checks: dimensional analysis, limiting cases, conservation laws, symmetry
 - `verification-numerical.md` — Convergence testing, statistical validation, automated verification
 - `verification-domain-qft.md` — QFT, particle physics, GR, mathematical physics checks
+- `verification-domain-string-field-theory.md` — String field theory, BRST, ghost/picture, truncation checks
 - `verification-domain-condmat.md` — Condensed matter, quantum information, AMO checks
 - `verification-domain-statmech.md` — Statistical mechanics, cosmology checks
 - `verification-domain-fluid-plasma.md` — Fluid dynamics, MHD, plasma physics checks

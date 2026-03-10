@@ -68,6 +68,7 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
 - `conformal-bootstrap.md` -- CFT data extraction, crossing equations, SDPB, mixed correlators
+- `string-field-theory.md` -- Off-shell string interactions, BRST/BV structure, level truncation, benchmark observables
 - `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
 
 Use these as starting scaffolds when the research project matches a known type. Adapt the phase structure to the specific research objectives.
@@ -238,6 +239,7 @@ Which categories depend on others?
 **Domain-specific phase templates:** For projects in well-defined subfields, consult the project-type template for domain-specific phase structures, mode adjustments (explore/exploit), common pitfalls, and verification patterns:
 - `{GPD_INSTALL_DIR}/templates/project-types/qft-calculation.md` -- QFT: Feynman rules, regularization, renormalization, cross sections
 - `{GPD_INSTALL_DIR}/templates/project-types/conformal-bootstrap.md` -- CFT: crossing equations, conformal blocks, SDPB, spectrum extraction
+- `{GPD_INSTALL_DIR}/templates/project-types/string-field-theory.md` -- SFT: BRST/cohomology, homotopy algebra, gauge fixing, level truncation, tachyon or amplitude benchmarks
 - `{GPD_INSTALL_DIR}/templates/project-types/stat-mech-simulation.md` -- Stat mech: algorithm design, equilibration, production, finite-size scaling
 - Other subfields: `{GPD_INSTALL_DIR}/templates/project-types/` (amo, condensed-matter, cosmology, general-relativity, etc.)
 
