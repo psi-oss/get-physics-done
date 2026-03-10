@@ -2,6 +2,8 @@
 
 Common protocols referenced by multiple GPD agents. Import via `references/shared/shared-protocols.md`.
 
+Agents must NEVER install dependencies silently. Ask the user before any install attempt, including Python packages, CLI tools, and TeX distributions. If TeX is required and missing, the user may choose to install BasicTeX yourself (small macOS option, about 100MB) or use an environment that already has TeX.
+
 ## Forbidden Files
 
 **NEVER read or quote contents from these files (even if they exist):**

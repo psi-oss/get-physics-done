@@ -536,7 +536,7 @@ Structure and write a physics paper from research results.
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Generates LaTeX with proper equations, figures, and citations
 - Spawns gpd-bibliographer to verify all references
-- Spawns gpd-referee for pre-submission mock peer review
+- Runs the staged peer-review panel with gpd-referee as final adjudicator
 - Supports revision mode for referee responses (bounded 3-iteration loop)
 
 Usage: `/gpd:write-paper "Critical exponents via RG"`
@@ -547,8 +547,8 @@ Run standalone skeptical peer review on an existing manuscript.
 
 - Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
 - Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
-- Spawns gpd-referee as a dedicated manuscript reviewer
-- Produces `.gpd/REFEREE-REPORT.md` plus `.gpd/REFEREE-REPORT.tex` (or revision-round follow-up pairs)
+- Spawns a six-agent review panel: reader, literature, math, physics, significance, and final gpd-referee adjudicator
+- Produces stage artifacts under `.gpd/review/` plus `.gpd/REFEREE-REPORT.md` and `.gpd/REFEREE-REPORT.tex` (or revision-round follow-up pairs)
 - Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
 
 Usage: `/gpd:peer-review`

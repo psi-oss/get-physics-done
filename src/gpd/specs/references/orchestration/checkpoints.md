@@ -461,13 +461,13 @@ I'll verify: API returns band structure data for target compounds
 
 | Tool         | Auto-install?      | Command                              |
 | ------------ | ------------------ | ------------------------------------ |
-| pip packages | Yes                | `pip install numpy scipy matplotlib` |
-| uv packages  | Yes                | `uv add package-name`                |
+| pip packages | Ask user first     | `pip install numpy scipy matplotlib` |
+| uv packages  | Ask user first     | `uv add package-name`                |
 | LaTeX        | No - ask user      | Platform-dependent (texlive, mactex) |
 | Mathematica  | No - licensed      | User must have license               |
 | HPC tools    | No - institutional | User must have access                |
 
-**Protocol:** Try tool -> "not found" -> auto-installable? -> yes: install silently, retry -> no: checkpoint asking user to install.
+**Protocol:** Try tool -> "not found" -> ask the user before any install attempt -> if approved, install and retry -> if not approved, checkpoint with the missing-tool guidance.
 
 ## Pre-Checkpoint Computation Failures
 
@@ -475,7 +475,7 @@ I'll verify: API returns band structure data for target compounds
 | --------------------------- | ------------------------------------------------------------------------- |
 | Numerical instability       | Check parameters, add regularization, retry (don't proceed to checkpoint) |
 | Convergence failure         | Adjust tolerance or initial conditions, retry                             |
-| Missing dependency          | Install via pip/uv, retry                                                 |
+| Missing dependency          | Ask user before install; if approved, install via pip/uv and retry        |
 | Derivation error            | Fix the algebra first (bug, not checkpoint issue)                         |
 | Auth error                  | Create auth gate checkpoint                                               |
 | Timeout on long computation | Optimize algorithm or reduce problem size, then retry                     |

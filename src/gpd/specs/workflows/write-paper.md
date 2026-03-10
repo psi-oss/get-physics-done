@@ -770,58 +770,29 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
   </step>
 
 <step name="pre_submission_review">
-Before finalizing, spawn the referee agent for a mock peer review of the draft paper. This catches issues a real reviewer would raise before the author commits to the manuscript.
+Before finalizing, run the same staged peer-review panel used by `/gpd:peer-review`. Do not fall back to a single generalist referee pass here, because that is precisely the failure mode this workflow is meant to avoid.
 
-**Standalone entrypoint:** `/gpd:peer-review` is the first-class command for re-running this stage outside the write-paper pipeline. This embedded step should stay behaviorally aligned with that command.
+**Standalone entrypoint:** `/gpd:peer-review` is the first-class command for re-running this stage outside the write-paper pipeline. This embedded step must stay behaviorally aligned with that command and use the same six-agent panel:
 
-Resolve referee model:
+1. `gpd-review-reader`
+2. `gpd-review-literature`
+3. `gpd-review-math`
+4. `gpd-review-physics`
+5. `gpd-review-significance`
+6. `gpd-referee` as final adjudicator
 
-```bash
-REFEREE_MODEL=$(gpd resolve-model gpd-referee --raw)
-```
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+For the detailed staging, artifact naming, round handling, `CLAIMS.json` / `STAGE-*.json` outputs, `REVIEW-LEDGER.json`, `REFEREE-DECISION.json`, and recommendation guardrails, follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using `paper/main.tex` as the resolved target and the current draft's bibliography and audit artifacts.
 
-```
-task(
-  subagent_type="gpd-referee",
-  model="{referee_model}",
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
+**If the staged panel fails:** Do not silently waive the review. Note the failure and recommend running `/gpd:peer-review` directly after resolving the blocking issue.
 
-Conduct a pre-submission mock peer review of the draft paper.
-
-Scope: Manuscript review
-Target journal: {target_journal}
-
-Files to read:
-- paper/main.tex and all paper/*.tex section files
-- references/references.bib or paper/references.bib (whichever exists)
-- paper/CITATION-AUDIT.md (if exists)
-- .gpd/phases/*/SUMMARY.md (for research context)
-- .gpd/STATE.md (for conventions and notation)
-
-Evaluate across all 10 dimensions with emphasis on:
-1. Correctness -- dimensional analysis, limiting cases, sign conventions in all equations
-2. Completeness -- all promised results delivered, error analysis present
-3. Clarity -- logical flow, notation consistency, figures discussed
-4. Literature context -- proper citations, comparison with prior work
-5. Publishability -- overall assessment for {target_journal}
-
-Write `.gpd/REFEREE-REPORT.md` and the matching `.gpd/REFEREE-REPORT.tex` companion.
-
-Return REVIEW COMPLETE with recommendation and issue counts."
-)
-```
-
-**If the referee agent fails to spawn or returns an error:** Proceed to final review without mock peer review — note in the paper status. The user should run `/gpd:verify-work` separately after the paper is written.
-
-**After referee report:**
+**After final adjudication:**
 
 Read `.gpd/REFEREE-REPORT.md` and assess the findings:
 
-- **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to final_review. Note minor issues for the user.
+- **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to `final_review`. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
   1. Address the issues now (spawn paper-writer agents to revise affected sections)
-  2. Proceed to final_review anyway (accept the issues as known limitations)
+  2. Proceed to `final_review` anyway (accept the issues as known limitations)
   3. Stop and return to research phases to fix underlying problems
 </step>
 

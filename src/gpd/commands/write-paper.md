@@ -18,9 +18,9 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Structure and write a physics paper from completed research results. Handles the full pipeline from research digest through polished draft: paper-readiness audit, scope and outline, figure generation, wave-parallelized section drafting, notation audit, bibliography verification, pre-submission mock peer review, and revision handling.
+Structure and write a physics paper from completed research results. Handles the full pipeline from research digest through polished draft: paper-readiness audit, scope and outline, figure generation, wave-parallelized section drafting, notation audit, bibliography verification, staged pre-submission peer review, and revision handling.
 
-**Orchestrator role:** Establish paper scope and structure, spawn gpd-paper-writer agents for section drafting (wave-parallelized), gpd-bibliographer for citation verification, gpd-referee for mock peer review, coordinate revisions, ensure internal consistency.
+**Orchestrator role:** Establish paper scope and structure, spawn gpd-paper-writer agents for section drafting (wave-parallelized), gpd-bibliographer for citation verification, run the staged peer-review panel (`gpd-review-reader`, `gpd-review-literature`, `gpd-review-math`, `gpd-review-physics`, `gpd-review-significance`, then `gpd-referee` as final adjudicator), coordinate revisions, ensure internal consistency.
 
 **Why subagent:** Paper writing requires holding the full research context while drafting coherent prose. Each section needs access to derivations, numerical results, and literature context. Fresh 200k context per section ensures quality. Main context coordinates the overall structure.
 
@@ -36,7 +36,7 @@ Routes to the write-paper workflow which handles all logic including:
 6. LaTeX compilation checks after each wave (if pdflatex available)
 7. Consistency check, notation audit, and RESULT PENDING placeholder resolution
 8. Bibliography verification via gpd-bibliographer
-9. Pre-submission mock peer review via gpd-referee
+9. Pre-submission staged peer review via specialist panel plus final gpd-referee adjudication
 10. Bounded revision loop (max 3 iterations) for addressing referee issues
 </objective>
 
@@ -90,7 +90,7 @@ The workflow handles all logic including:
 10. **Consistency check** — Notation audit, cross-reference audit, placeholder resolution (RESULT PENDING markers), physics consistency, narrative flow
 11. **Notation audit** — Cross-reference all symbols against NOTATION_GLOSSARY.md (if exists)
 12. **Verify references** — Spawn gpd-bibliographer to verify all citations against INSPIRE/ADS/arXiv, detect orphans, check formatting
-13. **Pre-submission review** — Spawn gpd-referee for mock peer review across 10 dimensions
+13. **Pre-submission review** — Run the same staged peer-review panel used by `/gpd:peer-review`
 14. **Final review** — Abstract standalone check, equation proofread, figure references, word/page count
 15. **Paper revision** — Bounded revision loop (max 3 iterations) for addressing referee issues; spawns paper-writer agents for targeted section fixes
 
@@ -106,7 +106,7 @@ For a standalone rerun of the referee stage after the manuscript already exists,
 - [ ] Every equation numbered, defined, and contextualized
 - [ ] Every figure captioned and discussed in text
 - [ ] Citations verified via gpd-bibliographer (no hallucinated references)
-- [ ] Pre-submission mock peer review completed via gpd-referee
+- [ ] Pre-submission staged peer review completed with final gpd-referee adjudication
 - [ ] Internal consistency verified (notation, cross-references, conventions)
 - [ ] Paper directory created with buildable LaTeX structure
 </success_criteria>

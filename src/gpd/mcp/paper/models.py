@@ -1,7 +1,8 @@
-"""Pydantic models for paper configuration, output, and metadata."""
+"""Pydantic models for paper configuration, output, and review metadata."""
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
@@ -63,6 +64,166 @@ class ArtifactManifest(BaseModel):
     journal: str
     created_at: str
     artifacts: list[ArtifactRecord] = Field(default_factory=list)
+
+
+class ClaimType(StrEnum):
+    """Types of manuscript claims that deserve explicit referee scrutiny."""
+
+    main_result = "main_result"
+    novelty = "novelty"
+    significance = "significance"
+    physical_interpretation = "physical_interpretation"
+    generality = "generality"
+    method = "method"
+
+
+class ReviewStageKind(StrEnum):
+    """Staged peer-review passes for fresh-context reviewers."""
+
+    reader = "reader"
+    literature = "literature"
+    math = "math"
+    physics = "physics"
+    interestingness = "interestingness"
+    meta = "meta"
+
+
+class ReviewRecommendation(StrEnum):
+    """Canonical referee recommendations."""
+
+    accept = "accept"
+    minor_revision = "minor_revision"
+    major_revision = "major_revision"
+    reject = "reject"
+
+
+class ReviewConfidence(StrEnum):
+    """Confidence tag for staged review outputs."""
+
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+
+class ReviewIssueSeverity(StrEnum):
+    """Severity levels for staged review findings."""
+
+    critical = "critical"
+    major = "major"
+    minor = "minor"
+    suggestion = "suggestion"
+
+
+class ReviewSupportStatus(StrEnum):
+    """Whether a claim is actually supported by the cited manuscript evidence."""
+
+    supported = "supported"
+    partially_supported = "partially_supported"
+    unsupported = "unsupported"
+    unclear = "unclear"
+
+
+class ReviewIssueStatus(StrEnum):
+    """Lifecycle status for an issue in the review ledger."""
+
+    open = "open"
+    carried_forward = "carried_forward"
+    resolved = "resolved"
+
+
+class ClaimRecord(BaseModel):
+    """Compact claim index emitted before specialist review passes."""
+
+    claim_id: str
+    claim_type: ClaimType
+    text: str
+    artifact_path: str
+    section: str = ""
+    equation_refs: list[str] = Field(default_factory=list)
+    figure_refs: list[str] = Field(default_factory=list)
+    supporting_artifacts: list[str] = Field(default_factory=list)
+
+
+class ClaimIndex(BaseModel):
+    """Machine-readable index of manuscript claims for staged peer review."""
+
+    version: int = 1
+    manuscript_path: str
+    manuscript_sha256: str
+    claims: list[ClaimRecord] = Field(default_factory=list)
+
+
+class ReviewFinding(BaseModel):
+    """One staged-review finding tied to specific claims and evidence."""
+
+    issue_id: str = ""
+    claim_ids: list[str] = Field(default_factory=list)
+    severity: ReviewIssueSeverity
+    summary: str
+    rationale: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    manuscript_locations: list[str] = Field(default_factory=list)
+    support_status: ReviewSupportStatus = ReviewSupportStatus.unclear
+    blocking: bool = False
+    required_action: str = ""
+
+
+class StageReviewReport(BaseModel):
+    """Compact artifact written by one fresh-context review stage."""
+
+    version: int = 1
+    round: int = 1
+    stage_id: str
+    stage_kind: ReviewStageKind
+    manuscript_path: str
+    manuscript_sha256: str
+    claims_reviewed: list[str] = Field(default_factory=list)
+    summary: str
+    strengths: list[str] = Field(default_factory=list)
+    findings: list[ReviewFinding] = Field(default_factory=list)
+    confidence: ReviewConfidence
+    recommendation_ceiling: ReviewRecommendation
+
+
+class ReviewIssue(BaseModel):
+    """Issue carried into the canonical referee ledger."""
+
+    issue_id: str
+    opened_by_stage: ReviewStageKind
+    severity: ReviewIssueSeverity
+    blocking: bool = False
+    claim_ids: list[str] = Field(default_factory=list)
+    summary: str
+    rationale: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    required_action: str = ""
+    status: ReviewIssueStatus = ReviewIssueStatus.open
+
+
+class ReviewLedger(BaseModel):
+    """Persistent issue ledger shared between peer review and author response."""
+
+    version: int = 1
+    round: int = 1
+    manuscript_path: str
+    issues: list[ReviewIssue] = Field(default_factory=list)
+
+
+class ReviewPanelBundle(BaseModel):
+    """Bundle tying staged review artifacts to the final referee decision."""
+
+    version: int = 1
+    round: int = 1
+    manuscript_path: str
+    target_journal: str = "unspecified"
+    claim_index_path: str
+    stage_reports: list[str] = Field(default_factory=list)
+    review_ledger_path: str
+    decision_path: str
+    final_recommendation: ReviewRecommendation
+    final_confidence: ReviewConfidence
+    final_report_path: str
+    final_report_tex_path: str = ""
 
 
 class JournalSpec(BaseModel):

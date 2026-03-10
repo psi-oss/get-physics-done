@@ -2676,6 +2676,25 @@ def validate_paper_quality(
         raise typer.Exit(code=1)
 
 
+@validate_app.command("referee-decision")
+def validate_referee_decision(
+    input_path: str = typer.Argument(..., help="Path to a RefereeDecisionInput JSON file, or '-' for stdin"),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Require staged peer-review artifact coverage in addition to recommendation-floor consistency",
+    ),
+) -> None:
+    """Validate a staged peer-review decision against hard recommendation gates."""
+    from gpd.core.referee_policy import RefereeDecisionInput, evaluate_referee_decision
+
+    payload = _load_json_document(input_path)
+    report = evaluate_referee_decision(RefereeDecisionInput.model_validate(payload), strict=strict)
+    _output(report)
+    if not report.valid:
+        raise typer.Exit(code=1)
+
+
 @validate_app.command("reproducibility-manifest")
 def validate_reproducibility_manifest_cmd(
     input_path: str = typer.Argument(..., help="Path to a reproducibility-manifest JSON file, or '-' for stdin"),

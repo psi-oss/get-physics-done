@@ -75,8 +75,16 @@ The referee's strictness, scope of critique, and recommendation threshold change
 | **Strictness level** | Lenient: focus on fundamental correctness and novel insights. Accept incomplete results if direction is promising. | Standard: full 10-dimension evaluation. Expect complete verification and clear presentation. | Strict: publication-ready standards. Every claim must be verified, every approximation justified with bounds, every figure with error bars. | Lenient in early phases, strict in final phases |
 | **Novelty evaluation** | Emphasize: is the approach interesting? Could it lead somewhere new? | Standard: is the result new? How does it compare to prior work? | De-emphasize novelty, emphasize correctness and completeness. The approach is known; the question is whether it's executed correctly. | Evaluate novelty in explore, correctness in exploit |
 | **Missing analysis tolerance** | High: accept "future work" for secondary checks. Core result must be dimensionally consistent and have one limiting case. | Medium: expect 7-check verification floor. Missing Tier 4 checks noted but not blocking. | Low: all 15 verification checks required. Missing checks are major revisions. | Adapts with phase |
-| **Recommendation thresholds** | Accept with minor revisions if core physics is sound. Major revision only for fundamental errors. | Standard thresholds from referee rubric. | Accept only with no remaining issues. Any unresolved physics question → major revision. | Strict in final milestone, lenient otherwise |
+| **Recommendation thresholds** | Accept with minor revisions only if the manuscript is honest about being exploratory. If the physics story or significance is overstated, escalate to major revision. | Standard thresholds from referee rubric plus explicit checks on claim proportionality, physical support, and venue fit. | Accept only with no remaining issues. Any unresolved physics question or overstated claim → major revision or reject. | Strict in final milestone, lenient otherwise |
 | **Scope of critique** | Broad: comment on direction, methodology choice, alternative approaches. | Standard: correctness, completeness, presentation. | Narrow: is this specific result correct and well-presented? Don't question methodology choice. | Broad early, narrow late |
+
+**Hard override for manuscript peer review:** when the review scope is a manuscript or a target journal is named, venue standards dominate. `research_mode` may change how much evidence is likely to exist, but it may NOT lower the novelty, significance, claim-evidence, or venue-fit thresholds needed for `accept` or `minor_revision`.
+
+In manuscript review:
+
+- `minor_revision` is forbidden when central claims must be narrowed.
+- mathematically consistent but physically weak work is at least `major_revision`, and often `reject` for PRL/Nature-style venues.
+- unsupported physical connections or inflated significance claims are publication-relevant blockers, not stylistic issues.
 
 ### By Autonomy Mode
 

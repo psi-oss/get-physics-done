@@ -1,6 +1,8 @@
 # Paper Quality Scoring System
 
-Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:write-paper` to determine if the paper is ready for submission. Each category is scored independently; the total is a weighted sum.
+Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:write-paper` to determine if the paper is ready for submission packaging. Each category is scored independently; the total is a weighted sum.
+
+This is **not** the final referee-decision policy. A manuscript can score well on packaging/readiness and still deserve `major_revision` or `reject` if its novelty, significance, venue fit, or claim-evidence proportionality are weak. Those publication-judgment gates belong to the staged peer-review policy and `validate referee-decision`.
 
 ## Scoring Categories
 

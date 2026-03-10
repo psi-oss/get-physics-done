@@ -170,7 +170,7 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 
 Override with `/gpd:settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
 
-For full agent tier assignments across all 17 agents, see `references/orchestration/model-profiles.md`.
+For full agent tier assignments across all 22 agents, see `references/orchestration/model-profiles.md`.
 For detailed behavioral effect descriptions per agent per profile, see the "Behavioral Effects" section in `references/orchestration/model-profiles.md`.
 
 Next spawned agents will use the new profile.

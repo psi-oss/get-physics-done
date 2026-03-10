@@ -26,6 +26,11 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-planner | < 35% | 35-50% | 50-65% | > 65% | plan file | Large plan output (~5-8% per plan); keep plans concise |
 | gpd-plan-checker | < 35% | 35-50% | 50-65% | > 65% | plan check | Each verification dimension ~2-3%; exploratory (8 dims) vs comprehensive (15 dims) |
 | gpd-executor | < 40% | 40-55% | 55-70% | > 70% | task | Tracks both input and output; forced checkpoint at 50% regardless of task status |
+| gpd-review-reader | < 35% | 35-50% | 50-65% | > 65% | manuscript section | Full-manuscript reading stage; summarize claims early rather than hoarding text |
+| gpd-review-literature | < 35% | 35-50% | 50-60% | > 60% | claim cluster | Literature search results accumulate quickly; synthesize overlap after each claim cluster |
+| gpd-review-math | < 35% | 35-50% | 50-60% | > 60% | equation cluster | Keep only the 3-5 claim-central equations live; externalize side calculations immediately |
+| gpd-review-physics | < 35% | 35-50% | 50-60% | > 60% | physical claim cluster | Focus on regime-of-validity and claim-support tables rather than full derivation history |
+| gpd-review-significance | < 35% | 35-50% | 50-60% | > 60% | venue-fit dimension | Compare contribution vs venue bar explicitly; avoid retaining unnecessary derivation detail |
 | gpd-referee | < 40% | 40-50% | 50-65% | > 65% | evaluation dimension | Start with 5 critical dimensions, expand if budget allows |
 | gpd-bibliographer | < 40% | 40-55% | 55-70% | > 70% | reference verification | Each reference verified ~1-2%; batch verifications |
 | gpd-experiment-designer | < 40% | 40-55% | 55-70% | > 70% | design section | Standard consumption pattern |

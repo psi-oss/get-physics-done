@@ -21,8 +21,24 @@ COMMAND_SPAWN_TOKENS = {
     "plan-phase.md": ["gpd-planner", "gpd-plan-checker"],
     "quick.md": ["gpd-planner", "gpd-executor"],
     "research-phase.md": ["gpd-phase-researcher"],
-    "write-paper.md": ["gpd-paper-writer", "gpd-bibliographer", "gpd-referee"],
-    "peer-review.md": ["gpd-referee"],
+    "write-paper.md": [
+        "gpd-paper-writer",
+        "gpd-bibliographer",
+        "gpd-review-reader",
+        "gpd-review-literature",
+        "gpd-review-math",
+        "gpd-review-physics",
+        "gpd-review-significance",
+        "gpd-referee",
+    ],
+    "peer-review.md": [
+        "gpd-review-reader",
+        "gpd-review-literature",
+        "gpd-review-math",
+        "gpd-review-physics",
+        "gpd-review-significance",
+        "gpd-referee",
+    ],
 }
 
 WORKFLOW_SPAWN_TOKENS = {
@@ -37,6 +53,14 @@ WORKFLOW_SPAWN_TOKENS = {
     ],
     "verify-work.md": ["gpd-planner", "gpd-plan-checker"],
     "write-paper.md": ["gpd-paper-writer", "gpd-bibliographer", "gpd-referee"],
+    "peer-review.md": [
+        "gpd-review-reader",
+        "gpd-review-literature",
+        "gpd-review-math",
+        "gpd-review-physics",
+        "gpd-review-significance",
+        "gpd-referee",
+    ],
     "new-project.md": [
         "gpd-project-researcher",
         "gpd-research-synthesizer",
@@ -114,6 +138,35 @@ AGENT_REFERENCE_TOKENS = {
         "templates/latex-preamble.md",
         "references/publication/figure-generation-templates.md",
     ],
+    "gpd-review-reader.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/publication/peer-review-panel.md",
+    ],
+    "gpd-review-literature.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/publication/publication-pipeline-modes.md",
+        "references/publication/peer-review-panel.md",
+    ],
+    "gpd-review-math.md": [
+        "references/shared/shared-protocols.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/publication/peer-review-panel.md",
+    ],
+    "gpd-review-physics.md": [
+        "references/shared/shared-protocols.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/publication/peer-review-panel.md",
+    ],
+    "gpd-review-significance.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/publication/publication-pipeline-modes.md",
+        "references/publication/peer-review-panel.md",
+    ],
     "gpd-phase-researcher.md": [
         "references/shared/shared-protocols.md",
         "references/orchestration/agent-infrastructure.md",
@@ -158,6 +211,7 @@ AGENT_REFERENCE_TOKENS = {
         "references/physics-subfields.md",
         "references/verification/core/verification-core.md",
         "references/publication/publication-pipeline-modes.md",
+        "references/publication/peer-review-panel.md",
         "templates/paper/referee-report.tex",
     ],
     "gpd-research-synthesizer.md": [
@@ -321,7 +375,30 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert peer_review.review_contract.review_mode == "publication"
     assert ".gpd/REFEREE-REPORT.md" in peer_review.review_contract.required_outputs
     assert ".gpd/REFEREE-REPORT.tex" in peer_review.review_contract.required_outputs
+    assert ".gpd/review/CLAIMS.json" in peer_review.review_contract.required_outputs
+    assert ".gpd/review/STAGE-interestingness.json" in peer_review.review_contract.required_outputs
+    assert ".gpd/review/REFEREE-DECISION.json" in peer_review.review_contract.required_outputs
     assert "manuscript" in peer_review.review_contract.preflight_checks
+    assert peer_review.review_contract.stage_ids == [
+        "reader",
+        "literature",
+        "math",
+        "physics",
+        "interestingness",
+        "meta",
+    ]
+    assert peer_review.review_contract.requires_fresh_context_per_stage is True
+    assert peer_review.review_contract.stage_artifacts == [
+        ".gpd/review/CLAIMS.json",
+        ".gpd/review/STAGE-reader.json",
+        ".gpd/review/STAGE-literature.json",
+        ".gpd/review/STAGE-math.json",
+        ".gpd/review/STAGE-physics.json",
+        ".gpd/review/STAGE-interestingness.json",
+        ".gpd/review/REVIEW-LEDGER.json",
+        ".gpd/review/REFEREE-DECISION.json",
+    ]
+    assert peer_review.review_contract.final_decision_output == ".gpd/review/REFEREE-DECISION.json"
 
     assert verify_work.review_contract is not None
     assert verify_work.review_contract.required_state == "phase_executed"

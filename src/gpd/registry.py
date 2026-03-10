@@ -66,6 +66,11 @@ class ReviewCommandContract:
     required_evidence: list[str]
     blocking_conditions: list[str]
     preflight_checks: list[str]
+    stage_ids: list[str] = field(default_factory=list)
+    stage_artifacts: list[str] = field(default_factory=list)
+    final_decision_output: str = ""
+    requires_fresh_context_per_stage: bool = False
+    max_review_rounds: int = 0
     required_state: str = ""
     schema_version: int = 1
 
@@ -157,7 +162,19 @@ _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
     },
     "gpd:peer-review": {
         "review_mode": "publication",
-        "required_outputs": [".gpd/REFEREE-REPORT.md", ".gpd/REFEREE-REPORT.tex", ".gpd/CONSISTENCY-REPORT.md"],
+        "required_outputs": [
+            ".gpd/review/CLAIMS.json",
+            ".gpd/review/STAGE-reader.json",
+            ".gpd/review/STAGE-literature.json",
+            ".gpd/review/STAGE-math.json",
+            ".gpd/review/STAGE-physics.json",
+            ".gpd/review/STAGE-interestingness.json",
+            ".gpd/review/REVIEW-LEDGER.json",
+            ".gpd/review/REFEREE-DECISION.json",
+            ".gpd/REFEREE-REPORT.md",
+            ".gpd/REFEREE-REPORT.tex",
+            ".gpd/CONSISTENCY-REPORT.md",
+        ],
         "required_evidence": [
             "existing manuscript",
             "phase summaries or milestone digest",
@@ -165,6 +182,7 @@ _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
             "bibliography audit",
             "artifact manifest",
             "reproducibility manifest",
+            "stage review artifacts",
         ],
         "blocking_conditions": [
             "missing project state",
@@ -173,8 +191,24 @@ _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
             "missing manuscript",
             "no research artifacts",
             "degraded review integrity",
+            "unsupported physical significance claims",
+            "collapsed novelty or venue fit",
         ],
         "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts", "manuscript"],
+        "stage_ids": ["reader", "literature", "math", "physics", "interestingness", "meta"],
+        "stage_artifacts": [
+            ".gpd/review/CLAIMS.json",
+            ".gpd/review/STAGE-reader.json",
+            ".gpd/review/STAGE-literature.json",
+            ".gpd/review/STAGE-math.json",
+            ".gpd/review/STAGE-physics.json",
+            ".gpd/review/STAGE-interestingness.json",
+            ".gpd/review/REVIEW-LEDGER.json",
+            ".gpd/review/REFEREE-DECISION.json",
+        ],
+        "final_decision_output": ".gpd/review/REFEREE-DECISION.json",
+        "requires_fresh_context_per_stage": True,
+        "max_review_rounds": 3,
     },
     "gpd:verify-work": {
         "review_mode": "review",
@@ -233,6 +267,11 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
         required_evidence=_parse_str_list(merged.get("required_evidence")),
         blocking_conditions=_parse_str_list(merged.get("blocking_conditions")),
         preflight_checks=_parse_str_list(merged.get("preflight_checks")),
+        stage_ids=_parse_str_list(merged.get("stage_ids")),
+        stage_artifacts=_parse_str_list(merged.get("stage_artifacts")),
+        final_decision_output=str(merged.get("final_decision_output", "")).strip(),
+        requires_fresh_context_per_stage=bool(merged.get("requires_fresh_context_per_stage", False)),
+        max_review_rounds=int(merged.get("max_review_rounds", 0) or 0),
         required_state=required_state,
         schema_version=schema_version,
     )

@@ -400,6 +400,9 @@ class TestReviewValidationCommands:
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/REFEREE-REPORT.md" in payload["review_contract"]["required_outputs"]
         assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
+        assert ".gpd/review/CLAIMS.json" in payload["review_contract"]["required_outputs"]
+        assert ".gpd/review/STAGE-interestingness.json" in payload["review_contract"]["required_outputs"]
+        assert ".gpd/review/REFEREE-DECISION.json" in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == [
             "project_state",
             "roadmap",
@@ -408,6 +411,26 @@ class TestReviewValidationCommands:
             "manuscript",
         ]
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
+        assert payload["review_contract"]["stage_ids"] == [
+            "reader",
+            "literature",
+            "math",
+            "physics",
+            "interestingness",
+            "meta",
+        ]
+        assert payload["review_contract"]["stage_artifacts"] == [
+            ".gpd/review/CLAIMS.json",
+            ".gpd/review/STAGE-reader.json",
+            ".gpd/review/STAGE-literature.json",
+            ".gpd/review/STAGE-math.json",
+            ".gpd/review/STAGE-physics.json",
+            ".gpd/review/STAGE-interestingness.json",
+            ".gpd/review/REVIEW-LEDGER.json",
+            ".gpd/review/REFEREE-DECISION.json",
+        ]
+        assert payload["review_contract"]["final_decision_output"] == ".gpd/review/REFEREE-DECISION.json"
+        assert payload["review_contract"]["requires_fresh_context_per_stage"] is True
 
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
@@ -770,6 +793,76 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert payload["ready_for_submission"] is False
+
+    def test_validate_referee_decision_command_accepts_consistent_major_revision(self, gpd_project: Path) -> None:
+        decision_path = gpd_project / "referee-decision.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                    ],
+                    "claim_scope_proportionate_to_evidence": False,
+                    "reframing_possible_without_new_results": True,
+                    "novelty": "adequate",
+                    "significance": "weak",
+                    "venue_fit": "adequate",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+        assert payload["most_positive_allowed_recommendation"] == "major_revision"
+
+    def test_validate_referee_decision_command_blocks_overly_positive_prl_decision(self, gpd_project: Path) -> None:
+        decision_path = gpd_project / "referee-decision-prl.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "prl",
+                    "final_recommendation": "minor_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                    ],
+                    "novelty": "adequate",
+                    "significance": "weak",
+                    "venue_fit": "weak",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert payload["most_positive_allowed_recommendation"] == "reject"
 
     def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
         manifest_path = gpd_project / "reproducibility-ready.json"

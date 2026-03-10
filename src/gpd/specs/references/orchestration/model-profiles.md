@@ -31,6 +31,11 @@ On single-model platforms, all tiers resolve to null (use the platform's default
 | gpd-paper-writer         | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-literature-reviewer  | tier-1        | tier-2      | tier-1        | tier-2   | tier-2          |
 | gpd-bibliographer        | tier-2        | tier-3      | tier-3        | tier-2   | tier-1          |
+| gpd-review-reader        | tier-2        | tier-2      | tier-2        | tier-2   | tier-2          |
+| gpd-review-literature    | tier-1        | tier-2      | tier-1        | tier-1   | tier-2          |
+| gpd-review-math          | tier-1        | tier-1      | tier-2        | tier-1   | tier-1          |
+| gpd-review-physics       | tier-1        | tier-1      | tier-2        | tier-1   | tier-1          |
+| gpd-review-significance  | tier-2        | tier-2      | tier-2        | tier-1   | tier-1          |
 | gpd-referee              | tier-1        | tier-2      | tier-2        | tier-1   | tier-1          |
 | gpd-experiment-designer  | tier-2        | tier-1      | tier-2        | tier-2   | tier-3          |
 | gpd-notation-coordinator | tier-2        | tier-3      | tier-3        | tier-2   | tier-2          |
