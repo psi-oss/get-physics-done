@@ -328,7 +328,7 @@ def check_convention_lock(cwd: Path) -> HealthCheck:
         return HealthCheck(status=CheckStatus.WARN, label="Convention Lock", warnings=["state.json not found"])
 
     cl = state_obj.get("convention_lock")
-    if not cl:
+    if cl is None:
         return HealthCheck(
             status=CheckStatus.WARN, label="Convention Lock", warnings=["No convention_lock in state.json"]
         )

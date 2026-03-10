@@ -17,6 +17,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.config import load_config
+from gpd.core.errors import GPDError
 from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.state import (
@@ -43,10 +44,13 @@ def get_state(project_dir: str) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.get", phase=""):
-        state_obj = load_state_json(cwd)
-        if state_obj is None:
-            return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
-        return state_obj
+        try:
+            state_obj = load_state_json(cwd)
+            if state_obj is None:
+                return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
+            return state_obj
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -61,20 +65,23 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
 
     cwd = Path(project_dir)
     with gpd_span("mcp.state.phase_info", phase=phase):
-        info = find_phase(cwd, phase)
-        if info is None:
-            return {"error": f"Phase {phase} not found"}
-        plan_count = len(info.plans)
-        summary_count = len(info.summaries)
-        return {
-            "phase_number": info.phase_number,
-            "phase_name": info.phase_name,
-            "directory": info.directory,
-            "phase_slug": info.phase_slug,
-            "plan_count": plan_count,
-            "summary_count": summary_count,
-            "complete": plan_count > 0 and len(info.incomplete_plans) == 0,
-        }
+        try:
+            info = find_phase(cwd, phase)
+            if info is None:
+                return {"error": f"Phase {phase} not found"}
+            plan_count = len(info.plans)
+            summary_count = len(info.summaries)
+            return {
+                "phase_number": info.phase_number,
+                "phase_name": info.phase_name,
+                "directory": info.directory,
+                "phase_slug": info.phase_slug,
+                "plan_count": plan_count,
+                "summary_count": summary_count,
+                "complete": plan_count > 0 and len(info.incomplete_plans) == 0,
+            }
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -103,7 +110,10 @@ def get_progress(project_dir: str) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.progress"):
-        return state_update_progress(cwd).model_dump()
+        try:
+            return state_update_progress(cwd).model_dump()
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -136,8 +146,11 @@ def run_health_check(project_dir: str, fix: bool = False) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.health", fix=str(fix)):
-        report = run_health(cwd, fix=fix)
-        return report.model_dump()
+        try:
+            report = run_health(cwd, fix=fix)
+            return report.model_dump()
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -152,8 +165,11 @@ def get_config(project_dir: str) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.config"):
-        config = load_config(cwd)
-        return config.model_dump()
+        try:
+            config = load_config(cwd)
+            return config.model_dump()
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 # ---------------------------------------------------------------------------

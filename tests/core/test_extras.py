@@ -62,6 +62,18 @@ def test_validity_greater_than():
     assert check_approximation_validity(5.0, "x > 10") == "invalid"
 
 
+def test_validity_double_bounded_much_less_than():
+    """Double-bounded with << operators must not be preempted by single-bound <<."""
+    assert check_approximation_validity(5, "0 << x << 10") == "valid"
+    assert check_approximation_validity(0.5, "0 << x << 10") == "marginal"
+    assert check_approximation_validity(15, "0 << x << 10") == "invalid"
+
+
+def test_validity_single_bound_much_less_than_still_works():
+    """Single-bound << must still work after double-bounded reorder."""
+    assert check_approximation_validity(0.05, "x << 1") == "valid"
+
+
 def test_validity_empty_range():
     assert check_approximation_validity(1.0, "") is None
 

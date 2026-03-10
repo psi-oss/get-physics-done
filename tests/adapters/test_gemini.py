@@ -206,6 +206,7 @@ class TestInstall:
         target = tmp_path / ".gemini"
         target.mkdir()
         result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
 
         settings_on_disk = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
@@ -237,6 +238,7 @@ class TestInstall:
         target = tmp_path / ".gemini"
         target.mkdir()
         result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
 
         settings = result["settings"]
         hooks = settings.get("hooks", {})
@@ -305,7 +307,8 @@ class TestInstall:
         )
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
 
-        adapter.install(gpd_root, target)
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         session_start = settings.get("hooks", {}).get("SessionStart", [])
@@ -401,7 +404,8 @@ class TestInstall:
             encoding="utf-8",
         )
 
-        adapter.install(gpd_root, target)
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
@@ -452,6 +456,57 @@ class TestInstall:
         assert "{GPD_CONFIG_DIR}" not in verifier
         assert "{GPD_RUNTIME_FLAG}" not in verifier
         assert "--gemini" in verifier
+
+    def test_install_does_not_call_finalize_internally(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """install() must not call finalize_install internally.
+
+        The CLI calls adapter.finalize_install(result, force_statusline=...)
+        after install().  If install() already called finalize_install (without
+        forwarding force_statusline), the CLI's call would see settingsWritten=True
+        and return immediately, discarding the user's --force-statusline flag.
+        """
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+
+        # install() must NOT have written settings or set the settingsWritten flag
+        assert result.get("settingsWritten") is not True
+        assert not (target / "settings.json").exists()
+
+    def test_force_statusline_forwarded_through_finalize(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """force_statusline=True must override a pre-existing non-GPD statusline.
+
+        Regression: previously install() called finalize_install internally
+        without forwarding force_statusline, so the CLI's subsequent call
+        with force_statusline=True was silently discarded.
+        """
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        # Pre-populate settings with a non-GPD statusline
+        (target / "settings.json").write_text(
+            json.dumps({"statusLine": {"type": "command", "command": "other-tool --status"}}),
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+
+        # Without force_statusline the existing statusline is preserved
+        adapter.finalize_install(result, force_statusline=False)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["statusLine"]["command"] == "other-tool --status"
+
+        # Reset settingsWritten so finalize_install runs again
+        result.pop("settingsWritten", None)
+
+        # With force_statusline the GPD statusline overwrites the existing one
+        adapter.finalize_install(result, force_statusline=True)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert "statusline.py" in settings["statusLine"]["command"]
 
     def test_install_agents_at_includes_receive_runtime(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

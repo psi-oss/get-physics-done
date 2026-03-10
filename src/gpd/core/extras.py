@@ -75,6 +75,12 @@ class Uncertainty(BaseModel):
 
 ValidityStatus = Literal["valid", "marginal", "invalid"]
 
+_NUMERIC_BOUND = r"[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?"
+_RANGE_OPERATOR = r"(?:<<|>>|<=|>=|<|>)"
+_DOUBLE_BOUNDED_RE = re.compile(
+    rf"^\s*({_NUMERIC_BOUND})\s*({_RANGE_OPERATOR})\s*([A-Za-z_][A-Za-z0-9_]*)\s*({_RANGE_OPERATOR})\s*({_NUMERIC_BOUND})\s*$"
+)
+
 
 def check_approximation_validity(val: float, range_str: str) -> ValidityStatus | None:
     """Parse a validity range string and check a numeric value against it.
@@ -92,10 +98,45 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
     if not range_str:
         return None
 
+    # Pattern: "low OP x OP high" — double-bounded range
+    # NOTE: this must be checked BEFORE the single-bound << / >> patterns,
+    # because strings like "0 << x << 10" would otherwise match the
+    # single-bound << regex via re.search and never reach this block.
+    m = _DOUBLE_BOUNDED_RE.fullmatch(range_str)
+    if m:
+        n1 = _parse_float(m.group(1))
+        op1 = m.group(2)
+        op2 = m.group(4)
+        n2 = _parse_float(m.group(5))
+        if n1 is not None and n2 is not None:
+            op1_inclusive = "=" in op1
+            op2_inclusive = "=" in op2
+
+            # First condition: n1 OP1 x
+            if op1.startswith("<"):
+                passes_first = val >= n1 if op1_inclusive else val > n1
+            else:
+                passes_first = val <= n1 if op1_inclusive else val < n1
+
+            # Second condition: x OP2 n2
+            if op2.startswith("<"):
+                passes_second = val <= n2 if op2_inclusive else val < n2
+            else:
+                passes_second = val >= n2 if op2_inclusive else val > n2
+
+            if passes_first and passes_second:
+                lo = min(n1, n2)
+                hi = max(n1, n2)
+                span = hi - lo
+                if span > 0:
+                    margin_lo = lo + 0.2 * span
+                    margin_hi = hi - 0.2 * span
+                    if val < margin_lo or val > margin_hi:
+                        return "marginal"
+                return "valid"
+            return "invalid"
+
     # Pattern: "x << bound" — much less than
-    # NOTE: the single-bound < / > patterns checked later would also match
-    # "<<" / ">>" strings via re.search, but they are unreachable because
-    # the << / >> branches are tested first and return early.
     m = re.search(r"<<\s*([0-9.eE+-]+)", range_str)
     if m:
         bound = _parse_float(m.group(1))
@@ -152,41 +193,6 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         if val > 2 * bound:
             return "marginal"
         return "invalid"
-
-    # Pattern: "low OP x OP high" — double-bounded range
-    m = re.search(r"([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*([<>]=?)\s*\w+\s*([<>]=?)\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)", range_str)
-    if m:
-        n1 = _parse_float(m.group(1))
-        op1 = m.group(2)
-        op2 = m.group(3)
-        n2 = _parse_float(m.group(4))
-        if n1 is not None and n2 is not None:
-            op1_inclusive = "=" in op1
-            op2_inclusive = "=" in op2
-
-            # First condition: n1 OP1 x
-            if op1.startswith("<"):
-                passes_first = val >= n1 if op1_inclusive else val > n1
-            else:
-                passes_first = val <= n1 if op1_inclusive else val < n1
-
-            # Second condition: x OP2 n2
-            if op2.startswith("<"):
-                passes_second = val <= n2 if op2_inclusive else val < n2
-            else:
-                passes_second = val >= n2 if op2_inclusive else val > n2
-
-            if passes_first and passes_second:
-                lo = min(n1, n2)
-                hi = max(n1, n2)
-                span = hi - lo
-                if span > 0:
-                    margin_lo = lo + 0.2 * span
-                    margin_hi = hi - 0.2 * span
-                    if val < margin_lo or val > margin_hi:
-                        return "marginal"
-                return "valid"
-            return "invalid"
 
     # Pattern: "x ~ bound" — approximately equal
     m = re.search(r"~\s*([0-9.eE+-]+)", range_str)

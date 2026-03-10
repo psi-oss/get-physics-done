@@ -222,6 +222,10 @@ def _has_valid_checksum(checksum: str) -> bool:
     return bool(_CHECKSUM_RE.fullmatch(checksum.strip().lower()))
 
 
+def _has_approximate_checksum_marker(checksum: str) -> bool:
+    return checksum.strip().lower().startswith("approx:")
+
+
 def verify_output_checksum(path: Path, expected_checksum: str) -> bool:
     """Verify a file against an expected SHA-256 checksum."""
     return compute_sha256(path) == expected_checksum.strip().lower()
@@ -289,10 +293,15 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
             )
     for index, output_file in enumerate(manifest_obj.output_files):
         checksum_items += 1
-        valid_checksum = _has_valid_checksum(output_file.checksum_sha256)
+        raw_checksum = output_file.checksum_sha256.strip()
+        valid_checksum = _has_valid_checksum(raw_checksum)
+        approximate_checksum = bool(raw_checksum) and (
+            output_file.approximate_checksum or _has_approximate_checksum_marker(raw_checksum)
+        )
         if valid_checksum:
             checksum_ok += 1
-        elif output_file.approximate_checksum and output_file.checksum_sha256:
+        elif approximate_checksum:
+            checksum_ok += 1
             warnings.append(
                 ReproducibilityIssue(
                     severity="warning",

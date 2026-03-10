@@ -349,13 +349,6 @@ class GeminiAdapter(RuntimeAdapter):
         finally:
             self._gemini_finalize_pending = previous_finalize_pending
 
-        settings_path = result.get("settingsPath")
-        settings = result.get("settings")
-        statusline_command = result.get("statuslineCommand")
-        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
-            self.finalize_install(result)
-            self._verify(target_dir)
-
         return result
 
     # --- Template method hooks ---

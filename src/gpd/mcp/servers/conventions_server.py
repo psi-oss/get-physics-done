@@ -22,6 +22,7 @@ from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
 from gpd.core.conventions import (
     KNOWN_CONVENTIONS,
+    ConventionSetResult,
     convention_list,
     normalize_key,
     normalize_value,
@@ -234,7 +235,10 @@ def convention_lock_status(project_dir: str) -> dict:
     fields are still unset.
     """
     with gpd_span("mcp.conventions.lock_status"):
-        lock = _load_lock_from_project(project_dir)
+        try:
+            lock = _load_lock_from_project(project_dir)
+        except (ConventionError, OSError) as e:
+            return {"error": str(e)}
         result = convention_list(lock)
 
         set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
@@ -268,19 +272,22 @@ def convention_set(
     Custom conventions use the 'custom:' prefix: key="custom:my_convention".
     """
     with gpd_span("mcp.conventions.set", convention_key=key):
-        # Validate custom key eagerly (before acquiring the file lock).
-        if key.startswith("custom:"):
-            custom_key = key[len("custom:") :]
-            if not custom_key:
-                raise ConventionError("Custom convention key cannot be empty")
-
-        def _mutate(lock: ConventionLock) -> object:
+        try:
+            # Validate custom key eagerly (before acquiring the file lock).
             if key.startswith("custom:"):
-                return _convention_set(lock, key[len("custom:") :], value, force=force)
-            return _convention_set(lock, key, value, force=force)
+                custom_key = key[len("custom:") :]
+                if not custom_key:
+                    raise ConventionError("Custom convention key cannot be empty")
 
-        # Atomic read-modify-write under file lock to prevent TOCTOU races.
-        _lock, result = _update_lock_in_project(project_dir, _mutate)
+            def _mutate(lock: ConventionLock) -> ConventionSetResult:
+                if key.startswith("custom:"):
+                    return _convention_set(lock, key[len("custom:") :], value, force=force)
+                return _convention_set(lock, key, value, force=force)
+
+            # Atomic read-modify-write under file lock to prevent TOCTOU races.
+            _lock, result = _update_lock_in_project(project_dir, _mutate)
+        except (ConventionError, OSError) as e:
+            return {"error": str(e)}
 
         if not result.updated:
             return {

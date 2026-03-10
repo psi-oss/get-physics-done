@@ -9,6 +9,7 @@ from gpd.core.results import (
     IntermediateResult,
     MissingDep,
     ResultDeps,
+    _int_to_base36,
     result_add,
     result_deps,
     result_list,
@@ -265,3 +266,28 @@ def test_result_update_not_found():
     state: dict = {}
     with pytest.raises(ResultNotFoundError):
         result_update(state, "R-nonexistent", equation="new")
+
+
+# ─── Bug-fix regression tests ───────────────────────────────────────────────
+
+
+def test_result_list_verified_and_unverified_raises_result_error():
+    """result_list(verified=True, unverified=True) must raise ResultError, not ValueError."""
+    state: dict = {}
+    result_add(state, result_id="R-01")
+    with pytest.raises(ResultError, match="Cannot filter by both"):
+        result_list(state, verified=True, unverified=True)
+
+
+def test_int_to_base36_negative_raises():
+    """_int_to_base36 must reject negative input with ValueError."""
+    with pytest.raises(ValueError, match="non-negative"):
+        _int_to_base36(-1)
+
+
+def test_result_verify_invalid_confidence_raises_result_error():
+    """result_verify must raise ResultError for invalid confidence values."""
+    state: dict = {}
+    result_add(state, result_id="R-01")
+    with pytest.raises(ResultError, match="Invalid confidence"):
+        result_verify(state, "R-01", confidence="very-high")

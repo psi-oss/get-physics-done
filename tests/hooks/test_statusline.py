@@ -360,6 +360,23 @@ class TestCheckUpdateHook:
 
         assert "npx -y get-physics-done" in result
 
+    def test_known_runtime_does_not_call_detect_install_scope(self, tmp_path: Path) -> None:
+        """When get_adapter succeeds, detect_install_scope should not be called (lazy evaluation)."""
+        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache.mkdir(parents=True)
+        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}))
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+            patch("gpd.hooks.runtime_detect.detect_install_scope") as mock_scope,
+        ):
+            result = _check_update()
+
+        mock_scope.assert_not_called()
+        assert result != ""
+
 
 # ─── main() integration ───────────────────────────────────────────────────
 

@@ -151,7 +151,7 @@ flowchart TD
   `authority`
   Python console-script authority for `gpd`.
 
-- `pyproject.toml -> src/gpd/mcp/servers/*.py`
+- `pyproject.toml -> src/gpd/mcp/servers/{conventions_server,verification_server,protocols_server,errors_mcp,patterns_server,state_server,skills_server}.py`
   `authority`
   Console-script authority for `gpd-mcp-*` entrypoints.
 
@@ -286,12 +286,12 @@ flowchart TD
 - `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,traces/*.jsonl}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,current-session.json}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,traces/*.jsonl}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,current-session.json}`
   `ordering-contract`
-  `events.jsonl` is preferred before falling back to per-session trace files.
+  `events.jsonl` is preferred before falling back to per-session event streams and session metadata.
 
 - `src/gpd/cli.py -> explicit --target-dir over adapter-derived local/global runtime roots during install/uninstall`
   `selector-input`
@@ -903,10 +903,10 @@ flowchart TD
 - `src/gpd/adapters/codex.py -> non-GPD [mcp_servers.*] sections`
   `partial-ownership`
 
-- `src/gpd/adapters/codex.py -> config.toml[notify]`
+- `src/gpd/adapters/codex.py -> config.toml::notify`
   `config-mutation`
 
-- `src/gpd/adapters/codex.py -> config.toml[features].experimental_use_subagents`
+- `src/gpd/adapters/codex.py -> config.toml[features].multi_agent`
   `config-mutation`
 
 - `src/gpd/adapters/codex.py -> ~/.agents/skills`
@@ -1029,8 +1029,8 @@ They explicitly preserve:
   `candidate-set`
 
 - `src/gpd/hooks/statusline.py -> src/gpd/adapters/__init__.py`
-  `partial-ownership`
-  Uses adapter-formatted update command for runtime UI output.
+  `hard-import`
+  Uses adapter-formatted update commands for runtime UI output when the active runtime is known.
 
 - `src/gpd/hooks/check_update.py -> src/gpd/version.py`
   `hard-import`
@@ -1063,9 +1063,9 @@ They explicitly preserve:
 - `src/gpd/hooks/codex_notify.py -> stdin payload schema {type, workspace}`
   `candidate-set`
 
-- `src/gpd/hooks/codex_notify.py -> src/gpd/adapters/__init__.py`
-  `partial-ownership`
-  Uses adapter `update_command` presentation surface.
+- `src/gpd/hooks/codex_notify.py -> src/gpd/hooks/runtime_detect.py`
+  `hard-import`
+  Reads cache candidates and Codex-scoped update commands through runtime-detection helpers.
 
 - `src/gpd/core/context.py -> src/gpd/adapters/__init__.py`
   `authority`
@@ -1088,6 +1088,18 @@ They explicitly preserve:
 - `infra/gpd-arxiv.json -> external Python package {arxiv_mcp_server}`
   `external-package`
 
+- `src/gpd/mcp/servers/state_server.py -> src/gpd/core/{config,health,state,errors}.py`
+  `hard-import`
+
+- `src/gpd/mcp/servers/state_server.py -> src/gpd/core/observability.py`
+  `hard-import`
+
+- `tests/mcp/test_servers.py -> src/gpd/mcp/servers/{conventions_server,errors_mcp,patterns_server,protocols_server,skills_server,state_server,verification_server}.py`
+  `hard-import`
+
+- `src/gpd/mcp/paper/__init__.py -> src/gpd/mcp/paper/{bibliography,compiler,journal_map,models,review_artifacts}.py`
+  `hard-import`
+
 - `src/gpd/mcp/paper/template_registry.py -> src/gpd/mcp/paper/templates/**`
   `package-data-load`
 
@@ -1103,8 +1115,23 @@ They explicitly preserve:
 - `src/gpd/mcp/paper/models.py -> external Python package {pydantic}`
   `external-package`
 
+- `src/gpd/mcp/paper/journal_map.py -> src/gpd/mcp/paper/models.py::JournalSpec`
+  `hard-import`
+
 - `src/gpd/mcp/paper/bibliography.py -> external Python packages {arxiv, pybtex, pydantic}`
   `external-package`
+
+- `src/gpd/mcp/paper/artifact_manifest.py -> src/gpd/mcp/paper/bibliography.py::BibliographyAudit`
+  `hard-import`
+
+- `src/gpd/mcp/paper/artifact_manifest.py -> src/gpd/mcp/paper/models.py::{ArtifactManifest, ArtifactRecord, ArtifactSourceRef, FigureRef, PaperConfig}`
+  `hard-import`
+
+- `src/gpd/mcp/paper/figures.py -> src/gpd/mcp/paper/journal_map.py`
+  `hard-import`
+
+- `src/gpd/mcp/paper/figures.py -> src/gpd/mcp/paper/models.py::FigureRef`
+  `hard-import`
 
 - `src/gpd/mcp/paper/figures.py -> external Python packages {Pillow, cairosvg}`
   `external-package`
@@ -1138,13 +1165,25 @@ They explicitly preserve:
 - `src/gpd/mcp/paper/compiler.py -> bibtex`
   `external-binary`
 
+- `src/gpd/mcp/paper/compiler.py -> src/gpd/mcp/paper/{artifact_manifest,bibliography,figures,journal_map,models,template_registry}.py`
+  `hard-import`
+
 - `src/gpd/mcp/paper/compiler.py -> external Python package {pybtex}`
   `external-package`
+
+- `src/gpd/mcp/paper/review_artifacts.py -> external Python package {pydantic}`
+  `external-package`
+
+- `src/gpd/mcp/paper/review_artifacts.py -> src/gpd/mcp/paper/models.py::{ClaimIndex, StageReviewReport, ReviewLedger, ReviewPanelBundle}`
+  `hard-import`
 
 - `src/gpd/mcp/paper/bibliography.py -> generated outputs {*.bib, BIBLIOGRAPHY-AUDIT.json}`
   `generated-output`
 
 - `src/gpd/mcp/paper/artifact_manifest.py -> ARTIFACT-MANIFEST.json`
+  `generated-output`
+
+- `src/gpd/mcp/paper/review_artifacts.py -> generated outputs {CLAIMS.json, STAGE-*.json, REVIEW-LEDGER.json, PANEL-BUNDLE.json}`
   `generated-output`
 
 - `src/gpd/mcp/paper/compiler.py -> generated outputs {figures/**, main.tex, <bib>.bib, BIBLIOGRAPHY-AUDIT.json, ARTIFACT-MANIFEST.json, main.pdf}`
@@ -1165,6 +1204,9 @@ They explicitly preserve:
 - `tests/test_paper_e2e.py -> generated outputs {main.tex, references.bib, ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json, main.pdf, figures/**}`
   `generated-output`
 
+- `tests/test_paper_models.py -> src/gpd/mcp/paper/{models,journal_map,template_registry}.py`
+  `hard-import`
+
 - `tests/test_bibliography.py -> src/gpd/mcp/paper/bibliography.py`
   `hard-import`
 
@@ -1183,6 +1225,12 @@ They explicitly preserve:
 - `tests/test_figures.py -> external Python packages {Pillow, cairosvg}`
   `conditional-include`
   Much of the test surface validates fallback/error behavior rather than proving live converter availability.
+
+- `tests/core/test_review_artifacts.py -> src/gpd/mcp/paper/review_artifacts.py`
+  `hard-import`
+
+- `tests/core/test_review_artifacts.py -> generated outputs {CLAIMS.json, STAGE-*.json, REVIEW-LEDGER.json, PANEL-BUNDLE.json}`
+  `typed-roundtrip`
 
 - `tests/test_paper_compiler_regressions.py -> external binaries {latexmk, pdflatex}`
   `external-binary`
@@ -1447,10 +1495,10 @@ It is still **not** a proven exhaustive runtime graph of all file and object int
 This assessment combined:
 
 - direct inspection of runtime, docs, CI, adapter, hook, and test files in the current worktree
-- five waves of focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
+- repeated focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
 - local verification of representative files where the graph was most likely to overclaim completeness
 
-The fifth wave closed most of the remaining statically recoverable gaps that were still obvious in earlier revisions:
+The latest audit wave closed most of the remaining statically recoverable gaps that were still obvious in earlier revisions:
 
 - explicit prompt/spec include and spawn edges
 - ordered fallback and candidate-set precedence
@@ -1508,7 +1556,7 @@ This rebuilt file is substantially more complete than the earlier graph state be
 - explicit prompt/spec/reference include families
 - installer/build external-package and external-binary surfaces
 
-After five review waves, the remaining incompleteness appears predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
+After repeated review waves, the remaining incompleteness appears predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
 
 The graph is therefore strong enough to answer "as complete as it could possibly be statically" with a practical yes.
 

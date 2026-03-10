@@ -481,7 +481,7 @@ class TestProgressRoundTrip:
 
         json_result = progress_render(tmp_path, "json")
         assert json_result.percent == 50
-        assert json_result.total_plans_in_phase == 2
+        assert json_result.total_plans == 2
         assert json_result.total_summaries == 1
         assert len(json_result.phases) == 2
 
@@ -608,5 +608,5 @@ class TestCrossModuleConsistency:
         analysis = roadmap_analyze(tmp_path)
 
         assert progress.total_summaries == analysis.total_summaries
-        assert progress.total_plans_in_phase == analysis.total_plans
+        assert progress.total_plans == analysis.total_plans
         assert analysis.completed_phases == 1

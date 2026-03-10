@@ -546,7 +546,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
                 existing.append(int(match.group(1)))
         if existing:
             next_num = max(existing) + 1
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
 
     return {

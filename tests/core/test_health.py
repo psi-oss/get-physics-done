@@ -141,6 +141,16 @@ class TestCheckConventionLock:
         assert result.status == CheckStatus.WARN
         assert any("not a dict" in w for w in result.warnings)
 
+    def test_empty_dict_falls_through_to_counting_loop(self, tmp_path: Path):
+        """An empty dict {} is a valid convention_lock; should report counts, not 'No convention_lock'."""
+        fake_state = {"convention_lock": {}}
+        with patch("gpd.core.health.load_state_json", return_value=fake_state):
+            result = check_convention_lock(tmp_path)
+        assert "No convention_lock in state.json" not in result.warnings
+        assert "set" in result.details
+        assert "total" in result.details
+        assert result.details["set"] == 0
+
 
 class TestCheckConfig:
     def test_missing_config(self, tmp_path: Path):

@@ -86,6 +86,8 @@ def _normalize_verification_records(
 
 def _int_to_base36(n: int) -> str:
     """Convert a non-negative integer to a base-36 string."""
+    if n < 0:
+        raise ValueError("n must be non-negative")
     if n == 0:
         return "0"
     digits = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -220,6 +222,9 @@ def result_list(
         verified: If True, only return verified results.
         unverified: If True, only return unverified results.
     """
+    if verified is True and unverified is True:
+        raise ResultError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
+
     results = state.get("intermediate_results", [])
 
     if phase is not None:
@@ -231,9 +236,6 @@ def result_list(
         ]
     else:
         results = [r for r in results if isinstance(r, dict)]
-
-    if verified is True and unverified is True:
-        raise ValueError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
 
     if verified is True:
         results = [r for r in results if r.get("verified") is True or bool(r.get("verification_records"))]
@@ -251,7 +253,7 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
     Returns the result, its direct dependencies, and transitive dependencies.
     Missing dependencies are represented as MissingDep objects.
 
-    Raises KeyError if result_id is not found.
+    Raises ResultNotFoundError if result_id is not found.
     """
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
@@ -328,8 +330,12 @@ def result_verify(
 ) -> IntermediateResult:
     """Mark a result as verified.
 
-    Raises KeyError if result_id is not found.
+    Raises ResultNotFoundError if result_id is not found.
     """
+    _VALID_CONFIDENCE = {"high", "medium", "low", "unreliable"}
+    if confidence not in _VALID_CONFIDENCE:
+        raise ResultError(f"Invalid confidence {confidence!r}; expected one of {sorted(_VALID_CONFIDENCE)}")
+
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
     if idx == -1:
@@ -360,7 +366,7 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
     """Update fields on an existing result.
 
     Only known fields are updated. Returns (updated_field_names, updated_result).
-    Raises KeyError if result_id is not found.
+    Raises ResultNotFoundError if result_id is not found.
     Raises ValueError if no recognized fields are provided.
     """
     results = state.get("intermediate_results", [])

@@ -123,7 +123,9 @@ class TestGeminiRoundtrip:
     def installed(self, gpd_root: Path, tmp_path: Path) -> Path:
         target = tmp_path / ".gemini"
         target.mkdir()
-        GeminiAdapter().install(gpd_root, target)
+        adapter = GeminiAdapter()
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
         return target
 
     def test_commands_are_toml(self, installed: Path) -> None:

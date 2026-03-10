@@ -214,3 +214,37 @@ def test_nonempty_last_verified_without_platform_warns():
     warning_fields = [w.field for w in result.warnings]
     assert "last_verified" not in warning_fields
     assert "last_verified_platform" in warning_fields
+
+
+# ─── Issue 2: approximate checksum should count toward coverage ──
+
+
+def test_approximate_checksum_counts_toward_coverage():
+    """An output file with approximate_checksum=True and a non-empty checksum
+    should count as covered, yielding 100% checksum_coverage_percent.
+
+    Before the fix, the elif branch for approximate checksums appended a
+    warning but did not increment checksum_ok, dragging down coverage and
+    potentially blocking ready_for_review.
+    """
+    manifest = _manifest().model_copy(
+        update={
+            "output_files": [
+                OutputFileExpectation(
+                    path="results/spectrum.json",
+                    description="stochastic output",
+                    checksum_sha256="approx:" + "d" * 58,
+                    approximate_checksum=True,
+                )
+            ],
+        }
+    )
+
+    result = validate_reproducibility_manifest(manifest)
+
+    assert result.checksum_coverage_percent == 100.0
+    # The informational warning should still be emitted
+    approx_warnings = [
+        w for w in result.warnings if "approximate checksum" in w.message
+    ]
+    assert len(approx_warnings) == 1

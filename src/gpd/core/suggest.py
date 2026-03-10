@@ -704,7 +704,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     ctx_kwargs["autonomy"] = autonomy_val
     ctx_kwargs["research_mode"] = research_mode_val
 
-    progress_pct = float(ctx_kwargs.get("progress_percent", 0))
+    progress_pct = float(ctx_kwargs.get("progress_percent") or 0)
     _apply_mode_adjustments(suggestions, config, progress_pct)
 
     # ── Sort by priority ────────────────────────────────────────────────

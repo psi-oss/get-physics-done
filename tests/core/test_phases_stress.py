@@ -93,7 +93,7 @@ class TestEmptyPhaseDirectory:
         _create_phase_dir(tmp_path, "01-empty")
 
         result = progress_render(tmp_path, "json")
-        assert result.total_plans_in_phase == 0
+        assert result.total_plans == 0
         assert result.percent == 0
 
 
@@ -140,7 +140,7 @@ class TestManyPlans:
                 (phase_dir / f"{letter}-SUMMARY.md").write_text(f"summary {i}")
 
         result = progress_render(tmp_path, "json")
-        assert result.total_plans_in_phase == 50
+        assert result.total_plans == 50
         assert result.total_summaries == 25
         assert result.percent == 50
 

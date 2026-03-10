@@ -79,7 +79,7 @@ def _has_gpd_install(config_dir: Path) -> bool:
         return True
 
     gpd_dir = config_dir / "get-physics-done"
-    return gpd_dir.is_dir() or (gpd_dir / "VERSION").is_file()
+    return gpd_dir.is_dir()
 
 
 def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:

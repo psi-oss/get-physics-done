@@ -552,3 +552,12 @@ def test_progress_percent_missing_defaults_to_zero(tmp_path: Path) -> None:
     _create_state(root, {"position": {}})
     result = suggest_next(root)
     assert result.context.progress_percent == 0.0
+
+
+def test_progress_percent_null_defaults_to_zero(tmp_path: Path) -> None:
+    """progress_percent: null in JSON must not raise TypeError."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {"progress_percent": None}})
+    result = suggest_next(root)
+    assert result.context.progress_percent == 0.0

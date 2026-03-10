@@ -14,6 +14,7 @@ from gpd.core.phases import (
     PhaseNotFoundError,
     PhaseValidationError,
     PlanEntry,
+    ProgressJsonResult,
     RoadmapNotFoundError,
     find_phase,
     get_milestone_info,
@@ -724,7 +725,7 @@ def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Pat
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Validation" in state
     assert "**Total Phases:** 2" in state
-    assert "**Current Plan:** Not started" in state
+    assert "**Current Plan:** \u2014" in state
     assert "**Total Plans in Phase:** 1" in state
 
     state_json = json.loads((tmp_path / ".gpd" / "state.json").read_text())
@@ -815,7 +816,7 @@ def test_progress_render_json(tmp_path: Path) -> None:
 
     result = progress_render(tmp_path, "json")
     assert result.percent == 100
-    assert result.total_plans_in_phase == 1
+    assert result.total_plans == 1
     assert result.total_summaries == 1
     assert len(result.phases) == 1
 
@@ -885,3 +886,60 @@ def test_phase_plan_index_not_found(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     result = phase_plan_index(tmp_path, "99")
     assert result.plans == []
+
+
+# ─── Bug-fix regression tests ────────────────────────────────────────────────
+
+
+def test_phase_complete_sets_current_plan_to_em_dash(tmp_path: Path) -> None:
+    """After phase_complete the Current Plan field must be the em-dash placeholder,
+    not the string 'Not started', so that state_advance_plan can parse it correctly."""
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 2: Build
+        **Goal:** build
+        """,
+    )
+    _create_state(
+        tmp_path,
+        """\
+        **Current Phase:** 1
+        **Current Phase Name:** Setup
+        **Total Phases:** 2
+        **Current Plan:** 1
+        **Total Plans in Phase:** 1
+        **Status:** in_progress
+        **Last Activity:** 2026-03-01
+        **Last Activity Description:** Working
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+    _create_phase_dir(tmp_path, "02-build")
+
+    phase_complete(tmp_path, "1")
+
+    state = (tmp_path / ".gpd" / "STATE.md").read_text()
+    assert "**Current Plan:** \u2014" in state
+    assert "Not started" not in state
+
+
+def test_progress_json_result_has_total_plans_attribute() -> None:
+    """ProgressJsonResult must expose ``total_plans`` (not ``total_plans_in_phase``)."""
+    result = ProgressJsonResult(
+        milestone_version="v1.0",
+        milestone_name="Test",
+        total_plans=5,
+        total_summaries=3,
+        percent=60,
+    )
+    assert result.total_plans == 5
+    assert not hasattr(result, "total_plans_in_phase")

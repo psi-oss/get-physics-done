@@ -180,10 +180,10 @@ def _check_update(workspace_dir: str | None = None) -> str:
 
         workspace_path = Path(workspace_dir) if workspace_dir else None
         runtime = detect_active_runtime(cwd=workspace_path)
-        scope = detect_install_scope(runtime, cwd=workspace_path)
         try:
             command = get_adapter(runtime).format_command("update")
         except KeyError:
+            scope = detect_install_scope(runtime, cwd=workspace_path)
             command = update_command_for_runtime(runtime, scope=scope)
         return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
     return ""

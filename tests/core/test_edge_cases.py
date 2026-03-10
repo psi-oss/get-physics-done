@@ -370,7 +370,7 @@ class TestEdgeZeroPlans:
 
         result = progress_render(tmp_path, "json")
         assert result.percent == 0
-        assert result.total_plans_in_phase == 0
+        assert result.total_plans == 0
         assert result.total_summaries == 0
 
     def test_progress_bar_zero_plans(self, tmp_path: Path) -> None:

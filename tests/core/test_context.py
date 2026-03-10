@@ -252,6 +252,24 @@ class TestInitQuick:
         ctx = init_quick(tmp_path, "next task")
         assert ctx["next_num"] == 3
 
+    def test_permission_error_on_quick_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _setup_project(tmp_path)
+        quick_dir = tmp_path / ".gpd" / "quick"
+        quick_dir.mkdir()
+
+        original_iterdir = Path.iterdir
+
+        def _raise_permission(self: Path) -> None:
+            if self == quick_dir:
+                raise PermissionError("Permission denied")
+            return original_iterdir(self)
+
+        monkeypatch.setattr(Path, "iterdir", _raise_permission)
+
+        ctx = init_quick(tmp_path, "some task")
+        # Falls back to default numbering when directory is unreadable
+        assert ctx["next_num"] == 1
+
     def test_no_description(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         ctx = init_quick(tmp_path)

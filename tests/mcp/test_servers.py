@@ -236,6 +236,66 @@ class TestConventionsServer:
         assert lock.metric_signature is None
         assert result is None
 
+    def test_convention_set_returns_error_on_malformed_state_json(self, tmp_path):
+        """convention_set returns an error dict (not raises) when state.json is malformed."""
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text("{bad json!!")
+
+        result = convention_set(str(tmp_path), "metric_signature", "(+,-,-,-)")
+        assert "error" in result
+        assert "Malformed" in result["error"] or "state.json" in result["error"]
+
+    def test_convention_set_returns_error_on_empty_custom_key(self, tmp_path):
+        """convention_set returns error dict for empty custom key."""
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}))
+
+        result = convention_set(str(tmp_path), "custom:", "val")
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    def test_convention_set_returns_error_on_os_error(self, tmp_path):
+        """convention_set returns error dict when state.json is a directory (IsADirectoryError)."""
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        # Make state.json a directory so reading it triggers IsADirectoryError
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").mkdir()
+
+        result = convention_set(str(tmp_path), "metric_signature", "(+,-,-,-)")
+        assert "error" in result
+
+    def test_convention_lock_status_returns_error_on_malformed_state_json(self, tmp_path):
+        """convention_lock_status returns error dict when state.json is malformed."""
+        from gpd.mcp.servers.conventions_server import convention_lock_status
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text("{bad json!!")
+
+        result = convention_lock_status(str(tmp_path))
+        assert "error" in result
+        assert "Malformed" in result["error"] or "state.json" in result["error"]
+
+    def test_convention_lock_status_returns_error_on_os_error(self, tmp_path):
+        """convention_lock_status returns error dict when state.json is a directory."""
+        from gpd.mcp.servers.conventions_server import convention_lock_status
+
+        # Make state.json a directory so reading it triggers IsADirectoryError
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").mkdir()
+
+        result = convention_lock_status(str(tmp_path))
+        assert "error" in result
+
 # ---------------------------------------------------------------------------
 # 2. Errors MCP server
 # ---------------------------------------------------------------------------
@@ -772,8 +832,89 @@ class TestStateServer:
         from gpd.mcp.servers.state_server import get_state
 
         with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
-            with pytest.raises(GPDError, match="boom"):
-                get_state("/fake/project")
+            result = get_state("/fake/project")
+        assert result == {"error": "boom"}
+
+    def test_get_state_os_error(self):
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=OSError("permission denied")):
+            result = get_state("/fake/project")
+        assert result == {"error": "permission denied"}
+
+    def test_get_state_value_error(self):
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=ValueError("bad json")):
+            result = get_state("/fake/project")
+        assert result == {"error": "bad json"}
+
+    def test_get_phase_info_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import get_phase_info
+
+        with patch("gpd.core.phases.find_phase", side_effect=GPDError("phase read failed")):
+            result = get_phase_info("/fake/project", "01")
+        assert result == {"error": "phase read failed"}
+
+    def test_get_phase_info_os_error(self):
+        from gpd.mcp.servers.state_server import get_phase_info
+
+        with patch("gpd.core.phases.find_phase", side_effect=OSError("disk error")):
+            result = get_phase_info("/fake/project", "01")
+        assert result == {"error": "disk error"}
+
+    def test_get_progress_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import get_progress
+
+        with patch("gpd.mcp.servers.state_server.state_update_progress", side_effect=GPDError("no state")):
+            result = get_progress("/fake/project")
+        assert result == {"error": "no state"}
+
+    def test_get_progress_os_error(self):
+        from gpd.mcp.servers.state_server import get_progress
+
+        with patch("gpd.mcp.servers.state_server.state_update_progress", side_effect=OSError("read only")):
+            result = get_progress("/fake/project")
+        assert result == {"error": "read only"}
+
+    def test_run_health_check_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import run_health_check
+
+        with patch("gpd.mcp.servers.state_server.run_health", side_effect=GPDError("health broke")):
+            result = run_health_check("/fake/project")
+        assert result == {"error": "health broke"}
+
+    def test_run_health_check_os_error(self):
+        from gpd.mcp.servers.state_server import run_health_check
+
+        with patch("gpd.mcp.servers.state_server.run_health", side_effect=OSError("no access")):
+            result = run_health_check("/fake/project")
+        assert result == {"error": "no access"}
+
+    def test_get_config_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import get_config
+
+        with patch("gpd.mcp.servers.state_server.load_config", side_effect=GPDError("config missing")):
+            result = get_config("/fake/project")
+        assert result == {"error": "config missing"}
+
+    def test_get_config_os_error(self):
+        from gpd.mcp.servers.state_server import get_config
+
+        with patch("gpd.mcp.servers.state_server.load_config", side_effect=OSError("not found")):
+            result = get_config("/fake/project")
+        assert result == {"error": "not found"}
+
+    def test_get_config_value_error(self):
+        from gpd.mcp.servers.state_server import get_config
+
+        with patch("gpd.mcp.servers.state_server.load_config", side_effect=ValueError("invalid toml")):
+            result = get_config("/fake/project")
+        assert result == {"error": "invalid toml"}
 
     def test_get_phase_info_found(self):
         from gpd.mcp.servers.state_server import get_phase_info

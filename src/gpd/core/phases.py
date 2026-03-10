@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import (
     CONTEXT_SUFFIX,
@@ -173,6 +173,13 @@ def _save_state_markdown(cwd: Path, state_content: str) -> None:
     from gpd.core.state import save_state_markdown
 
     save_state_markdown(cwd, state_content)
+
+
+def _replace_state_field(state_content: str, field_name: str, new_value: str) -> str:
+    """Lazy-load the canonical STATE.md field replacer."""
+    from gpd.core.state import state_replace_field
+
+    return state_replace_field(state_content, field_name, new_value)
 
 
 def _validate_transition(current_status: str, new_status: str) -> None:
@@ -408,10 +415,12 @@ class PhaseProgress(BaseModel):
 class ProgressJsonResult(BaseModel):
     """Progress data in JSON format."""
 
+    model_config = ConfigDict(extra="allow")
+
     milestone_version: str
     milestone_name: str
     phases: list[PhaseProgress] = Field(default_factory=list)
-    total_plans_in_phase: int = 0
+    total_plans: int = 0
     total_summaries: int = 0
     percent: int = 0
 
@@ -1547,16 +1556,8 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
                     replacement_phase = mapped_phase or "\u2014"
                     replacement_name = mapped_phase_name or "\u2014"
-                    state_content = re.sub(
-                        r"(\*\*Current Phase:\*\*\s*).*",
-                        rf"\g<1>{replacement_phase}",
-                        state_content,
-                    )
-                    state_content = re.sub(
-                        r"(\*\*Current Phase Name:\*\*\s*).*",
-                        rf"\g<1>{replacement_name}",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Current Phase", replacement_phase)
+                    state_content = _replace_state_field(state_content, "Current Phase Name", replacement_name)
 
                     current_was_removed = (
                         current_phase_before is not None
@@ -1564,11 +1565,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         == 0
                     )
                     if current_was_removed:
-                        state_content = re.sub(
-                            r"(\*\*Current Plan:\*\*\s*).*",
-                            r"\g<1>Not started",
-                            state_content,
-                        )
+                        state_content = _replace_state_field(state_content, "Current Plan", "\u2014")
 
                     if mapped_phase is not None:
                         mapped_info = find_phase(cwd, mapped_phase)
@@ -1576,11 +1573,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         total_plans_value = str(plan_total) if plan_total else "\u2014"
                     else:
                         total_plans_value = "\u2014"
-                    state_content = re.sub(
-                        r"(\*\*Total Plans in Phase:\*\*\s*).*",
-                        rf"\g<1>{total_plans_value}",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Total Plans in Phase", total_plans_value)
 
                     _save_state_markdown(cwd, state_content)
 
@@ -1849,62 +1842,32 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                     current_status = _extract_state_field(state_content, "Status") or ""
                     _validate_transition(current_status, new_status)
 
-                    state_content = re.sub(
-                        r"(\*\*Current Phase:\*\*\s*).*",
-                        rf"\g<1>{next_phase_num or phase_num}",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Current Phase", next_phase_num or phase_num)
 
                     phase_name_display = next_phase_name.replace('-', ' ') if next_phase_name else (next_phase_num or "\u2014")
-                    state_content = re.sub(
-                        r"(\*\*Current Phase Name:\*\*\s*).*",
-                        rf"\g<1>{phase_name_display}",
+                    state_content = _replace_state_field(state_content, "Current Phase Name", phase_name_display)
+                    state_content = _replace_state_field(
                         state_content,
+                        "Status",
+                        "Milestone complete" if is_last_phase else "Ready to plan",
                     )
-
-                    state_content = re.sub(
-                        r"(\*\*Status:\*\*\s*).*",
-                        rf"\g<1>{'Milestone complete' if is_last_phase else 'Ready to plan'}",
-                        state_content,
-                    )
-
-                    state_content = re.sub(
-                        r"(\*\*Current Plan:\*\*\s*).*",
-                        r"\g<1>Not started",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Current Plan", "\u2014")
 
                     em_dash = "\u2014"
                     if next_phase_num:
                         next_info = find_phase(cwd, next_phase_num)
                         next_plan_count = len(next_info.plans) if next_info else 0
                         replacement = str(next_plan_count) if next_plan_count else em_dash
-                        state_content = re.sub(
-                            r"(\*\*Total Plans in Phase:\*\*\s*).*",
-                            rf"\g<1>{replacement}",
-                            state_content,
-                        )
+                        state_content = _replace_state_field(state_content, "Total Plans in Phase", replacement)
                     else:
-                        state_content = re.sub(
-                            r"(\*\*Total Plans in Phase:\*\*\s*).*",
-                            rf"\g<1>{em_dash}",
-                            state_content,
-                        )
+                        state_content = _replace_state_field(state_content, "Total Plans in Phase", em_dash)
 
-                    state_content = re.sub(
-                        r"(\*\*Last Activity:\*\*\s*).*",
-                        rf"\g<1>{today}",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Last Activity", today)
 
                     transition_msg = f"Phase {phase_num} complete"
                     if next_phase_num:
                         transition_msg += f", transitioned to Phase {next_phase_num}"
-                    state_content = re.sub(
-                        r"(\*\*Last Activity Description:\*\*\s*).*",
-                        rf"\g<1>{transition_msg}",
-                        state_content,
-                    )
+                    state_content = _replace_state_field(state_content, "Last Activity Description", transition_msg)
 
                     _save_state_markdown(cwd, state_content)
 
@@ -2160,7 +2123,8 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
             milestone_version=milestone.version,
             milestone_name=milestone.name,
             phases=phases,
-            total_plans_in_phase=total_plans,
+            total_plans=total_plans,
             total_summaries=total_summaries,
             percent=percent,
+            total_plans_in_phase=total_plans,
         )

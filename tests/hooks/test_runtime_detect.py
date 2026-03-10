@@ -20,6 +20,7 @@ from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
     SCOPE_GLOBAL,
     SCOPE_LOCAL,
+    _has_gpd_install,
     all_runtime_dirs,
     detect_install_scope,
     detect_active_runtime,
@@ -403,3 +404,19 @@ class TestUpdateCommand:
 
     def test_global_scope_adds_global_flag(self) -> None:
         assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(" --opencode --global")
+
+
+# ─── _has_gpd_install ──────────────────────────────────────────────────────
+
+
+class TestHasGpdInstall:
+    """Tests for _has_gpd_install directory detection."""
+
+    def test_returns_true_when_gpd_directory_exists(self, tmp_path: Path) -> None:
+        """_has_gpd_install returns True when get-physics-done dir is present."""
+        (tmp_path / "get-physics-done").mkdir()
+        assert _has_gpd_install(tmp_path) is True
+
+    def test_returns_false_when_gpd_directory_missing(self, tmp_path: Path) -> None:
+        """_has_gpd_install returns False when get-physics-done dir is absent."""
+        assert _has_gpd_install(tmp_path) is False
