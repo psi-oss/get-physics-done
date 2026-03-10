@@ -298,7 +298,6 @@ def _read_jsonl_file(path: Path) -> list[dict[str, object]]:
     return records
 
 
-
 def _command_from_argv(argv: list[str]) -> str:
     tokens: list[str] = []
     skip_value = False

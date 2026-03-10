@@ -141,7 +141,7 @@ def _check_frontmatter(content: str, detail: FileCheckDetail) -> None:
     from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 
     try:
-        meta, _ = extract_frontmatter(content)
+        extract_frontmatter(content)
         detail.frontmatter_valid = True
     except FrontmatterParseError as exc:
         detail.frontmatter_valid = False

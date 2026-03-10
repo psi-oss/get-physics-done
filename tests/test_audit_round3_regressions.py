@@ -281,10 +281,10 @@ class TestZeroAuthors:
         # When authors is empty, the block between \author[]{...} should not
         # have a dangling \\
         author_block_match = re.search(r"\\author\[]\{(.*?)\}", tex, re.DOTALL)
-        if author_block_match:
-            inner = author_block_match.group(1).strip()
-            # The inner content should be empty or minimal, not contain \\
-            assert inner == "" or "\\\\" not in inner
+        assert author_block_match is not None, "Expected \\author block in MNRAS template"
+        inner = author_block_match.group(1).strip()
+        # The inner content should be empty or minimal, not contain \\
+        assert inner == "" or "\\\\" not in inner
 
     def test_nature_empty_authors(self) -> None:
         """Nature template should render without crashing on empty authors."""
@@ -300,9 +300,9 @@ class TestZeroAuthors:
         )
         tex = render_paper(config)
         author_match = re.search(r"\\author\{(.*?)\}", tex, re.DOTALL)
-        if author_match:
-            inner = author_match.group(1).strip()
-            assert inner == "" or "\\\\[6pt]" not in inner
+        assert author_match is not None, "Expected \\author block in Nature template"
+        inner = author_match.group(1).strip()
+        assert inner == "" or "\\\\[6pt]" not in inner
 
 
 # ---------------------------------------------------------------------------

@@ -332,10 +332,10 @@ class TestRegressionCheck:
         result = runner.invoke(app, ["--raw", "regression-check"], catch_exceptions=False)
         parsed = json.loads(result.output)
         # Both phases are now completed (have plan+summary), with conflicting metric
-        if not parsed["passed"]:
-            issues = parsed["issues"]
-            conflict_types = [i["type"] for i in issues]
-            assert "convention_conflict" in conflict_types
+        assert not parsed["passed"], "Expected regression check to detect convention conflict"
+        issues = parsed["issues"]
+        conflict_types = [i["type"] for i in issues]
+        assert "convention_conflict" in conflict_types
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Check for GPD updates in background, write result to cache.
+"""Check for GPD updates in background and write the result to cache.
 
-Called by SessionStart hook — runs once per session.
-Supports Claude Code, Codex, Gemini CLI, and OpenCode runtimes.
+Used by SessionStart hook wiring in Claude Code and Gemini CLI, and also
+triggered opportunistically from the Codex notify hook.
 """
 
 import json
@@ -131,6 +131,8 @@ def main() -> None:
             continue
         try:
             cache = json.loads(candidate.read_text(encoding="utf-8"))
+            if not isinstance(cache, dict):
+                continue
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)

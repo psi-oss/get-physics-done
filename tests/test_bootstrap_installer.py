@@ -15,7 +15,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_JSON = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
 PYPROJECT = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 PYTHON_PACKAGE_VERSION = str(PACKAGE_JSON["gpdPythonVersion"])
-assert PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
 
 REPO_GIT_URL = str(PACKAGE_JSON["repository"]["url"]).removeprefix("git+").rstrip("/")
 if not REPO_GIT_URL.endswith(".git"):
@@ -30,6 +29,11 @@ TAG_SSH_GIT_SPEC = f"git+{REPO_SSH_URL}@v{PYTHON_PACKAGE_VERSION}"
 MAIN_SSH_GIT_SPEC = f"git+{REPO_SSH_URL}@main"
 TAG_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@v{PYTHON_PACKAGE_VERSION}"
 MAIN_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@main"
+
+
+def test_version_consistency():
+    """Package.json and pyproject.toml versions must match."""
+    assert PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
 
 
 def _write_fake_python(script_path: Path, log_path: Path) -> None:

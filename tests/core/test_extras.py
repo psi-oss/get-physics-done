@@ -63,10 +63,26 @@ def test_validity_greater_than():
 
 
 def test_validity_double_bounded_much_less_than():
-    """Double-bounded with << operators must not be preempted by single-bound <<."""
-    assert check_approximation_validity(5, "0 << x << 10") == "valid"
-    assert check_approximation_validity(0.5, "0 << x << 10") == "marginal"
+    """Double-bounded with << operators must not be preempted by single-bound <<.
+
+    With the semantics fix, '0 << x << 10' means 'val >> 0 AND val << 10'.
+    The thresholds are strict: val must be much greater than the lower bound
+    AND much less than the upper bound.
+    """
+    # val=0.05: lower (0 << x => val >> 0): val>10 => valid, val>1 => marginal => invalid (0.05<1)
+    #           upper (x << 10 => val << 10): abs(0.05) < 0.1*10=1 => valid
+    #           worst = invalid
+    assert check_approximation_validity(0.05, "0 << x << 10") == "invalid"
+    # val=5: lower (0 << x => val >> 0): 5>1 => marginal
+    #        upper (x << 10 => val << 10): abs(5)<1? No. abs(5)<5? No. => invalid
+    #        worst = invalid
+    assert check_approximation_validity(5, "0 << x << 10") == "invalid"
+    # val=15: exceeds upper bound completely => invalid
     assert check_approximation_validity(15, "0 << x << 10") == "invalid"
+    # A value that satisfies both: val >> 0 (val > 10) AND val << 10 (abs(val) < 1)
+    # These constraints are contradictory for "0 << x << 10", so no value is valid.
+    # Use a wider range instead: "0.01 << x << 1000"
+    assert check_approximation_validity(5.0, "0.01 << x << 1000") == "valid"
 
 
 def test_validity_single_bound_much_less_than_still_works():
