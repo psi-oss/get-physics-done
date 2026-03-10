@@ -8,21 +8,26 @@ load_when:
   - "anomaly cancellation"
   - "topological invariant"
   - "rigorous proof"
+  - "conformal bootstrap"
+  - "crossing symmetry"
+  - "OPE"
+  - "CFT"
 tier: 2
 context_cost: large
 ---
 
 # Verification Domain — Mathematical Physics
 
-Operator theory, spectral analysis, index theorems, topological invariants, modular properties, and proof verification for rigorous mathematical physics.
+Operator theory, spectral analysis, conformal bootstrap, index theorems, topological invariants, modular properties, and proof verification for rigorous mathematical physics.
 
-**Load when:** Working on rigorous quantum mechanics, functional analysis applications in physics, topological field theory, integrable systems, or any calculation requiring mathematical rigor.
+**Load when:** Working on rigorous quantum mechanics, functional analysis applications in physics, topological field theory, integrable systems, conformal field theory, or any calculation requiring mathematical rigor.
 
 **Related files:**
 - `verification-quick-reference.md` — compact checklist (default entry point)
 - `verification-core.md` — dimensional analysis, limiting cases, conservation laws
 - `verification-domain-qft.md` — QFT (for anomalies, Ward identities, renormalization)
 - `verification-domain-condmat.md` — condensed matter (for topological phases, spectral functions)
+- `protocols/conformal-bootstrap.md` — crossing equations, conformal blocks, SDPB, extremal functionals
 
 ---
 
@@ -169,6 +174,73 @@ Verification:
 ```
 
 </index_and_topology>
+
+<cft_and_bootstrap>
+
+## Conformal Bootstrap and CFT Verification
+
+Crossing-based CFT calculations mix exact symmetry constraints with numerical approximation. The dominant failure mode is not a small algebraic slip, but claiming a truncated or unstable computation is a rigorous bootstrap result.
+
+**Crossing equation setup:**
+
+```
+For a four-point bootstrap problem:
+1. State the correlator basis explicitly: <phi phi phi phi>, mixed correlators, spinning correlators, etc.
+2. Write the OPE channel decomposition and identify which operator representations appear in each channel.
+3. Include the identity operator with its fixed normalization.
+4. State the spacetime dimension d and the conformal block convention.
+
+Verification:
+- CHECK: the identity block is present with the expected coefficient.
+- CHECK: crossing equations match the symmetry representations of the external operators.
+- CHECK: scalar, current, and stress-tensor unitarity bounds use the correct d.
+```
+
+**Unitarity, protected operators, and sector bookkeeping:**
+
+```
+Verification:
+1. Protected operators must appear at their exact dimensions:
+   conserved current: Delta = d - 1
+   stress tensor: Delta = d
+2. Global-symmetry sectors must be assigned correctly:
+   singlet vs traceless-symmetric vs antisymmetric sectors are not interchangeable.
+3. For mixed correlators: every OPE coefficient and gap assumption must be tagged by sector.
+
+Failure signals:
+- stress tensor drifts away from Delta = d
+- current appears in the wrong representation
+- a bound changes when relabeling sectors that should be equivalent
+```
+
+**Numerical bootstrap stability:**
+
+```
+The key controls are derivative order Lambda, spin truncation, block precision, and SDP precision.
+
+Verification:
+1. COMPUTE bounds at multiple Lambda values. Allowed regions should tighten or stabilize monotonically.
+2. CHECK that islands or kinks persist when solver precision is increased.
+3. CHECK that exclusion results are reproducible under small changes in derivative basis or block tables.
+4. RECORD the solver settings used for every quoted bound.
+```
+
+**OPE convergence and truncation discipline:**
+
+```
+Truncated OPE sums are diagnostics, not rigorous bootstrap outputs.
+
+Verification:
+1. If a finite operator sum is used, report it as an OPE truncation test, not as proof of crossing.
+2. CHECK convergence in the conformal radius rho for the kinematic point used.
+3. For extremal spectrum extraction: verify the recovered spectrum reproduces the crossing equations within the quoted numerical tolerance.
+4. Distinguish clearly:
+   - rigorous bound or exclusion region
+   - approximate spectrum extraction
+   - analytic large-spin or inversion-formula estimate
+```
+
+</cft_and_bootstrap>
 
 <representation_completeness>
 

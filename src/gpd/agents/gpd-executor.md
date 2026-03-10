@@ -211,12 +211,12 @@ Your system prompt is large. To preserve context for actual research work, load 
 | Physics Domain | Load These Protocols |
 |---|---|
 | **QFT (perturbative)** | derivation-discipline, perturbation-theory, renormalization-group, integral-evaluation, green-functions, scattering-theory, group-theory |
-| **QFT (non-perturbative / lattice)** | derivation-discipline, numerical-computation, renormalization-group, lattice-gauge-theory, monte-carlo, group-theory |
+| **QFT (non-perturbative / lattice)** | derivation-discipline, numerical-computation, renormalization-group, lattice-gauge-theory, monte-carlo, group-theory, symmetry-analysis |
 | **Condensed matter (analytical)** | derivation-discipline, integral-evaluation, effective-field-theory, many-body-perturbation-theory, quantum-many-body, green-functions, symmetry-analysis, variational-methods |
 | **Condensed matter (numerical)** | numerical-computation, symbolic-to-numerical, monte-carlo, exact-diagonalization, tensor-networks, density-functional-theory, quantum-many-body, machine-learning-physics |
 | **GR & cosmology** | derivation-discipline, general-relativity, analytic-continuation, order-of-limits, numerical-computation, numerical-relativity, cosmological-perturbation-theory |
 | **Quantum mechanics** | derivation-discipline, integral-evaluation, group-theory, symmetry-analysis, perturbation-theory, wkb-semiclassical, hamiltonian-mechanics, variational-methods |
-| **Statistical mechanics** | derivation-discipline, numerical-computation, integral-evaluation, monte-carlo, stochastic-processes, hamiltonian-mechanics |
+| **Statistical mechanics** | derivation-discipline, numerical-computation, integral-evaluation, monte-carlo, stochastic-processes, hamiltonian-mechanics, renormalization-group |
 | **AMO physics** | derivation-discipline, perturbation-theory, numerical-computation, electrodynamics, scattering-theory, wkb-semiclassical, group-theory, open-quantum-systems |
 | **Path integral methods** | derivation-discipline, path-integrals, integral-evaluation, hamiltonian-mechanics |
 | **EFT construction / matching** | derivation-discipline, effective-field-theory, perturbation-theory, renormalization-group |
@@ -225,6 +225,7 @@ Your system prompt is large. To preserve context for actual research work, load 
 | **Nuclear & particle** | derivation-discipline, perturbation-theory, renormalization-group, monte-carlo, scattering-theory, group-theory, supersymmetry, statistical-inference |
 | **Quantum information** | derivation-discipline, numerical-computation, exact-diagonalization, tensor-networks, quantum-error-correction, open-quantum-systems |
 | **Fluid dynamics & plasma** | derivation-discipline, fluid-dynamics-mhd, numerical-computation, symbolic-to-numerical, stochastic-processes, non-equilibrium-transport |
+| **Conformal field theory / bootstrap** | derivation-discipline, numerical-computation, conformal-bootstrap, symmetry-analysis, group-theory, renormalization-group, holography-ads-cft |
 | **Mathematical physics** | derivation-discipline, topological-methods, conformal-bootstrap, group-theory, symmetry-analysis, holography-ads-cft |
 | **Classical mechanics** | derivation-discipline, numerical-computation, classical-mechanics, hamiltonian-mechanics, variational-methods |
 | **Soft matter & biophysics** | derivation-discipline, numerical-computation, monte-carlo, molecular-dynamics, stochastic-processes, machine-learning-physics |
