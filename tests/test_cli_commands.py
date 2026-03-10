@@ -474,10 +474,12 @@ class TestReviewValidationCommands:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "help"],
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "help"],
             catch_exceptions=False,
         )
 
@@ -494,10 +496,12 @@ class TestReviewValidationCommands:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "new-project"],
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "new-project"],
             catch_exceptions=False,
         )
 
@@ -514,10 +518,12 @@ class TestReviewValidationCommands:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "discover", "7"],
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "discover", "7"],
             catch_exceptions=False,
         )
 
@@ -535,10 +541,12 @@ class TestReviewValidationCommands:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "quick"],
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "quick"],
             catch_exceptions=False,
         )
 

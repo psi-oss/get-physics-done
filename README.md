@@ -168,7 +168,7 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
 | `execute-phase N` | Execute all tasks in phase `N` |
 | `verify-work` | Run verification checks against current work |
-| `peer-review` | Run standalone peer review on a manuscript before submission |
+| `peer-review` | Run manuscript peer review inside the current project before submission |
 | `progress` | Show project state and recommend the next step |
 | `discuss-phase N` | Explore a phase before committing to a plan |
 | `quick` | Run a smaller task with a lighter workflow |
@@ -192,7 +192,7 @@ Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-
 - `/gpd:discuss-phase <number>` — Gather phase context through adaptive questioning before planning
 - `/gpd:research-phase <number>` — Research how to tackle a phase (standalone; usually use `/gpd:plan-phase` instead)
 - `/gpd:list-phase-assumptions <number>` — Surface the AI's assumptions about a phase approach before planning
-- `/gpd:discover <phase> [--depth quick|medium|deep]` — Run discovery phase to investigate methods, literature, and approaches before planning
+- `/gpd:discover [phase or topic] [--depth quick|medium|deep]` — Run discovery phase to investigate methods, literature, and approaches before planning
 - `/gpd:show-phase <number>` — Inspect a single phase's artifacts, status, and results
 - `/gpd:plan-phase <number>` — Create detailed execution plan for a phase (`PLAN.md`) with verification loop
 
@@ -262,7 +262,7 @@ Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-
 #### Research Publishing
 
 - `/gpd:write-paper [title or topic] [--from-phases 1,2,3]` — Structure and write a physics paper from research results
-- `/gpd:peer-review [paper directory or manuscript path]` — Conduct a skeptical peer review of a manuscript and supporting research artifacts
+- `/gpd:peer-review [paper directory or manuscript path]` — Conduct a skeptical peer review of a manuscript and supporting research artifacts inside the current GPD project
 - `/gpd:respond-to-referees` — Structure a point-by-point response to referee reports and update the manuscript
 - `/gpd:arxiv-submission` — Prepare a paper for arXiv submission with validation and packaging
 - `/gpd:literature-review [topic]` — Structured literature review for a physics research topic with citation network analysis and open question identification
