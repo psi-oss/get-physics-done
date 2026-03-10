@@ -6,9 +6,9 @@ requires:
   files: [".gpd/ROADMAP.md"]
   recommended: ["audit-milestone"]
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+  - file_read
+  - file_write
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

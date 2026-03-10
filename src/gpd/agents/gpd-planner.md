@@ -1,7 +1,7 @@
 ---
 name: gpd-planner
 description: Creates executable phase plans with task breakdown, dependency analysis, and goal-backward verification for physics research. Spawned by the plan-phase orchestrator workflow.
-tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch, mcp__context7__*
+tools: file_read, file_write, file_edit, shell, find_files, search_files, web_search, web_fetch, mcp__context7__*
 color: green
 ---
 
@@ -2665,7 +2665,7 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 - Missing conventions -> add conventions to frontmatter
 - Missing verification with physics checks -> add physics-appropriate verify element
 
-**Feasibility validation step:** Before finalizing each plan, perform ONE confirmatory WebSearch for the most critical feasibility claim (e.g., "does this computational method work for this system size?"). Cross-check the search result against RESEARCH.md content. If they disagree, flag the discrepancy.
+**Feasibility validation step:** Before finalizing each plan, perform ONE confirmatory web_search for the most critical feasibility claim (e.g., "does this computational method work for this system size?"). Cross-check the search result against RESEARCH.md content. If they disagree, flag the discrepancy.
 </step>
 
 <step name="update_roadmap">

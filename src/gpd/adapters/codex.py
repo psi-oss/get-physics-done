@@ -6,7 +6,7 @@ Codex CLI uses SKILLS (not commands). Each skill is a directory under
 Config directory: CODEX_CONFIG_DIR env var > ~/.codex
 Skills directory: CODEX_SKILLS_DIR env var > ~/.agents/skills/
 
-Hooks go into config.toml (TOML format), not settings.json.
+Hooks and feature flags go into config.toml (TOML format), not settings.json.
 """
 
 from __future__ import annotations
@@ -39,34 +39,16 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     get_codex_skills_dir as _get_codex_skills_dir_str,
 )
-from gpd.adapters.tool_names import CODEX, canonical
+from gpd.adapters.tool_names import CODEX, canonical, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 
 logger = logging.getLogger(__name__)
 
 _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
-
-# ─── Claude Code → Codex tool name mapping (for body text conversion) ─────────
-
-_CLAUDE_TO_CODEX: dict[str, str | None] = {
-    "Agent": "agent",
-    "AskUserQuestion": "ask_user",
-    "Bash": "shell",
-    "Edit": "apply_patch",
-    "Glob": "glob",
-    "Grep": "grep",
-    "NotebookEdit": "notebook_edit",
-    "Read": "read_file",
-    "SlashCommand": "slash_command",
-    # Task is excluded — auto-discovered by Codex
-    "Task": None,
-    "TodoWrite": "todo",
-    "ToolSearch": "tool_search",
-    "WebFetch": "web_fetch",
-    "WebSearch": "web_search",
-    "Write": "write_file",
-}
+_GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
+_GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
+_TOOL_REFERENCE_MAP = reference_translation_map("codex")
 
 
 # ─── Directory helpers ──────────────────────────────────────────────────────
@@ -113,20 +95,13 @@ def _is_global_codex_target(target_dir: Path) -> bool:
 # ─── Codex-specific content conversion ─────────────────────────────────────
 
 
-def _convert_codex_tool_name(claude_tool: str) -> str | None:
-    """Convert a Claude Code tool name to Codex CLI format.
+def _convert_codex_tool_name(tool_name: str) -> str | None:
+    """Convert a canonical GPD tool name or legacy alias to Codex format.
 
-    Returns None if the tool should be excluded (e.g. Task — auto-discovered).
+    Returns ``None`` if the tool should be excluded (for example ``task``,
+    which Codex auto-discovers).
     """
-    if claude_tool == "Task":
-        return None
-    # MCP tools keep their format (Codex supports MCP natively)
-    if claude_tool.startswith("mcp__"):
-        return claude_tool
-    if claude_tool in _CLAUDE_TO_CODEX:
-        return _CLAUDE_TO_CODEX[claude_tool]
-    # Default: lowercase
-    return claude_tool.lower()
+    return translate_for_runtime(tool_name, "codex")
 
 
 def _convert_to_codex_skill(content: str, skill_name: str) -> str:
@@ -276,7 +251,7 @@ class CodexAdapter(RuntimeAdapter):
         skill_dir.mkdir(parents=True, exist_ok=True)
         out_path = skill_dir / "SKILL.md"
         skill_content = _convert_to_codex_skill(content, name)
-        skill_content = convert_tool_references_in_body(skill_content, _CLAUDE_TO_CODEX)
+        skill_content = convert_tool_references_in_body(skill_content, _TOOL_REFERENCE_MAP)
         out_path.write_text(skill_content, encoding="utf-8")
         return out_path
 
@@ -292,7 +267,7 @@ class CodexAdapter(RuntimeAdapter):
         skill_dir.mkdir(parents=True, exist_ok=True)
         out_path = skill_dir / "SKILL.md"
         skill_content = _convert_to_codex_skill(content, name)
-        skill_content = convert_tool_references_in_body(skill_content, _CLAUDE_TO_CODEX)
+        skill_content = convert_tool_references_in_body(skill_content, _TOOL_REFERENCE_MAP)
         out_path.write_text(skill_content, encoding="utf-8")
         return out_path
 
@@ -460,6 +435,7 @@ class CodexAdapter(RuntimeAdapter):
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
                 cleaned = _remove_gpd_notify_config(toml_content)
+                cleaned = _remove_gpd_multi_agent_config(cleaned)
                 if cleaned != toml_content:
                     config_toml.write_text(cleaned, encoding="utf-8")
                     removed.append("config.toml GPD entries")
@@ -524,7 +500,7 @@ def _copy_commands_as_skills(
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix)
             content = _convert_to_codex_skill(content, skill_name)
-            content = convert_tool_references_in_body(content, _CLAUDE_TO_CODEX)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
             (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -564,7 +540,7 @@ def _copy_agents_as_skills(
             content = expand_at_includes(content, str(gpd_content_dir), path_prefix)
 
         content = _convert_to_codex_skill(content, skill_name)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_CODEX)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -597,7 +573,7 @@ def _copy_agents_as_agent_files(
             content = expand_at_includes(content, str(gpd_content_dir), path_prefix)
 
         content = _convert_to_codex_skill(content, entry.stem)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_CODEX)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
         new_agent_names.add(entry.name)
@@ -661,15 +637,188 @@ def _remove_gpd_mcp_toml_sections(content: str) -> str:
     return content
 
 
+def _parse_section_name(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped.startswith("[") or not stripped.endswith("]") or stripped.startswith("[["):
+        return None
+    return stripped[1:-1].strip()
+
+
+def _split_toml_section(toml_content: str, section_name: str) -> tuple[list[str], list[str] | None, list[str]]:
+    lines = toml_content.splitlines()
+    start: int | None = None
+
+    for idx, line in enumerate(lines):
+        if _parse_section_name(line) == section_name:
+            start = idx
+            break
+
+    if start is None:
+        return lines, None, []
+
+    end = len(lines)
+    for idx in range(start + 1, len(lines)):
+        if _parse_section_name(lines[idx]) is not None:
+            end = idx
+            break
+
+    return lines[:start], lines[start + 1 : end], lines[end:]
+
+
+def _parse_feature_bool_assignment(line: str, key: str) -> bool | None:
+    stripped = line.strip()
+    if not (stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=")):
+        return None
+    try:
+        parsed = tomllib.loads(f"[features]\n{stripped}\n")
+    except tomllib.TOMLDecodeError:
+        return None
+    features = parsed.get("features")
+    if not isinstance(features, dict):
+        return None
+    value = features.get(key)
+    return value if isinstance(value, bool) else None
+
+
+def _build_multi_agent_block(
+    existing_line: str | None,
+    *,
+    had_managed_block: bool,
+    backup_line: str | None,
+) -> list[str]:
+    desired_line = "multi_agent = true"
+
+    if had_managed_block:
+        block = [_GPD_MULTI_AGENT_COMMENT]
+        if backup_line is not None:
+            block.append(_GPD_MULTI_AGENT_BACKUP_PREFIX + backup_line)
+        block.append(desired_line)
+        return block
+
+    if existing_line is None:
+        return [_GPD_MULTI_AGENT_COMMENT, desired_line]
+
+    if _parse_feature_bool_assignment(existing_line, "multi_agent") is True:
+        return [existing_line]
+
+    return [
+        _GPD_MULTI_AGENT_COMMENT,
+        _GPD_MULTI_AGENT_BACKUP_PREFIX + existing_line,
+        desired_line,
+    ]
+
+
+def _install_gpd_multi_agent_config(toml_content: str) -> str:
+    before, body, after = _split_toml_section(toml_content, "features")
+    desired_line = "multi_agent = true"
+
+    if body is None:
+        lines = before[:]
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.extend(["[features]", _GPD_MULTI_AGENT_COMMENT, desired_line])
+        return _serialize_toml_lines(lines)
+
+    cleaned: list[str] = []
+    existing_line: str | None = None
+    backup_line: str | None = None
+    had_managed_block = False
+    pending_managed_block = False
+    insert_at: int | None = None
+
+    for line in body:
+        stripped = line.strip()
+        if stripped == _GPD_MULTI_AGENT_COMMENT:
+            had_managed_block = True
+            pending_managed_block = True
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        if stripped.startswith(_GPD_MULTI_AGENT_BACKUP_PREFIX):
+            had_managed_block = True
+            pending_managed_block = True
+            backup_line = stripped[len(_GPD_MULTI_AGENT_BACKUP_PREFIX) :].strip()
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        if _parse_feature_bool_assignment(line, "multi_agent") is not None:
+            if pending_managed_block:
+                had_managed_block = True
+                pending_managed_block = False
+                if insert_at is None:
+                    insert_at = len(cleaned)
+                continue
+            existing_line = stripped
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        pending_managed_block = False
+        cleaned.append(line)
+
+    if insert_at is None:
+        insert_at = len(cleaned)
+    cleaned[insert_at:insert_at] = _build_multi_agent_block(
+        existing_line,
+        had_managed_block=had_managed_block,
+        backup_line=backup_line,
+    )
+    return _serialize_toml_lines(before + ["[features]"] + cleaned + after)
+
+
+def _remove_gpd_multi_agent_config(toml_content: str) -> str:
+    before, body, after = _split_toml_section(toml_content, "features")
+    if body is None:
+        return toml_content
+
+    cleaned: list[str] = []
+    original_line: str | None = None
+    insert_at: int | None = None
+    had_managed_block = False
+    pending_managed_block = False
+
+    for line in body:
+        stripped = line.strip()
+        if stripped == _GPD_MULTI_AGENT_COMMENT:
+            had_managed_block = True
+            pending_managed_block = True
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        if stripped.startswith(_GPD_MULTI_AGENT_BACKUP_PREFIX):
+            had_managed_block = True
+            pending_managed_block = True
+            original_line = stripped[len(_GPD_MULTI_AGENT_BACKUP_PREFIX) :].strip()
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        if _parse_feature_bool_assignment(line, "multi_agent") is not None and pending_managed_block:
+            had_managed_block = True
+            pending_managed_block = False
+            if insert_at is None:
+                insert_at = len(cleaned)
+            continue
+        pending_managed_block = False
+        cleaned.append(line)
+
+    if not had_managed_block:
+        return toml_content
+
+    if original_line is not None:
+        position = insert_at if insert_at is not None else len(cleaned)
+        cleaned[position:position] = [original_line]
+
+    lines = before[:]
+    if any(line.strip() for line in cleaned):
+        lines.extend(["[features]", *cleaned])
+    lines.extend(after)
+    return re.sub(r"\n{3,}", "\n\n", _serialize_toml_lines(lines))
+
+
 def _configure_config_toml(
     target_dir: Path,
     is_global: bool,
 ) -> None:
-    """Configure the notify hook in Codex config.toml.
-
-    Codex expects notify hooks as a TOML array of commands:
-      notify = ["python3", "/path/to/codex_notify.py"]
-    """
+    """Configure GPD runtime settings in Codex config.toml."""
     config_toml = target_dir / "config.toml"
     toml_content = ""
     if config_toml.exists():
@@ -687,12 +836,13 @@ def _configure_config_toml(
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     else:
         desired_path = f".codex/hooks/{notify_hook}"
+    configured = _install_gpd_notify_config(
+        toml_content,
+        desired_path=desired_path,
+        legacy_markers=legacy_markers,
+    )
     config_toml.write_text(
-        _install_gpd_notify_config(
-            toml_content,
-            desired_path=desired_path,
-            legacy_markers=legacy_markers,
-        ),
+        _install_gpd_multi_agent_config(configured),
         encoding="utf-8",
     )
 

@@ -3,13 +3,13 @@ name: gpd:numerical-convergence
 description: Systematic convergence testing for numerical physics computations
 argument-hint: "[phase number or file path]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

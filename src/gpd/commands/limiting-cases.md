@@ -3,12 +3,12 @@ name: gpd:limiting-cases
 description: Systematically identify and verify all relevant limiting cases for a result or phase
 argument-hint: "[phase number or file path]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - search_files
+  - find_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

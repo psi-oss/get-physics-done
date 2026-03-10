@@ -26,6 +26,7 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     compute_path_prefix,
+    convert_tool_references_in_body,
     file_hash,
     generate_manifest,
     get_global_dir,
@@ -33,7 +34,7 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     replace_placeholders,
 )
-from gpd.adapters.tool_names import OPENCODE, canonical
+from gpd.adapters.tool_names import OPENCODE, canonical, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +42,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-# Claude Code tool name → OpenCode tool name (special mappings)
-_CLAUDE_TO_OPENCODE: dict[str, str] = {
-    "AskUserQuestion": "question",
-    "Bash": "shell",
-    "Edit": "edit_file",
-    "Read": "read_file",
-    "SlashCommand": "skill",
-    "TodoWrite": "todowrite",
-    "WebFetch": "webfetch",
-    "WebSearch": "websearch",
-    "Write": "write_file",
-}
+_TOOL_REFERENCE_MAP = reference_translation_map("opencode")
 
 # Color name → hex for OpenCode compatibility
 _COLOR_NAME_TO_HEX: dict[str, str] = {
@@ -97,18 +87,13 @@ def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def convert_tool_name(claude_tool: str) -> str:
-    """Convert a Claude Code tool name to OpenCode format.
+def convert_tool_name(tool_name: str) -> str:
+    """Convert a canonical GPD tool name or legacy alias to OpenCode format.
 
-    - Applies special mappings (AskUserQuestion → question, etc.)
-    - MCP tools (mcp__*) keep their format
-    - Default: convert to lowercase
+    OpenCode keeps MCP tools as-is, so this never returns ``None``.
     """
-    if claude_tool in _CLAUDE_TO_OPENCODE:
-        return _CLAUDE_TO_OPENCODE[claude_tool]
-    if claude_tool.startswith("mcp__"):
-        return claude_tool
-    return claude_tool.lower()
+    mapped = translate_for_runtime(tool_name, "opencode")
+    return mapped if mapped is not None else tool_name
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +102,10 @@ def convert_tool_name(claude_tool: str) -> str:
 
 
 def convert_claude_to_opencode_frontmatter(content: str) -> str:
-    """Convert Claude Code frontmatter to OpenCode format.
+    """Convert canonical GPD frontmatter to OpenCode format.
 
     Transformations:
-    - Replace tool name references in content (AskUserQuestion→question, etc.)
+    - Replace tool name references in content
     - Replace /gpd: with /gpd- (flat command structure)
     - Replace ~/.claude with ~/.config/opencode
     - Parse YAML frontmatter:
@@ -129,9 +114,7 @@ def convert_claude_to_opencode_frontmatter(content: str) -> str:
       - Convert allowed-tools: YAML array to tools: object with {tool: true}
     """
     converted = content
-    converted = re.sub(r"\bAskUserQuestion\b", "question", converted)
-    converted = re.sub(r"\bSlashCommand\b", "skill", converted)
-    converted = re.sub(r"\bTodoWrite\b", "todowrite", converted)
+    converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = converted.replace("/gpd:", "/gpd-")
     converted = re.sub(r"~/\.claude\b", "~/.config/opencode", converted)
 

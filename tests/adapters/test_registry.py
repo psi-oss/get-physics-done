@@ -8,12 +8,18 @@ from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.tool_names import (
     CLAUDE_CODE,
+    CANONICAL_TOOL_NAMES,
+    CONTEXTUAL_TOOL_REFERENCE_NAMES,
     CODEX,
     GEMINI,
+    LEGACY_CLAUDE_ALIASES,
     OPENCODE,
     RUNTIME_TABLES,
     canonical,
+    legacy_claude_reference_map,
+    reference_translation_map,
     translate,
+    translate_for_runtime,
     translate_list,
 )
 
@@ -117,6 +123,29 @@ class TestToolNames:
 
     def test_translate_list_empty(self) -> None:
         assert translate_list([], "claude-code") == []
+
+    def test_translate_for_runtime_drops_auto_discovered_tools(self) -> None:
+        assert translate_for_runtime("task", "codex") is None
+        assert translate_for_runtime("Task", "gemini") is None
+
+    def test_translate_for_runtime_handles_mcp_policy(self) -> None:
+        assert translate_for_runtime("mcp__physics", "gemini") is None
+        assert translate_for_runtime("mcp__physics", "codex") == "mcp__physics"
+
+    def test_reference_translation_map_includes_canonical_and_legacy_names(self) -> None:
+        mapping = reference_translation_map("opencode")
+        assert mapping["ask_user"] == "question"
+        assert mapping["AskUserQuestion"] == "question"
+        assert "read_file" not in mapping  # identical names are omitted
+
+    def test_legacy_claude_reference_map_matches_declared_aliases(self) -> None:
+        assert legacy_claude_reference_map() == LEGACY_CLAUDE_ALIASES
+
+    def test_contextual_reference_names_cover_common_english_tools(self) -> None:
+        assert {"Read", "Write", "Edit", "shell", "task", "agent"} <= CONTEXTUAL_TOOL_REFERENCE_NAMES
+
+    def test_canonical_tool_names_match_runtime_table_keys(self) -> None:
+        assert set(CANONICAL_TOOL_NAMES) == set(CLAUDE_CODE)
 
     def test_all_runtime_tables_present(self) -> None:
         assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode"}

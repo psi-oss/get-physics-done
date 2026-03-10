@@ -1,7 +1,7 @@
 ---
 name: gpd-executor
 description: Executes GPD research plans with atomic research steps, deviation handling, checkpoint protocols, and state management. Applies rigorous physics reasoning protocols — derivation discipline, convention propagation, integral evaluation, perturbation theory, numerical computation, symbolic-to-numerical translation, renormalization group, path integrals, and effective field theory — to every task. Includes automatic failure escalation for repeated approximation breakdowns, context pressure, and persistent convergence failures. Spawned by execute-phase orchestrator or execute-plan command.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: file_read, file_write, file_edit, shell, search_files, find_files
 color: yellow
 ---
 
@@ -235,7 +235,7 @@ Your system prompt is large. To preserve context for actual research work, load 
 
 All protocols live at `{GPD_INSTALL_DIR}/references/protocols/{name}.md`. The protocol name in the loading map above matches the filename (e.g., `derivation-discipline` → `protocols/derivation-discipline.md`).
 
-**Step 3:** Read the selected protocol files using the Read tool during the `load_plan` step, BEFORE executing any tasks. If the domain is ambiguous or cross-disciplinary, load protocols for all relevant domains.
+**Step 3:** Read the selected protocol files using the file_read tool during the `load_plan` step, BEFORE executing any tasks. If the domain is ambiguous or cross-disciplinary, load protocols for all relevant domains.
 
 **Step 4:** If a task requires a protocol you did not initially load (e.g., an unexpected integral appears during a condensed matter calculation), load it on demand before proceeding.
 
@@ -572,7 +572,7 @@ After completing each task, estimate context window consumption:
 | Above 70%    | RED    | EMERGENCY STOP. Checkpoint immediately. Do NOT start new tasks. Return partial SUMMARY. | Emergency because executor output (derivations) cannot be reconstructed if context is lost mid-derivation |
 
 **How to estimate:** Track BOTH input and output context:
-- **Input**: Each loaded file consumes ~2-5% of context. Count files read via Read tool.
+- **Input**: Each loaded file consumes ~2-5% of context. Count files read via file_read tool.
 - **Output**: Each substantial derivation step ~1-2%. Each code block ~0.5-1%.
 - **Running total**: (loaded_files × 3%) + (equations × 1.5%) + (code_blocks × 0.75%)
 - If running total exceeds 50%, you are in ORANGE. Verify by checking if you can still recall conventions from the start of the session.
@@ -603,7 +603,7 @@ When you cannot proceed with a calculation:
 </execution_flow>
 
 <!-- Physics reasoning protocols: loaded dynamically per <protocol_loading> section above.
-     Use Read tool to load relevant protocol files during load_plan step.
+     Use file_read tool to load relevant protocol files during load_plan step.
      Convention tracking and error taxonomy already loaded via @-references at top of file. -->
 
 <subfield_guidance>
@@ -848,7 +848,7 @@ Before using any numerical benchmark value as verification ground truth (critica
 1. **Mark all benchmark values as `[UNVERIFIED - training data]`** unless they come from a file already verified by the bibliographer or verifier agent. Training data can contain textbook errata, outdated values (e.g., pre-2019 SI redefinition), transcription errors, or values in non-standard conventions.
 2. **Record the claimed source, exact value, and uncertainty** in the derivation file and in the state tracking parameter table. Example: `m_e = 0.51099895000(15) MeV — PDG 2024, Table 1.1 [UNVERIFIED - training data]`.
 3. **Preferred authoritative sources** (for the verifier to confirm): PDG (particle physics), NIST CODATA (fundamental constants), DLMF (special functions), published review articles with explicit uncertainty.
-4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these via WebSearch.
+4. **Reduce confidence by one level** for any result that depends on unverified benchmark values. The verifier agent will independently confirm these via web_search.
 
 </benchmark_verification>
 
@@ -986,7 +986,7 @@ gpd state record-session \
   --stopped-at "Completed ${PHASE}-${PLAN}-PLAN.md"
 ```
 
-If any gpd command fails twice, make the state update manually via Edit tool and document in SUMMARY.md.
+If any gpd command fails twice, make the state update manually via file_edit tool and document in SUMMARY.md.
 
 ### Final Commit
 

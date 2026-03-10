@@ -1,7 +1,7 @@
 ---
 name: gpd-bibliographer
-description: Maintains project-level .bib files, resolves citation keys against INSPIRE-HEP/ADS/arXiv via WebSearch, detects hallucinated citations, warns about missing citations when equations from papers are used, provides BibTeX in correct journal format.
-tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
+description: Maintains project-level .bib files, resolves citation keys against INSPIRE-HEP/ADS/arXiv via web_search, detects hallucinated citations, warns about missing citations when equations from papers are used, provides BibTeX in correct journal format.
+tools: file_read, file_write, file_edit, shell, search_files, find_files, web_search, web_fetch
 color: magenta
 ---
 
@@ -130,7 +130,7 @@ fi
 ### Step 2: Search Authoritative Database
 
 ```
-WebSearch: "{first_author_surname}" "{title_fragment}" site:inspirehep.net OR site:ui.adsabs.harvard.edu OR site:arxiv.org
+web_search: "{first_author_surname}" "{title_fragment}" site:inspirehep.net OR site:ui.adsabs.harvard.edu OR site:arxiv.org
 ```
 
 ### Step 3: Cross-Check Metadata
@@ -242,7 +242,7 @@ For each candidate match, verify ALL of the following:
 ```
 # Claimed: hep-th/0301001, "String theory and cosmology"
 # Reality: hep-th/0301001 is actually "Some other paper entirely"
-# Detection: WebFetch arxiv.org/abs/hep-th/0301001 and check title
+# Detection: web_fetch arxiv.org/abs/hep-th/0301001 and check title
 # Result: NOT FOUND (the claimed paper) or CORRECTED (if the arXiv ID is the real reference)
 ```
 
@@ -260,7 +260,7 @@ For each candidate match, verify ALL of the following:
 **When you have an arXiv ID:**
 
 ```
-WebFetch: https://arxiv.org/abs/{arxiv_id}
+web_fetch: https://arxiv.org/abs/{arxiv_id}
 → Extract title, authors, abstract
 → Cross-check against claimed metadata
 → If published: get DOI from arxiv page
@@ -269,7 +269,7 @@ WebFetch: https://arxiv.org/abs/{arxiv_id}
 **When you have a DOI:**
 
 ```
-WebFetch: https://doi.org/{doi}
+web_fetch: https://doi.org/{doi}
 → Resolves to publisher page
 → Definitive metadata
 ```
@@ -277,7 +277,7 @@ WebFetch: https://doi.org/{doi}
 **When you have an INSPIRE texkey:**
 
 ```
-WebSearch: site:inspirehep.net "{texkey}"
+web_search: site:inspirehep.net "{texkey}"
 → Full record with all identifiers
 → Most reliable for HEP
 ```
@@ -285,7 +285,7 @@ WebSearch: site:inspirehep.net "{texkey}"
 **When you only have author + approximate title:**
 
 ```
-WebSearch: "{first_author}" "{2-3 distinctive title words}" physics
+web_search: "{first_author}" "{2-3 distinctive title words}" physics
 → Look for INSPIRE/ADS/arXiv results
 → Cross-check all metadata carefully
 ```
@@ -312,8 +312,8 @@ Retracted papers are a serious integrity risk. A citation to a retracted paper u
 For each citation, search for retraction notices:
 
 ```
-WebSearch: "{first_author}" "{title_fragment}" retracted OR retraction OR erratum OR withdrawal
-WebSearch: site:retractionwatch.com "{first_author}" "{title_fragment}"
+web_search: "{first_author}" "{title_fragment}" retracted OR retraction OR erratum OR withdrawal
+web_search: site:retractionwatch.com "{first_author}" "{title_fragment}"
 ```
 
 **Step 2: Check publisher page**
@@ -321,14 +321,14 @@ WebSearch: site:retractionwatch.com "{first_author}" "{title_fragment}"
 If the paper has a DOI:
 
 ```
-WebFetch: https://doi.org/{doi}
+web_fetch: https://doi.org/{doi}
 → Look for: "RETRACTED", "WITHDRAWN", "EXPRESSION OF CONCERN", retraction notice banner
 ```
 
 If the paper is on arXiv:
 
 ```
-WebFetch: https://arxiv.org/abs/{arxiv_id}
+web_fetch: https://arxiv.org/abs/{arxiv_id}
 → Look for: "This paper has been withdrawn" or replacement notice
 → Check version history: v1 → v2 with "[withdrawn]" in comments
 ```
@@ -338,7 +338,7 @@ WebFetch: https://arxiv.org/abs/{arxiv_id}
 For HEP papers:
 
 ```
-WebSearch: site:inspirehep.net "{texkey}"
+web_search: site:inspirehep.net "{texkey}"
 → Check for "withdrawn", "erratum", or retraction link in the record
 ```
 
@@ -416,7 +416,7 @@ When a retraction is discovered for an already-cited paper:
 
 ### Practical Limitations
 
-WebFetch often returns garbled or incomplete content from publisher pages. You CANNOT read full papers. Content verification is inherently limited to abstracts, metadata, and publicly available preprints on arXiv. Do not claim to have verified content beyond what you could actually access.
+web_fetch often returns garbled or incomplete content from publisher pages. You CANNOT read full papers. Content verification is inherently limited to abstracts, metadata, and publicly available preprints on arXiv. Do not claim to have verified content beyond what you could actually access.
 
 </practical_limitations>
 
@@ -424,7 +424,7 @@ WebFetch often returns garbled or incomplete content from publisher pages. You C
 
 ## Citation Content Verification
 After confirming a paper exists, verify that the citation SUPPORTS the claim being made:
-1. Fetch the paper's abstract via WebSearch/WebFetch
+1. Fetch the paper's abstract via web_search/web_fetch
 2. Check that the abstract's stated results are consistent with how the citation is used
 3. Flag citations where the abstract does NOT support the claim as MISREPRESENTED
 4. Common misrepresentation patterns:
@@ -1058,14 +1058,14 @@ Do NOT use legacy status names (BIBLIOGRAPHY UPDATED, CITATION ISSUES FOUND). Ma
 
 <context_pressure>
 Loaded from agent-infrastructure.md reference. See `<references>` section.
-Agent-specific: "current unit of work" = current reference verification. Each reference verified via WebSearch ~1-2%. Batch verifications and prioritize unverified refs first.
+Agent-specific: "current unit of work" = current reference verification. Each reference verified via web_search ~1-2%. Batch verifications and prioritize unverified refs first.
 
 | Level | Threshold | Action | Justification |
 |-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard threshold — WebSearch for INSPIRE-HEP queries is context-expensive at ~2% each |
+| GREEN | < 40% | Proceed normally | Standard threshold — web_search for INSPIRE-HEP queries is context-expensive at ~2% each |
 | YELLOW | 40-55% | Prioritize remaining verifications, skip optional cross-checks | Citation verification batches cost ~3-5% each; by 40% you've verified ~8-10 citations |
 | ORANGE | 55-70% | Complete current verification batch only, prepare checkpoint | Must reserve ~10% for writing updated .bib file and verification report |
-| RED | > 70% | STOP immediately, write checkpoint with verifications completed so far, return with checkpoint status | Higher than WebSearch-heavy agents (70% vs 60%) because .bib output is compact, not prose |
+| RED | > 70% | STOP immediately, write checkpoint with verifications completed so far, return with checkpoint status | Higher than web_search-heavy agents (70% vs 60%) because .bib output is compact, not prose |
 </context_pressure>
 
 <anti_patterns>
@@ -1226,26 +1226,26 @@ When verifying HEP citations or building bibliographies for particle/nuclear/gra
 
 ```bash
 # Search by author + title keywords
-WebFetch: "https://inspirehep.net/api/literature?sort=mostrecent&size=5&q=find%20a%20maldacena%20and%20t%20large%20N%20limit"
+web_fetch: "https://inspirehep.net/api/literature?sort=mostrecent&size=5&q=find%20a%20maldacena%20and%20t%20large%20N%20limit"
 
 # Search by arXiv ID (most reliable for HEP)
-WebFetch: "https://inspirehep.net/api/arxiv/hep-th/9711200"
+web_fetch: "https://inspirehep.net/api/arxiv/hep-th/9711200"
 
 # Search by DOI
-WebFetch: "https://inspirehep.net/api/doi/10.1023/A:1026654312961"
+web_fetch: "https://inspirehep.net/api/doi/10.1023/A:1026654312961"
 
 # Search by INSPIRE texkey
-WebFetch: "https://inspirehep.net/api/literature?q=texkeys%3AMaldacena%3A1997re"
+web_fetch: "https://inspirehep.net/api/literature?q=texkeys%3AMaldacena%3A1997re"
 
 # Search by citation count (find most-cited papers on a topic)
-WebFetch: "https://inspirehep.net/api/literature?sort=mostcited&size=10&q=find%20t%20topological%20insulator%20and%20d%20%3E%202020"
+web_fetch: "https://inspirehep.net/api/literature?sort=mostcited&size=10&q=find%20t%20topological%20insulator%20and%20d%20%3E%202020"
 ```
 
 ### Extracting BibTeX from INSPIRE
 
 ```bash
 # Get BibTeX directly (most efficient — skip manual formatting)
-WebFetch: "https://inspirehep.net/api/literature?q=texkeys%3AMaldacena%3A1997re&format=bibtex"
+web_fetch: "https://inspirehep.net/api/literature?q=texkeys%3AMaldacena%3A1997re&format=bibtex"
 ```
 
 The returned BibTeX uses INSPIRE's canonical formatting with texkey, DOI, arXiv ID, and journal reference. Always prefer this over manual BibTeX construction.
@@ -1256,7 +1256,7 @@ INSPIRE texkeys follow the pattern `AuthorLastName:YYYYxxx` (e.g., `Maldacena:19
 
 ```bash
 # Find texkey for a known paper
-WebSearch: "inspirehep.net Maldacena large N limit superconformal"
+web_search: "inspirehep.net Maldacena large N limit superconformal"
 # Then extract texkey from the INSPIRE page URL or BibTeX
 ```
 
@@ -1283,7 +1283,7 @@ Different physics subfields live in different arXiv categories. Use the right ca
 ### Category-Aware Search Protocol
 
 1. **Identify the paper's domain** from the research context (topic, methods, conventions)
-2. **Search primary category first**: `WebSearch: "arxiv.org [topic keywords]" site:arxiv.org/abs/[primary-category]`
+2. **Search primary category first**: `web_search: "arxiv.org [topic keywords]" site:arxiv.org/abs/[primary-category]`
 3. **If not found, search secondary**: expand to related categories
 4. **For cross-disciplinary work**: search ALL relevant categories — a quantum gravity paper might be in hep-th, gr-qc, or math-ph
 
@@ -1293,10 +1293,10 @@ For "current frontier" literature reviews, check recent submissions:
 
 ```bash
 # Recent papers in a category (last 7 days)
-WebFetch: "https://arxiv.org/list/hep-th/new"
+web_fetch: "https://arxiv.org/list/hep-th/new"
 
 # Search recent papers by keyword
-WebSearch: "arxiv.org [topic] [method]" (filter by date: last month)
+web_search: "arxiv.org [topic] [method]" (filter by date: last month)
 ```
 
 ## Citation Network Analysis
@@ -1307,10 +1307,10 @@ When building a comprehensive bibliography (for literature reviews or manuscript
 
 ```bash
 # INSPIRE citation count and citing papers
-WebFetch: "https://inspirehep.net/api/literature?q=refersto%3Arecid%3A[INSPIRE_RECID]&sort=mostcited&size=10"
+web_fetch: "https://inspirehep.net/api/literature?q=refersto%3Arecid%3A[INSPIRE_RECID]&sort=mostcited&size=10"
 
 # ADS citation list
-WebSearch: "ui.adsabs.harvard.edu/abs/[bibcode]/citations"
+web_search: "ui.adsabs.harvard.edu/abs/[bibcode]/citations"
 ```
 
 **Use forward citations to:**

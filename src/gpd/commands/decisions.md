@@ -5,10 +5,10 @@ argument-hint: "[phase number or keyword]"
 requires:
   files: [".gpd/STATE.md"]
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

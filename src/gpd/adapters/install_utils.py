@@ -15,6 +15,8 @@ import shlex
 import sys
 from pathlib import Path
 
+from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -367,52 +369,40 @@ def strip_sub_tags(content: str) -> str:
 
 
 def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None]) -> str:
-    """Replace Claude Code tool-name references in body text using *tool_map*.
+    """Replace tool-name references in body text using *tool_map*.
 
     Targets contextual patterns: backtick-quoted names, "the X tool" phrases,
     "Use X to" / "using X" phrases.  Avoids replacing common English words
-    (Read, Write, Edit) in prose.
+    (for example ``Read`` or ``shell``) when they are not clearly tool references.
     """
-    # Globally safe to replace everywhere (unique names)
-    safe_global = [
-        "WebSearch",
-        "WebFetch",
-        "TodoWrite",
-        "AskUserQuestion",
-        "SlashCommand",
-        "NotebookEdit",
-        "ToolSearch",
-    ]
-    for claude_name in safe_global:
-        target = tool_map.get(claude_name)
-        if target:
-            content = re.sub(r"\b" + claude_name + r"\b", target, content)
-
-    # Context-sensitive replacements (common English words)
-    contextual = ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "Agent"]
-    for claude_name in contextual:
-        target = tool_map.get(claude_name)
-        if not target:
+    for source_name, target in sorted(tool_map.items(), key=lambda item: len(item[0]), reverse=True):
+        if not target or source_name == target:
             continue
+
+        escaped = re.escape(source_name)
+        if source_name not in CONTEXTUAL_TOOL_REFERENCE_NAMES:
+            content = re.sub(r"\b" + escaped + r"\b", target, content)
+            continue
+
         # Backtick-quoted
-        content = content.replace(f"`{claude_name}`", f"`{target}`")
+        content = content.replace(f"`{source_name}`", f"`{target}`")
         # "the X tool"
         content = re.sub(
-            r"\b(the\s+)" + claude_name + r"(\s+tool)",
+            r"\b(the\s+)" + escaped + r"(\s+tool)",
             r"\g<1>" + target + r"\2",
             content,
             flags=re.IGNORECASE,
         )
         # "X tool" after punctuation/start-of-line
         content = re.sub(
-            r"(^|[.,:;!?\-\s])" + claude_name + r"(\s+tool\b)",
+            r"(^|[.,:;!?\-\s])" + escaped + r"(\s+tool\b)",
             r"\1" + target + r"\2",
             content,
             flags=re.MULTILINE,
         )
         # "Use X" / "using X" / "via X"
         content = re.sub(
-            r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + claude_name + r"\b",
+            r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + escaped + r"\b",
             r"\1" + target,
             content,
         )

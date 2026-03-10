@@ -3,9 +3,9 @@ name: gpd:add-phase
 description: Add research phase to end of current milestone in roadmap
 argument-hint: <description>
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+  - file_read
+  - file_write
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

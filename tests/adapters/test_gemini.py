@@ -59,8 +59,8 @@ class TestConvertGeminiToolName:
     def test_mcp_excluded(self) -> None:
         assert _convert_gemini_tool_name("mcp__physics") is None
 
-    def test_unknown_lowercased(self) -> None:
-        assert _convert_gemini_tool_name("CustomTool") == "customtool"
+    def test_unknown_passthrough(self) -> None:
+        assert _convert_gemini_tool_name("CustomTool") == "CustomTool"
 
 
 class TestConvertFrontmatterToGemini:

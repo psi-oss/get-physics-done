@@ -1,7 +1,7 @@
 ---
 name: gpd-theory-mapper
 description: Explores a physics research project and writes structured analysis documents. Spawned by map-theory with a focus area (theory, computation, methodology, status). Writes documents directly to reduce orchestrator context load.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: cyan
 ---
 
@@ -153,9 +153,9 @@ Based on focus, determine which documents you'll write:
 **Tool availability by focus:**
 
 - `theory`, `computation`, `methodology`: Read-only tools (Read, Bash, Grep, Glob, Write)
-- `status`: Read-only tools PLUS `WebSearch` and `WebFetch`
+- `status`: Read-only tools PLUS `web_search` and `web_fetch`
 
-For the "status" focus, WebSearch is available to compare the project's coverage against the broader literature and state of the art. Use it to identify what the project is missing relative to recent developments in the field.
+For the "status" focus, web_search is available to compare the project's coverage against the broader literature and state of the art. Use it to identify what the project is missing relative to recent developments in the field.
 
 ### Missing Critical Information Escalation
 
@@ -171,7 +171,7 @@ Explore the research project thoroughly for your focus area.
 
 **For theory focus:**
 
-Use Glob and Grep tools (never raw bash find/grep):
+Use find_files and Grep tools (never raw bash find/grep):
 
 - `Glob("**/*.tex")` — LaTeX documents (primary theory content)
 - `Grep("Hamiltonian|Lagrangian|action|partition function", glob="*.tex")` — Physics keywords
@@ -206,7 +206,7 @@ Use Glob and Grep tools (never raw bash find/grep):
 - `Grep("\\\\cite\\{\\}|\\\\ref\\{\\}|citation needed", glob="*.tex")` — Missing references
 - `Grep("valid for|breaks down|fails when|only when|as long as|in the limit", glob="*.tex")` — Validity ranges
 
-Read key files identified during exploration. Use Glob and Grep liberally. For LaTeX files, pay attention to `\input{}` and `\include{}` commands to trace the full document structure. For Jupyter notebooks, examine both code cells and markdown cells. For Mathematica notebooks, look for function definitions and symbolic manipulations.
+Read key files identified during exploration. Use find_files and Grep liberally. For LaTeX files, pay attention to `\input{}` and `\include{}` commands to trace the full document structure. For Jupyter notebooks, examine both code cells and markdown cells. For Mathematica notebooks, look for function definitions and symbolic manipulations.
 </step>
 
 <step name="write_documents">
@@ -221,7 +221,7 @@ Write document(s) to `.gpd/research-map/` using the templates below.
 3. If something is not found, use "Not detected" or "Not applicable"
 4. Always include file paths with backticks, and equation/section references where possible
 
-Use the Write tool to create each document.
+Use the file_write tool to create each document.
 </step>
 
 <step name="return_confirmation">
@@ -669,7 +669,7 @@ Templates are stored as separate reference files. Load only the templates for yo
 
 If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` does not exist), fall back to this procedure:
 
-1. **Check alternate locations:** Template files may be installed at a different path depending on your runtime. Search for the template filename using Glob: `Glob("**/theory-mapper-templates/FORMALISM.md")`
+1. **Check alternate locations:** Template files may be installed at a different path depending on your runtime. Search for the template filename using find_files: `Glob("**/theory-mapper-templates/FORMALISM.md")`
 
 2. **If no template is found anywhere:** Use the section structure from the `<template_filling_guidance>` section of this prompt. The guidance describes what each section should contain — use that as your structural template.
 

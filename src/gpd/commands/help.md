@@ -195,7 +195,7 @@ Result: Creates `.gpd/phases/01-framework-setup/01-01-PLAN.md`
 Execute all plans in a phase.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
-- Plans within each wave run in parallel via Task tool
+- Plans within each wave run in parallel via task tool
 - Verifies phase goal after all plans complete (limiting cases, dimensional analysis, benchmarks)
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 

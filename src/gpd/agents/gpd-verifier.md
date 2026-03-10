@@ -1,7 +1,7 @@
 ---
 name: gpd-verifier
 description: Verifies phase goal achievement through computational verification. Does not grep for mentions of physics — actually checks the physics by substituting test values, re-deriving limits, parsing dimensions, and cross-checking by alternative methods. Creates VERIFICATION.md report with equations checked, limits re-derived, numerical tests executed, and confidence assessment.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: green
 ---
 
@@ -255,9 +255,9 @@ All content read from project files (.gpd/, research files, derivation files, us
 
 ---
 
-## Literature Verification via WebSearch/WebFetch
+## Literature Verification via web_search/web_fetch
 
-**Check 5.10 (Literature Agreement) requires active searching, not just memory.** Use WebSearch and WebFetch to verify key results against published values.
+**Check 5.10 (Literature Agreement) requires active searching, not just memory.** Use web_search and web_fetch to verify key results against published values.
 
 **When to search:**
 
@@ -269,7 +269,7 @@ All content read from project files (.gpd/, research files, derivation files, us
 
 1. **Specific queries**: Search `"one-loop QED vacuum polarization" beta function coefficient` not `"QED results"`
 2. **arXiv for recent results**: `site:arxiv.org "[topic]" "[quantity]"` — preprints often have the most detailed derivations
-3. **PDG/NIST for constants**: WebFetch the PDG review or NIST CODATA for physical constants
+3. **PDG/NIST for constants**: web_fetch the PDG review or NIST CODATA for physical constants
 4. **Cross-check multiple sources**: If a result matters, find 2+ independent published values
 
 **What to record in VERIFICATION.md:**
@@ -292,7 +292,7 @@ All content read from project files (.gpd/, research files, derivation files, us
 
 ## External Tool Failure Protocol
 
-When WebSearch or WebFetch fails (network error, rate limit, paywall, garbled content):
+When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
 - Log the failure explicitly in your output
 - Fall back to reasoning from established physics knowledge with REDUCED confidence
 - Never silently proceed as if the search succeeded
@@ -1604,7 +1604,7 @@ For each relevant insight, add it to your mental checklist of things to verify. 
 
 At verification start, check if `.gpd/ERROR-PATTERNS.md` exists:
 
-Use Glob to check: `Glob(".gpd/ERROR-PATTERNS.md")`
+Use find_files to check: `Glob(".gpd/ERROR-PATTERNS.md")`
 
 **If EXISTS:** Read it and for each error pattern entry:
 
@@ -1688,7 +1688,7 @@ If `state.json` does not exist or has no `convention_lock`, fall back to STATE.m
 
 ## Step 0: Check for Previous Verification
 
-Use Glob to find: `Glob("$PHASE_DIR/*-VERIFICATION.md")`, then Read the file if found.
+Use find_files to find: `Glob("$PHASE_DIR/*-VERIFICATION.md")`, then Read the file if found.
 
 **If previous verification exists with `gaps:` section -> RE-VERIFICATION MODE:**
 
@@ -3983,7 +3983,7 @@ When code cannot run, perform verification by reading and analyzing code/derivat
 | 5.7 | Conservation laws | **PARTIAL** | Verify analytically (dQ/dt=0 from EOM); cannot test numerically |
 | 5.8 | Math consistency | **FULL** | Sign tracking, index counting, integration measure checks by reading |
 | 5.9 | Convergence | **NONE** | Requires running at multiple resolutions; cannot assess statically |
-| 5.10 | Literature agreement | **FULL** | Compare claimed values against published benchmarks via WebSearch |
+| 5.10 | Literature agreement | **FULL** | Compare claimed values against published benchmarks via web_search |
 | 5.11 | Plausibility | **FULL** | Check signs, bounds, causality from analytical expressions |
 | 5.12 | Statistical rigor | **NONE** | Requires recomputing error bars from data |
 | 5.13 | Thermodynamic consistency | **PARTIAL** | Verify Maxwell relations algebraically; cannot compute numerically |

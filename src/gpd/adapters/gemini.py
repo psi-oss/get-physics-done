@@ -36,51 +36,19 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.tool_names import GEMINI, canonical
+from gpd.adapters.tool_names import GEMINI, canonical, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Claude Code → Gemini tool name mapping
-# ---------------------------------------------------------------------------
-# Used for frontmatter conversion and body text tool references.
-# Maps Claude Code names (as they appear in agent/command specs) to Gemini built-in names.
-
-_CLAUDE_TO_GEMINI: dict[str, str | None] = {
-    "Agent": "agent",
-    "AskUserQuestion": "ask_user",
-    "Bash": "run_shell_command",
-    "Edit": "replace",
-    "Glob": "glob",
-    "Grep": "search_file_content",
-    "NotebookEdit": "notebook_edit",
-    "Read": "read_file",
-    "SlashCommand": "slash_command",
-    # Task is excluded — agents are auto-registered as callable tools in Gemini
-    "Task": None,
-    "TodoWrite": "write_todos",
-    "ToolSearch": "tool_search",
-    "WebFetch": "web_fetch",
-    "WebSearch": "google_web_search",
-    "Write": "write_file",
-}
+_TOOL_REFERENCE_MAP = reference_translation_map("gemini")
 
 
-def _convert_gemini_tool_name(claude_tool: str) -> str | None:
-    """Convert a Claude Code tool name to Gemini CLI format.
+def _convert_gemini_tool_name(tool_name: str) -> str | None:
+    """Convert a canonical GPD tool name or legacy alias to Gemini CLI format.
 
     Returns ``None`` if the tool should be excluded from the Gemini config
-    (MCP tools are auto-discovered at runtime, Task is auto-registered).
+    (MCP tools are auto-discovered at runtime and ``task`` is auto-registered).
     """
-    # MCP tools: exclude — auto-discovered from mcpServers config at runtime
-    if claude_tool.startswith("mcp__"):
-        return None
-    if claude_tool == "Task":
-        return None
-    if claude_tool in _CLAUDE_TO_GEMINI:
-        return _CLAUDE_TO_GEMINI[claude_tool]
-    # Default: lowercase
-    return claude_tool.lower()
+    return translate_for_runtime(tool_name, "gemini")
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +57,7 @@ def _convert_gemini_tool_name(claude_tool: str) -> str | None:
 
 
 def _convert_frontmatter_to_gemini(content: str) -> str:
-    """Convert Claude Code agent/file frontmatter to Gemini CLI format.
+    """Convert canonical GPD agent/file frontmatter to Gemini CLI format.
 
     - ``allowed-tools:`` → ``tools:`` as YAML array
     - Tool names converted to Gemini built-in names
@@ -252,7 +220,7 @@ def _copy_agents_gemini(
             content = expand_at_includes(content, str(gpd_src_root), path_prefix)
 
         content = _convert_frontmatter_to_gemini(content)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_GEMINI)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
@@ -362,7 +330,7 @@ class GeminiAdapter(RuntimeAdapter):
         name = str(agent_def["name"])
         content = str(agent_def.get("content", ""))
         content = _convert_frontmatter_to_gemini(content)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_GEMINI)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
         agents_dir = target_dir / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
         out_path = agents_dir / f"{name}.md"

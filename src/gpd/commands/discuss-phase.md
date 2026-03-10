@@ -3,12 +3,12 @@ name: gpd:discuss-phase
 description: Gather phase context through adaptive questioning before planning
 argument-hint: "<phase>"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

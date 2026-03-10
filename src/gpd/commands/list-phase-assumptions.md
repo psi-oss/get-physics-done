@@ -3,10 +3,10 @@ name: gpd:list-phase-assumptions
 description: Surface the AI's assumptions about a phase approach before planning
 argument-hint: "[phase]"
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

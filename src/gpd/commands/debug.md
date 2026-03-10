@@ -3,10 +3,10 @@ name: gpd:debug
 description: Systematic debugging of physics calculations with persistent state across context resets
 argument-hint: "[issue description]"
 allowed-tools:
-  - Read
-  - Bash
-  - Task
-  - AskUserQuestion
+  - file_read
+  - shell
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -64,7 +64,7 @@ If $ARGUMENTS provided OR user describes new issue:
 
 ## 2. Gather Symptoms (if new issue)
 
-Use AskUserQuestion for each. Physics-specific symptom gathering:
+Use ask_user for each. Physics-specific symptom gathering:
 
 1. **Expected result** — What should the calculation give? (analytical prediction, known limit, published value, physical intuition)
 2. **Actual result** — What do you get instead? (wrong magnitude, wrong sign, wrong functional form, divergence, nonsensical value)

@@ -4,10 +4,10 @@ description: Resume research from previous session with full context restoration
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
-  - Read
-  - Bash
-  - Write
-  - AskUserQuestion
+  - file_read
+  - shell
+  - file_write
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

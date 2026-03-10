@@ -5,14 +5,14 @@ argument-hint: "[path to referee report or paste inline]"
 requires:
   files: ["paper/*.tex"]
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

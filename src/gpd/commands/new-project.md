@@ -3,11 +3,11 @@ name: gpd:new-project
 description: Initialize a new physics research project with deep context gathering and PROJECT.md
 argument-hint: "[--auto] [--minimal [@file.md]]"
 allowed-tools:
-  - Read
-  - Bash
-  - Write
-  - Task
-  - AskUserQuestion
+  - file_read
+  - shell
+  - file_write
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -44,7 +44,7 @@ Initialize a new physics research project through unified flow: questioning → 
 </execution_context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/new-project.md — this contains the complete step-by-step instructions (1693 lines) for initializing a research project. Do NOT improvise. Follow the workflow file exactly.
 
 Also read these reference files:

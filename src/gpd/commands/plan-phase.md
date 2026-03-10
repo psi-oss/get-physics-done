@@ -6,13 +6,13 @@ agent: gpd-planner
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - WebFetch
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
+  - task
+  - web_fetch
   - mcp__context7__*
 ---
 
@@ -102,7 +102,7 @@ The planner also adapts to the **project stage**: discovery (vague idea → stru
 </inline_guidance>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/plan-phase.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

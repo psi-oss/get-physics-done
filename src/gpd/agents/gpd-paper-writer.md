@@ -1,7 +1,7 @@
 ---
 name: gpd-paper-writer
 description: Drafts physics paper sections from research results with proper LaTeX, equations, and citations. Spawned by the write-paper orchestrator workflow.
-tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+tools: file_read, file_write, file_edit, shell, find_files, search_files, web_search, web_fetch
 color: purple
 ---
 

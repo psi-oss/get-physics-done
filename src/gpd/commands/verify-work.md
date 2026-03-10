@@ -6,13 +6,13 @@ requires:
   files: [".gpd/ROADMAP.md"]
   state: "phase_executed"
 allowed-tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-  - Edit
-  - Write
-  - Task
+  - file_read
+  - shell
+  - find_files
+  - search_files
+  - file_edit
+  - file_write
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -43,7 +43,7 @@ Phase: $ARGUMENTS (optional)
 </context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/verify-work.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

@@ -59,8 +59,8 @@ class TestConvertToolName:
     def test_mcp_passthrough(self) -> None:
         assert convert_tool_name("mcp__physics") == "mcp__physics"
 
-    def test_unknown_lowercased(self) -> None:
-        assert convert_tool_name("CustomTool") == "customtool"
+    def test_unknown_passthrough(self) -> None:
+        assert convert_tool_name("CustomTool") == "CustomTool"
 
 
 class TestConvertFrontmatter:

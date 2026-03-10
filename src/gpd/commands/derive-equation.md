@@ -3,14 +3,14 @@ name: gpd:derive-equation
 description: Perform a rigorous physics derivation with systematic verification at each step
 argument-hint: "[equation or topic to derive]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

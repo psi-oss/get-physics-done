@@ -5,10 +5,10 @@ argument-hint: "[--brief] [--full] [--reconcile]"
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -35,7 +35,7 @@ Check `$ARGUMENTS` for flags:
 - **Default (no flag)**: Show full progress report with routing to next action.
 - **`--full`**: Same as default, plus detailed per-phase artifact listings and system health checks.
 
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/progress.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

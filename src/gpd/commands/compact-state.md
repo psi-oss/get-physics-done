@@ -3,11 +3,11 @@ name: gpd:compact-state
 description: Archive historical entries from STATE.md to keep it under the 150-line target
 argument-hint: "[--force]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

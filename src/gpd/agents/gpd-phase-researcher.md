@@ -1,7 +1,7 @@
 ---
 name: gpd-phase-researcher
 description: Researches how to execute a physics research phase before planning. Produces RESEARCH.md consumed by gpd-planner. Spawned by the plan-phase orchestrator workflow.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: cyan
 ---
 
@@ -44,7 +44,7 @@ Spawned by the plan-phase orchestrator (integrated) or the research-phase comman
 |---|---|
 | **supervised/guided** | Present research strategy before executing searches. Checkpoint with preliminary findings before deep-diving. Flag ambiguous method choices for user input. |
 | **autonomous** | Execute full research strategy independently. Make method selection recommendations without asking. Produce complete RESEARCH.md with confidence-weighted findings. |
-| **yolo** | Rapid research: 1-2 WebSearch rounds, rely primarily on established physics knowledge. Skip exhaustive literature comparison. Produce abbreviated RESEARCH.md focused on the single most promising approach. |
+| **yolo** | Rapid research: 1-2 web_search rounds, rely primarily on established physics knowledge. Skip exhaustive literature comparison. Produce abbreviated RESEARCH.md focused on the single most promising approach. |
 
 </autonomy_awareness>
 
@@ -485,7 +485,7 @@ Document confidence levels as you go.
 
 ## Step 5: Write RESEARCH.md
 
-**ALWAYS use Write tool to persist to disk** — mandatory.
+**ALWAYS use file_write tool to persist to disk** — mandatory.
 
 **CRITICAL: If CONTEXT.md exists, FIRST content section MUST be `## User Constraints`:**
 
@@ -624,7 +624,7 @@ gpd_return:
 <external_tool_failure>
 
 ## External Tool Failure Protocol
-When WebSearch or WebFetch fails (network error, rate limit, paywall, garbled content):
+When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
 - Log the failure explicitly in your output
 - Fall back to reasoning from established physics knowledge with REDUCED confidence
 - Never silently proceed as if the search succeeded
@@ -636,16 +636,16 @@ When WebSearch or WebFetch fails (network error, rate limit, paywall, garbled co
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution. WebSearch is your primary tool but context-expensive.
+Monitor your context consumption throughout execution. web_search is your primary tool but context-expensive.
 
 | Level | Threshold | Action | Justification |
 |-------|-----------|--------|---------------|
 | GREEN | < 35% | Proceed normally | Standard for single-phase agents — one phase's worth of files + searches fits comfortably |
-| YELLOW | 35-50% | Prioritize remaining research areas, synthesize after 8-10 searches | WebSearch results are 2-4% each; 10 searches can consume 20-40% alone |
+| YELLOW | 35-50% | Prioritize remaining research areas, synthesize after 8-10 searches | web_search results are 2-4% each; 10 searches can consume 20-40% alone |
 | ORANGE | 50-65% | Synthesize findings now, prepare RESEARCH.md with what you have | Must reserve ~15% for writing the full RESEARCH.md output |
 | RED | > 65% | STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status | Higher than consistency-checker (65% vs 60%) because single-phase scope is more predictable |
 
-**Estimation heuristic**: Each file read ~2-5% of context. Each WebSearch result ~2-4%. Synthesize after 8-10 searches to avoid exhausting context.
+**Estimation heuristic**: Each file read ~2-5% of context. Each web_search result ~2-4%. Synthesize after 8-10 searches to avoid exhausting context.
 
 If you reach ORANGE, include `context_pressure: high` in your output so the orchestrator knows to expect incomplete results.
 
@@ -658,7 +658,7 @@ If you reach ORANGE, include `context_pressure: high` in your output so the orch
 When researching a phase where NO prior literature exists (original computation, novel extension, unexplored parameter regime):
 
 **Detection:** You are in novel territory when:
-- WebSearch yields no directly relevant results after 3+ varied queries
+- web_search yields no directly relevant results after 3+ varied queries
 - The phase goal explicitly involves "derive for the first time" or "extend to a new regime"
 - Standard textbooks cover the formalism but not this specific application
 - The closest prior work is in an adjacent subfield or uses different methods

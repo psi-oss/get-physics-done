@@ -2,10 +2,10 @@
 name: gpd:settings
 description: Configure GPD workflow toggles and physics research preferences
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

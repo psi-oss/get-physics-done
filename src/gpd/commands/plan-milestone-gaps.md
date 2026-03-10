@@ -4,12 +4,12 @@ description: Create phases to close all gaps identified by research milestone au
 requires:
   files: [".gpd/v*-MILESTONE-AUDIT.md"]
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

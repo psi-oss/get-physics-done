@@ -6,14 +6,14 @@ requires:
   files: [".gpd/ROADMAP.md"]
   state: "phase_planned"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - find_files
+  - search_files
+  - shell
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -88,7 +88,7 @@ Cost: ~2-5k tokens per gate. Catches sign errors and convention drift before the
 </inline_guidance>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/execute-phase.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

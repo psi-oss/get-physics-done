@@ -3,12 +3,12 @@ name: gpd:regression-check
 description: Re-verify all previously verified truths to catch regressions after changes
 argument-hint: "[phase number to limit scope, or empty for all]"
 allowed-tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-  - Write
-  - Task
+  - file_read
+  - shell
+  - find_files
+  - search_files
+  - file_write
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

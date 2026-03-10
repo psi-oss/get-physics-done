@@ -3,14 +3,14 @@ name: gpd:quick
 description: Execute a quick research task with GPD guarantees (atomic commits, state tracking) but skip optional agents
 argument-hint: ""
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - find_files
+  - search_files
+  - shell
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

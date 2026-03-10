@@ -3,11 +3,11 @@ name: gpd:export
 description: Export research results to HTML, LaTeX, or ZIP package
 argument-hint: "[--format html|latex|zip|all]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - file_write
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

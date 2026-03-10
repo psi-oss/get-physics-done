@@ -5,12 +5,12 @@ argument-hint: "<phase> [--depth verify|standard|deep]"
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
-  - WebSearch
-  - WebFetch
+  - file_read
+  - shell
+  - search_files
+  - find_files
+  - web_search
+  - web_fetch
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

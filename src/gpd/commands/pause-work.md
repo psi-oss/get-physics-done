@@ -2,9 +2,9 @@
 name: gpd:pause-work
 description: Create context handoff when pausing research mid-phase
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+  - file_read
+  - file_write
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

@@ -3,10 +3,10 @@ name: gpd:error-patterns
 description: View accumulated physics error patterns for this project
 argument-hint: "[category]"
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

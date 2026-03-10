@@ -3,11 +3,11 @@ name: gpd:new-milestone
 description: Start a new research milestone cycle — update PROJECT.md and route to requirements
 argument-hint: "[milestone name, e.g., 'v1.1 Finite-Temperature Extension']"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

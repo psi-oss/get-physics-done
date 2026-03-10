@@ -53,8 +53,8 @@ class TestConvertCodexToolName:
     def test_mcp_passthrough(self) -> None:
         assert _convert_codex_tool_name("mcp__physics_server") == "mcp__physics_server"
 
-    def test_unknown_lowercased(self) -> None:
-        assert _convert_codex_tool_name("CustomTool") == "customtool"
+    def test_unknown_passthrough(self) -> None:
+        assert _convert_codex_tool_name("CustomTool") == "CustomTool"
 
 
 class TestConvertToCodexSkill:
@@ -226,6 +226,8 @@ class TestInstall:
         expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
         assert "# GPD update notification" in content
         assert expected_notify in content
+        assert "[features]" in content
+        assert "multi_agent = true" in content
 
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -323,6 +325,7 @@ class TestUninstall:
             content = config_toml.read_text(encoding="utf-8")
             assert "gpd-" not in content
             assert "codex_notify" not in content
+            assert "multi_agent" not in content
 
     def test_uninstall_on_empty_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"
@@ -429,3 +432,35 @@ class TestLegacyHookUpgrade:
         assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
         assert "codex_notify" not in cleaned
         assert "GPD original notify" not in cleaned
+
+    def test_wraps_existing_false_multi_agent_and_restores_it_on_uninstall(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.adapters.codex import _configure_config_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "hooks").mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            '[features]\n'
+            'multi_agent = false\n',
+            encoding="utf-8",
+        )
+
+        _configure_config_toml(target, is_global=True)
+
+        content = config_toml.read_text(encoding="utf-8")
+        assert "# GPD original multi_agent: multi_agent = false" in content
+        assert "multi_agent = true" in content
+
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.uninstall(target, skills_dir=skills)
+
+        cleaned = config_toml.read_text(encoding="utf-8")
+        assert "GPD original multi_agent" not in cleaned
+        assert "multi_agent = false" in cleaned
+        assert "multi_agent = true" not in cleaned

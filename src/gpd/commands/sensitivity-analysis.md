@@ -3,14 +3,14 @@ name: gpd:sensitivity-analysis
 description: Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate
 argument-hint: "[--target quantity] [--params p1,p2,...] [--method analytical|numerical]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

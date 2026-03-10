@@ -3,9 +3,9 @@ name: gpd:research-phase
 description: Research how to tackle a phase (standalone - usually use /gpd:plan-phase instead)
 argument-hint: "[phase]"
 allowed-tools:
-  - Read
-  - Bash
-  - Task
+  - file_read
+  - shell
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

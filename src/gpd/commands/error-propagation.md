@@ -3,14 +3,14 @@ name: gpd:error-propagation
 description: Track how uncertainties propagate through multi-step calculations across phases
 argument-hint: "[--target quantity] [--phase-range start:end]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

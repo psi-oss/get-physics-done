@@ -1,7 +1,7 @@
 ---
 name: gpd-research-synthesizer
 description: Synthesizes research outputs from parallel researcher agents into SUMMARY.md. Spawned by the new-project orchestrator workflow after 4-5 researcher agents complete.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: purple
 ---
 
@@ -759,14 +759,14 @@ Verify claims that will drive roadmap structure. A single incorrect claim can ca
 
 For the **3 most impactful claims** that will drive roadmap recommendations:
 
-1. Perform a WebSearch to independently verify the claim
+1. Perform a web_search to independently verify the claim
 2. If confirmed: note "independently verified via [source]"
 3. If contradicted: flag as "CONFLICTING — researcher says X, but [source] says Y"
 4. If not found: note "unable to independently verify — relies on researcher's domain knowledge"
 
-### Extended verification (when WebSearch/WebFetch are available):
+### Extended verification (when web_search/web_fetch are available):
 
-Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
+Go beyond the mandatory 3 claims. Use web_search and web_fetch systematically for:
 
 **Numerical benchmarks:** Any specific numerical value cited as a benchmark (critical temperatures, coupling constants, mass ratios, convergence rates). Search pattern: `"[quantity name] [value] [method]"` on arXiv or Google Scholar.
 
@@ -783,7 +783,7 @@ Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
 4. Method recommendations that determine computational approach
 5. Literature consensus claims ("it is well-established that...")
 
-**WebFetch for specific sources:** When a researcher cites a specific arXiv paper (e.g., arXiv:2301.12345), use WebFetch on `https://arxiv.org/abs/2301.12345` to verify the claim actually appears in that paper. Misattribution is common.
+**web_fetch for specific sources:** When a researcher cites a specific arXiv paper (e.g., arXiv:2301.12345), use web_fetch on `https://arxiv.org/abs/2301.12345` to verify the claim actually appears in that paper. Misattribution is common.
 
 **Document ALL verification results** in the "Critical Claim Verification" subsection of SUMMARY.md, using this format:
 
@@ -792,11 +792,11 @@ Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
 
 | # | Claim | Source | Verification | Result |
 |---|-------|--------|--------------|--------|
-| 1 | [claim text] | METHODS.md | WebSearch: "[query]" | CONFIRMED / CONTRADICTED / UNVERIFIED |
+| 1 | [claim text] | METHODS.md | web_search: "[query]" | CONFIRMED / CONTRADICTED / UNVERIFIED |
 | 2 | ... | ... | ... | ... |
 ```
 
-Target: verify at least **5-8 claims** when WebSearch is available, not just 3. Prioritize claims that would change the roadmap if wrong.
+Target: verify at least **5-8 claims** when web_search is available, not just 3. Prioritize claims that would change the roadmap if wrong.
 
 ## Step 6c: Cross-Validation Matrix
 

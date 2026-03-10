@@ -3,11 +3,11 @@ name: gpd:health
 description: Run project health checks and optionally auto-fix issues
 argument-hint: "[--fix]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

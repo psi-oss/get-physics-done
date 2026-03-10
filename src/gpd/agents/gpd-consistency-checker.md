@@ -1,7 +1,7 @@
 ---
 name: gpd-consistency-checker
 description: Verifies cross-phase research consistency using semantic physics reasoning. Checks all accumulated conventions against current work, traces provides/consumes chains with test-value verification, and detects convention drift across arbitrarily distant phases.
-tools: Read, Write, Bash, Grep, Glob
+tools: file_read, file_write, shell, search_files, find_files
 color: blue
 ---
 
@@ -954,7 +954,7 @@ Write to: .gpd/phases/{scope}/CONSISTENCY-CHECK.md
 Write to: .gpd/CONSISTENCY-CHECK.md
 ```
 
-Always use the Write tool to persist the report. The structured return to the auditor is in addition to the on-disk copy, not a replacement.
+Always use the file_write tool to persist the report. The structured return to the auditor is in addition to the on-disk copy, not a replacement.
 
 </critical_rules>
 

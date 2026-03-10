@@ -5,12 +5,12 @@ argument-hint: "[version]"
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - Bash
-  - Task
-  - Write
+  - file_read
+  - find_files
+  - search_files
+  - shell
+  - task
+  - file_write
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

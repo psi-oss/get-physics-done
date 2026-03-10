@@ -3,15 +3,15 @@ name: gpd:literature-review
 description: Structured literature review for a physics research topic with citation network analysis and open question identification
 argument-hint: "[topic or research question]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - WebSearch
-  - WebFetch
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - search_files
+  - find_files
+  - task
+  - web_search
+  - web_fetch
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -58,7 +58,7 @@ REVIEWER_MODEL=$(gpd resolve-model gpd-literature-reviewer --raw)
 
 ## 1. Scope the Review
 
-Use AskUserQuestion to establish scope:
+Use ask_user to establish scope:
 
 1. **Topic and focus** -- What specific physics question or subfield? (e.g., "topological insulators in 2D", not just "condensed matter")
 2. **Depth** -- Quick survey (key papers only, ~10 refs) | Standard review (~30 refs) | Comprehensive survey (~50+ refs)

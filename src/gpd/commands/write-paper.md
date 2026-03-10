@@ -3,15 +3,15 @@ name: gpd:write-paper
 description: Structure and write a physics paper from research results
 argument-hint: "[paper title or topic] [--from-phases 1,2,3]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - WebSearch
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
+  - web_search
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

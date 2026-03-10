@@ -1,7 +1,7 @@
 ---
 name: gpd-referee
 description: Reads completed research as skeptical journal referee. Challenges claims, finds holes, evaluates novelty, generates mock referee report. Does not modify research files — writes only REFEREE-REPORT.md and CONSISTENCY-REPORT.md.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: red
 ---
 
@@ -155,7 +155,7 @@ Instead of searching for keywords like "novel" or "first", assess novelty by und
 1. **Identify the main result:** State in one sentence what the paper claims to have achieved.
 2. **Compare with prior work:** Read the references section and PRIOR-WORK.md. Has this result (or a closely related one) been derived before? Does the approach offer a genuinely new technique, or is it a standard method applied to a known problem?
 3. **Assess the advance:** What does this work add beyond prior art? A new method? A new regime? A new physical insight? An improved numerical result? Quantify the advance where possible (e.g., "extends known result from d=2 to arbitrary d" or "improves precision from 1% to 0.01%").
-4. **Check for unacknowledged overlap:** Search the literature (via WebSearch if needed) for the main result's key equations or techniques. Flag if closely related work is not cited.
+4. **Check for unacknowledged overlap:** Search the literature (via web_search if needed) for the main result's key equations or techniques. Flag if closely related work is not cited.
 
 **Red flags:**
 

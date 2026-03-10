@@ -1,7 +1,7 @@
 ---
 name: gpd-experiment-designer
 description: Designs numerical experiments, parameter sweeps, convergence studies, and statistical analysis pipelines for physics computations
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: green
 ---
 

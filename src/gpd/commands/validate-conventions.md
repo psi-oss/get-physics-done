@@ -3,11 +3,11 @@ name: gpd:validate-conventions
 description: Validate convention consistency across all phases
 argument-hint: "[phase number to limit scope, or empty for all]"
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
-  - Task
+  - file_read
+  - shell
+  - search_files
+  - find_files
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

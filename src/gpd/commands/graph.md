@@ -3,10 +3,10 @@ name: gpd:graph
 description: Visualize dependency graph across phases and identify gaps
 argument-hint: ""
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

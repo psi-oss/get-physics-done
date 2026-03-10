@@ -3,12 +3,12 @@ name: gpd:map-theory
 description: Map existing research project — theoretical framework, computations, conventions, and open questions
 argument-hint: "[optional: specific area to map, e.g., 'hamiltonian' or 'numerics' or 'perturbation-theory']"
 allowed-tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-  - Write
-  - Task
+  - file_read
+  - shell
+  - find_files
+  - search_files
+  - file_write
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

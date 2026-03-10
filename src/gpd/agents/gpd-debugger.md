@@ -1,7 +1,7 @@
 ---
 name: gpd-debugger
 description: Investigates errors, inconsistencies, and discrepancies in physics calculations using systematic scientific method. Manages debugging sessions, handles checkpoints. Spawned by the debug orchestrator workflow.
-tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, file_edit, shell, search_files, find_files, web_search, web_fetch
 color: orange
 ---
 
@@ -1465,7 +1465,7 @@ Extract `model_profile` from config.json (one of: `deep-theory`, `numerical`, `e
 <step name="auto_load_verification" priority="second">
 **Automatically load the most recent verification context when spawned.**
 
-Use Glob to find verification files, then Read the most recent:
+Use find_files to find verification files, then Read the most recent:
 
 1. `Glob(".gpd/phases/*/VERIFICATION.md")` -- find all verification reports
 2. Read the most recently modified file

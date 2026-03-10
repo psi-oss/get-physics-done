@@ -1,7 +1,7 @@
 ---
 name: gpd-notation-coordinator
 description: Owns and manages CONVENTIONS.md lifecycle — establishes, validates, and evolves notation conventions across phases
-tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, file_edit, shell, search_files, find_files, web_search, web_fetch
 color: cyan
 ---
 

@@ -3,10 +3,10 @@ name: gpd:estimate-cost
 description: Estimate token usage and API cost for phases of the current research project
 argument-hint: "[phase-number | remaining | all]"
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

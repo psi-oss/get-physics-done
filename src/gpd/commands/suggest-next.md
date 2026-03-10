@@ -2,10 +2,10 @@
 name: gpd:suggest-next
 description: Suggest the most impactful next action based on current project state
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

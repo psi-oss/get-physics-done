@@ -1,4 +1,4 @@
-"""Abstract tool taxonomy — maps canonical GPD tool names to runtime-specific names.
+"""Abstract tool taxonomy for canonical GPD tool names.
 
 GPD specs use canonical tool names (e.g. ``file_read``, ``file_write``, ``shell``).
 Each runtime (Claude Code, Codex, Gemini CLI, OpenCode) has its own tool naming.
@@ -90,6 +90,51 @@ RUNTIME_TABLES: dict[str, dict[str, str]] = {
     "opencode": OPENCODE,
 }
 
+CANONICAL_TOOL_NAMES: tuple[str, ...] = tuple(CLAUDE_CODE)
+"""Canonical GPD tool names supported across runtimes."""
+
+LEGACY_CLAUDE_ALIASES: dict[str, str] = {
+    "Read": "file_read",
+    "Write": "file_write",
+    "Edit": "file_edit",
+    "Bash": "shell",
+    "Grep": "search_files",
+    "Glob": "find_files",
+    "WebSearch": "web_search",
+    "WebFetch": "web_fetch",
+    "NotebookEdit": "notebook_edit",
+    "Agent": "agent",
+    "AskUserQuestion": "ask_user",
+    "TodoWrite": "todo_write",
+    "Task": "task",
+    "SlashCommand": "slash_command",
+    "ToolSearch": "tool_search",
+}
+"""Legacy Claude-style tool names still accepted during transition."""
+
+CONTEXTUAL_TOOL_REFERENCE_NAMES: frozenset[str] = frozenset(
+    {
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Task",
+        "Agent",
+        "shell",
+        "task",
+        "agent",
+    }
+)
+"""Tool names that should only be rewritten in tool-like prose contexts."""
+
+_AUTO_DISCOVERED_TOOLS: dict[str, frozenset[str]] = {
+    "codex": frozenset({"task"}),
+    "gemini": frozenset({"task"}),
+}
+_DROP_MCP_FRONTMATTER_TOOLS: frozenset[str] = frozenset({"gemini"})
+
 # Legacy runtime-specific names found in existing specs → canonical names.
 # Start with the inverse of every runtime table so already-converted names
 # canonicalize correctly regardless of which adapter produced them.
@@ -103,21 +148,7 @@ _LEGACY_ALIASES.update(
         "read_file": "file_read",
         "write_file": "file_write",
         "edit_file": "file_edit",
-        "Read": "file_read",
-        "Write": "file_write",
-        "Edit": "file_edit",
-        "Bash": "shell",
-        "Grep": "search_files",
-        "Glob": "find_files",
-        "WebSearch": "web_search",
-        "WebFetch": "web_fetch",
-        "NotebookEdit": "notebook_edit",
-        "Agent": "agent",
-        "AskUserQuestion": "ask_user",
-        "TodoWrite": "todo_write",
-        "Task": "task",
-        "SlashCommand": "slash_command",
-        "ToolSearch": "tool_search",
+        **LEGACY_CLAUDE_ALIASES,
     }
 )
 
@@ -128,9 +159,8 @@ def canonical(name: str) -> str:
     Accepts any runtime-specific name or legacy alias and returns
     the canonical GPD name (e.g. ``"Read"`` → ``"file_read"``).
     """
-    for table in RUNTIME_TABLES.values():
-        if name in table:
-            return name
+    if name in CANONICAL_TOOL_NAMES:
+        return name
     return _LEGACY_ALIASES.get(name, name)
 
 
@@ -144,18 +174,54 @@ def translate(name: str, runtime: str) -> str:
     return table.get(canon, canon)
 
 
+def translate_for_runtime(name: str, runtime: str) -> str | None:
+    """Translate a tool for runtime frontmatter/body conversion.
+
+    Unlike ``translate()``, this respects runtime-specific omission rules for
+    auto-discovered tools such as ``task`` and Gemini's MCP tools.
+    """
+    if name.startswith("mcp__"):
+        return None if runtime in _DROP_MCP_FRONTMATTER_TOOLS else name
+
+    canon = canonical(name)
+    if canon in _AUTO_DISCOVERED_TOOLS.get(runtime, frozenset()):
+        return None
+    return translate(canon, runtime)
+
+
 def translate_list(names: list[str], runtime: str) -> list[str]:
     """Translate a list of tool names to a runtime."""
     return [translate(n, runtime) for n in names]
 
 
+def legacy_claude_reference_map() -> dict[str, str]:
+    """Return the legacy Claude-style tool names mapped to canonical names."""
+    return dict(LEGACY_CLAUDE_ALIASES)
+
+
+def reference_translation_map(runtime: str, *, include_legacy: bool = True) -> dict[str, str | None]:
+    """Build a source-to-runtime mapping for prompt body tool references."""
+    mapping: dict[str, str | None] = {
+        name: translate_for_runtime(name, runtime) for name in CANONICAL_TOOL_NAMES
+    }
+    if include_legacy:
+        mapping.update({name: translate_for_runtime(name, runtime) for name in LEGACY_CLAUDE_ALIASES})
+    return {source: target for source, target in mapping.items() if target and source != target}
+
+
 __all__ = [
     "CLAUDE_CODE",
+    "CANONICAL_TOOL_NAMES",
+    "CONTEXTUAL_TOOL_REFERENCE_NAMES",
     "CODEX",
     "GEMINI",
+    "LEGACY_CLAUDE_ALIASES",
     "OPENCODE",
     "RUNTIME_TABLES",
     "canonical",
+    "legacy_claude_reference_map",
+    "reference_translation_map",
     "translate",
+    "translate_for_runtime",
     "translate_list",
 ]

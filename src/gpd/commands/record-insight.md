@@ -3,10 +3,10 @@ name: gpd:record-insight
 description: Record a project-specific learning or pattern to the insights ledger
 argument-hint: "[optional description]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
+  - file_read
+  - file_write
+  - file_edit
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
