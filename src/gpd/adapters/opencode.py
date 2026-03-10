@@ -34,7 +34,7 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     replace_placeholders,
 )
-from gpd.adapters.tool_names import OPENCODE, canonical, reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +272,7 @@ def copy_agents_as_agent_files(
 
         content = entry.read_text(encoding="utf-8")
         content = replace_placeholders(content, path_prefix)
-        content = expand_at_includes(content, str(agents_src.parent), path_prefix)
+        content = expand_at_includes(content, str(agents_dest.parent / "get-physics-done"), path_prefix)
         content = convert_claude_to_opencode_frontmatter(content)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
@@ -639,57 +639,6 @@ class OpenCodeAdapter(RuntimeAdapter):
     def global_config_dir(self) -> Path:
         """OpenCode uses XDG Base Directory spec with env var precedence."""
         return get_opencode_global_dir()
-
-    def translate_tool_name(self, canonical_name: str) -> str:
-        canon = canonical(canonical_name)
-        mapped = OPENCODE.get(canon)
-        if mapped:
-            return mapped
-        # Also check the Claude→OpenCode special mapping
-        return convert_tool_name(canonical_name)
-
-    def generate_command(self, command_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a flattened OpenCode command .md file.
-
-        OpenCode expects: command/gpd-help.md (invoked as /gpd-help)
-        """
-        name = str(command_def["name"])
-        content = str(command_def.get("content", ""))
-
-        command_dir = target_dir / "command"
-        command_dir.mkdir(parents=True, exist_ok=True)
-
-        # Apply frontmatter conversion
-        content = convert_claude_to_opencode_frontmatter(content)
-
-        out_path = command_dir / f"{name}.md"
-        out_path.write_text(content, encoding="utf-8")
-        return out_path
-
-    def generate_agent(self, agent_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate an OpenCode agent .md file with converted frontmatter."""
-        name = str(agent_def["name"])
-        content = str(agent_def.get("content", ""))
-
-        agents_dir = target_dir / "agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
-
-        content = convert_claude_to_opencode_frontmatter(content)
-
-        out_path = agents_dir / f"{name}.md"
-        out_path.write_text(content, encoding="utf-8")
-        return out_path
-
-    def generate_hook(self, hook_name: str, hook_config: dict[str, object]) -> dict[str, object]:
-        """Generate an OpenCode hook configuration entry.
-
-        OpenCode hooks are different from Claude's settings.json hooks.
-        For now, return a dict with the hook command that can be integrated
-        into the OpenCode config.
-        """
-        command = str(hook_config.get("command", ""))
-        event = str(hook_config.get("event", ""))
-        return {"hook_name": hook_name, "event": event, "command": command}
 
     # --- Template method hooks ---
 

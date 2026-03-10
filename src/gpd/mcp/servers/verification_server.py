@@ -10,6 +10,8 @@ Usage:
     gpd-mcp-verification
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import sys
@@ -17,7 +19,13 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.observability import gpd_span
-from gpd.core.verification_checks import VERIFICATION_CHECKS
+from gpd.core.verification_checks import (
+    ERROR_CLASS_COVERAGE,
+    VERIFICATION_CHECK_IDS,
+    VERIFICATION_SCHEMA_VERSION,
+    get_verification_check,
+    list_verification_checks,
+)
 
 # MCP stdio uses stdout for JSON-RPC — redirect logging to stderr
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
@@ -113,39 +121,6 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
     ],
 }
 
-# ─── Error Class Catalog (104 classes) ────────────────────────────────────────
-
-# Map error class IDs to detection checks. From verification-gap-analysis.md.
-ERROR_CLASS_COVERAGE: dict[int, dict[str, object]] = {
-    1: {"name": "Wrong CG coefficients", "primary_checks": ["5.2"], "domains": ["qft", "nuclear_particle"]},
-    2: {"name": "N-particle symmetrization", "primary_checks": ["5.3"], "domains": ["stat_mech", "qft"]},
-    3: {
-        "name": "Green's function confusion",
-        "primary_checks": ["5.13", "5.14"],
-        "domains": ["condensed_matter", "qft"],
-    },
-    5: {
-        "name": "Incorrect asymptotic expansions",
-        "primary_checks": ["5.3"],
-        "domains": ["qft", "mathematical_physics"],
-    },
-    7: {"name": "Wrong phase conventions", "primary_checks": ["5.2", "5.3"], "domains": ["qft"]},
-    9: {"name": "Incorrect thermal field theory", "primary_checks": ["5.13", "5.14"], "domains": ["qft", "stat_mech"]},
-    11: {"name": "Hallucinated identities", "primary_checks": ["5.2"], "domains": ["mathematical_physics"]},
-    13: {"name": "Boundary condition hallucination", "primary_checks": ["5.3"], "domains": ["mathematical_physics"]},
-    15: {"name": "Dimensional analysis failures", "primary_checks": ["5.1"], "domains": ["all"]},
-    33: {"name": "Natural unit restoration errors", "primary_checks": ["5.1"], "domains": ["all"]},
-    37: {
-        "name": "Metric signature inconsistency",
-        "primary_checks": ["5.1", "5.3"],
-        "domains": ["qft", "gr_cosmology"],
-    },
-    52: {"name": "NR constraint violation", "primary_checks": ["5.8", "5.5"], "domains": ["gr_cosmology"]},
-    63: {"name": "GW template mismatch", "primary_checks": ["5.6", "5.2"], "domains": ["gr_cosmology"]},
-    71: {"name": "Missing Berry phase", "primary_checks": ["5.3", "5.4"], "domains": ["condensed_matter", "amo"]},
-    87: {"name": "Wrong reconnection topology", "primary_checks": ["5.6", "5.8"], "domains": ["fluid_plasma"]},
-}
-
 # ─── Dimension Parsing ────────────────────────────────────────────────────────
 
 # Base dimensions: [M], [L], [T], [Q], [Theta]
@@ -186,13 +161,20 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
         artifact_content: The content to verify (derivation, code, etc.)
     """
     with gpd_span("mcp.verification.run_check", check_type=check_id, domain=domain):
-        check_meta = VERIFICATION_CHECKS.get(check_id)
+        check_meta = get_verification_check(check_id)
         if check_meta is None:
-            return {"error": f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECKS.keys())}"}
+            return {
+                "error": f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECK_IDS)}",
+                "schema_version": VERIFICATION_SCHEMA_VERSION,
+            }
 
         # Get domain-specific guidance
         domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
-        relevant_domain_checks = [c for c in domain_checks if check_id in c.get("check_ids", "").split(",")]
+        relevant_domain_checks = [
+            c
+            for c in domain_checks
+            if check_id in [token.strip() for token in c.get("check_ids", "").split(",") if token.strip()]
+        ]
 
         # Scan artifact for obvious issues
         issues: list[str] = []
@@ -213,18 +195,22 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
                 issues.append("No limiting case analysis found in artifact")
 
         return {
+            "schema_version": VERIFICATION_SCHEMA_VERSION,
             "check_id": check_id,
-            "check_name": check_meta["name"],
-            "tier": check_meta["tier"],
-            "description": check_meta["description"],
-            "catches": check_meta["catches"],
+            "check_name": check_meta.name,
+            "tier": check_meta.tier,
+            "description": check_meta.description,
+            "catches": check_meta.catches,
+            "evidence_kind": check_meta.evidence_kind,
+            "machine_supported": check_meta.machine_supported,
+            "oracle_hint": check_meta.oracle_hint,
             "domain": domain,
             "domain_specific_checks": relevant_domain_checks,
             "automated_issues": issues,
             "artifact_length": len(artifact_content),
             "guidance": (
-                f"Run check {check_id} ({check_meta['name']}) for domain '{domain}'. "
-                f"This check catches: {check_meta['catches']}."
+                f"Run check {check_id} ({check_meta.name}) for domain '{domain}'. "
+                f"This check catches: {check_meta.catches}."
             ),
         }
 
@@ -241,16 +227,18 @@ def get_checklist(domain: str) -> dict:
         if checklist is None:
             return {
                 "found": False,
+                "schema_version": VERIFICATION_SCHEMA_VERSION,
                 "domain": domain,
                 "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
                 "message": f"No checklist for domain '{domain}'.",
             }
 
         # Also include the universal checks
-        universal = [{"check_id": k, **v} for k, v in VERIFICATION_CHECKS.items()]
+        universal = list_verification_checks()
 
         return {
             "found": True,
+            "schema_version": VERIFICATION_SCHEMA_VERSION,
             "domain": domain,
             "domain_checks": checklist,
             "domain_check_count": len(checklist),
@@ -320,6 +308,7 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
 
     all_valid = bool(results) and all(r.get("valid", False) for r in results)
     return {
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
         "all_consistent": all_valid,
         "checked_count": len(results),
         "results": results,
@@ -393,6 +382,7 @@ def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
             suggestions.append("Consider checking weak-coupling limit (g -> 0)")
 
     return {
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
         "expression_length": len(expression),
         "limits_checked": len(results),
         "results": results,
@@ -443,7 +433,8 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
         strategy = None
         matched_type = None
         for key, strat in symmetry_strategies.items():
-            if key.replace(" ", "").replace("-", "").replace("_", "") in sym_lower or sym_lower in key:
+            key_clean = key.replace(" ", "").replace("-", "").replace("_", "")
+            if key_clean in sym_lower or sym_lower in key_clean:
                 strategy = strat
                 matched_type = key
                 break
@@ -458,6 +449,7 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
         )
 
     return {
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
         "expression_length": len(expression),
         "symmetries_checked": len(results),
         "results": results,
@@ -530,6 +522,7 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
     coverage_percent = round(covered_count / total * 100, 1) if total > 0 else 0.0
 
     return {
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
         "total_classes": total,
         "covered": covered_count,
         "partial": len(partial),

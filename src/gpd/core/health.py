@@ -621,15 +621,16 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
     config_check = next((c for c in checks if c.label == "Config"), None)
     if config_check and (
         any("not found" in w for w in config_check.warnings)
-        or any("Malformed" in i or "JSONDecodeError" in i for i in config_check.issues)
+        or any("Malformed" in i for i in config_check.issues)
     ):
         config_path = layout.config_json
         try:
             defaults = GPDProjectConfig()
             config_dict = {
                 "model_profile": defaults.model_profile.value,
+                "autonomy": defaults.autonomy.value,
+                "research_mode": defaults.research_mode.value,
                 "commit_docs": defaults.commit_docs,
-                "search_gitignored": defaults.search_gitignored,
                 "branching_strategy": defaults.branching_strategy.value,
                 "phase_branch_template": defaults.phase_branch_template,
                 "milestone_branch_template": defaults.milestone_branch_template,
@@ -639,7 +640,6 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
                     "verifier": defaults.verifier,
                 },
                 "parallelization": defaults.parallelization,
-                "brave_search": defaults.brave_search,
             }
             config_path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")

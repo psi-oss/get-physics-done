@@ -15,7 +15,13 @@ from pathlib import Path
 
 from pybtex.database import BibliographyData
 
-from gpd.mcp.paper.bibliography import write_bib_file
+from gpd.mcp.paper.artifact_manifest import build_artifact_manifest, write_artifact_manifest
+from gpd.mcp.paper.bibliography import (
+    CitationSource,
+    build_bibliography_with_audit,
+    write_bib_file,
+    write_bibliography_audit,
+)
 from gpd.mcp.paper.figures import prepare_figures
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
@@ -205,6 +211,8 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         # bibtex
         aux_path = output_dir / f"{tex_path.stem}.aux"
         bibtex = shutil.which("bibtex")
+        if not bibtex:
+            logger.warning("bibtex not found -- bibliography will not be processed; citations will show as [?]")
         if bibtex and aux_path.exists():
             returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
             record_result("bibtex", returncode, log)
@@ -262,6 +270,8 @@ async def build_paper(
     config: PaperConfig,
     output_dir: Path,
     bib_data: BibliographyData | None = None,
+    citation_sources: list[CitationSource] | None = None,
+    enrich_bibliography: bool = True,
 ) -> PaperOutput:
     """Orchestrate the full paper build pipeline.
 
@@ -273,14 +283,36 @@ async def build_paper(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     figures_dir: Path | None = None
+    manifest = None
+    manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    bibliography_audit = None
+    bibliography_audit_path: Path | None = None
     errors: list[str] = []
+    original_figures = list(config.figures)
+    bib_path: Path | None = None
 
     # 1. Prepare figures
     if config.figures:
         figures_dir = output_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
-        prepared = prepare_figures(config.figures, figures_dir, config.journal)
+        try:
+            prepared, fig_errors = prepare_figures(config.figures, figures_dir, config.journal)
+            errors.extend(fig_errors)
+        except (ValueError, RuntimeError) as exc:
+            errors.append(f"Figure preparation failed: {exc}")
+            prepared = []
         config = config.model_copy(update={"figures": prepared})
+
+    if citation_sources:
+        built_bib, bibliography_audit = await asyncio.to_thread(
+            build_bibliography_with_audit,
+            citation_sources,
+            enrich_bibliography,
+        )
+        if bib_data is None:
+            bib_data = built_bib
+        bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
+        await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
 
     # 2. Write .bib file
     bib_content = ""
@@ -295,8 +327,20 @@ async def build_paper(
     if bib_stem != config.bib_file:
         config = config.model_copy(update={"bib_file": bib_stem})
     tex_content = render_paper(config)
-    tex_path = output_dir / "paper.tex"
+    tex_path = output_dir / "main.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
+
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        bib_path=bib_path,
+        bibliography_audit_path=bibliography_audit_path,
+        bibliography_audit=bibliography_audit,
+        original_figures=original_figures,
+        prepared_figures=config.figures,
+    )
+    await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
     # 4. Check required TeX resources (blocking subprocess; run in thread to avoid stalling the loop)
     spec = get_journal_spec(config.journal)
@@ -308,6 +352,10 @@ async def build_paper(
             bib_content=bib_content,
             figures_dir=figures_dir,
             pdf_path=None,
+            bibliography_audit_path=bibliography_audit_path,
+            bibliography_audit=bibliography_audit,
+            manifest_path=manifest_path,
+            manifest=manifest,
             success=False,
             errors=errors,
         )
@@ -318,11 +366,28 @@ async def build_paper(
     if not result.success and result.error:
         errors.append(result.error)
 
+    manifest = build_artifact_manifest(
+        config,
+        output_dir,
+        tex_path=tex_path,
+        bib_path=bib_path,
+        bibliography_audit_path=bibliography_audit_path,
+        bibliography_audit=bibliography_audit,
+        original_figures=original_figures,
+        prepared_figures=config.figures,
+        pdf_path=result.pdf_path,
+    )
+    await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
+
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
         figures_dir=figures_dir,
         pdf_path=result.pdf_path,
+        bibliography_audit_path=bibliography_audit_path,
+        bibliography_audit=bibliography_audit,
+        manifest_path=manifest_path,
+        manifest=manifest,
         success=result.success,
         errors=errors,
     )

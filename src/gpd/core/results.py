@@ -8,9 +8,11 @@ from __future__ import annotations
 import secrets
 import time
 from collections import deque
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.contracts import VerificationEvidence
 from gpd.core.errors import DuplicateResultError, ResultError, ResultNotFoundError
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import phase_normalize, phase_unpad
@@ -43,6 +45,7 @@ class IntermediateResult(BaseModel):
     phase: str | None = None
     depends_on: list[str] = Field(default_factory=list)
     verified: bool = False
+    verification_records: list[VerificationEvidence] = Field(default_factory=list)
 
 
 class ResultDeps(BaseModel):
@@ -67,7 +70,18 @@ class MissingDep(BaseModel):
 
 # --- Helpers ---
 
-RESULT_FIELDS = frozenset({"equation", "description", "units", "validity", "phase", "depends_on", "verified"})
+RESULT_FIELDS = frozenset(
+    {"equation", "description", "units", "validity", "phase", "depends_on", "verified", "verification_records"}
+)
+
+
+def _normalize_verification_records(
+    records: list[VerificationEvidence | dict[str, object]] | None,
+) -> list[VerificationEvidence]:
+    """Normalize a raw verification-record payload into model instances."""
+    if not records:
+        return []
+    return [record if isinstance(record, VerificationEvidence) else VerificationEvidence(**record) for record in records]
 
 
 def _int_to_base36(n: int) -> str:
@@ -112,10 +126,10 @@ def _auto_generate_id(state: dict) -> str:
     return f"R-{id_phase}-{padded_seq}-{suffix}"
 
 
-def _find_result_index(results: list[dict], result_id: str) -> int:
+def _find_result_index(results: list, result_id: str) -> int:
     """Find a result by id. Returns the index, or -1 if not found."""
     for i, r in enumerate(results):
-        if r.get("id") == result_id:
+        if isinstance(r, dict) and r.get("id") == result_id:
             return i
     return -1
 
@@ -134,6 +148,7 @@ def result_add(
     phase: str | None = None,
     depends_on: list[str] | str | None = None,
     verified: bool = False,
+    verification_records: list[VerificationEvidence | dict[str, object]] | None = None,
     result_id: str | None = None,
 ) -> IntermediateResult:
     """Add an intermediate result to state.
@@ -170,6 +185,8 @@ def result_add(
     else:
         deps = list(depends_on)
 
+    normalized_records = _normalize_verification_records(verification_records)
+
     result_dict = {
         "id": rid,
         "equation": equation,
@@ -178,7 +195,8 @@ def result_add(
         "validity": validity,
         "phase": phase,
         "depends_on": deps,
-        "verified": verified,
+        "verified": verified or bool(normalized_records),
+        "verification_records": [record.model_dump() for record in normalized_records],
     }
 
     state["intermediate_results"].append(result_dict)
@@ -210,12 +228,12 @@ def result_list(
         raise ValueError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
 
     if verified is True:
-        results = [r for r in results if r.get("verified") is True]
+        results = [r for r in results if r.get("verified") is True or bool(r.get("verification_records"))]
 
     if unverified is True:
-        results = [r for r in results if not r.get("verified")]
+        results = [r for r in results if not (r.get("verified") is True or bool(r.get("verification_records")))]
 
-    return [IntermediateResult(**r) for r in results]
+    return [IntermediateResult(**r) for r in results if isinstance(r, dict)]
 
 
 @instrument_gpd_function("results.deps")
@@ -286,7 +304,20 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
 
 
 @instrument_gpd_function("results.verify")
-def result_verify(state: dict, result_id: str) -> IntermediateResult:
+def result_verify(
+    state: dict,
+    result_id: str,
+    *,
+    verifier: str | None = None,
+    method: str = "manual",
+    confidence: str = "medium",
+    evidence_path: str | None = None,
+    trace_id: str | None = None,
+    commit_sha: str | None = None,
+    notes: str | None = None,
+    claim_id: str | None = None,
+    verified_at: str | None = None,
+) -> IntermediateResult:
     """Mark a result as verified.
 
     Raises KeyError if result_id is not found.
@@ -296,8 +327,24 @@ def result_verify(state: dict, result_id: str) -> IntermediateResult:
     if idx == -1:
         raise ResultNotFoundError(result_id)
 
-    state["intermediate_results"][idx]["verified"] = True
-    return IntermediateResult(**state["intermediate_results"][idx])
+    record = VerificationEvidence(
+        verified_at=verified_at or datetime.now(UTC).isoformat(),
+        verifier=verifier,
+        method=method,
+        confidence=confidence,  # type: ignore[arg-type]
+        evidence_path=evidence_path,
+        trace_id=trace_id,
+        commit_sha=commit_sha,
+        notes=notes,
+        claim_id=claim_id,
+    )
+
+    raw_result = state["intermediate_results"][idx]
+    records = _normalize_verification_records(raw_result.get("verification_records"))
+    records.append(record)
+    raw_result["verification_records"] = [entry.model_dump() for entry in records]
+    raw_result["verified"] = True
+    return IntermediateResult(**raw_result)
 
 
 @instrument_gpd_function("results.update")
@@ -329,6 +376,17 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
             updates["verified"] = raw.strip().lower() in ("true", "1", "yes")
         else:
             updates["verified"] = bool(raw)
+
+    if "verification_records" in updates:
+        records_raw = updates["verification_records"]
+        if records_raw is None:
+            updates["verification_records"] = []
+        elif isinstance(records_raw, list):
+            updates["verification_records"] = [record.model_dump() for record in _normalize_verification_records(records_raw)]
+        else:
+            raise ResultError("verification_records must be a list of verification records")
+        if "verified" not in updates and updates["verification_records"]:
+            updates["verified"] = True
 
     updated_fields: list[str] = []
     pending: dict[str, object] = {}

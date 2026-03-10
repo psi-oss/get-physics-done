@@ -54,6 +54,20 @@ class CommandDef:
     content: str
     path: str
     source: str  # "commands"
+    review_contract: ReviewCommandContract | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewCommandContract:
+    """Typed orchestration contract for review-grade commands."""
+
+    review_mode: str
+    required_outputs: list[str]
+    required_evidence: list[str]
+    blocking_conditions: list[str]
+    preflight_checks: list[str]
+    required_state: str = ""
+    schema_version: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +112,111 @@ def _parse_tools(raw: object) -> list[str]:
     return []
 
 
+def _parse_str_list(raw: object) -> list[str]:
+    """Normalize a raw scalar/list field into a list of strings."""
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    return []
+
+
+_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
+    "gpd:write-paper": {
+        "review_mode": "publication",
+        "required_outputs": ["paper/main.tex", ".gpd/REFEREE-REPORT.md"],
+        "required_evidence": [
+            "phase summaries or milestone digest",
+            "verification reports",
+            "bibliography audit",
+            "artifact manifest",
+        ],
+        "blocking_conditions": [
+            "missing project state",
+            "missing roadmap",
+            "missing conventions",
+            "no research artifacts",
+            "degraded review integrity",
+        ],
+        "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts"],
+    },
+    "gpd:respond-to-referees": {
+        "review_mode": "publication",
+        "required_outputs": ["REFEREE_RESPONSE.md", "AUTHOR-RESPONSE.md"],
+        "required_evidence": [
+            "existing manuscript",
+            "structured referee issues",
+            "revision verification evidence",
+        ],
+        "blocking_conditions": [
+            "missing project state",
+            "missing manuscript",
+            "degraded review integrity",
+        ],
+        "preflight_checks": ["project_state", "manuscript", "conventions"],
+    },
+    "gpd:verify-work": {
+        "review_mode": "review",
+        "required_outputs": ["VERIFICATION.md"],
+        "required_evidence": ["roadmap", "phase summaries", "artifact files"],
+        "blocking_conditions": [
+            "missing project state",
+            "missing roadmap",
+            "missing phase artifacts",
+            "degraded review integrity",
+        ],
+        "preflight_checks": ["project_state", "roadmap", "phase_artifacts"],
+        "required_state": "phase_executed",
+    },
+    "gpd:arxiv-submission": {
+        "review_mode": "publication",
+        "required_outputs": ["arxiv-submission.tar.gz"],
+        "required_evidence": ["compiled manuscript", "bibliography audit", "artifact manifest"],
+        "blocking_conditions": [
+            "missing manuscript",
+            "unresolved publication blockers",
+            "degraded review integrity",
+        ],
+        "preflight_checks": ["project_state", "manuscript", "conventions"],
+    },
+}
+
+
+def _parse_review_contract(raw: object, command_name: str, requires: dict[str, object]) -> ReviewCommandContract | None:
+    """Parse review contract frontmatter or provide a typed default for review workflows."""
+    merged = dict(_DEFAULT_REVIEW_CONTRACTS.get(command_name, {}))
+    if isinstance(raw, dict):
+        merged.update(raw)
+
+    if not merged:
+        return None
+
+    required_state = str(merged.get("required_state", "")).strip()
+    if not required_state:
+        raw_requires_state = requires.get("state")
+        required_state = str(raw_requires_state).strip() if raw_requires_state is not None else ""
+
+    review_mode = str(merged.get("review_mode", "")).strip()
+    if not review_mode:
+        return None
+
+    schema_version_raw = merged.get("schema_version", 1)
+    try:
+        schema_version = int(schema_version_raw)
+    except (TypeError, ValueError):
+        schema_version = 1
+
+    return ReviewCommandContract(
+        review_mode=review_mode,
+        required_outputs=_parse_str_list(merged.get("required_outputs")),
+        required_evidence=_parse_str_list(merged.get("required_evidence")),
+        blocking_conditions=_parse_str_list(merged.get("blocking_conditions")),
+        preflight_checks=_parse_str_list(merged.get("preflight_checks")),
+        required_state=required_state,
+        schema_version=schema_version,
+    )
+
+
 def _parse_agent_file(path: Path, source: str) -> AgentDef:
     """Parse a single agent .md file into an AgentDef."""
     text = path.read_text(encoding="utf-8")
@@ -132,6 +251,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         argument_hint=str(meta.get("argument-hint", "")),
         requires=requires,
         allowed_tools=[str(t) for t in allowed_tools_raw],
+        review_contract=_parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires),
         content=body.strip(),
         path=str(path),
         source=source,
@@ -285,10 +405,15 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
 
 
 def _infer_skill_category(skill_name: str) -> str:
-    """Infer a user-facing category for a skill name."""
-    for prefix, category in _SKILL_CATEGORY_MAP.items():
+    """Infer a user-facing category for a skill name.
+
+    Keys are checked longest-first so that full-name entries (e.g.
+    ``gpd-check-todos``) take priority over shorter prefixes (e.g.
+    ``gpd-check``).
+    """
+    for prefix in sorted(_SKILL_CATEGORY_MAP, key=len, reverse=True):
         if skill_name.startswith(prefix):
-            return category
+            return _SKILL_CATEGORY_MAP[prefix]
     return "other"
 
 
@@ -371,9 +496,21 @@ def get_command(name: str) -> CommandDef:
     Raises KeyError if not found.
     """
     commands = _cache.commands()
-    if name not in commands:
-        raise KeyError(f"Command not found: {name}")
-    return commands[name]
+    candidates = [name]
+    if name.startswith("gpd:"):
+        candidates.append(name.replace("gpd:", "", 1))
+
+    for candidate in candidates:
+        command = commands.get(candidate)
+        if command is not None:
+            return command
+
+    raise KeyError(f"Command not found: {name}")
+
+
+def list_review_commands() -> list[str]:
+    """Return sorted list of command names that expose review contracts."""
+    return sorted(cmd.name for cmd in _cache.commands().values() if cmd.review_contract is not None)
 
 
 def list_skills() -> list[str]:
@@ -406,6 +543,7 @@ __all__ = [
     "AgentDef",
     "COMMANDS_DIR",
     "CommandDef",
+    "ReviewCommandContract",
     "SkillDef",
     "SPECS_DIR",
     "get_agent",
@@ -414,5 +552,6 @@ __all__ = [
     "invalidate_cache",
     "list_agents",
     "list_commands",
+    "list_review_commands",
     "list_skills",
 ]

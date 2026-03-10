@@ -12,14 +12,19 @@ Read all files referenced by the invoking prompt's execution_context before star
 Detect whether GPD is installed locally or globally by checking both locations:
 
 ```bash
-# Check local first (takes priority)
-if [ -f ~/.claude/get-physics-done/VERSION ]; then
-  cat ~/.claude/get-physics-done/VERSION
+# Get installed version from package metadata
+INSTALLED_VERSION=$(python3 -c "from gpd.version import __version__; print(__version__)" 2>/dev/null || echo "0.0.0")
+
+# Detect install type from package location
+INSTALL_PATH=$(python3 -c "import gpd; print(gpd.__file__)" 2>/dev/null || echo "")
+if echo "$INSTALL_PATH" | grep -q "$HOME/.claude"; then
+  echo "$INSTALLED_VERSION"
   echo "LOCAL"
-elif [ -f {GPD_INSTALL_DIR}/VERSION ]; then
-  cat {GPD_INSTALL_DIR}/VERSION
+elif [ -n "$INSTALL_PATH" ]; then
+  echo "$INSTALLED_VERSION"
   echo "GLOBAL"
 else
+  echo "0.0.0"
   echo "UNKNOWN"
 fi
 ```
@@ -30,14 +35,14 @@ Parse output:
 - If last line is "GLOBAL": installed version is first line, use `--global` flag for update
 - If "UNKNOWN": proceed to install step (treat as version 0.0.0)
 
-**If VERSION file missing:**
+**If version detection fails:**
 
 ```
 ## GPD Update
 
 **Installed version:** Unknown
 
-Your installation doesn't include version tracking.
+Could not detect installed version.
 
 Running fresh install...
 ```

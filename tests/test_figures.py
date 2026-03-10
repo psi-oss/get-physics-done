@@ -159,8 +159,9 @@ class TestPrepare:
         ]
 
         out = tmp_path / "output"
-        result = prepare_figures(figures, out, "prl")
+        result, errs = prepare_figures(figures, out, "prl")
         assert len(result) == 2
+        assert errs == []
         for fig in result:
             assert fig.path.exists()
             assert fig.path.parent == out
@@ -176,7 +177,7 @@ class TestPrepare:
         ]
 
         with caplog.at_level("WARNING"):
-            result = prepare_figures(figures, tmp_path / "output", "prl")
+            result, errs = prepare_figures(figures, tmp_path / "output", "prl")
 
         assert len(result) == 1
         assert any("double-column width" in message for message in caplog.messages)

@@ -216,6 +216,9 @@ class StateLoadResult(BaseModel):
     state_exists: bool = False
     roadmap_exists: bool = False
     config_exists: bool = False
+    integrity_mode: str = "standard"
+    integrity_status: str = "healthy"
+    integrity_issues: list[str] = Field(default_factory=list)
 
 
 class StateGetResult(BaseModel):
@@ -237,6 +240,8 @@ class StateValidateResult(BaseModel):
     valid: bool
     issues: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    integrity_mode: str = "standard"
+    integrity_status: str = "healthy"
 
 
 class StateUpdateResult(BaseModel):
@@ -382,7 +387,6 @@ VALID_STATUSES: list[str] = [
     "Ready to execute",
     "Executing",
     "Paused",
-    "Phase complete",
     "Phase complete \u2014 ready for verification",
     "Verifying",
     "Complete",
@@ -400,7 +404,6 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
     "researching": ["planning", "ready to execute", "paused", "blocked", "ready to plan", "not started"],
     "ready to execute": ["executing", "planning", "researching", "paused", "blocked", "not started"],
     "executing": [
-        "phase complete",
         "phase complete \u2014 ready for verification",
         "planning",
         "researching",
@@ -409,15 +412,6 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "milestone complete",
         "paused",
         "blocked",
-    ],
-    "phase complete": [
-        "verifying",
-        "phase complete \u2014 ready for verification",
-        "not started",
-        "planning",
-        "executing",
-        "ready to plan",
-        "milestone complete",
     ],
     "phase complete \u2014 ready for verification": [
         "verifying",
@@ -438,6 +432,8 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
 
 def is_valid_status(value: str) -> bool:
     """Check if a status value is recognized (case-insensitive exact match)."""
+    if not value:
+        return False
     lower = value.lower()
     return any(lower.strip() == s.lower() for s in VALID_STATUSES)
 
@@ -526,7 +522,7 @@ def _extract_bullets(content: str, section_name: str) -> list[str]:
     match = pattern.search(content)
     if not match:
         return []
-    bullets = re.findall(r"^-\s+(.+)$", match.group(1), re.MULTILINE)
+    bullets = re.findall(r"^\s*-\s+(.+)$", match.group(1), re.MULTILINE)
     return [b.strip() for b in bullets if b.strip() and not re.match(r"^none", b.strip(), re.IGNORECASE)]
 
 
@@ -568,45 +564,31 @@ def parse_state_md(content: str) -> dict:
     if see_match:
         project["project_md_updated"] = see_match.group(1).strip()
 
-    # Decisions — table format OR bullet format
+    # Decisions — canonical bullet format
     decisions: list[dict] = []
-    dec_table_match = re.search(
-        r"#{2,3}\s*Decisions(?:\s+Made)?[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n([\s\S]*?)(?=\n##|\n$|$)",
+    dec_bullet_match = re.search(
+        r"###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
         content,
         re.IGNORECASE,
     )
-    if dec_table_match:
-        rows = [r for r in dec_table_match.group(1).strip().split("\n") if "|" in r]
-        for row in rows:
-            # Split on unescaped pipes
-            cells = [_unescape_pipe(c.strip()) for c in re.split(r"(?<!\\)\|", row) if c.strip()]
-            if len(cells) >= 3:
-                decisions.append({"phase": cells[0], "summary": cells[1], "rationale": cells[2]})
-
-    if not decisions:
-        dec_bullet_match = re.search(
-            r"###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
-            content,
-            re.IGNORECASE,
-        )
-        if dec_bullet_match:
-            items = re.findall(r"^-\s+(.+)$", dec_bullet_match.group(1), re.MULTILINE)
-            for item in items:
-                text = item.strip()
-                if not text or re.match(r"^none", text, re.IGNORECASE):
-                    continue
-                phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
-                if phase_match:
-                    parts = phase_match.group(2).split(" \u2014 ", 1)
-                    decisions.append(
-                        {
-                            "phase": phase_match.group(1),
-                            "summary": parts[0].strip(),
-                            "rationale": parts[1].strip() if len(parts) > 1 else None,
-                        }
-                    )
-                else:
-                    decisions.append({"phase": None, "summary": text, "rationale": None})
+    if dec_bullet_match:
+        items = re.findall(r"^\s*-\s+(.+)$", dec_bullet_match.group(1), re.MULTILINE)
+        for item in items:
+            text = item.strip()
+            if not text or re.match(r"^none", text, re.IGNORECASE):
+                continue
+            phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
+            if phase_match:
+                parts = phase_match.group(2).split(" \u2014 ", 1)
+                decisions.append(
+                    {
+                        "phase": phase_match.group(1),
+                        "summary": parts[0].strip(),
+                        "rationale": parts[1].strip() if len(parts) > 1 else None,
+                    }
+                )
+            else:
+                decisions.append({"phase": None, "summary": text, "rationale": None})
 
     # Blockers
     blockers: list[str] = []
@@ -616,7 +598,7 @@ def parse_state_md(content: str) -> dict:
         re.IGNORECASE,
     )
     if blockers_match:
-        items = re.findall(r"^-\s+(.+)$", blockers_match.group(1), re.MULTILINE)
+        items = re.findall(r"^\s*-\s+(.+)$", blockers_match.group(1), re.MULTILINE)
         for item in items:
             text = item.strip()
             if text and not re.match(r"^none", text, re.IGNORECASE):
@@ -748,6 +730,62 @@ def parse_state_to_json(content: str) -> dict:
 # ─── Schema Enforcement ───────────────────────────────────────────────────────
 
 
+def _normalize_state_schema(raw: dict | None) -> tuple[dict, list[str]]:
+    """Normalize a raw state dict and capture integrity-affecting coercions."""
+    from pydantic import ValidationError
+
+    if not raw:
+        return default_state_dict(), []
+    if not isinstance(raw, dict):
+        return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
+
+    normalized = copy.deepcopy(raw)
+    integrity_issues: list[str] = []
+
+    defaults = default_state_dict()
+    for key, default_val in defaults.items():
+        if key in normalized and normalized[key] is not None:
+            if isinstance(default_val, list) and not isinstance(normalized[key], list):
+                integrity_issues.append(
+                    f'schema normalization: dropped "{key}" because expected list, got {type(normalized[key]).__name__}'
+                )
+                del normalized[key]
+            elif isinstance(default_val, dict) and not isinstance(normalized[key], dict):
+                integrity_issues.append(
+                    f'schema normalization: dropped "{key}" because expected object, got {type(normalized[key]).__name__}'
+                )
+                del normalized[key]
+
+    try:
+        return ResearchState.model_validate(normalized).model_dump(), integrity_issues
+    except ValidationError as exc:
+        bad_keys: set[str] = set()
+        for err in exc.errors():
+            loc = err.get("loc", ())
+            if loc:
+                bad_keys.add(str(loc[0]))
+
+        if bad_keys:
+            integrity_issues.append(
+                "schema normalization: removed invalid top-level sections "
+                + ", ".join(sorted(f'"{key}"' for key in bad_keys))
+            )
+            for bad_key in bad_keys:
+                normalized.pop(bad_key, None)
+            try:
+                return ResearchState.model_validate(normalized).model_dump(), integrity_issues
+            except ValidationError:
+                pass
+
+        logger.warning("state.json had irrecoverable schema errors; resetting to defaults")
+        integrity_issues.append("schema normalization: irrecoverable validation failure; reset to defaults")
+        result = default_state_dict()
+        for key, value in normalized.items():
+            if key not in result:
+                result[key] = value
+        return result, integrity_issues
+
+
 def ensure_state_schema(raw: dict | None) -> dict:
     """Merge a (possibly incomplete) state dict with defaults so every field exists.
 
@@ -759,49 +797,8 @@ def ensure_state_schema(raw: dict | None) -> dict:
     objects), the offending top-level keys are progressively removed until validation
     succeeds. This guarantees the function never raises on any input dict.
     """
-    from pydantic import ValidationError
-
-    if not raw or not isinstance(raw, dict):
-        return default_state_dict()
-
-    normalized = copy.deepcopy(raw)  # deep copy to avoid mutating caller's nested objects
-
-    # Drop fields with wrong types so Pydantic can refill them from defaults.
-    defaults = default_state_dict()
-    for key, default_val in defaults.items():
-        if key in normalized and normalized[key] is not None:
-            if isinstance(default_val, list) and not isinstance(normalized[key], list):
-                del normalized[key]
-            elif isinstance(default_val, dict) and not isinstance(normalized[key], dict):
-                del normalized[key]
-
-    try:
-        return ResearchState.model_validate(normalized).model_dump()
-    except ValidationError as exc:
-        # Extract the top-level field names that caused validation errors and
-        # progressively remove them so Pydantic fills defaults instead.
-        bad_keys: set[str] = set()
-        for err in exc.errors():
-            loc = err.get("loc", ())
-            if loc:
-                bad_keys.add(str(loc[0]))
-
-        if bad_keys:
-            for bk in bad_keys:
-                normalized.pop(bk, None)
-            try:
-                return ResearchState.model_validate(normalized).model_dump()
-            except ValidationError:
-                pass
-
-        # Last resort: return clean defaults (preserving any extra keys that
-        # the caller stored via ``extra = "allow"``).
-        logger.warning("state.json had irrecoverable schema errors; resetting to defaults")
-        result = default_state_dict()
-        for k, v in normalized.items():
-            if k not in result:
-                result[k] = v
-        return result
+    normalized, _issues = _normalize_state_schema(raw)
+    return normalized
 
 
 # ─── Markdown Generator ───────────────────────────────────────────────────────
@@ -827,6 +824,44 @@ def _item_text(item: object) -> str:
     if isinstance(item, dict):
         return item.get("text") or item.get("description") or item.get("question") or json.dumps(item)
     return str(item)
+
+
+def _merge_intermediate_results_from_markdown(existing: object, parsed_items: list[object]) -> list[object]:
+    """Preserve JSON-only result provenance when syncing from markdown.
+
+    STATE.md is a lossy human-readable view of intermediate results. When we
+    sync it back into state.json, preserve existing structured result objects
+    whenever a markdown bullet still references the same `[RESULT-ID]`.
+    """
+    if not parsed_items:
+        return []
+
+    existing_by_id: dict[str, object] = {}
+    if isinstance(existing, list):
+        for item in existing:
+            if isinstance(item, dict) and item.get("id"):
+                existing_by_id[str(item["id"])] = item
+
+    merged: list[object] = []
+    for item in parsed_items:
+        if isinstance(item, str):
+            match = re.match(r"^\[([^\]]+)\]", item)
+            if match:
+                existing_item = existing_by_id.get(match.group(1))
+                if existing_item is not None:
+                    merged.append(existing_item)
+                    continue
+        merged.append(item)
+    return merged
+
+
+def _integrity_status_from(issues: list[str], warnings: list[str], mode: str) -> str:
+    """Map validation findings to a coarse integrity status."""
+    if issues:
+        return "blocked" if mode == "review" else "degraded"
+    if warnings:
+        return "warning"
+    return "healthy"
 
 
 def generate_state_markdown(raw: dict) -> str:
@@ -871,6 +906,11 @@ def generate_state_markdown(raw: dict) -> str:
 
     pct = pos.get("progress_percent")
     if pct is not None:
+        try:
+            pct = int(pct)
+        except (TypeError, ValueError):
+            pct = None
+    if pct is not None:
         bar_width = 10
         filled = max(0, min(bar_width, round((pct / 100) * bar_width)))
         bar = "\u2588" * filled + "\u2591" * (bar_width - filled)
@@ -908,6 +948,9 @@ def generate_state_markdown(raw: dict) -> str:
                 parts.append(f"phase {rd['phase']}")
             if rd.get("verified"):
                 parts.append("\u2713")
+            record_count = len(rd.get("verification_records") or [])
+            if record_count:
+                parts.append(f"evidence: {record_count}")
             meta = f" ({', '.join(parts)})" if parts else ""
             deps_list = rd.get("depends_on") or []
             deps = f" [deps: {', '.join(deps_list)}]" if deps_list else ""
@@ -1181,7 +1224,13 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
 
         for field in ("active_calculations", "intermediate_results", "open_questions"):
             if field in parsed:
-                merged[field] = parsed.get(field) or []
+                if field == "intermediate_results":
+                    merged[field] = _merge_intermediate_results_from_markdown(
+                        merged.get(field),
+                        parsed.get(field) or [],
+                    )
+                else:
+                    merged[field] = parsed.get(field) or []
     else:
         merged = parsed
 
@@ -1276,7 +1325,7 @@ def sync_state_json(cwd: Path, md_content: str) -> dict:
 
 
 @instrument_gpd_function("state.load_json")
-def load_state_json(cwd: Path) -> dict | None:
+def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
     """Load state.json with intent recovery and fallback to STATE.md.
 
     Returns the state dict, or None if no state exists.
@@ -1289,16 +1338,26 @@ def load_state_json(cwd: Path) -> dict | None:
 
         try:
             raw = json_path.read_text(encoding="utf-8")
-            return ensure_state_schema(json.loads(raw))
+            normalized, integrity_issues = _normalize_state_schema(json.loads(raw))
+            if integrity_mode == "review" and integrity_issues:
+                logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
+                return None
+            return normalized
         except FileNotFoundError:
             pass
         except (json.JSONDecodeError, OSError) as e:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json parse error: %s", e)
+            if integrity_mode == "review":
+                logger.warning("state.json parse error blocks review-mode loading: %s", e)
+                return None
             # Try backup
             try:
                 bak_raw = bak_path.read_text(encoding="utf-8")
-                restored = ensure_state_schema(json.loads(bak_raw))
+                restored, integrity_issues = _normalize_state_schema(json.loads(bak_raw))
+                if integrity_mode == "review" and integrity_issues:
+                    logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))
+                    return None
                 atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
                 return restored
             except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -1308,6 +1367,9 @@ def load_state_json(cwd: Path) -> dict | None:
         # Fall back to STATE.md
         md_path = _state_md_path(cwd)
         try:
+            if integrity_mode == "review":
+                logger.warning("STATE.md fallback is disabled in review integrity mode")
+                return None
             content = md_path.read_text(encoding="utf-8")
             return sync_state_json_core(cwd, content)
         except (FileNotFoundError, OSError):
@@ -1349,9 +1411,10 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
 
 
 @instrument_gpd_function("state.load")
-def state_load(cwd: Path) -> StateLoadResult:
+def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     """Load full state with config and file-existence metadata."""
-    state_obj = load_state_json(cwd)
+    state_obj = load_state_json(cwd, integrity_mode=integrity_mode)
+    validation = state_validate(cwd, integrity_mode=integrity_mode)
 
     layout = ProjectLayout(cwd)
     state_raw = safe_read_file(layout.state_md) or ""
@@ -1362,6 +1425,9 @@ def state_load(cwd: Path) -> StateLoadResult:
         state_exists=len(state_raw) > 0,
         roadmap_exists=layout.roadmap.exists(),
         config_exists=layout.config_json.exists(),
+        integrity_mode=integrity_mode,
+        integrity_status=validation.integrity_status,
+        integrity_issues=list(validation.issues),
     )
 
 
@@ -1833,7 +1899,7 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
 
 
 @instrument_gpd_function("state.validate")
-def state_validate(cwd: Path) -> StateValidateResult:
+def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidateResult:
     """Validate state consistency between state.json and STATE.md."""
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
@@ -1848,7 +1914,15 @@ def state_validate(cwd: Path) -> StateValidateResult:
             issues.append(
                 f"state.json root must be an object, got {type(raw_state_json).__name__}; validating normalized fallback"
             )
-        state_json = ensure_state_schema(raw_state_json)
+        state_json, normalization_issues = _normalize_state_schema(raw_state_json)
+        if normalization_issues:
+            target = issues if integrity_mode == "review" else warnings
+            target.extend(normalization_issues)
+        if isinstance(raw_state_json, dict):
+            raw_version = raw_state_json.get("_version")
+            if raw_version not in (None, 1):
+                target = issues if integrity_mode == "review" else warnings
+                target.append(f"state.json version drift: expected 1, found {raw_version}")
     except FileNotFoundError:
         issues.append("state.json not found")
     except (json.JSONDecodeError, OSError) as e:
@@ -1865,7 +1939,13 @@ def state_validate(cwd: Path) -> StateValidateResult:
         issues.append(f"STATE.md parse error: {e}")
 
     if not state_json and not state_md:
-        return StateValidateResult(valid=False, issues=issues, warnings=warnings)
+        return StateValidateResult(
+            valid=False,
+            issues=issues,
+            warnings=warnings,
+            integrity_mode=integrity_mode,
+            integrity_status=_integrity_status_from(issues, warnings, integrity_mode),
+        )
 
     # Cross-check position fields
     json_pos = state_json.get("position") if isinstance(state_json, dict) else None
@@ -1947,11 +2027,42 @@ def state_validate(cwd: Path) -> StateValidateResult:
     # Result ID uniqueness
     if state_json and isinstance(state_json.get("intermediate_results"), list):
         seen: set[str] = set()
+        existing_ids: set[str] = set()
         for r in state_json["intermediate_results"]:
             if isinstance(r, dict) and r.get("id"):
                 if r["id"] in seen:
                     issues.append(f'intermediate_results: duplicate result ID "{r["id"]}"')
                 seen.add(r["id"])
+                existing_ids.add(str(r["id"]))
+
+        for r in state_json["intermediate_results"]:
+            if not isinstance(r, dict):
+                continue
+            rid = r.get("id") or "<missing-id>"
+            depends_on = r.get("depends_on") or []
+            for dep_id in depends_on:
+                if dep_id not in existing_ids:
+                    issues.append(f'intermediate_results[{rid}]: missing dependency "{dep_id}"')
+
+            records = r.get("verification_records") or []
+            if r.get("verified") and not records:
+                target = issues if integrity_mode == "review" else warnings
+                target.append(f'intermediate_results[{rid}]: verified=true but no verification_records present')
+            if records and not r.get("verified"):
+                warnings.append(f'intermediate_results[{rid}]: verification_records present while verified=false')
+
+            for index, record in enumerate(records):
+                if not isinstance(record, dict):
+                    issues.append(f"intermediate_results[{rid}]: verification_records[{index}] is not an object")
+                    continue
+                evidence_path = record.get("evidence_path")
+                if evidence_path:
+                    evidence_file = Path(cwd) / str(evidence_path)
+                    if not evidence_file.exists():
+                        target = issues if integrity_mode == "review" else warnings
+                        target.append(
+                            f'intermediate_results[{rid}]: evidence_path "{evidence_path}" does not exist'
+                        )
 
     # Cross-check: phase directory exists
     current_phase = json_pos.get("current_phase") if isinstance(json_pos, dict) else None
@@ -1978,8 +2089,15 @@ def state_validate(cwd: Path) -> StateValidateResult:
                 f'filesystem: {PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/ directory does not exist but current_phase is "{current_phase}"'
             )
 
+    integrity_status = _integrity_status_from(issues, warnings, integrity_mode)
     valid = len(issues) == 0
-    return StateValidateResult(valid=valid, issues=issues, warnings=warnings)
+    return StateValidateResult(
+        valid=valid,
+        issues=issues,
+        warnings=warnings,
+        integrity_mode=integrity_mode,
+        integrity_status=integrity_status,
+    )
 
 
 # ─── Compact ───────────────────────────────────────────────────────────────────

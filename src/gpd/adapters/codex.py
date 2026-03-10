@@ -39,7 +39,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     get_codex_skills_dir as _get_codex_skills_dir_str,
 )
-from gpd.adapters.tool_names import CODEX, canonical, reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 
 logger = logging.getLogger(__name__)
@@ -280,50 +280,6 @@ class CodexAdapter(RuntimeAdapter):
     @property
     def global_config_dir(self) -> Path:
         return get_codex_global_dir()
-
-    def translate_tool_name(self, canonical_name: str) -> str:
-        canon = canonical(canonical_name)
-        return CODEX.get(canon, canon)
-
-    def generate_command(self, command_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Codex skill directory from a GPD command definition.
-
-        Creates: target_dir/<skill-name>/SKILL.md
-        """
-        name = str(command_def["name"])
-        content = str(command_def.get("content", ""))
-
-        skill_dir = target_dir / name
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        out_path = skill_dir / "SKILL.md"
-        skill_content = _convert_to_codex_skill(content, name)
-        skill_content = convert_tool_references_in_body(skill_content, _TOOL_REFERENCE_MAP)
-        out_path.write_text(skill_content, encoding="utf-8")
-        return out_path
-
-    def generate_agent(self, agent_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Codex agent as a skill directory.
-
-        Creates: target_dir/<name>/SKILL.md (skill format)
-        """
-        name = str(agent_def["name"])
-        content = str(agent_def.get("content", ""))
-
-        skill_dir = target_dir / name
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        out_path = skill_dir / "SKILL.md"
-        skill_content = _convert_to_codex_skill(content, name)
-        skill_content = convert_tool_references_in_body(skill_content, _TOOL_REFERENCE_MAP)
-        out_path.write_text(skill_content, encoding="utf-8")
-        return out_path
-
-    def generate_hook(self, hook_name: str, hook_config: dict[str, object]) -> dict[str, object]:
-        """Generate a Codex config.toml hook entry.
-
-        Returns dict with 'notify' key containing the command array.
-        """
-        command = hook_config.get("command", "")
-        return {"notify": [_codex_hook_interpreter(), str(command)]}
 
     def install(
         self,
@@ -607,7 +563,7 @@ def _copy_agents_as_agent_files(
 ) -> None:
     """Copy agents as runtime agent markdown files for Codex.
 
-    Applies Codex-specific frontmatter conversion and tool reference translation.
+    Applies placeholder expansion, @-include expansion, and tool reference translation.
     """
     if not agents_src.exists():
         return
@@ -626,7 +582,6 @@ def _copy_agents_as_agent_files(
         if gpd_content_dir:
             content = expand_at_includes(content, str(gpd_content_dir), path_prefix)
 
-        content = _convert_to_codex_skill(content, entry.stem)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")

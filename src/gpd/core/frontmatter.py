@@ -193,7 +193,7 @@ def parse_must_haves_block(content: str, block_name: str) -> list:
     Returns an empty list when the block is absent or not a list.
     """
     meta, _ = extract_frontmatter(content)
-    must_haves = meta.get("must_haves") if "must_haves" in meta else meta.get("must-haves")
+    must_haves = meta.get("must_haves")
     if not isinstance(must_haves, dict):
         return []
     block = must_haves.get(block_name)
@@ -238,13 +238,8 @@ class FrontmatterValidation(BaseModel):
 
 
 def _resolve_field(meta: dict, name: str) -> str | None:
-    """Check for *name* in both ``under_score`` and ``hyphen-case`` forms."""
-    if name in meta:
-        return name
-    alt = name.replace("_", "-")
-    if alt in meta:
-        return alt
-    return None
+    """Return *name* when present in *meta*, otherwise ``None``."""
+    return name if name in meta else None
 
 
 @instrument_gpd_function("frontmatter.validate")
@@ -485,7 +480,7 @@ def verify_summary(
 # Task XML patterns
 _TASK_ELEMENT_RE = re.compile(r"<task[^>]*>([\s\S]*?)</task>")
 _TASK_NAME_RE = re.compile(r"<name>([\s\S]*?)</name>")
-_CHECKPOINT_TASK_RE = re.compile(r'<task\s+type=["\']?checkpoint')
+_CHECKPOINT_TASK_RE = re.compile(r'<task\s+[^>]*?type=["\']?checkpoint')
 
 
 @instrument_gpd_function("frontmatter.verify_plan")
@@ -504,13 +499,13 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Required frontmatter fields (accept both underscore and hyphen forms)
+    # Required frontmatter fields use the canonical underscore schema.
     for fname in FRONTMATTER_SCHEMAS["plan"]["required"]:
         if _resolve_field(meta, fname) is None:
             errors.append(f"Missing required frontmatter field: {fname}")
 
     # must_haves validation
-    must_haves = meta.get("must_haves") if "must_haves" in meta else meta.get("must-haves")
+    must_haves = meta.get("must_haves")
     if must_haves is not None:
         if not isinstance(must_haves, dict):
             if isinstance(must_haves, list):
@@ -558,7 +553,7 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
         warnings.append("No <task> elements found")
 
     # Wave/depends_on consistency
-    deps = meta.get("depends_on") if "depends_on" in meta else meta.get("depends-on")
+    deps = meta.get("depends_on")
     wave = meta.get("wave")
     if wave is not None:
         try:
@@ -791,5 +786,4 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
         total=len(results),
         artifacts=results,
     )
-
 

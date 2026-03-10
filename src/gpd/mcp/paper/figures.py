@@ -172,7 +172,7 @@ def check_figure_resolution(path: Path, journal: str, double_column: bool = Fals
 # ---- Batch processing ----
 
 
-def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) -> list[FigureRef]:
+def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) -> tuple[list[FigureRef], list[str]]:
     """Normalize and size all figures for a given journal.
 
     For each figure:
@@ -212,4 +212,4 @@ def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) ->
     for err in errors:
         logger.warning(err)
 
-    return result
+    return result, errors
