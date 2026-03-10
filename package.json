@@ -1,6 +1,6 @@
 {
   "name": "get-physics-done",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open-source AI copilot for physics research across Claude Code, Gemini CLI, Codex, and OpenCode",
   "bin": {
     "get-physics-done": "bin/install.js"
@@ -17,6 +17,16 @@
     "url": "https://github.com/physicalsuperintelligence/get-physics-done/issues"
   },
   "author": "Sergio Hernandez-Cuenca",
-  "keywords": ["physical superintelligence", "psi", "physics", "research", "ai", "claude", "codex", "gemini", "opencode"],
+  "keywords": [
+    "physical superintelligence",
+    "psi",
+    "physics",
+    "research",
+    "ai",
+    "claude",
+    "codex",
+    "gemini",
+    "opencode"
+  ],
   "license": "Apache-2.0"
 }
