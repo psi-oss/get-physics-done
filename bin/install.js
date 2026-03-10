@@ -184,6 +184,7 @@ function sourceInstallCandidates(version) {
       {
         label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
         spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
+        noCache: true,
       }
     );
   }
@@ -197,6 +198,7 @@ function sourceInstallCandidates(version) {
       {
         label: `authenticated git checkout of ${GITHUB_FALLBACK_BRANCH}`,
         spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+        noCache: true,
       }
     );
   }
@@ -204,10 +206,42 @@ function sourceInstallCandidates(version) {
   return candidates;
 }
 
-function runPipInstall(python, spec, env) {
+function latestMainInstallCandidates() {
+  const repoBaseUrl = repositoryBaseUrl(repository);
+  const repoGitUrl = repositoryGitUrl(repository);
+  const candidates = [];
+
+  if (repoBaseUrl) {
+    candidates.push({
+      label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
+      spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
+      noCache: true,
+    });
+  }
+
+  if (repoGitUrl) {
+    candidates.push({
+      label: `authenticated git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+      spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+      noCache: true,
+    });
+  }
+
+  return candidates;
+}
+
+function runPipInstall(python, spec, env, options = {}) {
+  const args = ["-m", "pip", "install", "--upgrade", "--quiet"];
+  if (options.forceReinstall) {
+    args.push("--force-reinstall");
+  }
+  if (options.noCache) {
+    args.push("--no-cache-dir");
+  }
+  args.push(spec);
   return spawnSync(
     python,
-    ["-m", "pip", "install", "--upgrade", "--quiet", spec],
+    args,
     {
       encoding: "utf-8",
       env,
@@ -290,12 +324,49 @@ function ensureManagedEnvironment(basePython) {
   return { gpdHome, venvDir, python: managedPython };
 }
 
-function installManagedPackage(python, version) {
+function installManagedPackage(python, version, options = {}) {
+  const { forceReinstall = false, preferMain = false } = options;
   const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${version}`;
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
-  log(`Installing ${pythonPackageSpec} into the managed environment...`);
-  let installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv);
+  if (preferMain) {
+    const upgradeCandidates = latestMainInstallCandidates();
+    if (upgradeCandidates.length > 0) {
+      log(`Upgrading GPD from the latest GitHub ${GITHUB_FALLBACK_BRANCH} branch into the managed environment...`);
+      let installResult = runPipInstall(python, upgradeCandidates[0].spec, pipInstallEnv, {
+        forceReinstall: true,
+        noCache: upgradeCandidates[0].noCache,
+      });
+      if (installResult.status === 0) {
+        return { ok: true, pythonPackageSpec, installedFrom: upgradeCandidates[0].spec };
+      }
+      flushCapturedOutput(installResult);
+
+      for (const [index, candidate] of upgradeCandidates.entries()) {
+        if (index === 0) {
+          continue;
+        }
+        const previousLabel = upgradeCandidates[index - 1].label;
+        log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+        installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
+          forceReinstall: true,
+          noCache: candidate.noCache,
+        });
+        if (installResult.status === 0) {
+          return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
+        }
+        flushCapturedOutput(installResult);
+      }
+
+      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed. Falling back to the matching ${pythonPackageSpec} release...`);
+    }
+  }
+
+  const action = forceReinstall ? "Reinstalling" : "Installing";
+  log(`${action} ${pythonPackageSpec} into the managed environment...`);
+  let installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv, {
+    forceReinstall,
+  });
   if (installResult.status === 0) {
     return { ok: true, pythonPackageSpec };
   }
@@ -305,7 +376,10 @@ function installManagedPackage(python, version) {
   for (const [index, candidate] of fallbacks.entries()) {
     const previousLabel = index === 0 ? "PyPI install" : fallbacks[index - 1].label;
     log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
-    installResult = runPipInstall(python, candidate.spec, pipInstallEnv);
+    installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
+      forceReinstall,
+      noCache: candidate.noCache,
+    });
     if (installResult.status === 0) {
       return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
     }
@@ -408,6 +482,8 @@ function printHelp() {
   console.log(` ${yellow}Options:${reset}`);
   console.log(` ${cyan}-g, --global${reset}            Install globally (runtime config dir)`);
   console.log(` ${cyan}-l, --local${reset}             Install locally (current project only)`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching Python release in ~/.gpd/venv`);
+  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
   console.log(` ${cyan}--claude${reset}                Install for Claude Code only`);
   console.log(` ${cyan}--opencode${reset}              Install for OpenCode only`);
   console.log(` ${cyan}--gemini${reset}               Install for Gemini CLI only`);
@@ -425,6 +501,12 @@ function printHelp() {
   console.log("");
   console.log(` ${dim}# Install for Codex locally${reset}`);
   console.log(` ${installCommand} --codex --local`);
+  console.log("");
+  console.log(` ${dim}# Reinstall the matching managed Python release${reset}`);
+  console.log(` ${installCommand} --reinstall --claude --local`);
+  console.log("");
+  console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${installCommand} --upgrade --claude --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
   console.log(` ${installCommand} --all --global`);
@@ -580,6 +662,8 @@ async function main() {
   const args = process.argv.slice(2);
   const hasHelp = args.includes("--help") || args.includes("-h");
   const forceStatusline = args.includes("--force-statusline");
+  const reinstallManagedPackage = args.includes("--reinstall");
+  const upgradeManagedPackage = args.includes("--upgrade");
 
   printBanner();
 
@@ -611,7 +695,10 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const packageInstall = installManagedPackage(managedEnv.python, packageVersion);
+  const packageInstall = installManagedPackage(managedEnv.python, packageVersion, {
+    forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
+    preferMain: upgradeManagedPackage,
+  });
   if (!packageInstall.ok) {
     error(`Failed to install ${packageInstall.pythonPackageSpec}.`);
     process.exit(1);

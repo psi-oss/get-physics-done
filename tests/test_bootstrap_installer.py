@@ -200,6 +200,75 @@ def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_reinstall_force_reinstalls_matching_release(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--codex", "--local", "--reinstall"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert len(managed_pip_installs) == 1
+    assert "--force-reinstall" in managed_pip_installs[0]["argv"]
+    assert managed_pip_installs[0]["argv"][-1] == "get-physics-done==0.1.0"
+    assert "Reinstalling get-physics-done==0.1.0 into the managed environment..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_prefers_latest_main_source(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--claude", "--local", "--upgrade"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert len(managed_pip_installs) == 1
+    assert "--force-reinstall" in managed_pip_installs[0]["argv"]
+    assert "--no-cache-dir" in managed_pip_installs[0]["argv"]
+    assert (
+        managed_pip_installs[0]["argv"][-1]
+        == "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz"
+    )
+    assert "Upgrading GPD from the latest GitHub main branch into the managed environment..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--claude", "--local", "--upgrade"],
+        extra_env={"FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1"},
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == [
+        "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz",
+        "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main",
+    ]
+    assert "current main branch source archive failed. Falling back to authenticated git checkout of main..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(tmp_path, installer_args=["--all", "--global"])
 

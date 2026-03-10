@@ -158,6 +158,21 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
     assert 'name: "OpenCode"' in content
 
 
+def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "`--reinstall`" in readme
+    assert "`--upgrade`" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local" in readme
+    assert "--reinstall" in content
+    assert "--upgrade" in content
+    assert "Reinstall the matching Python release in ~/.gpd/venv" in content
+    assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
+
+
 def test_export_workflow_uses_release_attribution_footer() -> None:
     repo_root = _repo_root()
     content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")

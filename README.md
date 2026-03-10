@@ -8,6 +8,8 @@ Get Physics Done is an open-source AI copilot for physics research from [Physica
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+If GPD is useful in your work, please star the repo and share it with other physicists who might benefit from it.
+
 ## Inspiration
 
 GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption and companion packages such as `get-shit-done-cc` helped show that AI-native command workflows can be genuinely useful in practice. GPD takes inspiration from that workflow success while focusing the system specifically on physics research.
@@ -45,6 +47,15 @@ For a project-local install instead of a global one:
 ```bash
 npx -y github:physicalsuperintelligence/get-physics-done --codex --local
 ```
+
+To refresh an existing managed environment, you can either reinstall the matching release or upgrade directly from the latest GitHub `main` source:
+
+```bash
+npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local
+npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local
+```
+
+`--reinstall` force-reinstalls the matching Python package into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
 
 ## Supported Runtimes
 
