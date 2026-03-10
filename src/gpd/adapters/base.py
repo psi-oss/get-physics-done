@@ -140,6 +140,7 @@ class RuntimeAdapter(abc.ABC):
 
             summary: dict[str, object] = {
                 "runtime": self.runtime_name,
+                "target": str(target_dir),
                 "commands": command_count,
                 "agents": agent_count,
             }
