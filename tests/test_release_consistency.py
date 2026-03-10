@@ -122,8 +122,8 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert 'require("../package.json")' in content
-    assert '["-m", "pip", "--version"]' in content
-    assert "does not have pip available" in content
+    assert '["-m", "venv", "--help"]' in content
+    assert "managed environment" in content
     assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
     assert "==${packageVersion}" in content
     assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
@@ -190,8 +190,9 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     for relative_path in ("README.md",):
         content = (repo_root / relative_path).read_text(encoding="utf-8")
         assert "Node.js with `npm`/`npx`" in content
-        assert "Python 3.11+ with `pip`" in content
+        assert "Python 3.11+ with the standard `venv` module" in content
         assert "GitHub and PyPI" in content
+        assert "~/.gpd/venv" in content
 
     assert not (repo_root / "docs" / "USER-GUIDE.md").exists()
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
@@ -294,4 +295,6 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert 'require("../package.json")' in install_content
         assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
         assert "==${packageVersion}" in install_content
+        assert '"-m", "venv"' in install_content
+        assert '".gpd"' in install_content
         assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in install_content

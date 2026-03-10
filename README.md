@@ -17,7 +17,7 @@ GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github
 Bootstrap prerequisites:
 
 - Node.js with `npm`/`npx`
-- Python 3.11+ with `pip`
+- Python 3.11+ with the standard `venv` module
 - Network access to GitHub and PyPI
 
 Install GPD with `npx`:
@@ -26,7 +26,7 @@ Install GPD with `npx`:
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI, and then runs the runtime installer.
+That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 
@@ -135,10 +135,12 @@ gpd view
 
 `gpd view` is a regular terminal utility. The research workflow itself runs inside your installed AI runtime.
 
+If `gpd` is not yet on your `PATH` after install, run `~/.gpd/bin/gpd view` or add `~/.gpd/bin` to your shell `PATH`.
+
 ## Requirements
 
 - Node.js with `npm`/`npx`
-- Python 3.11+ with `pip` (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
+- Python 3.11+ with the standard `venv` module (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
 - Network access to GitHub and PyPI for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime

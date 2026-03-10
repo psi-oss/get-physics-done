@@ -130,8 +130,15 @@ def get_gpd_install_dirs() -> list[Path]:
 
 
 def update_command_for_runtime(runtime: str) -> str:
-    """Return the appropriate gpd install command for a given runtime."""
-    cli_runtime = RUNTIME_CLI_NAMES.get(runtime)
-    if cli_runtime is None:
-        return "gpd install"
-    return f"gpd install {cli_runtime}"
+    """Return the public bootstrap command to update a given runtime install."""
+    install_flag_map = {
+        RUNTIME_CLAUDE: "--claude",
+        RUNTIME_CODEX: "--codex",
+        RUNTIME_GEMINI: "--gemini",
+        RUNTIME_OPENCODE: "--opencode",
+    }
+    install_flag = install_flag_map.get(runtime)
+    base = "npx github:physicalsuperintelligence/get-physics-done"
+    if install_flag is None:
+        return base
+    return f"{base} {install_flag}"

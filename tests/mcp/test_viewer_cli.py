@@ -149,7 +149,7 @@ def test_start_missing_viewer_dependencies_exits_cleanly() -> None:
         result = runner.invoke(viewer_app, ["--no-open"])
 
     assert result.exit_code == 1
-    assert "python -m pip install --upgrade get-physics-done" in result.output
+    assert "Rerun the bootstrap" in result.output
     assert "npx github:physicalsuperintelligence/get-physics-done" in result.output
     assert "[viewer]" not in result.output
     assert "uvicorn" in result.output

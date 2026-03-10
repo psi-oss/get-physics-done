@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+
+def _write_fake_python(script_path: Path, log_path: Path) -> None:
+    script = f"""#!{sys.executable}
+import json
+import os
+import pathlib
+import stat
+import sys
+
+LOG_PATH = pathlib.Path({str(log_path)!r})
+
+
+def record() -> None:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    entry = {{
+        "argv": sys.argv[1:],
+        "exe": sys.argv[0],
+        "managed": "venv" in pathlib.Path(sys.argv[0]).parts,
+        "logfire_ignore_no_config": os.environ.get("LOGFIRE_IGNORE_NO_CONFIG"),
+    }}
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry) + "\\n")
+
+
+def write_managed_python(target: pathlib.Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(pathlib.Path(__file__).read_text(encoding="utf-8"), encoding="utf-8")
+    target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+args = sys.argv[1:]
+
+if args == ["--version"]:
+    print("Python 3.13.2")
+    record()
+    raise SystemExit(0)
+
+if args == ["-m", "venv", "--help"]:
+    print("usage: venv")
+    record()
+    raise SystemExit(0)
+
+if args[:2] == ["-m", "venv"] and len(args) == 3:
+    target = pathlib.Path(args[2])
+    bin_dir = target / ("Scripts" if os.name == "nt" else "bin")
+    for name in ("python", "python3"):
+        write_managed_python(bin_dir / name)
+    record()
+    raise SystemExit(0)
+
+if args == ["-m", "pip", "--version"] and "venv" not in pathlib.Path(sys.argv[0]).parts:
+    record()
+    raise SystemExit(1)
+
+if args == ["-m", "pip", "--version"]:
+    print("pip 26.0 from managed environment")
+    record()
+    raise SystemExit(0)
+
+if args == ["-m", "ensurepip", "--upgrade"]:
+    record()
+    raise SystemExit(0)
+
+if args[:4] == ["-m", "pip", "install", "--upgrade"]:
+    record()
+    raise SystemExit(0)
+
+if args[:3] == ["-m", "gpd.cli", "install"]:
+    print("runtime install ok")
+    record()
+    raise SystemExit(0)
+
+record()
+raise SystemExit(0)
+"""
+    script_path.write_text(script, encoding="utf-8")
+    script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    home = tmp_path / "home"
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir(parents=True)
+    local_bin = home / ".local" / "bin"
+    log_path = tmp_path / "python-log.jsonl"
+
+    for name in ("python3", "python"):
+        _write_fake_python(fake_bin / name, log_path)
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["GPD_HOME"] = str(home / ".gpd")
+    env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin), env.get("PATH", "")])
+
+    result = subprocess.run(
+        ["node", "bin/install.js", "--codex", "--local"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+
+    assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
+    assert any(
+        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/.gpd/venv")
+        for entry in entries
+    )
+
+    base_pip_calls = [entry for entry in entries if not entry["managed"] and entry["argv"][:2] == ["-m", "pip"]]
+    assert base_pip_calls == []
+
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    assert len(managed_pip_installs) == 1
+    assert managed_pip_installs[0]["argv"][-1] == "get-physics-done==0.1.0"
+
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local"]
+    ]
+    assert len(managed_runtime_installs) == 1
+    assert managed_runtime_installs[0]["logfire_ignore_no_config"] == "1"
+
+    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert (home / ".gpd" / "bin" / "gpd").exists()
+    assert (home / ".local" / "bin" / "gpd").exists()
+    assert "Shell CLI:           gpd view" in result.stdout
