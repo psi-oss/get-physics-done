@@ -23,9 +23,22 @@ from gpd.mcp.discovery.models import (
 )
 from gpd.mcp.discovery.reconciler import reconcile_modal
 from gpd.mcp.discovery.sources import load_external_services_file
-from gpd.mcp.research.cost_estimator import MODAL_RATES_USD_PER_SECOND
 
 logger = logging.getLogger(__name__)
+
+MODAL_RATES_USD_PER_SECOND: dict[str, float] = {
+    "T4": 0.000164,
+    "L4": 0.000222,
+    "A10G": 0.000306,
+    "L40S": 0.000542,
+    "A100-40GB": 0.000389,
+    "A100-80GB": 0.000450,
+    "H100": 0.001380,
+    "H200": 0.001780,
+    "B200": 0.002780,
+    "CPU": 0.0000131,
+}
+"""Modal per-second rates by GPU type (as of Mar 2026)."""
 
 STALENESS_FRESH_THRESHOLD_SECONDS: float = 300.0
 """Tools checked within this many seconds are labelled 'fresh' in the catalog display."""

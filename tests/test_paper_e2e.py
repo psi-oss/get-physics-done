@@ -1,8 +1,6 @@
-"""End-to-end integration tests for the paper pipeline."""
+"""End-to-end integration tests for the paper build utilities."""
 
 from __future__ import annotations
-
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from PIL import Image
@@ -108,80 +106,6 @@ class TestBuildPaper:
         assert str(prepared_path) in output.tex_content
 
 
-# ---- Full pipeline smoke test ----
-
-
-class TestFullPipeline:
-    @pytest.mark.asyncio
-    async def test_full_pipeline_smoke(self, tmp_path, monkeypatch):
-        import gpd.mcp.paper.generator as gen_mod
-        from gpd.mcp.paper.compiler import build_paper
-        from gpd.mcp.paper.generator import (
-            FigureCaption,
-            SectionContent,
-            SectionPlan,
-            generate_paper,
-        )
-
-        # Mock PydanticAI agents via the lazy getter functions
-        plan = SectionPlan(sections=[{"title": "Results", "key_points": ["Data"]}])
-        mock_plan_result = MagicMock()
-        mock_plan_result.output = plan
-        mock_planner = MagicMock()
-        mock_planner.run = AsyncMock(return_value=mock_plan_result)
-        monkeypatch.setattr(gen_mod, "_get_section_planner", lambda: mock_planner)
-
-        mock_sec_result = MagicMock()
-        mock_sec_result.output = SectionContent(content="Results content.")
-        mock_writer = MagicMock()
-        mock_writer.run = AsyncMock(return_value=mock_sec_result)
-        monkeypatch.setattr(gen_mod, "_get_section_writer", lambda: mock_writer)
-
-        mock_cap_result = MagicMock()
-        mock_cap_result.output = FigureCaption(caption="Generated caption.")
-        mock_captioner = MagicMock()
-        mock_captioner.run = AsyncMock(return_value=mock_cap_result)
-        monkeypatch.setattr(gen_mod, "_get_caption_writer", lambda: mock_captioner)
-
-        # Create a real PNG figure
-        fig_dir = tmp_path / "figs"
-        fig_dir.mkdir()
-        fig_path = fig_dir / "velocity.png"
-        Image.new("RGB", (200, 200), color="blue").save(fig_path)
-
-        # Generate paper config via mocked LLM
-        from gpd.mcp.paper.bibliography import CitationSource
-
-        config = await generate_paper(
-            research_summary="Turbulence study results.",
-            title="Turbulence",
-            authors=[Author(name="A")],
-            abstract="Abstract.",
-            figures=[FigureRef(path=fig_path, caption="hint", label="velocity")],
-            citations=[CitationSource(source_type="paper", title="Ref1", authors=["B"], year="2020")],
-        )
-
-        # Mock compile to avoid needing TeX
-        mock_compile_result = CompilationResult(success=True, pdf_path=tmp_path / "paper.pdf")
-        (tmp_path / "paper.pdf").write_bytes(b"%PDF-fake")
-
-        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
-            return mock_compile_result
-
-        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
-
-        from gpd.mcp.paper.bibliography import build_bibliography
-
-        bib = build_bibliography(
-            [CitationSource(source_type="paper", title="Ref1", authors=["B"], year="2020")],
-            enrich=False,
-        )
-
-        output = await build_paper(config, tmp_path, bib_data=bib)
-        assert output.success is True
-        assert output.tex_content != ""
-
-
 # ---- Public API surface test ----
 
 
@@ -197,13 +121,11 @@ class TestPublicAPI:
             build_bibliography,
             build_paper,
             compile_paper,
-            generate_paper,
             get_journal_for_domain,
             get_journal_spec,
             list_journals,
         )
 
-        assert callable(generate_paper)
         assert callable(build_paper)
         assert callable(compile_paper)
         assert callable(build_bibliography)

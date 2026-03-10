@@ -26,7 +26,6 @@ from rich.table import Table
 import gpd
 from gpd.core.errors import GPDError
 from gpd.mcp.cli import session_app
-from gpd.mcp.pipeline import app as pipeline_app
 from gpd.mcp.viewer.cli import viewer_app
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
@@ -124,7 +123,6 @@ app = _GPDTyper(
 )
 
 app.add_typer(session_app, name="session", help="Interactive research session with MCP orchestration")
-app.add_typer(pipeline_app, name="pipeline", help="MCP-backed research pipeline stages")
 app.add_typer(viewer_app, name="view", help="Frame viewer for MCP simulation outputs")
 
 

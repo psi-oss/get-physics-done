@@ -38,7 +38,6 @@ def test_help():
     assert "phase" in result.output
     assert "health" in result.output
     assert "session" in result.output
-    assert "pipeline" in result.output
     assert "view" in result.output
 
 
@@ -66,13 +65,6 @@ def test_session_help():
     plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
     assert "--resume" in plain
     assert "reindex" in plain
-
-
-def test_pipeline_help():
-    result = runner.invoke(app, ["pipeline", "--help"])
-    assert result.exit_code == 0
-    assert "discover" in result.output
-    assert "execute" in result.output
 
 
 def test_view_help():

@@ -151,18 +151,16 @@ class TestAutoSubstituteResult:
 
 class TestFullModuleExports:
     def test_all_discovery_exports(self) -> None:
-        """All symbols from both plans should be importable from gpd.mcp.discovery."""
+        """Remaining discovery helpers should be importable from gpd.mcp.discovery."""
         from gpd.mcp.discovery import (
-            display_selection,
+            ToolCatalog,
             find_substitute,
-            reevaluate_tools,
-            route_and_select,
-            select_tools,
+            get_tool_catalog,
+            load_sources_config,
         )
 
         # Verify key types are actual classes/functions
+        assert ToolCatalog is not None
         assert callable(find_substitute)
-        assert callable(select_tools)
-        assert callable(display_selection)
-        assert callable(route_and_select)
-        assert callable(reevaluate_tools)
+        assert callable(get_tool_catalog)
+        assert callable(load_sources_config)

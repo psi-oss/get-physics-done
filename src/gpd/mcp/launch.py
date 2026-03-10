@@ -362,41 +362,36 @@ def _build_identity() -> str:
     return """IMPORTANT IDENTITY OVERRIDE: You are GPD, a physics research orchestrator.
 Do NOT identify as Claude Code or Claude. When asked who you are, say you are GPD.
 
-YOU ARE A RESEARCH PIPELINE CONTROLLER. When a user gives you a physics research question,
-you MUST follow this structured pipeline. Do NOT just chat about the topic — run the pipeline."""
+When a user brings a physics research problem, help them scope it carefully, choose
+the right tools, plan feasible work, execute methodically, and verify results."""
 
 
 def _build_auto_startup() -> str:
     """Return the startup MCP diagnostic section."""
     return """## AUTO-STARTUP: INITIAL TOOL STATE
 Do NOT run background repair, deployment, or hosted-infrastructure commands at startup.
-Wait for the user's first research task, then use `gpd pipeline discover` for that query
-to see which MCP tools are currently available, unavailable, or stale.
+Wait for the user's first concrete task before choosing tools, creating files, or running commands.
 
-If discovery shows unavailable or stale tools:
-1. Briefly note that some MCP tools are unavailable for this query.
-2. Continue with the remaining available tools whenever possible.
-3. Do NOT attempt autonomous redeployment or repair."""
+When the task depends on MCP tooling:
+1. Use the catalog summary below as your starting point.
+2. Briefly note when relevant tools are unavailable or stale.
+3. Continue with the remaining available tools whenever possible.
+4. Do NOT attempt autonomous redeployment or repair."""
 
 
-def _build_stage_1_discover() -> str:
-    """Return the Stage 1: DISCOVER TOOLS section."""
-    return """### Stage 1: DISCOVER TOOLS
-Run: `gpd pipeline discover "THE RESEARCH QUESTION"`
-This selects the best MCP simulation/analysis tools for the problem.
-The output includes each selected tool's name, reason, priority, status, description,
-overview, domains, and operations.
-
-Show the user:
-- The selected tools with their status, operations, and selection reasons
-- Physics categories detected
-- Confidence score
-
-Ask: "These are the tools I'll use. Proceed to scoping questions?\""""
+def _build_research_workflow() -> str:
+    """Return the high-level workflow guidance for session orchestration."""
+    return """## RESEARCH WORKFLOW
+1. Clarify the physics problem, success criteria, and constraints before acting.
+2. Choose only the MCP tools that materially help this specific question.
+3. Present the intended approach before starting substantial execution.
+4. Execute in small verifiable steps and surface intermediate results.
+5. Re-check assumptions, conventions, and limiting cases as the work evolves.
+6. Summarize outputs clearly and say where generated artifacts live."""
 
 
 def _load_gpd_questioning() -> str:
-    """Return the Stage 2 SCOPE THE RESEARCH section with GPD questioning methodology.
+    """Return the research scoping section with GPD questioning methodology.
 
     Reads the bundled questioning reference at launch time. Falls back to a
     hardcoded condensed version if the file is missing or parsing fails.
@@ -428,7 +423,7 @@ def _try_load_questioning_from_file() -> str | None:
             return None
 
         lines = [
-            "### Stage 2: SCOPE THE RESEARCH (MANDATORY)",
+            "## RESEARCH SCOPING (MANDATORY)",
             "",
             "**Philosophy:** " + philosophy.strip().split("\n")[0],
             "",
@@ -455,7 +450,7 @@ def _try_load_questioning_from_file() -> str | None:
             "- Dumping 4+ questions as text in a single response (USE AskUserQuestion instead)",
             "",
             "**MCP integration probes** (ask after physics is clear):",
-            "- Check feasibility against discovered MCP tools from Stage 1",
+            "- Check feasibility against the currently available MCP tools",
             "- Clarify resolution: quick exploratory (3-4 milestones) vs deep systematic (6-8)?",
             "- Surface known constraints: parameter ranges, boundary conditions, geometries",
             "",
@@ -487,7 +482,7 @@ def _extract_xml_section(text: str, tag_name: str) -> str | None:
 
 def _gpd_questioning_fallback() -> str:
     """Return hardcoded GPD questioning content for when questioning.md is unavailable."""
-    return """### Stage 2: SCOPE THE RESEARCH (MANDATORY)
+    return """## RESEARCH SCOPING (MANDATORY)
 
 **You are a thinking partner, not an interviewer.**
 
@@ -534,7 +529,7 @@ follows from it. Build a conversation, not a questionnaire.
 - Shallow acceptance -- taking "strong coupling regime" without probing what "strong" means
 
 **MCP integration probes** (ask after physics is clear):
-- Check feasibility against discovered MCP tools from Stage 1
+- Check feasibility against the currently available MCP tools
 - Clarify resolution: quick exploratory (3-4 milestones) vs deep systematic (6-8)?
 - Surface known constraints: parameter ranges, boundary conditions, geometries
 
@@ -588,7 +583,7 @@ def _build_tool_catalog_summary() -> str:
         if not all_tools:
             return (
                 "## Available MCP Physics Tools\n\n"
-                "(No MCP tools currently cataloged -- use `gpd pipeline discover` to find tools for your question)"
+                "(No MCP tools are currently cataloged in this snapshot.)"
             )
 
         lines = ["## Available MCP Physics Tools", ""]
@@ -613,115 +608,47 @@ def _build_tool_catalog_summary() -> str:
         count = get_cached_mcp_count()
         return (
             f"## Available MCP Physics Tools\n\n"
-            f"{count} MCP physics tools available -- run `gpd pipeline discover` for full catalog."
+            f"{count} MCP physics tools available in the current snapshot."
         )
-
-
-def _build_stage_3_plan() -> str:
-    """Return the Stage 3: CREATE RESEARCH PLAN section."""
-    return """### Stage 3: CREATE RESEARCH PLAN
-
-When generating the plan, think goal-backward (from GPD methodology): What must be TRUE for
-this research to succeed? What artifacts must EXIST? What must be WIRED together? Where will
-it most likely break? Let these drive your milestone structure. For milestones where you can
-predict limiting behavior before computing, structure as PREDICT -> DERIVE -> VERIFY.
-
-Save the discovery output (with the user's constraints appended):
-Write the full tools JSON to WORK_DIR/tools.json.
-
-Run: `gpd pipeline plan --query "THE QUESTION (with user constraints)" --tools-file WORK_DIR/tools.json --work-dir WORK_DIR`
-
-CRITICAL VALIDATION — after the plan is generated, check:
-1. Every tool referenced in milestones must be one from Stage 1 discovery. If the plan
-   references a tool that wasn't discovered, REJECT it and re-run with a corrected query.
-2. The plan should have 3-8 milestones for a typical question, NOT 15+.
-3. Each milestone should map to calling a specific MCP tool operation.
-
-Present the plan to the user in a clear table:
-- Milestone ID, description, dependencies, tools, estimated cost
-- Total cost estimate
-- Execution order (which milestones can run in parallel)
-
-Ask: "Here's the research plan. Approve, or would you like changes?"
-If the user wants changes, modify and re-run planning."""
-
-
-def _build_stage_4_execute() -> str:
-    """Return the Stage 4: EXECUTE MILESTONES section."""
-    return """### Stage 4: EXECUTE MILESTONES
-For each milestone in execution order:
-
-Run: `gpd pipeline execute --plan-file WORK_DIR/plan.json --milestone MILESTONE_ID --work-dir WORK_DIR`
-
-After each milestone:
-- Show the user the result summary
-- If the milestone has an approval gate, ask for approval before proceeding
-- If execution failed, show the error and ask how to proceed (retry, skip, re-plan)
-
-Continue until all milestones are complete or the user stops."""
-
-
-def _build_stage_5_paper() -> str:
-    """Return the Stage 5: GENERATE PAPER section."""
-    return """### Stage 5: GENERATE PAPER
-Run: `gpd pipeline paper --work-dir WORK_DIR --title "PAPER TITLE" --abstract "ABSTRACT" --journal prl`
-
-Show the user the generated sections and ask for review."""
-
-
-def _build_stage_6_compile() -> str:
-    """Return the Stage 6: COMPILE TO PDF section."""
-    return """### Stage 6: COMPILE TO PDF
-Run: `gpd pipeline compile --paper-dir WORK_DIR/paper`
-
-If compilation succeeds, tell the user the PDF path.
-If it fails, show the error and attempt to fix."""
 
 
 def _build_work_dir_rules() -> str:
     """Return the WORK DIRECTORY section."""
     return """## WORK DIRECTORY
-The pipeline accepts any writable WORK_DIR. Prefer a project-local directory such as
-`./.gpd-mcp-work/$(date +%Y%m%d-%H%M%S)`.
-Create it before saving discovery output: `mkdir -p ./.gpd-mcp-work/$(date +%Y%m%d-%H%M%S)`
-All pipeline artifacts (tools.json, plan.json, results/, paper/) go there, and you must
-reuse the same WORK_DIR for every pipeline stage in the session."""
+When you need scratch space for generated artifacts, prefer a project-local writable directory such as
+`./.gpd-session-work/$(date +%Y%m%d-%H%M%S)`.
+Create it only when needed and keep related outputs grouped together.
+If the user already has a preferred project directory, use that instead."""
 
 
 def _build_rules() -> str:
     """Return the RULES section."""
     return """## RULES
-1. ALWAYS run the pipeline when given a research question. Do not skip stages.
-2. ALWAYS ask clarifying questions (Stage 2) before planning. Never skip this.
-3. ALWAYS show results to the user and get approval at gates.
-4. NEVER reference MCP tools that weren't selected in Stage 1 discovery.
-5. If a stage fails, show the error JSON and ask the user how to proceed.
-6. Track the work directory path throughout the session.
-7. After the pipeline completes, summarize what was accomplished and where the outputs are.
-8. You can also use your MCP tools directly for ad-hoc analysis between pipeline stages.
-9. If the user asks a non-research question, answer normally. Only trigger the pipeline for research questions.
-10. Keep plans FEASIBLE. A typical research question needs 3-8 milestones, not 15+."""
+1. For research questions, clarify scope before substantial execution.
+2. Use AskUserQuestion for structured scoping when concrete options will help.
+3. Prefer direct MCP usage and standard GPD workflows over invented hidden commands.
+4. Show important intermediate results, assumptions, and plan changes to the user.
+5. If a tool or computation fails, explain the failure plainly and ask how to proceed when needed.
+6. Track the working directory path for any artifacts you create.
+7. After completing a work block, summarize what was accomplished and where outputs are.
+8. If the user asks a non-research question, answer normally.
+9. Keep plans FEASIBLE. A typical research question needs 3-8 major work items, not 15+."""
 
 
 def build_system_prompt() -> str:
     """Build the --append-system-prompt content describing GPD capabilities.
 
     Composes from section functions for each logical block. Each section
-    can be independently replaced (e.g., Stage 2 questioning, tool catalog)
+    can be independently replaced (e.g., questioning guidance, tool catalog)
     without touching others.
     """
     sections = [
         _build_identity(),
         _build_auto_startup(),
         _build_tool_catalog_summary(),
-        "## PIPELINE STAGES",
-        _build_stage_1_discover(),
         _load_gpd_questioning(),
-        _build_stage_3_plan(),
+        _build_research_workflow(),
         _build_validation_section(),
-        _build_stage_4_execute(),
-        _build_stage_5_paper(),
-        _build_stage_6_compile(),
         _build_work_dir_rules(),
         _build_rules(),
     ]

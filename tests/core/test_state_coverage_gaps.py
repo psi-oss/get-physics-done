@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.core.errors import StateError
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
@@ -257,7 +258,7 @@ class TestStatePatch:
     def test_patch_missing_state_md_raises(self, tmp_path: Path) -> None:
         planning = tmp_path / ".planning"
         planning.mkdir()
-        with pytest.raises(Exception):
+        with pytest.raises(StateError):
             state_patch(tmp_path, {"Status": "Paused"})
 
 

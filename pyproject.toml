@@ -22,10 +22,7 @@ dependencies = [
     "rich>=13.7.1",
     "pydantic>=2.0",
     "PyYAML>=6.0",
-    "tenacity>=9.0",
     "logfire>=1.0",
-    # LLM / Agent
-    "pydantic-ai-slim[anthropic,retries]>=1.66.0",
     "mcp[cli]>=1.9.0",
     # Utilities
     "pybtex>=0.24",

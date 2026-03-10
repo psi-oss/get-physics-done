@@ -28,7 +28,7 @@ def test_load_gpd_questioning_when_reference_missing(tmp_path: Path):
 
     assert isinstance(result, str)
     assert "thinking partner" in result.lower()
-    assert "Stage 2" in result
+    assert "RESEARCH SCOPING" in result
 
 
 def test_load_gpd_questioning_when_file_corrupt(tmp_path: Path):
@@ -41,7 +41,7 @@ def test_load_gpd_questioning_when_file_corrupt(tmp_path: Path):
 
     assert isinstance(result, str)
     assert "thinking partner" in result.lower()
-    assert "Stage 2" in result
+    assert "RESEARCH SCOPING" in result
 
 
 def test_load_gpd_questioning_happy_path(tmp_path: Path):
@@ -59,7 +59,7 @@ def test_load_gpd_questioning_happy_path(tmp_path: Path):
         result = _load_gpd_questioning()
 
     assert isinstance(result, str)
-    assert "Stage 2" in result
+    assert "RESEARCH SCOPING" in result
     assert "physical" in result.lower() or "physics" in result.lower()
     assert "thinking partner" in result.lower()
 
@@ -97,7 +97,7 @@ def test_build_tool_catalog_when_catalog_empty():
         result = _build_tool_catalog_summary()
 
     assert isinstance(result, str)
-    assert "No MCP tools" in result or "gpd pipeline discover" in result
+    assert "No MCP tools" in result or "currently cataloged" in result
 
 
 def test_build_tool_catalog_when_config_fails():
@@ -119,7 +119,7 @@ def test_build_tool_catalog_when_config_fails():
 def test_auto_startup_avoids_repair_workflows():
     """Startup instructions should defer to discovery instead of hidden repair flows."""
     result = _build_auto_startup()
-    assert "gpd pipeline discover" in result
+    assert "catalog summary below" in result
     assert "do not run background repair" in result.lower()
     assert "do not attempt autonomous redeployment" in result.lower()
 
@@ -127,6 +127,6 @@ def test_auto_startup_avoids_repair_workflows():
 def test_work_dir_rules_match_runtime_behavior():
     """WORK_DIR guidance should use a generic writable directory, not session JSON storage."""
     result = _build_work_dir_rules()
-    assert "any writable work_dir" in result.lower()
-    assert ".gpd-mcp-work" in result
-    assert "tools.json" in result
+    assert "project-local writable directory" in result.lower()
+    assert ".gpd-session-work" in result
+    assert "Create it only when needed" in result

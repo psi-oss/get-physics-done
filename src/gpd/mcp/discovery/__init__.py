@@ -15,18 +15,6 @@ from gpd.mcp.discovery.models import (
     ToolCatalogSnapshot,
     ToolEntry,
 )
-from gpd.mcp.discovery.router import (
-    PhysicsRouter,
-    display_selection,
-    reevaluate_tools,
-    route_and_select,
-)
-from gpd.mcp.discovery.selector import (
-    SelectedTool,
-    ToolSelection,
-    ToolSelectionAgent,
-    select_tools,
-)
 from gpd.mcp.discovery.sources import get_default_config, load_sources_config
 
 __all__ = [
@@ -35,20 +23,12 @@ __all__ = [
     "MCPStatus",
     "PHYSICS_CATEGORIES",
     "PhysicsCategory",
-    "PhysicsRouter",
-    "SelectedTool",
     "ToolCatalog",
     "ToolCatalogSnapshot",
     "ToolEntry",
-    "ToolSelection",
-    "ToolSelectionAgent",
-    "display_selection",
     "find_substitute",
     "get_default_config",
     "load_sources_config",
-    "reevaluate_tools",
-    "route_and_select",
-    "select_tools",
     "get_tool_catalog",
     "discover_tools",
 ]

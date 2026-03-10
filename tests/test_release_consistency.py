@@ -204,6 +204,19 @@ def test_claude_sdk_is_optional_for_public_install() -> None:
     assert any(item.startswith("claude-agent-sdk") for item in optional["claude-subagents"])
 
 
+def test_public_install_excludes_removed_pipeline_agent_dependencies() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies: list[str] = project["dependencies"]
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    cli = (repo_root / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
+
+    assert not any(item.startswith("pydantic-ai-slim") for item in dependencies)
+    assert not any(item.startswith("tenacity") for item in dependencies)
+    assert "gpd pipeline" not in readme
+    assert 'name="pipeline"' not in cli
+
+
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     repo_root = _repo_root()
     expected = "npx github:physicalsuperintelligence/get-physics-done"
@@ -233,7 +246,6 @@ def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
     repo_root = _repo_root()
     paths = (
         "src/gpd/mcp/launch.py",
-        "src/gpd/mcp/pipeline.py",
         "src/gpd/mcp/discovery/sources.py",
     )
     disallowed_markers = (

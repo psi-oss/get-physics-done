@@ -24,7 +24,7 @@ Install GPD with `npx`:
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI with the full unified CLI surface (`gpd session`, `gpd pipeline`, and `gpd view`), and then runs the runtime installer.
+That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI with the unified terminal CLI surface (`gpd session` and `gpd view`), and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 
@@ -123,16 +123,15 @@ Use the runtime-specific prefix from the table above if you are on Codex or Open
 
 ## Terminal CLI
 
-The same `gpd` install also includes the session, MCP pipeline, and frame-viewer features. Use the unified CLI from your shell:
+The same `gpd` install also includes the session launcher and frame viewer. Use the unified CLI from your shell:
 
 ```bash
 gpd session
 gpd session --history
-gpd pipeline discover "lattice QCD phase transition"
 gpd view
 ```
 
-`gpd session` launches an interactive Claude Code-backed session from your shell with MCP orchestration and the standard GPD command surface available inside it. `gpd pipeline` and `gpd view` are regular CLI subcommands you can run directly from the terminal.
+`gpd session` launches an interactive Claude Code-backed session from your shell with MCP orchestration and the standard GPD command surface available inside it. `gpd view` remains available as a regular CLI subcommand you can run directly from the terminal.
 
 ## Requirements
 
@@ -146,7 +145,7 @@ gpd view
 
 - The integrated terminal `gpd session` launcher currently supports Claude Code only.
 - On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
-- `gpd pipeline` and `gpd view` remain available from the terminal on any install.
+- `gpd view` remains available from the terminal on any install.
 
 ## Citation
 

@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from gpd.core.utils import atomic_write
 
 
-def _resolve_path(data: Any, key: str) -> Any:
+def _resolve_path(data: object, key: str) -> object | None:
     """Walk a dot-path like ``.section``, ``.waves``, or ``.directories[-1]``.
 
     Leading dots are stripped.  Bracket notation for integer indices is
@@ -67,10 +66,10 @@ def json_get(stdin_text: str, key: str, default: str | None = None) -> str:
     """Extract a value at *key* from JSON on stdin.  Return as string."""
     try:
         data = json.loads(stdin_text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as err:
         if default is not None:
             return default
-        raise ValueError(f"Invalid JSON input: {stdin_text[:80]!r}")
+        raise ValueError(f"Invalid JSON input: {stdin_text[:80]!r}") from err
 
     result = _resolve_path(data, key)
     if result is None:
@@ -131,7 +130,7 @@ def json_pluck(stdin_text: str, key: str, field: str) -> str:
     return "\n".join(values)
 
 
-def json_set(file_path: str, path: str, value: str) -> dict[str, Any]:
+def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     """Set a key in a JSON file (creates file if needed)."""
     fp = Path(file_path)
     if fp.exists():
@@ -163,9 +162,9 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, Any]:
     return {"file": str(fp), "path": path, "updated": True}
 
 
-def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, Any]:
+def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, object]:
     """Merge multiple JSON files into one (shallow dict merge)."""
-    merged: dict[str, Any] = {}
+    merged: dict[str, object] = {}
     for fp_str in file_paths:
         fp = Path(fp_str)
         if fp.exists():
