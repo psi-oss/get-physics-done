@@ -236,6 +236,35 @@ class TestInstall:
         assert "[features]" in content
         assert "multi_agent = true" in content
 
+    def test_install_notify_not_inside_existing_section(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Notify must be at TOML root level, not inside an existing section."""
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        # Pre-populate config.toml with a section that would swallow the notify
+        (target / "config.toml").write_text(
+            '[notice.model_migrations]\n"gpt-5.3-codex" = "gpt-5.4"\n',
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        # Verify notify appears BEFORE the section, not inside it
+        notify_pos = content.index("notify =")
+        section_pos = content.index("[notice.model_migrations]")
+        assert notify_pos < section_pos, (
+            f"notify (pos {notify_pos}) must appear before [notice.model_migrations] (pos {section_pos}) "
+            f"to stay at TOML root level. Full content:\n{content}"
+        )
+
     def test_install_with_explicit_target_uses_absolute_notify_path(
         self,
         adapter: CodexAdapter,

@@ -936,6 +936,14 @@ def _serialize_toml_lines(lines: list[str]) -> str:
     return f"{content}\n" if content else ""
 
 
+def _first_section_index(lines: list[str]) -> int:
+    """Return the index of the first TOML section header, or len(lines) if none."""
+    for idx, line in enumerate(lines):
+        if _parse_section_name(line) is not None:
+            return idx
+    return len(lines)
+
+
 def _install_gpd_notify_config(
     toml_content: str,
     *,
@@ -952,13 +960,16 @@ def _install_gpd_notify_config(
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             continue
-        if stripped.startswith("notify"):
+        # Only match top-level notify (before any section header or at known position)
+        if stripped.startswith("notify") and _parse_section_name(stripped) is None:
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             if _line_contains_gpd_notify(line):
                 continue
-            existing_notify = _parse_notify_assignment(line)
-            continue
+            parsed = _parse_notify_assignment(line)
+            if parsed is not None:
+                existing_notify = parsed
+                continue
         cleaned_lines.append(line)
 
     notify_block: list[str]
@@ -971,12 +982,18 @@ def _install_gpd_notify_config(
     else:
         notify_block = [_GPD_NOTIFY_COMMENT, desired_line]
 
-    if insert_at is None:
-        if cleaned_lines and cleaned_lines[-1] != "":
-            cleaned_lines.append("")
-        cleaned_lines.extend(notify_block)
-    else:
+    if insert_at is not None:
+        # Ensure insert position is at root level (before first section header)
+        first_section = _first_section_index(cleaned_lines)
+        if insert_at > first_section:
+            insert_at = first_section
         cleaned_lines[insert_at:insert_at] = notify_block
+    else:
+        # No existing notify — insert before first section header to stay at root level
+        first_section = _first_section_index(cleaned_lines)
+        if first_section > 0 and cleaned_lines[first_section - 1].strip() != "":
+            notify_block = [""] + notify_block
+        cleaned_lines[first_section:first_section] = notify_block + [""]
 
     return _serialize_toml_lines(cleaned_lines)
 
