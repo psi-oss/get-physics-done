@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/de-sitter-space.md` (positive cosmological constant, cosmological horizons, dS/CFT, static patch holography), `protocols/numerical-computation.md` (general numerical methods), `protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/de-sitter-space.md` (positive cosmological constant, cosmological horizons, dS/CFT, static patch holography), `protocols/asymptotic-symmetries.md` (Bondi gauge, null infinity, BMS charges, memory, soft theorems), `protocols/numerical-computation.md` (general numerical methods), `protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
 
 **Friedmann Equations:**
 
@@ -193,6 +193,13 @@ context_cost: medium
 - Area theorem: delta_A >= 0 (classically; violated by Hawking radiation)
 - Black hole information problem: unitarity of quantum mechanics vs thermal Hawking radiation
 
+**Asymptotic Structure and Null Infinity:**
+
+- Bondi-Sachs expansion organizes asymptotically flat radiative data near null infinity in terms of the Bondi mass aspect, angular-momentum aspect, shear `C_AB`, and news `N_AB = partial_u C_AB`
+- The 4d asymptotic symmetry group at null infinity is BMS: supertranslations plus Lorentz transformations; `l = 0,1` supertranslations reproduce ordinary translations
+- Bondi mass loss and charge-flux balance laws tie asymptotic charges to gravitational radiation; memory observables are time-integrated consequences of the same conservation laws
+- Numerical relativity waveforms must be compared in a fixed BMS frame; Cauchy-characteristic extraction or careful frame fixing is needed to resolve memory and avoid supertranslation ambiguity
+
 ## Key Tools and Software
 
 | Tool                                | Purpose                               | Notes                                                             |
@@ -268,6 +275,7 @@ context_cost: medium
 | **Gravitational wave cosmology** | Hubble tension resolution, primordial GW background, standard sirens | LIGO/Virgo/KAGRA, LISA consortium | Good — Boltzmann code + data analysis |
 | **Black hole information paradox** | Islands formula, replica wormholes, Page curve from semiclassical gravity | Penington, Almheiri, Maldacena, Hartman | Good — semiclassical calculations |
 | **de Sitter quantum gravity / holography** | What is the correct observable framework for positive cosmological constant: wavefunction, dS/CFT, or static-patch holography? | Anninos, Strominger, Maldacena, Galante, Stanford/Perimeter dS groups | Good — strong on geometry, EFT, correlators, and consistency checks; speculative dictionary entries need explicit citation |
+| **Asymptotic symmetries / celestial gravity** | How do BMS charges, memory, soft theorems, and celestial currents organize flat-space gravity? | Strominger, Donnay, Ciambelli, Pasterski, Mitman, Boyle | Good — strong for symmetry logic and verification; superrotations/celestial dictionary remain frontier topics |
 | **Modified gravity** | Horndeski/beyond-Horndeski, massive gravity, testing GR with GW observations | Zumalacárregui, Creminelli, Baker | Excellent — perturbation theory + data fits |
 | **Inflation model selection** | Primordial non-Gaussianity (f_NL), primordial gravitational waves (r), spectral tilt running | Planck, CMB-S4, LiteBIRD teams | Good — slow-roll calculations + forecasts |
 | **Numerical relativity for LISA** | Extreme mass ratio inspirals (EMRIs), supermassive BH mergers | Warburton, Barack, Pound | Moderate — self-force + NR hybrid |

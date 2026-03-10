@@ -29,6 +29,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Feynman rules:** Derive from the Lagrangian, do not transcribe from memory. Verify against a textbook (Peskin & Schroeder, Weinberg, Schwartz) for standard theories. For non-standard theories: derive and verify by checking Ward identities.
 - **Regularization:** Default to dimensional regularization for gauge theories. If using cutoff: document which symmetries are broken and how counterterms restore them.
 - **Infrared structure:** For massless theories, IR divergences cancel between virtual and real corrections (KLN theorem). Verify this cancellation explicitly. Do not claim "IR safe" without checking.
+- **Asymptotic symmetries and soft limits:** For massless gauge bosons or gravitons, state the null-infinity boundary conditions and whether a soft theorem is being used as a Ward identity of a large gauge/BMS charge. Do not quote the infrared triangle heuristically without matching the charge, flux, and observable conventions.
 
 ## Renormalization Group
 
@@ -55,6 +56,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Energy conditions:** State which energy conditions matter is assumed to satisfy (weak, strong, dominant, null). The dominant energy condition (T^{mu nu} u_mu is causal) is physical; the strong energy condition (violated by cosmological constant) is mathematical.
 - **Singularity analysis:** Distinguish coordinate singularities (removable by coordinate change, like r=2M in Schwarzschild with bad coordinates) from physical singularities (curvature invariants diverge). Always compute curvature invariants.
 - **de Sitter and cosmological horizons:** Distinguish global, planar, and static-patch observables. Verify `L = H^{-1}`, `T_dS = H/(2*pi)`, and `S_GH = A_H/(4G_N)`. For inflationary observables, use in-in/gauge-invariant data rather than flat-space S-matrix language.
+- **Bondi frame and memory:** Near null infinity, define Bondi shear/news explicitly and fix the BMS frame before comparing waveforms, memory observables, or asymptotic charges across calculations.
 
 ## AMO (Atomic, Molecular, Optical)
 

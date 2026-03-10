@@ -189,6 +189,36 @@ Thermodynamics:
 
 </de_sitter_horizons>
 
+<null_infinity_bms>
+
+## Null Infinity, Bondi Charges, and Memory
+
+**Asymptotic radiative data:**
+
+```
+At future null infinity in Bondi gauge, track:
+  C_AB        = Bondi shear
+  N_AB        = partial_u C_AB   (news tensor)
+  M_B         = Bondi mass / mass aspect data
+
+Physical content:
+  N_AB = 0    -> no gravitational radiation
+  Delta C_AB  -> memory observable
+```
+
+**Verification:**
+
+```
+1. Residual symmetry check: verify the claimed BMS transformation preserves the chosen Bondi falloffs.
+2. Translation limit: check that the l=0,1 supertranslation modes reduce to ordinary spacetime translations.
+3. Balance law: verify the change in Bondi charge between two cuts equals the integrated flux through null infinity.
+4. No-news limit: if N_AB = 0, verify Bondi mass is constant and no radiative memory is generated.
+5. Waveform comparison: fix the BMS frame (or use CCE / large-radius extrapolation consistently) before comparing h, Psi_4, or memory observables between simulations.
+6. Soft-memory consistency: when a soft theorem or memory statement is invoked, confirm the same convention for the asymptotic charge, waveform variable, and radiative field is being used throughout.
+```
+
+</null_infinity_bms>
+
 <cosmological_consistency>
 
 ## Cosmological Consistency Checks

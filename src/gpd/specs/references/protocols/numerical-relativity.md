@@ -19,6 +19,7 @@ Numerical relativity solves Einstein's field equations on a computer, enabling t
 
 - See `numerical-computation.md` for general numerical stability, convergence testing, and error propagation
 - See `symmetry-analysis.md` for identifying symmetries of the spacetime and using them to reduce computational cost
+- See `asymptotic-symmetries.md` for Bondi gauge, BMS frame fixing, memory, and null-infinity charges
 - See `order-of-limits.md` for continuum limit extrapolation and finite extraction radius corrections
 
 ## Overview

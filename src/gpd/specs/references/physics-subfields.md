@@ -57,6 +57,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Topological phases, Berry curvature                  | Condensed Matter      | Mathematical Physics for topology                              |
 | Lattice gauge theory                                 | QFT                   | Stat Mech for Monte Carlo; Condensed Matter for tensor methods |
 | Quantum gravity, holography                          | GR + QFT              | Mathematical Physics for rigor                                 |
+| Asymptotic symmetries, soft theorems, memory, celestial amplitudes | GR & Cosmology | QFT for scattering amplitudes; Mathematical Physics for representation theory |
 | Polymers, membranes, colloids, self-assembly         | Soft Matter           | Stat Mech for phase behavior; Fluid for hydrodynamics          |
 | Active matter, molecular motors, biophysics          | Soft Matter           | Stat Mech for non-equilibrium; Fluid for active hydrodynamics  |
 | Stellar structure, nucleosynthesis, supernovae       | Astrophysics          | Nuclear/Particle for reaction rates; Stat Mech for EOS         |

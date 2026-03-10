@@ -74,6 +74,28 @@ def verify_ward_identity(vertex, propagator_inv, momentum_transfer):
 
 </ward_identities>
 
+<soft_asymptotic_symmetries>
+
+## Soft Limits and Asymptotic Symmetry Checks
+
+Large gauge symmetries and BMS-type symmetries control the infrared structure of scattering with massless gauge bosons or gravitons. A soft theorem should not be treated as an isolated amplitude identity; it should match a boundary charge and a flux/conservation statement.
+
+```
+Leading soft structure:
+  soft theorem  <->  Ward identity of asymptotic charge
+
+Operational split:
+  Q_total = Q_hard + Q_soft
+
+Verification:
+1. Take the soft limit of the amplitude and verify factorization onto the universal soft factor.
+2. Check that the corresponding charge acts correctly on the hard external states.
+3. State the boundary conditions at null infinity or the infrared regulator used.
+4. If memory or asymptotic charges are invoked, verify the same convention for the radiative field is used throughout.
+```
+
+</soft_asymptotic_symmetries>
+
 <unitarity_causality_positivity>
 
 ## Unitarity, Causality, and Positivity Constraints

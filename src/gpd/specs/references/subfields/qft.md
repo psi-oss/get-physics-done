@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
 
 **Feynman Diagrams and Perturbation Theory:**
 
@@ -148,6 +148,7 @@ context_cost: medium
 | Frontier | Key question | Active groups | GPD suitability |
 |----------|-------------|---------------|-----------------|
 | **Amplitudes bootstrap** | Can on-shell methods (BCFW, generalized unitarity) replace Feynman diagrams at high loops? | Arkani-Hamed, Dixon, Bern, Zvi group | Excellent — symbolic algebra intensive |
+| **Asymptotic symmetries / celestial amplitudes** | How are infrared soft theorems, large gauge symmetries, and celestial currents encoded in scattering observables? | Strominger, Pasterski, Donnay, Raclariu, Pate | Good — symmetry constraints are strong; full celestial dictionary is still developing |
 | **Asymptotic safety** | Does gravity have a UV fixed point? Compute critical exponents of the gravitational RG | Reuter, Percacci, Eichhorn groups | Good — functional RG, truncation systematics |
 | **Conformal bootstrap** | Determine CFT data (dimensions, OPE coefficients) non-perturbatively | Simmons-Duffin, Poland, Rychkov | Excellent — algebraic + numerical optimization |
 | **Precision Higgs/EW** | NNLO and N3LO corrections for LHC processes | CERN theory, Mistlberger, Czakon | Good — multi-loop integrals, IBP reduction |
