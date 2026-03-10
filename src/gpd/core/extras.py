@@ -109,32 +109,111 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         op2 = m.group(4)
         n2 = _parse_float(m.group(5))
         if n1 is not None and n2 is not None:
-            op1_inclusive = "=" in op1
-            op2_inclusive = "=" in op2
+            has_much = op1 in ("<<", ">>") or op2 in ("<<", ">>")
 
-            # First condition: n1 OP1 x
-            if op1.startswith("<"):
-                passes_first = val >= n1 if op1_inclusive else val > n1
+            if has_much:
+                # Apply "much less/greater than" semantics for each bound
+                # separately, requiring BOTH conditions to pass.
+                # op1 relates n1 to val: "n1 OP1 val"
+                # op2 relates val to n2: "val OP2 n2"
+                def _check_single(op: str, bound: float, val: float, bound_is_lower: bool) -> ValidityStatus:
+                    if op == "<<":
+                        if bound_is_lower:
+                            # bound << val  =>  val >> bound  =>  val much greater than bound
+                            if bound == 0:
+                                if val > 10:
+                                    return "valid"
+                                if val > 1:
+                                    return "marginal"
+                                return "invalid"
+                            if val > 10 * bound:
+                                return "valid"
+                            if val > 2 * bound:
+                                return "marginal"
+                            return "invalid"
+                        else:
+                            # val << bound  =>  val much less than bound
+                            if bound == 0:
+                                if val < -10:
+                                    return "valid"
+                                if val < -1:
+                                    return "marginal"
+                                return "invalid"
+                            if abs(val) < 0.1 * abs(bound):
+                                return "valid"
+                            if abs(val) < 0.5 * abs(bound):
+                                return "marginal"
+                            return "invalid"
+                    elif op == ">>":
+                        if bound_is_lower:
+                            # bound >> val  =>  val << bound  =>  val much less than bound
+                            if abs(val) < 0.1 * abs(bound):
+                                return "valid"
+                            if abs(val) < 0.5 * abs(bound):
+                                return "marginal"
+                            return "invalid"
+                        else:
+                            # val >> bound  =>  val much greater than bound
+                            if bound == 0:
+                                if val > 10:
+                                    return "valid"
+                                if val > 1:
+                                    return "marginal"
+                                return "invalid"
+                            if val > 10 * bound:
+                                return "valid"
+                            if val > 2 * bound:
+                                return "marginal"
+                            return "invalid"
+                    else:
+                        # Simple < or > with inclusive variants
+                        inclusive = "=" in op
+                        if op.startswith("<"):
+                            if bound_is_lower:
+                                passes = val >= bound if inclusive else val > bound
+                            else:
+                                passes = val <= bound if inclusive else val < bound
+                        else:
+                            if bound_is_lower:
+                                passes = val <= bound if inclusive else val < bound
+                            else:
+                                passes = val >= bound if inclusive else val > bound
+                        return "valid" if passes else "invalid"
+
+                s1 = _check_single(op1, n1, val, bound_is_lower=True)
+                s2 = _check_single(op2, n2, val, bound_is_lower=False)
+
+                # Both must pass; worst status wins
+                _rank = {"valid": 0, "marginal": 1, "invalid": 2}
+                worst = max(s1, s2, key=lambda s: _rank[s])
+                return worst
             else:
-                passes_first = val <= n1 if op1_inclusive else val < n1
+                op1_inclusive = "=" in op1
+                op2_inclusive = "=" in op2
 
-            # Second condition: x OP2 n2
-            if op2.startswith("<"):
-                passes_second = val <= n2 if op2_inclusive else val < n2
-            else:
-                passes_second = val >= n2 if op2_inclusive else val > n2
+                # First condition: n1 OP1 x
+                if op1.startswith("<"):
+                    passes_first = val >= n1 if op1_inclusive else val > n1
+                else:
+                    passes_first = val <= n1 if op1_inclusive else val < n1
 
-            if passes_first and passes_second:
-                lo = min(n1, n2)
-                hi = max(n1, n2)
-                span = hi - lo
-                if span > 0:
-                    margin_lo = lo + 0.2 * span
-                    margin_hi = hi - 0.2 * span
-                    if val < margin_lo or val > margin_hi:
-                        return "marginal"
-                return "valid"
-            return "invalid"
+                # Second condition: x OP2 n2
+                if op2.startswith("<"):
+                    passes_second = val <= n2 if op2_inclusive else val < n2
+                else:
+                    passes_second = val >= n2 if op2_inclusive else val > n2
+
+                if passes_first and passes_second:
+                    lo = min(n1, n2)
+                    hi = max(n1, n2)
+                    span = hi - lo
+                    if span > 0:
+                        margin_lo = lo + 0.2 * span
+                        margin_hi = hi - 0.2 * span
+                        if val < margin_lo or val > margin_hi:
+                            return "marginal"
+                    return "valid"
+                return "invalid"
 
     # Pattern: "x << bound" — much less than
     m = re.search(r"<<\s*([0-9.eE+-]+)", range_str)
@@ -408,7 +487,7 @@ def question_add(state: dict, text: str) -> str:
     return text
 
 
-def question_list(state: dict) -> list[str]:
+def question_list(state: dict) -> list[str | dict]:
     """List all open questions from state."""
     return list(state.get("open_questions", []))
 
@@ -472,7 +551,7 @@ def calculation_add(state: dict, text: str) -> str:
     return text
 
 
-def calculation_list(state: dict) -> list[str]:
+def calculation_list(state: dict) -> list[str | dict]:
     """List all active calculations from state."""
     return list(state.get("active_calculations", []))
 

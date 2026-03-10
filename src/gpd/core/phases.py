@@ -13,7 +13,7 @@ import logging
 import re
 import shutil
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -1777,7 +1777,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
     roadmap_path = _roadmap_path(cwd)
     state_path = _state_path(cwd)
     unpadded = phase_unpad(phase_num)
-    today = date.today().isoformat()
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     next_phase_num: str | None = None
     next_phase_name: str | None = None
@@ -1907,7 +1907,7 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     milestones_path = _planning_path(cwd) / MILESTONES_FILENAME
     archive_dir = _planning_path(cwd) / MILESTONES_DIR_NAME
     phases_dir = _phases_dir(cwd)
-    today = date.today().isoformat()
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     milestone_name = name or version
 
     archive_dir.mkdir(parents=True, exist_ok=True)

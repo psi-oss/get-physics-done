@@ -298,30 +298,6 @@ def _read_jsonl_file(path: Path) -> list[dict[str, object]]:
     return records
 
 
-def _append_jsonl_file(path: Path, payload: dict[str, object]) -> None:
-    from gpd.core.utils import file_lock
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = json.dumps(payload, default=str)
-    with file_lock(path):
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(serialized + "\n")
-
-
-def _write_json_file(path: Path, payload: dict[str, object]) -> None:
-    from gpd.core.utils import atomic_write
-
-    atomic_write(path, json.dumps(payload, indent=2, default=str))
-
-
-def _extract_cwd_from_argv(argv: list[str]) -> Path:
-    for idx, token in enumerate(argv):
-        if token == "--cwd" and idx + 1 < len(argv):
-            return Path(argv[idx + 1])
-        if token.startswith("--cwd="):
-            return Path(token.split("=", 1)[1])
-    return Path(".")
-
 
 def _command_from_argv(argv: list[str]) -> str:
     tokens: list[str] = []
@@ -473,56 +449,6 @@ def _finish_cli_observation_if_active(
         _finish_cli_observation(context, status=status, exit_code=exit_code, error=error)
 
 
-def _collect_observability_events(cwd: Path) -> list[dict[str, object]]:
-    paths = _observability_paths(cwd)
-    events: list[dict[str, object]] = []
-    if paths["events_file"].exists():
-        events.extend(_read_jsonl_file(paths["events_file"]))
-    elif paths["sessions_dir"].is_dir():
-        for session_events_file in sorted(paths["sessions_dir"].glob("*.jsonl")):
-            events.extend(_read_jsonl_file(session_events_file))
-    events.sort(key=lambda item: str(item.get("timestamp", "")))
-    return events
-
-
-def _collect_observability_sessions(cwd: Path) -> list[dict[str, object]]:
-    paths = _observability_paths(cwd)
-    sessions: dict[str, dict[str, object]] = {}
-
-    if paths["sessions_dir"].is_dir():
-        for meta_file in sorted(paths["sessions_dir"].glob("*.json")):
-            payload = _read_json_file(meta_file)
-            if not payload:
-                continue
-            session_id = str(payload.get("session_id") or meta_file.stem)
-            payload.setdefault("session_id", session_id)
-            payload["meta_file"] = _format_display_path(meta_file)
-            sessions[session_id] = payload
-
-        for events_file in sorted(paths["sessions_dir"].glob("*.jsonl")):
-            entries = _read_jsonl_file(events_file)
-            if not entries:
-                continue
-            session_id = str(entries[0].get("session_id") or events_file.stem)
-            record = sessions.setdefault(session_id, {"session_id": session_id})
-            record.setdefault("started_at", entries[0].get("timestamp"))
-            record["last_event_at"] = entries[-1].get("timestamp")
-            record.setdefault("command", entries[0].get("command") or entries[0].get("name"))
-            record.setdefault("cwd", entries[0].get("cwd"))
-            record.setdefault("status", entries[-1].get("status") or "active")
-            record["event_count"] = len(entries)
-            record["events_file"] = _format_display_path(events_file)
-
-    current = _read_json_file(paths["current_session"])
-    if current:
-        session_id = str(current.get("session_id") or "current")
-        record = sessions.setdefault(session_id, {"session_id": session_id})
-        record.update({k: v for k, v in current.items() if v is not None})
-        record["active"] = True
-
-    return sorted(sessions.values(), key=lambda item: str(item.get("last_event_at", "")), reverse=True)
-
-
 def _filter_observability_events(
     cwd: Path,
     *,
@@ -603,7 +529,7 @@ class _GPDTyper(typer.Typer):
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
         except SystemExit as exc:
-            raw_code = exc.code if isinstance(exc.code, int) else 0
+            raw_code = exc.code if isinstance(exc.code, int) else (1 if exc.code else 0)
             status = "ok" if raw_code == 0 else "error"
             error = None if raw_code == 0 else str(exc.code)
             _finish_cli_observation_if_active(_active_cli_observation, status=status, exit_code=raw_code, error=error)
@@ -2363,7 +2289,7 @@ def _resolve_existing_input_path(input_path: str | None, *, candidates: tuple[st
     raise GPDError(f"No {label} found. Searched: {searched}")
 
 
-def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> object:
+def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> "PaperConfig":
     """Resolve relative figure paths in a PaperConfig against its config file directory."""
     from gpd.mcp.paper.models import FigureRef, PaperConfig
 

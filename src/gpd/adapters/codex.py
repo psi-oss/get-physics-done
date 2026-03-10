@@ -319,8 +319,12 @@ class CodexAdapter(RuntimeAdapter):
         Stores *skills_dir* for use by template method hooks, then delegates
         to the base class template method.
         """
+        prev_skills_dir = getattr(self, "_skills_dir", None)
         self._skills_dir = _resolve_codex_skills_dir(target_dir, is_global=is_global, skills_dir=skills_dir)
-        return super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
+        try:
+            return super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
+        finally:
+            self._skills_dir = prev_skills_dir
 
     # --- Template method hooks ---
 
