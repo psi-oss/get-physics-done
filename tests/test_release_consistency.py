@@ -256,6 +256,8 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     content = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
     assert "uv run pytest tests/test_release_consistency.py -v" in content
+    assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
+    assert "Cross-runtime release checks:" in content
     assert "Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
 
