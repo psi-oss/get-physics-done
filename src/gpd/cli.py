@@ -2070,14 +2070,14 @@ _GPD_BANNER = r"""
 """
 
 
-def _prompt_runtimes() -> list[str]:
+def _prompt_runtimes(*, action: str = "install") -> list[str]:
     """Interactive runtime selection. Returns list of selected runtime names."""
     from rich.prompt import Prompt
 
     from gpd.adapters import get_adapter, list_runtimes
 
     runtimes = list_runtimes()
-    console.print("\n[bold cyan]Select runtime(s) to install:[/]\n")
+    console.print(f"\n[bold cyan]Select runtime(s) to {action}:[/]\n")
     for i, rt in enumerate(runtimes, 1):
         adapter = get_adapter(rt)
         console.print(f"  [bold]{i}[/]) {adapter.display_name} [dim]({rt})[/]")
@@ -2107,11 +2107,12 @@ def _prompt_runtimes() -> list[str]:
     return []  # unreachable
 
 
-def _prompt_location() -> bool:
+def _prompt_location(*, action: str = "install") -> bool:
     """Interactive location selection. Returns True for global, False for local."""
     from rich.prompt import Prompt
 
-    console.print("\n[bold cyan]Install location:[/]\n")
+    label = "Install" if action == "install" else "Uninstall"
+    console.print(f"\n[bold cyan]{label} location:[/]\n")
     console.print("  [bold]1[/]) [green]Local[/]  — current project only [dim](./.<runtime>/)[/]")
     console.print("  [bold]2[/]) Global — all projects [dim](~/.<runtime>/)[/]")
 
@@ -2333,13 +2334,13 @@ def uninstall(
                 return
         selected = list(runtimes)
     else:
-        selected = _prompt_runtimes()
+        selected = _prompt_runtimes(action="uninstall")
 
     # Resolve location (skip prompts when --target-dir is explicit)
     if target_dir:
         is_global = True  # irrelevant when target_dir is set
     elif not global_uninstall and not local_uninstall:
-        is_global = _prompt_location()
+        is_global = _prompt_location(action="uninstall")
     else:
         is_global = global_uninstall
 
