@@ -68,6 +68,13 @@ def test_required_public_release_artifacts_exist() -> None:
     assert missing == []
 
 
+def test_public_citation_metadata_uses_launch_date() -> None:
+    repo_root = _repo_root()
+    citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
+
+    assert "date-released: '2026-03-15'" in citation
+
+
 def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     repo_root = _repo_root()
 
