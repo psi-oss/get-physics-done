@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -103,6 +105,12 @@ class TestConvertFrontmatter:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
         result = convert_claude_to_opencode_frontmatter(content)
         assert "~/.config/opencode/agents/gpd-verifier.md" in result
+
+    def test_claude_path_conversion_uses_resolved_path_prefix(self) -> None:
+        content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
+        result = convert_claude_to_opencode_frontmatter(content, "./.opencode/")
+        assert "./.opencode/agents/gpd-verifier.md" in result
+        assert "~/.config/opencode/agents/gpd-verifier.md" not in result
 
     def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
@@ -279,6 +287,18 @@ class TestInstall:
         gpd_cmds = [f for f in command_dir.iterdir() if f.name.startswith("gpd-")]
         assert len(gpd_cmds) > 0
 
+    def test_update_command_inlines_workflow(self, adapter: OpenCodeAdapter, tmp_path: Path) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        content = (target / "command" / "gpd-update.md").read_text(encoding="utf-8")
+        assert "Check for a newer GPD release" in content
+        assert "<!-- [included: update.md] -->" in content
+        assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
+        assert "/gpd-reapply-patches" in content
+
     def test_install_creates_gpd_content(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()
@@ -334,6 +354,52 @@ class TestInstall:
         assert result["runtime"] == "opencode"
         assert result["commands"] > 0
         assert result["agents"] > 0
+
+    def test_install_preserves_existing_mcp_overrides(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (target / "opencode.json").write_text(
+            json.dumps(
+                {
+                    "mcp": {
+                        "gpd-state": {
+                            "type": "local",
+                            "command": ["python3", "-m", "old.state_server"],
+                            "enabled": False,
+                            "timeout": 12000,
+                            "environment": {"LOG_LEVEL": "INFO", "EXTRA_FLAG": "1"},
+                        },
+                        "custom-server": {
+                            "type": "local",
+                            "command": ["node", "custom.js"],
+                        },
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
+        server = config["mcp"]["gpd-state"]
+        assert server["type"] == "local"
+        assert server["command"] == [expected["command"], *expected["args"]]
+        assert server["enabled"] is False
+        assert server["timeout"] == 12000
+        assert server["environment"]["LOG_LEVEL"] == "INFO"
+        assert server["environment"]["EXTRA_FLAG"] == "1"
+        assert config["mcp"]["custom-server"] == {"type": "local", "command": ["node", "custom.js"]}
 
 
 class TestUninstall:

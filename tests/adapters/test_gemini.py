@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -163,6 +164,17 @@ class TestInstall:
         toml_files = list(commands_dir.rglob("*.toml"))
         assert len(toml_files) > 0
 
+    def test_update_command_inlines_workflow(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        content = (target / "commands" / "gpd" / "update.toml").read_text(encoding="utf-8")
+        assert "Check for a newer GPD release" in content
+        assert "<!-- [included: update.md] -->" in content
+        assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
+
     def test_install_creates_agents(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()
@@ -299,6 +311,49 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert f"{sys.executable or 'python3'} {(target / 'hooks' / 'check_update.py')}" in cmds
 
+    def test_install_preserves_existing_mcp_overrides(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "gpd-state": {
+                            "command": "python3",
+                            "args": ["-m", "old.state_server"],
+                            "env": {"LOG_LEVEL": "INFO", "EXTRA_FLAG": "1"},
+                            "cwd": "/tmp/custom-gpd",
+                            "timeout": 15000,
+                        },
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
+        server = settings["mcpServers"]["gpd-state"]
+        assert server["command"] == expected["command"]
+        assert server["args"] == expected["args"]
+        assert server["env"]["LOG_LEVEL"] == "INFO"
+        assert server["env"]["EXTRA_FLAG"] == "1"
+        assert server["cwd"] == "/tmp/custom-gpd"
+        assert server["timeout"] == 15000
+        assert settings["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
+
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()
@@ -375,6 +430,42 @@ class TestUninstall:
         cleaned = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert "mcpServers" in cleaned
         assert cleaned["mcpServers"] == {"custom-server": {"command": "node", "args": ["custom.js"]}}
+
+    def test_uninstall_preserves_non_gpd_sessionstart_statusline_hook(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings_path = target / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings.setdefault("hooks", {}).setdefault("SessionStart", []).append(
+            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party-statusline.py"}]}
+        )
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(settings_path.read_text(encoding="utf-8"))
+        session_start = cleaned.get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert "python3 /tmp/third-party-statusline.py" in commands
 
     def test_uninstall_on_empty_dir(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"

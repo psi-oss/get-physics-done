@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -193,6 +196,22 @@ class TestInstall:
         assert "[features]" in content
         assert "multi_agent = true" in content
 
+    def test_install_writes_codex_mcp_startup_timeout(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == 30
+
     def test_install_notify_not_inside_existing_section(
         self,
         adapter: CodexAdapter,
@@ -287,6 +306,59 @@ class TestInstall:
 
         # commands/sub/deep.md should become gpd-sub-deep/ skill
         assert (skills / "gpd-sub-deep" / "SKILL.md").exists()
+
+    def test_nested_command_include_expands_in_recursive_codex_install(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        source_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        gpd_root = tmp_path / "gpd"
+        shutil.copytree(source_root, gpd_root)
+
+        nested_command = gpd_root / "commands" / "nested" / "include.md"
+        nested_command.parent.mkdir(parents=True, exist_ok=True)
+        nested_command.write_text(
+            """---
+name: gpd:nested-include
+description: Nested command include expansion regression
+---
+
+<execution_context>
+@{GPD_INSTALL_DIR}/workflows/update.md
+</execution_context>
+""",
+            encoding="utf-8",
+        )
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (skills / "gpd-nested-include" / "SKILL.md").read_text(encoding="utf-8")
+        assert "<!-- [included: update.md] -->" in content
+        assert "Check for a newer GPD release" in content
+        assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
+
+    def test_update_skill_expands_workflow_include(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (skills / "gpd-update" / "SKILL.md").read_text(encoding="utf-8")
+        assert "<!-- [included: update.md] -->" in content
+        assert "Check for a newer GPD release" in content
+        assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
+        assert "$gpd-reapply-patches" in content
 
 
 class TestUninstall:
@@ -496,6 +568,44 @@ class TestNotifyConfiguration:
         assert r'command = "C:\\Python311\\python.exe"' in content
         assert r'args = ["C:\\Program Files\\GPD\\server.py"]' in content
         assert r'PYTHONPATH = "C:\\Users\\tester\\venv"' in content
+
+    def test_mcp_toml_preserves_user_overrides_and_custom_fields(self, tmp_path: Path) -> None:
+        from gpd.adapters.codex import _write_mcp_servers_codex_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-state]\n'
+            'command = "python3"\n'
+            'args = ["-m", "old.server"]\n'
+            'startup_timeout_sec = 45\n'
+            'cwd = "/tmp/custom-gpd"\n'
+            '\n'
+            '[mcp_servers.gpd-state.env]\n'
+            'LOG_LEVEL = "INFO"\n'
+            'EXTRA_FLAG = "1"\n',
+            encoding="utf-8",
+        )
+
+        count = _write_mcp_servers_codex_toml(
+            target,
+            {
+                "gpd-state": {
+                    "command": "/custom/venv/bin/python",
+                    "args": ["-m", "gpd.mcp.servers.state_server"],
+                    "env": {"LOG_LEVEL": "WARNING"},
+                }
+            },
+        )
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        server = parsed["mcp_servers"]["gpd-state"]
+        assert count == 1
+        assert server["command"] == "/custom/venv/bin/python"
+        assert server["args"] == ["-m", "gpd.mcp.servers.state_server"]
+        assert server["startup_timeout_sec"] == 45
+        assert server["cwd"] == "/tmp/custom-gpd"
+        assert server["env"] == {"LOG_LEVEL": "INFO", "EXTRA_FLAG": "1"}
 
     def test_wraps_existing_false_multi_agent_and_restores_it_on_uninstall(
         self,

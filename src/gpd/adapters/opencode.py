@@ -101,22 +101,26 @@ def convert_tool_name(tool_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def convert_claude_to_opencode_frontmatter(content: str) -> str:
+def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None = None) -> str:
     """Convert canonical GPD frontmatter to OpenCode format.
 
     Transformations:
     - Replace tool name references in content
     - Replace /gpd: with /gpd- (flat command structure)
-    - Replace ~/.claude with ~/.config/opencode
+    - Replace bare ~/.claude references with the resolved OpenCode config dir
     - Parse YAML frontmatter:
       - Strip name: field (OpenCode uses filename for command name)
       - Convert color names to hex
       - Convert allowed-tools: YAML array to tools: object with {tool: true}
     """
+    resolved_config_dir = path_prefix[:-1] if path_prefix and path_prefix.endswith("/") else path_prefix
+    if not resolved_config_dir:
+        resolved_config_dir = "~/.config/opencode"
+
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = converted.replace("/gpd:", "/gpd-")
-    converted = re.sub(r"~/\.claude\b", "~/.config/opencode", converted)
+    converted = re.sub(r"~/\.claude\b", resolved_config_dir, converted)
 
     if not converted.startswith("---"):
         return converted
@@ -200,6 +204,8 @@ def copy_flattened_commands(
     dest_dir: Path,
     prefix: str,
     path_prefix: str,
+    gpd_src_root: Path | None = None,
+    install_scope: str | None = None,
 ) -> int:
     """Copy commands to a flat structure for OpenCode.
 
@@ -227,6 +233,8 @@ def copy_flattened_commands(
                 dest_dir,
                 f"{prefix}-{entry.name}",
                 path_prefix,
+                gpd_src_root,
+                install_scope,
             )
         elif entry.name.endswith(".md"):
             base_name = entry.stem
@@ -234,8 +242,16 @@ def copy_flattened_commands(
             dest_path = dest_dir / dest_name
 
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
-            content = convert_claude_to_opencode_frontmatter(content)
+            if gpd_src_root:
+                content = expand_at_includes(
+                    content,
+                    str(gpd_src_root),
+                    path_prefix,
+                    runtime="opencode",
+                    install_scope=install_scope,
+                )
+            content = replace_placeholders(content, path_prefix, "opencode", install_scope)
+            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
 
             dest_path.write_text(content, encoding="utf-8")
             count += 1
@@ -252,6 +268,7 @@ def copy_agents_as_agent_files(
     agents_src: Path,
     agents_dest: Path,
     path_prefix: str,
+    install_scope: str | None = None,
 ) -> int:
     """Copy agent .md files with OpenCode frontmatter conversion.
 
@@ -271,9 +288,15 @@ def copy_agents_as_agent_files(
             continue
 
         content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix)
-        content = expand_at_includes(content, str(agents_dest.parent / "get-physics-done"), path_prefix)
-        content = convert_claude_to_opencode_frontmatter(content)
+        content = replace_placeholders(content, path_prefix, "opencode", install_scope)
+        content = expand_at_includes(
+            content,
+            str(agents_dest.parent / "get-physics-done"),
+            path_prefix,
+            runtime="opencode",
+            install_scope=install_scope,
+        )
+        content = convert_claude_to_opencode_frontmatter(content, path_prefix)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
         new_agent_names.add(entry.name)
@@ -379,7 +402,7 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def write_manifest(config_dir: Path, version: str) -> dict:
+def write_manifest(config_dir: Path, version: str, *, install_scope: str | None = None) -> dict:
     """Write file manifest after installation for future modification detection.
 
     OpenCode-specific: scans ``command/gpd-*.md`` (flat) instead of
@@ -396,6 +419,10 @@ def write_manifest(config_dir: Path, version: str) -> dict:
         "timestamp": datetime.now(UTC).isoformat(),
         "files": {},
     }
+    if install_scope in ("local", "--local"):
+        manifest["install_scope"] = "local"
+    elif install_scope in ("global", "--global"):
+        manifest["install_scope"] = "global"
 
     # get-physics-done/ files
     gpd_hashes = generate_manifest(gpd_dir)
@@ -424,7 +451,12 @@ def write_manifest(config_dir: Path, version: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _copy_dir_contents(src_dir: Path, target_dir: Path, path_prefix: str) -> None:
+def _copy_dir_contents(
+    src_dir: Path,
+    target_dir: Path,
+    path_prefix: str,
+    install_scope: str | None = None,
+) -> None:
     """Recursively copy directory contents with path replacement in .md files.
 
     OpenCode-specific: applies frontmatter conversion to all .md files.
@@ -433,17 +465,22 @@ def _copy_dir_contents(src_dir: Path, target_dir: Path, path_prefix: str) -> Non
         dest_path = target_dir / entry.name
         if entry.is_dir():
             dest_path.mkdir(parents=True, exist_ok=True)
-            _copy_dir_contents(entry, dest_path, path_prefix)
+            _copy_dir_contents(entry, dest_path, path_prefix, install_scope)
         elif entry.name.endswith(".md"):
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
-            content = convert_claude_to_opencode_frontmatter(content)
+            content = replace_placeholders(content, path_prefix, "opencode", install_scope)
+            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
             dest_path.write_text(content, encoding="utf-8")
         else:
             shutil.copy2(entry, dest_path)
 
 
-def copy_with_path_replacement(src_dir: Path, dest_dir: Path, path_prefix: str) -> None:
+def copy_with_path_replacement(
+    src_dir: Path,
+    dest_dir: Path,
+    path_prefix: str,
+    install_scope: str | None = None,
+) -> None:
     """Safely copy directory with path replacement, using copy-to-temp-then-swap.
 
     Prevents data loss if the copy fails partway through.
@@ -461,7 +498,7 @@ def copy_with_path_replacement(src_dir: Path, dest_dir: Path, path_prefix: str) 
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        _copy_dir_contents(src_dir, tmp_dir, path_prefix)
+        _copy_dir_contents(src_dir, tmp_dir, path_prefix, install_scope)
 
         # Swap into place: rename-old-then-rename-new
         if dest_dir.exists():
@@ -616,6 +653,8 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     if not isinstance(existing_mcp, dict):
         existing_mcp = {}
 
+    from gpd.mcp.builtin_servers import merge_managed_mcp_entry
+
     for name, entry in servers.items():
         cmd = str(entry.get("command", ""))
         raw_args = entry.get("args", [])
@@ -623,14 +662,21 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
         # OpenCode wants command as a single array: ["executable", "arg1", "arg2"]
         command_array = [cmd] + [str(a) for a in args_list]
 
-        oc_entry: dict[str, object] = {
+        managed_entry: dict[str, object] = {
             "type": "local",
             "command": command_array,
-            "enabled": True,
         }
         raw_env = entry.get("env", {})
         if isinstance(raw_env, dict) and raw_env:
-            oc_entry["environment"] = dict(raw_env)
+            managed_entry["environment"] = dict(raw_env)
+
+        oc_entry = merge_managed_mcp_entry(
+            existing_mcp.get(name),
+            managed_entry,
+            merge_mapping_keys=frozenset({"environment"}),
+        )
+        if not isinstance(oc_entry.get("enabled"), bool):
+            oc_entry["enabled"] = True
 
         existing_mcp[name] = oc_entry
 
@@ -692,7 +738,14 @@ class OpenCodeAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         command_dir = target_dir / "command"
         command_dir.mkdir(parents=True, exist_ok=True)
-        return copy_flattened_commands(commands_src, command_dir, "gpd", path_prefix)
+        return copy_flattened_commands(
+            commands_src,
+            command_dir,
+            "gpd",
+            path_prefix,
+            gpd_root / "specs",
+            self._current_install_scope_flag(),
+        )
 
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
         specs_dir = gpd_root / "specs"
@@ -702,7 +755,12 @@ class OpenCodeAdapter(RuntimeAdapter):
             src_subdir = specs_dir / subdir_name
             if src_subdir.is_dir():
                 try:
-                    copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
+                    copy_with_path_replacement(
+                        src_subdir,
+                        skill_dest / subdir_name,
+                        path_prefix,
+                        self._current_install_scope_flag(),
+                    )
                 except Exception as exc:
                     failures.append(f"get-physics-done/{subdir_name}: {exc}")
         self._gpd_files_count = sum(1 for _ in skill_dest.rglob("*") if _.is_file())
@@ -711,7 +769,12 @@ class OpenCodeAdapter(RuntimeAdapter):
         agents_src = gpd_root / "agents"
         if agents_src.exists():
             agents_dest = target_dir / "agents"
-            return copy_agents_as_agent_files(agents_src, agents_dest, path_prefix)
+            return copy_agents_as_agent_files(
+                agents_src,
+                agents_dest,
+                path_prefix,
+                self._current_install_scope_flag(),
+            )
         return 0
 
     def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
@@ -758,7 +821,7 @@ class OpenCodeAdapter(RuntimeAdapter):
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
-        write_manifest(target_dir, version)
+        write_manifest(target_dir, version, install_scope=self._current_install_scope_flag())
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from an OpenCode config directory.

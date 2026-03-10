@@ -60,7 +60,13 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         commands_dest = target_dir / "commands" / "gpd"
         (target_dir / "commands").mkdir(parents=True, exist_ok=True)
-        copy_with_path_replacement(commands_src, commands_dest, path_prefix, self.runtime_name)
+        copy_with_path_replacement(
+            commands_src,
+            commands_dest,
+            path_prefix,
+            self.runtime_name,
+            self._current_install_scope_flag(),
+        )
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd")
         else:
@@ -70,7 +76,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
         agents_dest = target_dir / "agents"
-        _copy_agents_native(agents_src, agents_dest, path_prefix)
+        _copy_agents_native(agents_src, agents_dest, path_prefix, self._current_install_scope_flag())
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
         else:
@@ -103,7 +109,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         import json as _json
         import sys
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
         mcp_count = 0
@@ -123,10 +129,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 mcp_config = {}
 
             existing_mcp = mcp_config.get("mcpServers", {})
-            if not isinstance(existing_mcp, dict):
-                existing_mcp = {}
-            existing_mcp.update(mcp_servers)
-            mcp_config["mcpServers"] = existing_mcp
+            mcp_config["mcpServers"] = merge_managed_mcp_servers(existing_mcp, mcp_servers)
 
             mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
             mcp_count = len(mcp_servers)
@@ -267,7 +270,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 # ---------------------------------------------------------------------------
 
 
-def _copy_agents_native(agents_src: Path, agents_dest: Path, path_prefix: str) -> None:
+def _copy_agents_native(
+    agents_src: Path,
+    agents_dest: Path,
+    path_prefix: str,
+    install_scope: str | None = None,
+) -> None:
     """Copy agent .md files with placeholder replacement.
 
     Claude Code keeps native @ includes — no expansion needed.
@@ -280,7 +288,7 @@ def _copy_agents_native(agents_src: Path, agents_dest: Path, path_prefix: str) -
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
         content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix)
+        content = replace_placeholders(content, path_prefix, install_scope=install_scope)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 

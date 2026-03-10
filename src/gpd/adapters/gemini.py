@@ -191,6 +191,7 @@ def _copy_agents_gemini(
     path_prefix: str,
     gpd_src_root: Path | None = None,
     explicit_config_dir: str | None = None,
+    install_scope: str | None = None,
 ) -> None:
     """Install agent .md files with Gemini-specific conversions.
 
@@ -211,12 +212,12 @@ def _copy_agents_gemini(
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
         content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix)
+        content = replace_placeholders(content, path_prefix, install_scope=install_scope)
         content = process_attribution(content, attribution)
 
         # Expand @ includes — Gemini doesn't support native @ file inclusion
         if gpd_src_root:
-            content = expand_at_includes(content, str(gpd_src_root), path_prefix)
+            content = expand_at_includes(content, str(gpd_src_root), path_prefix, install_scope=install_scope)
 
         content = _convert_frontmatter_to_gemini(content)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -238,6 +239,7 @@ def _install_commands_as_toml(
     path_prefix: str,
     gpd_src_root: Path,
     explicit_config_dir: str | None = None,
+    install_scope: str | None = None,
 ) -> None:
     """Install commands as .toml files in nested ``commands/gpd/`` structure.
 
@@ -252,7 +254,7 @@ def _install_commands_as_toml(
     commands_dest.mkdir(parents=True, exist_ok=True)
 
     attribution = get_commit_attribution("gemini", explicit_config_dir=explicit_config_dir)
-    _copy_commands_recursive(commands_src, commands_dest, path_prefix, attribution, gpd_src_root)
+    _copy_commands_recursive(commands_src, commands_dest, path_prefix, attribution, gpd_src_root, install_scope)
 
 
 def _copy_commands_recursive(
@@ -261,17 +263,24 @@ def _copy_commands_recursive(
     path_prefix: str,
     attribution: str | None,
     gpd_src_root: Path,
+    install_scope: str | None = None,
 ) -> None:
     """Recursively copy commands, converting .md to .toml for Gemini."""
     for entry in sorted(src_dir.iterdir()):
         if entry.is_dir():
             sub_dest = dest_dir / entry.name
             sub_dest.mkdir(parents=True, exist_ok=True)
-            _copy_commands_recursive(entry, sub_dest, path_prefix, attribution, gpd_src_root)
+            _copy_commands_recursive(entry, sub_dest, path_prefix, attribution, gpd_src_root, install_scope)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="gemini")
-            content = replace_placeholders(content, path_prefix, "gemini")
+            content = expand_at_includes(
+                content,
+                str(gpd_src_root),
+                path_prefix,
+                runtime="gemini",
+                install_scope=install_scope,
+            )
+            content = replace_placeholders(content, path_prefix, "gemini", install_scope)
             content = process_attribution(content, attribution)
             content = strip_sub_tags(content)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -348,7 +357,13 @@ class GeminiAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         commands_dest = target_dir / "commands" / "gpd"
         (target_dir / "commands").mkdir(parents=True, exist_ok=True)
-        _install_commands_as_toml(commands_src, commands_dest, path_prefix, gpd_root / "specs")
+        _install_commands_as_toml(
+            commands_src,
+            commands_dest,
+            path_prefix,
+            gpd_root / "specs",
+            install_scope=self._current_install_scope_flag(),
+        )
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd (TOML format)")
         else:
@@ -359,7 +374,13 @@ class GeminiAdapter(RuntimeAdapter):
         agents_src = gpd_root / "agents"
         agents_dest = target_dir / "agents"
         gpd_dest = target_dir / "get-physics-done"
-        _copy_agents_gemini(agents_src, agents_dest, path_prefix, gpd_dest)
+        _copy_agents_gemini(
+            agents_src,
+            agents_dest,
+            path_prefix,
+            gpd_dest,
+            install_scope=self._current_install_scope_flag(),
+        )
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
         else:
@@ -399,15 +420,12 @@ class GeminiAdapter(RuntimeAdapter):
         # Wire MCP servers into settings so they start automatically.
         import sys
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
         if mcp_servers:
             existing_mcp = settings.get("mcpServers", {})
-            if not isinstance(existing_mcp, dict):
-                existing_mcp = {}
-            existing_mcp.update(mcp_servers)
-            settings["mcpServers"] = existing_mcp
+            settings["mcpServers"] = merge_managed_mcp_servers(existing_mcp, mcp_servers)
 
         return {
             "settingsPath": str(settings_path),
@@ -550,7 +568,7 @@ class GeminiAdapter(RuntimeAdapter):
 
 
 def _entry_has_gpd_hook(entry: object) -> bool:
-    """Check if a hook entry contains any GPD hook."""
+    """Check if a hook entry contains the GPD-managed Gemini update hook."""
     if not isinstance(entry, dict):
         return False
     entry_hooks = entry.get("hooks")
@@ -559,7 +577,7 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
+        and "check_update.py" in h["command"]
         for h in entry_hooks
     )
 

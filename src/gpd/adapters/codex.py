@@ -52,6 +52,7 @@ _GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
 _GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
 _MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
 _TOOL_REFERENCE_MAP = reference_translation_map("codex")
+_CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
 
 
 # ─── Directory helpers ──────────────────────────────────────────────────────
@@ -244,6 +245,17 @@ def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _toml_value(value: object) -> str:
+    """Serialize a scalar Python value as TOML."""
+    if isinstance(value, str):
+        return _toml_string(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    raise TypeError(f"Unsupported TOML scalar value: {value!r}")
+
+
 # ─── Adapter Class ───────────────────────────────────────────────────────────
 
 
@@ -315,7 +327,14 @@ class CodexAdapter(RuntimeAdapter):
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        _copy_commands_as_skills(commands_src, self._skills_dir, "gpd", path_prefix, gpd_root / "specs")
+        _copy_commands_as_skills(
+            commands_src,
+            self._skills_dir,
+            "gpd",
+            path_prefix,
+            gpd_root / "specs",
+            self._current_install_scope_flag(),
+        )
         if verify_installed(self._skills_dir, "command skills"):
             logger.info("Installed command skills")
         else:
@@ -330,7 +349,13 @@ class CodexAdapter(RuntimeAdapter):
 
         # Install agents as Codex skill directories
         if agents_src.is_dir():
-            _copy_agents_as_skills(agents_src, self._skills_dir, path_prefix, gpd_dest)
+            _copy_agents_as_skills(
+                agents_src,
+                self._skills_dir,
+                path_prefix,
+                gpd_dest,
+                self._current_install_scope_flag(),
+            )
             agent_count = sum(
                 1 for f in agents_src.iterdir() if f.is_file() and f.name.startswith("gpd-") and f.suffix == ".md"
             )
@@ -339,7 +364,13 @@ class CodexAdapter(RuntimeAdapter):
         # Also install agents as agent .md files
         if agents_src.is_dir():
             agents_dest = target_dir / "agents"
-            _copy_agents_as_agent_files(agents_src, agents_dest, path_prefix, gpd_dest)
+            _copy_agents_as_agent_files(
+                agents_src,
+                agents_dest,
+                path_prefix,
+                gpd_dest,
+                self._current_install_scope_flag(),
+            )
             if verify_installed(agents_dest, "agents"):
                 logger.info("Installed agents")
             else:
@@ -370,7 +401,12 @@ class CodexAdapter(RuntimeAdapter):
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
-        write_manifest(target_dir, version, codex_skills_dir=str(self._skills_dir))
+        write_manifest(
+            target_dir,
+            version,
+            codex_skills_dir=str(self._skills_dir),
+            install_scope=self._current_install_scope_flag(),
+        )
 
     def uninstall(
         self,
@@ -482,6 +518,7 @@ def _copy_commands_as_skills(
     prefix: str,
     path_prefix: str,
     gpd_src_root: Path | None = None,
+    install_scope: str | None = None,
 ) -> None:
     """Copy commands as Codex skill directories.
 
@@ -503,7 +540,14 @@ def _copy_commands_as_skills(
     for entry in sorted(src_dir.iterdir()):
         if entry.is_dir():
             # Recurse into subdirectories, adding to prefix
-            _copy_commands_as_skills(entry, skills_dir, f"{prefix}-{entry.name}", path_prefix)
+            _copy_commands_as_skills(
+                entry,
+                skills_dir,
+                f"{prefix}-{entry.name}",
+                path_prefix,
+                gpd_src_root,
+                install_scope,
+            )
         elif entry.suffix == ".md":
             base_name = entry.stem
             skill_name = f"{prefix}-{base_name}"
@@ -512,8 +556,14 @@ def _copy_commands_as_skills(
 
             content = entry.read_text(encoding="utf-8")
             if gpd_src_root:
-                content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="codex")
-            content = replace_placeholders(content, path_prefix, "codex")
+                content = expand_at_includes(
+                    content,
+                    str(gpd_src_root),
+                    path_prefix,
+                    runtime="codex",
+                    install_scope=install_scope,
+                )
+            content = replace_placeholders(content, path_prefix, "codex", install_scope)
             content = _convert_to_codex_skill(content, skill_name)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -525,6 +575,7 @@ def _copy_agents_as_skills(
     skills_dir: Path,
     path_prefix: str,
     gpd_content_dir: Path | None = None,
+    install_scope: str | None = None,
 ) -> None:
     """Copy agents as Codex skill directories.
 
@@ -548,11 +599,17 @@ def _copy_agents_as_skills(
         skill_dir.mkdir(parents=True, exist_ok=True)
 
         content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "codex")
+        content = replace_placeholders(content, path_prefix, "codex", install_scope)
 
         # Expand @ includes (Codex doesn't support @ file inclusion)
         if gpd_content_dir:
-            content = expand_at_includes(content, str(gpd_content_dir), path_prefix, runtime="codex")
+            content = expand_at_includes(
+                content,
+                str(gpd_content_dir),
+                path_prefix,
+                runtime="codex",
+                install_scope=install_scope,
+            )
 
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -565,6 +622,7 @@ def _copy_agents_as_agent_files(
     agents_dest: Path,
     path_prefix: str,
     gpd_content_dir: Path | None = None,
+    install_scope: str | None = None,
 ) -> None:
     """Copy agents as runtime agent markdown files for Codex.
 
@@ -581,11 +639,17 @@ def _copy_agents_as_agent_files(
             continue
 
         content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "codex")
+        content = replace_placeholders(content, path_prefix, "codex", install_scope)
 
         # Expand @ includes for Codex
         if gpd_content_dir:
-            content = expand_at_includes(content, str(gpd_content_dir), path_prefix, runtime="codex")
+            content = expand_at_includes(
+                content,
+                str(gpd_content_dir),
+                path_prefix,
+                runtime="codex",
+                install_scope=install_scope,
+            )
 
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -595,14 +659,107 @@ def _copy_agents_as_agent_files(
     remove_stale_agents(agents_dest, new_agent_names)
 
 
+_TOML_ASSIGNMENT_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*=")
+
+
+def _toml_assignment_key(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    match = _TOML_ASSIGNMENT_RE.match(stripped)
+    return match.group(1) if match else None
+
+
+def _split_preserved_toml_lines(
+    existing_lines: list[str] | None,
+    *,
+    managed_keys: set[str],
+) -> tuple[list[str], dict[str, str]]:
+    preserved_lines: list[str] = []
+    preserved_assignments: dict[str, str] = {}
+
+    if existing_lines is None:
+        return preserved_lines, preserved_assignments
+
+    for line in existing_lines:
+        key = _toml_assignment_key(line)
+        if key is not None and key in managed_keys:
+            preserved_assignments[key] = line.strip()
+            continue
+        preserved_lines.append(line)
+
+    while preserved_lines and preserved_lines[0] == "":
+        preserved_lines.pop(0)
+    while preserved_lines and preserved_lines[-1] == "":
+        preserved_lines.pop()
+
+    return preserved_lines, preserved_assignments
+
+
+def _build_codex_mcp_server_section_lines(
+    name: str,
+    entry: dict[str, object],
+    *,
+    existing_base_body: list[str] | None,
+    existing_env_body: list[str] | None,
+) -> list[str]:
+    base_section_name = f"mcp_servers.{name}"
+    managed_entry = dict(entry)
+    managed_entry.setdefault("startup_timeout_sec", _CODEX_MCP_STARTUP_TIMEOUT_SEC)
+
+    lines = [f"\n[{base_section_name}]"]
+    cmd = str(managed_entry.get("command", ""))
+    args = managed_entry.get("args", [])
+    args_list = list(args) if isinstance(args, list) else []
+    lines.append(f"command = {_toml_string(cmd)}")
+    args_toml = ", ".join(_toml_string(str(arg)) for arg in args_list)
+    lines.append(f"args = [{args_toml}]")
+
+    extra_keys = sorted(key for key in managed_entry if key not in {"command", "args", "env"})
+    preserved_base_lines, preserved_base_assignments = _split_preserved_toml_lines(
+        existing_base_body,
+        managed_keys={"command", "args", *extra_keys},
+    )
+    for key in extra_keys:
+        existing_line = preserved_base_assignments.get(key)
+        if existing_line is not None:
+            lines.append(existing_line)
+            continue
+        lines.append(f"{key} = {_toml_value(managed_entry[key])}")
+    lines.extend(preserved_base_lines)
+
+    raw_env = managed_entry.get("env", {})
+    managed_env = dict(raw_env) if isinstance(raw_env, dict) else {}
+    preserved_env_lines, preserved_env_assignments = _split_preserved_toml_lines(
+        existing_env_body,
+        managed_keys=set(managed_env),
+    )
+
+    env_lines: list[str] = []
+    for key, value in managed_env.items():
+        existing_line = preserved_env_assignments.get(key)
+        if existing_line is not None:
+            env_lines.append(existing_line)
+            continue
+        env_lines.append(f"{key} = {_toml_string(str(value))}")
+    env_lines.extend(preserved_env_lines)
+
+    if env_lines:
+        lines.append(f"\n[{base_section_name}.env]")
+        lines.extend(env_lines)
+
+    return lines
+
+
 def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str, object]]) -> int:
-    """Append MCP server entries to Codex config.toml."""
+    """Append MCP server entries to Codex config.toml without clobbering user overrides."""
     config_toml = target_dir / "config.toml"
     target_dir.mkdir(parents=True, exist_ok=True)
 
     content = ""
     if config_toml.exists():
         content = config_toml.read_text(encoding="utf-8")
+    existing_content = content
 
     # Remove existing GPD MCP sections before rewriting.
     content = _remove_gpd_mcp_toml_sections(content)
@@ -613,18 +770,16 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
         content += "\n"
     lines.append("# GPD MCP servers")
     for name, entry in sorted(servers.items()):
-        cmd = str(entry.get("command", ""))
-        args = entry.get("args", [])
-        args_list = list(args) if isinstance(args, list) else []
-        lines.append(f"\n[mcp_servers.{name}]")
-        lines.append(f"command = {_toml_string(cmd)}")
-        args_toml = ", ".join(_toml_string(str(a)) for a in args_list)
-        lines.append(f"args = [{args_toml}]")
-        env = entry.get("env", {})
-        if isinstance(env, dict) and env:
-            lines.append(f"\n[mcp_servers.{name}.env]")
-            for k, v in env.items():
-                lines.append(f"{k} = {_toml_string(str(v))}")
+        _, existing_base_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}")
+        _, existing_env_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}.env")
+        lines.extend(
+            _build_codex_mcp_server_section_lines(
+                name,
+                entry,
+                existing_base_body=existing_base_body,
+                existing_env_body=existing_env_body,
+            )
+        )
 
     content += "\n".join(lines) + "\n"
     config_toml.write_text(content, encoding="utf-8")

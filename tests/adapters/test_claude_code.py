@@ -116,6 +116,22 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert any("check_update" in c for c in cmds)
 
+    def test_update_command_translates_allowed_tools_for_claude(
+        self,
+        adapter: ClaudeCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        content = (target / "commands" / "gpd" / "update.md").read_text(encoding="utf-8")
+        assert "allowed-tools:" in content
+        assert "  - Bash" in content
+        assert "  - AskUserQuestion" in content
+        assert "  - shell" not in content
+
     def test_install_preserves_jsonc_settings_and_uses_current_interpreter(
         self,
         adapter: ClaudeCodeAdapter,
@@ -206,6 +222,50 @@ class TestInstall:
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert f"{sys.executable or 'python3'} {(target / 'hooks' / 'check_update.py')}" in cmds
+
+    def test_install_preserves_existing_mcp_overrides(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / "workspace" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config = target.parent / ".mcp.json"
+        mcp_config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "gpd-state": {
+                            "command": "python3",
+                            "args": ["-m", "old.state_server"],
+                            "env": {"LOG_LEVEL": "INFO", "EXTRA_FLAG": "1"},
+                            "cwd": "/tmp/custom-gpd",
+                            "type": "stdio",
+                        },
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        parsed = json.loads(mcp_config.read_text(encoding="utf-8"))
+        expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
+        server = parsed["mcpServers"]["gpd-state"]
+        assert server["command"] == expected["command"]
+        assert server["args"] == expected["args"]
+        assert server["env"]["LOG_LEVEL"] == "INFO"
+        assert server["env"]["EXTRA_FLAG"] == "1"
+        assert server["cwd"] == "/tmp/custom-gpd"
+        assert server["type"] == "stdio"
+        assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
     def test_install_raises_on_missing_dirs(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
         bad_root = tmp_path / "empty"
