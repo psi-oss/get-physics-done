@@ -1,0 +1,14 @@
+# Fdb version 4
+["pdflatex"] 1773150337.0457 "/Users/sergio/GitHub/get-physics-done/src/gpd/mcp/paper/templates/jfm/jfm_template.tex" "jfm_template.pdf" "jfm_template" 1773150337.13482 2
+  "/Users/sergio/GitHub/get-physics-done/src/gpd/mcp/paper/templates/jfm/jfm_template.tex" 1773150336.35234 1760 4f545d5cd15896277e10b45e1a2b62aa ""
+  "/usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf" 1739380943 42148 61becc7c670cd061bb319c643c27fdd4 ""
+  "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1741450574 3345740 46b66fdb0378f7bf5921b5eabf1762b8 ""
+  "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
+  "jfm.cls" 0 -1 0 ""
+  "jfm_template.aux" 0 -1 0 "pdflatex"
+  "jfm_template.tex" 1773150336.35234 1760 4f545d5cd15896277e10b45e1a2b62aa ""
+  (generated)
+  "jfm_template.aux"
+  "jfm_template.log"
+  "jfm_template.pdf"
+  (rewritten before read)
