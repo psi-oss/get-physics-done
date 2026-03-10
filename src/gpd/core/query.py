@@ -17,7 +17,8 @@ from gpd.core.constants import STANDALONE_SUMMARY, SUMMARY_SUFFIX, ProjectLayout
 from gpd.core.errors import QueryError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import compare_phase_numbers, phase_sort_key as _phase_sort_key, phase_unpad
+from gpd.core.utils import compare_phase_numbers, phase_unpad
+from gpd.core.utils import phase_sort_key as _phase_sort_key
 
 logger = logging.getLogger(__name__)
 

@@ -13,8 +13,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
@@ -24,7 +22,6 @@ from gpd.core.state import (
     sync_state_json_core,
 )
 from gpd.core.utils import compare_phase_numbers, phase_normalize, phase_unpad
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -475,7 +472,7 @@ class TestStateCompact:
     def test_compact_syncs_json_after_compaction(self, tmp_path: Path) -> None:
         """After compacting, state.json should reflect the updated STATE.md."""
         cwd = _make_large_state_md(tmp_path, n_old_decisions=50, extra_lines=80)
-        result = state_compact(cwd)
+        state_compact(cwd)
 
         json_path = cwd / ".planning" / "state.json"
         stored = json.loads(json_path.read_text(encoding="utf-8"))

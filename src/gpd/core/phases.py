@@ -37,10 +37,12 @@ from gpd.core.utils import (
     generate_slug,
     is_phase_complete,
     phase_normalize,
-    phase_sort_key as _phase_sort_key,
     phase_unpad,
     safe_parse_int,
     safe_read_file,
+)
+from gpd.core.utils import (
+    phase_sort_key as _phase_sort_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -1705,7 +1707,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
     roadmap_path = _roadmap_path(cwd)
     state_path = _state_path(cwd)
-    phases_dir = _phases_dir(cwd)
+    _phases_dir(cwd)
     unpadded = phase_unpad(phase_num)
     today = date.today().isoformat()
 

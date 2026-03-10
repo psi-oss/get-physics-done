@@ -262,7 +262,7 @@ class TestRegressionCheck:
 
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
-        p1 = gpd_project / ".planning" / "phases" / "01-test-phase"
+        gpd_project / ".planning" / "phases" / "01-test-phase"
         p2 = gpd_project / ".planning" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention

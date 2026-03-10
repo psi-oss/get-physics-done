@@ -16,7 +16,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import PLANNING_DIR_NAME
-from gpd.core.errors import GPDError, ValidationError
+from gpd.core.errors import ValidationError
 from gpd.core.observability import instrument_gpd_function
 
 __all__ = [

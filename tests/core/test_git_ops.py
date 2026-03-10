@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -173,7 +172,7 @@ class TestCommit:
             (0, "", ""),       # git commit
             (0, "def5678", ""),  # rev-parse
         ]
-        result = cmd_commit(tmp_path, "test: default staging")
+        cmd_commit(tmp_path, "test: default staging")
         # Verify the git add was called with .planning/
         add_call = mock_git.call_args_list[0]
         assert ".planning/" in add_call[0][1]

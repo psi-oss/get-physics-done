@@ -1,7 +1,7 @@
 {
   "name": "get-physics-done",
   "version": "0.1.0",
-  "description": "Autonomous physics research system for Claude Code, OpenCode, Gemini CLI, and Codex",
+  "description": "Open-source AI copilot for physics research across Claude Code, Gemini CLI, Codex, and OpenCode",
   "bin": {
     "get-physics-done": "bin/install.js"
   },

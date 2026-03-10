@@ -14,7 +14,7 @@ import yaml
 
 from gpd.core.frontmatter import extract_frontmatter, reconstruct_frontmatter
 from gpd.core.results import _auto_generate_id
-from gpd.core.state import ensure_state_schema, generate_state_markdown, parse_state_md
+from gpd.core.state import ensure_state_schema, generate_state_markdown
 from gpd.core.utils import generate_slug, phase_normalize, phase_unpad, safe_parse_int, safe_parse_yaml
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ def test_frontmatter_roundtrip_preserves_body_content():
         _, extracted_body = extract_frontmatter(reconstructed)
         # The body should contain the original text (may have leading/trailing whitespace diffs)
         assert body.strip() in extracted_body.strip(), (
-            f"Body content lost during roundtrip"
+            "Body content lost during roundtrip"
         )
 
 
@@ -142,7 +142,7 @@ def test_ensure_state_schema_idempotent_with_random_dicts():
         raw = _random_simple_dict(max_keys=8)
         first = ensure_state_schema(raw)
         second = ensure_state_schema(first)
-        assert first == second, f"Idempotency failed for random input"
+        assert first == second, "Idempotency failed for random input"
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ def test_state_markdown_roundtrip_stable():
         },
     ]
     for raw in test_states:
-        md1 = generate_state_markdown(raw)
+        generate_state_markdown(raw)
         # parse_state_md returns a different schema shape than what generate expects,
         # so we test stability by generating twice from the same normalized input.
         state = ensure_state_schema(raw)

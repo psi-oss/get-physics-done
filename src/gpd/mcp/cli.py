@@ -28,7 +28,7 @@ from gpd.registry import list_agents, list_commands
 
 session_app = typer.Typer(
     name="session",
-    help="Launch an interactive GPD research session with MCP orchestration",
+    help="Launch an interactive Claude Code-backed GPD research session with MCP orchestration",
     no_args_is_help=False,
     add_completion=True,
 )
@@ -102,7 +102,7 @@ def main(
     search: str = typer.Option("", "--search", help="Search session history"),
     history: bool = typer.Option(False, "--history", help="Show session history"),
 ) -> None:
-    """Launch or inspect GPD research sessions."""
+    """Launch or inspect Claude Code-backed GPD research sessions."""
     if ctx.invoked_subcommand is not None:
         return
 

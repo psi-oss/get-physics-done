@@ -1,4 +1,4 @@
-"""Integration tests: install → read back → verify for all 5 runtimes.
+"""Integration tests: install → read back → verify for all 4 runtimes.
 
 Tests that installed content matches source expectations for each adapter.
 Exercises both the write path (install) and the read path (loading/parsing

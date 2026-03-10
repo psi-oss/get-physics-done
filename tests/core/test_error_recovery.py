@@ -40,7 +40,6 @@ from gpd.core.health import (
 )
 from gpd.core.json_utils import json_get, json_keys, json_list, json_pluck
 from gpd.core.state import (
-    ResearchState,
     default_state_dict,
     ensure_state_schema,
     generate_state_markdown,
@@ -49,7 +48,6 @@ from gpd.core.state import (
     sync_state_json,
 )
 from gpd.core.utils import safe_parse_json, safe_parse_yaml, safe_read_file
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -297,8 +295,8 @@ class TestRecoverIntent:
         md_path = layout.state_md
 
         state = {"position": {"current_phase": "05", "status": "Executing"}}
-        json_tmp = json_path.with_suffix(f".json.tmp.99999")
-        md_tmp = md_path.with_suffix(f".md.tmp.99999")
+        json_tmp = json_path.with_suffix(".json.tmp.99999")
+        md_tmp = md_path.with_suffix(".md.tmp.99999")
         json_tmp.write_text(json.dumps(state), encoding="utf-8")
         md_tmp.write_text("# Recovered State", encoding="utf-8")
 
@@ -320,7 +318,7 @@ class TestRecoverIntent:
         json_path = layout.state_json
         md_path = layout.state_md
 
-        json_tmp = json_path.with_suffix(f".json.tmp.99998")
+        json_tmp = json_path.with_suffix(".json.tmp.99998")
         json_tmp.write_text('{"partial": true}', encoding="utf-8")
         # md_tmp intentionally missing
 
@@ -372,7 +370,7 @@ class TestSaveStateRollback:
         save_state_json(cwd, original_state)
 
         layout = ProjectLayout(cwd)
-        original_json = layout.state_json.read_text(encoding="utf-8")
+        layout.state_json.read_text(encoding="utf-8")
 
         # Now try a save that fails during markdown generation
         bad_state = default_state_dict()

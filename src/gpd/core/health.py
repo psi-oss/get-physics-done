@@ -39,8 +39,8 @@ from gpd.core.constants import (
 )
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
-from gpd.core.observability import gpd_span
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.observability import gpd_span
 from gpd.core.state import (
     load_state_json,
     state_validate,

@@ -60,7 +60,7 @@ GPD guides research in four stages:
 3. **Execute**: runs specialist agents for derivations, numerical checks, literature work, and writing.
 4. **Verify**: checks dimensional consistency, limiting cases, symmetry constraints, conservation laws, and numerical stability.
 
-Each phase produces real artifacts such as `PROJECT.md`, `ROADMAP.md`, `.tex` derivations, `.py` verification scripts, and figures.
+Each phase produces real artifacts such as `PROJECT.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`, `.tex` derivations, `.py` verification scripts, and figures.
 
 GPD also locks conventions for up to 18 physics fields across a project so notation, sign choices, and verification assumptions stay consistent as phases accumulate.
 
@@ -142,9 +142,17 @@ gpd view
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 
+## Known Limitations
+
+- The integrated terminal `gpd session` launcher currently supports Claude Code only.
+- On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
+- `gpd pipeline` and `gpd view` remain available from the terminal on any install.
+
 ## Citation
 
 If GPD contributes to published research, please cite the software using [`CITATION.cff`](CITATION.cff). Copy-ready formats:
+
+The same file provides the machine-readable CFF metadata used by GitHub's repository citation UI.
 
 ```bibtex
 @software{hernandez_cuenca_2026_gpd,

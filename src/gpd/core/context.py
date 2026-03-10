@@ -31,9 +31,12 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import ValidationError
 from gpd.core.utils import (
-    MAX_INCLUDE_CHARS,
     is_phase_complete as _is_phase_complete,
+)
+from gpd.core.utils import (
     safe_read_file as _safe_read_file,
+)
+from gpd.core.utils import (
     safe_read_file_truncated as _safe_read_file_truncated,
 )
 

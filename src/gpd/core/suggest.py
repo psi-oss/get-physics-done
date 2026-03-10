@@ -26,8 +26,9 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.utils import (
-    compare_phase_numbers as _compare_phase_numbers,
     is_phase_complete as _is_phase_complete,
+)
+from gpd.core.utils import (
     phase_sort_key as _phase_sort_key,
 )
 

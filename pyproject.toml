@@ -1,7 +1,7 @@
 [project]
 name = "get-physics-done"
 version = "0.1.0"
-description = "GPD — Get Physics Done: autonomous physics research orchestration"
+description = "GPD — Get Physics Done: open-source AI copilot for physics research"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -26,7 +26,6 @@ dependencies = [
     "logfire>=1.0",
     # LLM / Agent
     "pydantic-ai-slim[anthropic,retries]>=1.66.0",
-    "claude-agent-sdk>=0.1.19",
     "mcp[cli]>=1.9.0",
     # Utilities
     "pybtex>=0.24",
@@ -40,6 +39,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+claude-subagents = [
+    "claude-agent-sdk>=0.1.19",
+]
 scientific = [
     "numpy>=1.26.0",
     "scipy>=1.12.0",

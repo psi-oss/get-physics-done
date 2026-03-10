@@ -78,6 +78,20 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     assert "[Physical Superintelligence (PSI)](https://www.psi.inc)" in readme
 
 
+def test_public_release_surfaces_share_copilot_positioning() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    installer = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    expected = "open-source ai copilot for physics research"
+    assert expected in readme.lower()
+    assert expected in package_json["description"].lower()
+    assert expected in pyproject["project"]["description"].lower()
+    assert "Open-source AI copilot for physics research" in installer
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
@@ -107,6 +121,17 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "==${packageVersion}" in content
     assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
     assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in content
+
+
+def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "`--claude`" in readme
+    assert "`--gemini`" in readme
+    assert 'args.includes("--claude")' in content
+    assert 'args.includes("--gemini")' in content
 
 
 def test_public_cli_surface_is_unified() -> None:
@@ -148,6 +173,15 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
+def test_public_docs_note_current_terminal_cli_limitations() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "## Known Limitations" in readme
+    assert "The integrated terminal `gpd session` launcher currently supports Claude Code only." in readme
+    assert "On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly." in readme
+
+
 def test_standard_install_includes_viewer_surface_dependencies() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
@@ -158,6 +192,16 @@ def test_standard_install_includes_viewer_surface_dependencies() -> None:
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     assert "gpd view" in readme
+
+
+def test_claude_sdk_is_optional_for_public_install() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies: list[str] = project["dependencies"]
+    optional = project["optional-dependencies"]
+
+    assert not any(item.startswith("claude-agent-sdk") for item in dependencies)
+    assert any(item.startswith("claude-agent-sdk") for item in optional["claude-subagents"])
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:

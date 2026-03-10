@@ -19,8 +19,6 @@ import json
 import threading
 from pathlib import Path
 
-import pytest
-
 from gpd.core.state import (
     ResearchState,
     default_state_dict,
@@ -153,7 +151,7 @@ class TestAllNullFields:
         planning = tmp_path / ".planning"
         planning.mkdir()
         (planning / "phases").mkdir()
-        null_state = {k: None for k in default_state_dict()}
+        null_state = dict.fromkeys(default_state_dict())
         (planning / "state.json").write_text(json.dumps(null_state))
         # Also write a minimal STATE.md for fallback
         (planning / "STATE.md").write_text("# State\n")

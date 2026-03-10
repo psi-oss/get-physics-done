@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -202,7 +201,7 @@ def test_json_merge_files_skips_missing(tmp_path):
     f1 = tmp_path / "a.json"
     f1.write_text(json.dumps({"only": "this"}))
     out = str(tmp_path / "merged.json")
-    result = json_merge_files(out, [str(f1), str(tmp_path / "nonexistent.json")])
+    json_merge_files(out, [str(f1), str(tmp_path / "nonexistent.json")])
     merged = json.loads(Path(out).read_text())
     assert merged == {"only": "this"}
 

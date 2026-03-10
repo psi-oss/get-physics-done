@@ -5,6 +5,7 @@
  * Usage:
  *   npx github:physicalsuperintelligence/get-physics-done
  *   npx github:physicalsuperintelligence/get-physics-done --claude --global
+ *   npx github:physicalsuperintelligence/get-physics-done --gemini --global
  *   npx github:physicalsuperintelligence/get-physics-done --opencode --global
  */
 
@@ -70,7 +71,7 @@ async function main() {
 
   console.log("");
   console.log("  \x1b[1m\x1b[36mGet Physics Done (GPD)\x1b[0m");
-  console.log("  Autonomous physics research system");
+  console.log("  Open-source AI copilot for physics research");
   console.log("");
 
   // Check Python
@@ -115,7 +116,7 @@ async function main() {
   }
   // Also accept short aliases
   if (!runtime && args.includes("--claude")) runtime = "claude-code";
-  if (!runtime && args.includes("--gemini-cli")) runtime = "gemini";
+  if (!runtime && (args.includes("--gemini") || args.includes("--gemini-cli"))) runtime = "gemini";
 
   if (!runtime) {
     console.log("");

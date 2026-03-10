@@ -20,8 +20,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
@@ -42,7 +40,6 @@ from gpd.core.utils import (
     safe_read_file_truncated,
     walk_for_nan,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -877,7 +874,7 @@ class TestFileLock:
         with file_lock(target):
             pass
 
-        lock_path = target.with_suffix(".json.lock")
+        target.with_suffix(".json.lock")
         # Lock file should be cleaned up (or may still exist but unlocked)
         # The important thing is that we don't deadlock
 
@@ -1053,6 +1050,7 @@ class TestObservability:
 
     def test_instrument_gpd_function_async(self) -> None:
         import asyncio
+
         from gpd.core.observability import instrument_gpd_function
 
         @instrument_gpd_function("test.async_func")

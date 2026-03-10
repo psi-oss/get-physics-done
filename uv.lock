@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -712,7 +712,6 @@ name = "get-physics-done"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "claude-agent-sdk" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
@@ -734,6 +733,9 @@ dependencies = [
 arxiv = [
     { name = "arxiv-mcp-server" },
 ]
+claude-subagents = [
+    { name = "claude-agent-sdk" },
+]
 scientific = [
     { name = "numpy" },
     { name = "scipy" },
@@ -748,7 +750,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arxiv-mcp-server", marker = "extra == 'arxiv'", specifier = ">=0.1.0" },
-    { name = "claude-agent-sdk", specifier = ">=0.1.19" },
+    { name = "claude-agent-sdk", marker = "extra == 'claude-subagents'", specifier = ">=0.1.19" },
     { name = "fastapi", specifier = ">=0.100" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
@@ -767,7 +769,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.21.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.20" },
 ]
-provides-extras = ["scientific", "arxiv"]
+provides-extras = ["claude-subagents", "scientific", "arxiv"]
 
 [package.metadata.requires-dev]
 dev = [

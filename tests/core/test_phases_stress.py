@@ -206,7 +206,7 @@ class TestWaveValidation10Waves:
             plan_id = f"plan-{w}"
             deps = [f"plan-{w - 1}"] if w > 1 and w != 10 else []
             if w == 10:
-                deps = [f"plan-8"]
+                deps = ["plan-8"]
             plans.append(PlanEntry(id=plan_id, wave=w, depends_on=deps))
 
         result = validate_waves(plans)
