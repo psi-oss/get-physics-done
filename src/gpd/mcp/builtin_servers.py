@@ -7,12 +7,10 @@ Provides the canonical registry of GPD's built-in MCP servers. Used by:
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 import sys
 
-logger = logging.getLogger(__name__)
 
 # Canonical definition of all GPD built-in MCP servers.
 # Mirrors infra/*.json but lives inside the package so it ships with the wheel.

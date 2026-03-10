@@ -219,6 +219,7 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -235,6 +236,7 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": stale_time, "update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -245,6 +247,7 @@ class TestMainThrottle:
     def test_no_cache_file_spawns_check(self, tmp_path: Path) -> None:
         """If no cache file exists, main() spawns background check."""
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -256,9 +259,11 @@ class TestMainThrottle:
         """If cache file is corrupt JSON, main() spawns background check."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text("not json!")
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text("not json!")
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -269,6 +274,7 @@ class TestMainThrottle:
     def test_popen_failure_no_crash(self, tmp_path: Path) -> None:
         """If Popen fails (e.g., no Python executable), no crash."""
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen", side_effect=OSError("exec failed")),
         ):
@@ -278,9 +284,11 @@ class TestMainThrottle:
         """Cache JSON without 'checked' field → spawns check."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text(json.dumps({"update_available": False}))
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps({"update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -292,9 +300,11 @@ class TestMainThrottle:
         """Cache with non-numeric 'checked' → isinstance check fails → spawns."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text(json.dumps({"checked": "not-a-number"}))
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps({"checked": "not-a-number"}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):

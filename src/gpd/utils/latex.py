@@ -31,10 +31,12 @@ class AutoFixResult:
 def _split_by_math_mode(tex: str) -> list[tuple[str, bool]]:
     r"""Split LaTeX content into segments, marking which are in math mode.
 
-    Handles: $...$, $$...$$, \[...\], \(...\)
+    Handles: $...$, $$...$$, \[...\], \(...\), and \begin/\end math environments.
     """
     math_pattern = re.compile(
-        r"(\$\$.*?\$\$|\$[^$]+?\$|\\\[.*?\\\]|\\\(.*?\\\))",
+        r"(\$\$.*?\$\$|\$[^$]+?\$|\\\[.*?\\\]|\\\(.*?\\\)"
+        r"|\\begin\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\}.*?"
+        r"\\end\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\})",
         re.DOTALL,
     )
     parts: list[tuple[str, bool]] = []

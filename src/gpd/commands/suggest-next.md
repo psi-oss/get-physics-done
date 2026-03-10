@@ -90,4 +90,3 @@ Resolve before continuing:
 - [ ] Blockers highlighted if present
 - [ ] User has a clear next action
       </success_criteria>
-</output>

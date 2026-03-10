@@ -18,9 +18,12 @@ from gpd.core.constants import (
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
+    RESEARCH_SUFFIX,
     ROADMAP_FILENAME,
     STANDALONE_PLAN,
+    STANDALONE_RESEARCH,
     STANDALONE_SUMMARY,
+    STANDALONE_VERIFICATION,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
     VERIFICATION_SUFFIX,
@@ -42,11 +45,6 @@ __all__ = [
 ]
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-
-# Research/verification suffixes not yet in core.constants — keep local.
-RESEARCH_SUFFIX = "-RESEARCH.md"
-STANDALONE_RESEARCH = "RESEARCH.md"
-STANDALONE_VERIFICATION = "VERIFICATION.md"
 
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
 

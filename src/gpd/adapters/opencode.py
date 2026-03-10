@@ -314,8 +314,11 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     # Read existing config or create empty object
     config: dict = {}
     if config_path.exists():
-        raw = config_path.read_text(encoding="utf-8")
-        config = parse_jsonc(raw)
+        try:
+            raw = config_path.read_text(encoding="utf-8")
+            config = parse_jsonc(raw)
+        except (json.JSONDecodeError, ValueError):
+            config = {}
 
     # Ensure permission structure exists
     if "permission" not in config or not isinstance(config["permission"], dict):
@@ -687,7 +690,12 @@ class OpenCodeAdapter(RuntimeAdapter):
     # --- Template method hooks ---
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
-        return compute_path_prefix(target_dir, self.config_dir_name, is_global=is_global)
+        return compute_path_prefix(
+            target_dir,
+            self.config_dir_name,
+            is_global=is_global,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"

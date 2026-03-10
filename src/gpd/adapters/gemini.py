@@ -272,6 +272,7 @@ def _copy_commands_recursive(
             content = replace_placeholders(content, path_prefix)
             content = process_attribution(content, attribution)
             content = strip_sub_tags(content)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
             toml_content = _convert_to_gemini_toml(content)
             toml_path = dest_dir / entry.with_suffix(".toml").name
             toml_path.write_text(toml_content, encoding="utf-8")

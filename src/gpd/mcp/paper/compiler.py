@@ -13,7 +13,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.mcp.paper.bibliography import BibliographyData, write_bib_file
+from pybtex.database import BibliographyData
+
+from gpd.mcp.paper.bibliography import write_bib_file
 from gpd.mcp.paper.figures import prepare_figures
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
@@ -228,7 +230,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
         error = compile_errors[0] if compile_errors else "Compilation failed"
-        return CompilationResult(success=False, error=error, log=combined_log[-5000:])
+        return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:
         return CompilationResult(success=False, error="Compilation timed out")

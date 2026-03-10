@@ -938,11 +938,11 @@ class TestVerificationServer:
         assert len(result["automated_issues"]) == 0
 
     def test_run_check_unknown_id(self):
-        from gpd.core.errors import ValidationError as SpecValidationError
         from gpd.mcp.servers.verification_server import run_check
 
-        with pytest.raises(SpecValidationError, match="Unknown check_id"):
-            run_check("99.99", "qft", "content")
+        result = run_check("99.99", "qft", "content")
+        assert "error" in result
+        assert "Unknown check_id" in result["error"]
 
     def test_run_check_domain_specific_guidance(self):
         from gpd.mcp.servers.verification_server import run_check
@@ -1026,16 +1026,6 @@ class TestVerificationServer:
         )
         assert "Full coverage" in result["recommendation"]
 
-    # --- CHECK_PROFILES ---
-
-    def test_check_profiles_completeness(self):
-        from gpd.core.verification_checks import VERIFICATION_CHECKS
-        from gpd.mcp.servers.verification_server import CHECK_PROFILES
-
-        all_checks = set(VERIFICATION_CHECKS.keys())
-        for profile_name, checks in CHECK_PROFILES.items():
-            for check in checks:
-                assert check in all_checks, f"Profile {profile_name} references unknown check {check}"
 
     # --- _parse_dimensions helper ---
 

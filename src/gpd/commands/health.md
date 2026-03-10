@@ -92,4 +92,3 @@ All {total} health checks passed.
 - [ ] Auto-fix applied if --fix flag present
 - [ ] Clear guidance on how to fix remaining issues
       </success_criteria>
-</output>

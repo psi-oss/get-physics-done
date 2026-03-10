@@ -71,7 +71,7 @@ def _extract_steps_and_checkpoints(body: str) -> tuple[list[str], list[str]]:
     return steps, checkpoints
 
 
-def _infer_domain(name: str, load_when: list[str]) -> str:
+def _infer_domain(name: str, _load_when: list[str]) -> str:
     """Infer a domain category from the protocol name and load_when keywords."""
     # Domain mapping based on shared-protocols.md categories
     core_derivation = {

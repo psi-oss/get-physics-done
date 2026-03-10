@@ -150,36 +150,40 @@ def main() -> None:
         _debug(f"Failed to parse stdin JSON: {exc}")
         return
 
-    model_value = data.get("model")
-    if isinstance(model_value, str) and model_value:
-        model = model_value
-    else:
-        model = str(_mapping(model_value).get("display_name") or "unknown")
+    try:
+        model_value = data.get("model")
+        if isinstance(model_value, str) and model_value:
+            model = model_value
+        else:
+            model = str(_mapping(model_value).get("display_name") or "unknown")
 
-    workspace_value = data.get("workspace")
-    if isinstance(workspace_value, str) and workspace_value:
-        workspace_dir = workspace_value
-    else:
-        workspace_dir = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
+        workspace_value = data.get("workspace")
+        if isinstance(workspace_value, str) and workspace_value:
+            workspace_dir = workspace_value
+        else:
+            workspace_dir = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
 
-    session_value = data.get("session_id")
-    session_id = session_value if isinstance(session_value, str) else ""
-    remaining = _mapping(data.get("context_window")).get("remaining_percentage")
+        session_value = data.get("session_id")
+        session_id = session_value if isinstance(session_value, str) else ""
+        remaining = _mapping(data.get("context_window")).get("remaining_percentage")
 
-    ctx = _context_bar(remaining) if remaining is not None else ""
-    position = _read_position(workspace_dir)
-    task = _read_current_task(session_id)
-    gpd_update = _check_update()
+        ctx = _context_bar(remaining) if remaining is not None else ""
+        position = _read_position(workspace_dir)
+        task = _read_current_task(session_id)
+        gpd_update = _check_update()
 
-    dirname = Path(workspace_dir).name
-    pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""
+        dirname = Path(workspace_dir).name
+        pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""
 
-    if task:
-        sys.stdout.write(
-            f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[1m{task}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}"
-        )
-    else:
-        sys.stdout.write(f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}")
+        if task:
+            sys.stdout.write(
+                f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[1m{task}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}"
+            )
+        else:
+            sys.stdout.write(f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}")
+    except Exception as exc:
+        _debug(f"Statusline render failed: {exc}")
+        sys.stdout.write("\x1b[2mGPD\x1b[0m")
 
 
 if __name__ == "__main__":

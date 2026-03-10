@@ -18,7 +18,6 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
-from gpd.core.errors import ValidationError as SpecValidationError
 from gpd.core.observability import gpd_span
 from gpd.core.verification_checks import VERIFICATION_CHECKS
 
@@ -27,16 +26,6 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(le
 logger = logging.getLogger("gpd-verification")
 
 mcp = FastMCP("gpd-verification")
-
-# Profile-dependent check sets
-CHECK_PROFILES: dict[str, list[str]] = {
-    "deep-theory": list(VERIFICATION_CHECKS.keys()),
-    "numerical": list(VERIFICATION_CHECKS.keys()),
-    "review": list(VERIFICATION_CHECKS.keys()),
-    "paper-writing": list(VERIFICATION_CHECKS.keys()),
-    "exploratory": ["5.1", "5.2", "5.3", "5.6", "5.7", "5.8", "5.10"],
-    "quick": ["5.1", "5.3", "5.10"],
-}
 
 # ─── Domain Checklists ────────────────────────────────────────────────────────
 
@@ -189,7 +178,7 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
     with gpd_span("mcp.verification.run_check", check_type=check_id, domain=domain):
         check_meta = VERIFICATION_CHECKS.get(check_id)
         if check_meta is None:
-            raise SpecValidationError(f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECKS.keys())}")
+            return {"error": f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECKS.keys())}"}
 
         # Get domain-specific guidance
         domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
