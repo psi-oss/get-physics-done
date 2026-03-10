@@ -96,6 +96,37 @@ Verification:
 
 </soft_asymptotic_symmetries>
 
+<generalized_symmetry_checks>
+
+## Generalized Symmetry and Defect Checks
+
+Generalized symmetries are encoded by topological defects acting on extended operators. The claim "this theory has a `p`-form symmetry" is incomplete unless the charged operator, background field, and breaking mechanism are all specified.
+
+```
+For a claimed p-form symmetry in d dimensions:
+  charged operator dimension  = p
+  symmetry generator          = codimension-(p+1) topological defect
+  background gauge field      = (p+1)-form
+
+Core logic:
+  genuine charged operator + topological defect + consistent background coupling
+  -> well-defined generalized symmetry statement
+```
+
+**Verification:**
+
+```
+1. Identify the charged extended operator explicitly (Wilson line, 't Hooft line, surface defect, etc.).
+2. Check whether the operator is genuine or can end on dynamical matter. If it can end, the symmetry is broken or absent.
+3. Verify the symmetry defect is topological away from charged insertions.
+4. For invertible p>0 symmetries, verify the symmetry action/fusion is abelian.
+5. If center symmetry or confinement is discussed, verify the matter content does or does not screen the relevant Wilson lines.
+6. If gauging or anomaly matching is invoked, write the correct background-field degree and the inflow/anomaly term explicitly.
+7. If higher-group or non-invertible language is used, state the mixed background transformation or the defect fusion rule explicitly.
+```
+
+</generalized_symmetry_checks>
+
 <unitarity_causality_positivity>
 
 ## Unitarity, Causality, and Positivity Constraints

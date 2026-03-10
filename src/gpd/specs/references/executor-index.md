@@ -16,7 +16,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | Scenario | Load These References |
 |---|---|
 | **Any derivation** | `shared-protocols.md` (conventions), `executor-verification-flows.md` (verification) |
-| **QFT calculation** | `verification-domain-qft.md`, plus `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, or `protocols/asymptotic-symmetries.md` for soft/IR structure |
+| **QFT calculation** | `verification-domain-qft.md`, plus `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/asymptotic-symmetries.md`, or `protocols/generalized-symmetries.md` depending on the symmetry/IR structure |
 | **Condensed matter** | `verification-domain-condmat.md`, `executor-subfield-guide.md` §Condensed Matter |
 | **Statistical mechanics / simulation** | `verification-domain-statmech.md`, `protocols/monte-carlo.md` or `protocols/molecular-dynamics.md` |
 | **General relativity / cosmology** | `verification-domain-gr-cosmology.md`, plus `protocols/general-relativity.md`, `protocols/de-sitter-space.md`, `protocols/asymptotic-symmetries.md`, or `protocols/cosmological-perturbation-theory.md` depending on regime |
@@ -63,4 +63,4 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 
 ## Protocol Files
 
-See `shared-protocols.md` §Detailed Protocol References for the full protocol index (42 protocols across 4 categories).
+See `shared-protocols.md` §Detailed Protocol References for the full protocol index (43 protocols across 4 categories).

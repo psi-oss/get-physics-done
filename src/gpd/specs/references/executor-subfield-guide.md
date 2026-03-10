@@ -30,6 +30,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Regularization:** Default to dimensional regularization for gauge theories. If using cutoff: document which symmetries are broken and how counterterms restore them.
 - **Infrared structure:** For massless theories, IR divergences cancel between virtual and real corrections (KLN theorem). Verify this cancellation explicitly. Do not claim "IR safe" without checking.
 - **Asymptotic symmetries and soft limits:** For massless gauge bosons or gravitons, state the null-infinity boundary conditions and whether a soft theorem is being used as a Ward identity of a large gauge/BMS charge. Do not quote the infrared triangle heuristically without matching the charge, flux, and observable conventions.
+- **Generalized symmetries:** Identify the charged extended operators, the degree of the background field, and whether dynamical matter screens the operator. Do not claim center symmetry, higher-group structure, or non-invertible defects without writing the corresponding defect action or fusion data explicitly.
 
 ## Renormalization Group
 

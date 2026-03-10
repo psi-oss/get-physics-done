@@ -21,6 +21,7 @@ Symmetry determines what is possible, what is forbidden, and what is exactly zer
 - `lattice-gauge-theory.md` — Gauge symmetries on the lattice
 - `effective-field-theory.md` — Symmetry-constrained operator bases
 - `asymptotic-symmetries.md` — Boundary symmetries, large gauge transformations, BMS charges, and soft theorems
+- `generalized-symmetries.md` — Higher-form, higher-group, and non-invertible symmetry structures
 
 ## Step 1: Identifying Symmetries from the Lagrangian/Hamiltonian
 
@@ -30,6 +31,7 @@ Symmetry determines what is possible, what is forbidden, and what is exactly zer
    - **Gauge symmetries:** Local transformations that leave the action invariant. These are redundancies in the description, not physical symmetries — but they constrain the physical Hilbert space and observables.
 2. **Distinguish global from local (gauge) symmetries.** Global symmetries have physical consequences (conserved charges via Noether's theorem, selection rules). Gauge symmetries constrain the Hilbert space (Gauss's law, physical state conditions). Spontaneous breaking of global symmetries produces Goldstone bosons; "spontaneous breaking" of gauge symmetries is the Higgs mechanism (no true Goldstone boson — the would-be Goldstone is eaten).
 3. **Check if the symmetry is exact or approximate.** Small explicit breaking terms (quark masses break chiral symmetry, gravity breaks global symmetries) may be present. Quantify the breaking: is the breaking parameter small enough that the symmetry is a useful organizing principle?
+4. **Do not stop at the local action if generalized symmetry is suspected.** Higher-form and non-invertible symmetries are often diagnosed by topological defects and extended operators rather than by varying the local Lagrangian alone.
 
 ## Step 2: Representation Theory
 

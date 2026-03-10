@@ -21,7 +21,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 
 | Subfield | Reference | Key Topics |
 |----------|-----------|------------|
-| Quantum Field Theory | references/subfields/qft.md | Perturbative QFT, renormalization, Feynman diagrams, gauge theories, EFTs, lattice QFT |
+| Quantum Field Theory | references/subfields/qft.md | Perturbative QFT, renormalization, Feynman diagrams, gauge theories, EFTs, lattice QFT, generalized symmetries |
 | Condensed Matter | references/subfields/condensed-matter.md | Many-body, DFT, DMFT, tensor networks, topological phases, band theory |
 | GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, de Sitter space, numerical relativity, gravitational waves, black holes |
 | Statistical Mechanics | references/subfields/stat-mech.md | Phase transitions, Monte Carlo, critical phenomena, RG, exactly solved models |
@@ -29,7 +29,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | Nuclear & Particle | references/subfields/nuclear-particle.md | QCD, nuclear structure, collider phenomenology, PDFs, effective theories |
 | Quantum Information | references/subfields/quantum-info.md | Circuits, error correction, entanglement, tensor networks, variational algorithms |
 | Fluid & Plasma | references/subfields/fluid-plasma.md | Navier-Stokes, MHD, turbulence, kinetic theory, spectral methods |
-| Mathematical Physics | references/subfields/mathematical-physics.md | Rigorous proofs, functional analysis, representation theory, integrable systems, CFT |
+| Mathematical Physics | references/subfields/mathematical-physics.md | Rigorous proofs, functional analysis, representation theory, integrable systems, CFT, topological defects |
 | Classical Mechanics | references/subfields/classical-mechanics.md | Lagrangian/Hamiltonian dynamics, nonlinear dynamics, chaos, celestial mechanics |
 | Soft Matter & Biophysics | references/subfields/soft-matter-biophysics.md | Polymer physics, membrane dynamics, active matter, colloids, self-assembly, biomolecular simulation |
 | Astrophysics | references/subfields/astrophysics.md | Stellar structure, accretion disks, compact objects, radiative transfer, gravitational waves, nucleosynthesis |
@@ -47,6 +47,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Phase transitions, critical exponents, Monte Carlo   | Statistical Mechanics | Condensed Matter for lattice models                            |
 | CMB, large-scale structure, N-body                   | Cosmology             | GR for metric perturbations                                    |
 | de Sitter space, cosmological horizons, dS/CFT       | GR & Cosmology        | QFT for fields in curved spacetime; Mathematical Physics for representation theory |
+| Higher-form symmetries, non-invertible defects, center symmetry, anomalies | QFT | Mathematical Physics for categorical/topological structure; Condensed Matter for topological-order applications |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |
 | Collider physics, PDFs, cross sections               | Nuclear/Particle      | QFT for calculational methods                                  |

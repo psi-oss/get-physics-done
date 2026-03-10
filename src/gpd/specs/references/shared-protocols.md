@@ -334,6 +334,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Tensor Networks | `protocols/tensor-networks.md` | MPS/DMRG/PEPS — bond dimension convergence, entanglement, time evolution |
 | Symmetry Analysis | `protocols/symmetry-analysis.md` | Symmetry identification, representations, selection rules, SSB, anomalies |
 | Asymptotic Symmetries | `protocols/asymptotic-symmetries.md` | Bondi gauge, null infinity, large gauge transformations, BMS charges, soft/memory checks |
+| Generalized Symmetries | `protocols/generalized-symmetries.md` | Higher-form symmetries, center symmetry, higher-group structure, non-invertible defects, anomaly checks |
 | Non-Equilibrium Transport | `protocols/non-equilibrium-transport.md` | Kubo formulas, Keldysh formalism, Boltzmann equation, Mori-Zwanzig |
 | Finite-Temperature Field Theory | `protocols/finite-temperature-field-theory.md` | Matsubara frequencies, Schwinger-Keldysh, HTL resummation, IR problems |
 | Conformal Bootstrap | `protocols/conformal-bootstrap.md` | Crossing symmetry, OPE, unitarity bounds, SDPB, extremal functionals |

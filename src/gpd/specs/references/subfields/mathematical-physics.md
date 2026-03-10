@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/group-theory.md`, `protocols/topological-methods.md`, `protocols/symmetry-analysis.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `protocols/random-matrix-theory.md` (spectral statistics, universality classes), `protocols/resummation.md` (Borel summation, asymptotic analysis), `protocols/large-n-expansion.md` (saddle-point methods, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/group-theory.md`, `protocols/topological-methods.md`, `protocols/symmetry-analysis.md`, `protocols/generalized-symmetries.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `protocols/random-matrix-theory.md` (spectral statistics, universality classes), `protocols/resummation.md` (Borel summation, asymptotic analysis), `protocols/large-n-expansion.md` (saddle-point methods, matrix models).
 
 **Rigorous Proofs in Physics:**
 
@@ -144,6 +144,7 @@ context_cost: medium
 | **Amplitudes and geometry** | Amplituhedron, associahedron, tropical geometry for scattering | Excellent — algebraic/combinatorial |
 | **Resurgence and trans-series** | Non-perturbative completion of asymptotic series, Borel-Écalle theory | Excellent — formal series analysis |
 | **Topological phases classification** | Cobordism conjecture, beyond group cohomology for SPT phases | Good — algebraic topology + physics |
+| **Generalized symmetries and defects** | How do higher-form, higher-group, and non-invertible structures reorganize anomaly, duality, and defect data? | Gaiotto, Cordova, Schafer-Nameki, Bhardwaj | Good — category/topology heavy; concrete physical realization should be stated explicitly |
 | **Conformal bootstrap (rigorous)** | Rigorous bounds on CFT data, optimal transport methods | Excellent — optimization + analysis |
 | **Integrable systems** | Exact solutions for Yang-Baxter, Bethe ansatz for new models | Excellent — algebraic + computational |
 | **Quantum groups and categories** | Tensor categories for anyons, modular functors, TQFT | Good — algebraic structures |
