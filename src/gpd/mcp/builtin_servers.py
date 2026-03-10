@@ -14,43 +14,52 @@ import sys
 
 # Canonical definition of all GPD built-in MCP servers.
 # Mirrors infra/*.json but lives inside the package so it ships with the wheel.
-_ServerDef = dict[str, str | list[str] | dict[str, str] | bool]
+_ServerDef = dict[str, object]
+
+_DEFAULT_STARTUP_TIMEOUT_SEC = 30
 
 _BUILTIN_SERVERS: dict[str, _ServerDef] = {
     "gpd-conventions": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.conventions_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-errors": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.errors_mcp"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-patterns": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.patterns_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-protocols": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.protocols_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-skills": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.skills_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-state": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.state_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-verification": {
         "command": "python",
         "args": ["-m", "gpd.mcp.servers.verification_server"],
         "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
     "gpd-arxiv": {
         "command": "python",
@@ -58,6 +67,7 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "env": {},
         "optional": True,
         "module_check": "arxiv_mcp_server",
+        "startup_timeout_sec": _DEFAULT_STARTUP_TIMEOUT_SEC,
     },
 }
 
@@ -135,6 +145,11 @@ def build_mcp_servers_dict(
             if any(_UNRESOLVED_RE.search(v) for v in resolved_env.values()):
                 continue
             entry["env"] = resolved_env
+
+        for key, value in raw.items():
+            if key in {"command", "args", "env", "optional", "module_check"}:
+                continue
+            entry[key] = value
 
         servers[name] = entry
 

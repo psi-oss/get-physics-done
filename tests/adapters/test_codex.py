@@ -227,8 +227,9 @@ class TestInstall:
         config_toml = target / "config.toml"
         assert config_toml.exists()
         content = config_toml.read_text(encoding="utf-8")
+        expected_interpreter = (sys.executable or "python3").replace("\\", "\\\\")
         expected_notify = (
-            f'notify = ["{(sys.executable or "python3").replace("\\\\", "\\\\\\\\")}", '
+            f'notify = ["{expected_interpreter}", '
             f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
         )
         assert "# GPD update notification" in content
@@ -259,6 +260,18 @@ class TestInstall:
         adapter.install(gpd_root, target, skills_dir=skills)
 
         assert (target / "gpd-file-manifest.json").exists()
+
+    def test_install_writes_mcp_startup_timeout(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert "[mcp_servers.gpd-skills]" in content
+        assert "startup_timeout_sec = 30" in content
 
     def test_install_returns_counts(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -490,6 +503,41 @@ class TestNotifyConfiguration:
         assert r'args = ["C:\\Program Files\\GPD\\server.py"]' in content
         assert r'PYTHONPATH = "C:\\Users\\tester\\venv"' in content
 
+    def test_mcp_toml_preserves_existing_startup_timeout_override(self, tmp_path: Path) -> None:
+        from gpd.adapters.codex import _write_mcp_servers_codex_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-skills]\n'
+            'command = "python"\n'
+            'args = ["-m", "gpd.mcp.servers.skills_server"]\n'
+            "startup_timeout_sec = 45\n"
+            "\n"
+            "[mcp_servers.gpd-skills.env]\n"
+            'LOG_LEVEL = "INFO"\n',
+            encoding="utf-8",
+        )
+
+        _write_mcp_servers_codex_toml(
+            target,
+            {
+                "gpd-skills": {
+                    "command": "python3",
+                    "args": ["-m", "gpd.mcp.servers.skills_server"],
+                    "startup_timeout_sec": 30,
+                    "env": {"LOG_LEVEL": "WARNING"},
+                }
+            },
+        )
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert 'command = "python3"' in content
+        assert "startup_timeout_sec = 45" in content
+        assert "startup_timeout_sec = 30" not in content
+        assert 'LOG_LEVEL = "INFO"' in content
+        assert 'LOG_LEVEL = "WARNING"' not in content
+
     def test_wraps_existing_false_multi_agent_and_restores_it_on_uninstall(
         self,
         adapter: CodexAdapter,
@@ -521,3 +569,27 @@ class TestNotifyConfiguration:
         assert "GPD original multi_agent" not in cleaned
         assert "multi_agent = false" in cleaned
         assert "multi_agent = true" not in cleaned
+
+    def test_notify_stays_top_level_when_config_already_has_tables(self, tmp_path: Path) -> None:
+        from gpd.adapters.codex import _configure_config_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "hooks").mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'model = "gpt-5.4"\n'
+            '[projects."/tmp/example"]\n'
+            'trust_level = "trusted"\n'
+            '\n'
+            "[notice.model_migrations]\n"
+            '"gpt-5.3-codex" = "gpt-5.4"\n',
+            encoding="utf-8",
+        )
+
+        _configure_config_toml(target, is_global=True)
+
+        content = config_toml.read_text(encoding="utf-8")
+        notify_line = f'notify = ["{sys.executable or "python3"}", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        assert content.index(notify_line) < content.index('[projects."/tmp/example"]')
+        assert "notice.model_migrations.notify" not in content

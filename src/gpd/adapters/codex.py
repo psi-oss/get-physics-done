@@ -247,6 +247,17 @@ def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _toml_value(value: object) -> str:
+    """Serialize a simple Python value as TOML."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    return _toml_string(str(value))
+
+
 # ─── Adapter Class ───────────────────────────────────────────────────────────
 
 
@@ -644,6 +655,8 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     if config_toml.exists():
         content = config_toml.read_text(encoding="utf-8")
 
+    existing_content = content
+
     # Remove existing GPD MCP sections before rewriting.
     content = _remove_gpd_mcp_toml_sections(content)
 
@@ -653,22 +666,111 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
         content += "\n"
     lines.append("# GPD MCP servers")
     for name, entry in sorted(servers.items()):
-        cmd = str(entry.get("command", ""))
-        args = entry.get("args", [])
-        args_list = list(args) if isinstance(args, list) else []
-        lines.append(f"\n[mcp_servers.{name}]")
-        lines.append(f"command = {_toml_string(cmd)}")
-        args_toml = ", ".join(_toml_string(str(a)) for a in args_list)
-        lines.append(f"args = [{args_toml}]")
-        env = entry.get("env", {})
-        if isinstance(env, dict) and env:
-            lines.append(f"\n[mcp_servers.{name}.env]")
-            for k, v in env.items():
-                lines.append(f"{k} = {_toml_string(str(v))}")
+        base_section = f"mcp_servers.{name}"
+        env_section = f"{base_section}.env"
+        _, existing_base_body, _ = _split_toml_section(existing_content, base_section)
+        _, existing_env_body, _ = _split_toml_section(existing_content, env_section)
+        lines.extend(
+            _build_codex_mcp_server_section_lines(
+                name,
+                entry,
+                existing_base_body=existing_base_body,
+                existing_env_body=existing_env_body,
+            )
+        )
 
     content += "\n".join(lines) + "\n"
     config_toml.write_text(content, encoding="utf-8")
     return len(servers)
+
+
+_TOML_ASSIGNMENT_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*=")
+
+
+def _toml_assignment_key(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    match = _TOML_ASSIGNMENT_KEY_RE.match(stripped)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _toml_assignment_lines(lines: list[str] | None) -> dict[str, str]:
+    assignments: dict[str, str] = {}
+    if lines is None:
+        return assignments
+    for line in lines:
+        key = _toml_assignment_key(line)
+        if key is not None:
+            assignments[key] = line.strip()
+    return assignments
+
+
+def _preserve_unmanaged_toml_lines(lines: list[str] | None, managed_keys: set[str]) -> list[str]:
+    preserved: list[str] = []
+    if lines is None:
+        return preserved
+    for line in lines:
+        key = _toml_assignment_key(line)
+        if key is not None and key in managed_keys:
+            continue
+        preserved.append(line)
+    while preserved and preserved[0] == "":
+        preserved.pop(0)
+    while preserved and preserved[-1] == "":
+        preserved.pop()
+    return preserved
+
+
+def _build_codex_mcp_server_section_lines(
+    name: str,
+    entry: dict[str, object],
+    *,
+    existing_base_body: list[str] | None,
+    existing_env_body: list[str] | None,
+) -> list[str]:
+    lines: list[str] = [f"\n[mcp_servers.{name}]"]
+
+    existing_base_assignments = _toml_assignment_lines(existing_base_body)
+    cmd = str(entry.get("command", ""))
+    args = entry.get("args", [])
+    args_list = list(args) if isinstance(args, list) else []
+    lines.append(f"command = {_toml_string(cmd)}")
+    args_toml = ", ".join(_toml_string(str(a)) for a in args_list)
+    lines.append(f"args = [{args_toml}]")
+
+    managed_base_keys = {"command", "args"}
+    extra_keys = sorted(k for k in entry if k not in {"command", "args", "env"})
+    for key in extra_keys:
+        managed_base_keys.add(key)
+        existing_line = existing_base_assignments.get(key)
+        if existing_line is not None:
+            lines.append(existing_line)
+        else:
+            lines.append(f"{key} = {_toml_value(entry[key])}")
+
+    preserved_base_lines = _preserve_unmanaged_toml_lines(existing_base_body, managed_base_keys)
+    lines.extend(preserved_base_lines)
+
+    env = entry.get("env", {})
+    env_dict = env if isinstance(env, dict) else {}
+    existing_env_assignments = _toml_assignment_lines(existing_env_body)
+    managed_env_keys = set(env_dict)
+    preserved_env_lines = _preserve_unmanaged_toml_lines(existing_env_body, managed_env_keys)
+
+    if env_dict or preserved_env_lines:
+        lines.append(f"\n[mcp_servers.{name}.env]")
+        for key, value in env_dict.items():
+            existing_line = existing_env_assignments.get(key)
+            if existing_line is not None:
+                lines.append(existing_line)
+            else:
+                lines.append(f"{key} = {_toml_string(str(value))}")
+        lines.extend(preserved_env_lines)
+
+    return lines
 
 
 def _remove_gpd_mcp_toml_sections(content: str) -> str:
@@ -696,6 +798,13 @@ def _parse_section_name(line: str) -> str | None:
     if not stripped.startswith("[") or not stripped.endswith("]") or stripped.startswith("[["):
         return None
     return stripped[1:-1].strip()
+
+
+def _first_toml_section_index(lines: list[str]) -> int | None:
+    for idx, line in enumerate(lines):
+        if _parse_section_name(line) is not None:
+            return idx
+    return None
 
 
 def _split_toml_section(toml_content: str, section_name: str) -> tuple[list[str], list[str] | None, list[str]]:
@@ -972,9 +1081,16 @@ def _install_gpd_notify_config(
         notify_block = [_GPD_NOTIFY_COMMENT, desired_line]
 
     if insert_at is None:
-        if cleaned_lines and cleaned_lines[-1] != "":
-            cleaned_lines.append("")
-        cleaned_lines.extend(notify_block)
+        first_section_index = _first_toml_section_index(cleaned_lines)
+        if first_section_index is None:
+            if cleaned_lines and cleaned_lines[-1] != "":
+                cleaned_lines.append("")
+            cleaned_lines.extend(notify_block)
+        else:
+            block = notify_block[:]
+            if first_section_index < len(cleaned_lines) and cleaned_lines[first_section_index] != "":
+                block.append("")
+            cleaned_lines[first_section_index:first_section_index] = block
     else:
         cleaned_lines[insert_at:insert_at] = notify_block
 
