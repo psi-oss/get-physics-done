@@ -264,7 +264,7 @@ def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> No
         "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz",
         "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main",
     ]
-    assert "current main branch source archive failed. Falling back to authenticated git checkout of main..." in result.stdout
+    assert "current main branch source archive failed. Falling back to HTTPS git checkout of main..." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -338,7 +338,7 @@ def test_bootstrap_falls_back_to_authenticated_git_when_archive_urls_fail(tmp_pa
         "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main",
     ]
     assert (
-        "current main branch source archive failed. Falling back to GitHub git checkout for v0.1.0..."
+        "current main branch source archive failed. Falling back to GitHub HTTPS git checkout for v0.1.0..."
         in result.stdout
     )
-    assert "GitHub git checkout for v0.1.0 failed. Falling back to authenticated git checkout of main..." in result.stdout
+    assert "GitHub HTTPS git checkout for v0.1.0 failed. Falling back to HTTPS git checkout of main..." in result.stdout

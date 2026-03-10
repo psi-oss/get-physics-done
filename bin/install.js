@@ -170,9 +170,22 @@ function repositoryGitUrl(repositoryField) {
   return normalized || null;
 }
 
+function repositorySshGitUrl(repositoryField) {
+  const httpsUrl = repositoryGitUrl(repositoryField);
+  if (!httpsUrl) {
+    return null;
+  }
+  const match = httpsUrl.match(/^https:\/\/github\.com\/(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return `ssh://git@github.com/${match[1]}`;
+}
+
 function sourceInstallCandidates(version) {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
+  const repoSshUrl = repositorySshGitUrl(repository);
   const candidates = [];
 
   if (repoBaseUrl) {
@@ -192,12 +205,26 @@ function sourceInstallCandidates(version) {
   if (repoGitUrl) {
     candidates.push(
       {
-        label: `GitHub git checkout for v${version}`,
+        label: `GitHub HTTPS git checkout for v${version}`,
         spec: `git+${repoGitUrl}@v${version}`,
       },
       {
-        label: `authenticated git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+        label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
         spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+        noCache: true,
+      }
+    );
+  }
+
+  if (repoSshUrl) {
+    candidates.push(
+      {
+        label: `SSH git checkout for v${version}`,
+        spec: `git+${repoSshUrl}@v${version}`,
+      },
+      {
+        label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+        spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
         noCache: true,
       }
     );
@@ -209,6 +236,7 @@ function sourceInstallCandidates(version) {
 function latestMainInstallCandidates() {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
+  const repoSshUrl = repositorySshGitUrl(repository);
   const candidates = [];
 
   if (repoBaseUrl) {
@@ -221,8 +249,16 @@ function latestMainInstallCandidates() {
 
   if (repoGitUrl) {
     candidates.push({
-      label: `authenticated git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+      label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
       spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+      noCache: true,
+    });
+  }
+
+  if (repoSshUrl) {
+    candidates.push({
+      label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+      spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
       noCache: true,
     });
   }
