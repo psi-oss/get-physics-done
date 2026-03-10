@@ -461,7 +461,8 @@ gpd commit \
 1. Review response letter: `cat paper/response-letter.tex`
 2. Build revised manuscript: `cd paper && make`
 3. `/gpd:arxiv-submission` — repackage for resubmission
-4. Submit revised manuscript + response letter to journal
+4. `/gpd:peer-review` — optional re-review before final packaging if the revision was substantial
+5. Submit revised manuscript + response letter to journal
 
 {If new calculations pending:}
 1. Execute pending calculations:
@@ -469,6 +470,8 @@ gpd commit \
    /gpd:execute-phase {N}
 2. Return here to incorporate results:
    /gpd:respond-to-referees (will detect existing REFEREE_RESPONSE.md)
+
+Recommend `/gpd:peer-review` as the standalone re-review command once the revised manuscript compiles cleanly. This keeps revision rounds aligned with the referee agent's `REFEREE-REPORT-R{N}.md` protocol.
 
 ---
 ```

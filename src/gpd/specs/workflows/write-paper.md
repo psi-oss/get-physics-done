@@ -772,6 +772,8 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 <step name="pre_submission_review">
 Before finalizing, spawn the referee agent for a mock peer review of the draft paper. This catches issues a real reviewer would raise before the author commits to the manuscript.
 
+**Standalone entrypoint:** `/gpd:peer-review` is the first-class command for re-running this stage outside the write-paper pipeline. This embedded step should stay behaviorally aligned with that command.
+
 Resolve referee model:
 
 ```bash

@@ -93,6 +93,8 @@ The workflow handles all logic including:
 13. **Pre-submission review** — Spawn gpd-referee for mock peer review across 10 dimensions
 14. **Final review** — Abstract standalone check, equation proofread, figure references, word/page count
 15. **Paper revision** — Bounded revision loop (max 3 iterations) for addressing referee issues; spawns paper-writer agents for targeted section fixes
+
+For a standalone rerun of the referee stage after the manuscript already exists, use `/gpd:peer-review`.
 </process>
 
 <success_criteria>
