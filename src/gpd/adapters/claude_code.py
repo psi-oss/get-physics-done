@@ -9,6 +9,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    _is_hook_command_for_script,
     build_hook_command,
     copy_with_path_replacement,
     ensure_update_hook,
@@ -76,7 +77,13 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
         agents_dest = target_dir / "agents"
-        _copy_agents_native(agents_src, agents_dest, path_prefix, self._current_install_scope_flag())
+        _copy_agents_native(
+            agents_src,
+            agents_dest,
+            path_prefix,
+            self.runtime_name,
+            self._current_install_scope_flag(),
+        )
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
         else:
@@ -100,7 +107,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             config_dir_name=self.config_dir_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
-        ensure_update_hook(settings, update_check_command)
+        ensure_update_hook(
+            settings,
+            update_check_command,
+            target_dir=target_dir,
+            config_dir_name=self.config_dir_name,
+        )
 
         # Wire MCP servers into the correct config file.
         # Claude Code reads mcpServers from:
@@ -195,7 +207,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             status_line = settings.get("statusLine")
             if isinstance(status_line, dict):
                 cmd = status_line.get("command", "")
-                if isinstance(cmd, str) and "statusline.py" in cmd:
+                if _is_hook_command_for_script(
+                    cmd,
+                    HOOK_SCRIPTS["statusline"],
+                    target_dir=target_dir,
+                    config_dir_name=self.config_dir_name,
+                ):
                     del settings["statusLine"]
                     modified = True
 
@@ -204,7 +221,11 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 session_start = hooks.get("SessionStart")
                 if isinstance(session_start, list):
                     before = len(session_start)
-                    session_start[:] = [entry for entry in session_start if not _entry_has_gpd_hook(entry)]
+                    session_start[:] = [
+                        entry
+                        for entry in session_start
+                        if not _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                    ]
                     if len(session_start) < before:
                         modified = True
                     if not session_start:
@@ -273,6 +294,7 @@ def _copy_agents_native(
     agents_src: Path,
     agents_dest: Path,
     path_prefix: str,
+    runtime: str,
     install_scope: str | None = None,
 ) -> None:
     """Copy agent .md files with placeholder replacement.
@@ -287,14 +309,19 @@ def _copy_agents_native(
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
         content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, install_scope=install_scope)
+        content = replace_placeholders(content, path_prefix, runtime, install_scope=install_scope)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
 
 
-def _entry_has_gpd_hook(entry: object) -> bool:
+def _entry_has_gpd_hook(
+    entry: object,
+    *,
+    target_dir: Path | None,
+    config_dir_name: str | None,
+) -> bool:
     """Check if a settings.json hook entry points at GPD-managed hooks."""
     if not isinstance(entry, dict):
         return False
@@ -304,7 +331,20 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(hook, dict)
         and isinstance(hook.get("command"), str)
-        and ("check_update.py" in hook["command"] or "statusline.py" in hook["command"])
+        and (
+            _is_hook_command_for_script(
+                hook["command"],
+                HOOK_SCRIPTS["check_update"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            )
+            or _is_hook_command_for_script(
+                hook["command"],
+                HOOK_SCRIPTS["statusline"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            )
+        )
         for hook in entry_hooks
     )
 

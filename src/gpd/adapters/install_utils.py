@@ -1111,12 +1111,47 @@ def remove_stale_agents(agents_dest: Path, new_agent_names: set[str]) -> None:
             existing.unlink()
 
 
-def _is_hook_command_for_script(command: object, hook_filename: str) -> bool:
-    """Return True when *command* points at *hook_filename*."""
-    return isinstance(command, str) and hook_filename in command
+def _is_hook_command_for_script(
+    command: object,
+    hook_filename: str,
+    *,
+    target_dir: Path | None = None,
+    config_dir_name: str | None = None,
+) -> bool:
+    """Return True when *command* points at the managed hook script.
+
+    When runtime context is available, match only the exact managed relative or
+    absolute hook path. This prevents us from rewriting or uninstalling
+    third-party hooks that happen to share the same filename.
+    """
+    if not isinstance(command, str):
+        return False
+
+    normalized_command = command.replace("\\", "/")
+    managed_paths: list[str] = []
+
+    if target_dir is not None:
+        managed_paths.append(str((target_dir / "hooks" / hook_filename)).replace("\\", "/"))
+    if config_dir_name:
+        managed_paths.append(f"{config_dir_name}/hooks/{hook_filename}")
+
+    if managed_paths:
+        if any(managed_path in normalized_command for managed_path in managed_paths):
+            return True
+        # Legacy installs sometimes used bare filenames like `python3 check_update.py`.
+        # Match only filename tokens, not third-party paths ending in the same basename.
+        return re.search(rf"(^|[\s'\"`]){re.escape(hook_filename)}(['\"`]|$)", normalized_command) is not None
+
+    return hook_filename in normalized_command
 
 
-def ensure_update_hook(settings: dict[str, object], update_check_command: str) -> None:
+def ensure_update_hook(
+    settings: dict[str, object],
+    update_check_command: str,
+    *,
+    target_dir: Path | None = None,
+    config_dir_name: str | None = None,
+) -> None:
     """Ensure SessionStart has one up-to-date GPD update-check hook.
 
     Rewrites stale managed commands in place so reinstalls repair interpreter
@@ -1153,7 +1188,12 @@ def ensure_update_hook(settings: dict[str, object], update_check_command: str) -
                 continue
 
             cmd = hook.get("command", "")
-            if not _is_hook_command_for_script(cmd, HOOK_SCRIPTS["check_update"]):
+            if not _is_hook_command_for_script(
+                cmd,
+                HOOK_SCRIPTS["check_update"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            ):
                 normalized_hooks.append(hook)
                 continue
 

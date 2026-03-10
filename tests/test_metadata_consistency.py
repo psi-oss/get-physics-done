@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gpd import registry as content_registry
 from gpd.contracts import ConventionLock
+from gpd.core.config import MODEL_PROFILES
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
 
@@ -98,8 +99,9 @@ def test_mcp_server_count_matches_public_entrypoints() -> None:
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:
     agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
-    assert agents_count == 17
+    assert agents_count == len(MODEL_PROFILES)
     assert "specialist agents" in _read("README.md")
+    assert f"across all {agents_count} agents" in _read("src/gpd/specs/workflows/set-profile.md")
 
 
 def test_health_check_count_matches_skill_documentation() -> None:
