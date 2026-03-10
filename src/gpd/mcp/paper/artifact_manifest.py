@@ -32,6 +32,7 @@ def build_artifact_manifest(
     *,
     tex_path: Path,
     bib_path: Path | None = None,
+    bib_entry_source: str | None = None,
     bibliography_audit_path: Path | None = None,
     bibliography_audit: BibliographyAudit | None = None,
     original_figures: list[FigureRef] | None = None,
@@ -58,6 +59,9 @@ def build_artifact_manifest(
     ]
 
     if bib_path is not None and bib_path.exists():
+        metadata: dict[str, str] = {}
+        if bib_entry_source:
+            metadata["entry_source"] = bib_entry_source
         artifacts.append(
             ArtifactRecord(
                 artifact_id=f"bib-{bib_path.stem}",
@@ -65,7 +69,7 @@ def build_artifact_manifest(
                 path=_display_path(bib_path, output_dir),
                 sha256=_sha256(bib_path),
                 produced_by="build_paper:write_bibliography",
-                metadata={"entry_source": "citation_sources"},
+                metadata=metadata,
             )
         )
 

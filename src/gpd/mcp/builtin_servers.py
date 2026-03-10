@@ -58,8 +58,6 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "command": "python",
         "args": ["-m", "arxiv_mcp_server"],
         "env": {},
-        "optional": True,
-        "module_check": "arxiv_mcp_server",
     },
 }
 
@@ -214,10 +212,6 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "read_paper",
         ],
         "registry_prefix": "gpd_arxiv",
-        "prerequisites": [
-            _PUBLIC_BOOTSTRAP_PREREQUISITE,
-            "pip install arxiv-mcp-server",
-        ],
         "health_check": {
             "tool": "search_papers",
             "input": {"query": "quantum field theory", "max_results": 1},

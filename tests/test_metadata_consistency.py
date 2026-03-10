@@ -181,6 +181,17 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
         assert script_targets[script_name] == f"{args[1]}:main"
 
 
+def test_arxiv_descriptor_tracks_required_dependency_surface() -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptors
+
+    project = tomllib.loads(_read("pyproject.toml"))["project"]
+    dependencies: list[str] = project["dependencies"]
+    assert any(item.startswith("arxiv-mcp-server") for item in dependencies)
+
+    descriptor = build_public_descriptors()["gpd-arxiv"]
+    assert descriptor["prerequisites"] == ["Install GPD first: npx -y get-physics-done"]
+
+
 def test_agent_count_matches_prompts_and_user_docs() -> None:
     agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
     assert agents_count == len(MODEL_PROFILES)

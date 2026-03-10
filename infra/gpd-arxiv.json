@@ -16,8 +16,7 @@
   ],
   "registry_prefix": "gpd_arxiv",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done",
-    "pip install arxiv-mcp-server"
+    "Install GPD first: npx -y get-physics-done"
   ],
   "health_check": {
     "tool": "search_papers",

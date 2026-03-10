@@ -16,8 +16,8 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `930`
-- Python files under `src/` and `tests/`: `155`
+- Live repo files analyzed in the current tree: `936`
+- Python files under `src/` and `tests/`: `161`
 - `src/gpd/commands/*.md`: `58`
 - `src/gpd/agents/*.md`: `22`
 - `src/gpd/specs/workflows/*.md`: `59`
@@ -26,7 +26,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `91`
+- `tests/**` files: `97`
 - `.claude/commands/gpd/*.md`: `58`
 - `.claude/agents/*.md`: `22`
 - `.claude/get-physics-done/workflows/**/*.md`: `59`
@@ -444,6 +444,18 @@ flowchart TD
 - `src/gpd/commands/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
 
+- `src/gpd/commands/health.md -> .gpd/{STATE.md,state.json,config.json}`
+  `include`
+
+- `src/gpd/commands/health.md -> gpd health {--raw,--fix --raw}`
+  `spawn`
+
+- `src/gpd/commands/suggest-next.md -> .gpd/{STATE.md,ROADMAP.md}`
+  `include`
+
+- `src/gpd/commands/suggest-next.md -> gpd suggest --raw`
+  `spawn`
+
 - `src/gpd/commands/new-project.md -> src/gpd/specs/workflows/new-project.md`
   `include`
 
@@ -835,6 +847,10 @@ flowchart TD
 - `src/gpd/adapters/install_utils.py -> .claude/hooks/**`
   `materialized`
 
+- `src/gpd/adapters/{base.py,install_utils.py,opencode.py} -> runtime target_dir/hooks/**`
+  `materialized`
+  Claude, Gemini, Codex, and OpenCode all copy the bundled hook files into `target_dir/hooks/`, even though only some runtimes wire those hooks to live entrypoints.
+
 - `src/gpd/adapters/install_utils.py -> .claude/get-physics-done/VERSION`
   `materialized`
 
@@ -842,6 +858,9 @@ flowchart TD
   `materialized`
 
 - `src/gpd/hooks/{check_update,statusline,codex_notify,runtime_detect}.py -> .claude/hooks/{check_update,statusline,codex_notify,runtime_detect}.py`
+  `materialized`
+
+- `src/gpd/hooks/{check_update,statusline,codex_notify,runtime_detect}.py -> runtime target_dir/hooks/{check_update,statusline,codex_notify,runtime_detect}.py`
   `materialized`
 
 - `src/gpd/cli.py::_install_single_runtime -> adapter.install()`
@@ -1246,6 +1265,41 @@ They explicitly preserve:
 
 ## Test and Contract Graph
 
+- `tests/core/test_repo_interdependency_graph.py -> REPO_INTERDEPENDENCY_GRAPH.md`
+  `count-contract`
+
+- `tests/core/test_prompt_wiring.py -> src/gpd/commands/**`
+  `count-contract`
+
+- `tests/core/test_prompt_wiring.py -> src/gpd/agents/**`
+  `count-contract`
+
+- `tests/core/test_prompt_wiring.py -> src/gpd/specs/{workflows,templates,references}/**`
+  `count-contract`
+
+- `tests/core/test_prompt_wiring.py -> REPO_INTERDEPENDENCY_GRAPH.md`
+  `count-contract`
+
+- `tests/core/test_prompt_cli_consistency.py -> src/gpd/cli.py`
+  `semantic`
+
+- `tests/core/test_prompt_cli_consistency.py -> src/gpd/commands/suggest-next.md`
+  `semantic`
+
+- `tests/adapters/test_claude_snapshot_parity.py -> .claude/**`
+  `materialized`
+
+- `tests/hooks/test_mirror_parity.py -> .claude/hooks/**`
+  `materialized`
+
+- `tests/test_release_consistency.py -> package.json`
+  `semantic`
+  Public npm and Python release versions are contractually locked together.
+
+- `tests/test_release_consistency.py -> pyproject.toml`
+  `semantic`
+  Public npm and Python release versions are contractually locked together.
+
 - `tests/test_metadata_consistency.py -> README.md`
   `count-contract`
 
@@ -1466,7 +1520,7 @@ Operationally important node families that are not canonical repo files:
 
 - `<workspace>/.gpd/{state.json,STATE.md,state.json.bak,config.json,phases/**,milestones/**,traces/**}`
 - `${GPD_HOME:-~/.gpd}/venv/**`
-- runtime config dirs `{cwd,home}/{.claude,.codex,.gemini,.opencode,.config/opencode}`
+- runtime config dirs `{cwd}/{.claude,.codex,.gemini,.opencode}` and `{home}/{.claude,.codex,.gemini,.config/opencode}`
 - `<workspace>/.mcp.json`
 - update caches `*/cache/gpd-update-check.json`
 - runtime install `*/get-physics-done/VERSION`

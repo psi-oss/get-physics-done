@@ -20,14 +20,20 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const readline = require("readline");
-const { version: packageVersion, repository } = require("../package.json");
+const {
+  version: packageVersion,
+  repository,
+  gpdPythonVersion: rawPythonPackageVersion,
+} = require("../package.json");
 
 const PYTHON_PACKAGE_NAME = "get-physics-done";
+const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
 const GITHUB_FALLBACK_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
+const PYPI_RELEASE_PROBE_BASE_URL = "https://pypi.org/pypi";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
 
@@ -315,6 +321,18 @@ function latestMainInstallCandidates() {
   return candidates;
 }
 
+function matchingPythonReleaseInstallCandidate(version) {
+  const spec = `${PYTHON_PACKAGE_NAME}==${version}`;
+  return {
+    label: `PyPI release ${spec}`,
+    spec,
+    probe: {
+      kind: "http",
+      url: `${PYPI_RELEASE_PROBE_BASE_URL}/${encodeURIComponent(PYTHON_PACKAGE_NAME)}/${encodeURIComponent(version)}/json`,
+    },
+  };
+}
+
 function bootstrapProbeOverrides() {
   if (bootstrapProbeOverridesCache !== undefined) {
     return bootstrapProbeOverridesCache;
@@ -473,7 +491,7 @@ async function probeInstallCandidate(candidate) {
     return { status: "unknown", reason: "no preflight probe configured" };
   }
   if (candidate.probe.kind === "http") {
-    return probeHttpCandidate(candidate.spec);
+    return probeHttpCandidate(candidate.probe.url || candidate.spec);
   }
   if (candidate.probe.kind === "git") {
     return probeGitCandidate(candidate.probe.repoUrl, candidate.probe.ref, candidate.probe.refNamespace);
@@ -599,9 +617,10 @@ function ensureManagedEnvironment(basePython) {
   return { gpdHome, venvDir, python: managedPython };
 }
 
-async function installManagedPackage(python, version, options = {}) {
+async function installManagedPackage(python, pythonVersion, options = {}) {
   const { forceReinstall = false, preferMain = false } = options;
-  const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${version}`;
+  const pypiCandidate = matchingPythonReleaseInstallCandidate(pythonVersion);
+  const pythonPackageSpec = pypiCandidate.spec;
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
@@ -646,24 +665,36 @@ async function installManagedPackage(python, version, options = {}) {
   }
 
   const action = forceReinstall ? "Reinstalling" : "Installing";
-  log(`${action} ${pythonPackageSpec} into the managed environment...`);
-  let installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv, {
-    forceReinstall,
-  });
-  if (installResult.status === 0) {
-    return { ok: true, pythonPackageSpec };
+  const pypiProbe = await probeInstallCandidate(pypiCandidate);
+  let attemptedPyPIInstall = false;
+  let installResult = null;
+  if (pypiProbe.status !== "unavailable") {
+    log(`${action} ${pythonPackageSpec} into the managed environment...`);
+    attemptedPyPIInstall = true;
+    installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv, {
+      forceReinstall,
+    });
+    if (installResult.status === 0) {
+      return { ok: true, pythonPackageSpec };
+    }
+    flushCapturedOutput(installResult);
+  } else {
+    logUnavailableCandidates([{ candidate: pypiCandidate, probe: pypiProbe }]);
   }
-  flushCapturedOutput(installResult);
 
-  const resolution = await resolveInstallCandidates(sourceInstallCandidates(version));
+  const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
   const fallbacks = resolution.candidates;
   logUnavailableCandidates(resolution.skipped);
-  if (fallbacks.length > 0 && resolution.skipped.length > 0) {
-    log(`PyPI install failed. Using ${fallbacks[0].label}.`);
+  if (fallbacks.length > 0) {
+    if (attemptedPyPIInstall && resolution.skipped.length > 0) {
+      log(`PyPI install failed. Using ${fallbacks[0].label}.`);
+    } else if (!attemptedPyPIInstall) {
+      log(`Using ${fallbacks[0].label} instead of the unavailable ${pypiCandidate.label}.`);
+    }
   }
   for (const [index, candidate] of fallbacks.entries()) {
     const previousLabel = index === 0
-      ? resolution.skipped.length > 0 ? null : "PyPI install"
+      ? attemptedPyPIInstall && resolution.skipped.length === 0 ? "PyPI install" : null
       : fallbacks[index - 1].label;
     if (previousLabel) {
       log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
@@ -1038,6 +1069,11 @@ async function main() {
     return;
   }
 
+  if (!pythonPackageVersion) {
+    error("Bootstrap package is missing its companion Python release metadata.");
+    process.exit(1);
+  }
+
   if ((args.includes("--global") || args.includes("-g")) && (args.includes("--local") || args.includes("-l"))) {
     error("Cannot specify both --global and --local.");
     process.exit(1);
@@ -1078,7 +1114,7 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const packageInstall = await installManagedPackage(managedEnv.python, packageVersion, {
+  const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
     forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
     preferMain: upgradeManagedPackage,
   });

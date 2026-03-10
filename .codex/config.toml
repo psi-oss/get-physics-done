@@ -1,0 +1,60 @@
+# GPD update notification
+notify = ["/Users/sergio/.gpd/venv/bin/python", ".codex/hooks/codex_notify.py"]
+
+[features]
+# GPD multi-agent support
+multi_agent = true
+# GPD MCP servers
+
+[mcp_servers.gpd-arxiv]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "arxiv_mcp_server"]
+
+[mcp_servers.gpd-conventions]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.conventions_server"]
+
+[mcp_servers.gpd-conventions.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-errors]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.errors_mcp"]
+
+[mcp_servers.gpd-errors.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-patterns]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.patterns_server"]
+
+[mcp_servers.gpd-patterns.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-protocols]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.protocols_server"]
+
+[mcp_servers.gpd-protocols.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-skills]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.skills_server"]
+
+[mcp_servers.gpd-skills.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-state]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.state_server"]
+
+[mcp_servers.gpd-state.env]
+LOG_LEVEL = "WARNING"
+
+[mcp_servers.gpd-verification]
+command = "/Users/sergio/.gpd/venv/bin/python"
+args = ["-m", "gpd.mcp.servers.verification_server"]
+
+[mcp_servers.gpd-verification.env]
+LOG_LEVEL = "WARNING"

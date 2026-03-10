@@ -34,7 +34,7 @@ Or install directly from GitHub:
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
+The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the companion `get-physics-done` Python release targeted by the current bootstrap package, and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime selection and scope directly:
 
@@ -61,7 +61,7 @@ npx -y get-physics-done --reinstall --claude --local
 npx -y get-physics-done --upgrade --claude --local
 ```
 
-`--reinstall` force-reinstalls the matching Python package into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
+`--reinstall` force-reinstalls that companion Python package version into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
 
 ## Uninstall
 

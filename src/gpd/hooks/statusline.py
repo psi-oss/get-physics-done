@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code / OpenCode / Gemini / Codex statusline hook — GPD edition.
+"""Claude Code / Gemini statusline hook — GPD edition.
 
 Reads JSON from stdin, outputs an ANSI-formatted statusline to stdout.
 Shows: model | current task | directory | research position | context usage.

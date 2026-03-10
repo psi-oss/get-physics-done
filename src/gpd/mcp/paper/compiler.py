@@ -290,6 +290,7 @@ async def build_paper(
     errors: list[str] = []
     figure_source_pairs: list[tuple[FigureRef, FigureRef]] = []
     bib_path: Path | None = None
+    bib_entry_source: str | None = "bib_data" if bib_data is not None else None
 
     # 1. Prepare figures
     if config.figures:
@@ -316,6 +317,7 @@ async def build_paper(
         )
         if bib_data is None:
             bib_data = built_bib
+            bib_entry_source = "citation_sources"
         bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
         await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
 
@@ -340,6 +342,7 @@ async def build_paper(
         output_dir,
         tex_path=tex_path,
         bib_path=bib_path,
+        bib_entry_source=bib_entry_source,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         figure_source_pairs=figure_source_pairs,
@@ -375,6 +378,7 @@ async def build_paper(
         output_dir,
         tex_path=tex_path,
         bib_path=bib_path,
+        bib_entry_source=bib_entry_source,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
         figure_source_pairs=figure_source_pairs,
