@@ -73,6 +73,15 @@ def _manifest_install_scope(config_dir: Path) -> str | None:
     return scope if scope in (SCOPE_LOCAL, SCOPE_GLOBAL) else None
 
 
+def _has_gpd_install(config_dir: Path) -> bool:
+    """Return True when *config_dir* appears to contain a GPD install."""
+    if (config_dir / MANIFEST_NAME).is_file():
+        return True
+
+    gpd_dir = config_dir / "get-physics-done"
+    return gpd_dir.is_dir() or (gpd_dir / "VERSION").is_file()
+
+
 def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect which AI agent runtime is currently active."""
     for adapter in iter_adapters():
@@ -106,12 +115,12 @@ def detect_install_scope(
 
     resolved_cwd = cwd or Path.cwd()
     local_dir = _local_runtime_dir(resolved_runtime, resolved_cwd)
-    if local_dir.is_dir():
+    if _has_gpd_install(local_dir):
         return _manifest_install_scope(local_dir) or SCOPE_LOCAL
 
     resolved_home = home or Path.home()
     global_dir = _global_runtime_dir(resolved_runtime, home=resolved_home)
-    if global_dir.is_dir():
+    if _has_gpd_install(global_dir):
         return _manifest_install_scope(global_dir) or SCOPE_GLOBAL
 
     return None

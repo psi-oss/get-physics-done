@@ -16,22 +16,22 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `904`
-- Python files under `src/` and `tests/`: `148`
+- Live repo files analyzed in the current tree: `930`
+- Python files under `src/` and `tests/`: `155`
 - `src/gpd/commands/*.md`: `58`
-- `src/gpd/agents/*.md`: `17`
-- `src/gpd/specs/workflows/*.md`: `60`
+- `src/gpd/agents/*.md`: `22`
+- `src/gpd/specs/workflows/*.md`: `59`
 - `src/gpd/specs/templates/**/*.md`: `65`
-- `src/gpd/specs/references/**/*.md`: `155`
+- `src/gpd/specs/references/**/*.md`: `156`
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `86`
+- `tests/**` files: `91`
 - `.claude/commands/gpd/*.md`: `58`
-- `.claude/agents/*.md`: `17`
+- `.claude/agents/*.md`: `22`
 - `.claude/get-physics-done/workflows/**/*.md`: `59`
 - `.claude/get-physics-done/templates/**/*.md`: `65`
-- `.claude/get-physics-done/references/**/*.md`: `154`
+- `.claude/get-physics-done/references/**/*.md`: `156`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -49,7 +49,7 @@ Generated-output families are modeled when code or tests depend on them:
 - `dist/*.tar.gz`
 - `<workspace>/.gpd/**`
 - runtime config files and caches
-- paper build outputs such as `paper.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
+- paper build outputs such as `main.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
 
 ## Edge Taxonomy
 
@@ -416,7 +416,7 @@ flowchart TD
   `authority`
   Canonical parser for agent prompt definitions.
 
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,estimate-cost,execute-phase,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
 
@@ -438,10 +438,10 @@ flowchart TD
 - `src/gpd/commands/research-phase.md -> src/gpd/agents/gpd-phase-researcher.md`
   `spawn`
 
-- `src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-referee}.md`
+- `src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
 
-- `src/gpd/commands/peer-review.md -> src/gpd/agents/gpd-referee.md`
+- `src/gpd/commands/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
 
 - `src/gpd/commands/new-project.md -> src/gpd/specs/workflows/new-project.md`
@@ -523,16 +523,34 @@ flowchart TD
 - `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/shared/shared-protocols.md`
   `include`
 
+- `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance}.md -> src/gpd/specs/references/shared/shared-protocols.md`
+  `include`
+
 - `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
+  `include`
+
+- `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-significance}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
   `include`
 
 - `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
   `include`
 
+- `src/gpd/agents/{gpd-review-math,gpd-review-physics}.md -> src/gpd/specs/references/physics-subfields.md`
+  `include`
+
 - `src/gpd/agents/{gpd-consistency-checker,gpd-debugger,gpd-plan-checker,gpd-planner,gpd-referee,gpd-verifier}.md -> src/gpd/specs/references/verification/core/verification-core.md`
   `include`
 
+- `src/gpd/agents/{gpd-review-math,gpd-review-physics}.md -> src/gpd/specs/references/verification/core/verification-core.md`
+  `include`
+
 - `src/gpd/agents/{gpd-bibliographer,gpd-paper-writer,gpd-referee}.md -> src/gpd/specs/references/publication/publication-pipeline-modes.md`
+  `include`
+
+- `src/gpd/agents/{gpd-review-literature,gpd-review-significance}.md -> src/gpd/specs/references/publication/publication-pipeline-modes.md`
+  `include`
+
+- `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md -> src/gpd/specs/references/publication/peer-review-panel.md`
   `include`
 
 - `src/gpd/agents/{gpd-phase-researcher,gpd-project-researcher,gpd-verifier}.md -> src/gpd/specs/references/research/research-modes.md`
@@ -667,7 +685,16 @@ flowchart TD
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-bibliographer.md`
   `spawn`
 
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/workflows/peer-review.md`
+  `include`
+
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-referee.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
 
 - `src/gpd/specs/workflows/write-paper.md -> selector set {mode, existing manuscript/artifact checks, approval and hard-gate branches}`
@@ -1120,7 +1147,7 @@ They explicitly preserve:
 - `src/gpd/mcp/paper/artifact_manifest.py -> ARTIFACT-MANIFEST.json`
   `generated-output`
 
-- `src/gpd/mcp/paper/compiler.py -> generated outputs {figures/**, main.tex, <bib>.bib, BIBLIOGRAPHY-AUDIT.json, ARTIFACT-MANIFEST.json, paper.pdf}`
+- `src/gpd/mcp/paper/compiler.py -> generated outputs {figures/**, main.tex, <bib>.bib, BIBLIOGRAPHY-AUDIT.json, ARTIFACT-MANIFEST.json, main.pdf}`
   `generated-output`
 
 - `tests/test_paper_e2e.py -> src/gpd/mcp/paper/compiler.py`
@@ -1135,7 +1162,7 @@ They explicitly preserve:
 - `tests/test_paper_e2e.py -> src/gpd/mcp/paper/bibliography.py`
   `hard-import`
 
-- `tests/test_paper_e2e.py -> generated outputs {main.tex, references.bib, ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json, paper.pdf, figures/**}`
+- `tests/test_paper_e2e.py -> generated outputs {main.tex, references.bib, ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json, main.pdf, figures/**}`
   `generated-output`
 
 - `tests/test_bibliography.py -> src/gpd/mcp/paper/bibliography.py`
@@ -1397,7 +1424,7 @@ Operationally important node families that are not canonical repo files:
 - runtime install `*/get-physics-done/VERSION`
 - `dist/*.whl`
 - `dist/*.tar.gz`
-- paper outputs `main.tex`, `references.bib`, `paper.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
+- paper outputs `main.tex`, `references.bib`, `main.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
 - GitHub Actions used by CI
 - PyPI version endpoint `https://pypi.org/pypi/get-physics-done/json`
 

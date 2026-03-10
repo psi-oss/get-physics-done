@@ -126,10 +126,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
         mcp_count = 0
         if mcp_servers:
-            if is_global:
-                mcp_config_path = Path.home() / ".claude.json"
-            else:
-                mcp_config_path = target_dir.parent / ".mcp.json"
+            mcp_config_path = _mcp_config_path(target_dir, is_global=is_global)
 
             mcp_config: dict = {}
             if mcp_config_path.exists():
@@ -192,12 +189,19 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from Claude Code config and clean the matching MCP config."""
+        manifest = read_settings(target_dir / "gpd-file-manifest.json")
+        install_scope = manifest.get("install_scope")
         result = super().uninstall(target_dir)
 
-        try:
-            is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
-        except OSError:
-            is_global_target = target_dir.expanduser() == self.global_config_dir.expanduser()
+        if install_scope == "global":
+            is_global_target = True
+        elif install_scope == "local":
+            is_global_target = False
+        else:
+            try:
+                is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
+            except OSError:
+                is_global_target = target_dir.expanduser() == self.global_config_dir.expanduser()
 
         settings_path = target_dir / "settings.json"
         if settings_path.exists():
@@ -258,7 +262,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                         result["removed"].append(f"MCP servers from {mcp_config_path.name}")
             return result
 
-        mcp_config_path = Path.home() / ".claude.json"
+        mcp_config_path = _mcp_config_path(target_dir, is_global=True)
         if not mcp_config_path.exists():
             return result
 
@@ -314,6 +318,15 @@ def _copy_agents_native(
         new_agent_names.add(agent_md.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
+
+
+def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:
+    """Return the Claude MCP config path associated with *target_dir*.
+
+    The adapter should keep config mutation scoped to the install target instead
+    of always reaching out to the caller's real home directory.
+    """
+    return target_dir.parent / (".claude.json" if is_global else ".mcp.json")
 
 
 def _entry_has_gpd_hook(

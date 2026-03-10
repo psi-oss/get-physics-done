@@ -17,9 +17,9 @@ PROMPT_ROOTS = (
     REPO_ROOT / "src/gpd/specs/templates",
 )
 
-INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\"([a-z0-9-]+)\"\)")
+INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 INIT_USAGE_RE = re.compile(r"\bgpd init ([a-z0-9-]+)\b")
-VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\"([a-z0-9-]+)\"\)")
+VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 VALIDATE_USAGE_RE = re.compile(r"\bgpd(?:\s+--raw)?\s+validate\s+([a-z0-9-]+)\b")
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 

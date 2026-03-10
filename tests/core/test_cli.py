@@ -221,6 +221,35 @@ def test_raw_json_get_error_outputs_json():
     assert "Invalid JSON input" in json.loads(result.output)["error"]
 
 
+def test_validate_command_context_accepts_tokenized_standalone_arguments(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(empty_dir),
+            "validate",
+            "command-context",
+            "discover",
+            "finite-temperature",
+            "RG",
+            "flow",
+            "--depth",
+            "deep",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:discover"
+    assert payload["context_mode"] == "project-aware"
+    assert payload["passed"] is True
+
+
 # ─── convention subcommands ─────────────────────────────────────────────────
 
 
@@ -363,6 +392,36 @@ def test_observe_show_filters_events(tmp_path: Path) -> None:
     assert payload["count"] == 1
     assert payload["events"][0]["category"] == "cli"
     assert payload["events"][0]["command"] == "timestamp"
+
+
+def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
+    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / "cli-a.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-03-10T00:00:00+00:00",
+                "session_id": "cli-a",
+                "category": "cli",
+                "name": "command",
+                "action": "start",
+                "status": "active",
+                "command": "timestamp",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "observe", "show", "--category", "cli", "--command", "timestamp"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["count"] == 1
+    assert payload["events"][0]["session_id"] == "cli-a"
 
 
 def test_observe_event_appends_event(tmp_path: Path) -> None:

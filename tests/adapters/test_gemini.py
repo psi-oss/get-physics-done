@@ -139,6 +139,11 @@ class TestConvertToGeminiToml:
         assert 'description = "My description"' in result
         assert "Prompt body" in result
 
+    def test_extracts_context_mode(self) -> None:
+        content = "---\nname: test\ncontext_mode: project-aware\n---\nPrompt body"
+        result = _convert_to_gemini_toml(content)
+        assert 'context_mode = "project-aware"' in result
+
     def test_uses_multiline_literal_string(self) -> None:
         content = "---\ndescription: D\n---\nMultiline\nprompt"
         result = _convert_to_gemini_toml(content)

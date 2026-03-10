@@ -255,6 +255,7 @@ class TestDetectInstallScope:
         home = tmp_path / "home"
         (tmp_path / ".codex").mkdir()
         (home / ".codex").mkdir(parents=True)
+        (tmp_path / ".codex" / "get-physics-done").mkdir(parents=True)
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -265,6 +266,7 @@ class TestDetectInstallScope:
     def test_returns_global_scope_when_only_global_runtime_dir_exists(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         (home / ".gemini").mkdir(parents=True)
+        (home / ".gemini" / "get-physics-done").mkdir(parents=True)
 
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -290,6 +292,33 @@ class TestDetectInstallScope:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert detect_install_scope(RUNTIME_CODEX) == SCOPE_LOCAL
+
+    def test_ignores_workspace_runtime_dir_without_gpd_install_when_global_install_exists(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (tmp_path / ".codex").mkdir()
+        global_dir = home / ".codex"
+        global_dir.mkdir(parents=True)
+        (global_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": SCOPE_GLOBAL}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_install_scope(RUNTIME_CODEX) == SCOPE_GLOBAL
+
+    def test_returns_none_when_runtime_dirs_have_no_gpd_install_markers(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (tmp_path / ".claude").mkdir()
+        (home / ".claude").mkdir(parents=True)
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_install_scope(RUNTIME_CLAUDE) is None
 
 
 # ─── get_gpd_install_dirs ──────────────────────────────────────────────────

@@ -621,6 +621,50 @@ def _read_events(path: Path) -> list[dict[str, object]]:
     return events
 
 
+def _read_session_events(layout: ProjectLayout) -> list[dict[str, object]]:
+    """Read and merge per-session event streams in timestamp order."""
+    if not layout.observability_sessions_dir.is_dir():
+        return []
+
+    events: list[dict[str, object]] = []
+    for session_events_path in sorted(layout.observability_sessions_dir.glob("*.jsonl")):
+        events.extend(_read_events(session_events_path))
+    events.sort(key=lambda item: str(item.get("timestamp", "")))
+    return events
+
+
+def _filter_events(
+    events: list[dict[str, object]],
+    *,
+    category: str | None = None,
+    name: str | None = None,
+    action: str | None = None,
+    status: str | None = None,
+    command: str | None = None,
+    phase: str | None = None,
+    plan: str | None = None,
+    last: int | None = None,
+) -> list[dict[str, object]]:
+    """Apply the public ``show_events`` filters to a raw event list."""
+    if category:
+        events = [event for event in events if event.get("category") == category]
+    if name:
+        events = [event for event in events if event.get("name") == name]
+    if action:
+        events = [event for event in events if event.get("action") == action]
+    if status:
+        events = [event for event in events if event.get("status") == status]
+    if command:
+        events = [event for event in events if event.get("command") == command]
+    if phase:
+        events = [event for event in events if event.get("phase") == phase]
+    if plan:
+        events = [event for event in events if event.get("plan") == plan]
+    if last and last > 0:
+        events = events[-last:]
+    return events
+
+
 def show_events(
     cwd: Path | None = None,
     *,
@@ -639,25 +683,39 @@ def show_events(
         return ObservabilityShowResult(count=0, events=[])
 
     if session:
-        events = _read_events(layout.observability_session_events(session))
+        events = _filter_events(
+            _read_events(layout.observability_session_events(session)),
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            last=last,
+        )
     else:
-        events = _read_events(layout.observability_events)
-
-    if category:
-        events = [event for event in events if event.get("category") == category]
-    if name:
-        events = [event for event in events if event.get("name") == name]
-    if action:
-        events = [event for event in events if event.get("action") == action]
-    if status:
-        events = [event for event in events if event.get("status") == status]
-    if command:
-        events = [event for event in events if event.get("command") == command]
-    if phase:
-        events = [event for event in events if event.get("phase") == phase]
-    if plan:
-        events = [event for event in events if event.get("plan") == plan]
-    if last and last > 0:
-        events = events[-last:]
+        global_events = _filter_events(
+            _read_events(layout.observability_events),
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            last=last,
+        )
+        events = global_events or _filter_events(
+            _read_session_events(layout),
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            last=last,
+        )
 
     return ObservabilityShowResult(count=len(events), events=events)

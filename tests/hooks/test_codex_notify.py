@@ -23,6 +23,10 @@ def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_pat
 
     local_cache = tmp_path / ".codex" / "cache"
     local_cache.mkdir(parents=True)
+    (tmp_path / ".codex" / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
     (local_cache / "gpd-update-check.json").write_text(
         json.dumps(
             {
@@ -57,6 +61,10 @@ def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> 
 
     local_cache = workspace / ".codex" / "cache"
     local_cache.mkdir(parents=True)
+    (workspace / ".codex" / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
     (local_cache / "gpd-update-check.json").write_text(
         json.dumps(
             {
@@ -84,6 +92,18 @@ def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> 
     output = stderr.getvalue()
     assert "Update available: v2.0.0" in output
     assert "Run: npx -y get-physics-done --codex --local" in output
+
+
+def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": {"cwd": "/tmp/project"}}))),
+        patch("gpd.hooks.codex_notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.codex_notify._check_and_notify_update") as mock_notify,
+    ):
+        main()
+
+    mock_trigger.assert_called_once_with("/tmp/project")
+    mock_notify.assert_called_once_with("/tmp/project")
 
 
 def test_main_accepts_string_workspace_payload() -> None:

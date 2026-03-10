@@ -383,6 +383,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:write-paper"
+        assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
@@ -397,6 +398,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:peer-review"
+        assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/REFEREE-REPORT.md" in payload["review_contract"]["required_outputs"]
         assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
@@ -442,11 +444,87 @@ class TestReviewValidationCommands:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/paper/REFEREE_RESPONSE.md" in payload["review_contract"]["required_outputs"]
         assert ".gpd/AUTHOR-RESPONSE.md" in payload["review_contract"]["required_outputs"]
         assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
         assert "peer-review decision artifacts when available" in payload["review_contract"]["required_evidence"]
+
+    def test_command_context_project_required_fails_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:progress"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is False
+        assert payload["guidance"] == "This command requires an initialized GPD project. Run /gpd:new-project."
+
+    def test_command_context_projectless_passes_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "map-theory"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:map-theory"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+
+    def test_command_context_project_aware_requires_explicit_inputs_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "discover"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:discover"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["phase number or standalone topic"]
+        assert payload["guidance"] == "Either provide phase number or standalone topic explicitly, or run /gpd:new-project."
+
+    def test_command_context_project_aware_accepts_explicit_inputs_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "discover", "finite-temperature RG flow --depth deep"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:discover"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
 
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(

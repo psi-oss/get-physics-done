@@ -24,6 +24,16 @@ def _mapping(value: object) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def _first_string(value: object, *keys: str) -> str:
+    """Return the first non-empty string for *keys* from *value* when it is a mapping."""
+    mapping = _mapping(value)
+    for key in keys:
+        candidate = mapping.get(key)
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return ""
+
+
 def _trigger_update_check(cwd: str) -> None:
     """Opportunistically refresh the update cache (throttled by check_update)."""
     try:
@@ -95,7 +105,7 @@ def main() -> None:
     if isinstance(workspace_value, str) and workspace_value:
         cwd = workspace_value
     else:
-        cwd = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
+        cwd = _first_string(workspace_value, "current_dir", "cwd", "path", "workspace_dir") or os.getcwd()
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)

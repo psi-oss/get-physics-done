@@ -55,9 +55,10 @@ class TestBuildPaper:
         bib.entries["einstein1905"] = Entry("article", [("author", "Einstein"), ("title", "SR"), ("year", "1905")])
 
         # Mock compile_paper to avoid needing actual TeX
-        mock_result = CompilationResult(success=True, pdf_path=tmp_path / "paper.pdf")
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
         # Write a fake PDF so the path exists
-        (tmp_path / "paper.pdf").write_bytes(b"%PDF-fake")
+        pdf_path.write_bytes(b"%PDF-fake")
 
         async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
             return mock_result
@@ -74,6 +75,7 @@ class TestBuildPaper:
         bib_content = (tmp_path / "references.bib").read_text()
         assert len(bib_content) > 0
         assert output.tex_content != ""
+        assert output.pdf_path == pdf_path
         assert output.success is True
         assert output.manifest_path == tmp_path / "ARTIFACT-MANIFEST.json"
         assert output.manifest is not None
@@ -81,7 +83,7 @@ class TestBuildPaper:
         artifact_ids = {artifact["artifact_id"] for artifact in manifest_content["artifacts"]}
         assert "tex-paper" in artifact_ids
         assert "bib-references" in artifact_ids
-        assert "pdf-paper" in artifact_ids
+        assert "pdf-main" in artifact_ids
 
     @pytest.mark.asyncio
     async def test_build_paper_prepares_config_figures(self, tmp_path, monkeypatch):
@@ -98,8 +100,9 @@ class TestBuildPaper:
             figures=[FigureRef(path=fig_path, caption="Velocity field.", label="velocity")],
         )
 
-        mock_result = CompilationResult(success=True, pdf_path=tmp_path / "paper.pdf")
-        (tmp_path / "paper.pdf").write_bytes(b"%PDF-fake")
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
 
         async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
             return mock_result
@@ -131,8 +134,9 @@ class TestBuildPaper:
             sections=[Section(title="Introduction", content="Hello world.")],
         )
 
-        mock_result = CompilationResult(success=True, pdf_path=tmp_path / "paper.pdf")
-        (tmp_path / "paper.pdf").write_bytes(b"%PDF-fake")
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
 
         async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
             return mock_result
@@ -270,7 +274,7 @@ class TestClassFileFallback:
         manifest_content = json.loads(output.manifest_path.read_text(encoding="utf-8"))
         artifact_ids = {artifact["artifact_id"] for artifact in manifest_content["artifacts"]}
         assert "tex-paper" in artifact_ids
-        assert "pdf-paper" not in artifact_ids
+        assert "pdf-main" not in artifact_ids
 
     @pytest.mark.asyncio
     async def test_build_paper_missing_jhep_support_file(self, tmp_path, monkeypatch):

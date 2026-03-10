@@ -301,6 +301,26 @@ class TestInstall:
         assert server["type"] == "stdio"
         assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
+    def test_global_install_scopes_claude_json_to_target_parent(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+
+        target = tmp_path / "custom-root" / ".claude"
+        target.mkdir(parents=True)
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        scoped_claude_json = target.parent / ".claude.json"
+        assert scoped_claude_json.exists()
+        assert not (fake_home / ".claude.json").exists()
+
     def test_install_raises_on_missing_dirs(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
         bad_root = tmp_path / "empty"
         bad_root.mkdir()

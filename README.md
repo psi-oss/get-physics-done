@@ -180,6 +180,16 @@ Typical research loop: `/gpd:new-project -> /gpd:plan-phase -> /gpd:execute-phas
 
 Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-to-referees -> /gpd:arxiv-submission`
 
+### Command Context
+
+Not every GPD command needs the same amount of project state.
+
+- `Projectless` commands can run before `.gpd/PROJECT.md` exists. Examples: `/gpd:new-project`, `/gpd:map-theory`, `/gpd:add-todo`.
+- `Project-aware` commands use project context when present, but can also run from explicit standalone inputs. Examples: `/gpd:discover "finite-temperature RG flow"`, `/gpd:literature-review "axion monodromy"`, `/gpd:sensitivity-analysis --target ... --params ...`.
+- `Project-required` commands depend on initialized GPD state and fail closed without a project. Examples: `/gpd:progress`, `/gpd:plan-phase`, `/gpd:write-paper`, `/gpd:peer-review`.
+
+Passing a manuscript path to a project-required command such as `/gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization.
+
 ### Full Command Reference (58 Commands)
 
 #### Project Initialization
@@ -311,6 +321,7 @@ The `gpd` CLI also exposes machine-readable validation commands for review-grade
 
 | Command | What it does |
 |---------|--------------|
+| `gpd validate command-context <command> [arguments]` | Report whether a command is global, projectless, project-aware, or project-required in the current workspace |
 | `gpd validate review-contract <command>` | Show the typed review contract for publication/review workflows |
 | `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript/artifact presence, and review prerequisites |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |

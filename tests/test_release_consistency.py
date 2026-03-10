@@ -53,6 +53,13 @@ def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Pat
     return wheel, sdist
 
 
+def _paper_template_paths(repo_root: Path) -> tuple[list[str], list[str]]:
+    template_root = repo_root / "src" / "gpd" / "mcp" / "paper" / "templates"
+    relative_paths = sorted(path.relative_to(repo_root / "src").as_posix() for path in template_root.rglob("*_template.tex"))
+    sdist_paths = [f"src/{path}" for path in relative_paths]
+    return relative_paths, sdist_paths
+
+
 def test_required_public_release_artifacts_exist() -> None:
     repo_root = _repo_root()
     required = (
@@ -352,6 +359,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
     repo_root = _repo_root()
     version = _public_release_version(repo_root)
     wheel, sdist = _build_public_release_artifacts(repo_root, tmp_path / "dist")
+    wheel_template_paths, sdist_template_paths = _paper_template_paths(repo_root)
 
     assert wheel.name == f"get_physics_done-{version}-py3-none-any.whl"
     assert sdist.name == f"get_physics_done-{version}.tar.gz"
@@ -360,6 +368,8 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         wheel_names = set(wheel_zip.namelist())
         assert "gpd/cli.py" in wheel_names
         assert "gpd/mcp/viewer/cli.py" not in wheel_names
+        for template_path in wheel_template_paths:
+            assert template_path in wheel_names
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         assert "gpd = gpd.cli:app" in entry_points
 
@@ -371,6 +381,8 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert f"{sdist_prefix}bin/install.js" in sdist_names
         assert f"{sdist_prefix}package.json" in sdist_names
         assert f"{sdist_prefix}MANUAL-TEST-PLAN.md" not in sdist_names
+        for template_path in sdist_template_paths:
+            assert f"{sdist_prefix}{template_path}" in sdist_names
 
         install_js = sdist_tar.extractfile(f"{sdist_prefix}bin/install.js")
         assert install_js is not None

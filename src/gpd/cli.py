@@ -2864,12 +2864,13 @@ def validate_consistency() -> None:
         raise typer.Exit(code=1)
 
 
-@validate_app.command("command-context")
+@validate_app.command("command-context", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def validate_command_context(
+    ctx: typer.Context,
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
-    arguments: str | None = typer.Argument(None, help="Optional raw command arguments for standalone-context checks"),
 ) -> None:
     """Run centralized command-context preflight based on command metadata."""
+    arguments = " ".join(str(arg) for arg in ctx.args) or None
     result = _build_command_context_preflight(command_name, arguments=arguments)
     _output(result)
     if not result.passed:

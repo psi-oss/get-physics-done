@@ -194,6 +194,27 @@ class TestReadCurrentTask:
         ):
             assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
 
+    def test_todo_dir_order_beats_newer_global_match(self, tmp_path: Path) -> None:
+        local_todo_dir = tmp_path / ".codex" / "todos"
+        global_todo_dir = tmp_path / "home" / ".codex" / "todos"
+        local_todo_dir.mkdir(parents=True)
+        global_todo_dir.mkdir(parents=True)
+
+        local_file = local_todo_dir / "session-123-agent-local.json"
+        global_file = global_todo_dir / "session-123-agent-global.json"
+        local_file.write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Prefer local"}]),
+            encoding="utf-8",
+        )
+        global_file.write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Do not prefer global"}]),
+            encoding="utf-8",
+        )
+        global_file.touch()
+
+        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[local_todo_dir, global_todo_dir]):
+            assert _read_current_task("session-123") == "Prefer local"
+
     def test_corrupt_todo_file_returns_empty(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
@@ -383,6 +404,10 @@ class TestMain:
         output = self._run_main({"model": {"display_name": "GPT-4o"}})
         assert "GPT-4o" in output
 
+    def test_model_name_falls_back_to_name_field(self) -> None:
+        output = self._run_main({"model": {"name": "Claude Sonnet"}})
+        assert "Claude Sonnet" in output
+
     def test_context_window_remaining_zero(self) -> None:
         """remaining_percentage=0 → shows 100% usage."""
         output = self._run_main({"context_window": {"remaining_percentage": 0}})
@@ -404,6 +429,10 @@ class TestMain:
         output = self._run_main({"context_window": None})
         assert "%" not in output
 
+    def test_context_window_supports_remaining_percent_alias(self) -> None:
+        output = self._run_main({"context_window": {"remainingPercent": 20}})
+        assert "100%" in output
+
     def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
         output = self._run_main(
             {
@@ -414,6 +443,10 @@ class TestMain:
         )
         assert "gpt-5" in output
         assert "research-project" in output
+
+    def test_workspace_mapping_accepts_cwd_field(self) -> None:
+        output = self._run_main({"workspace": {"cwd": "/tmp/alternate-workspace"}})
+        assert "alternate-workspace" in output
 
     def test_invalid_json_stdin_no_crash(self) -> None:
         """Invalid JSON on stdin → main() returns silently, no crash."""

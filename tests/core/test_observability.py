@@ -86,6 +86,79 @@ def test_instrument_gpd_function_async_emits_local_events(tmp_path: Path, monkey
     assert any(_event_name(event) == "test.async_func" for event in events)
 
 
+def test_show_events_falls_back_to_session_streams_when_global_stream_missing(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / "session-a.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-03-10T00:00:00+00:00",
+                "session_id": "session-a",
+                "category": "cli",
+                "name": "command",
+                "action": "finish",
+                "status": "ok",
+                "command": "timestamp",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import show_events
+
+    result = show_events(project, category="cli", command="timestamp")
+
+    assert result.count == 1
+    assert result.events[0]["session_id"] == "session-a"
+
+
+def test_show_events_falls_back_when_global_stream_has_no_matching_records(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    obs_dir = project / ".gpd" / "observability"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    (obs_dir / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-03-10T00:00:00+00:00",
+                "session_id": "cli-observe",
+                "category": "cli",
+                "name": "command",
+                "action": "start",
+                "status": "active",
+                "command": "observe show",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sessions_dir = obs_dir / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / "session-a.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-03-10T00:00:01+00:00",
+                "session_id": "session-a",
+                "category": "cli",
+                "name": "command",
+                "action": "finish",
+                "status": "ok",
+                "command": "timestamp",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import show_events
+
+    result = show_events(project, category="cli", command="timestamp")
+
+    assert result.count == 1
+    assert result.events[0]["session_id"] == "session-a"
+
+
 def test_prefixed_attrs_renames_cwd_to_gpd_cwd():
     """Verify _prefixed_attrs renames 'cwd' -> 'gpd.cwd', so only gpd.cwd exists."""
     from gpd.core.observability import _prefixed_attrs

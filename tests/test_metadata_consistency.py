@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import tomllib
 from pathlib import Path
@@ -20,6 +21,28 @@ def _repo_root() -> Path:
 
 def _read(relative_path: str) -> str:
     return (_repo_root() / relative_path).read_text(encoding="utf-8")
+
+
+def _decorated_mcp_tools(relative_path: str) -> list[str]:
+    """Return top-level ``@mcp.tool()`` function names from a server module."""
+    tree = ast.parse(_read(relative_path), filename=relative_path)
+    tool_names: list[str] = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call):
+                continue
+            func = decorator.func
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "tool"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "mcp"
+            ):
+                tool_names.append(node.name)
+                break
+    return tool_names
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -97,6 +120,65 @@ def test_mcp_server_count_matches_public_entrypoints() -> None:
     mcp_script_count = sum(1 for line in _project_script_lines(repo_root) if line.startswith('"gpd-mcp-'))
     assert mcp_server_count == 7
     assert mcp_server_count == mcp_script_count
+
+
+def test_managed_mcp_server_keys_match_public_descriptors_and_infra_inventory() -> None:
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS, build_public_descriptors
+
+    repo_root = _repo_root()
+    descriptor_keys = set(build_public_descriptors())
+    infra_keys = {path.stem for path in (repo_root / "infra").glob("gpd-*.json")}
+
+    assert GPD_MCP_SERVER_KEYS == descriptor_keys
+    assert GPD_MCP_SERVER_KEYS == infra_keys
+
+
+def test_public_mcp_descriptor_capabilities_match_server_tools() -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptors
+
+    descriptors = build_public_descriptors()
+    for name, descriptor in descriptors.items():
+        args = descriptor.get("args")
+        assert isinstance(args, list)
+        if args == ["-m", "arxiv_mcp_server"]:
+            continue
+
+        assert len(args) == 2
+        assert args[0] == "-m"
+        module_name = str(args[1])
+        module_path = Path("src") / Path(*module_name.split(".")).with_suffix(".py")
+
+        assert descriptor["capabilities"] == _decorated_mcp_tools(module_path.as_posix()), name
+
+
+def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts() -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptors
+
+    repo_root = _repo_root()
+    script_targets: dict[str, str] = {}
+    for line in _project_script_lines(repo_root):
+        name, target = line.split("=", 1)
+        script_targets[name.strip().strip('"')] = target.strip().strip('"')
+
+    descriptors = build_public_descriptors()
+    for name, descriptor in descriptors.items():
+        args = descriptor.get("args")
+        assert isinstance(args, list)
+        if args == ["-m", "arxiv_mcp_server"]:
+            assert "alternatives" not in descriptor
+            continue
+
+        alternatives = descriptor.get("alternatives")
+        assert isinstance(alternatives, dict), name
+        entry_point = alternatives.get("entry_point")
+        assert isinstance(entry_point, dict), name
+        script_name = entry_point.get("command")
+        assert isinstance(script_name, str), name
+        assert entry_point.get("args") == []
+        assert entry_point.get("notes") == "Requires gpd package installed"
+        assert len(args) == 2
+        assert args[0] == "-m"
+        assert script_targets[script_name] == f"{args[1]}:main"
 
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:

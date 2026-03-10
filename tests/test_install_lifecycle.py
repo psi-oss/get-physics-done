@@ -57,6 +57,7 @@ class TestClaudeCodeLifecycle:
         assert commands_dir.is_dir()
         md_files = list(commands_dir.rglob("*.md"))
         assert len(md_files) > 0, "No command .md files installed"
+        assert "context_mode:" in md_files[0].read_text(encoding="utf-8")
 
         # Agents installed
         agents_dir = target / "agents"
@@ -165,6 +166,7 @@ class TestGeminiLifecycle:
         assert commands_dir.is_dir()
         toml_files = list(commands_dir.rglob("*.toml"))
         assert len(toml_files) > 0, "No command .toml files installed"
+        assert "context_mode =" in toml_files[0].read_text(encoding="utf-8")
 
         # Agents installed
         agents_dir = target / "agents"
@@ -280,6 +282,7 @@ class TestCodexLifecycle:
         assert len(gpd_skills) > 0, "No GPD skill directories installed"
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists(), f"Missing SKILL.md in {skill_dir.name}"
+        assert "context_mode:" in (gpd_skills[0] / "SKILL.md").read_text(encoding="utf-8")
 
         # Agents installed as .md files
         agents_dir = target / "agents"
