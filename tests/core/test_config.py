@@ -147,66 +147,32 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
-    def test_backward_compat_mode_yolo(self, tmp_path: Path):
+    def test_removed_mode_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "mode": "yolo",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.YOLO
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
+        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+            load_config(tmp_path)
 
-    def test_backward_compat_mode_interactive(self, tmp_path: Path):
+    def test_removed_depth_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "mode": "interactive",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.SUPERVISED
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"depth": "standard"}))
+        with pytest.raises(ConfigError, match="`depth` was removed; use `research_mode` and `model_profile`"):
+            load_config(tmp_path)
 
-    def test_autonomy_overrides_mode(self, tmp_path: Path):
+    def test_parallelization_must_be_bool(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "autonomy": "guided",
-                    "mode": "yolo",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.GUIDED
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"parallelization": {"enabled": False}}))
+        with pytest.raises(
+            ConfigError,
+            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+        ):
+            load_config(tmp_path)
 
-    def test_parallelization_object(self, tmp_path: Path):
+    def test_plan_checker_requires_current_key(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "parallelization": {"enabled": False},
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.parallelization is False
-
-    def test_plan_checker_backward_compat(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "workflow": {"plan_check": False},
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.plan_checker is False
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"workflow": {"plan_check": False}}))
+        with pytest.raises(ConfigError, match="`workflow.plan_check` was removed; use `workflow.plan_checker`"):
+            load_config(tmp_path)
 
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()

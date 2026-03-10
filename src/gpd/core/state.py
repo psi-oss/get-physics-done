@@ -779,7 +779,7 @@ def ensure_state_schema(raw: dict | None) -> dict:
 
     normalized = _drop_removed_legacy_keys(dict(raw))  # shallow copy to avoid mutating input
 
-    # Drop fields with wrong types to let Pydantic fill defaults (backward compat).
+    # Drop fields with wrong types so Pydantic can refill them from defaults.
     defaults = default_state_dict()
     for key, default_val in defaults.items():
         if key in normalized and normalized[key] is not None:
@@ -1009,7 +1009,7 @@ def generate_state_markdown(raw: dict) -> str:
             label = key.replace("_", " ").title()
             custom_entries.append((key, label, value))
 
-    # Also collect legacy flat keys not in standard labels
+    # Also collect custom flat keys not covered by the standard labels
     for key, value in cl.items():
         if key not in _CONVENTION_LABELS and key != "custom_conventions" and not _is_bogus_value(value):
             if not any(k == key for k, _, _ in custom_entries):

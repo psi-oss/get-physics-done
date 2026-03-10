@@ -232,7 +232,7 @@ def test_ensure_state_schema_drops_removed_legacy_keys():
         "project": {"core_question": "Why?", "current_focus": "Testing"},
         "metrics": [{"label": "Phase 1 P1", "duration": "12m"}],
         "session": {"last_session": "2026-03-10"},
-        "position": {"progress": "[█████░░░░░] 50%"},
+        "position": {"progress": "[#####.....] 50%"},
     }
     result = ensure_state_schema(legacy)
     assert result["project_reference"]["core_research_question"] is None
