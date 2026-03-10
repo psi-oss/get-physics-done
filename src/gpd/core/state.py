@@ -83,6 +83,8 @@ __all__ = [
     "load_state_json",
     "parse_state_md",
     "parse_state_to_json",
+    "save_state_markdown",
+    "save_state_markdown_locked",
     "save_state_json",
     "save_state_json_locked",
     "state_add_blocker",
@@ -1135,21 +1137,11 @@ def _recover_intent(cwd: Path) -> None:
         _recover_intent_locked(cwd)
 
 
-def _write_state_markdown_locked(cwd: Path, content: str) -> dict:
-    """Write STATE.md and sync state.json while holding the canonical state lock."""
-    atomic_write(_state_md_path(cwd), content)
-    return sync_state_json_core(cwd, content)
-
-
-def sync_state_json_core(cwd: Path, md_content: str) -> dict:
-    """Core sync logic: parse STATE.md -> merge into state.json.
-
-    Caller MUST hold the state.json lock.
-    """
+def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
+    """Merge markdown-derived state into the existing JSON state."""
     json_path = _state_json_path(cwd)
     parsed = parse_state_to_json(md_content)
 
-    # Load existing JSON to preserve JSON-only fields
     existing = None
     try:
         existing = json.loads(json_path.read_text(encoding="utf-8"))
@@ -1170,36 +1162,99 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         merged["_version"] = parsed["_version"]
         merged["_synced_at"] = parsed["_synced_at"]
 
-        # Merge project reference
         if parsed.get("project_reference"):
             merged["project_reference"] = {**(merged.get("project_reference") or {}), **parsed["project_reference"]}
 
-        # Merge position
         if parsed.get("position"):
             merged["position"] = {**(merged.get("position") or {}), **parsed["position"]}
 
-        # Merge session, allowing markdown placeholders to clear stale values.
         if parsed.get("session") is not None:
             merged["session"] = {**(merged.get("session") or {}), **parsed["session"]}
 
-        # Replace decisions and blockers (fully represented in markdown)
         if parsed.get("decisions") is not None:
             merged["decisions"] = parsed["decisions"]
         if parsed.get("blockers") is not None:
             merged["blockers"] = parsed["blockers"]
 
-        # Metrics
         if parsed.get("performance_metrics") is not None:
             merged["performance_metrics"] = parsed["performance_metrics"]
 
-        # Bullet sections are fully represented in markdown, so markdown wins.
         for field in ("active_calculations", "intermediate_results", "open_questions"):
             if field in parsed:
                 merged[field] = parsed.get(field) or []
     else:
         merged = parsed
 
-    merged = ensure_state_schema(merged)
+    return ensure_state_schema(merged)
+
+
+def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> dict:
+    """Atomically persist state.json + STATE.md under the canonical state lock."""
+    planning = _planning_dir(cwd)
+    planning.mkdir(parents=True, exist_ok=True)
+    json_path = _state_json_path(cwd)
+    md_path = _state_md_path(cwd)
+    intent_file = _intent_path(cwd)
+    pid = os.getpid()
+    json_tmp = json_path.with_suffix(f".json.tmp.{pid}")
+    md_tmp = md_path.with_suffix(f".md.tmp.{pid}")
+
+    json_backup = safe_read_file(json_path)
+    md_backup = safe_read_file(md_path)
+
+    normalized = ensure_state_schema(state_obj)
+    json_rendered = json.dumps(normalized, indent=2) + "\n"
+
+    try:
+        atomic_write(json_tmp, json_rendered)
+        atomic_write(md_tmp, md_content)
+
+        intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
+        os.rename(json_tmp, json_path)
+        os.rename(md_tmp, md_path)
+        try:
+            intent_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+        try:
+            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_rendered)
+        except OSError:
+            if os.environ.get(ENV_GPD_DEBUG):
+                logger.debug("Failed to write state.json backup")
+    except Exception:
+        for f in (intent_file, json_tmp, md_tmp):
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if json_backup is not None:
+            try:
+                atomic_write(json_path, json_backup)
+            except OSError:
+                pass
+        if md_backup is not None:
+            try:
+                atomic_write(md_path, md_backup)
+            except OSError:
+                pass
+        raise
+
+    return normalized
+
+
+def _write_state_markdown_locked(cwd: Path, content: str) -> dict:
+    """Write STATE.md and sync state.json while holding the canonical state lock."""
+    return save_state_markdown_locked(cwd, content)
+
+
+def sync_state_json_core(cwd: Path, md_content: str) -> dict:
+    """Core sync logic: parse STATE.md -> merge into state.json.
+
+    Caller MUST hold the state.json lock.
+    """
+    json_path = _state_json_path(cwd)
+    merged = _build_state_from_markdown(cwd, md_content)
 
     json_content = json.dumps(merged, indent=2)
     atomic_write(json_path, json_content)
@@ -1266,60 +1321,14 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 
     Caller MUST hold the canonical state lock.
     """
-    planning = _planning_dir(cwd)
-    planning.mkdir(parents=True, exist_ok=True)
-    json_path = _state_json_path(cwd)
-    md_path = _state_md_path(cwd)
-    intent_file = _intent_path(cwd)
-    pid = os.getpid()
-    json_tmp = json_path.with_suffix(f".json.tmp.{pid}")
-    md_tmp = md_path.with_suffix(f".md.tmp.{pid}")
-
-    # Read existing for rollback
-    json_backup = safe_read_file(json_path)
-    md_backup = safe_read_file(md_path)
-
     normalized = ensure_state_schema(state_obj)
+    _write_state_pair_locked(cwd, state_obj=normalized, md_content=generate_state_markdown(normalized))
 
-    try:
-        # Phase 1: Write both temp files
-        atomic_write(json_tmp, json.dumps(normalized, indent=2) + "\n")
-        atomic_write(md_tmp, generate_state_markdown(normalized))
 
-        # Phase 2: Write intent marker, then rename both
-        intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
-        os.rename(json_tmp, json_path)
-        os.rename(md_tmp, md_path)
-        try:
-            intent_file.unlink(missing_ok=True)
-        except OSError:
-            pass
-
-        # Backup
-        try:
-            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json.dumps(normalized, indent=2) + "\n")
-        except OSError:
-            if os.environ.get(ENV_GPD_DEBUG):
-                logger.debug("Failed to write state.json backup")
-    except Exception:
-        # Cleanup temp files and intent
-        for f in (intent_file, json_tmp, md_tmp):
-            try:
-                f.unlink(missing_ok=True)
-            except OSError:
-                pass
-        # Restore backups
-        if json_backup is not None:
-            try:
-                atomic_write(json_path, json_backup)
-            except OSError:
-                pass
-        if md_backup is not None:
-            try:
-                atomic_write(md_path, md_backup)
-            except OSError:
-                pass
-        raise
+def save_state_markdown_locked(cwd: Path, md_content: str) -> dict:
+    """Atomically write markdown-derived state while holding the canonical state lock."""
+    merged = _build_state_from_markdown(cwd, md_content)
+    return _write_state_pair_locked(cwd, state_obj=merged, md_content=md_content)
 
 
 @instrument_gpd_function("state.save")
@@ -1327,6 +1336,13 @@ def save_state_json(cwd: Path, state_obj: dict) -> None:
     """Save state.json + STATE.md atomically (with locking)."""
     with _state_lock(cwd):
         save_state_json_locked(cwd, state_obj)
+
+
+@instrument_gpd_function("state.save_markdown")
+def save_state_markdown(cwd: Path, md_content: str) -> dict:
+    """Save STATE.md + state.json atomically from markdown content."""
+    with _state_lock(cwd):
+        return save_state_markdown_locked(cwd, md_content)
 
 
 # ─── State Commands ────────────────────────────────────────────────────────────

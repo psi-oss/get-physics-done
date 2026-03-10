@@ -55,6 +55,48 @@ _RUNTIME_ENV_SIGNALS: list[tuple[str, str]] = [
 ALL_RUNTIMES = [RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE]
 
 
+def _expand_tilde(raw_path: str | None) -> str | None:
+    """Expand leading ~ in environment-provided config paths."""
+    if not raw_path:
+        return raw_path
+    if raw_path == "~":
+        return str(Path.home())
+    if raw_path.startswith("~/"):
+        return str(Path.home() / raw_path[2:])
+    return raw_path
+
+
+def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
+    """Resolve the global config directory for *runtime* with env overrides."""
+    resolved_home = home or Path.home()
+
+    if runtime == RUNTIME_OPENCODE:
+        explicit_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+        if explicit_dir:
+            return Path(_expand_tilde(explicit_dir) or explicit_dir)
+
+        explicit_config = os.environ.get("OPENCODE_CONFIG")
+        if explicit_config:
+            expanded = _expand_tilde(explicit_config) or explicit_config
+            return Path(expanded).parent
+
+        xdg_home = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_home:
+            return Path(_expand_tilde(xdg_home) or xdg_home) / "opencode"
+
+    env_var = {
+        RUNTIME_CLAUDE: "CLAUDE_CONFIG_DIR",
+        RUNTIME_CODEX: "CODEX_CONFIG_DIR",
+        RUNTIME_GEMINI: "GEMINI_CONFIG_DIR",
+    }.get(runtime)
+    if env_var:
+        explicit_dir = os.environ.get(env_var)
+        if explicit_dir:
+            return Path(_expand_tilde(explicit_dir) or explicit_dir)
+
+    return resolved_home / RUNTIME_DIR_NAMES.get(runtime, RUNTIME_DIR_NAMES[RUNTIME_CLAUDE])
+
+
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     """Return runtimes in default order, optionally promoting one runtime to the front."""
     if preferred_runtime not in ALL_RUNTIMES:
@@ -88,7 +130,7 @@ def detect_active_runtime() -> str:
     # 3. Fall back to checking which home runtime directories exist
     home = Path.home()
     for runtime in ALL_RUNTIMES:
-        runtime_dir = home / RUNTIME_DIR_NAMES[runtime]
+        runtime_dir = _global_runtime_dir(runtime, home=home)
         if runtime_dir.is_dir():
             return runtime
 
@@ -107,7 +149,7 @@ def runtime_to_adapter_name(runtime: str) -> str:
 
 def runtime_dir(runtime: str) -> Path:
     """Return the home-relative config directory for a runtime."""
-    return Path.home() / RUNTIME_DIR_NAMES.get(runtime, RUNTIME_DIR_NAMES[RUNTIME_CLAUDE])
+    return _global_runtime_dir(runtime)
 
 
 def _unique_paths(paths: list[Path]) -> list[Path]:
@@ -134,7 +176,7 @@ def all_runtime_dirs(*, include_local: bool = False) -> list[Path]:
         dirs.extend(cwd / LOCAL_RUNTIME_DIR_NAMES[runtime] for runtime in ALL_RUNTIMES)
 
     home = Path.home()
-    dirs.extend(home / RUNTIME_DIR_NAMES[runtime] for runtime in ALL_RUNTIMES)
+    dirs.extend(_global_runtime_dir(runtime, home=home) for runtime in ALL_RUNTIMES)
     return _unique_paths(dirs)
 
 
@@ -157,7 +199,7 @@ def get_update_cache_files() -> list[Path]:
 
     if preferred_runtime in ALL_RUNTIMES:
         paths.append(_local_runtime_dir(preferred_runtime, cwd) / "cache" / "gpd-update-check.json")
-        paths.append((home / RUNTIME_DIR_NAMES[preferred_runtime]) / "cache" / "gpd-update-check.json")
+        paths.append(_global_runtime_dir(preferred_runtime, home=home) / "cache" / "gpd-update-check.json")
 
     paths.append(home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
     paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs())
@@ -178,7 +220,7 @@ def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
     home = Path.home()
     for runtime in _prioritized_runtimes(detect_active_runtime()):
         dirs.append(_local_runtime_dir(runtime, cwd) / "get-physics-done")
-        dirs.append(home / RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
+        dirs.append(_global_runtime_dir(runtime, home=home) / "get-physics-done")
     return _unique_paths(dirs)
 
 

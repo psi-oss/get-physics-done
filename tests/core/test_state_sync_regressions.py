@@ -6,6 +6,7 @@ from pathlib import Path
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
+    save_state_markdown,
     state_update_progress,
     state_validate,
     sync_state_json_core,
@@ -103,6 +104,30 @@ def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_pat
     assert result["session"]["stopped_at"] is None
     assert result["session"]["resume_file"] is None
     assert result["performance_metrics"]["rows"] == []
+
+
+def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / ".gpd"
+
+    existing = default_state_dict()
+    existing["position"]["current_phase"] = "01"
+    existing["position"]["status"] = "Ready to plan"
+    (planning / "state.json").write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(generate_state_markdown(existing), encoding="utf-8")
+
+    updated = default_state_dict()
+    updated["position"]["current_phase"] = "02"
+    updated["position"]["status"] = "Executing"
+    md_content = generate_state_markdown(updated)
+
+    result = save_state_markdown(cwd, md_content)
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+
+    assert (planning / "STATE.md").read_text(encoding="utf-8") == md_content
+    assert result["position"]["current_phase"] == "02"
+    assert stored["position"]["current_phase"] == "02"
+    assert stored["position"]["status"] == "Executing"
 
 
 def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_path: Path) -> None:

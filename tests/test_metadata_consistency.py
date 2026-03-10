@@ -104,7 +104,7 @@ def test_agent_count_matches_prompts_and_user_docs() -> None:
 
 def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
-    assert health_check_count == 11
+    assert health_check_count == 12
 
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command

@@ -12,6 +12,7 @@ from gpd.core.health import (
     HealthCheck,
     HealthReport,
     HealthSummary,
+    check_checkpoint_tags,
     check_compaction_needed,
     check_config,
     check_convention_lock,
@@ -157,6 +158,38 @@ class TestCheckGitStatus:
         assert any("not a git repository" in warning for warning in result.warnings)
 
 
+class TestCheckCheckpointTags:
+    def test_non_git_dir(self, tmp_path: Path):
+        completed = subprocess.CompletedProcess(
+            args=["git", "tag", "-l", "gpd-checkpoint/*"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: not a git repository (or any of the parent directories): .git",
+        )
+        with patch("gpd.core.health.subprocess.run", return_value=completed):
+            result = check_checkpoint_tags(tmp_path)
+
+        assert result.label == "Checkpoint Tags"
+        assert result.status == CheckStatus.WARN
+        assert result.details["repo_detected"] is False
+        assert any("not a git repository" in warning for warning in result.warnings)
+
+    def test_warns_on_stale_checkpoint_tags(self, tmp_path: Path):
+        def _run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "tag", "-l"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint/old\n", stderr="")
+            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            raise AssertionError(f"Unexpected args: {args}")
+
+        with patch("gpd.core.health.subprocess.run", side_effect=_run):
+            result = check_checkpoint_tags(tmp_path)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["stale_tags"] == ["gpd-checkpoint/old"]
+        assert any("older than" in warning for warning in result.warnings)
+
+
 class TestCheckRoadmapConsistency:
     def test_no_roadmap(self, tmp_path: Path):
         result = check_roadmap_consistency(tmp_path)
@@ -194,12 +227,34 @@ class TestRunHealth:
     def test_returns_report(self, tmp_path: Path):
         report = run_health(tmp_path)
         assert isinstance(report, HealthReport)
-        assert report.summary.total == 11
+        assert report.summary.total == 12
         assert report.overall in (CheckStatus.OK, CheckStatus.WARN, CheckStatus.FAIL)
 
     def test_fix_mode(self, tmp_path: Path):
         report = run_health(tmp_path, fix=True)
         assert isinstance(report.fixes_applied, list)
+
+    def test_fix_mode_removes_stale_checkpoint_tags(self, tmp_path: Path):
+        def _run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            if args == ["git", "--version"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="git version 2.45.0\n", stderr="")
+            if args[:3] == ["git", "status", "--porcelain"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "tag", "-l"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="gpd-checkpoint/old\n", stderr="")
+            if args[:4] == ["git", "log", "-1", "--format=%ct"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="0\n", stderr="")
+            if args[:3] == ["git", "tag", "-d"]:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="Deleted tag\n", stderr="")
+            raise AssertionError(f"Unexpected args: {args}")
+
+        with patch("gpd.core.health.subprocess.run", side_effect=_run):
+            report = run_health(tmp_path, fix=True)
+
+        assert any("Removed 1 stale checkpoint tag" in fix for fix in report.fixes_applied)
+        checkpoint_check = next(check for check in report.checks if check.label == "Checkpoint Tags")
+        assert checkpoint_check.status == CheckStatus.OK
+        assert checkpoint_check.details["stale_tags"] == []
 
 
 class TestRunDoctor:

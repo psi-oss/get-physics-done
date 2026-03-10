@@ -30,6 +30,7 @@ from gpd.core.phases import (
     roadmap_get_phase,
     validate_waves,
 )
+from gpd.core.state import default_state_dict, generate_state_markdown
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -331,6 +332,42 @@ def test_phase_add_no_roadmap(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     with pytest.raises(RoadmapNotFoundError):
         phase_add(tmp_path, "Something")
+
+
+def test_phase_add_leaves_state_files_unchanged_when_atomic_state_save_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 1: Existing Phase
+        **Goal:** exist
+        """,
+    )
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "01"
+    state["position"]["current_phase_name"] = "Existing Phase"
+    state["position"]["total_phases"] = 1
+    state["position"]["status"] = "Ready to plan"
+    state_md = generate_state_markdown(state)
+    _create_state(tmp_path, state_md)
+    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+    before_md = (tmp_path / ".gpd" / "STATE.md").read_text(encoding="utf-8")
+    before_json = (tmp_path / ".gpd" / "state.json").read_text(encoding="utf-8")
+
+    def _boom(_cwd: Path, _state_content: str) -> None:
+        raise RuntimeError("sync exploded")
+
+    monkeypatch.setattr("gpd.core.phases._save_state_markdown", _boom)
+
+    with pytest.raises(RuntimeError, match="sync exploded"):
+        phase_add(tmp_path, "New Feature")
+
+    assert (tmp_path / ".gpd" / "STATE.md").read_text(encoding="utf-8") == before_md
+    assert (tmp_path / ".gpd" / "state.json").read_text(encoding="utf-8") == before_json
 
 
 # ─── phase_insert ────────────────────────────────────────────────────────────────

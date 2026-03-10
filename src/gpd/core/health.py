@@ -12,6 +12,7 @@ import logging
 import re
 import subprocess
 import sys
+import time
 from enum import StrEnum
 from pathlib import Path
 
@@ -55,6 +56,10 @@ from gpd.core.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+SECONDS_PER_DAY = 24 * 60 * 60
+STALE_CHECKPOINT_TAG_MAX_AGE_DAYS = 7
+STALE_CHECKPOINT_TAG_MAX_AGE_SECONDS = STALE_CHECKPOINT_TAG_MAX_AGE_DAYS * SECONDS_PER_DAY
 
 # ─── Check Status ────────────────────────────────────────────────────────────
 
@@ -534,6 +539,62 @@ def check_git_status(cwd: Path) -> HealthCheck:
     return HealthCheck(status=status, label="Git Status", details=details, warnings=warnings)
 
 
+def check_checkpoint_tags(cwd: Path) -> HealthCheck:
+    """Warn about stale GPD checkpoint tags left behind in git."""
+    warnings: list[str] = []
+    details: dict[str, object] = {"repo_detected": True, "tag_count": 0, "stale_tags": []}
+
+    try:
+        result = subprocess.run(
+            ["git", "tag", "-l", "gpd-checkpoint/*"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            details["repo_detected"] = False
+            message = result.stderr.strip() or "git tag check failed"
+            warnings.append(message)
+            return HealthCheck(status=CheckStatus.WARN, label="Checkpoint Tags", details=details, warnings=warnings)
+
+        tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        details["tag_count"] = len(tags)
+
+        now = int(time.time())
+        stale_tags: list[str] = []
+        for tag in tags:
+            tag_result = subprocess.run(
+                ["git", "log", "-1", "--format=%ct", tag],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if tag_result.returncode != 0:
+                warnings.append(f"Unable to inspect checkpoint tag {tag}")
+                continue
+            try:
+                created_at = int(tag_result.stdout.strip())
+            except ValueError:
+                warnings.append(f"Invalid timestamp for checkpoint tag {tag}")
+                continue
+            if now - created_at >= STALE_CHECKPOINT_TAG_MAX_AGE_SECONDS:
+                stale_tags.append(tag)
+
+        details["stale_tags"] = stale_tags
+        if stale_tags:
+            warnings.append(
+                f"{len(stale_tags)} checkpoint tag(s) older than {STALE_CHECKPOINT_TAG_MAX_AGE_DAYS} days"
+            )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        details["repo_detected"] = False
+        warnings.append("git tag check failed")
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Checkpoint Tags", details=details, warnings=warnings)
+
+
 # ─── Auto-Fix ────────────────────────────────────────────────────────────────
 
 
@@ -588,6 +649,32 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
         except OSError as e:
             fixes.append(f"Failed to create config.json: {e}")
 
+    # Fix 3: Remove stale checkpoint tags.
+    checkpoint_check = next((c for c in checks if c.label == "Checkpoint Tags"), None)
+    stale_tags = checkpoint_check.details.get("stale_tags") if checkpoint_check else []
+    if checkpoint_check and isinstance(stale_tags, list) and stale_tags:
+        try:
+            result = subprocess.run(
+                ["git", "tag", "-d", *[str(tag) for tag in stale_tags]],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                fixes.append(f"Removed {len(stale_tags)} stale checkpoint tag(s)")
+                checkpoint_check.details["tag_count"] = max(
+                    0,
+                    int(checkpoint_check.details.get("tag_count", len(stale_tags))) - len(stale_tags),
+                )
+                checkpoint_check.details["stale_tags"] = []
+                checkpoint_check.warnings = []
+                checkpoint_check.status = CheckStatus.OK
+            else:
+                fixes.append(result.stderr.strip() or "Failed to delete stale checkpoint tags")
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            fixes.append(f"Failed to delete stale checkpoint tags: {e}")
+
     return fixes
 
 
@@ -605,6 +692,7 @@ _ALL_CHECKS: list[tuple[str, object]] = [
     ("plan_frontmatter", check_plan_frontmatter),
     ("latest_return", check_latest_return),
     ("config", check_config),
+    ("checkpoint_tags", check_checkpoint_tags),
     ("git_status", check_git_status),
 ]
 
@@ -804,6 +892,7 @@ __all__ = [
     "check_convention_lock",
     "check_environment",
     "check_git_status",
+    "check_checkpoint_tags",
     "check_latest_return",
     "check_orphans",
     "check_plan_frontmatter",

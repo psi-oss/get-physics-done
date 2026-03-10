@@ -174,11 +174,11 @@ def _extract_frontmatter(content: str) -> dict:
         return {"_parse_error": str(exc)}
 
 
-def _sync_state_json(cwd: Path, state_content: str) -> None:
-    """Lazy-load sync_state_json from state module."""
-    from gpd.core.state import sync_state_json
+def _save_state_markdown(cwd: Path, state_content: str) -> None:
+    """Lazy-load the canonical markdown -> state save path."""
+    from gpd.core.state import save_state_markdown
 
-    sync_state_json(cwd, state_content)
+    save_state_markdown(cwd, state_content)
 
 
 def _validate_transition(current_status: str, new_status: str) -> None:
@@ -1259,11 +1259,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
                     state_content,
                     flags=re.IGNORECASE,
                 )
-                atomic_write(state_path, state_content)
-                try:
-                    _sync_state_json(cwd, state_content)
-                except Exception:
-                    logger.warning("phase_add: failed to sync state.json after STATE.md update", exc_info=True)
+                _save_state_markdown(cwd, state_content)
 
         return PhaseAddResult(
             phase_number=new_phase_num,
@@ -1371,11 +1367,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                     state_content,
                     flags=re.IGNORECASE,
                 )
-                atomic_write(state_path, state_content)
-                try:
-                    _sync_state_json(cwd, state_content)
-                except Exception:
-                    logger.warning("phase_insert: failed to sync state.json after STATE.md update", exc_info=True)
+                _save_state_markdown(cwd, state_content)
 
         return PhaseInsertResult(
             phase_number=decimal_phase,
@@ -1577,11 +1569,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                         state_content,
                     )
 
-                    atomic_write(state_path, state_content)
-                    try:
-                        _sync_state_json(cwd, state_content)
-                    except Exception:
-                        logger.warning("phase_remove: failed to sync state.json after STATE.md update", exc_info=True)
+                    _save_state_markdown(cwd, state_content)
 
         return PhaseRemoveResult(
             removed=target_phase,
@@ -1900,11 +1888,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                         state_content,
                     )
 
-                    atomic_write(state_path, state_content)
-                    try:
-                        _sync_state_json(cwd, state_content)
-                    except Exception:
-                        logger.warning("phase_complete: failed to sync state.json after STATE.md update", exc_info=True)
+                    _save_state_markdown(cwd, state_content)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,
@@ -2060,11 +2044,7 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         rf"\g<1>{version} milestone completed and archived",
                         state_content,
                     )
-                    atomic_write(state_path, state_content)
-                    try:
-                        _sync_state_json(cwd, state_content)
-                    except Exception:
-                        logger.warning("milestone_complete: failed to sync state.json after STATE.md update", exc_info=True)
+                    _save_state_markdown(cwd, state_content)
 
         return MilestoneCompleteResult(
             version=version,

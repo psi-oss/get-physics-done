@@ -146,6 +146,24 @@ class TestRuntimeDir:
         """Unknown runtime string falls back to claude dir."""
         assert runtime_dir("nonexistent") == Path.home() / ".claude"
 
+    def test_env_overrides_take_precedence(self, tmp_path: Path) -> None:
+        env = {
+            "CLAUDE_CONFIG_DIR": str(tmp_path / "claude-custom"),
+            "CODEX_CONFIG_DIR": str(tmp_path / "codex-custom"),
+            "GEMINI_CONFIG_DIR": str(tmp_path / "gemini-custom"),
+            "OPENCODE_CONFIG_DIR": str(tmp_path / "opencode-custom"),
+        }
+        with patch.dict(os.environ, env, clear=False):
+            assert runtime_dir(RUNTIME_CLAUDE) == tmp_path / "claude-custom"
+            assert runtime_dir(RUNTIME_CODEX) == tmp_path / "codex-custom"
+            assert runtime_dir(RUNTIME_GEMINI) == tmp_path / "gemini-custom"
+            assert runtime_dir(RUNTIME_OPENCODE) == tmp_path / "opencode-custom"
+
+    def test_opencode_config_file_env_resolves_parent_dir(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "custom-opencode" / "config.toml"
+        with patch.dict(os.environ, {"OPENCODE_CONFIG": str(config_file)}, clear=False):
+            assert runtime_dir(RUNTIME_OPENCODE) == config_file.parent
+
 
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
@@ -161,6 +179,25 @@ class TestAllRuntimeDirs:
         assert home / ".codex" in dirs
         assert home / ".gemini" in dirs
         assert home / ".config" / "opencode" in dirs
+
+    def test_uses_env_override_paths(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        env = {
+            "CLAUDE_CONFIG_DIR": str(tmp_path / "claude-custom"),
+            "CODEX_CONFIG_DIR": str(tmp_path / "codex-custom"),
+            "GEMINI_CONFIG_DIR": str(tmp_path / "gemini-custom"),
+            "OPENCODE_CONFIG_DIR": str(tmp_path / "opencode-custom"),
+        }
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = all_runtime_dirs()
+
+        assert tmp_path / "claude-custom" in dirs
+        assert tmp_path / "codex-custom" in dirs
+        assert tmp_path / "gemini-custom" in dirs
+        assert tmp_path / "opencode-custom" in dirs
 
 
 # ─── get_todo_dirs / get_cache_dirs ────────────────────────────────────────
@@ -219,6 +256,26 @@ class TestGPDInstallDirs:
         assert all("get-physics-done" in str(d) for d in dirs)
         assert tmp_path / ".opencode" / "get-physics-done" in dirs
         assert home / ".config" / "opencode" / "get-physics-done" in dirs
+
+    def test_prefers_env_override_global_dirs(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        env = {
+            "CLAUDE_CONFIG_DIR": str(tmp_path / "claude-custom"),
+            "CODEX_CONFIG_DIR": str(tmp_path / "codex-custom"),
+            "GEMINI_CONFIG_DIR": str(tmp_path / "gemini-custom"),
+            "OPENCODE_CONFIG_DIR": str(tmp_path / "opencode-custom"),
+        }
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_gpd_install_dirs()
+
+        assert tmp_path / "claude-custom" / "get-physics-done" in dirs
+        assert tmp_path / "codex-custom" / "get-physics-done" in dirs
+        assert tmp_path / "gemini-custom" / "get-physics-done" in dirs
+        assert tmp_path / "opencode-custom" / "get-physics-done" in dirs
 
 
 # ─── update_command_for_runtime ────────────────────────────────────────────

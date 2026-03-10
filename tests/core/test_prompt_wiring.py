@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
+WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 
 
 def test_planner_templates_exist():
@@ -41,3 +43,16 @@ def test_prompt_sources_use_real_pattern_library_description():
 
     learned_pattern_template = (TEMPLATES_DIR / "learned-pattern.md").read_text(encoding="utf-8")
     assert "learned-patterns/patterns-by-domain/" in learned_pattern_template
+
+
+def test_workflow_task_prompts_do_not_embed_at_references() -> None:
+    invalid: list[str] = []
+
+    for path in sorted(WORKFLOWS_DIR.rglob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"task\([\s\S]*?\)", content):
+            if "@{GPD_INSTALL_DIR}" in match.group(0):
+                invalid.append(str(path.relative_to(REPO_ROOT)))
+                break
+
+    assert invalid == []
