@@ -506,7 +506,7 @@ class _GPDTyper(typer.Typer):
         try:
             return super().__call__(*args, **kwargs)
         except KeyError as exc:
-            msg = f"Command or resource not found: {exc}"
+            msg = f"Internal error (missing key): {exc}"
             _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=msg)
             if _raw:
                 err_console.print_json(json.dumps({"error": msg}))
@@ -1079,11 +1079,14 @@ def _load_state_dict() -> dict:
 
     state_path = ProjectLayout(_get_cwd()).state_json
     try:
-        return json.loads(state_path.read_text(encoding="utf-8"))
+        data = json.loads(state_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
+    if not isinstance(data, dict):
+        _error(f"state.json must be a JSON object, got {type(data).__name__}")
+    return data
 
 
 @result_app.command("list")

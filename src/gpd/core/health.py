@@ -136,6 +136,7 @@ def check_environment() -> HealthCheck:
         details["git_version"] = None
     except subprocess.TimeoutExpired:
         issues.append("git --version timed out")
+        details["git_version"] = None
 
     status = CheckStatus.FAIL if issues else CheckStatus.OK
     return HealthCheck(status=status, label="Environment", details=details, issues=issues)

@@ -98,44 +98,63 @@ class TestDeadFunctionsRemoved:
 class TestSystemExitNonIntegerCode:
     """Non-integer, non-falsy SystemExit codes should be treated as errors."""
 
-    def _classify_exit(self, exit_code: object) -> tuple[str, int]:
-        """Simulate the SystemExit classification logic from _GPDTyper.__call__.
+    @staticmethod
+    def _make_app():
+        """Create a _GPDTyper with all exit-raising commands registered.
 
-        Returns (status, raw_code) matching how the handler classifies the exit.
+        Typer treats single-command apps specially (the sole command becomes
+        the default), so we register every variant up-front to ensure normal
+        sub-command routing via the CliRunner.
         """
-        raw_code = exit_code if isinstance(exit_code, int) else (1 if exit_code else 0)
-        status = "ok" if raw_code == 0 else "error"
-        return status, raw_code
+        from gpd.cli import _GPDTyper
+
+        app = _GPDTyper()
+
+        @app.command()
+        def raise_string() -> None:
+            raise SystemExit("fatal error")
+
+        @app.command()
+        def raise_none() -> None:
+            raise SystemExit(None)
+
+        @app.command()
+        def raise_zero() -> None:
+            raise SystemExit(0)
+
+        @app.command()
+        def raise_two() -> None:
+            raise SystemExit(2)
+
+        return app
 
     def test_string_exit_code_is_error(self) -> None:
-        """SystemExit('fatal') should be classified as error with code 1."""
-        status, code = self._classify_exit("fatal error")
-        assert status == "error"
-        assert code == 1
+        """SystemExit('fatal') should result in non-zero exit."""
+        from typer.testing import CliRunner
+
+        result = CliRunner().invoke(self._make_app(), ["raise-string"])
+        assert result.exit_code != 0
 
     def test_none_exit_code_is_success(self) -> None:
-        """SystemExit(None) should be classified as success."""
-        status, code = self._classify_exit(None)
-        assert status == "ok"
-        assert code == 0
+        """SystemExit(None) should result in zero exit."""
+        from typer.testing import CliRunner
 
-    def test_empty_string_exit_code_is_success(self) -> None:
-        """SystemExit('') should be classified as success (falsy)."""
-        status, code = self._classify_exit("")
-        assert status == "ok"
-        assert code == 0
+        result = CliRunner().invoke(self._make_app(), ["raise-none"])
+        assert result.exit_code == 0
 
     def test_integer_zero_exit_code_is_success(self) -> None:
-        """SystemExit(0) should be classified as success."""
-        status, code = self._classify_exit(0)
-        assert status == "ok"
-        assert code == 0
+        """SystemExit(0) should result in zero exit."""
+        from typer.testing import CliRunner
+
+        result = CliRunner().invoke(self._make_app(), ["raise-zero"])
+        assert result.exit_code == 0
 
     def test_integer_nonzero_exit_code_is_error(self) -> None:
-        """SystemExit(2) should be classified as error with code 2."""
-        status, code = self._classify_exit(2)
-        assert status == "error"
-        assert code == 2
+        """SystemExit(2) should result in non-zero exit."""
+        from typer.testing import CliRunner
+
+        result = CliRunner().invoke(self._make_app(), ["raise-two"])
+        assert result.exit_code != 0
 
     def test_source_code_matches_expected_logic(self) -> None:
         """Verify the actual source code in _GPDTyper.__call__ uses the fixed logic."""

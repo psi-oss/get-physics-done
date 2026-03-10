@@ -418,7 +418,12 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
     # Validate before mutating state
     trial = dict(state["intermediate_results"][idx])
     trial.update(pending)
-    IntermediateResult(**trial)
+    try:
+        IntermediateResult(**trial)
+    except Exception as exc:
+        if type(exc).__name__ == "ValidationError":
+            raise ResultError(f"Invalid update: {exc}") from exc
+        raise
 
     # Commit to state only after validation succeeds
     state["intermediate_results"][idx].update(pending)

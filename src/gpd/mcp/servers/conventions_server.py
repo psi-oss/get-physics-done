@@ -237,7 +237,7 @@ def convention_lock_status(project_dir: str) -> dict:
     with gpd_span("mcp.conventions.lock_status"):
         try:
             lock = _load_lock_from_project(project_dir)
-        except (ConventionError, OSError) as e:
+        except (ConventionError, OSError, ValueError) as e:
             return {"error": str(e)}
         result = convention_list(lock)
 
@@ -286,7 +286,7 @@ def convention_set(
 
             # Atomic read-modify-write under file lock to prevent TOCTOU races.
             _lock, result = _update_lock_in_project(project_dir, _mutate)
-        except (ConventionError, OSError) as e:
+        except (ConventionError, OSError, ValueError) as e:
             return {"error": str(e)}
 
         if not result.updated:
@@ -327,8 +327,11 @@ def convention_check(lock: dict) -> dict:
     and identifies potential inconsistencies between related fields.
     """
     with gpd_span("mcp.conventions.check"):
-        parsed = ConventionLock(**lock)
-        result = _convention_check(parsed)
+        try:
+            parsed = ConventionLock(**lock)
+            result = _convention_check(parsed)
+        except (ConventionError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
     # Critical fields that should almost always be set
     critical = {"metric_signature", "fourier_convention", "natural_units"}
@@ -375,9 +378,12 @@ def convention_diff(lock_a: dict, lock_b: dict) -> dict:
     a plan's conventions against the project lock.
     """
     with gpd_span("mcp.conventions.diff"):
-        parsed_a = ConventionLock(**lock_a)
-        parsed_b = ConventionLock(**lock_b)
-        result = _convention_diff(parsed_a, parsed_b)
+        try:
+            parsed_a = ConventionLock(**lock_a)
+            parsed_b = ConventionLock(**lock_b)
+            result = _convention_diff(parsed_a, parsed_b)
+        except (ConventionError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
     critical_fields = {"metric_signature", "fourier_convention", "natural_units"}
     diffs: list[dict[str, object]] = []
@@ -432,9 +438,12 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
     from gpd.core.conventions import parse_assert_conventions
 
     with gpd_span("mcp.conventions.assert_validate"):
-        parsed_lock = ConventionLock(**lock)
-        assertions = parse_assert_conventions(file_content)
-        mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
+        try:
+            parsed_lock = ConventionLock(**lock)
+            assertions = parse_assert_conventions(file_content)
+            mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
+        except (ConventionError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
     if not assertions:
         return {

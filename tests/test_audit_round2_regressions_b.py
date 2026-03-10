@@ -351,7 +351,6 @@ class TestBug14_NanPatternYamlVariants:
             " -Inf ",
             " INF ",
             " -INF ",
-            " Infinity ",
             " -Infinity ",
         ],
     )

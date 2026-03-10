@@ -56,22 +56,25 @@ def lookup_pattern(
         keywords: Free-text search across titles, domains, categories, and tags.
     """
     with gpd_span("mcp.patterns.lookup", domain=domain or "", category=category or ""):
-        if keywords:
-            result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
+        try:
+            if keywords:
+                result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
+                return {
+                    "count": result.count,
+                    "patterns": [p.model_dump() for p in result.matches],
+                    "query": result.query,
+                    "library_exists": None,
+                }
+
+            result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
             return {
                 "count": result.count,
-                "patterns": [p.model_dump() for p in result.matches],
-                "query": result.query,
-                "library_exists": None,
+                "patterns": [p.model_dump() for p in result.patterns],
+                "query": None,
+                "library_exists": result.library_exists,
             }
-
-        result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
-        return {
-            "count": result.count,
-            "patterns": [p.model_dump() for p in result.patterns],
-            "query": None,
-            "library_exists": result.library_exists,
-        }
+        except (PatternError, OSError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()

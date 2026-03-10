@@ -462,7 +462,7 @@ def verify_summary(
     if self_check == "failed":
         errors.append("Self-check section indicates failure")
 
-    passed = len(missing_files) == 0 and self_check != "failed"
+    passed = len(missing_files) == 0 and self_check != "failed" and not (not commits_exist and hashes)
     return SummaryVerification(
         passed=passed,
         summary_exists=True,

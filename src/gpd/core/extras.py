@@ -126,6 +126,14 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                                 if val > 1:
                                     return "marginal"
                                 return "invalid"
+                            if bound < 0:
+                                distance = val - bound
+                                scale = abs(bound)
+                                if distance > 10 * scale:
+                                    return "valid"
+                                if distance > 2 * scale:
+                                    return "marginal"
+                                return "invalid"
                             if val > 10 * bound:
                                 return "valid"
                             if val > 2 * bound:
@@ -139,6 +147,16 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                                 if val < -1:
                                     return "marginal"
                                 return "invalid"
+                            if bound < 0:
+                                distance = bound - val  # positive when val < bound
+                                scale = abs(bound)
+                                if distance > 10 * scale:
+                                    return "valid"
+                                if distance > 2 * scale:
+                                    return "marginal"
+                                if distance > 0:
+                                    return "marginal"
+                                return "invalid"
                             if abs(val) < 0.1 * abs(bound):
                                 return "valid"
                             if abs(val) < 0.5 * abs(bound):
@@ -147,6 +165,12 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                     elif op == ">>":
                         if bound_is_lower:
                             # bound >> val  =>  val << bound  =>  val much less than bound
+                            if bound == 0:
+                                if val < -10:
+                                    return "valid"
+                                if val < -1:
+                                    return "marginal"
+                                return "invalid"
                             if abs(val) < 0.1 * abs(bound):
                                 return "valid"
                             if abs(val) < 0.5 * abs(bound):
@@ -158,6 +182,14 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                                 if val > 10:
                                     return "valid"
                                 if val > 1:
+                                    return "marginal"
+                                return "invalid"
+                            if bound < 0:
+                                distance = val - bound
+                                scale = abs(bound)
+                                if distance > 10 * scale:
+                                    return "valid"
+                                if distance > 2 * scale:
                                     return "marginal"
                                 return "invalid"
                             if val > 10 * bound:
