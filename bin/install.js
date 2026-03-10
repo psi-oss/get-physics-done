@@ -665,12 +665,45 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   }
 
   const action = forceReinstall ? "Reinstalling" : "Installing";
-  const pypiProbe = await probeInstallCandidate(pypiCandidate);
-  let attemptedPyPIInstall = false;
+
+  // Try GitHub source candidates first (SSH then HTTPS).
+  const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
+  const sourceCandidates = resolution.candidates;
+  logUnavailableCandidates(resolution.skipped);
+
   let installResult = null;
+  if (sourceCandidates.length > 0) {
+    log(`${action} GPD from ${sourceCandidates[0].label} into the managed environment...`);
+    installResult = runPipInstall(python, sourceCandidates[0].spec, pipInstallEnv, {
+      forceReinstall,
+      noCache: sourceCandidates[0].noCache,
+    });
+    if (installResult.status === 0) {
+      return { ok: true, pythonPackageSpec, installedFrom: sourceCandidates[0].spec };
+    }
+    flushCapturedOutput(installResult);
+
+    for (const [index, candidate] of sourceCandidates.entries()) {
+      if (index === 0) {
+        continue;
+      }
+      const previousLabel = sourceCandidates[index - 1].label;
+      log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+      installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
+        forceReinstall,
+        noCache: candidate.noCache,
+      });
+      if (installResult.status === 0) {
+        return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
+      }
+      flushCapturedOutput(installResult);
+    }
+  }
+
+  // Final fallback: PyPI (if the package is published there).
+  const pypiProbe = await probeInstallCandidate(pypiCandidate);
   if (pypiProbe.status !== "unavailable") {
-    log(`${action} ${pythonPackageSpec} into the managed environment...`);
-    attemptedPyPIInstall = true;
+    log(`GitHub source failed. Trying PyPI ${pythonPackageSpec}...`);
     installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv, {
       forceReinstall,
     });
@@ -680,33 +713,6 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
     flushCapturedOutput(installResult);
   } else {
     logUnavailableCandidates([{ candidate: pypiCandidate, probe: pypiProbe }]);
-  }
-
-  const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
-  const fallbacks = resolution.candidates;
-  logUnavailableCandidates(resolution.skipped);
-  if (fallbacks.length > 0) {
-    if (attemptedPyPIInstall && resolution.skipped.length > 0) {
-      log(`PyPI install failed. Using ${fallbacks[0].label}.`);
-    } else if (!attemptedPyPIInstall) {
-      log(`Using ${fallbacks[0].label} instead of the unavailable ${pypiCandidate.label}.`);
-    }
-  }
-  for (const [index, candidate] of fallbacks.entries()) {
-    const previousLabel = index === 0
-      ? attemptedPyPIInstall && resolution.skipped.length === 0 ? "PyPI install" : null
-      : fallbacks[index - 1].label;
-    if (previousLabel) {
-      log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
-    }
-    installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
-      forceReinstall,
-      noCache: candidate.noCache,
-    });
-    if (installResult.status === 0) {
-      return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
-    }
-    flushCapturedOutput(installResult);
   }
 
   return { ok: false, pythonPackageSpec };

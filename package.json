@@ -1,6 +1,6 @@
 {
   "name": "get-physics-done",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "gpdPythonVersion": "0.1.0",
   "description": "Open-source AI copilot for physics research across Claude Code, Gemini CLI, Codex, and OpenCode",
   "bin": {
