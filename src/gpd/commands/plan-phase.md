@@ -80,7 +80,7 @@ Normalize phase input in step 2 before any directory lookups.
 - [ ] Is there a **validation strategy** for each major result (not just at the end)?
 - [ ] Are **expected limiting cases** listed with the values/behaviors they should reproduce?
 - [ ] Are tasks **small enough** that a single subagent can complete each one without context overflow?
-- [ ] If the phase involves **numerical experiments**, are parameter sweeps, convergence studies, and error budgets planned? (See `/gpd:parameter-sweep`, `/gpd:sensitivity-analysis`, `/gpd:experiment-designer` agent)
+- [ ] If the phase involves **numerical experiments**, are parameter sweeps, convergence studies, and error budgets planned? (See `/gpd:parameter-sweep`, `/gpd:sensitivity-analysis`, `gpd-experiment-designer` agent)
 - [ ] If the phase has **competing predictions or regime-dependent behavior**, is a hypothesis-driven plan structure used? (predict → derive → verify cycle; see `hypothesis-driven-research.md` reference in gpd-planner)
 
 ## Domain-Aware Planning

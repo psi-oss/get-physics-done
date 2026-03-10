@@ -99,9 +99,10 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         if bound is None:
             return None
         if bound < 0:
-            if val < 0.1 * bound:
+            # For negative bound, "much less than" means much more negative
+            if val < bound * 10:  # e.g., val < -50 for bound=-5
                 return "valid"
-            if val < 0.5 * bound:
+            if val < bound * 2:  # e.g., val < -10 for bound=-5
                 return "marginal"
             return "invalid"
         if bound == 0:
@@ -127,6 +128,15 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
             if abs(val) > 10:
                 return "valid"
             if abs(val) > 1:
+                return "marginal"
+            return "invalid"
+        if bound < 0:
+            # For negative bound, "much greater than" means much less negative or positive
+            if val > abs(bound) * 10:  # way more positive
+                return "valid"
+            if val > abs(bound) * 2:  # somewhat more positive
+                return "marginal"
+            if val > 0:  # at least positive
                 return "marginal"
             return "invalid"
         if abs(val) > 10 * abs(bound):

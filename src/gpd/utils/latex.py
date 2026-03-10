@@ -34,7 +34,7 @@ def _split_by_math_mode(tex: str) -> list[tuple[str, bool]]:
     Handles: $...$, $$...$$, \[...\], \(...\), and \begin/\end math environments.
     """
     math_pattern = re.compile(
-        r"(\$\$.*?\$\$|\$[^$]+?\$|\\\[.*?\\\]|\\\(.*?\\\)"
+        r"((?<!\\)\$\$.*?(?<!\\)\$\$|(?<!\\)\$[^$\n]+?(?<!\\)\$|\\\[.*?\\\]|\\\(.*?\\\)"
         r"|\\begin\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\}.*?"
         r"\\end\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\})",
         re.DOTALL,
@@ -58,7 +58,16 @@ def _fix_unescaped_underscores(tex: str) -> str:
         if is_math:
             result.append(content)
         else:
-            fixed = re.sub(r"(?<!\\)_", r"\\_", content)
+            # Protect underscores inside common LaTeX commands
+            protected = re.sub(
+                r"(\\(?:ref|label|cite|url|href|eqref|autoref|cref|Cref)\{[^}]*\})",
+                lambda m: m.group(0).replace("_", "\x00"),
+                content,
+            )
+            # Escape remaining underscores
+            protected = re.sub(r"(?<!\\)_", r"\\_", protected)
+            # Restore protected underscores
+            fixed = protected.replace("\x00", "_")
             result.append(fixed)
     return "".join(result)
 
@@ -316,10 +325,21 @@ def sanitize_latex(latex: str) -> str:
 def clean_latex_fences(raw: str) -> str:
     """Strip markdown code fences from LLM output."""
     latex = raw.strip()
-    if "```latex" in latex:
-        latex = latex.split("```latex", 1)[1].split("```", 1)[0].strip()
+    if "```latex" in latex or "```tex" in latex or "```LaTeX" in latex:
+        # Strip any of the fence+tag variants
+        for tag in ("```latex", "```tex", "```LaTeX"):
+            if tag in latex:
+                latex = latex.split(tag, 1)[1].split("```", 1)[0].strip()
+                break
     elif "```" in latex:
         parts = latex.split("```")
         if len(parts) >= 3:
-            latex = parts[1].strip()
+            content = parts[1]
+            # Strip language tag (e.g. ```Tex, ```TeX, ```plaintex) if present
+            first_newline = content.find('\n')
+            if first_newline > 0:
+                first_line = content[:first_newline].strip().lower()
+                if first_line in ('latex', 'tex', 'plaintex'):
+                    content = content[first_newline + 1:]
+            latex = content.strip()
     return latex

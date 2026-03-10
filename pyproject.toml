@@ -14,6 +14,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
@@ -63,9 +65,7 @@ ignore_no_config = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = [
-    "integration: tests requiring external services (database, etc.)",
-]
+markers = []
 filterwarnings = [
     "ignore::logfire._internal.config.LogfireNotConfiguredWarning",
 ]

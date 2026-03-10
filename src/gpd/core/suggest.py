@@ -590,7 +590,9 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     if state:
         convention_lock = state.get("convention_lock")
         if isinstance(convention_lock, dict):
-            missing = [k for k in CORE_CONVENTIONS if not convention_lock.get(k)]
+            from gpd.core.conventions import is_bogus_value
+
+            missing = [k for k in CORE_CONVENTIONS if not convention_lock.get(k) or is_bogus_value(convention_lock.get(k))]
             if missing:
                 ctx_kwargs["missing_conventions"] = tuple(missing)
                 suggestions.append(
@@ -728,7 +730,7 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         from gpd.core.state import load_state_json
 
         return load_state_json(cwd)
-    except ImportError:
+    except Exception:
         pass
 
     # Fallback: direct JSON read

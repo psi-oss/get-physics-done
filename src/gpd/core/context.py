@@ -36,6 +36,9 @@ from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
 )
 from gpd.core.utils import (
+    phase_sort_key as _phase_sort_key,
+)
+from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
 )
 from gpd.core.utils import (
@@ -57,7 +60,6 @@ _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
 # Directories to skip when scanning for research files.
 _IGNORE_DIRS = frozenset(
     {
-        "node_modules",
         ".git",
         PLANNING_DIR_NAME,
         ".claude",
@@ -65,6 +67,15 @@ _IGNORE_DIRS = frozenset(
         ".gemini",
         ".opencode",
         ".config",
+        ".venv",
+        ".tox",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".vscode",
+        ".idea",
+        "node_modules",
+        "__pycache__",
         "get-physics-done",
         "agents",
         "command",
@@ -935,7 +946,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
     try:
         dirs = sorted(
             (d.name for d in phases_dir.iterdir() if d.is_dir()),
-            key=lambda n: [int(x) if x.isdigit() else x for x in re.split(r"[.\-]", n)],
+            key=_phase_sort_key,
         )
         for dir_name in dirs:
             dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", dir_name)

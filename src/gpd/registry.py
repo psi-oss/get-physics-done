@@ -255,7 +255,6 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-derive": "computation",
     "gpd-cost": "diagnostics",
     "gpd-set": "configuration",
-    "gpd-settings": "configuration",
     "gpd-update": "management",
     "gpd-undo": "management",
     "gpd-sync": "management",

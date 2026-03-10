@@ -103,7 +103,7 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
     ],
 }
 
-# ─── Error Class Catalog (101 classes) ────────────────────────────────────────
+# ─── Error Class Catalog (104 classes) ────────────────────────────────────────
 
 # Map error class IDs to detection checks. From verification-gap-analysis.md.
 ERROR_CLASS_COVERAGE: dict[int, dict[str, object]] = {

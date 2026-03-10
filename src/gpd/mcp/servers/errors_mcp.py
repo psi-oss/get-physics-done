@@ -86,12 +86,14 @@ def _infer_domain_from_id(error_id: int) -> str:
         return "core"
     if 26 <= error_id <= 51:
         return "field_theory"
-    if 52 <= error_id <= 81:
+    if 52 <= error_id <= 71:
         return "extended"
+    if 72 <= error_id <= 81:
+        return "deep_domain"
     if 82 <= error_id <= 101:
         return "cross_domain"
     if 102 <= error_id <= 104:
-        return "deep_domain"
+        return "newly_identified"
     return "unknown"
 
 
@@ -411,8 +413,9 @@ def list_error_classes(domain: str | None = None) -> dict[str, object]:
 
     Args:
         domain: Optional domain filter. Available domains:
-                "core" (#1-25), "field_theory" (#26-51), "extended" (#52-81),
-                "cross_domain" (#82-101), "deep_domain" (#102-104).
+                "core" (#1-25), "field_theory" (#26-51), "extended" (#52-71),
+                "deep_domain" (#72-81), "cross_domain" (#82-101),
+                "newly_identified" (#102-104).
     """
     with gpd_span("mcp.errors.list", domain=domain or "all"):
         store = _get_store()

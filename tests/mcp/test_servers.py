@@ -7,7 +7,7 @@ Covers: conventions, errors, patterns, protocols, skills, state, verification.
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -80,7 +80,7 @@ class TestConventionsServer:
         lock_a = {"natural_units": "natural"}
         lock_b = {"natural_units": "natural", "metric_signature": "(+,-,-,-)"}
         result = convention_diff(lock_a, lock_b)
-        assert result["diff_count"] >= 1
+        assert result["diff_count"] == 1
 
     def test_assert_convention_validate_matching(self):
         from gpd.mcp.servers.conventions_server import assert_convention_validate
@@ -778,7 +778,7 @@ class TestStateServer:
 
         with patch("gpd.mcp.servers.state_server.run_health", return_value=mock_report) as mock_fn:
             result = run_health_check("/fake/project", fix=True)
-        mock_fn.assert_called_once()
+        mock_fn.assert_called_once_with(ANY, fix=True)
         assert result["fixes_applied"] == 1
 
     def test_get_config(self):
@@ -1084,8 +1084,9 @@ class TestErrorStoreParsing:
         assert _infer_domain_from_id(1) == "core"
         assert _infer_domain_from_id(26) == "field_theory"
         assert _infer_domain_from_id(52) == "extended"
+        assert _infer_domain_from_id(72) == "deep_domain"
         assert _infer_domain_from_id(82) == "cross_domain"
-        assert _infer_domain_from_id(102) == "deep_domain"
+        assert _infer_domain_from_id(102) == "newly_identified"
         assert _infer_domain_from_id(200) == "unknown"
 
 
