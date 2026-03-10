@@ -1213,7 +1213,7 @@ task(
   subagent_type="gpd-debugger",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.
   Investigate why gap closure did not resolve this verification failure.
-  Read: {VERIFICATION_FILE}, {GAP_CLOSURE_SUMMARY}, {ORIGINAL_SUMMARY}
+  file_read: {VERIFICATION_FILE}, {GAP_CLOSURE_SUMMARY}, {ORIGINAL_SUMMARY}
   Identify the root cause and recommend: fix-and-retry vs re-plan vs escalate.",
   model="{debugger_model}",
   description="Diagnose persistent verification failure"
@@ -1312,8 +1312,8 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your ro
 Check phase {PHASE_NUMBER} results against the full conventions ledger and all accumulated project state.
 Read conventions from state.json via: gpd convention list
 And from SUMMARY.md frontmatter convention fields.
-Read: .gpd/STATE.md, .gpd/state.json
-Read: All SUMMARY.md files from phase {PHASE_NUMBER}
+file_read: .gpd/STATE.md, .gpd/state.json
+file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 
 Return consistency_status with any issues found.
 ", subagent_type="gpd-consistency-checker", model="{consistency_model}", description="Rapid consistency check")
@@ -1358,8 +1358,8 @@ Resolve convention inconsistencies found by consistency checker after phase {PHA
 </issues>
 
 <project_context>
-Read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
-Read: All SUMMARY.md files from phase {PHASE_NUMBER}
+file_read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
+file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 Load conventions: gpd convention list
 </project_context>
 

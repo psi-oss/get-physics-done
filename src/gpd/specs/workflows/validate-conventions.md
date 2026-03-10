@@ -187,7 +187,7 @@ task(
     Validate convention consistency across the entire project.
     Read conventions from state.json via: gpd convention list
     Read all SUMMARY.md files from all completed phases.
-    Read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
+    file_read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
 
     Focus on:
     1. Sign conventions propagating correctly across phase boundaries
@@ -283,8 +283,8 @@ Resolve convention conflicts detected by validation.
 </conflicts>
 
 <project_context>
-Read: .gpd/CONVENTIONS.md, .gpd/STATE.md, .gpd/state.json
-Read affected phase SUMMARY.md files.
+file_read: .gpd/CONVENTIONS.md, .gpd/STATE.md, .gpd/state.json
+file_read affected phase SUMMARY.md files.
 </project_context>
 
 <instructions>

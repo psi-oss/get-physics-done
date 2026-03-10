@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from gpd.adapters.install_utils import convert_tool_references_in_body
@@ -14,6 +15,18 @@ PRIMARY_PROMPT_ROOTS = (
     REPO_ROOT / "src/gpd/agents",
 )
 SHARED_SPEC_ROOTS = (REPO_ROOT / "src/gpd/specs",)
+FORBIDDEN_CONTEXTUAL_RUNTIME_ALIAS_PATTERNS = (
+    re.compile(r"\*\*Read:\*\*"),
+    re.compile(r"(?m)^\s*Read:"),
+    re.compile(r"\bthe Read\b"),
+    re.compile(r"\bnot Edit\b"),
+    re.compile(r"\bthe Edit\b"),
+    re.compile(r"\bdirect Edit\b"),
+    re.compile(r"\btargeted Edit\b"),
+    re.compile(r"\(Edit,"),
+    re.compile(r"\bEdit \+"),
+    re.compile(r"\bFile Edit\b"),
+)
 
 
 def _iter_markdown_sources(*roots: Path) -> list[Path]:
@@ -67,5 +80,17 @@ def test_shared_specs_use_canonical_tool_references() -> None:
         content = path.read_text(encoding="utf-8")
         if convert_tool_references_in_body(content, runtime_alias_map) != content:
             invalid.append(str(path.relative_to(REPO_ROOT)))
+
+    assert invalid == []
+
+
+def test_prompt_sources_avoid_contextual_runtime_alias_spellings() -> None:
+    invalid: list[str] = []
+
+    for path in _iter_markdown_sources(*PRIMARY_PROMPT_ROOTS, *SHARED_SPEC_ROOTS):
+        content = path.read_text(encoding="utf-8")
+        for pattern in FORBIDDEN_CONTEXTUAL_RUNTIME_ALIAS_PATTERNS:
+            for match in pattern.finditer(content):
+                invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
 
     assert invalid == []

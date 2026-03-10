@@ -23,9 +23,9 @@ Then verify each level against the actual research artifacts — **by doing phys
 
 | Verification theater (NEVER DO)               | Real verification (ALWAYS DO)                                |
 | --------------------------------------------- | ------------------------------------------------------------ |
-| Grep for "limit" to see if limits mentioned   | Take the limit yourself and compare with known result        |
-| Grep for "dimensions" to see if discussed     | Assign dimensions to each symbol and verify term consistency |
-| Grep for "convergence" to see if word appears | Run at 2+ resolutions and measure convergence rate           |
+| Use `search_files` for "limit" to see if limits are mentioned   | Take the limit yourself and compare with known result        |
+| Use `search_files` for "dimensions" to see if they are discussed | Assign dimensions to each symbol and verify term consistency |
+| Use `search_files` for "convergence" to see if the word appears | Run at 2+ resolutions and measure convergence rate           |
 | Count scipy imports as proof of computation   | Run the code with known inputs and verify output             |
 | Check if reference is cited                   | Extract the benchmark value and compare numerically          |
 

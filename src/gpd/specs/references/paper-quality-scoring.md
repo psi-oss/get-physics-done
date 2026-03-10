@@ -8,7 +8,7 @@ Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:writ
 
 | Check | Points | How to verify |
 |-------|--------|---------------|
-| All displayed equations have `\label{}` | 4 | Grep for unlabeled `\begin{equation}` |
+| All displayed equations have `\label{}` | 4 | Use `search_files` for unlabeled `\begin{equation}` |
 | All symbols defined at first use | 4 | Read each equation, check preceding text |
 | Dimensional consistency verified | 6 | Dimensional analysis trace in VERIFICATION.md |
 | All limiting cases checked and documented | 6 | Count verified limits vs total key results |
@@ -30,7 +30,7 @@ Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:writ
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | All `\cite{}` keys resolve in .bib file | 3 | Compile check — no undefined citations |
-| No `MISSING:` placeholder citations remain | 3 | Grep for `MISSING:` in .tex files |
+| No `MISSING:` placeholder citations remain | 3 | Use `search_files` for `MISSING:` in .tex files |
 | Key prior work cited (not just self-citations) | 2 | Check introduction references breadth |
 | No hallucinated citations (bibliographer verified) | 2 | BIBLIOGRAPHY-AUDIT.md status |
 
@@ -49,7 +49,7 @@ Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:writ
 | VERIFICATION.md exists with status: passed | 5 | File exists and frontmatter status = passed |
 | All must-haves verified (score = N/N) | 5 | VERIFICATION.md score field |
 | Key results have INDEPENDENTLY CONFIRMED confidence | 5 | Count independently confirmed vs total |
-| No UNRELIABLE confidence ratings on any result | 5 | Grep VERIFICATION.md for "UNRELIABLE" |
+| No UNRELIABLE confidence ratings on any result | 5 | Use `search_files` on VERIFICATION.md for "UNRELIABLE" |
 
 ### 6. Completeness (10 points)
 
@@ -57,7 +57,7 @@ Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:writ
 |-------|--------|---------------|
 | Abstract written LAST (matches actual results) | 2 | Abstract mentions key numerical values from results |
 | All sections present for target journal | 3 | Compare section structure against journal template |
-| No TODO/FIXME/PENDING placeholders remain | 3 | Grep .tex files for placeholders |
+| No TODO/FIXME/PENDING placeholders remain | 3 | Use `search_files` in .tex files for placeholders |
 | Supplemental material cross-referenced | 2 | Check SM section numbers match main text pointers |
 
 ### 7. Results Presentation (10 points)

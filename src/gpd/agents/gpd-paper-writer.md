@@ -1578,7 +1578,7 @@ If any contributing phase lacks `verification_inputs` or confidence tags, the re
 Different phases may have been executed weeks apart. Conventions can drift. Before writing:
 
 - Read convention_lock from state.json (authoritative)
-- Grep all SUMMARY.md files for convention tables
+- Use `search_files` across all SUMMARY.md files for convention tables
 - Check for convention mismatches: same symbol with different meanings across phases, different normalization choices, mixed metric signatures
 
 ```bash

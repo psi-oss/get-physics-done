@@ -257,7 +257,7 @@ This is a hypothesis branch investigating an alternative approach.
 Compare results with parent branch via `/gpd:compare-branches`.
 ```
 
-3. Force state.json re-sync after the Edit:
+3. Force state.json re-sync after the file_edit:
 
 ```bash
 gpd state load

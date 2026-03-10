@@ -186,7 +186,7 @@ gpd state add-decision --phase "quick-${next_num}" --summary "Quick task ${next_
 gpd state update "Last Activity" "${date}"
 ```
 
-**6c. Append quick task table row (Edit + sync):**
+**6c. Append quick task table row (file_edit + sync):**
 
 If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using file_edit tool after the `### Blockers/Concerns` section:
 
@@ -203,13 +203,13 @@ Append new row to the table using file_edit tool:
 | ${next_num} | ${DESCRIPTION} | ${date} | ${commit_hash} | [${next_num}-${slug}](./quick/${next_num}-${slug}/) |
 ```
 
-**6d. Force state.json re-sync after the Edit:**
+**6d. Force state.json re-sync after the file_edit:**
 
 ```bash
 gpd state load
 ```
 
-This ensures the table content added via file_edit is synced to state.json. Do NOT skip this step — direct Edit of STATE.md without `state load` causes STATE.md/state.json divergence.
+This ensures the table content added via file_edit is synced to state.json. Do NOT skip this step — direct file_edit of STATE.md without `state load` causes STATE.md/state.json divergence.
 
 ---
 

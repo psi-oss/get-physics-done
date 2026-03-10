@@ -80,7 +80,7 @@ Different phases require different levels of rigor. Identify the appropriate lev
 | 1st      | web_search (arXiv)          | Papers, review articles, recent results, known solutions                      | HIGH (peer-reviewed) |
 | 2nd      | web_fetch                   | arXiv abstracts, textbook tables of contents, lecture notes, documentation    | HIGH-MEDIUM          |
 | 3rd      | web_search (general)        | Community discussions, computational tool comparisons, implementation details | Needs verification   |
-| 4th      | Project search (Grep/Glob) | Existing implementations in this repo, prior work, related tasks              | HIGH (local)         |
+| 4th      | Project search (`search_files`/`find_files`) | Existing implementations in this repo, prior work, related tasks              | HIGH (local)         |
 
 ### arXiv Search Strategy
 

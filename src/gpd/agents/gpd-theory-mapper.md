@@ -152,8 +152,8 @@ Based on focus, determine which documents you'll write:
 
 **Tool availability by focus:**
 
-- `theory`, `computation`, `methodology`: Read-only tools (Read, Bash, Grep, Glob, Write)
-- `status`: Read-only tools PLUS `web_search` and `web_fetch`
+- `theory`, `computation`, `methodology`: available tools are `file_read`, `file_write`, `shell`, `search_files`, and `find_files`
+- `status`: the same tools plus `web_search` and `web_fetch`
 
 For the "status" focus, web_search is available to compare the project's coverage against the broader literature and state of the art. Use it to identify what the project is missing relative to recent developments in the field.
 
@@ -171,7 +171,7 @@ Explore the research project thoroughly for your focus area.
 
 **For theory focus:**
 
-Use find_files and Grep tools (never raw bash find/grep):
+Use find_files and search_files (never raw shell find/grep):
 
 - `find_files("**/*.tex")` — LaTeX documents (primary theory content)
 - `search_files("Hamiltonian|Lagrangian|action|partition function", glob="*.tex")` — Physics keywords
@@ -206,7 +206,7 @@ Use find_files and Grep tools (never raw bash find/grep):
 - `search_files("\\\\cite\\{\\}|\\\\ref\\{\\}|citation needed", glob="*.tex")` — Missing references
 - `search_files("valid for|breaks down|fails when|only when|as long as|in the limit", glob="*.tex")` — Validity ranges
 
-Read key files identified during exploration. Use find_files and Grep liberally. For LaTeX files, pay attention to `\input{}` and `\include{}` commands to trace the full document structure. For Jupyter notebooks, examine both code cells and markdown cells. For Mathematica notebooks, look for function definitions and symbolic manipulations.
+Read key files identified during exploration. Use find_files and search_files liberally. For LaTeX files, pay attention to `\input{}` and `\include{}` commands to trace the full document structure. For Jupyter notebooks, examine both code cells and markdown cells. For Mathematica notebooks, look for function definitions and symbolic manipulations.
 </step>
 
 <step name="write_documents">
@@ -264,7 +264,7 @@ Templates give you the WHAT (sections to fill). This section gives you the HOW (
 
 **FORMALISM.md — "Physical System" section:**
 
-1. Grep for defining statements: `search_files("model|system|consider|study|investigate", glob="*.tex")`
+1. Use `search_files("model|system|consider|study|investigate", glob="*.tex")` for defining statements
 2. Identify the Lagrangian/Hamiltonian/action — this defines the system
 3. Extract energy scales by looking at coupling constants, masses, temperatures
 4. List degrees of freedom by reading the field content or particle content

@@ -11,7 +11,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="load_context">
 **Load project context:**
 
-Read:
+file_read:
 
 - `.gpd/PROJECT.md` -- project title, description, conventions
 - `.gpd/ROADMAP.md` -- phase structure and status

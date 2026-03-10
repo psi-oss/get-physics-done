@@ -928,7 +928,7 @@ Return `## ROADMAP CREATED` with summary of what was written.
 If orchestrator provides revision feedback:
 
 - Parse specific concerns
-- Update files in place (Edit, not rewrite from scratch)
+- Update files in place (use `file_edit`, not rewrite from scratch)
 - Re-validate coverage
 - Return `## ROADMAP REVISED` with changes made
 

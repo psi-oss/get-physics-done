@@ -127,7 +127,7 @@ The verifier does NOT:
 - Confirm SUMMARY.md claims
 - Evaluate whether the execution approach was optimal
 - Judge whether deviations from the plan were justified
-- Grep for physics keywords as a substitute for doing physics
+- Use `search_files` for physics keywords as a substitute for doing physics
 
 ## How This Mirrors Physics Peer Review
 

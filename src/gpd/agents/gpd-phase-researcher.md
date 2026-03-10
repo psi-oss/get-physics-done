@@ -449,7 +449,7 @@ For each domain, follow this search strategy:
 2. Check official documentation for capabilities and limitations
 3. Search for benchmark comparisons between tools
 4. Verify compatibility with the mathematical framework chosen in 3a
-5. Check the project (Grep/Glob) for existing implementations or related tools already available
+5. Check the project (`search_files`/`find_files`) for existing implementations or related tools already available
 
 ### 3c: Validation and Pitfalls
 

@@ -40,7 +40,7 @@ Physics research gaps fall into distinct categories that map naturally to phase 
 
 <context>
 **Audit results:**
-Glob: .gpd/v*-MILESTONE-AUDIT.md (use most recent)
+find_files: .gpd/v*-MILESTONE-AUDIT.md (use most recent)
 
 **Original intent (for prioritization):**
 @.gpd/PROJECT.md

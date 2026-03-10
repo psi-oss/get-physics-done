@@ -211,7 +211,7 @@ Read `.gpd/STATE.md` and check if it needs adjustment:
 gpd state add-decision --phase "undo" --summary "Rolled back: ${TARGET_MSG}" --rationale "User requested undo (checkpoint: ${CHECKPOINT_TAG})"
 ```
 
-4. If any direct Edit was needed (steps 1-2), force state.json re-sync:
+4. If any direct file_edit was needed (steps 1-2), force state.json re-sync:
 
 ```bash
 gpd state load

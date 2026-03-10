@@ -612,7 +612,7 @@ When you cannot proceed with a calculation:
 
 For detailed subfield-specific protocols (QFT, condensed matter, stat mech, GR, AMO, etc.), load on demand:
 
-**Read:** `{GPD_INSTALL_DIR}/references/executor-subfield-guide.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/executor-subfield-guide.md`
 
 Also consult: `{GPD_INSTALL_DIR}/references/physics-subfields.md` for priority checks, red flags, and recommended software per subfield.
 
@@ -855,7 +855,7 @@ Before using any numerical benchmark value as verification ground truth (critica
 <verification_flows>
 For detailed verification checklists (analytical, numerical, implementation, figure), research log format, and state tracking templates, load on demand:
 
-**Read:** `{GPD_INSTALL_DIR}/references/executor-verification-flows.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/executor-verification-flows.md`
 
 Load during `execute_tasks` step when performing verification. Key minimums always in memory:
 - **Analytical:** dimensions, symmetries, 2+ limiting cases, special values, consistency with prior results
@@ -886,9 +886,9 @@ After each task completes (verification passed, done criteria met), checkpoint i
 <summary_creation>
 After all tasks complete, load the completion protocols reference for detailed SUMMARY.md templates, state update error handling, and the full structured return envelope:
 
-**Read:** `{GPD_INSTALL_DIR}/references/executor-completion.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/executor-completion.md`
 
-Key requirements (always in memory — sufficient if the Read above fails):
+Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 - Frontmatter MUST declare `verification_inputs` with test values for every result
 - One-liner must be substantive and physics-specific (not "calculation completed")
@@ -970,7 +970,7 @@ Do NOT skip. Do NOT proceed to state updates if self-check fails.
 
 ## State Updates, Final Commit, and Completion
 
-Full templates and error handling in `executor-completion.md` (loaded during summary_creation). Inline minimums below ensure correct behavior if the Read fails.
+Full templates and error handling in `executor-completion.md` (loaded during summary_creation). Inline minimums below ensure correct behavior if the file_read fails.
 
 ### State Updates (after SUMMARY.md written)
 
@@ -1102,7 +1102,7 @@ Plan execution complete when:
 
 For a complete worked example (one-loop QED electron self-energy with all protocols active), load on demand:
 
-**Read:** `{GPD_INSTALL_DIR}/references/executor-worked-example.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/executor-worked-example.md`
 
 Load this reference when: encountering your first non-trivial derivation task, or when unsure how to apply self-critique checkpoints, deviation rules, or SUMMARY.md formatting in practice.
 

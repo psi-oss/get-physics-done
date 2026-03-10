@@ -24,7 +24,7 @@ This file is an index. Full details are in the sub-files linked below.
 | 11 | progress_percent Null-to-Zero Roundtrip Corruption | Fixed | [resolved](known-bugs-resolved.md) |
 | 12 | depends-on Hyphenated YAML Key Ignored in Wave Validation | Fixed | [resolved](known-bugs-resolved.md) |
 | 13 | gpd CLI Required a Deprecated Runtime 18+ (Caveat) | Obsolete (CLI rewritten in Python) | [resolved](known-bugs-resolved.md) |
-| 14 | Concurrent Agent File Edit Conflicts | Workaround only | [active](known-bugs-active.md) |
+| 14 | Concurrent Agent `file_edit` Conflicts | Workaround only | [active](known-bugs-active.md) |
 | 15 | State Auto-Compact Implementation Lost During Concurrent Edits | Fixed | [resolved](known-bugs-resolved.md) |
 | 16 | validate-return Command Integration | Fixed | [resolved](known-bugs-resolved.md) |
 | 17 | verify-conventions Not Integrated Into Inter-Wave Gates | Fixed | [resolved](known-bugs-resolved.md) |

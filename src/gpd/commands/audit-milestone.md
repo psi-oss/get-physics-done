@@ -38,8 +38,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 @.gpd/config.json (if exists)
 
 **Completed Work:**
-Glob: .gpd/phases/_/_-SUMMARY.md
-Glob: .gpd/phases/_/_-VERIFICATION.md
+find_files: .gpd/phases/*/*-SUMMARY.md
+find_files: .gpd/phases/*/*-VERIFICATION.md
 </context>
 
 <inline_guidance>

@@ -67,13 +67,13 @@ done
 git tag -d gpd-checkpoint/old-tag-name
 ```
 
-### 14. Concurrent Agent File Edit Conflicts
+### 14. Concurrent Agent `file_edit` Conflicts
 
 **Bug:** When multiple agents (spawned via task tool in parallel) edit the same files, later writes silently overwrite earlier changes. There is no file locking across subagents.
 
 **Symptoms:**
 - Agent A edits section X of a shared file, agent B edits section Y
-- If agent B uses full-file file_write (not targeted Edit), agent A's changes are lost
+- If agent B uses full-file file_write (not targeted file_edit), agent A's changes are lost
 - No error is raised — the last writer wins silently
 - Past sessions experienced multiple instances of lost edits on shared files (agent-infrastructure.md and core module files)
 
