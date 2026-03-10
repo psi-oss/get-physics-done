@@ -23,7 +23,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 |----------|-----------|------------|
 | Quantum Field Theory | references/subfields/qft.md | Perturbative QFT, renormalization, Feynman diagrams, gauge theories, EFTs, lattice QFT |
 | Condensed Matter | references/subfields/condensed-matter.md | Many-body, DFT, DMFT, tensor networks, topological phases, band theory |
-| GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, numerical relativity, gravitational waves, black holes |
+| GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, de Sitter space, numerical relativity, gravitational waves, black holes |
 | Statistical Mechanics | references/subfields/stat-mech.md | Phase transitions, Monte Carlo, critical phenomena, RG, exactly solved models |
 | AMO Physics | references/subfields/amo.md | Quantum optics, cold atoms, scattering theory, master equations, BEC |
 | Nuclear & Particle | references/subfields/nuclear-particle.md | QCD, nuclear structure, collider phenomenology, PDFs, effective theories |
@@ -46,6 +46,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Band structure, DFT, Hubbard models                  | Condensed Matter      | Stat Mech for phase transitions                                |
 | Phase transitions, critical exponents, Monte Carlo   | Statistical Mechanics | Condensed Matter for lattice models                            |
 | CMB, large-scale structure, N-body                   | Cosmology             | GR for metric perturbations                                    |
+| de Sitter space, cosmological horizons, dS/CFT       | GR & Cosmology        | QFT for fields in curved spacetime; Mathematical Physics for representation theory |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |
 | Collider physics, PDFs, cross sections               | Nuclear/Particle      | QFT for calculational methods                                  |

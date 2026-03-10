@@ -54,6 +54,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **ADM vs. covariant formulation:** ADM (3+1 decomposition) gives lapse, shift, 3-metric. Covariant gives 4-metric. Results must agree. When comparing: verify the gauge/slicing condition.
 - **Energy conditions:** State which energy conditions matter is assumed to satisfy (weak, strong, dominant, null). The dominant energy condition (T^{mu nu} u_mu is causal) is physical; the strong energy condition (violated by cosmological constant) is mathematical.
 - **Singularity analysis:** Distinguish coordinate singularities (removable by coordinate change, like r=2M in Schwarzschild with bad coordinates) from physical singularities (curvature invariants diverge). Always compute curvature invariants.
+- **de Sitter and cosmological horizons:** Distinguish global, planar, and static-patch observables. Verify `L = H^{-1}`, `T_dS = H/(2*pi)`, and `S_GH = A_H/(4G_N)`. For inflationary observables, use in-in/gauge-invariant data rather than flat-space S-matrix language.
 
 ## AMO (Atomic, Molecular, Optical)
 

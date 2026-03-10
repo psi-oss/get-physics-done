@@ -318,6 +318,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Scattering Theory | `protocols/scattering-theory.md` | Cross sections, phase shifts, S-matrix, partial waves, optical theorem |
 | Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, superfields, soft breaking, MSSM, superspace |
 | Cosmological Perturbation Theory | `protocols/cosmological-perturbation-theory.md` | Inflation, scalar/tensor perturbations, gauge choices, power spectra |
+| de Sitter Space | `protocols/de-sitter-space.md` | Positive cosmological constant, cosmological horizons, dS/CFT, static patch holography |
 | Holography / AdS-CFT | `protocols/holography-ads-cft.md` | AdS/CFT dictionary, holographic renormalization, entanglement entropy |
 | Quantum Error Correction | `protocols/quantum-error-correction.md` | Stabilizer codes, surface codes, fault tolerance, threshold theorems |
 | Resummation | `protocols/resummation.md` | Borel summation, Pade approximants, conformal mapping, optimized perturbation theory |

@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/numerical-computation.md` (general numerical methods), `protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/de-sitter-space.md` (positive cosmological constant, cosmological horizons, dS/CFT, static patch holography), `protocols/numerical-computation.md` (general numerical methods), `protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
 
 **Friedmann Equations:**
 
@@ -71,6 +71,15 @@ context_cost: medium
 - SIDM (self-interacting): finite cross section; cores instead of cusps in halos
 - Fuzzy DM (ultra-light axions): m ~ 10^{-22} eV; de Broglie wavelength ~ kpc scale
 - WIMP: weakly interacting massive particle; annihilation cross section sets relic abundance (thermal freeze-out)
+
+**de Sitter Space and Cosmological Horizons:**
+
+- Exact de Sitter: `a(t) = exp(H t)` with `H = sqrt(Lambda / 3)` in 4d; more generally `R_{mu nu} = (d-1) H^2 g_{mu nu}`
+- Static patch metric: `ds^2 = -(1-r^2/L^2) dt^2 + dr^2/(1-r^2/L^2) + r^2 dOmega_{d-2}^2`; cosmological horizon at `r = L = H^{-1}`
+- Gibbons-Hawking thermodynamics: `T_dS = H/(2*pi)` and `S_GH = A_H/(4G_N)`; observer dependence matters because each static patch has its own horizon
+- QFT in de Sitter: Bunch-Davies vacuum is the default reference state; in-in formalism is the correct language for late-time correlators and inflationary observables
+- Late-time representation theory: light fields lie in complementary series, heavy fields in principal series; complex scaling weights are not automatically pathologies
+- Schwarzschild-de Sitter and Nariai regimes: black-hole and cosmological horizons compete; near-coincident horizons require special care with temperatures and patch definitions
 
 ## Key Tools and Software
 
@@ -258,6 +267,7 @@ context_cost: medium
 | **Post-Minkowskian gravity** | Conservative + dissipative dynamics of binary systems via scattering amplitudes | Bern, Cheung, Porto, Damour | Excellent — QFT methods for classical GR |
 | **Gravitational wave cosmology** | Hubble tension resolution, primordial GW background, standard sirens | LIGO/Virgo/KAGRA, LISA consortium | Good — Boltzmann code + data analysis |
 | **Black hole information paradox** | Islands formula, replica wormholes, Page curve from semiclassical gravity | Penington, Almheiri, Maldacena, Hartman | Good — semiclassical calculations |
+| **de Sitter quantum gravity / holography** | What is the correct observable framework for positive cosmological constant: wavefunction, dS/CFT, or static-patch holography? | Anninos, Strominger, Maldacena, Galante, Stanford/Perimeter dS groups | Good — strong on geometry, EFT, correlators, and consistency checks; speculative dictionary entries need explicit citation |
 | **Modified gravity** | Horndeski/beyond-Horndeski, massive gravity, testing GR with GW observations | Zumalacárregui, Creminelli, Baker | Excellent — perturbation theory + data fits |
 | **Inflation model selection** | Primordial non-Gaussianity (f_NL), primordial gravitational waves (r), spectral tilt running | Planck, CMB-S4, LiteBIRD teams | Good — slow-roll calculations + forecasts |
 | **Numerical relativity for LISA** | Extreme mass ratio inspirals (EMRIs), supermassive BH mergers | Warburton, Barack, Pound | Moderate — self-force + NR hybrid |

@@ -152,6 +152,43 @@ For any spacetime solution:
 
 </energy_conditions>
 
+<de_sitter_horizons>
+
+## de Sitter Horizon and Positive-Cosmological-Constant Checks
+
+**Background curvature and horizon data:**
+
+```
+Pure de Sitter in d spacetime dimensions:
+  R_{mu nu} = (d-1) H^2 g_{mu nu}
+  R = d(d-1) H^2
+  Lambda = (d-1)(d-2) H^2 / 2
+
+Static patch:
+  ds^2 = -(1-r^2/L^2) dt^2 + dr^2/(1-r^2/L^2) + r^2 dOmega_{d-2}^2
+  horizon at r = L = H^{-1}
+
+Thermodynamics:
+  T_dS = H/(2*pi)
+  S_GH = A_H/(4G_N)
+```
+
+**Verification:**
+
+```
+1. Flat limit: take L -> infinity and verify the metric approaches Minkowski and all curvature invariants vanish.
+2. Euclidean regularity: Wick rotate the static-patch time and verify the same temperature T_dS = H/(2*pi)
+   follows from the absence of a conical defect at the cosmological horizon.
+3. Curvature normalization: compute R_{mu nu} and R directly from the metric; verify the positive-Lambda relation above.
+4. Inflationary observables: compare gauge-invariant data (zeta, gamma_ij, Bardeen potentials), not gauge-dependent field perturbations.
+5. Higher-spin consistency: for massive spin-2 in 4d, verify the Higuchi bound m^2 >= 2H^2.
+   Violation means the helicity-0 mode is ghostlike.
+6. Schwarzschild-de Sitter: if both black-hole and cosmological horizons are present, verify which temperature or ensemble is being used.
+   Generic SdS is not in global thermal equilibrium away from special limits such as Nariai/lukewarm constructions.
+```
+
+</de_sitter_horizons>
+
 <cosmological_consistency>
 
 ## Cosmological Consistency Checks
