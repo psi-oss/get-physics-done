@@ -253,10 +253,32 @@ class RuntimeAdapter(abc.ABC):
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
 
-            # Clean up settings.json GPD hooks, statusline, and MCP servers
+            # Clean up MCP servers from .mcp.json (project-level MCP config)
+            import json as _json
+
+            for mcp_json_path in (target_dir.parent / ".mcp.json",):
+                if mcp_json_path.exists():
+                    try:
+                        mcp_data = _json.loads(mcp_json_path.read_text(encoding="utf-8"))
+                    except (ValueError, OSError):
+                        mcp_data = None
+                    if isinstance(mcp_data, dict) and isinstance(mcp_data.get("mcpServers"), dict):
+                        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                        gpd_mcp = [k for k in mcp_data["mcpServers"] if k in GPD_MCP_SERVER_KEYS]
+                        for k in gpd_mcp:
+                            del mcp_data["mcpServers"][k]
+                        if gpd_mcp:
+                            if not mcp_data["mcpServers"]:
+                                del mcp_data["mcpServers"]
+                            tmp = mcp_json_path.with_suffix(".tmp")
+                            tmp.write_text(_json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
+                            tmp.rename(mcp_json_path)
+                            removed.append(f"MCP servers from {mcp_json_path.name}")
+
+            # Clean up settings.json GPD hooks and statusline
             settings_path = target_dir / "settings.json"
             if settings_path.exists():
-                import json as _json
                 try:
                     settings = _json.loads(settings_path.read_text(encoding="utf-8"))
                 except (ValueError, OSError):
@@ -303,19 +325,6 @@ class RuntimeAdapter(abc.ABC):
                                 del settings["hooks"]["SessionStart"]
                             if not settings["hooks"]:
                                 del settings["hooks"]
-                    # Remove GPD MCP servers
-                    mcp = settings.get("mcpServers")
-                    if isinstance(mcp, dict):
-                        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                        gpd_keys = [k for k in mcp if k in GPD_MCP_SERVER_KEYS]
-                        for k in gpd_keys:
-                            del mcp[k]
-                        if gpd_keys:
-                            settings_modified = True
-                        if not mcp:
-                            del settings["mcpServers"]
-
                     if settings_modified:
                         tmp = settings_path.with_suffix(".tmp")
                         tmp.write_text(_json.dumps(settings, indent=2) + "\n", encoding="utf-8")

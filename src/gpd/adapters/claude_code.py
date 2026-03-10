@@ -128,24 +128,46 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         )
         ensure_update_hook(settings, update_check_command)
 
-        # Wire MCP servers into settings so they start automatically.
+        # Wire MCP servers into the correct config file.
+        # Claude Code reads mcpServers from:
+        #   Global: ~/.claude.json
+        #   Project: .mcp.json (in project root, parent of .claude/)
+        import json as _json
         import sys
 
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
+        mcp_count = 0
         if mcp_servers:
-            existing_mcp = settings.get("mcpServers", {})
+            if is_global:
+                mcp_config_path = Path.home() / ".claude.json"
+            else:
+                mcp_config_path = target_dir.parent / ".mcp.json"
+
+            mcp_config: dict = {}
+            if mcp_config_path.exists():
+                try:
+                    mcp_config = _json.loads(mcp_config_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    mcp_config = {}
+            if not isinstance(mcp_config, dict):
+                mcp_config = {}
+
+            existing_mcp = mcp_config.get("mcpServers", {})
             if not isinstance(existing_mcp, dict):
                 existing_mcp = {}
             existing_mcp.update(mcp_servers)
-            settings["mcpServers"] = existing_mcp
+            mcp_config["mcpServers"] = existing_mcp
+
+            mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
+            mcp_count = len(mcp_servers)
 
         return {
             "settingsPath": str(settings_path),
             "settings": settings,
             "statuslineCommand": statusline_command,
-            "mcpServers": len(mcp_servers),
+            "mcpServers": mcp_count,
         }
 
     def finish_install(
