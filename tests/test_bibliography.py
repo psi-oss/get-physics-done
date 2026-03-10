@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import urllib.error
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from gpd.mcp.paper.bibliography import (
     CitationSource,
@@ -12,7 +12,6 @@ from gpd.mcp.paper.bibliography import (
     citation_keys_for_sources,
     create_bibliography,
     enrich_from_arxiv,
-    enrich_with_ads,
     write_bib_file,
 )
 
@@ -77,69 +76,39 @@ class TestBibtexCreation:
         assert "Test Paper" in content
 
 
-# ---- ADS graceful degradation tests ----
-
-
-class TestADSGracefulDegradation:
-    def test_ads_no_token_returns_empty(self, monkeypatch):
-        monkeypatch.delenv("ADS_API_TOKEN", raising=False)
-        # Reset the warning flag
-        import gpd.mcp.paper.bibliography as bib_mod
-
-        bib_mod._ads_token_warned = False
-        result = enrich_with_ads(["2015ApJS..219...21Z"])
-        assert result == {}
-
-    def test_ads_network_error_returns_empty(self, monkeypatch):
-        monkeypatch.setenv("ADS_API_TOKEN", "fake-token")
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Network error")):
-            result = enrich_with_ads(["2015ApJS..219...21Z"])
-            assert result == {}
-
-    def test_ads_export_is_split_per_bibcode(self, monkeypatch):
-        monkeypatch.setenv("ADS_API_TOKEN", "fake-token")
-        export_payload = json.dumps(
-            {
-                "export": (
-                    "@article{2015ApJS..219...21Z,\n"
-                    "  adsurl = {https://ui.adsabs.harvard.edu/abs/2015ApJS..219...21Z}\n"
-                    "}\n\n"
-                    "@article{2018ApJ...867...12A,\n"
-                    "  adsurl = {https://ui.adsabs.harvard.edu/abs/2018ApJ...867...12A}\n"
-                    "}\n"
-                )
-            }
-        ).encode()
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = export_payload
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            result = enrich_with_ads(["2015ApJS..219...21Z", "2018ApJ...867...12A"])
-
-        assert result["2015ApJS..219...21Z"] != result["2018ApJ...867...12A"]
-        assert "2015ApJS..219...21Z" in result["2015ApJS..219...21Z"]
-        assert "2018ApJ...867...12A" not in result["2015ApJS..219...21Z"]
-        assert "2018ApJ...867...12A" in result["2018ApJ...867...12A"]
-
-
 # ---- arXiv enrichment tests ----
 
 
 class TestArxivEnrichment:
-    def test_enrich_from_arxiv_no_package(self, monkeypatch):
-        """When arxiv package import fails, source is returned unchanged."""
+    def test_enrich_from_arxiv_no_package_raises(self):
+        """When arxiv package import fails, error propagates."""
         source = CitationSource(
             source_type="paper",
             title="",
             arxiv_id="2301.12345",
         )
         with patch.dict("sys.modules", {"arxiv": None}):
-            result = enrich_from_arxiv(source)
-            assert result.title == ""
+            with pytest.raises(ImportError):
+                enrich_from_arxiv(source)
 
-    def test_enrich_from_arxiv_fills_missing(self, monkeypatch):
+    def test_enrich_from_arxiv_no_results_raises(self):
+        """When arxiv returns no results, LookupError is raised."""
+        mock_arxiv = MagicMock()
+        mock_arxiv.Search.return_value = MagicMock()
+        mock_client = MagicMock()
+        mock_client.results.return_value = []
+        mock_arxiv.Client.return_value = mock_client
+
+        with patch.dict("sys.modules", {"arxiv": mock_arxiv}):
+            source = CitationSource(
+                source_type="paper",
+                title="",
+                arxiv_id="2301.12345",
+            )
+            with pytest.raises(LookupError, match="no results"):
+                enrich_from_arxiv(source)
+
+    def test_enrich_from_arxiv_fills_missing(self):
         """When arxiv package returns data, missing fields are filled."""
         from datetime import datetime
 
@@ -151,13 +120,13 @@ class TestArxivEnrichment:
         mock_result.authors = [mock_author]
         mock_result.published = datetime(2023, 1, 15)
 
+        mock_arxiv = MagicMock()
+        mock_arxiv.Search.return_value = MagicMock()
         mock_client = MagicMock()
         mock_client.results.return_value = [mock_result]
+        mock_arxiv.Client.return_value = mock_client
 
-        with (
-            patch("arxiv.Search"),
-            patch("arxiv.Client", return_value=mock_client),
-        ):
+        with patch.dict("sys.modules", {"arxiv": mock_arxiv}):
             source = CitationSource(
                 source_type="paper",
                 title="",
@@ -179,18 +148,4 @@ class TestBuildBibliography:
             CitationSource(source_type="tool", title="Tool", year="2021"),
         ]
         bib = build_bibliography(sources, enrich=False)
-        assert len(bib.entries) == 2
-
-    def test_build_bibliography_enrich_graceful(self, monkeypatch):
-        monkeypatch.delenv("ADS_API_TOKEN", raising=False)
-        import gpd.mcp.paper.bibliography as bib_mod
-
-        bib_mod._ads_token_warned = False
-
-        sources = [
-            CitationSource(source_type="paper", title="Test", authors=["A"], year="2020"),
-            CitationSource(source_type="paper", title="ArXiv Paper", arxiv_id="2301.99999"),
-        ]
-        # Even with enrich=True, should not crash without ADS token or ArxivSearcher
-        bib = build_bibliography(sources, enrich=True)
         assert len(bib.entries) == 2

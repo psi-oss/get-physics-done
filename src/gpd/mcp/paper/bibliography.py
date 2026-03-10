@@ -1,18 +1,13 @@
-"""Bibliography generation pipeline: pybtex + ADS/arXiv enrichment.
+"""Bibliography generation pipeline: pybtex + arXiv enrichment.
 
 Creates BibTeX entries from research provenance data, enriches them
-via NASA ADS and arXiv APIs, and writes .bib files using pybtex.
+via arXiv APIs, and writes .bib files using pybtex.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Literal
 
@@ -20,11 +15,6 @@ from pybtex.database import BibliographyData, Entry
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-ADS_API_URL = "https://api.adsabs.harvard.edu/v1"
-
-# Track whether we've already logged the ADS token suggestion
-_ads_token_warned = False
 
 
 class CitationSource(BaseModel):
@@ -36,7 +26,6 @@ class CitationSource(BaseModel):
     year: str = ""
     arxiv_id: str | None = None
     doi: str | None = None
-    bibcode: str | None = None
     url: str | None = None
     journal: str = ""
     volume: str = ""
@@ -158,68 +147,6 @@ def write_bib_file(bib_data: BibliographyData, output_path: Path) -> None:
     bib_data.to_file(str(output_path), "bibtex")
 
 
-# ---- ADS API enrichment (graceful degradation) ----
-
-
-def _get_ads_token() -> str | None:
-    """Read ADS API token from environment variable."""
-    return os.environ.get("ADS_API_TOKEN")
-
-
-def enrich_with_ads(bibcodes: list[str]) -> dict[str, str]:
-    """Export BibTeX for bibcodes from NASA ADS.
-
-    Returns dict mapping bibcode -> BibTeX string.
-    If no token or API fails, returns empty dict (graceful degradation).
-    """
-    global _ads_token_warned  # noqa: PLW0603
-
-    token = _get_ads_token()
-    if not token:
-        if not _ads_token_warned:
-            logger.info(
-                "ADS_API_TOKEN not set. Set it for better bibliography quality. "
-                "Get a token at https://ui.adsabs.harvard.edu/user/settings/token"
-            )
-            _ads_token_warned = True
-        return {}
-
-    try:
-        payload = json.dumps({"bibcode": bibcodes}).encode()
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
-        req = urllib.request.Request(
-            f"{ADS_API_URL}/export/bibtex",
-            data=payload,
-            headers=headers,
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-
-        export_text = result.get("export", "")
-        if not isinstance(export_text, str) or not export_text.strip():
-            return {}
-
-        entry_chunks = re.split(r"(?m)(?=^@\w)", export_text.strip())
-        mapping: dict[str, str] = {}
-        for chunk in entry_chunks:
-            entry = chunk.strip()
-            if not entry:
-                continue
-            for bibcode in bibcodes:
-                if bibcode in entry:
-                    mapping[bibcode] = entry + "\n"
-                    break
-        return mapping
-
-    except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
-        logger.debug("ADS API request failed; skipping enrichment", exc_info=True)
-        return {}
-
-
 # ---- arXiv metadata to BibTeX ----
 
 
@@ -228,7 +155,7 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
 
     If source has arxiv_id but missing title/authors/year, look up via
     the ``arxiv`` Python package and fill in missing fields.  Returns
-    updated source.  If the lookup fails, returns source unchanged.
+    updated source.  Raises on failure.
     """
     if not source.arxiv_id:
         return source
@@ -236,28 +163,22 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
     if source.title and source.authors and source.year:
         return source  # Already complete
 
-    try:
-        import arxiv
+    import arxiv
 
-        search = arxiv.Search(id_list=[source.arxiv_id], max_results=1)
-        client = arxiv.Client(delay_seconds=0.0, num_retries=1)
-        results = list(client.results(search))
-        if not results:
-            return source
+    search = arxiv.Search(id_list=[source.arxiv_id], max_results=1)
+    client = arxiv.Client(delay_seconds=0.0, num_retries=1)
+    results = list(client.results(search))
+    if not results:
+        raise LookupError(f"arXiv returned no results for {source.arxiv_id}")
 
-        paper = results[0]
-        updated = source.model_copy(
-            update={
-                "title": source.title or paper.title,
-                "authors": source.authors or [a.name for a in paper.authors],
-                "year": source.year or (str(paper.published.year) if paper.published else ""),
-            }
-        )
-        return updated
-
-    except Exception:
-        logger.debug("arxiv enrichment unavailable or failed; returning source unchanged")
-        return source
+    paper = results[0]
+    return source.model_copy(
+        update={
+            "title": source.title or paper.title,
+            "authors": source.authors or [a.name for a in paper.authors],
+            "year": source.year or (str(paper.published.year) if paper.published else ""),
+        }
+    )
 
 
 # ---- Orchestrator ----
@@ -270,19 +191,11 @@ def build_bibliography(sources: list[CitationSource], enrich: bool = True) -> Bi
 
     Args:
         sources: List of citation sources from the provenance chain.
-        enrich: If True, attempt arXiv/ADS enrichment for incomplete sources.
+        enrich: If True, attempt arXiv enrichment for incomplete sources.
     """
     enriched = list(sources)
 
     if enrich:
-        # 1. arXiv enrichment for sources with arxiv_id
         enriched = [enrich_from_arxiv(s) if s.arxiv_id else s for s in enriched]
-
-        # 2. ADS enrichment for sources with bibcode
-        bibcodes = [s.bibcode for s in enriched if s.bibcode]
-        if bibcodes:
-            # TODO: Integrate ADS enrichment -- enrich_with_ads(bibcodes)
-            # returns raw BibTeX keyed by bibcode.  Full integration deferred.
-            pass
 
     return create_bibliography(enriched)
