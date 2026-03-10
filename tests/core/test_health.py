@@ -260,14 +260,20 @@ class TestRunHealth:
 class TestRunDoctor:
     def _make_specs_dir(self, tmp_path: Path, *, include_templates: bool = True) -> Path:
         specs = tmp_path / "specs"
-        (specs / "references").mkdir(parents=True)
+        (specs / "references" / "shared").mkdir(parents=True)
+        (specs / "references" / "verification" / "core").mkdir(parents=True)
+        (specs / "references" / "verification" / "errors").mkdir(parents=True)
         (specs / "workflows").mkdir()
         if include_templates:
             (specs / "templates").mkdir()
 
-        (specs / "references" / "shared-protocols.md").write_text("shared\n", encoding="utf-8")
-        (specs / "references" / "verification-core.md").write_text("verify\n", encoding="utf-8")
-        (specs / "references" / "llm-physics-errors.md").write_text("errors\n", encoding="utf-8")
+        (specs / "references" / "shared" / "shared-protocols.md").write_text("shared\n", encoding="utf-8")
+        (specs / "references" / "verification" / "core" / "verification-core.md").write_text(
+            "verify\n", encoding="utf-8"
+        )
+        (specs / "references" / "verification" / "errors" / "llm-physics-errors.md").write_text(
+            "errors\n", encoding="utf-8"
+        )
         (specs / "workflows" / "plan-phase.md").write_text("plan\n", encoding="utf-8")
         if include_templates:
             (specs / "templates" / "phase-prompt.md").write_text("template\n", encoding="utf-8")
@@ -279,9 +285,24 @@ class TestRunDoctor:
         checks = {check.label: check for check in report.checks}
 
         assert checks["Specs Structure"].status == CheckStatus.OK
+        assert checks["Key References"].status == CheckStatus.OK
 
     def test_missing_required_specs_subdir_fails(self, tmp_path: Path):
         report = run_doctor(specs_dir=self._make_specs_dir(tmp_path, include_templates=False), version="0.1.0")
         checks = {check.label: check for check in report.checks}
 
         assert checks["Specs Structure"].status == CheckStatus.FAIL
+
+    def test_missing_nested_key_reference_warns(self, tmp_path: Path):
+        specs_dir = self._make_specs_dir(tmp_path)
+        missing_ref = specs_dir / "references" / "verification" / "errors" / "llm-physics-errors.md"
+        missing_ref.unlink()
+
+        report = run_doctor(specs_dir=specs_dir, version="0.1.0")
+        checks = {check.label: check for check in report.checks}
+
+        assert checks["Key References"].status == CheckStatus.WARN
+        assert any(
+            "references/verification/errors/llm-physics-errors.md" in warning
+            for warning in checks["Key References"].warnings
+        )

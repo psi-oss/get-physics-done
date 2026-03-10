@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/tensor-networks.md`, `protocols/monte-carlo.md`, `protocols/density-functional-theory.md`, `protocols/exact-diagonalization.md`, `protocols/many-body-perturbation-theory.md`, `protocols/non-equilibrium-transport.md`, `protocols/analytic-continuation.md`, `protocols/numerical-computation.md`, `protocols/green-functions.md`, `protocols/generalized-symmetries.md`, `protocols/wkb-semiclassical.md`, `protocols/bethe-ansatz.md` (integrable 1D models), `protocols/random-matrix-theory.md` (spectral statistics, quantum chaos), `protocols/large-n-expansion.md` (1/N methods for O(N) and SU(N) models), `protocols/kinetic-theory.md` (Boltzmann transport).
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/tensor-networks.md`, `references/protocols/monte-carlo.md`, `references/protocols/density-functional-theory.md`, `references/protocols/exact-diagonalization.md`, `references/protocols/many-body-perturbation-theory.md`, `references/protocols/non-equilibrium-transport.md`, `references/protocols/analytic-continuation.md`, `references/protocols/numerical-computation.md`, `references/protocols/green-functions.md`, `references/protocols/generalized-symmetries.md`, `references/protocols/wkb-semiclassical.md`, `references/protocols/bethe-ansatz.md` (integrable 1D models), `references/protocols/random-matrix-theory.md` (spectral statistics, quantum chaos), `references/protocols/large-n-expansion.md` (1/N methods for O(N) and SU(N) models), `references/protocols/kinetic-theory.md` (Boltzmann transport).
 
 **Band Theory and Electronic Structure:**
 

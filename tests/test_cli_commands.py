@@ -405,6 +405,7 @@ class TestReviewValidationCommands:
             "research_artifacts",
             "manuscript",
         ]
+        assert "artifact manifest" in payload["review_contract"]["required_evidence"]
 
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
@@ -445,6 +446,7 @@ class TestReviewValidationCommands:
         assert checks["research_artifacts"]["passed"] is True
         assert checks["verification_reports"]["passed"] is True
         assert checks["manuscript"]["passed"] is True
+        assert checks["conventions"]["passed"] is True
         assert checks["artifact_manifest"]["passed"] is True
         assert checks["bibliography_audit"]["passed"] is True
         assert checks["bibliography_audit_clean"]["passed"] is True
@@ -500,6 +502,22 @@ class TestReviewValidationCommands:
         assert checks["manuscript"]["passed"] is True
         assert checks["referee_report_source"]["passed"] is True
 
+    def test_review_preflight_peer_review_fails_without_manuscript(self, gpd_project: Path) -> None:
+        (gpd_project / "paper" / "main.tex").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["passed"] is False
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is False
+
     def test_review_preflight_fails_without_manuscript(self, gpd_project: Path) -> None:
         (gpd_project / "paper" / "main.tex").unlink()
 
@@ -546,6 +564,46 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["artifact_manifest"]["passed"] is False
+
+    def test_review_preflight_peer_review_accepts_explicit_manuscript_path(self, gpd_project: Path) -> None:
+        (gpd_project / "paper" / "main.tex").unlink()
+
+        paper_dir = gpd_project / "paper"
+        review_dir = gpd_project / "submission"
+        review_dir.mkdir()
+        (review_dir / "main.tex").write_text(
+            "\\documentclass{article}\n\\begin{document}\nSubmission manuscript.\n\\end{document}\n",
+            encoding="utf-8",
+        )
+        for artifact_name in ("ARTIFACT-MANIFEST.json", "BIBLIOGRAPHY-AUDIT.json", "reproducibility-manifest.json"):
+            (review_dir / artifact_name).write_text((paper_dir / artifact_name).read_text(encoding="utf-8"), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "submission/main.tex", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["passed"] is True
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "submission/main.tex" in checks["manuscript"]["detail"]
+
+    def test_review_preflight_peer_review_accepts_explicit_manuscript_directory(self, gpd_project: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "resolved to" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_strict_blocks_dirty_bibliography_audit(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"

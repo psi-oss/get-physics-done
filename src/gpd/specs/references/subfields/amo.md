@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (time-dependent perturbation theory, Fermi's golden rule), `protocols/electrodynamics.md` (light-matter interaction, selection rules), `protocols/scattering-theory.md` (partial waves, Born approximation, resonances), `protocols/numerical-computation.md` (general numerical methods), `protocols/variational-methods.md` (Hartree-Fock, configuration interaction, DMRG for ultracold atoms), `protocols/group-theory.md` (angular momentum coupling, Wigner-Eckart theorem, selection rules), `protocols/wkb-semiclassical.md` (tunneling, Bohr-Sommerfeld, semiclassical dynamics), `protocols/green-functions.md` (retarded propagators, spectral functions, Dyson equation).
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/perturbation-theory.md` (time-dependent perturbation theory, Fermi's golden rule), `references/protocols/electrodynamics.md` (light-matter interaction, selection rules), `references/protocols/scattering-theory.md` (partial waves, Born approximation, resonances), `references/protocols/numerical-computation.md` (general numerical methods), `references/protocols/variational-methods.md` (Hartree-Fock, configuration interaction, DMRG for ultracold atoms), `references/protocols/group-theory.md` (angular momentum coupling, Wigner-Eckart theorem, selection rules), `references/protocols/wkb-semiclassical.md` (tunneling, Bohr-Sommerfeld, semiclassical dynamics), `references/protocols/green-functions.md` (retarded propagators, spectral functions, Dyson equation).
 
 **Scattering Theory:**
 

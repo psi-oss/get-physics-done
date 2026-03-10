@@ -238,6 +238,30 @@ class TestErrorsMcp:
         with patch("gpd.mcp.servers.errors_mcp._get_store", return_value=mock):
             yield
 
+    def test_catalog_files_live_under_verification_errors_subtree(self):
+        from gpd.mcp.servers.errors_mcp import ERROR_CATALOG_FILES, REFERENCES_DIR, TRACEABILITY_FILE
+
+        assert ERROR_CATALOG_FILES == [
+            "verification/errors/llm-errors-core.md",
+            "verification/errors/llm-errors-field-theory.md",
+            "verification/errors/llm-errors-extended.md",
+            "verification/errors/llm-errors-deep.md",
+        ]
+        assert TRACEABILITY_FILE == "verification/errors/llm-errors-traceability.md"
+
+        for rel_path in [*ERROR_CATALOG_FILES, TRACEABILITY_FILE]:
+            assert (REFERENCES_DIR / rel_path).is_file(), rel_path
+
+    def test_real_error_store_uses_new_catalog_paths_and_stable_basenames(self):
+        from gpd.mcp.servers.errors_mcp import ErrorStore, REFERENCES_DIR
+
+        store = ErrorStore(REFERENCES_DIR)
+        error = store.get(1)
+
+        assert error is not None
+        assert error["source_file"] == "llm-errors-core.md"
+        assert store.get_traceability(1) is not None
+
     def test_get_error_class_found(self):
         from gpd.mcp.servers.errors_mcp import get_error_class
 
@@ -533,6 +557,15 @@ class TestSkillsServer:
             "Canonical help command.\n",
             encoding="utf-8",
         )
+        (commands_dir / "peer-review.md").write_text(
+            "---\n"
+            "name: gpd:peer-review\n"
+            "description: Conduct standalone peer review.\n"
+            "---\n"
+            "\n"
+            "Canonical peer review command.\n",
+            encoding="utf-8",
+        )
         (agents_dir / "gpd-debugger.md").write_text(
             "---\n"
             "name: gpd-debugger\n"
@@ -557,10 +590,11 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
-        assert result["count"] == 4
+        assert result["count"] == 5
         names = {s["name"] for s in result["skills"]}
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
+        assert "gpd-peer-review" in names
         assert "gpd-debugger" in names
         assert "gpd-help" in names
 
@@ -622,6 +656,12 @@ class TestSkillsServer:
         result = route_skill("plan the next phase design strategy")
         assert result["suggestion"] == "gpd-plan-phase"
 
+    def test_route_skill_peer_review(self):
+        from gpd.mcp.servers.skills_server import route_skill
+
+        result = route_skill("peer review this manuscript like a referee")
+        assert result["suggestion"] == "gpd-peer-review"
+
     def test_route_skill_no_match(self):
         from gpd.mcp.servers.skills_server import route_skill
 
@@ -656,9 +696,10 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill_index
 
         result = get_skill_index()
-        assert result["total_skills"] == 4
+        assert result["total_skills"] == 5
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
+        assert "/gpd:peer-review" in result["index_text"]
 
     def test_get_skill_accepts_command_style_name(self):
         from gpd.mcp.servers.skills_server import get_skill

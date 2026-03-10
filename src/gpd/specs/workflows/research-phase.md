@@ -29,7 +29,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 - `autonomy=supervised`: Present RESEARCH.md draft for user review before committing.
 - `autonomy=guided/autonomous/yolo`: Auto-commit RESEARCH.md.
 
-@{GPD_INSTALL_DIR}/references/model-profile-resolution.md
+@{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 
 ```bash
 RESEARCHER_MODEL=$(gpd resolve-model gpd-phase-researcher --raw)

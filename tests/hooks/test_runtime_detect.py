@@ -21,6 +21,7 @@ from gpd.hooks.runtime_detect import (
     get_cache_dirs,
     get_gpd_install_dirs,
     get_todo_dirs,
+    update_command_for_runtime,
 )
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
@@ -237,3 +238,22 @@ class TestGPDInstallDirs:
         assert tmp_path / "codex-custom" / "get-physics-done" in dirs
         assert tmp_path / "gemini-custom" / "get-physics-done" in dirs
         assert tmp_path / "opencode-custom" / "get-physics-done" in dirs
+
+
+class TestUpdateCommand:
+    """Tests for update_command_for_runtime."""
+
+    def test_unknown_runtime_uses_plain_bootstrap_command(self) -> None:
+        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y github:physicalsuperintelligence/get-physics-done"
+
+    def test_claude_runtime_uses_claude_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(" --claude")
+
+    def test_codex_runtime_uses_codex_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_CODEX).endswith(" --codex")
+
+    def test_gemini_runtime_uses_gemini_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_GEMINI).endswith(" --gemini")
+
+    def test_opencode_runtime_uses_opencode_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(" --opencode")

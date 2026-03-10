@@ -405,6 +405,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-regression": "verification",
     "gpd-quick": "execution",
     "gpd-help": "help",
+    "gpd-peer-review": "paper",
     "gpd-suggest": "help",
     # Full-name entries for skills not captured by prefix matching.
     "gpd-bibliographer": "research",

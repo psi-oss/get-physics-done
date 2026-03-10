@@ -167,7 +167,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Soft Matter / Biophysics
 
-See `references/verification-core.md` for universal checks, `references/verification-domain-soft-matter.md` for soft-matter-specific verification (equilibration, scaling laws, force field validation, finite-size analysis, active matter checks), and `references/verification-domain-statmech.md` for statistical mechanics checks (detailed balance, thermodynamic consistency, finite-size scaling).
+See `references/verification/core/verification-core.md` for universal checks, `references/verification/domains/verification-domain-soft-matter.md` for soft-matter-specific verification (equilibration, scaling laws, force field validation, finite-size analysis, active matter checks), and `references/verification/domains/verification-domain-statmech.md` for statistical mechanics checks (detailed balance, thermodynamic consistency, finite-size scaling).
 
 ### Domain-Specific Verification
 

@@ -37,8 +37,8 @@ Initialize a new physics research project through unified flow: questioning → 
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/new-project.md
-@{GPD_INSTALL_DIR}/references/questioning.md
-@{GPD_INSTALL_DIR}/references/ui-brand.md
+@{GPD_INSTALL_DIR}/references/research/questioning.md
+@{GPD_INSTALL_DIR}/references/ui/ui-brand.md
 @{GPD_INSTALL_DIR}/templates/project.md
 @{GPD_INSTALL_DIR}/templates/requirements.md
 </execution_context>
@@ -48,7 +48,7 @@ Initialize a new physics research project through unified flow: questioning → 
 Read the file at {GPD_INSTALL_DIR}/workflows/new-project.md — this contains the complete step-by-step instructions (1693 lines) for initializing a research project. Do NOT improvise. Follow the workflow file exactly.
 
 Also read these reference files:
-- {GPD_INSTALL_DIR}/references/questioning.md (questioning protocol)
+- {GPD_INSTALL_DIR}/references/research/questioning.md (questioning protocol)
 - {GPD_INSTALL_DIR}/templates/project.md (PROJECT.md template)
 - {GPD_INSTALL_DIR}/templates/requirements.md (REQUIREMENTS.md template)
 

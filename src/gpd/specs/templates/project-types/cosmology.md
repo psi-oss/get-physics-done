@@ -152,7 +152,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Cosmology
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-gr-cosmology.md` for GR/cosmology-specific verification (Friedmann equation conservation, CMB power spectrum normalization, distance-redshift consistency, perturbation gauge invariance, gravitational wave energy balance).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-gr-cosmology.md` for GR/cosmology-specific verification (Friedmann equation conservation, CMB power spectrum normalization, distance-redshift consistency, perturbation gauge invariance, gravitational wave energy balance).
 
 ---
 

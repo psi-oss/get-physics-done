@@ -47,14 +47,14 @@ The research mode (from `.gpd/config.json` field `research_mode`, default: `"bal
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/ising-experiment-design-example.md` -- Worked example: complete Monte Carlo experiment design for 2D Ising phase diagram (load as a template for your first experiment design)
+- `{GPD_INSTALL_DIR}/references/examples/ising-experiment-design-example.md` -- Worked example: complete Monte Carlo experiment design for 2D Ising phase diagram (load as a template for your first experiment design)
 
 <design_flow>
 

@@ -153,7 +153,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Statistical Mechanics Simulations
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-statmech.md` for stat mech-specific verification (detailed balance, finite-size scaling, thermodynamic consistency).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-statmech.md` for stat mech-specific verification (detailed balance, finite-size scaling, thermodynamic consistency).
 
 ---
 

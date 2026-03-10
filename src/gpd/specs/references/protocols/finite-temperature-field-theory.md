@@ -43,7 +43,7 @@ Replace real time t → -iτ (Wick rotation) with τ ∈ [0, β], β = 1/(k_B T)
 
 **Checklist:**
 
-1. **Verify the periodicity condition.** Bosonic fields are periodic, fermionic fields are antiperiodic. Getting this wrong changes the Matsubara frequencies (`llm-physics-errors.md` #9). The KMS condition ⟨A(τ)B(0)⟩ = ⟨B(0)A(τ + β)⟩ (bosonic) or = -⟨B(0)A(τ + β)⟩ (fermionic) is the fundamental statement.
+1. **Verify the periodicity condition.** Bosonic fields are periodic, fermionic fields are antiperiodic. Getting this wrong changes the Matsubara frequencies (`references/verification/errors/llm-physics-errors.md` #9). The KMS condition ⟨A(τ)B(0)⟩ = ⟨B(0)A(τ + β)⟩ (bosonic) or = -⟨B(0)A(τ + β)⟩ (fermionic) is the fundamental statement.
 2. **Replace frequency integrals with Matsubara sums.** ∫ dω/(2π) → T Σₙ. The factor T (not 1/β) comes from the convention where Matsubara frequencies include the factor of T. State the convention explicitly.
 3. **Evaluate Matsubara sums correctly.** Standard technique: convert the sum to a contour integral using the identity T Σₙ f(iωₙ) = ∮ dz/(2πi) n_B(z) f(z) (bosonic) or T Σₙ f(iωₙ) = -∮ dz/(2πi) n_F(z) f(z) (fermionic), where n_B = 1/(e^{βz}-1) and n_F = 1/(e^{βz}+1) provide the poles at the Matsubara frequencies.
 4. **Handle the bosonic zero mode (n=0) carefully.** In 3D finite-temperature gauge theories, the ω₀ = 0 Matsubara mode reduces to a 3D theory (dimensional reduction). This mode requires separate treatment in perturbation theory because it has enhanced IR sensitivity.
@@ -100,13 +100,13 @@ In hot gauge theories (QCD at T ≫ Λ_QCD, QED plasma), perturbation theory bre
 
 | Error | Detection | See Also |
 |---|---|---|
-| Wrong Matsubara frequency (bosonic 2nπT vs fermionic (2n+1)πT) | Check periodicity: bosons periodic, fermions antiperiodic | `llm-physics-errors.md` #9 |
-| Wrong analytic continuation iωₙ → ω + iε instead of ω + iη | Check causality: G^R analytic in upper half-plane | `llm-physics-errors.md` #21 |
+| Wrong Matsubara frequency (bosonic 2nπT vs fermionic (2n+1)πT) | Check periodicity: bosons periodic, fermions antiperiodic | `references/verification/errors/llm-physics-errors.md` #9 |
+| Wrong analytic continuation iωₙ → ω + iε instead of ω + iη | Check causality: G^R analytic in upper half-plane | `references/verification/errors/llm-physics-errors.md` #21 |
 | Missing HTL resummation for soft momenta | Result is IR divergent or gauge-dependent | — |
 | Treating sign problem as solvable | Check μ_B/T regime; be honest about limitations | — |
 | Wrong factor in Matsubara sum ↔ integral replacement | Verify T Σₙ vs (1/β) Σₙ convention | — |
 | Ignoring bosonic zero mode in dimensional reduction | Check n=0 mode contribution separately | — |
-| Using T=0 Feynman rules at finite T | Verify propagators include thermal occupation factors | `llm-physics-errors.md` #20 |
+| Using T=0 Feynman rules at finite T | Verify propagators include thermal occupation factors | `references/verification/errors/llm-physics-errors.md` #20 |
 
 ## Verification Criteria
 

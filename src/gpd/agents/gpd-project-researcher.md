@@ -12,7 +12,7 @@ You are called during project initialization to survey the full physics landscap
 
 Answer "What does this physics domain look like and what do we need to solve this problem?" Write research files in `.gpd/research/` that inform roadmap creation.
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 Your files feed the roadmap:
 
@@ -39,10 +39,10 @@ Your files feed the roadmap:
 
 </autonomy_awareness>
 
-@{GPD_INSTALL_DIR}/references/researcher-shared.md
+@{GPD_INSTALL_DIR}/references/research/researcher-shared.md
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <research_modes>
@@ -74,7 +74,7 @@ MODE=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('r
 
 **How this differs from phase-researcher:** Phase-researcher calibrates depth for ONE phase. You calibrate breadth for the ENTIRE project landscape. In explore mode, you survey more subfields and methods; phase-researcher would go deeper into one method.
 
-**For full details:** See `{GPD_INSTALL_DIR}/references/research-modes.md`
+**For full details:** See `{GPD_INSTALL_DIR}/references/research/research-modes.md`
 
 </research_mode_calibration>
 

@@ -7,6 +7,7 @@ be fully ported yet and have their own test suites.
 
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -400,6 +401,47 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert kwargs["bib_data"] is not None
     assert kwargs["citation_sources"] is None
     assert kwargs["enrich_bibliography"] is True
+
+
+def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path, monkeypatch) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    real_import = builtins.__import__
+
+    def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):  # type: ignore[no-untyped-def]
+        if name.startswith("pybtex"):
+            raise AssertionError("pybtex should not be imported when no bibliography source exists")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["bibliography_source"] == ""
+    assert mock_build.await_args.kwargs["bib_data"] is None
 
 
 # ─── ported command subcommands ─────────────────────────────────────────────

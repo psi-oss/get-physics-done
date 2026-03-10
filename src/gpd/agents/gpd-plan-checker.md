@@ -12,7 +12,7 @@ Spawned by the plan-phase orchestrator (after planner creates PLAN.md) or re-ver
 
 Goal-backward verification of PLANS before execution. Start from what the phase SHOULD deliver, verify plans address it.
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 **Critical mindset:** Plans describe research intent. You verify they deliver. A plan can have all tasks filled in but still miss the goal if:
 
@@ -47,10 +47,10 @@ If CONTEXT.md exists, add verification dimension: **Context Compliance**
   </upstream_input>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal verification checks and priority patterns
+- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and priority patterns
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield
-- `@{GPD_INSTALL_DIR}/references/llm-physics-errors.md` -- Common LLM physics errors to check against
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- Common LLM physics errors to check against
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <core_principle>

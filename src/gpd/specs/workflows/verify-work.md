@@ -16,7 +16,7 @@ The AI does not just present what the research SHOULD show — it COMPUTES what 
 
 Walk through derivation logic, perform numerical spot-checks, re-derive limiting cases, probe edge cases with actual computations. No formal review forms. Just: "Here is what I independently computed. Does your result match?"
 
-**Verification independence:** Derive validation checks from the phase goal and the actual research artifacts — not from SUMMARY.md claims about what was accomplished. SUMMARY.md tells you WHERE to look (file paths, deliverable names), but expected physics outcomes come from the phase goal and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification-independence.md.
+**Verification independence:** Derive validation checks from the phase goal and the actual research artifacts — not from SUMMARY.md claims about what was accomplished. SUMMARY.md tells you WHERE to look (file paths, deliverable names), but expected physics outcomes come from the phase goal and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 </philosophy>
 
 <template>
@@ -24,7 +24,7 @@ Walk through derivation logic, perform numerical spot-checks, re-derive limiting
 </template>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/error-propagation-protocol.md
+@{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md
 </required_reading>
 
 <process>

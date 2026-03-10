@@ -65,7 +65,7 @@ Context windows are finite (~200k tokens, ~80% usable). Plans must be sized acco
 - **Group related tasks** that share intermediate results in the same plan
 - **Use waves** for independent work -- each subagent gets a fresh context window
 
-See `{GPD_INSTALL_DIR}/references/context-budget.md` for detailed budget allocation by workflow type.
+See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed budget allocation by workflow type.
 </context_budget_guidance>
 
 <downstream_consumer>

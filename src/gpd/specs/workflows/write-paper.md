@@ -76,7 +76,7 @@ Mode effects on the write-paper pipeline:
 - **Supervised autonomy**: Checkpoints after outline, after each section draft, before referee review
 - **Autonomous/YOLO**: Auto-generate outline from research digest, draft all sections, run referee, present final result
 
-For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md`.
+For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
 
 **If `project_exists` is false:**
 
@@ -835,7 +835,7 @@ Before declaring the draft complete:
 5. **Check word count / page count** against journal requirements.
 6. **Check reference formatting** matches journal style.
 
-**7. Run paper quality scoring** (see `{GPD_INSTALL_DIR}/references/paper-quality-scoring.md`):
+**7. Run paper quality scoring** (see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`):
 
 Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the target journal.
 

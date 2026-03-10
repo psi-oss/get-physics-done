@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/algebraic-qft.md`, `protocols/group-theory.md`, `protocols/topological-methods.md`, `protocols/symmetry-analysis.md`, `protocols/generalized-symmetries.md`, `protocols/string-field-theory.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `protocols/random-matrix-theory.md` (spectral statistics, universality classes), `protocols/resummation.md` (Borel summation, asymptotic analysis), `protocols/large-n-expansion.md` (saddle-point methods, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/algebraic-qft.md`, `references/protocols/group-theory.md`, `references/protocols/topological-methods.md`, `references/protocols/symmetry-analysis.md`, `references/protocols/generalized-symmetries.md`, `references/protocols/string-field-theory.md`, `references/protocols/conformal-bootstrap.md`, `references/protocols/holography-ads-cft.md`, `references/protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `references/protocols/random-matrix-theory.md` (spectral statistics, universality classes), `references/protocols/resummation.md` (Borel summation, asymptotic analysis), `references/protocols/large-n-expansion.md` (saddle-point methods, matrix models).
 
 **Rigorous Proofs in Physics:**
 

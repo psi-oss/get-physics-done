@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/de-sitter-space.md` (positive cosmological constant, cosmological horizons, dS/CFT, static patch holography), `protocols/asymptotic-symmetries.md` (Bondi gauge, null infinity, BMS charges, memory, soft theorems), `protocols/numerical-computation.md` (general numerical methods), `protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational perturbation theory), `references/protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `references/protocols/de-sitter-space.md` (positive cosmological constant, cosmological horizons, dS/CFT, static patch holography), `references/protocols/asymptotic-symmetries.md` (Bondi gauge, null infinity, BMS charges, memory, soft theorems), `references/protocols/numerical-computation.md` (general numerical methods), `references/protocols/numerical-relativity.md` (3+1 decomposition, constraint equations, gravitational wave extraction), `references/protocols/effective-field-theory.md` (gravitational EFT, parameterized post-Einsteinian framework).
 
 **Friedmann Equations:**
 

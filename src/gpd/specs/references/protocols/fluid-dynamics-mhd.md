@@ -36,7 +36,7 @@ Fluid dynamics spans astrophysics (accretion disks, stellar convection), condens
 - `non-equilibrium-transport.md` — Transport coefficients, Boltzmann equation
 - `order-of-limits.md` — Non-commuting limits (inviscid vs incompressible, etc.)
 - `kinetic-theory.md` — Boltzmann equation derivation of viscosity, thermal conductivity, and other transport coefficients from molecular dynamics
-- `verification-domain-fluid-plasma.md` — Concrete verification formulas: MHD equilibrium, reconnection rates, turbulence spectra, conservation laws
+- `references/verification/domains/verification-domain-fluid-plasma.md` — Concrete verification formulas: MHD equilibrium, reconnection rates, turbulence spectra, conservation laws
 
 ---
 

@@ -42,8 +42,8 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 Read these files at execution start using the file_read tool:
 - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
 - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
-- Checkpoints ref: {GPD_INSTALL_DIR}/references/checkpoints.md
-- Validation ref: {GPD_INSTALL_DIR}/references/verification-core.md
+- Checkpoints ref: {GPD_INSTALL_DIR}/references/orchestration/checkpoints.md
+- Validation ref: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md
 - Plan: {phase_dir}/{plan_file}
 - State: .gpd/STATE.md
 - Config: .gpd/config.json (if exists)

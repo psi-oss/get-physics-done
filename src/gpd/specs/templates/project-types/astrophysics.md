@@ -154,7 +154,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Astrophysics
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-astrophysics.md` for astrophysics-specific verification (hydrostatic equilibrium, Eddington luminosity, Jeans mass, nuclear burning, accretion physics, gravitational wave sources).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-astrophysics.md` for astrophysics-specific verification (hydrostatic equilibrium, Eddington luminosity, Jeans mass, nuclear burning, accretion physics, gravitational wave sources).
 
 ---
 

@@ -1,7 +1,8 @@
 """GPD Errors MCP server — exposes physics error catalog and traceability via MCP tools.
 
-Loads 4 error catalog files (llm-errors-*.md) and the traceability matrix from
-specs/references/, parses markdown tables, and serves them via FastMCP tools.
+Loads the error catalog files and traceability matrix from
+specs/references/verification/errors/, parses markdown tables, and serves them
+via FastMCP tools.
 
 Entry point: python -m gpd.mcp.servers.errors_mcp
 Console script: gpd-mcp-errors
@@ -27,13 +28,13 @@ REFERENCES_DIR = SPECS_DIR / "references"
 
 # The 4 error catalog part files (ordered by error ID range)
 ERROR_CATALOG_FILES = [
-    "llm-errors-core.md",  # #1-25
-    "llm-errors-field-theory.md",  # #26-51
-    "llm-errors-extended.md",  # #52-81, #102-104
-    "llm-errors-deep.md",  # #82-101
+    "verification/errors/llm-errors-core.md",  # #1-25
+    "verification/errors/llm-errors-field-theory.md",  # #26-51
+    "verification/errors/llm-errors-extended.md",  # #52-81, #102-104
+    "verification/errors/llm-errors-deep.md",  # #82-101
 ]
 
-TRACEABILITY_FILE = "llm-errors-traceability.md"
+TRACEABILITY_FILE = "verification/errors/llm-errors-traceability.md"
 
 # Traceability matrix column names
 TRACEABILITY_COLUMNS = [
@@ -152,7 +153,8 @@ class ErrorStore:
                     "detection_strategy": detection_strategy,
                     "example": example,
                     "domain": _infer_domain_from_id(error_id),
-                    "source_file": filename,
+                    # Preserve the stable basename in the public response.
+                    "source_file": Path(filename).name,
                 }
 
         logger.info("Loaded %d error classes from catalogs", len(self._errors))

@@ -152,7 +152,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Conformal Bootstrap
 
-See `references/verification-domain-mathematical-physics.md` for CFT/bootstrap verification and `references/verification-core.md` for universal checks.
+See `references/verification/domains/verification-domain-mathematical-physics.md` for CFT/bootstrap verification and `references/verification/core/verification-core.md` for universal checks.
 
 - Crossing equations include the identity operator and correct sector decomposition.
 - Scalar, current, and stress-tensor dimensions satisfy the correct unitarity or protection conditions.

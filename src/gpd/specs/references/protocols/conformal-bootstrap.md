@@ -343,7 +343,7 @@ The residual converges to zero but NEVER exactly vanishes at finite truncation. 
 
 ## Verification Criteria
 
-1. **Unitarity bounds.** In d dimensions: scalar Δ ≥ (d-2)/2 (free field saturation). Spin-ℓ current: Δ ≥ d + ℓ - 2 (for ℓ ≥ 1). Stress tensor: Δ = d exactly. Any violation indicates an error (`llm-physics-errors.md` #40, scaling dimension errors).
+1. **Unitarity bounds.** In d dimensions: scalar Δ ≥ (d-2)/2 (free field saturation). Spin-ℓ current: Δ ≥ d + ℓ - 2 (for ℓ ≥ 1). Stress tensor: Δ = d exactly. Any violation indicates an error (`references/verification/errors/llm-physics-errors.md` #40, scaling dimension errors).
 2. **OPE convergence.** The OPE must converge inside the range |ρ| < 1 where ρ = z/(1+√(1-z))². Verify that the sum over operators converges for the cross-ratios used.
 3. **Known CFT data.** For the 3D Ising model: Δ_σ = 0.5181489(10), Δ_ε = 1.412625(10) (Kos, Poland, Simmons-Duffin, Vichi 2016). For the free scalar in d dimensions: Δ_φ = (d-2)/2 exactly. Use these as benchmarks.
 4. **Crossing symmetry residual.** After solving, evaluate the crossing equation with the obtained spectrum and check the residual. It should be at or below the numerical precision of the SDP solver.

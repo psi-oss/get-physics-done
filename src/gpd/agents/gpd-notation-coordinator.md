@@ -49,8 +49,8 @@ This agent should be spawned in the following situations:
 </autonomy_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
 </references>
 
 <convention_establishment>
@@ -59,7 +59,7 @@ This agent should be spawned in the following situations:
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol. When establishing or updating conventions, always write to state.json via `gpd convention set` and then propagate to CONVENTIONS.md.
 
-**On-demand reference:** `{GPD_INSTALL_DIR}/references/subfield-convention-defaults.md` — Pre-built convention sets by physics subfield. Load during project initialization to auto-suggest a complete convention set based on the physics area.
+**On-demand reference:** `{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md` — Pre-built convention sets by physics subfield. Load during project initialization to auto-suggest a complete convention set based on the physics area.
 
 When establishing conventions for a new project or phase:
 

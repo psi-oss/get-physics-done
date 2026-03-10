@@ -18,7 +18,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/holography-ads-cft.md`, `protocols/de-sitter-space.md`, `protocols/asymptotic-symmetries.md`, `protocols/effective-field-theory.md`, `protocols/path-integrals.md`, `protocols/supersymmetry.md` (for protected sectors), `protocols/renormalization-group.md` (for asymptotic-safety/FRG work), and `protocols/random-matrix-theory.md` (for quantum-chaos diagnostics). For worldsheet methods, D-branes, compactification, or swampland-specific reasoning, also load `subfields/string-theory.md`.
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/holography-ads-cft.md`, `references/protocols/de-sitter-space.md`, `references/protocols/asymptotic-symmetries.md`, `references/protocols/effective-field-theory.md`, `references/protocols/path-integrals.md`, `references/protocols/supersymmetry.md` (for protected sectors), `references/protocols/renormalization-group.md` (for asymptotic-safety/FRG work), and `references/protocols/random-matrix-theory.md` (for quantum-chaos diagnostics). For worldsheet methods, D-branes, compactification, or swampland-specific reasoning, also load `references/subfields/string-theory.md`.
 
 **Semiclassical Gravity and QFT in Curved Spacetime:**
 
@@ -129,7 +129,7 @@ What regime of quantum gravity?
 - **Quantum gravity + GR:** Classical geometry, horizons, and perturbation theory provide the background control for semiclassical questions
 - **Quantum gravity + QFT:** Matter entanglement, anomalies, EFT reasoning, and RG flow are often the calculational backbone
 - **Quantum gravity + quantum information:** Entropy, reconstruction, error correction, and chaos organize protected or semiclassical observables
-- **Quantum gravity + string theory:** Holography, supersymmetry, and swampland ideas often enter through string constructions rather than pure GR reasoning. If the calculation depends on worldsheet control, D-branes, or compactification data, load `subfields/string-theory.md` explicitly.
+- **Quantum gravity + string theory:** Holography, supersymmetry, and swampland ideas often enter through string constructions rather than pure GR reasoning. If the calculation depends on worldsheet control, D-branes, or compactification data, load `references/subfields/string-theory.md` explicitly.
 
 ## Project Scope by Career Stage
 

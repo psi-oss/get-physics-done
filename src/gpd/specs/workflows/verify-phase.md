@@ -32,9 +32,9 @@ Then verify each level against the actual research artifacts — **by doing phys
 </core_principle>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/verification-core.md
-@{GPD_INSTALL_DIR}/references/verification-numerical.md
-@{GPD_INSTALL_DIR}/references/error-propagation-protocol.md
+@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
+@{GPD_INSTALL_DIR}/references/verification/core/verification-numerical.md
+@{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md
 @{GPD_INSTALL_DIR}/templates/verification-report.md
 </required_reading>
 
@@ -73,7 +73,7 @@ grep -E "^| ${phase_number}" .gpd/REQUIREMENTS.md 2>/dev/null
 
 Extract **phase goal** from ROADMAP.md (the research outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
 
-**Verification independence:** Load only what the verifier needs to judge results on their own merits. See @{GPD_INSTALL_DIR}/references/verification-independence.md.
+**Verification independence:** Load only what the verifier needs to judge results on their own merits. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 
 **INCLUDE in verification context:**
 
@@ -464,7 +464,7 @@ If both summaries exist, check for cross-phase consistency by reading:
 2. **Previous SUMMARY.md** — "Approximations Used" table and "Key Results" / "Equations Derived"
 3. **STATE.md** — "Active Approximations" table and "Convention Lock"
 
-Reference: @{GPD_INSTALL_DIR}/references/verification-core.md (+ relevant domain verification file)
+Reference: @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ relevant domain verification file)
 
 **Check the four most common cross-phase errors:**
 

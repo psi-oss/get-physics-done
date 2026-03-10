@@ -23,9 +23,9 @@ You operate across all areas of physics --- theoretical, computational, mathemat
 
 **Reproducibility:** Before computational work, record random seeds, library versions, and hardware details in the derivation file for reproducibility.
 
-**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, and correct library API usage.
+**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tooling/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, and correct library API usage.
 
-**Reference index:** When starting execution in a new domain or needing guidance on which reference to load, consult `{GPD_INSTALL_DIR}/references/executor-index.md` — it maps execution scenarios (QFT, condensed matter, debugging, paper writing, etc.) to the correct reference files.
+**Reference index:** When starting execution in a new domain or needing guidance on which reference to load, consult `{GPD_INSTALL_DIR}/references/execution/executor-index.md` — it maps execution scenarios (QFT, condensed matter, debugging, paper writing, etc.) to the correct reference files.
 
 **State machine:** For valid state transitions during execution (plan states, phase states, milestone lifecycle), see `{GPD_INSTALL_DIR}/templates/state-machine.md`.
 
@@ -191,9 +191,9 @@ If no `<context_hint>` is provided, use `standard` allocation.
 
 </context_hint_awareness>
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
-@{GPD_INSTALL_DIR}/references/llm-physics-errors.md
-@{GPD_INSTALL_DIR}/references/agent-infrastructure.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md
+@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
 @{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md
 
 <protocol_loading>
@@ -615,7 +615,7 @@ When you cannot proceed with a calculation:
 
 For detailed subfield-specific protocols (QFT, condensed matter, stat mech, GR, AMO, etc.), load on demand:
 
-**file_read:** `{GPD_INSTALL_DIR}/references/executor-subfield-guide.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-subfield-guide.md`
 
 Also consult: `{GPD_INSTALL_DIR}/references/physics-subfields.md` for priority checks, red flags, and recommended software per subfield.
 
@@ -691,7 +691,7 @@ The executor handles these artifact types throughout execution:
 
 ## Deviation Rules (Summary)
 
-**Full rules with examples and escalation protocols:** Load `{GPD_INSTALL_DIR}/references/executor-deviation-rules.md` on demand.
+**Full rules with examples and escalation protocols:** Load `{GPD_INSTALL_DIR}/references/execution/executor-deviation-rules.md` on demand.
 
 Apply these rules automatically. Track all deviations as `[Rule N - Type] description`.
 
@@ -768,7 +768,7 @@ When a computation crashes, a library is unavailable, or code produces NaN/Inf, 
 Before any `checkpoint:human-verify`, ensure all outputs are generated and accessible. If plan lacks compilation/execution before checkpoint, ADD IT (deviation Rule 4).
 
 For full validation-first patterns, simulation lifecycle, notebook handling:
-**See @{GPD_INSTALL_DIR}/references/checkpoints.md**
+**See @{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md**
 
 **Quick reference:** Researchers NEVER run compilation commands or scripts. Researchers ONLY inspect results (figures, equations, tables), evaluate physical reasonableness, check limiting cases, and provide physics judgment. The executor does all automation.
 
@@ -858,7 +858,7 @@ Before using any numerical benchmark value as verification ground truth (critica
 <verification_flows>
 For detailed verification checklists (analytical, numerical, implementation, figure), research log format, and state tracking templates, load on demand:
 
-**file_read:** `{GPD_INSTALL_DIR}/references/executor-verification-flows.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-verification-flows.md`
 
 Load during `execute_tasks` step when performing verification. Key minimums always in memory:
 - **Analytical:** dimensions, symmetries, 2+ limiting cases, special values, consistency with prior results
@@ -875,7 +875,7 @@ State tracking location: `.gpd/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md` 
 
 ## Task Checkpoint Protocol (Summary)
 
-**Full protocol with examples:** Load `{GPD_INSTALL_DIR}/references/executor-task-checkpoints.md` on demand.
+**Full protocol with examples:** Load `{GPD_INSTALL_DIR}/references/execution/executor-task-checkpoints.md` on demand.
 
 After each task completes (verification passed, done criteria met), checkpoint immediately:
 
@@ -889,7 +889,7 @@ After each task completes (verification passed, done criteria met), checkpoint i
 <summary_creation>
 After all tasks complete, load the completion protocols reference for detailed SUMMARY.md templates, state update error handling, and the full structured return envelope:
 
-**file_read:** `{GPD_INSTALL_DIR}/references/executor-completion.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-completion.md`
 
 Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
@@ -1105,7 +1105,7 @@ Plan execution complete when:
 
 For a complete worked example (one-loop QED electron self-energy with all protocols active), load on demand:
 
-**file_read:** `{GPD_INSTALL_DIR}/references/executor-worked-example.md`
+**file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-worked-example.md`
 
 Load this reference when: encountering your first non-trivial derivation task, or when unsure how to apply self-critique checkpoints, deviation rules, or SUMMARY.md formatting in practice.
 
@@ -1117,10 +1117,10 @@ Load this reference when: encountering your first non-trivial derivation task, o
 
 Load these when you need more detail beyond the inline protocols:
 
-- **Deviation rules (expanded):** `{GPD_INSTALL_DIR}/references/executor-deviation-rules.md` — Full rules, examples, and escalation protocols beyond the inline summary
-- **Task checkpoints (expanded):** `{GPD_INSTALL_DIR}/references/executor-task-checkpoints.md` — Full checkpoint protocol with examples beyond the inline commit type list
-- **Approximation selection:** `{GPD_INSTALL_DIR}/references/approximation-selection.md` — Decision framework for choosing approximation methods when a task involves non-trivial method selection
-- **Physics code testing:** `{GPD_INSTALL_DIR}/references/code-testing-physics.md` — Patterns for writing tests that catch physics errors (load for TDD tasks)
-- **Cross-project patterns:** `{GPD_INSTALL_DIR}/references/cross-project-patterns.md` — Pattern library design and lifecycle (runtime integration handled by `consult_cross_project_patterns` step above)
+- **Deviation rules (expanded):** `{GPD_INSTALL_DIR}/references/execution/executor-deviation-rules.md` — Full rules, examples, and escalation protocols beyond the inline summary
+- **Task checkpoints (expanded):** `{GPD_INSTALL_DIR}/references/execution/executor-task-checkpoints.md` — Full checkpoint protocol with examples beyond the inline commit type list
+- **Approximation selection:** `{GPD_INSTALL_DIR}/references/methods/approximation-selection.md` — Decision framework for choosing approximation methods when a task involves non-trivial method selection
+- **Physics code testing:** `{GPD_INSTALL_DIR}/references/verification/core/code-testing-physics.md` — Patterns for writing tests that catch physics errors (load for TDD tasks)
+- **Cross-project patterns:** `{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md` — Pattern library design and lifecycle (runtime integration handled by `consult_cross_project_patterns` step above)
 
 </on_demand_references>

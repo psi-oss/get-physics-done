@@ -16,7 +16,7 @@ You are spawned by:
 - The regression-check command (re-verify previously verified truths)
 
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 
 
@@ -233,7 +233,7 @@ This table maps each error class to the verification checks (from `verification-
 3. **Compound errors.** LLMs can make multiple errors from different classes in a single calculation. A wrong CG coefficient (class 1) combined with a wrong phase convention (class 7) can accidentally cancel, producing a "correct" result for the wrong reason. Similarly, a metric signature error (class 37) combined with a covariant derivative error (class 38) can produce a doubly-wrong result that passes superficial checks. Always verify intermediate steps, not just the final answer.
 4. **Confidence calibration.** LLMs present all results with equal confidence. A standard textbook identity and a hallucinated generalization are stated with the same certainty. The absence of hedging language does NOT indicate correctness.
 5. **Cross-referencing.** For any non-trivial identity or coefficient: verify against at least two independent sources (textbooks, published tables, numerical computation). LLMs can reproduce errors from a single training source.
-6. **Use the traceability matrix.** When a specific error class is suspected, consult the traceability table above to identify which verification checks are most effective for detection. A lightweight version is available in `llm-errors-traceability.md` for context-efficient loading.
+6. **Use the traceability matrix.** When a specific error class is suspected, consult the traceability table above to identify which verification checks are most effective for detection. A lightweight version is available in `references/verification/errors/llm-errors-traceability.md` for context-efficient loading.
 
 <!-- [end included] -->
 
@@ -883,7 +883,7 @@ The research mode adjusts your verification STRATEGY (what question you're answe
 | **exploit** | "Is this result PUBLICATION-READY?" — maximum rigor | INDEPENDENTLY CONFIRMED for ALL results | Gaps are BLOCKERS (method is assumed correct) |
 | **adaptive** | Use explore strategy until transition, then exploit strategy | Matches current sub-mode | Lenient → strict at transition |
 
-**For full details:** See `@{GPD_INSTALL_DIR}/references/research-modes.md`
+**For full details:** See `@{GPD_INSTALL_DIR}/references/research/research-modes.md`
 
 </research_mode_awareness>
 
@@ -1742,22 +1742,22 @@ If no must_haves in frontmatter:
 **For subfield-specific validation strategies, priority checks, and red flags, consult:**
 
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Detailed methods, tools, pitfalls per subfield
-- `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal checks: dimensional analysis, limiting cases, symmetry, conservation laws
-- `{GPD_INSTALL_DIR}/references/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
+- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal checks: dimensional analysis, limiting cases, symmetry, conservation laws
+- `{GPD_INSTALL_DIR}/references/verification/meta/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
 - Subfield-specific priority checks and red flags — load the relevant domain file(s):
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-qft.md` — QFT, gauge theory, scattering
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-condmat.md` — condensed matter, many-body
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-statmech.md` — stat mech, phase transitions
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-gr-cosmology.md` — GR, cosmology, black holes, gravitational waves
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-amo.md` — atomic physics, quantum optics, cold atoms
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-nuclear-particle.md` — nuclear, collider, flavor physics
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-astrophysics.md` — stellar structure, accretion, compact objects
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-fluid-plasma.md` — MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-mathematical-physics.md` — rigorous proofs, topology, index theorems
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-string-field-theory.md` — BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
-  - `@{GPD_INSTALL_DIR}/references/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-qft.md` — QFT, gauge theory, scattering
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-condmat.md` — condensed matter, many-body
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-statmech.md` — stat mech, phase transitions
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-gr-cosmology.md` — GR, cosmology, black holes, gravitational waves
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-amo.md` — atomic physics, quantum optics, cold atoms
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-nuclear-particle.md` — nuclear, collider, flavor physics
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-astrophysics.md` — stellar structure, accretion, compact objects
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-fluid-plasma.md` — MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-mathematical-physics.md` — rigorous proofs, topology, index theorems
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-string-field-theory.md` — BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
+  - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration
 
 ## Step 3: Verify Observable Truths
 
@@ -3801,7 +3801,7 @@ Before finalizing VERIFICATION.md, scan it for computational oracle evidence. Th
 
 **Rationale:** The entire verification chain depends on the same LLM that produced the research. Without external computational validation, the verifier can only check self-consistency, not correctness. A single CAS evaluation catches errors that no amount of LLM reasoning can detect.
 
-See `@{GPD_INSTALL_DIR}/references/computational-verification-templates.md` for copy-paste-ready templates.
+See `@{GPD_INSTALL_DIR}/references/verification/core/computational-verification-templates.md` for copy-paste-ready templates.
 
 ## Create VERIFICATION.md
 

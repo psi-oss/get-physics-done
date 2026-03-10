@@ -1796,6 +1796,39 @@ def _find_manuscript_main(cwd: Path) -> Path | None:
     return None
 
 
+def _resolve_peer_review_manuscript(cwd: Path, subject: str | None) -> tuple[Path | None, str]:
+    """Resolve a peer-review manuscript target from an explicit subject or defaults."""
+    if subject:
+        target = Path(subject)
+        if not target.is_absolute():
+            target = cwd / target
+
+        if not target.exists():
+            return None, f"missing explicit manuscript target {_format_display_path(target)}"
+
+        if target.is_file():
+            if target.suffix in {".tex", ".md"}:
+                return target, f"{_format_display_path(target)} present"
+            return None, f"explicit manuscript target must be a .tex or .md file: {_format_display_path(target)}"
+
+        if target.is_dir():
+            candidate = _first_existing_path(target / "main.tex", target / "main.md")
+            if candidate is None:
+                direct_files = sorted(
+                    path for path in target.iterdir() if path.is_file() and path.suffix in {".tex", ".md"}
+                )
+                if direct_files:
+                    candidate = direct_files[0]
+            if candidate is not None:
+                return candidate, f"{_format_display_path(target)} resolved to {_format_display_path(candidate)}"
+            return None, f"no manuscript entry point found under {_format_display_path(target)}"
+
+    manuscript = _find_manuscript_main(cwd)
+    if manuscript is not None:
+        return manuscript, f"{_format_display_path(manuscript)} present"
+    return None, "no paper/main.tex, manuscript/main.tex, or draft/main.tex found"
+
+
 def _has_any_phase_summary(phases_dir: Path) -> bool:
     """Return True when any numbered or standalone summary exists."""
     if not phases_dir.exists():
@@ -1970,11 +2003,20 @@ def _build_review_preflight(
             )
 
     if "manuscript" in contract.preflight_checks:
-        manuscript = _find_manuscript_main(cwd)
+        manuscript, manuscript_detail = (
+            _resolve_peer_review_manuscript(cwd, subject)
+            if command.name == "gpd:peer-review"
+            else (
+                _find_manuscript_main(cwd),
+                "",
+            )
+        )
         add_check(
             "manuscript",
             manuscript is not None,
-            (
+            manuscript_detail
+            if command.name == "gpd:peer-review"
+            else (
                 f"{_format_display_path(manuscript)} present"
                 if manuscript is not None
                 else "no paper/main.tex, manuscript/main.tex, or draft/main.tex found"

@@ -7,13 +7,13 @@ Read STATE.md before any operation to load project context.
 Read config.json for planning behavior settings.
 
 Read these reference files using the file_read tool:
-- {GPD_INSTALL_DIR}/references/git-integration.md
-- {GPD_INSTALL_DIR}/references/execute-plan-recovery.md
-- {GPD_INSTALL_DIR}/references/execute-plan-validation.md
-- {GPD_INSTALL_DIR}/references/execute-plan-checkpoints.md
-- {GPD_INSTALL_DIR}/references/reproducibility.md
-- {GPD_INSTALL_DIR}/references/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (Uncertainty Budget declaration format, verification checks, phase handoff format)
-- {GPD_INSTALL_DIR}/references/executor-index.md -- Maps execution scenarios (QFT, condensed matter, numerical, paper writing, debugging) to the correct domain-specific reference files
+- {GPD_INSTALL_DIR}/references/execution/git-integration.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-recovery.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-validation.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-checkpoints.md
+- {GPD_INSTALL_DIR}/references/protocols/reproducibility.md
+- {GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (Uncertainty Budget declaration format, verification checks, phase handoff format)
+- {GPD_INSTALL_DIR}/references/execution/executor-index.md -- Maps execution scenarios (QFT, condensed matter, numerical, paper writing, debugging) to the correct domain-specific reference files
 - {GPD_INSTALL_DIR}/templates/calculation-log.md -- Template for CALCULATION_LOG.md (detailed derivation records within a phase)
 - {GPD_INSTALL_DIR}/templates/recovery-plan.md -- Template for RECOVERY.md (structured recovery after plan execution failure)
 </required_reading>
@@ -247,7 +247,7 @@ Context is finite (~200k tokens, ~80% usable). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, recommend `/clear` + `/gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/context-budget.md` for budget guidelines.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, recommend `/clear` + `/gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 
@@ -352,7 +352,7 @@ On resume (in `detect_previous_attempt`), read `plan-commits.json` to reconstruc
 </task_commit>
 
 <step name="checkpoint_protocol">
-See `execute-plan-checkpoints.md` for the full checkpoint protocol (display format, types, resume signals) and `{GPD_INSTALL_DIR}/references/checkpoints.md` for general checkpoint details.
+See `execute-plan-checkpoints.md` for the full checkpoint protocol (display format, types, resume signals) and `{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` for general checkpoint details.
 
 WAIT for user -- do NOT hallucinate completion.
 </step>

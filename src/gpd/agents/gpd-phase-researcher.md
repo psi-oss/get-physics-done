@@ -49,12 +49,12 @@ Spawned by the plan-phase orchestrator (integrated) or the research-phase comman
 </autonomy_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification, research agent shared protocol
-- `@{GPD_INSTALL_DIR}/references/researcher-shared.md` -- Shared research philosophy, tool strategy, confidence levels, pitfalls, pre-submission checklist
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification, research agent shared protocol
+- `@{GPD_INSTALL_DIR}/references/research/researcher-shared.md` -- Shared research philosophy, tool strategy, confidence levels, pitfalls, pre-submission checklist
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/research-modes.md` -- Research mode system (explore/balanced/exploit/adaptive) that controls research depth and breadth
+- `{GPD_INSTALL_DIR}/references/research/research-modes.md` -- Research mode system (explore/balanced/exploit/adaptive) that controls research depth and breadth
 </references>
 
 <research_mode_awareness>
@@ -74,7 +74,7 @@ MODE=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('r
 | **exploit** | Minimal. Confirm methodology is standard, cite the key reference, note known pitfalls. | Skip: use the known approach | 3-5 searches, method paper only | ~100-200 lines |
 | **adaptive** | Starts as explore, narrows to exploit as approach validates | Full initially, prune after selection | Broad → narrow | Varies |
 
-**For full details:** See `{GPD_INSTALL_DIR}/references/research-modes.md`
+**For full details:** See `{GPD_INSTALL_DIR}/references/research/research-modes.md`
 
 </research_mode_awareness>
 

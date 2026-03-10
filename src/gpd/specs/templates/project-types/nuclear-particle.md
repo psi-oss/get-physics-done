@@ -146,7 +146,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Nuclear/Particle Physics
 
-See `references/verification-core.md` for universal checks, `references/verification-domain-qft.md` for QFT verification (Ward identities, unitarity, crossing symmetry), and `references/verification-domain-nuclear-particle.md` for nuclear/particle-specific verification (chiral power counting, LEC natural-size bounds, parton sum rules, CKM unitarity, heavy quark symmetry, isospin decomposition).
+See `references/verification/core/verification-core.md` for universal checks, `references/verification/domains/verification-domain-qft.md` for QFT verification (Ward identities, unitarity, crossing symmetry), and `references/verification/domains/verification-domain-nuclear-particle.md` for nuclear/particle-specific verification (chiral power counting, LEC natural-size bounds, parton sum rules, CKM unitarity, heavy quark symmetry, isospin decomposition).
 
 ---
 

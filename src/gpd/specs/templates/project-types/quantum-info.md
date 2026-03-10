@@ -159,7 +159,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Quantum Information
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-quantum-info.md` for quantum-information-specific verification (CPTP, entanglement measures, channel capacity, error correction, circuit correctness).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-quantum-info.md` for quantum-information-specific verification (CPTP, entanglement measures, channel capacity, error correction, circuit correctness).
 
 ### CPTP and Channel Verification
 - **Trace preservation:** Sum_k K_k^dagger K_k = I for Kraus operators {K_k}

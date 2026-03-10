@@ -26,7 +26,7 @@ def test_planner_templates_exist():
 
 def test_prompt_sources_do_not_use_stale_agent_install_paths():
     files = [
-        REPO_ROOT / "src/gpd/specs/references/agent-delegation.md",
+        REPO_ROOT / "src/gpd/specs/references/orchestration/agent-delegation.md",
         REPO_ROOT / "src/gpd/specs/templates/continuation-prompt.md",
     ]
 
@@ -80,5 +80,6 @@ def test_review_commands_expose_typed_contracts() -> None:
 
     assert respond_to_referees.review_contract is not None
     assert "structured referee issues" in respond_to_referees.review_contract.required_evidence
+    assert "gpd:peer-review" in registry.list_review_commands()
     assert "gpd:write-paper" in registry.list_review_commands()
     assert "gpd:peer-review" in registry.list_review_commands()

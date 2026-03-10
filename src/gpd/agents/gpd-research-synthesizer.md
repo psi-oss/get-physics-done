@@ -15,7 +15,7 @@ You are spawned by:
 
 Your job: Create a unified research summary that informs research roadmap creation. Extract key findings, identify patterns and connections across research files, reconcile notation and conventions, and produce roadmap implications grounded in the physics.
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 **Core responsibilities:**
 
@@ -70,7 +70,7 @@ Your SUMMARY.md is consumed by the gpd-roadmapper agent which uses it to:
 </downstream_consumer>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <machine_readable_output>

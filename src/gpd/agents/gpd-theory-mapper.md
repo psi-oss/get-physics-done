@@ -43,8 +43,8 @@ The research mode (from `.gpd/config.json` field `research_mode`, default: `"bal
 </research_mode_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield (informs framework and formalism analysis)
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
@@ -651,23 +651,23 @@ Before declaring a document complete, ask:
 Templates are stored as separate reference files. Load only the templates for your focus area.
 
 **Theory focus** (FORMALISM.md, REFERENCES.md):
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/FORMALISM.md`
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/REFERENCES.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/FORMALISM.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/REFERENCES.md`
 
 **Computation focus** (ARCHITECTURE.md, STRUCTURE.md):
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/ARCHITECTURE.md`
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/STRUCTURE.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/ARCHITECTURE.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/STRUCTURE.md`
 
 **Methodology focus** (CONVENTIONS.md, VALIDATION.md):
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/CONVENTIONS.md`
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/VALIDATION.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/CONVENTIONS.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/VALIDATION.md`
 
 **Status focus** (CONCERNS.md):
-- `@{GPD_INSTALL_DIR}/references/theory-mapper-templates/CONCERNS.md`
+- `@{GPD_INSTALL_DIR}/references/templates/theory-mapper/CONCERNS.md`
 
 ### When Template Files Don't Exist
 
-If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` does not exist), treat that as a broken install and fall back to this procedure:
+If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/templates/theory-mapper/` does not exist), treat that as a broken install and fall back to this procedure:
 
 1. **Do not search alternate runtime-specific paths.** GPD installs the shared reference tree at a deterministic `{GPD_INSTALL_DIR}` location for every runtime.
 
@@ -689,7 +689,7 @@ If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/r
 
 <REMOVED_INLINE_TEMPLATES>
 <!-- 843 lines of inline templates removed — now loaded from reference files above.
-     See {GPD_INSTALL_DIR}/references/theory-mapper-templates/ for the full templates.
+     See {GPD_INSTALL_DIR}/references/templates/theory-mapper/ for the full templates.
      This comment marks where they used to be, to prevent re-insertion by concurrent edits. -->
 </REMOVED_INLINE_TEMPLATES>
 

@@ -84,14 +84,14 @@ The paper-writer adapts its approach based on project research mode.
 </mode_aware_writing>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
 - `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Standard format for notation tables and symbol definitions
 - `@{GPD_INSTALL_DIR}/templates/latex-preamble.md` -- Standard LaTeX preamble, macros, equation labeling, and figure conventions
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)
-- `{GPD_INSTALL_DIR}/references/publication-pipeline-modes.md` -- Mode adaptation for paper structure, derivation detail, figure strategy, and literature integration by autonomy and research_mode (load when calibrating writing approach)
+- `{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)
+- `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` -- Mode adaptation for paper structure, derivation detail, figure strategy, and literature integration by autonomy and research_mode (load when calibrating writing approach)
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
@@ -882,7 +882,7 @@ Run this on EVERY figure before submission:
 
 ## Figure Generation Templates
 
-**Full templates:** Load `{GPD_INSTALL_DIR}/references/figure-generation-templates.md` when generating figures.
+**Full templates:** Load `{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md` when generating figures.
 
 Available templates: base configuration (rcParams, colorblind-safe palette, journal sizing), phase diagram, dispersion relation, correlation function, convergence study, theory vs experiment comparison, Feynman diagram guidance, saving conventions (PDF for LaTeX, EPS for Nature, PNG for rasterized).
 

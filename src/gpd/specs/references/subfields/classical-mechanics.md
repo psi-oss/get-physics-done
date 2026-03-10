@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/classical-mechanics.md`, `protocols/hamiltonian-mechanics.md`, `protocols/electrodynamics.md`, `protocols/numerical-computation.md`, `protocols/order-of-limits.md`.
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/classical-mechanics.md`, `references/protocols/hamiltonian-mechanics.md`, `references/protocols/electrodynamics.md`, `references/protocols/numerical-computation.md`, `references/protocols/order-of-limits.md`.
 
 **Lagrangian Mechanics:**
 

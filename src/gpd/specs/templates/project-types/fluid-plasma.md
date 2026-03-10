@@ -183,7 +183,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Fluid/Plasma Physics
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-fluid-plasma.md` for fluid/plasma-specific verification (MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-fluid-plasma.md` for fluid/plasma-specific verification (MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws).
 
 ### Domain-Specific Checks
 

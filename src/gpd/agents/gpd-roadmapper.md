@@ -13,7 +13,7 @@ You are spawned by:
 - The new-project orchestrator (unified research project initialization)
 - The new-milestone orchestrator (milestone-scoped roadmap creation)
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
@@ -30,7 +30,7 @@ Your job: Transform research objectives into a phase structure that advances the
   </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
 <autonomy_awareness>

@@ -8,7 +8,7 @@ Template for `~/.gpd/learned-patterns/patterns-by-domain/{domain}/{category}-{sl
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 
-For how patterns are managed, read, and written, see `@{GPD_INSTALL_DIR}/references/cross-project-patterns.md`.
+For how patterns are managed, read, and written, see `@{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md`.
 
 ---
 
@@ -97,7 +97,7 @@ Explain the root cause clearly enough that someone unfamiliar with the specific 
 
 ### How to detect
 
-Concrete, actionable checks that the verifier can perform. Reference specific verification patterns from `@get-physics-done/references/verification-core.md` (or the relevant domain file) where applicable.
+Concrete, actionable checks that the verifier can perform. Reference specific verification patterns from `@get-physics-done/references/verification/core/verification-core.md` (or the relevant domain file) where applicable.
 
 - Good: "Check the sign of Im[G^R(omega)] for omega > 0. It must be negative (for the convention where G^R has a pole at omega - epsilon_k + i\*eta). If positive, the metric signature is likely flipped."
 - Bad: "Check the propagator carefully." (Not actionable.)

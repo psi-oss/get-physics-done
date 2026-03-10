@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/numerical-relativity.md` (gravitational wave sources, compact objects), `protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `protocols/numerical-computation.md` (general numerical methods), `protocols/monte-carlo.md` (statistical inference in astrophysics), `protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational lensing), `protocols/stochastic-processes.md` (stochastic gravitational wave backgrounds, noise characterization).
+**Detailed protocols:** For step-by-step calculation protocols, see `references/protocols/numerical-relativity.md` (gravitational wave sources, compact objects), `references/protocols/cosmological-perturbation-theory.md` (CMB, inflation, primordial perturbations), `references/protocols/numerical-computation.md` (general numerical methods), `references/protocols/monte-carlo.md` (statistical inference in astrophysics), `references/protocols/perturbation-theory.md` (post-Newtonian expansion, gravitational lensing), `references/protocols/stochastic-processes.md` (stochastic gravitational wave backgrounds, noise characterization).
 
 **Stellar Structure and Evolution:**
 

@@ -31,8 +31,8 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/new-milestone.md
-@{GPD_INSTALL_DIR}/references/questioning.md
-@{GPD_INSTALL_DIR}/references/ui-brand.md
+@{GPD_INSTALL_DIR}/references/research/questioning.md
+@{GPD_INSTALL_DIR}/references/ui/ui-brand.md
 @{GPD_INSTALL_DIR}/templates/project.md
 @{GPD_INSTALL_DIR}/templates/requirements.md
 </execution_context>

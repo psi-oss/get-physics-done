@@ -72,6 +72,9 @@ Runtime syntax differs slightly, but the workflow is the same across all four.
 
 After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
 
+Gemini-specific note:
+- GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
+
 ## What GPD Does
 
 GPD guides research in four stages:
@@ -136,6 +139,7 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `/gpd:plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
 | `/gpd:execute-phase N` | Execute all tasks in phase `N` |
 | `/gpd:verify-work` | Run verification checks against current work |
+| `/gpd:peer-review` | Run standalone peer review on a manuscript before submission |
 | `/gpd:progress` | Show project state and recommend the next step |
 | `/gpd:discuss-phase N` | Explore a phase before committing to a plan |
 | `/gpd:quick` | Run a smaller task with a lighter workflow |
@@ -145,6 +149,17 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `/gpd:arxiv-submission` | Validate and package the manuscript for arXiv |
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
+
+## Validation Commands
+
+The `gpd` CLI also exposes machine-readable validation commands for review-grade workflows:
+
+| Command | What it does |
+|---------|--------------|
+| `gpd validate review-contract <command>` | Show the typed review contract for publication/review workflows |
+| `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript/artifact presence, and review prerequisites |
+| `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
+| `gpd validate reproducibility-manifest <file.json> --strict` | Validate a reproducibility manifest and require review-ready coverage |
 
 ## Requirements
 

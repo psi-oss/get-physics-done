@@ -221,6 +221,7 @@ class TestParseCommandFile:
             "research_artifacts",
             "manuscript",
         ]
+        assert ".gpd/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
 
 
 class TestEncodingEdgeCases:

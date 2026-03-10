@@ -6,7 +6,7 @@ Create executable phase prompts (PLAN.md files) for a research phase with integr
 Read all files referenced by the invoking prompt's execution_context before starting.
 
 Read these files using the file_read tool:
-- {GPD_INSTALL_DIR}/references/ui-brand.md
+- {GPD_INSTALL_DIR}/references/ui/ui-brand.md
 - {GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md -- Template for spawning gpd-planner agents (placeholders, continuation format, failure protocol)
 - {GPD_INSTALL_DIR}/templates/phase-prompt.md -- PLAN.md output format (frontmatter, task XML, must-haves schema)
 </required_reading>
@@ -518,7 +518,7 @@ Context windows are finite (~200k tokens, ~80% usable). Plans must be sized acco
 
 **Signs a plan needs splitting:** >6-8 substantive tasks, multiple independent derivations, tasks requiring different large reference files, mix of symbolic derivation and numerical verification.
 
-See `{GPD_INSTALL_DIR}/references/context-budget.md` for detailed budget allocation by workflow type.
+See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed budget allocation by workflow type.
 </context_budget_guidance>
 
 <downstream_consumer>

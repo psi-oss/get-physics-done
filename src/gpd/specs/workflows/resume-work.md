@@ -11,7 +11,7 @@ Instantly restore full research project context so "Where were we?" has an immed
 </purpose>
 
 <required_reading>
-@{GPD_INSTALL_DIR}/references/continuation-format.md
+@{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
 </required_reading>
 
 <process>

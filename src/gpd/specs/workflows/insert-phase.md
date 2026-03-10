@@ -5,7 +5,7 @@ Insert a decimal phase for urgent work discovered mid-project between existing i
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-**Reference:** `{GPD_INSTALL_DIR}/references/decimal-phase-calculation.md` — Details of how decimal phase numbers are calculated by gpd (for manual troubleshooting if the CLI calculation needs verification).
+**Reference:** `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` — See the `Decimal Phase Calculation` section for the numbering rules and troubleshooting details.
 </required_reading>
 
 <process>

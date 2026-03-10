@@ -148,7 +148,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for String Field Theory
 
-See `references/verification-domain-string-field-theory.md` for string-field-theory-specific checks and `references/verification-core.md` for universal physics checks.
+See `references/verification/domains/verification-domain-string-field-theory.md` for string-field-theory-specific checks and `references/verification/core/verification-core.md` for universal physics checks.
 
 - BRST nilpotency and admissible state-space constraints
 - Ghost-number and picture-number consistency

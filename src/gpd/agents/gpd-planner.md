@@ -225,13 +225,13 @@ If not set in config.json, default to `balanced`.
 </research_mode_behavior>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, commit protocol
 - `@{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md` -- Non-commuting limits protocol
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/approximation-selection.md` -- Decision framework for choosing approximation methods (load when planning tasks that involve non-trivial method selection)
-- `{GPD_INSTALL_DIR}/references/code-testing-physics.md` -- Physics-specific testing patterns (load when planning TDD tasks or verification-heavy plans)
+- `{GPD_INSTALL_DIR}/references/methods/approximation-selection.md` -- Decision framework for choosing approximation methods (load when planning tasks that involve non-trivial method selection)
+- `{GPD_INSTALL_DIR}/references/verification/core/code-testing-physics.md` -- Physics-specific testing patterns (load when planning TDD tasks or verification-heavy plans)
 - `{GPD_INSTALL_DIR}/templates/parameter-table.md` -- Template for `.gpd/analysis/PARAMETERS.md` (load when planning numerical/computational phases that introduce physical parameters)
 </references>
 
@@ -502,13 +502,13 @@ Phase 3: Systematic extension (if Phase 2 is promising)
 
 <physics_conventions>
 
-@{GPD_INSTALL_DIR}/references/planner-conventions.md
+@{GPD_INSTALL_DIR}/references/planning/planner-conventions.md
 
 </physics_conventions>
 
 <approximation_tracking>
 
-@{GPD_INSTALL_DIR}/references/planner-approximations.md
+@{GPD_INSTALL_DIR}/references/planning/planner-approximations.md
 
 </approximation_tracking>
 
@@ -741,7 +741,7 @@ Plans should complete within ~50% context (not 80%). Physics requires precision 
 
 Derive plans from actual work. Depth determines compression tolerance, not a target. Don't pad straightforward calculations to hit a number. Don't compress a difficult derivation to look efficient.
 
-@{GPD_INSTALL_DIR}/references/planner-scope-examples.md
+@{GPD_INSTALL_DIR}/references/planning/planner-scope-examples.md
 
 ## Context Per Task Estimates
 
@@ -1507,8 +1507,8 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 For subfield-specific priority checks, red flags, and standard benchmarks, consult:
 
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, validation per subfield
-- `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal verification checks and quick-reference priority checks
-- `@{GPD_INSTALL_DIR}/references/checkpoints.md` -- Checkpoint types, when to use, and structuring guidance
+- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and quick-reference priority checks
+- `@{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` -- Checkpoint types, when to use, and structuring guidance
 
 When planning verification tasks, identify the primary subfield and include the top 2-3 priority checks from that subfield's section. For cross-subfield research, check the subfield selection guide in physics-subfields.md.
 
@@ -1603,19 +1603,19 @@ Why bad: Verification fatigue. Use automated physics checks (dimensions, limits)
 
 <tdd_integration>
 
-@{GPD_INSTALL_DIR}/references/planner-tdd.md
+@{GPD_INSTALL_DIR}/references/planning/planner-tdd.md
 
 </tdd_integration>
 
 <iterative_physics>
 
-@{GPD_INSTALL_DIR}/references/planner-iterative.md
+@{GPD_INSTALL_DIR}/references/planning/planner-iterative.md
 
 </iterative_physics>
 
 <hypothesis_driven>
 
-**On-demand reference:** `{GPD_INSTALL_DIR}/references/hypothesis-driven-research.md` — Load when a phase involves calculations with known limiting cases, competing theoretical predictions, or parameter-dependent regime changes. Hypothesis-driven plans require 2-3x more tasks (predict-derive-verify cycle) but produce more robust results.
+**On-demand reference:** `{GPD_INSTALL_DIR}/references/protocols/hypothesis-driven-research.md` — Load when a phase involves calculations with known limiting cases, competing theoretical predictions, or parameter-dependent regime changes. Hypothesis-driven plans require 2-3x more tasks (predict-derive-verify cycle) but produce more robust results.
 
 </hypothesis_driven>
 

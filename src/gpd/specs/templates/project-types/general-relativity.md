@@ -151,7 +151,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for GR
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-gr-cosmology.md` for GR-specific verification (constraint propagation, ADM mass conservation, gauge mode contamination, energy conditions, Penrose diagram consistency, gravitational wave energy balance).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-gr-cosmology.md` for GR-specific verification (constraint propagation, ADM mass conservation, gauge mode contamination, energy conditions, Penrose diagram consistency, gravitational wave energy balance).
 
 ---
 

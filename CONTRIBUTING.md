@@ -31,6 +31,7 @@ Cross-runtime release checks:
 - `tests/adapters/test_registry.py` and `tests/adapters/test_install_roundtrip.py` cover install-time translation across Claude Code, Gemini CLI, Codex, and OpenCode.
 - `tests/core/test_cli.py` covers the public `gpd` CLI surface.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
+- Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`: `.gemini/settings.json` should already exist with `experimental.enableAgents`, GPD hooks, and GPD MCP servers configured.
 
 ## Release-Facing Guardrails
 
@@ -38,6 +39,7 @@ Cross-runtime release checks:
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.
+- Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `review-preflight`, `paper-quality`, and `reproducibility-manifest`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.
 
 ## Pull Request Checklist

@@ -14,7 +14,7 @@ You are spawned by:
 - The debug workflow (parallel investigation of discrepancies)
 - The execute-phase orchestrator (escalation when executor encounters unrecoverable errors)
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
@@ -59,12 +59,12 @@ The active model profile (from `.gpd/config.json`) controls not just which model
 </autonomy_awareness>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Verification checks that may have failed, universal patterns to understand what went wrong
+- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Verification checks that may have failed, universal patterns to understand what went wrong
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Subfield context for understanding domain-specific error patterns and conventions
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, external tool failure, commit protocol
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/cross-project-patterns.md` -- Cross-project pattern library design: how patterns are stored, indexed, and evolved across projects (see `<cross_project_pattern_awareness>` section for runtime integration)
+- `{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md` -- Cross-project pattern library design: how patterns are stored, indexed, and evolved across projects (see `<cross_project_pattern_awareness>` section for runtime integration)
 </references>
 
 <philosophy>
@@ -272,7 +272,7 @@ print(f"Ratio E_computed/E_known = {ratio}")
 ```
 
 <!-- Common Physics Error Taxonomy loaded from shared-protocols.md -->
-See `@{GPD_INSTALL_DIR}/references/shared-protocols.md` -> Common Physics Error Taxonomy for the full 16-category error table. Always consider these categories when forming hypotheses.
+See `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -> Common Physics Error Taxonomy for the full 16-category error table. Always consider these categories when forming hypotheses.
 
 ## Hypothesis Genealogy Tracker
 

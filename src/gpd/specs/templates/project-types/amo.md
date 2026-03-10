@@ -150,7 +150,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for AMO
 
-See `references/verification-core.md` for universal checks and `references/verification-domain-amo.md` for AMO-specific verification (selection rule compliance, TRK sum rule, dipole approximation validity, RWA bounds, Rabi normalization, AC Stark shift sign, decoherence rate positivity, optical theorem, Franck-Condon overlaps).
+See `references/verification/core/verification-core.md` for universal checks and `references/verification/domains/verification-domain-amo.md` for AMO-specific verification (selection rule compliance, TRK sum rule, dipole approximation validity, RWA bounds, Rabi normalization, AC Stark shift sign, decoherence rate positivity, optical theorem, Franck-Condon overlaps).
 
 ---
 

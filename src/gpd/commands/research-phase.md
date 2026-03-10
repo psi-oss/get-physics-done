@@ -30,7 +30,7 @@ Research how to tackle a phase. Spawns gpd-phase-researcher agent with phase con
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/research-phase.md
-@{GPD_INSTALL_DIR}/references/model-profile-resolution.md
+@{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 </execution_context>
 
 <context>

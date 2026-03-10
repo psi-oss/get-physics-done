@@ -386,7 +386,7 @@ If main.tex is not at root level of tarball: repackage.
 
 **Package:** arxiv-submission.tar.gz ({size})
 **Files:** {count} files ({figure_count} figures)
-**Quality Score:** {score}/100 ({status}) — see `{GPD_INSTALL_DIR}/references/paper-quality-scoring.md`
+**Quality Score:** {score}/100 ({status}) — see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`
 
 ### Automated Checks
 

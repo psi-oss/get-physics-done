@@ -55,7 +55,7 @@ In autonomous/yolo mode, no human reviews between phases — convention drift an
 
 </autonomy_awareness>
 
-@{GPD_INSTALL_DIR}/references/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 
 <rapid_check_mode>
 
@@ -124,14 +124,14 @@ In rapid mode, prioritize equations tagged in SUMMARY.md frontmatter as downstre
 </rapid_check_mode>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/verification-core.md` -- Universal verification checks for cross-phase consistency validation
+- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks for cross-phase consistency validation
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, conventions, and validation strategies per physics subfield
-- `@{GPD_INSTALL_DIR}/references/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
-- `{GPD_INSTALL_DIR}/references/contradiction-resolution-example.md` -- Worked example of resolving contradictions with confidence weighting (load when encountering conflicting claims between phases)
-- `{GPD_INSTALL_DIR}/references/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
-- `{GPD_INSTALL_DIR}/references/cross-project-patterns.md` -- Cross-project pattern library: check for known convention error patterns before investigating from scratch, record new patterns after resolution
+- `{GPD_INSTALL_DIR}/references/examples/contradiction-resolution-example.md` -- Worked example of resolving contradictions with confidence weighting (load when encountering conflicting claims between phases)
+- `{GPD_INSTALL_DIR}/references/verification/meta/verification-hierarchy-mapping.md` -- Maps verification responsibilities across plan-checker, verifier, and consistency-checker (load when scope boundaries are unclear)
+- `{GPD_INSTALL_DIR}/references/shared/cross-project-patterns.md` -- Cross-project pattern library: check for known convention error patterns before investigating from scratch, record new patterns after resolution
 - `{GPD_INSTALL_DIR}/templates/uncertainty-budget.md` -- Template for `.gpd/analysis/UNCERTAINTY-BUDGET.md` (load when auditing uncertainty propagation across phases)
 </references>
 

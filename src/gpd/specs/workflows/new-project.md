@@ -542,7 +542,7 @@ Keep following threads. Each answer opens new threads to explore. Ask about:
 - What computational resources they have access to
 - Whether this connects to existing experimental data
 
-Consult `{GPD_INSTALL_DIR}/references/questioning.md` for techniques:
+Consult `{GPD_INSTALL_DIR}/references/research/questioning.md` for techniques:
 
 - Challenge vagueness ("What do you mean by 'interesting regime'?")
 - Make abstract concrete ("Can you write down the Hamiltonian?")
@@ -552,7 +552,7 @@ Consult `{GPD_INSTALL_DIR}/references/questioning.md` for techniques:
 
 **Check context (background, not out loud):**
 
-As you go, mentally check the context checklist from `{GPD_INSTALL_DIR}/references/questioning.md`. If gaps remain, weave questions naturally. Don't suddenly switch to checklist mode.
+As you go, mentally check the context checklist from `{GPD_INSTALL_DIR}/references/research/questioning.md`. If gaps remain, weave questions naturally. Don't suddenly switch to checklist mode.
 
 Context to gather:
 
@@ -1577,7 +1577,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
    gpd convention set metric_signature "mostly_minus" 2>/dev/null || true
    ```
 
-   Adjust values based on what PROJECT.md specifies. If PROJECT.md doesn't specify conventions, use the subfield defaults from `{GPD_INSTALL_DIR}/references/subfield-convention-defaults.md`.
+   Adjust values based on what PROJECT.md specifies. If PROJECT.md doesn't specify conventions, use the subfield defaults from `{GPD_INSTALL_DIR}/references/conventions/subfield-convention-defaults.md`.
 
 3. Note that full convention establishment was skipped. The user can run `/gpd:settings` or `/gpd:validate-conventions` later to complete convention setup.
 

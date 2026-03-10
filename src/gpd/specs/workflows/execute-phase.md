@@ -8,7 +8,7 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 
 <required_reading>
 Read STATE.md before any operation to load project context.
-For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/meta-orchestration.md`.
+For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
 </required_reading>
 
 <process>
@@ -420,8 +420,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        Read these files at execution start using the file_read tool:
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
-       - Checkpoints ref: {GPD_INSTALL_DIR}/references/checkpoints.md
-       - Validation ref: {GPD_INSTALL_DIR}/references/verification-core.md (+ domain-specific verification file)
+       - Checkpoints ref: {GPD_INSTALL_DIR}/references/orchestration/checkpoints.md
+       - Validation ref: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ domain-specific verification file)
        - Plan: {phase_dir}/{plan_file}
        - State: .gpd/STATE.md
        - Config: .gpd/config.json (if exists)

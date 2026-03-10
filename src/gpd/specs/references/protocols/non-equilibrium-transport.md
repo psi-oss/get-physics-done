@@ -46,7 +46,7 @@ The Kubo formula gives the linear response of observable A to a perturbation tha
 **Checklist:**
 
 1. **Identify the correct current operator.** For electrical conductivity: j = (e/m) Σᵢ pᵢ (paramagnetic) + (e²/mc) Σᵢ A(rᵢ) (diamagnetic). The diamagnetic term is often forgotten — it contributes a frequency-independent piece.
-2. **Use the RETARDED correlator, not the time-ordered one.** Kubo formula requires G^R, not G^F. At T = 0 they are related by Im[G^R] = sign(ω) Im[G^F], but at finite T they differ. `llm-physics-errors.md` #17 (correlation/response confusion).
+2. **Use the RETARDED correlator, not the time-ordered one.** Kubo formula requires G^R, not G^F. At T = 0 they are related by Im[G^R] = sign(ω) Im[G^F], but at finite T they differ. `references/verification/errors/llm-physics-errors.md` #17 (correlation/response confusion).
 3. **Include vertex corrections.** The bare bubble (two single-particle Green's functions) misses vertex corrections. For conserved currents, the Ward identity requires specific vertex corrections to ensure conservation. Omitting them violates gauge invariance and gives gauge-dependent transport coefficients.
 4. **Take the correct order of limits.** For DC conductivity: σ_DC = lim_{ω→0} lim_{q→0} σ(q, ω). The limits do NOT commute: lim_{q→0} lim_{ω→0} gives the Drude weight (reactive), not the dissipative conductivity. See `order-of-limits.md`.
 5. **Check the f-sum rule.** ∫₀^∞ Re[σ(ω)] dω = πne²/(2m). This is an exact relation that constrains the integral of the conductivity. Violation indicates an error (usually missing the diamagnetic term).

@@ -212,7 +212,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         mcp_config_path = target_dir.parent / ".mcp.json"
         if mcp_config_path.exists():
             try:
-                mcp_config = _json.loads(mcp_config_path.read_text(encoding="utf-8"))
+                mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
             except (ValueError, OSError):
                 mcp_config = None
             if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):

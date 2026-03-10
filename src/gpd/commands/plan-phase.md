@@ -36,7 +36,7 @@ Create executable phase prompts (PLAN.md files) for a research-project phase wit
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/plan-phase.md
-@{GPD_INSTALL_DIR}/references/ui-brand.md
+@{GPD_INSTALL_DIR}/references/ui/ui-brand.md
 </execution_context>
 
 <context>

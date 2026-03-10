@@ -250,6 +250,33 @@ class TestUninstall:
         assert len(cleaned["mcpServers"]) == 1
         assert "MCP servers from .claude.json" in result["removed"]
 
+    def test_local_uninstall_cleans_jsonc_workspace_mcp_config(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
+        target = tmp_path / "workspace" / ".claude"
+        target.mkdir(parents=True)
+
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        mcp_config = target.parent / ".mcp.json"
+        mcp_config.write_text(
+            (
+                "{\n"
+                "  // local workspace servers\n"
+                '  "mcpServers": {\n'
+                f'    "gpd-state": {json.dumps(build_mcp_servers_dict(python_path=sys.executable)["gpd-state"])},\n'
+                '    "custom-server": {"command": "node", "args": ["custom.js"]},\n'
+                "  },\n"
+                "}\n"
+            ),
+            encoding="utf-8",
+        )
+
+        result = adapter.uninstall(target)
+
+        cleaned = json.loads(mcp_config.read_text(encoding="utf-8"))
+        assert "gpd-state" not in cleaned["mcpServers"]
+        assert cleaned["mcpServers"] == {"custom-server": {"command": "node", "args": ["custom.js"]}}
+        assert "MCP servers from .mcp.json" in result["removed"]
+
     def test_uninstall_removes_gpd_agents_only(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:

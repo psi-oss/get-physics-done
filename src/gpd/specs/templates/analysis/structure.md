@@ -3,7 +3,7 @@ template_version: 1
 ---
 
 > **Status:** Supplemental analysis template. The live `map-theory` workflow now loads
-> `{GPD_INSTALL_DIR}/references/theory-mapper-templates/*` via `gpd-theory-mapper`, not this file.
+> `{GPD_INSTALL_DIR}/references/templates/theory-mapper/*` via `gpd-theory-mapper`, not this file.
 > Keep this template only as standalone reference material for manual analysis work.
 >
 > For pre-project literature research, see `templates/research-project/`.

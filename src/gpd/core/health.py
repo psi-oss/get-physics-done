@@ -793,9 +793,9 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
 
         # 2. Key reference files
         key_refs = [
-            "references/shared-protocols.md",
-            "references/verification-core.md",
-            "references/llm-physics-errors.md",
+            "references/shared/shared-protocols.md",
+            "references/verification/core/verification-core.md",
+            "references/verification/errors/llm-physics-errors.md",
         ]
         missing_refs = [r for r in key_refs if not (sd / r).exists()]
         checks.append(

@@ -152,7 +152,7 @@ See paper templates: `templates/paper/manuscript-outline.md`, `templates/paper/f
 
 ## Standard Verification Checks for Classical Mechanics
 
-See `references/verification-core.md` for universal checks (dimensional analysis, limiting cases, conservation laws, order-of-magnitude) and `references/verification-numerical.md` for numerical verification (energy conservation in symplectic integrators, convergence testing, Lyapunov exponent validation).
+See `references/verification/core/verification-core.md` for universal checks (dimensional analysis, limiting cases, conservation laws, order-of-magnitude) and `references/verification/core/verification-numerical.md` for numerical verification (energy conservation in symplectic integrators, convergence testing, Lyapunov exponent validation).
 
 ---
 
