@@ -117,6 +117,6 @@ Confirm: "Recorded insight: {brief description}"
 - [ ] Insight appended to correct section with all fields populated
 - [ ] Committed to git with descriptive message
 
-**Lifecycle note:** High-confidence insights confirmed across 2+ phases are candidates for promotion to the global pattern library at milestone completion (`$gpd-complete-milestone` → promote_patterns step). Set confidence accurately — it determines promotion eligibility.
+**Lifecycle note:** High-confidence insights confirmed across 2+ phases are candidates for promotion to the global pattern library at milestone completion (`/gpd:complete-milestone` → promote_patterns step). Set confidence accurately — it determines promotion eligibility.
 
 </success_criteria>

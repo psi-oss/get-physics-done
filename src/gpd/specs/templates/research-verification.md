@@ -115,7 +115,7 @@ skipped: [N]
 
 - APPEND only when issue found (YAML format)
 - After diagnosis: fill `root_cause`, `artifacts`, `missing`, `debug_session`
-- This section feeds directly into $gpd-plan-phase --gaps
+- This section feeds directly into /gpd:plan-phase --gaps
 
 </section_rules>
 
@@ -183,7 +183,7 @@ Probe how sensitive results are to assumptions and approximations.
 4. VERIFICATION.md Gaps section updated with diagnosis:
    - Each gap gets `root_cause`, `artifacts`, `missing`, `debug_session` filled
 5. status -> "diagnosed"
-6. Ready for $gpd-plan-phase --gaps with root causes
+6. Ready for /gpd:plan-phase --gaps with root causes
 
 **After diagnosis:**
 
@@ -208,7 +208,7 @@ Probe how sensitive results are to assumptions and approximations.
 
 <lifecycle>
 
-**Creation:** When $gpd-verify-work starts new verification session
+**Creation:** When /gpd:verify-work starts new verification session
 
 - Extract checks from SUMMARY.md files and verification report
 - Organize by check category (derivation logic, intuition, limits, edges, consistency, robustness)

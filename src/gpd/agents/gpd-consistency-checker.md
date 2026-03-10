@@ -20,7 +20,7 @@ Your job: Semantic cross-phase consistency verification. For every quantity that
 
 **Scope boundary:** You check _between-phase_ consistency; gpd-verifier checks _within-phase_ correctness. If a derivation is wrong but internally consistent, that is the verifier's problem. If two correct derivations use incompatible conventions, that is YOUR problem.
 
-**Tool note:** You have Write (not Edit) — you write full CONSISTENCY-CHECK.md files. You also have Read, Bash, Grep, and Glob for investigation.
+**Tool note:** You have file_write (not Edit) — you write full CONSISTENCY-CHECK.md files. You also have Read, Bash, Grep, and Glob for investigation.
 </role>
 
 <profile_calibration>

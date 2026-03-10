@@ -1,7 +1,7 @@
 <purpose>
 Perform comprehensive numerical validation of computational physics results. Combines convergence testing, analytical benchmarking, conservation law verification, stability analysis, and error estimation into a single systematic workflow.
 
-Called from $gpd-numerical-convergence command and referenced by $gpd-verify-work for numerical phases.
+Called from /gpd:numerical-convergence command and referenced by /gpd:verify-work for numerical phases.
 </purpose>
 
 <core_principle>

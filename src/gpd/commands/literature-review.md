@@ -164,7 +164,7 @@ Structure:
 ```
 
 ```
-Task(
+task(
   prompt=filled_prompt,
   subagent_type="gpd-literature-reviewer",
   model="{reviewer_model}",
@@ -204,7 +204,7 @@ Task(
   - "Manual search" -- provide specific papers to include
   - "Accept partial" -- use what was found
 
-## 5. Spawn Continuation Agent (After Checkpoint)
+## 5. Spawn Continuation agent (After Checkpoint)
 
 ```markdown
 <objective>
@@ -222,7 +222,7 @@ Review file: @.gpd/literature/{slug}-REVIEW.md
 ```
 
 ```
-Task(
+task(
   prompt=continuation_prompt,
   subagent_type="gpd-literature-reviewer",
   model="{reviewer_model}",

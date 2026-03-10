@@ -24,12 +24,12 @@ Check if `--auto` flag is present in $ARGUMENTS.
   - Roadmap approval: Auto-approve
 
 **Document requirement:**
-Auto mode requires a research document via @ reference (e.g., `$gpd-new-project --auto @proposal.md`). If no document provided, error:
+Auto mode requires a research document via @ reference (e.g., `/gpd:new-project --auto @proposal.md`). If no document provided, error:
 
 ```
 Error: --auto requires a research document via @ reference.
 
-Usage: $gpd-new-project --auto @your-proposal.md
+Usage: /gpd:new-project --auto @your-proposal.md
 
 The document should describe the physics problem you want to investigate.
 ```
@@ -44,7 +44,7 @@ Check if `--minimal` flag is present in $ARGUMENTS.
 
 **If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the SAME directory structure and file set as the full path -- just with less content in each file. This ensures all downstream workflows (`$gpd-plan-phase`, `$gpd-execute-phase`, etc.) work identically.
+Minimal mode creates the SAME directory structure and file set as the full path -- just with less content in each file. This ensures all downstream workflows (`/gpd:plan-phase`, `/gpd:execute-phase`, etc.) work identically.
 
 **Two variants:**
 
@@ -59,7 +59,7 @@ Minimal mode creates the SAME directory structure and file set as the full path 
 
 #### M1. Gather Research Context
 
-**If `--minimal` with file** (`$gpd-new-project --minimal @plan.md`):
+**If `--minimal` with file** (`/gpd:new-project --minimal @plan.md`):
 
 Parse the input markdown for:
 
@@ -88,9 +88,9 @@ Example structure:
   3. Extract critical exponent and compare with known results
 ```
 
-**If `--minimal` without file** (`$gpd-new-project --minimal`):
+**If `--minimal` without file** (`/gpd:new-project --minimal`):
 
-Ask ONE question inline (freeform, NOT AskUserQuestion):
+Ask ONE question inline (freeform, NOT ask_user):
 
 "Describe your research project: what's the physics question, and what are the main phases of investigation?"
 
@@ -201,7 +201,7 @@ For each phase, create one or more requirements using the standard format:
 
 ## Out of Scope
 
-(To be refined — use $gpd-settings or edit REQUIREMENTS.md directly)
+(To be refined — use /gpd:settings or edit REQUIREMENTS.md directly)
 
 ## Traceability
 
@@ -246,7 +246,7 @@ Use the standard roadmap template structure:
 
 Plans:
 
-- [ ] 01-01: [TBD — created during $gpd-plan-phase]
+- [ ] 01-01: [TBD — created during /gpd:plan-phase]
 
 [... repeat for each phase ...]
 
@@ -380,7 +380,7 @@ gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md
 **[N] phases** | **[N] requirements** | Ready to investigate
 
 Note: Initialized with --minimal. Literature survey and deep scoping
-were skipped. Use $gpd-settings to adjust workflow preferences.
+were skipped. Use /gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
@@ -389,20 +389,20 @@ were skipped. Use $gpd-settings to adjust workflow preferences.
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 ```
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Next Step"
 - question: "Plan phase 1 now?"
 - options:
-  - "Plan phase 1" — Run $gpd-plan-phase 1
+  - "Plan phase 1" — Run /gpd:plan-phase 1
   - "Review artifacts first" — I want to check the generated files
   - "Done for now" — I'll continue later
 
-**If "Plan phase 1":** Tell the user to run `$gpd-plan-phase 1` (and suggest `/clear` first for a fresh context window).
+**If "Plan phase 1":** Tell the user to run `/gpd:plan-phase 1` (and suggest `/clear` first for a fresh context window).
 
 **If "Review artifacts first":** List the files and let the user inspect them. Suggest edits if needed, then re-offer planning.
 
-**If "Done for now":** Exit. Remind them to use `$gpd-resume-work` or `$gpd-plan-phase 1` when ready.
+**If "Done for now":** Exit. Remind them to use `/gpd:resume-work` or `/gpd:plan-phase 1` when ready.
 
 ---
 
@@ -435,7 +435,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start with exploit-depth survey, expand to explore if initial results reveal unexpected complexity.
 
-**If `project_exists` is true:** Error — project already initialized. Use `$gpd-progress`.
+**If `project_exists` is true:** Error — project already initialized. Use `/gpd:progress`.
 
 **If `has_git` is false:** Initialize git:
 
@@ -489,20 +489,20 @@ If start fresh: delete `init-progress.json` and proceed normally.
 
 **If `needs_theory_map` is true** (from init — existing research artifacts detected but no work map):
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Existing Research"
 - question: "I detected existing research artifacts in this directory. Would you like to map the existing work first?"
 - options:
-  - "Map existing work first" — Run $gpd-map-theory to understand current research state (Recommended)
+  - "Map existing work first" — Run /gpd:map-theory to understand current research state (Recommended)
   - "Skip mapping" — Proceed with fresh project initialization
 
 **If "Map existing work first":**
 
 ```
-Run `$gpd-map-theory` first, then return to `$gpd-new-project`
+Run `/gpd:map-theory` first, then return to `/gpd:new-project`
 ```
 
 Exit command.
@@ -523,7 +523,7 @@ Exit command.
 
 **Open the conversation:**
 
-Ask inline (freeform, NOT AskUserQuestion):
+Ask inline (freeform, NOT ask_user):
 
 "What physics problem do you want to investigate?"
 
@@ -531,7 +531,7 @@ Wait for their response. This gives you the context needed to ask intelligent fo
 
 **Follow the thread:**
 
-Based on what they said, ask follow-up questions that dig into their response. Use AskUserQuestion with options that probe what they mentioned — interpretations, clarifications, concrete examples.
+Based on what they said, ask follow-up questions that dig into their response. Use ask_user with options that probe what they mentioned — interpretations, clarifications, concrete examples.
 
 Keep following threads. Each answer opens new threads to explore. Ask about:
 
@@ -570,7 +570,7 @@ Context to gather:
 
 **Decision gate:**
 
-When you could write a clear PROJECT.md, use AskUserQuestion:
+When you could write a clear PROJECT.md, use ask_user:
 
 - header: "Ready?"
 - question: "I think I understand the research direction. Ready to create PROJECT.md?"
@@ -720,7 +720,7 @@ CHECKPOINT
 
 **Quick setup gate — offer recommended defaults before individual questions:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Workflow Setup"
 - question: "How would you like to configure the project?"
@@ -750,7 +750,7 @@ Display confirmation:
 
 ```
 Config: YOLO mode | Standard depth | Parallel | All agents | Review profile
-(Change anytime with $gpd-settings)
+(Change anytime with /gpd:settings)
 ```
 
 Skip to "Commit config.json" below.
@@ -900,7 +900,7 @@ cat > .gpd/init-progress.json << CHECKPOINT
 CHECKPOINT
 ```
 
-**Note:** Run `$gpd-settings` anytime to update these preferences.
+**Note:** Run `/gpd:settings` anytime to update these preferences.
 
 ## 5.5. Resolve Model Profile
 
@@ -910,7 +910,7 @@ Use models from init: `researcher_model`, `synthesizer_model`, `roadmapper_model
 
 **If auto mode:** Default to "Survey first" without asking.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Literature Survey"
 - question: "Survey the research landscape before defining the investigation plan?"
@@ -957,10 +957,10 @@ Spawn 4 parallel gpd-project-researcher agents with rich context:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Known Results dimension for [research domain].
@@ -1001,7 +1001,7 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/PRIOR-WORK.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Prior work research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Methods dimension for [research domain].
@@ -1042,7 +1042,7 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/METHODS.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Methods research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Computational Approaches dimension for [research domain].
@@ -1084,7 +1084,7 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/COMPUTATIONAL.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Computational approaches research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Open Problems and Pitfalls dimension for [research domain].
@@ -1132,7 +1132,7 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/PITFALLS.md
 After all 4 agents complete (or partial completion handled), spawn synthesizer to create SUMMARY.md:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
 
 <task>
 Synthesize literature survey outputs into SUMMARY.md.
@@ -1219,7 +1219,7 @@ Read PROJECT.md and extract:
 - Auto-include all essential research requirements (directly answer the core question)
 - Include requirements explicitly mentioned in provided document
 - Auto-defer tangential investigations not mentioned in document
-- Skip per-category AskUserQuestion loops
+- Skip per-category ask_user loops
 - Skip "Any additions?" question
 - Skip requirements approval gate
 - Generate REQUIREMENTS.md and commit directly
@@ -1258,7 +1258,7 @@ For each objective mentioned:
 
 **Scope each category:**
 
-For each category, use AskUserQuestion:
+For each category, use ask_user:
 
 - header: "[Category name]"
 - question: "Which [category] requirements are in scope?"
@@ -1277,7 +1277,7 @@ Track responses:
 
 **Identify gaps:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Additions"
 - question: "Any requirements the literature survey missed? (Calculations specific to your approach)"
@@ -1371,7 +1371,7 @@ Display stage banner:
 Spawn gpd-roadmapper agent with context:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
 
 <planning_context>
 
@@ -1456,7 +1456,7 @@ Success criteria:
 
 **CRITICAL: Ask for approval before committing (interactive mode only):**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Roadmap"
 - question: "Does this research roadmap structure work for you?"
@@ -1473,7 +1473,7 @@ Use AskUserQuestion:
 - Re-spawn roadmapper with revision context:
 
   ```
-  Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
+  task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
 
   <revision>
   User feedback on roadmap:
@@ -1490,7 +1490,7 @@ Use AskUserQuestion:
   **If the revision roadmapper agent fails to spawn or returns an error:** Check if ROADMAP.md was updated (compare with pre-revision content). If changes were made, proceed to present the revised roadmap. If no changes, offer: 1) Retry the revision agent, 2) Apply the user's adjustment notes manually in the main context by editing ROADMAP.md directly.
 
 - Present revised roadmap
-- Loop until user approves (**maximum 3 revision iterations** — after 3, commit the current version with user's notes recorded as open questions in ROADMAP.md, and note: "Roadmap committed after 3 revision rounds. Further adjustments via `$gpd-add-phase` or `$gpd-remove-phase`.")
+- Loop until user approves (**maximum 3 revision iterations** — after 3, commit the current version with user's notes recorded as open questions in ROADMAP.md, and note: "Roadmap committed after 3 revision rounds. Further adjustments via `/gpd:add-phase` or `/gpd:remove-phase`.")
 
 **If "Review full file":** Display raw `cat .gpd/ROADMAP.md`, then re-ask.
 
@@ -1536,7 +1536,7 @@ NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
 Spawn gpd-notation-coordinator:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
 
 <task>
 Establish initial conventions for this research project.
@@ -1579,7 +1579,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 
    Adjust values based on what PROJECT.md specifies. If PROJECT.md doesn't specify conventions, use the subfield defaults from `{GPD_INSTALL_DIR}/references/subfield-convention-defaults.md`.
 
-3. Note that full convention establishment was skipped. The user can run `$gpd-settings` or `$gpd-validate-conventions` later to complete convention setup.
+3. Note that full convention establishment was skipped. The user can run `/gpd:settings` or `/gpd:validate-conventions` later to complete convention setup.
 
 - **`CONVENTIONS ESTABLISHED`:** Display confirmation with convention summary. Commit CONVENTIONS.md:
 
@@ -1634,14 +1634,14 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-$gpd-discuss-phase 1 — gather context and clarify approach
+/gpd:discuss-phase 1 — gather context and clarify approach
 
 <sub>/clear first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- $gpd-plan-phase 1 — skip discussion, plan directly
+- /gpd:plan-phase 1 — skip discussion, plan directly
 
 ---------------------------------------------------------------
 ```
@@ -1686,7 +1686,7 @@ $gpd-discuss-phase 1 — gather context and clarify approach
 - [ ] gpd-notation-coordinator spawned to establish conventions
 - [ ] CONVENTIONS.md created with subfield-appropriate conventions — **committed**
 - [ ] Convention lock populated via `gpd convention set`
-- [ ] User knows next step is `$gpd-discuss-phase 1`
+- [ ] User knows next step is `/gpd:discuss-phase 1`
 
 **Atomic commits:** Each phase commits its artifacts immediately. If context is lost, artifacts persist.
 

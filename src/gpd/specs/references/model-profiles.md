@@ -230,7 +230,7 @@ Orchestrators resolve model before spawning:
 
 ## Switching Profiles
 
-Runtime: `$gpd-set-profile <profile>`
+Runtime: `/gpd:set-profile <profile>`
 
 Per-project default: Set in `.gpd/config.json`:
 

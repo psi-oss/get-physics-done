@@ -1,5 +1,5 @@
 <purpose>
-Validate research results through conversational research validation with persistent state. Creates VERIFICATION.md that tracks verification progress, survives /clear, and feeds gaps into $gpd-plan-phase --gaps.
+Validate research results through conversational research validation with persistent state. Creates VERIFICATION.md that tracks verification progress, survives /clear, and feeds gaps into /gpd:plan-phase --gaps.
 
 Researcher validates, the AI records. One check at a time. Plain text responses.
 
@@ -72,7 +72,7 @@ ERROR: Phase not found: ${PHASE_ARG}
 Available phases:
 $(gpd phase list)
 
-Usage: $gpd-verify-work <phase-number>
+Usage: /gpd:verify-work <phase-number>
 ```
 
 Exit.
@@ -117,7 +117,7 @@ If no, continue to `create_verification_file`.
 ```
 No active verification sessions.
 
-Provide a phase number to start validation (e.g., $gpd-verify-work 4)
+Provide a phase number to start validation (e.g., /gpd:verify-work 4)
 ```
 
 **If no active sessions AND $ARGUMENTS provided:**
@@ -192,7 +192,7 @@ Skip internal/non-observable items (code refactors, file reorganization, etc.).
 
 1. **Dimensional analysis**: At least one equation checked symbol-by-symbol for dimensional consistency
 2. **Limiting case**: At least one limiting case independently re-derived (not just discussed qualitatively)
-3. **Numerical spot-check with code execution**: At least one Python/SymPy script actually executed via Bash, with the output captured and presented to the researcher
+3. **Numerical spot-check with code execution**: At least one Python/SymPy script actually executed via shell, with the output captured and presented to the researcher
 
 **Code output requirement:** The final VERIFICATION.md must contain at least one fenced code block showing actual execution output. A verification report with only text analysis and zero computational evidence is INCOMPLETE. If the pre-computation step produces no code outputs, flag the verification as incomplete before presenting to the researcher.
 
@@ -235,13 +235,13 @@ import numpy as np
 mkdir -p "$phase_dir"
 ```
 
-**Check for existing VERIFICATION.md** (e.g., from a prior `$gpd-execute-phase` → `verify-phase` run):
+**Check for existing VERIFICATION.md** (e.g., from a prior `/gpd:execute-phase` → `verify-phase` run):
 
 ```bash
 EXISTING_VERIFICATION=$(ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null | head -1)
 ```
 
-If an existing VERIFICATION.md is found (e.g., from a prior `$gpd-execute-phase` → `verify-phase` automated run):
+If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase` → `verify-phase` automated run):
 1. Read it to preserve any prior automated verification results
 2. Do NOT overwrite — instead, append a `## Researcher Validation` section after the existing content
 3. The new researcher checks go under this section, keeping the automated checks intact
@@ -647,8 +647,8 @@ Present summary:
 ```
 All checks passed. Research validated. Ready to continue.
 
-- `$gpd-plan-phase {next}` -- Plan next research phase
-- `$gpd-execute-phase {next}` -- Execute next research phase
+- `/gpd:plan-phase {next}` -- Plan next research phase
+- `/gpd:execute-phase {next}` -- Execute next research phase
 ```
 
 </step>
@@ -723,7 +723,7 @@ Present the diagnosis results to the user:
 |-------|-----------|------------|
 {diagnosis results from investigation agents}
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Fix Approach"
 - question: "How would you like to handle the identified issues?"
@@ -733,7 +733,7 @@ Use AskUserQuestion:
   - "Accept as-is" — The issues are minor, results are acceptable
 
 **If "Auto-plan fixes":** Continue to plan_gap_closure step.
-**If "Investigate manually":** Present the detailed diagnosis and pause. Offer `$gpd-debug` for structured investigation.
+**If "Investigate manually":** Present the detailed diagnosis and pause. Offer `/gpd:debug` for structured investigation.
 **If "Accept as-is":** Skip gap closure, mark phase verified with noted caveats.
 </step>
 
@@ -754,10 +754,10 @@ Spawn gpd-planner in --gaps mode:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="""First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.
 
 <planning_context>
@@ -766,7 +766,7 @@ Task(
 **Mode:** gap_closure
 
 <files_to_read>
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - Validation with diagnoses: .gpd/phases/{phase_dir}/{phase}-VERIFICATION.md
 - State: .gpd/STATE.md
 - Roadmap: .gpd/ROADMAP.md
@@ -775,7 +775,7 @@ Read these files using the Read tool:
 </planning_context>
 
 <downstream_consumer>
-Output consumed by $gpd-execute-phase
+Output consumed by /gpd:execute-phase
 Plans must be executable prompts.
 </downstream_consumer>
 """,
@@ -810,10 +810,10 @@ Initialize: `iteration_count = 1`
 
 Spawn gpd-plan-checker:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="""First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.
 
 <verification_context>
@@ -822,7 +822,7 @@ Task(
 **Phase Goal:** Close diagnosed gaps from research validation
 
 <files_to_read>
-Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the Read tool.
+Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the file_read tool.
 </files_to_read>
 
 </verification_context>
@@ -841,7 +841,7 @@ Return one of:
 
 On return:
 
-**If the plan-checker agent fails to spawn or returns an error:** Proceed without plan verification — the plans will still be executable. Note that plans were not verified and recommend running `$gpd-plan-phase --gaps` to re-verify if needed.
+**If the plan-checker agent fails to spawn or returns an error:** Proceed without plan verification — the plans will still be executable. Note that plans were not verified and recommend running `/gpd:plan-phase --gaps` to re-verify if needed.
 
 - **VERIFICATION PASSED:** Proceed to `present_ready`
 - **ISSUES FOUND:** Proceed to `revision_loop`
@@ -859,7 +859,7 @@ Spawn gpd-planner with revision context:
 > **Runtime delegation:** Omit `model` if null. Adapt to your runtime if needed.
 
 ```
-Task(
+task(
   prompt="""First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.
 
 <revision_context>
@@ -868,7 +868,7 @@ Task(
 **Mode:** revision
 
 <files_to_read>
-Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the Read tool.
+Read all PLAN.md files in .gpd/phases/{phase_dir}/ using the file_read tool.
 </files_to_read>
 
 **Checker issues:**
@@ -900,7 +900,7 @@ Offer options:
 
 1. Force proceed (execute despite issues)
 2. Provide guidance (researcher gives direction, retry)
-3. Abandon (exit, researcher runs $gpd-plan-phase manually)
+3. Abandon (exit, researcher runs /gpd:plan-phase manually)
 
 Wait for researcher response.
 </step>
@@ -928,7 +928,7 @@ Plans verified and ready for execution.
 
 **Execute fixes** -- run fix plans
 
-`/clear` then `$gpd-execute-phase {phase} --gaps-only`
+`/clear` then `/gpd:execute-phase {phase} --gaps-only`
 
 ---------------------------------------------------------------
 ```
@@ -994,7 +994,7 @@ Default to **major** if unclear. Researcher can correct if needed.
 - [ ] If issues: gpd-planner creates fix plans (gap_closure mode)
 - [ ] If issues: gpd-plan-checker verifies fix plans
 - [ ] If issues: revision loop until plans pass (max 3 iterations)
-- [ ] Ready for `$gpd-execute-phase --gaps-only` when complete
+- [ ] Ready for `/gpd:execute-phase --gaps-only` when complete
 - [ ] REQUIREMENTS.md updated for any passed checks matching REQ-IDs (if REQUIREMENTS.md exists)
 
 </success_criteria>

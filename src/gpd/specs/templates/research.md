@@ -29,7 +29,7 @@ Template for `.gpd/phases/XX-name/{phase}-RESEARCH.md` - comprehensive literatur
 
 ## User Constraints (from CONTEXT.md)
 
-**CRITICAL:** If CONTEXT.md exists from $gpd-discuss-phase, copy locked decisions here verbatim. These MUST be honored by the planner.
+**CRITICAL:** If CONTEXT.md exists from /gpd:discuss-phase, copy locked decisions here verbatim. These MUST be honored by the planner.
 
 ### Locked Decisions
 

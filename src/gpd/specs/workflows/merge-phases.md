@@ -20,12 +20,12 @@ Extract from $ARGUMENTS: `source_phase` (to be absorbed) and `target_phase` (to 
 **If arguments incomplete:**
 
 ```
-Usage: $gpd-merge-phases <source> <target>
+Usage: /gpd:merge-phases <source> <target>
 
   <source>  Phase number to absorb (will be removed)
   <target>  Phase number to merge into (will be expanded)
 
-Example: $gpd-merge-phases 5 4
+Example: /gpd:merge-phases 5 4
   Absorbs Phase 5 into Phase 4.
 ```
 
@@ -313,9 +313,9 @@ Phase {S}: {source_name} absorbed into Phase {T}: {target_name}
 ---
 
 **Also available:**
-- $gpd-show-phase {T} -- inspect merged phase
-- $gpd-execute-phase {T} -- execute pending plans
-- $gpd-validate-conventions -- verify convention consistency
+- /gpd:show-phase {T} -- inspect merged phase
+- /gpd:execute-phase {T} -- execute pending plans
+- /gpd:validate-conventions -- verify convention consistency
 
 ---
 ```

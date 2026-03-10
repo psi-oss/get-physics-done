@@ -121,8 +121,8 @@ Rank quantities by their impact on final results:
 - For each calculation, write the explicit propagation formula
 - Identify correlated quantities early -- shared approximations or shared data are the usual sources
 - Update the dominant uncertainty analysis whenever a new result is produced
-- The `$gpd-error-propagation` workflow automates tracking across phases
-- The `$gpd-sensitivity-analysis` workflow identifies which parameters matter most
+- The `/gpd:error-propagation` workflow automates tracking across phases
+- The `/gpd:sensitivity-analysis` workflow identifies which parameters matter most
 
 **Why uncertainty tracking matters:**
 

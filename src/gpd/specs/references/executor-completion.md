@@ -180,7 +180,7 @@ gpd state advance-plan  # might silently fail
 | `No phase/plan found` | STATE.md has unexpected structure | Check Current Phase/Plan fields in STATE.md |
 | Non-zero exit with no output | Python crash or missing dependency | Check `python --version`, verify gpd CLI path |
 
-**Recovery protocol:** If a gpd CLI command fails twice, read the target file manually, make the state update via Edit tool, and document the manual fix in the plan SUMMARY.md.
+**Recovery protocol:** If a gpd CLI command fails twice, read the target file manually, make the state update via file_edit tool, and document the manual fix in the plan SUMMARY.md.
 
 **Extract decisions from SUMMARY.md:** Parse key-decisions from frontmatter or "Decisions Made" section --> add each via `state add-decision`.
 

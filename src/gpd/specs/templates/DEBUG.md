@@ -138,7 +138,7 @@ files_changed: []
 
 <lifecycle>
 
-**Creation:** Immediately when $gpd-debug is called
+**Creation:** Immediately when /gpd:debug is called
 
 - Create file with trigger from user input
 - Set status to "gathering"

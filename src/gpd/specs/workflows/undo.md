@@ -203,8 +203,8 @@ EOF
 
 Read `.gpd/STATE.md` and check if it needs adjustment:
 
-1. If the reverted commit added a phase completion marker, remove it via Edit tool
-2. If the reverted commit advanced the current phase, roll back the position via Edit tool
+1. If the reverted commit added a phase completion marker, remove it via file_edit tool
+2. If the reverted commit advanced the current phase, roll back the position via file_edit tool
 3. Record the rollback decision:
 
 ```bash
@@ -247,9 +247,9 @@ To reverse this undo:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-progress` -- check current research state
-- `$gpd-undo` -- undo another commit
-- `$gpd-verify-work` -- re-verify after rollback
+- `/gpd:progress` -- check current research state
+- `/gpd:undo` -- undo another commit
+- `/gpd:verify-work` -- re-verify after rollback
 
 ───────────────────────────────────────────────────────────────
 ```

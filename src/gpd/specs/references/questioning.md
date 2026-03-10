@@ -85,7 +85,7 @@ Use these as inspiration, not a checklist. Pick what's relevant to the physics.
 
 <using_askuserquestion>
 
-Use AskUserQuestion to help researchers think by presenting concrete physical options to react to.
+Use ask_user to help researchers think by presenting concrete physical options to react to.
 
 **Good options:**
 

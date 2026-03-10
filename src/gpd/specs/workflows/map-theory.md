@@ -115,17 +115,17 @@ Continue to spawn_agents.
 <step name="spawn_agents">
 Spawn 4 parallel gpd-theory-mapper agents.
 
-Use Task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
+Use task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **CRITICAL:** Use the dedicated `gpd-theory-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 
 **Agent 1: Theory Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -152,7 +152,7 @@ Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings,
 
 **Agent 2: Computation Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -179,7 +179,7 @@ Explore thoroughly: read Python/Julia/C++/Fortran files, Jupyter notebooks, Make
 
 **Agent 3: Methodology Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -206,7 +206,7 @@ Explore thoroughly: read LaTeX preambles for notation macros, code variable nami
 
 **Agent 4: Status Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -356,14 +356,14 @@ Created .gpd/research-map/:
 
 **Initialize project** -- use research map context for planning
 
-`$gpd-new-project`
+`/gpd:new-project`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- Re-run mapping: `$gpd-map-theory`
+- Re-run mapping: `/gpd:map-theory`
 - Review specific file: `cat .gpd/research-map/FORMALISM.md`
 - Edit any document before proceeding
 

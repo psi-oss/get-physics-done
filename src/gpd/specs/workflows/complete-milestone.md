@@ -656,9 +656,9 @@ Options:
 3. **Keep branches** -- Leave for manual handling
 ```
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-AskUserQuestion with options: Squash merge (Recommended), Merge with history, Delete without merging, Keep branches.
+ask_user with options: Squash merge (Recommended), Merge with history, Delete without merging, Keep branches.
 
 **Squash merge:**
 
@@ -749,7 +749,7 @@ git push origin v[X.Y]
 
 <step name="git_commit_milestone">
 
-Commit milestone completion. Only include files that exist (MILESTONE-AUDIT.md is optional — only present if `$gpd-audit-milestone` was run beforehand).
+Commit milestone completion. Only include files that exist (MILESTONE-AUDIT.md is optional — only present if `/gpd:audit-milestone` was run beforehand).
 
 Build the file list, conditionally including MILESTONE-AUDIT.md if it exists:
 
@@ -793,7 +793,7 @@ Tag: v[X.Y]
 
 **Start Next Research Stage** -- new questions -> literature review -> requirements -> roadmap
 
-`$gpd-new-milestone`
+`/gpd:new-milestone`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -843,6 +843,6 @@ Milestone completion is successful when:
 - [ ] Pattern promotion reviewed (INSIGHTS.md checked, candidates offered for `pattern add`)
 - [ ] Git tag created (v[X.Y])
 - [ ] Milestone commit made (includes archive files and deletion)
-- [ ] Researcher knows next step ($gpd-new-milestone)
+- [ ] Researcher knows next step (/gpd:new-milestone)
 
 </success_criteria>

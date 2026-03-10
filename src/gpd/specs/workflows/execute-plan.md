@@ -6,7 +6,7 @@ Execute a research plan (PLAN.md) -- carry out derivations, calculations, simula
 Read STATE.md before any operation to load project context.
 Read config.json for planning behavior settings.
 
-Read these reference files using the Read tool:
+Read these reference files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/git-integration.md
 - {GPD_INSTALL_DIR}/references/execute-plan-recovery.md
 - {GPD_INSTALL_DIR}/references/execute-plan-validation.md
@@ -151,7 +151,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 | Verify-only | B (segmented)  | Segments between checkpoints. After none/human-verify -> SUBAGENT. After decision/human-action -> MAIN |
 | Decision    | C (main)       | Execute entirely in main context                                                                       |
 
-**Pattern A:** init_agent_tracking -> spawn Task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + commit, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>` (controls checkpoint frequency and decision authority — see gpd-executor.md autonomy_modes section), report: plan name, tasks, SUMMARY path, commit hash -> track agent_id -> wait -> update tracking -> report.
+**Pattern A:** init_agent_tracking -> spawn task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + commit, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>` (controls checkpoint frequency and decision authority — see gpd-executor.md autonomy_modes section), report: plan name, tasks, SUMMARY path, commit hash -> track agent_id -> wait -> update tracking -> report.
 
 **If the executor agent fails to spawn or returns an error (Pattern A):** Check if any work was committed (`git log --oneline -3`). If commits with the plan's work exist, the executor may have completed but failed to report — verify output files and proceed to post-execution checks. If no work was done, offer: 1) Retry executor spawn, 2) Fall back to Pattern C (execute in main context), 3) Abort. Update agent tracking status to "failed" with error details.
 
@@ -211,9 +211,9 @@ This IS the execution instructions. Follow exactly. If plan references CONTEXT.m
 ```bash
 ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
 ```
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-If previous SUMMARY has unresolved "Issues Encountered" or "Next Phase Readiness" blockers: AskUserQuestion(header="Previous Issues", options: "Proceed anyway" | "Address first" | "Review previous").
+If previous SUMMARY has unresolved "Issues Encountered" or "Next Phase Readiness" blockers: ask_user(header="Previous Issues", options: "Proceed anyway" | "Address first" | "Review previous").
 </step>
 
 <step name="execute">
@@ -243,11 +243,11 @@ Context is finite (~200k tokens, ~80% usable). After completing each task:
 
 1. Check statusline context percentage
 2. If >60% with heavy work remaining: consider proactive pause
-3. If >80%: save intermediate results and trigger `$gpd-pause-work` before quality degrades
+3. If >80%: save intermediate results and trigger `/gpd:pause-work` before quality degrades
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, recommend `/clear` + `$gpd-resume-work`. See `{GPD_INSTALL_DIR}/references/context-budget.md` for budget guidelines.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, recommend `/clear` + `/gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/context-budget.md` for budget guidelines.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 
@@ -276,8 +276,8 @@ CHECKPOINT
    - Commit all current work
    - Create `.continue-here.md` with full derivation state
    - Update STATE.md session info
-   - **supervised/guided:** Suggest `/clear` + `$gpd-resume-work`
-   - **autonomous/yolo:** Auto-trigger `$gpd-resume-work` if context allows (otherwise suggest `/clear`)
+   - **supervised/guided:** Suggest `/clear` + `/gpd:resume-work`
+   - **autonomous/yolo:** Auto-trigger `/gpd:resume-work` if context allows (otherwise suggest `/clear`)
 
 This prevents quality degradation and ensures no work is lost if the session ends unexpectedly.
 </step>
@@ -388,7 +388,7 @@ fi
 <step name="create_summary">
 Create `${phase}-${plan}-SUMMARY.md` at `${phase_dir}/`. Use `{GPD_INSTALL_DIR}/templates/summary.md`.
 
-Note: DERIVATION-STATE.md is updated by $gpd-pause-work for session handoff. On natural completion (no pause), key equations and results are captured in SUMMARY.md instead. If you want cumulative derivation state across sessions, run $gpd-pause-work before ending.
+Note: DERIVATION-STATE.md is updated by /gpd:pause-work for session handoff. On natural completion (no pause), key equations and results are captured in SUMMARY.md instead. If you want cumulative derivation state across sessions, run /gpd:pause-work before ending.
 
 **Frontmatter:** phase, plan, depth (minimal/standard/full/complex), subsystem, tags | requires/provides/affects | methods.added/approximations | key-files.created/modified | key-decisions | duration ($DURATION), completed ($PLAN_END_TIME date).
 
@@ -545,9 +545,9 @@ ls -1 "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l
 
 | Condition                                  | Route                 | Action                                                                                                                                                  |
 | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **yolo/autonomous:** auto-continue to next plan. **guided:** show next plan, suggest `$gpd-execute-phase {phase}` + `$gpd-verify-work`. **supervised:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
-| summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `$gpd-plan-phase {Z+1}` + `$gpd-verify-work {Z}` + `$gpd-discuss-phase {Z+1}`                                                  |
-| summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `$gpd-complete-milestone` + `$gpd-verify-work` + `$gpd-add-phase`                                                                  |
+| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **yolo/autonomous:** auto-continue to next plan. **guided:** show next plan, suggest `/gpd:execute-phase {phase}` + `/gpd:verify-work`. **supervised:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
+| summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `/gpd:plan-phase {Z+1}` + `/gpd:verify-work {Z}` + `/gpd:discuss-phase {Z+1}`                                                  |
+| summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `/gpd:complete-milestone` + `/gpd:verify-work` + `/gpd:add-phase`                                                                  |
 
 All routes: `/clear` first for fresh context.
 </step>

@@ -37,7 +37,7 @@ Extract: `project_title`, `milestone`, completed phases list, total phase count.
 No completed phases found. Nothing to export.
 
 Complete at least one phase before exporting:
-  $gpd-execute-phase <phase-number>
+  /gpd:execute-phase <phase-number>
 ```
 
 Exit.
@@ -366,8 +366,8 @@ cd .gpd/exports && tar -czf results.tar.gz README.md scripts/ data/ summaries/ P
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-write-paper` -- draft a full paper from research results
-- `$gpd-progress` -- check research progress
+- `/gpd:write-paper` -- draft a full paper from research results
+- `/gpd:progress` -- check research progress
 
 ───────────────────────────────────────────────────────────────
 ```

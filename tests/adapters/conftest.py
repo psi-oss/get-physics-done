@@ -68,9 +68,24 @@ def gpd_root(tmp_path: Path) -> Path:
     for subdir in ("references", "templates", "workflows"):
         d = root / "specs" / subdir
         d.mkdir(parents=True)
-        (d / f"{subdir[:3]}.md").write_text(
-            f"# {subdir.title()}\nPath: {{GPD_INSTALL_DIR}}/test\nHome: ~/.claude/test\n",
-            encoding="utf-8",
-        )
+        name = f"{subdir[:3]}.md"
+        if subdir == "references":
+            content = (
+                "# References\n"
+                "Path: {GPD_INSTALL_DIR}/test\n"
+                "Home: ~/.claude/test\n"
+                "Search with web_search and web_fetch.\n"
+            )
+        elif subdir == "workflows":
+            content = (
+                "# Workflows\n"
+                'Use ask_user([{"label": "Yes"}])\n'
+                'Launch task(prompt="Run it")\n'
+                "Run /gpd:plan-phase 1 next.\n"
+            )
+        else:
+            content = "# Templates\nPath: {GPD_INSTALL_DIR}/test\nHome: ~/.claude/test\n"
+
+        (d / name).write_text(content, encoding="utf-8")
 
     return root

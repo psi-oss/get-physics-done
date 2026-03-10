@@ -1,6 +1,6 @@
 # Paper Quality Scoring System
 
-Quantitative readiness score (0-100) for physics manuscripts. Used by `$gpd-write-paper` to determine if the paper is ready for submission. Each category is scored independently; the total is a weighted sum.
+Quantitative readiness score (0-100) for physics manuscripts. Used by `/gpd:write-paper` to determine if the paper is ready for submission. Each category is scored independently; the total is a weighted sum.
 
 ## Scoring Categories
 
@@ -80,7 +80,7 @@ Quantitative readiness score (0-100) for physics manuscripts. Used by `$gpd-writ
 
 ## Automated Scoring Protocol
 
-When invoked during `$gpd-write-paper` (step: quality_assessment):
+When invoked during `/gpd:write-paper` (step: quality_assessment):
 
 ```bash
 # 1. Check equations
@@ -107,9 +107,9 @@ The scoring is presented as a table to the researcher with specific items to fix
 
 ## Integration Points
 
-- **`$gpd-write-paper`**: Runs quality scoring after all sections drafted, before generating submission package
-- **`$gpd-arxiv-submission`**: Requires score ≥ 80 to proceed (override with `--force`)
-- **`$gpd-respond-to-referees`**: Re-scores after revision to track improvement
+- **`/gpd:write-paper`**: Runs quality scoring after all sections drafted, before generating submission package
+- **`/gpd:arxiv-submission`**: Requires score ≥ 80 to proceed (override with `--force`)
+- **`/gpd:respond-to-referees`**: Re-scores after revision to track improvement
 - **VERIFICATION.md**: Quality score recorded in paper section of verification report
 
 ## Confidence-to-Score Mapping

@@ -37,7 +37,7 @@ PROGRESS=$(gpd init progress --include state,roadmap,config)
 gpd roadmap analyze
 ```
 
-Parse `project_exists` and `state_exists` from PROGRESS JSON. **If `project_exists` is false:** Error — "No project found. Run $gpd-new-project first." Exit.
+Parse `project_exists` and `state_exists` from PROGRESS JSON. **If `project_exists` is false:** Error — "No project found. Run /gpd:new-project first." Exit.
 
 Determine scope:
 
@@ -124,7 +124,7 @@ If no VERIFICATION.md files found:
 ```
 No completed verifications found. Nothing to regression-check.
 
-Run $gpd-verify-work <phase> to verify a completed phase first.
+Run /gpd:verify-work <phase> to verify a completed phase first.
 ```
 
 Exit.
@@ -472,7 +472,7 @@ status: clean | regressions_found
 
 1. **Phase {X}: {fix description}** -- fixes {N} CRITICAL regressions, unblocks phases {Y, Z}
 2. **Phase {Y}: {fix description}** -- fixes {M} MAJOR regressions after phase X is fixed
-3. **Re-run `$gpd-regression-check`** -- confirm all regressions resolved
+3. **Re-run `/gpd:regression-check`** -- confirm all regressions resolved
 
 ## Detailed Regression Analysis
 
@@ -558,13 +558,13 @@ Report: .gpd/REGRESSION-REPORT.md
 
 {If CRITICAL regressions:}
 1. Fix critical regressions first (see report for fix order)
-2. `$gpd-verify-work {affected_phase}` -- re-verify affected phases
-3. `$gpd-regression-check` -- confirm all regressions resolved
+2. `/gpd:verify-work {affected_phase}` -- re-verify affected phases
+3. `/gpd:regression-check` -- confirm all regressions resolved
 
 {If only MAJOR/MINOR:}
 1. Review regressions in report
-2. `$gpd-verify-work {affected_phase}` -- re-verify flagged phases
-3. `$gpd-regression-check` -- confirm clean
+2. `/gpd:verify-work {affected_phase}` -- re-verify flagged phases
+3. `/gpd:regression-check` -- confirm clean
 
 ---------------------------------------------------------------
 ```

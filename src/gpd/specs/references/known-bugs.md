@@ -45,7 +45,7 @@ This file is an index. Full details are in the sub-files linked below.
 
 See [known-bugs-active.md](known-bugs-active.md) for:
 - CC#1: classifyHandoffIfNeeded False Failure
-- CC#2: @-Reference Behavior in Task() Prompts
+- CC#2: @-Reference Behavior in task() Prompts
 
 ## Other Platform-Specific Bugs
 

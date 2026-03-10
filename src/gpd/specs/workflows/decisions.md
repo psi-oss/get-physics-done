@@ -20,15 +20,15 @@ cat .gpd/DECISIONS.md 2>/dev/null
 ```
 No decisions logged yet.
 
-Decisions are recorded automatically during phase transitions ($gpd-progress).
+Decisions are recorded automatically during phase transitions (/gpd:progress).
 You can also add entries manually to .gpd/DECISIONS.md.
 
 ---
 
 Would you like to:
 
-1. Check project progress ($gpd-progress)
-2. View current phase ($gpd-show-phase)
+1. Check project progress (/gpd:progress)
+2. View current phase (/gpd:show-phase)
 ```
 
 Exit.
@@ -37,10 +37,10 @@ Exit.
 <step name="parse_arguments">
 Determine filter mode from arguments:
 
-- `$gpd-decisions` -> show all entries
-- `$gpd-decisions 3` (number) -> filter to Phase 3 only
-- `$gpd-decisions regularization` (text) -> keyword search across all fields
-- `$gpd-decisions high` -> filter by impact level
+- `/gpd:decisions` -> show all entries
+- `/gpd:decisions 3` (number) -> filter to Phase 3 only
+- `/gpd:decisions regularization` (text) -> keyword search across all fields
+- `/gpd:decisions high` -> filter by impact level
 
 **Detection logic:**
 
@@ -109,9 +109,9 @@ To see full details (rationale and alternatives) for a specific decision, the us
 No decisions match {filter description}.
 
 Try:
-- `$gpd-decisions` — show all
-- `$gpd-decisions <phase>` — filter by phase
-- `$gpd-decisions <keyword>` — search by keyword
+- `/gpd:decisions` — show all
+- `/gpd:decisions <phase>` — filter by phase
+- `/gpd:decisions <keyword>` — search by keyword
 ```
 
 </step>

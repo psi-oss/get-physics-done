@@ -1604,7 +1604,7 @@ For each relevant insight, add it to your mental checklist of things to verify. 
 
 At verification start, check if `.gpd/ERROR-PATTERNS.md` exists:
 
-Use find_files to check: `Glob(".gpd/ERROR-PATTERNS.md")`
+Use find_files to check: `find_files(".gpd/ERROR-PATTERNS.md")`
 
 **If EXISTS:** Read it and for each error pattern entry:
 
@@ -1688,7 +1688,7 @@ If `state.json` does not exist or has no `convention_lock`, fall back to STATE.m
 
 ## Step 0: Check for Previous Verification
 
-Use find_files to find: `Glob("$PHASE_DIR/*-VERIFICATION.md")`, then Read the file if found.
+Use find_files to find: `find_files("$PHASE_DIR/*-VERIFICATION.md")`, then Read the file if found.
 
 **If previous verification exists with `gaps:` section -> RE-VERIFICATION MODE:**
 
@@ -1708,9 +1708,9 @@ Set `is_re_verification = false`, proceed with Step 1.
 
 Use dedicated tools:
 
-- `Glob("$PHASE_DIR/*-PLAN.md")` and `Glob("$PHASE_DIR/*-SUMMARY.md")` — Find plan and summary files
-- `Read(".gpd/ROADMAP.md")` — Read roadmap, find the Phase $PHASE_NUM section
-- `Grep("^\\| $PHASE_NUM", path=".gpd/REQUIREMENTS.md")` — Find phase requirements
+- `find_files("$PHASE_DIR/*-PLAN.md")` and `find_files("$PHASE_DIR/*-SUMMARY.md")` — Find plan and summary files
+- `file_read(".gpd/ROADMAP.md")` — Read roadmap, find the Phase $PHASE_NUM section
+- `search_files("^\\| $PHASE_NUM", path=".gpd/REQUIREMENTS.md")` — Find phase requirements
 
 Extract phase goal from ROADMAP.md — this is the outcome to verify, not the tasks. Identify the physics domain and the type of result expected (analytical, numerical, mixed).
 
@@ -1720,7 +1720,7 @@ In re-verification mode, must-haves come from Step 0.
 
 **Option A: Must-haves in PLAN frontmatter**
 
-`Grep("must_haves:", path="$PHASE_DIR", glob="*-PLAN.md")`
+`search_files("must_haves:", path="$PHASE_DIR", glob="*-PLAN.md")`
 
 If found, extract the `truths:` (physically verifiable statements), `artifacts:` (file paths with `provides:` descriptions), and `key_links:` (from, to, via connections between artifacts) from the YAML block.
 
@@ -1789,7 +1789,7 @@ For each truth:
 
 Does the artifact exist and is it non-trivial?
 
-Use `Read("$artifact_path")` — this both checks existence (returns error if missing) and lets you verify the content is non-trivial (not just boilerplate or empty).
+Use `file_read("$artifact_path")` — this both checks existence (returns error if missing) and lets you verify the content is non-trivial (not just boilerplate or empty).
 
 ### Level 2: Substantive Content
 

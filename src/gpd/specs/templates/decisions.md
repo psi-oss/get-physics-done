@@ -50,7 +50,7 @@ DECISIONS.md is the project's decision memory — a cumulative, append-only log 
 - Assign sequential IDs (DEC-001, DEC-002, ...)
 - Never edit or remove existing entries
 
-**Reading:** On demand via `$gpd-decisions`
+**Reading:** On demand via `/gpd:decisions`
 
 - Display formatted decision log
 - Filter by phase number or keyword search

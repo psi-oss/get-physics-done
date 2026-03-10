@@ -27,7 +27,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `approximations` | `ApproximationObject[]` | `[]` | Active approximations with validity | **Authoritative** (JSON-only, from `approximation add`) |
 | `convention_lock` | `ConventionLock` | see below | Locked physics conventions | **Authoritative** (JSON-only, from `convention set`) |
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
-| `pending_todos` | `string[]` | `[]` | Ideas captured via $gpd-add-todo | Synced from todos/ |
+| `pending_todos` | `string[]` | `[]` | Ideas captured via /gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `session` | `SessionObject` | see below | Session continuity for resumption | Synced from STATE.md |
 
@@ -52,7 +52,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | Field | Type | Written By |
 |-------|------|-----------|
 | `project_md_updated` | `string \| null` | Workflows (after updating PROJECT.md) |
-| `core_research_question` | `string \| null` | `$gpd-new-project` |
+| `core_research_question` | `string \| null` | `/gpd:new-project` |
 | `current_focus` | `string \| null` | Phase transitions, `gpd state update` |
 
 **Legacy note:** `parse_state_to_json` emits `project` key; `sync_state_json` maps this to `project_reference`.
@@ -85,7 +85,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | `last_activity` | `string \| null` | Most state-modifying commands | Session display |
 | `last_activity_desc` | `string \| null` | Executor, workflows | Session display |
 | `progress_percent` | `integer` | `gpd state update-progress` | Progress display |
-| `paused_at` | `string \| null` | `$gpd-pause-work`, `$gpd-resume-work` | Resume workflow |
+| `paused_at` | `string \| null` | `/gpd:pause-work`, `/gpd:resume-work` | Resume workflow |
 
 **Valid `status` values:**
 
@@ -255,7 +255,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 }
 ```
 
-**Written by:** `gpd state record-session`, `$gpd-pause-work`
+**Written by:** `gpd state record-session`, `/gpd:pause-work`
 
 ---
 

@@ -16,7 +16,7 @@ context_cost: medium
 How GPD selects agents, allocates context budgets, and routes verification failures. This document covers orchestration STRATEGY, not mechanics (for mechanics, see `agent-delegation.md` and `agent-infrastructure.md`).
 
 **Related files:**
-- `agent-delegation.md` — Task() call pattern, runtime alternatives
+- `agent-delegation.md` — task() call pattern, runtime alternatives
 - `agent-infrastructure.md` — data boundary, tool failure, context pressure
 - `context-budget.md` — per-workflow budget targets
 - `context-pressure-thresholds.md` — GREEN/YELLOW/ORANGE/RED thresholds
@@ -233,7 +233,7 @@ Guidance for the orchestrator on how to handle agent-specific patterns.
 |---|---|
 | Executor returns CHECKPOINT (context full) | Re-invoke with checkpoint file. This is normal for long derivations. |
 | Verifier returns incomplete (< 7 checks) | Re-invoke with remaining checks. Budget a fresh context. |
-| Researcher returns "insufficient literature" | Try: (a) broader search terms, (b) adjacent subfield, (c) WebSearch with different query. |
+| Researcher returns "insufficient literature" | Try: (a) broader search terms, (b) adjacent subfield, (c) web_search with different query. |
 | Planner produces > 8 tasks in one plan | Split: plans with > 8 tasks risk executor context overflow. Split into 2 plans at a natural boundary. |
 | Debugger returns "unknown failure mode" | Escalate to phase-researcher for alternative method. The current approach may be fundamentally unsuitable. |
 | Bibliographer returns < 3 references | For explore mode: re-invoke with broader search. For exploit: acceptable if the references are the canonical ones. |

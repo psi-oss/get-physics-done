@@ -33,7 +33,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.
 - `research_mode=adaptive`: Start focused, expand if gap analysis reveals significant unknowns.
 
-**If `project_exists` is false:** Error — run `$gpd-new-project` first.
+**If `project_exists` is false:** Error — run `/gpd:new-project` first.
 **If `roadmap_exists` is true:** Note — existing ROADMAP.md will be replaced by this milestone's roadmap.
 
 Load project files:
@@ -54,7 +54,7 @@ Load project files:
 
 - Present what was accomplished in the last milestone
 - Ask: "What do you want to investigate next?"
-- Use AskUserQuestion to explore: new phenomena, extended parameter regimes, additional observables, paper targets, peer review responses
+- Use ask_user to explore: new phenomena, extended parameter regimes, additional observables, paper targets, peer review responses
 
 **Research milestones typically focus on one of:**
 
@@ -118,14 +118,14 @@ gpd commit "docs: start milestone v[X.Y] [Name]" --files .gpd/PROJECT.md .gpd/ST
 
 ## 7. Literature Survey Decision
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-AskUserQuestion: "Survey the research landscape for new investigations before defining objectives?"
+ask_user: "Survey the research landscape for new investigations before defining objectives?"
 
 - "Survey first (Recommended)" — Discover new results, methods, and open problems for NEW directions
 - "Skip survey" — Go straight to objectives
 
-**Persist choice to config** (so future `$gpd-plan-phase` honors it):
+**Persist choice to config** (so future `/gpd:plan-phase` honors it):
 
 ```bash
 # If "Survey first": persist true
@@ -154,12 +154,12 @@ Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dim
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **Common structure for all 4 scouts:**
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>Literature Survey — {DIMENSION} for [new research direction].</research_type>
 
@@ -199,14 +199,14 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 After all 4 complete (or partial completion handled), spawn synthesizer:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
 
 <task>
 Synthesize literature survey outputs into SUMMARY.md.
 </task>
 
 <files_to_read>
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - .gpd/research/PRIOR-WORK.md
 - .gpd/research/METHODS.md
 - .gpd/research/COMPUTATIONAL.md
@@ -269,7 +269,7 @@ Present objectives by category:
 
 **If no survey:** Gather objectives through conversation. Ask: "What are the key results you need to establish for [new direction]?" Clarify, probe for related calculations, group into categories.
 
-**Scope each category** via AskUserQuestion (multiSelect: true):
+**Scope each category** via ask_user (multiSelect: true):
 
 - "[Objective 1]" — [brief description]
 - "[Objective 2]" — [brief description]
@@ -277,7 +277,7 @@ Present objectives by category:
 
 Track: Selected -> this milestone. Unselected essential -> future. Unselected extended -> out of scope.
 
-**Identify gaps** via AskUserQuestion:
+**Identify gaps** via ask_user:
 
 - "No, survey covered it" — Proceed
 - "Yes, let me add some" — Capture additions
@@ -339,10 +339,10 @@ gpd commit "docs: define milestone v[X.Y] objectives" --files .gpd/REQUIREMENTS.
 **Starting phase number:** Read MILESTONES.md for last phase number. Continue from there (v1.0 ended at phase 5 -> v1.1 starts at phase 6).
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
 
 <files_to_read>
-Read these files using the Read tool before proceeding:
+Read these files using the file_read tool before proceeding:
 - .gpd/PROJECT.md
 - .gpd/REQUIREMENTS.md
 - .gpd/research/SUMMARY.md (if exists, skip if not found)
@@ -392,7 +392,7 @@ Success criteria:
 2. [criterion]
 ```
 
-**Ask for approval** via AskUserQuestion:
+**Ask for approval** via ask_user:
 
 - "Approve" — Commit and continue
 - "Adjust phases" — Tell me what to change
@@ -432,11 +432,11 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .gpd/ROA
 
 **Phase [N]: [Phase Name]** — [Goal]
 
-`$gpd-discuss-phase [N]` — gather context and clarify approach
+`/gpd:discuss-phase [N]` — gather context and clarify approach
 
 <sub>`/clear` first -> fresh context window</sub>
 
-Also: `$gpd-plan-phase [N]` — skip discussion, plan directly
+Also: `/gpd:plan-phase [N]` — skip discussion, plan directly
 ```
 
 </process>
@@ -454,7 +454,7 @@ Also: `$gpd-plan-phase [N]` — skip discussion, plan directly
 - [ ] User feedback incorporated (if any)
 - [ ] ROADMAP.md phases continue from previous milestone
 - [ ] All commits made (if planning docs committed)
-- [ ] User knows next step: `$gpd-discuss-phase [N]`
+- [ ] User knows next step: `/gpd:discuss-phase [N]`
 
 **Atomic commits:** Each phase commits its artifacts immediately.
 </success_criteria>

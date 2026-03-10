@@ -12,9 +12,9 @@ Read all files referenced by the invoking prompt's execution_context before star
 Prompt user interactively for the task description:
 
 ```
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-AskUserQuestion(
+ask_user(
   header: "Quick Task",
   question: "What do you want to do? Examples:
   - Quick derivation of the equation of motion from the Lagrangian
@@ -49,7 +49,7 @@ Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `n
 - `autonomy=guided` (default): Execute without pausing (quick tasks are inherently lightweight).
 - `autonomy=autonomous/yolo`: Execute and commit without pausing.
 
-**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `$gpd-new-project` first.
+**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `/gpd:new-project` first.
 
 Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.gpd/` to exist for directory structure.
 
@@ -77,10 +77,10 @@ Directory: ${QUICK_DIR}
 
 Spawn gpd-planner with quick mode context:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.
 
 <planning_context>
@@ -130,10 +130,10 @@ Spawn gpd-executor with plan reference:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
 Execute quick task ${next_num}.
@@ -188,7 +188,7 @@ gpd state update "Last Activity" "${date}"
 
 **6c. Append quick task table row (Edit + sync):**
 
-If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using Edit tool after the `### Blockers/Concerns` section:
+If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using file_edit tool after the `### Blockers/Concerns` section:
 
 ```markdown
 ### Quick Tasks Completed
@@ -197,7 +197,7 @@ If the "Quick Tasks Completed" table section in STATE.md does not exist, create 
 | --- | ----------- | ---- | ------ | --------- |
 ```
 
-Append new row to the table using Edit tool:
+Append new row to the table using file_edit tool:
 
 ```markdown
 | ${next_num} | ${DESCRIPTION} | ${date} | ${commit_hash} | [${next_num}-${slug}](./quick/${next_num}-${slug}/) |
@@ -209,7 +209,7 @@ Append new row to the table using Edit tool:
 gpd state load
 ```
 
-This ensures the table content added via Edit is synced to state.json. Do NOT skip this step — direct Edit of STATE.md without `state load` causes STATE.md/state.json divergence.
+This ensures the table content added via file_edit is synced to state.json. Do NOT skip this step — direct Edit of STATE.md without `state load` causes STATE.md/state.json divergence.
 
 ---
 
@@ -244,7 +244,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: $gpd-quick
+Ready for next task: /gpd:quick
 ```
 
 </process>

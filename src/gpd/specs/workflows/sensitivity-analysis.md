@@ -1,7 +1,7 @@
 <purpose>
 Determine which input parameters most strongly affect output quantities. Compute partial derivatives, condition numbers, and rank parameters by sensitivity. Identifies which measurements or calculations would most improve final results.
 
-Called from $gpd-sensitivity-analysis command. Used to prioritize effort: if parameter A contributes 90% of the uncertainty while parameter B contributes 1%, improving the precision of A has 90x the impact of improving B.
+Called from /gpd:sensitivity-analysis command. Used to prioritize effort: if parameter A contributes 90% of the uncertainty while parameter B contributes 1%, improving the precision of A has 90x the impact of improving B.
 </purpose>
 
 <core_principle>
@@ -590,9 +590,9 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 ## Next Steps
 
 - **Reduce uncertainty:** Improve precision of {dominant parameter} for greatest impact
-- **Error propagation:** `$gpd-error-propagation` -- trace full error budget through derivation chain
-- **Parameter sweep:** `$gpd-parameter-sweep` -- map out behavior across parameter range
-- **Convergence:** `$gpd-numerical-convergence` -- verify numerical error bars at key points
+- **Error propagation:** `/gpd:error-propagation` -- trace full error budget through derivation chain
+- **Parameter sweep:** `/gpd:parameter-sweep` -- map out behavior across parameter range
+- **Convergence:** `/gpd:numerical-convergence` -- verify numerical error bars at key points
 
 ---
 ```

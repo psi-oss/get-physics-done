@@ -48,12 +48,12 @@ Parse current values (default to `true` / first option if not present):
 
 <step name="present_settings">
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion with current values pre-selected:
+Use ask_user with current values pre-selected:
 
 ```
-AskUserQuestion([
+ask_user([
   {
     question: "How much autonomy should the AI have?",
     header: "Autonomy",
@@ -195,7 +195,7 @@ AskUserQuestion([
     header: "Parallel",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Plans in the same wave run concurrently via parallel Task() calls" },
+      { label: "Yes (Recommended)", description: "Plans in the same wave run concurrently via parallel task() calls" },
       { label: "No", description: "Plans execute sequentially within each wave" }
     ]
   },
@@ -269,13 +269,13 @@ Display:
 | Parallelization      | {On/Off} |
 | Git Branching        | {None/Per Phase/Per Milestone} |
 
-These settings apply to future $gpd-plan-phase and $gpd-execute-phase runs.
+These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 
 Quick commands:
-- $gpd-set-profile <profile> -- switch research profile
-- $gpd-plan-phase --research -- force research
-- $gpd-plan-phase --skip-research -- skip research
-- $gpd-plan-phase --skip-verify -- skip plan check
+- /gpd:set-profile <profile> -- switch research profile
+- /gpd:plan-phase --research -- force research
+- /gpd:plan-phase --skip-research -- skip research
+- /gpd:plan-phase --skip-verify -- skip plan check
 ```
 
 </step>

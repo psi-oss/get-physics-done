@@ -25,7 +25,7 @@ Extract: phase list with names, goals, dependencies, and disk status.
 ╚══════════════════════════════════════════════════════════════╝
 
 No ROADMAP.md found. Create a project first:
-  $gpd-new-project
+  /gpd:new-project
 ```
 
 Exit.
@@ -221,9 +221,9 @@ gpd commit "docs: generate dependency graph" --files .gpd/DEPENDENCY-GRAPH.md
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-show-phase <N>` -- inspect a specific phase in detail
-- `$gpd-plan-phase <N>` -- plan an unstarted phase
-- `$gpd-progress` -- overall research progress
+- `/gpd:show-phase <N>` -- inspect a specific phase in detail
+- `/gpd:plan-phase <N>` -- plan an unstarted phase
+- `/gpd:progress` -- overall research progress
 
 ───────────────────────────────────────────────────────────────
 ```

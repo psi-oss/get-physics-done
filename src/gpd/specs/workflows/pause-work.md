@@ -290,7 +290,7 @@ Current state:
 - Derivation state: [brief summary of where the calculation stands]
 - Committed as WIP
 
-To resume: $gpd-resume-work
+To resume: /gpd:resume-work
 
 ```
 </step>

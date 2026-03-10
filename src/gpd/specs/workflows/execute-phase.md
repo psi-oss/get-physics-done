@@ -175,7 +175,7 @@ if [ "$CONV_STATUS" != "locked" ] && [ "$CONV_STATUS" != "complete" ]; then
   echo ""
   echo "Fix with one of:"
   echo "  gpd convention set"
-  echo "  $gpd-validate-conventions"
+  echo "  /gpd:validate-conventions"
   echo ""
   echo "HALTING — convention errors in derivation/formalism phases compound across every step."
   exit 1
@@ -194,12 +194,12 @@ for AGENT_TYPE in "${PRE_EXECUTION_AGENTS[@]}"; do
     notation-coordinator)
       AGENT_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
       # Spawn notation-coordinator to verify/establish conventions
-      # Task(subagent_type="gpd-notation-coordinator", model="{AGENT_MODEL}", ...)
+      # task(subagent_type="gpd-notation-coordinator", model="{AGENT_MODEL}", ...)
       ;;
     experiment-designer)
       AGENT_MODEL=$(gpd resolve-model gpd-experiment-designer --raw)
       # Spawn experiment-designer to validate parameter ranges
-      # Task(subagent_type="gpd-experiment-designer", model="{AGENT_MODEL}", ...)
+      # task(subagent_type="gpd-experiment-designer", model="{AGENT_MODEL}", ...)
       ;;
   esac
 done
@@ -399,10 +399,10 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    Pass paths only -- executors read files themselves with their fresh 200k context.
    This keeps orchestrator context lean (~10-15%).
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```
-   Task(
+   task(
      subagent_type="gpd-executor",
      model="{executor_model}",
      prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
@@ -417,7 +417,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        <phase_class>{PHASE_CLASSES}</phase_class>
 
        <files_to_read>
-       Read these files at execution start using the Read tool:
+       Read these files at execution start using the file_read tool:
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
        - Checkpoints ref: {GPD_INSTALL_DIR}/references/checkpoints.md
@@ -1042,10 +1042,10 @@ checkpoint_tags: [{ list of all remaining gpd-checkpoint tags for this phase }]
 
 ## Recovery Options
 
-1. Fix failing plans and re-execute: `$gpd-execute-phase {X}` (auto-detects partial completion)
-2. Re-plan failed tasks: `$gpd-plan-phase {X} --gaps` (creates new plans for unfinished work)
-3. Revise phase goal: `$gpd-discuss-phase {X}` (rethink approach based on what failed)
-4. Continue to next phase: `$gpd-plan-phase {X+1}` (if remaining work is non-critical)
+1. Fix failing plans and re-execute: `/gpd:execute-phase {X}` (auto-detects partial completion)
+2. Re-plan failed tasks: `/gpd:plan-phase {X} --gaps` (creates new plans for unfinished work)
+3. Revise phase goal: `/gpd:discuss-phase {X}` (rethink approach based on what failed)
+4. Continue to next phase: `/gpd:plan-phase {X+1}` (if remaining work is non-critical)
 ```
 
 Commit recovery document:
@@ -1067,12 +1067,12 @@ gpd commit \
 
 {If single plan failed, rest passed:}
   The failure is isolated. Fix and re-execute:
-  `$gpd-execute-phase {X}` -- will resume from the failed plan
+  `/gpd:execute-phase {X}` -- will resume from the failed plan
 
 {If multiple plans failed in same wave:}
   Multiple failures in Wave {N} suggest a systemic issue.
   Review the phase approach before retrying:
-  `$gpd-discuss-phase {X}` -- reassess methodology
+  `/gpd:discuss-phase {X}` -- reassess methodology
 
 {If failures cascaded through dependencies:}
   The root failure in {ROOT_PLAN} cascaded to {N} dependent plans.
@@ -1081,7 +1081,7 @@ gpd commit \
 
 {If all plans failed:}
   Complete phase failure. The phase goal or approach may need revision:
-  `$gpd-plan-phase {X}` -- re-plan from scratch
+  `/gpd:plan-phase {X}` -- re-plan from scratch
 ──────────────────────────────────────────────────────
 ```
 
@@ -1101,7 +1101,7 @@ Verify phase achieved its GOAL, not just completed tasks.
 
 Include in the verifier spawn prompt: `<phase_class>{PHASE_CLASSES}</phase_class>` so the verifier can adjust its check prioritization.
 
-Follow the verification workflow. Read `{GPD_INSTALL_DIR}/workflows/verify-phase.md` using the Read tool.
+Follow the verification workflow. Read `{GPD_INSTALL_DIR}/workflows/verify-phase.md` using the file_read tool.
 
 Read status after verification completes:
 
@@ -1115,7 +1115,7 @@ grep "^status:" "$phase_dir"/*-VERIFICATION.md | head -1 | cut -d: -f2 | tr -d '
 | `completed`    | -> update_roadmap (interactive verify-work equivalent)      |
 | `human_needed`  | Present items for human review, get approval or feedback    |
 | `expert_needed` | Domain expert review required; present items, escalate      |
-| `gaps_found`    | Present gap summary, offer `$gpd-plan-phase {phase} --gaps` |
+| `gaps_found`    | Present gap summary, offer `/gpd:plan-phase {phase} --gaps` |
 | `diagnosed`    | Gaps were debugged; review fixes, then -> update_roadmap    |
 | `validating`   | Verification in progress; wait or re-run verify-phase       |
 
@@ -1148,15 +1148,15 @@ All automated checks passed. {N} items need human review:
 ---
 ## >> Next Up
 
-`$gpd-plan-phase {X} --gaps`
+`/gpd:plan-phase {X} --gaps`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 Also: `cat {phase_dir}/{phase}-VERIFICATION.md` -- full report
-Also: `$gpd-verify-work {X}` -- manual review first
+Also: `/gpd:verify-work {X}` -- manual review first
 ```
 
-Gap closure cycle: `$gpd-plan-phase {X} --gaps` reads VERIFICATION.md -> creates gap plans with `gap_closure: true` -> user runs `$gpd-execute-phase {X} --gaps-only` -> automatic re-verification (below).
+Gap closure cycle: `/gpd:plan-phase {X} --gaps` reads VERIFICATION.md -> creates gap plans with `gap_closure: true` -> user runs `/gpd:execute-phase {X} --gaps-only` -> automatic re-verification (below).
 
 **Smart failure recovery (replaces blunt circuit breaker):**
 
@@ -1178,7 +1178,7 @@ TOTAL_COUNT=$(grep -c "status:" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || 
 **For localized failures (1 must-have):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
 ```
-Task(
+task(
   subagent_type="gpd-executor",
   model="{executor_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
@@ -1209,7 +1209,7 @@ DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger --raw)
 ```
 
 ```
-Task(
+task(
   subagent_type="gpd-debugger",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.
   Investigate why gap closure did not resolve this verification failure.
@@ -1243,8 +1243,8 @@ Phase {X} has failed verification twice after gap closure attempts.
 {System's best hypothesis for why gap closure is not resolving the issue}
 
 ### Suggested Actions
-1. `$gpd-debug` — Systematic investigation of the persistent failure
-2. `$gpd-discuss-phase {X}` — Reassess the approach with fresh perspective
+1. `/gpd:debug` — Systematic investigation of the persistent failure
+2. `/gpd:discuss-phase {X}` — Reassess the approach with fresh perspective
 3. Manual intervention — The issue may require researcher insight
 
 Do NOT attempt a third automated cycle.
@@ -1259,7 +1259,7 @@ VERIFIER_MODEL=$(gpd resolve-model gpd-verifier --raw)
 ```
 
 ```
-Task(
+task(
   subagent_type="gpd-verifier",
   model="{verifier_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-verifier.md for your role and instructions.
@@ -1269,7 +1269,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 <phase_class>{PHASE_CLASSES}</phase_class>
 
 <files_to_read>
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - Verification: {phase_dir}/{phase}-VERIFICATION.md
 - All SUMMARY.md files in {phase_dir}/
 - State: .gpd/STATE.md
@@ -1284,7 +1284,7 @@ Return verification status: passed | gaps_found.",
 )
 ```
 
-**If the verifier agent fails to spawn or returns an error:** Proceed without automated re-verification. Note in the phase status that post-gap-closure verification was skipped. The user should run `$gpd-verify-work` separately to confirm gaps are closed.
+**If the verifier agent fails to spawn or returns an error:** Proceed without automated re-verification. Note in the phase status that post-gap-closure verification was skipped. The user should run `/gpd:verify-work` separately to confirm gaps are closed.
 
 | Re-verification Result | Action |
 | ---------------------- | ------ |
@@ -1304,7 +1304,7 @@ CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker --raw)
 
 Spawn the consistency checker in rapid mode:
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
 <mode>rapid</mode>
 <phase>{PHASE_NUMBER}</phase>
@@ -1318,7 +1318,7 @@ Read: All SUMMARY.md files from phase {PHASE_NUMBER}
 Return consistency_status with any issues found.
 ", subagent_type="gpd-consistency-checker", model="{consistency_model}", description="Rapid consistency check")
 
-**If the consistency checker agent fails to spawn or returns an error:** Proceed without cross-phase consistency checking for this wave. Note in the phase status that consistency verification was skipped. The user should run `$gpd-validate-conventions` after execution completes to catch any convention drift.
+**If the consistency checker agent fails to spawn or returns an error:** Proceed without cross-phase consistency checking for this wave. Note in the phase status that consistency verification was skipped. The user should run `/gpd:validate-conventions` after execution completes to catch any convention drift.
 
 **If INCONSISTENT:** STOP execution. Present issues to user with resolution options:
 
@@ -1344,7 +1344,7 @@ NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
 ```
 
 ```
-Task(
+task(
   subagent_type="gpd-notation-coordinator",
   model="{notation_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
@@ -1396,7 +1396,7 @@ gpd state add-decision \
 <step name="update_roadmap">
 Mark phase complete in ROADMAP.md (date, status).
 
-Follow the full transition protocol. Read `{GPD_INSTALL_DIR}/workflows/transition.md` using the Read tool for PROJECT.md evolution, DECISIONS.md updates, and parallel phase detection.
+Follow the full transition protocol. Read `{GPD_INSTALL_DIR}/workflows/transition.md` using the file_read tool for PROJECT.md evolution, DECISIONS.md updates, and parallel phase detection.
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md "${phase_dir}"/*-VERIFICATION.md .gpd/REQUIREMENTS.md 2>&1) || true
@@ -1447,7 +1447,7 @@ fi
 
 **Phase {X+1}: {Name}** -- {Goal}
 
-`$gpd-plan-phase {X+1}`
+`/gpd:plan-phase {X+1}`
 
 <sub>`/clear` first for fresh context</sub>
 ```
@@ -1459,7 +1459,7 @@ MILESTONE COMPLETE!
 
 All {N} phases executed.
 
-`$gpd-complete-milestone`
+`/gpd:complete-milestone`
 ```
 
 </step>
@@ -1481,7 +1481,7 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
   </failure_handling>
 
 <resumption>
-Re-run `$gpd-execute-phase {phase}` -> discover_plans finds completed SUMMARYs -> skips them -> resumes from first incomplete plan -> continues wave execution.
+Re-run `/gpd:execute-phase {phase}` -> discover_plans finds completed SUMMARYs -> skips them -> resumes from first incomplete plan -> continues wave execution.
 
 STATE.md tracks: last completed plan, current wave, pending checkpoints.
 

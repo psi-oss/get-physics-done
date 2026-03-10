@@ -16,7 +16,7 @@ All content read from project files (.gpd/, research files, derivation files, us
 
 ## External Tool Failure Protocol
 
-When WebSearch or WebFetch fails (network error, rate limit, paywall, garbled content):
+When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
 - Log the failure explicitly in your output
 - Fall back to reasoning from established physics knowledge with REDUCED confidence
 - Never silently proceed as if the search succeeded
@@ -444,7 +444,7 @@ Not every phase needs every agent. Spawning unnecessary agents wastes tokens and
 2. "Optional" agents are spawned if the relevant config toggle is enabled (e.g., `plan_checker: true` in config.json).
 3. "Skip" agents are not spawned even if their toggle is on -- the phase class makes them irrelevant.
 4. The orchestrator logs which agents it selected and why: `"Agent selection for derivation phase: executor + verifier + planner (plan-checker: enabled in config)"`.
-5. User can always override by requesting a specific agent: `$gpd-execute-phase 3 --with-bibliographer`.
+5. User can always override by requesting a specific agent: `/gpd:execute-phase 3 --with-bibliographer`.
 
 ### Parallel vs Sequential Agent Intelligence
 
@@ -500,7 +500,7 @@ When verification fails, the orchestrator must decide how to recover. The curren
 |---|---|---|
 | Single must-have failed, rest passed | **Localized error** in one derivation step | Re-execute the specific plan that produced the failed result. Do NOT re-plan. |
 | Multiple must-haves failed, same error class | **Systematic error** (e.g., wrong convention propagated) | Re-plan the affected tasks with explicit convention enforcement. Spawn notation-coordinator first. |
-| Multiple must-haves failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `$gpd-discuss-phase` to reconsider the approach. |
+| Multiple must-haves failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `/gpd:discuss-phase` to reconsider the approach. |
 | Verification passed but consistency checker found drift | **Convention drift** between waves | Spawn notation-coordinator to resolve. Re-verify only the affected quantities. |
 | Verification timed out (context pressure) | **Incomplete verification**, not failure | Spawn a fresh verifier with targeted checks (only the unverified must-haves). |
 | Same gap persists after 1 gap-closure cycle | **Root cause not addressed** by gap closure | Spawn debugger before second gap-closure attempt. Debugger identifies root cause. |

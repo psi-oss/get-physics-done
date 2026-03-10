@@ -26,14 +26,14 @@ If `todo_count` is 0:
 ```
 No pending todos.
 
-Todos are captured during work sessions with $gpd-add-todo.
+Todos are captured during work sessions with /gpd:add-todo.
 
 ---
 
 Would you like to:
 
-1. Continue with current phase ($gpd-progress)
-2. Add a todo now ($gpd-add-todo)
+1. Continue with current phase (/gpd:progress)
+2. Add a todo now (/gpd:add-todo)
 ```
 
 Exit.
@@ -41,10 +41,10 @@ Exit.
 
 <step name="parse_filter">
 Check for area filter in arguments:
-- `$gpd-check-todos` -> show all
-- `$gpd-check-todos analytical` -> filter to area:analytical only
-- `$gpd-check-todos numerical` -> filter to area:numerical only
-- `$gpd-check-todos formalism` -> filter to area:formalism only
+- `/gpd:check-todos` -> show all
+- `/gpd:check-todos analytical` -> filter to area:analytical only
+- `/gpd:check-todos numerical` -> filter to area:numerical only
+- `/gpd:check-todos formalism` -> filter to area:formalism only
 </step>
 
 <step name="list_todos">
@@ -62,7 +62,7 @@ Pending Todos:
 ---
 
 Reply with a number to view details, or:
-- `$gpd-check-todos [area]` to filter by area
+- `/gpd:check-todos [area]` to filter by area
 - `q` to exit
 ```
 
@@ -109,9 +109,9 @@ If `.gpd/ROADMAP.md` exists:
 <step name="offer_actions">
 **If todo maps to a roadmap phase:**
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Action"
 - question: "This todo relates to Phase [N]: [name]. What would you like to do?"
@@ -123,13 +123,13 @@ Use AskUserQuestion:
 
 **If no roadmap match:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Action"
 - question: "What would you like to do with this todo?"
 - options:
   - "Work on it now" -- move to done, start working
-  - "Create a phase" -- $gpd-add-phase with this scope
+  - "Create a phase" -- /gpd:add-phase with this scope
   - "Brainstorm approach" -- think through before deciding
   - "Put it back" -- return to list
     </step>
@@ -145,11 +145,11 @@ Update STATE.md todo count. Present problem/solution context. Begin work or ask 
 Note todo reference in phase planning notes. Keep in pending. Return to list or exit.
 
 **Create a phase:**
-Display: `$gpd-add-phase [description from todo]`
+Display: `/gpd:add-phase [description from todo]`
 Keep in pending. User runs command in fresh context.
 
 **Brainstorm approach:**
-Keep in pending. Start discussion about problem and approaches. **Maximum 4 brainstorm iterations.** After 4 rounds, summarize approaches discussed and suggest creating a concrete plan (e.g., via `$gpd-add-phase` or `$gpd-plan-phase`).
+Keep in pending. Start discussion about problem and approaches. **Maximum 4 brainstorm iterations.** After 4 rounds, summarize approaches discussed and suggest creating a concrete plan (e.g., via `/gpd:add-phase` or `/gpd:plan-phase`).
 
 **Put it back:**
 Return to list_todos step.

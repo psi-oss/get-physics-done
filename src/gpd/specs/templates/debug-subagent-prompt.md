@@ -70,10 +70,10 @@ Create: .gpd/debug/{slug}.md
 
 ## Usage
 
-**From $gpd-debug:**
+**From /gpd:debug:**
 
 ```python
-Task(
+task(
   prompt=filled_template,
   subagent_type="gpd-debugger",
   description="Debug {slug}"
@@ -84,11 +84,11 @@ Task(
 **From debug (validation):**
 
 ```python
-Task(prompt=template, subagent_type="gpd-debugger", description="Debug VAL-001")
+task(prompt=template, subagent_type="gpd-debugger", description="Debug VAL-001")
 # model parameter from profile tier — omit on single-model platforms
 ```
 
-## <!-- Task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
+## <!-- task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
 
 ## Systematic Physics Debugging Strategy
 

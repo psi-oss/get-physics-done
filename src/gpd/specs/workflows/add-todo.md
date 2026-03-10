@@ -34,7 +34,7 @@ Note existing areas from the todos array for consistency in infer_area step.
 
 <step name="extract_content">
 **With arguments:** Use as the title/focus.
-- `$gpd-add-todo Check unitarity of S-matrix at two loops` -> title = "Check unitarity of S-matrix at two loops"
+- `/gpd:add-todo Check unitarity of S-matrix at two loops` -> title = "Check unitarity of S-matrix at two loops"
 
 **Without arguments:** Analyze recent conversation to extract:
 
@@ -81,9 +81,9 @@ If potential duplicate found:
 1. Read the existing todo
 2. Compare scope
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-If overlapping, use AskUserQuestion:
+If overlapping, use ask_user:
 
 - header: "Duplicate?"
 - question: "Similar todo exists: [title]. What would you like to do?"
@@ -161,7 +161,7 @@ Would you like to:
 
 1. Continue with current work
 2. Add another todo
-3. View all todos ($gpd-check-todos)
+3. View all todos (/gpd:check-todos)
 
 ```
 </step>

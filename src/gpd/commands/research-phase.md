@@ -153,7 +153,7 @@ Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",
@@ -187,7 +187,7 @@ Research file: @.gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + continuation_prompt,
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",

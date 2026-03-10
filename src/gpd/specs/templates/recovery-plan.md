@@ -121,7 +121,7 @@ git revert {hashK+1}..{bad_hash}
 
 ### Replan (if fundamental issue)
 
-Run `$gpd-revise-phase` to create a replacement plan that:
+Run `/gpd:revise-phase` to create a replacement plan that:
 
 - [ ] Avoids the failed approach: [what to change]
 - [ ] Incorporates diagnostic findings: [what we learned]

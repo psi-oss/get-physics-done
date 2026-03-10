@@ -1,7 +1,7 @@
 <purpose>
 Perform a systematic dimensional analysis audit on every equation in a derivation, computation, or phase. Track dimensions through all algebraic steps, verify consistency, and flag any dimensional anomalies.
 
-Called from $gpd-dimensional-analysis command. Produces DIMENSIONAL-ANALYSIS.md report.
+Called from /gpd:dimensional-analysis command. Produces DIMENSIONAL-ANALYSIS.md report.
 
 Dimensional analysis is the cheapest and most powerful diagnostic in physics. It catches ~30% of errors at near-zero cost. This workflow applies it systematically rather than ad hoc.
 </purpose>
@@ -23,7 +23,7 @@ fi
 ```
 
 - **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock`, especially `units` and `natural_units` settings. Extract active approximations for context on what dimensions are independent.
-- **If init fails or `state_exists` is false** (standalone usage): Proceed — the unit system will be established explicitly in Step 1 via AskUserQuestion.
+- **If init fails or `state_exists` is false** (standalone usage): Proceed — the unit system will be established explicitly in Step 1 via ask_user.
 
 The convention_lock unit system setting (natural units, SI, CGS, etc.) directly determines which dimensions are independent and what the dimensional assignments table looks like.
 
@@ -43,7 +43,7 @@ Dimensional analysis results depend critically on the unit system. In natural un
 
 Before checking any equations, establish the unit system in use.
 
-Use AskUserQuestion if not found in project files:
+Use ask_user if not found in project files:
 
 1. **Unit system** -- Natural units (hbar=c=1)? SI? Gaussian CGS? Heaviside-Lorentz? Planck units?
 2. **Independent dimensions** -- Which dimensions are independent?
@@ -261,7 +261,7 @@ If anomalies found:
 {List anomalies with severity}
 
 Suggested next steps:
-- `$gpd-debug` -- investigate anomalies
+- `/gpd:debug` -- investigate anomalies
 - Fix directly -- if cause is obvious (missing factor, wrong measure)
 ```
 

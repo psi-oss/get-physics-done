@@ -168,7 +168,7 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 | review         | enabled                        |
 | paper-writing  | disabled                       |
 
-Override with `$gpd-settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
+Override with `/gpd:settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
 
 For full agent tier assignments across all 17 agents, see `references/model-profiles.md`.
 For detailed behavioral effect descriptions per agent per profile, see the "Behavioral Effects" section in `references/model-profiles.md`.

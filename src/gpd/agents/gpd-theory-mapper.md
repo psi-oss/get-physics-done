@@ -173,38 +173,38 @@ Explore the research project thoroughly for your focus area.
 
 Use find_files and Grep tools (never raw bash find/grep):
 
-- `Glob("**/*.tex")` — LaTeX documents (primary theory content)
-- `Grep("Hamiltonian|Lagrangian|action|partition function", glob="*.tex")` — Physics keywords
-- `Grep("model|coupling|mass|parameter|symmetry|conservation", glob="*.{tex,py,nb}")` — Model definitions
-- `Glob("**/*.{nb,wl,m}")` — Mathematica notebooks
-- `Glob("**/*.ipynb")` — Jupyter notebooks
-- `Glob("**/*.{csv,dat,hdf5,h5,npy,npz,json}")` — Data files and results
-- `Glob("**/*.{bib,bbl}")` — Bibliography and references
+- `find_files("**/*.tex")` — LaTeX documents (primary theory content)
+- `search_files("Hamiltonian|Lagrangian|action|partition function", glob="*.tex")` — Physics keywords
+- `search_files("model|coupling|mass|parameter|symmetry|conservation", glob="*.{tex,py,nb}")` — Model definitions
+- `find_files("**/*.{nb,wl,m}")` — Mathematica notebooks
+- `find_files("**/*.ipynb")` — Jupyter notebooks
+- `find_files("**/*.{csv,dat,hdf5,h5,npy,npz,json}")` — Data files and results
+- `find_files("**/*.{bib,bbl}")` — Bibliography and references
 
 **For computation focus:**
 
-- `Glob("**/*.tex")` then `Grep("\\\\section|\\\\subsection|\\\\newcommand|\\\\DeclareMathOperator", glob="*.tex")` — Document structure
-- `Grep("\\\\newcommand|\\\\renewcommand|\\\\DeclareMathOperator", glob="*.{tex,sty}")` — Custom macros
-- `Grep("^class |^def |import numpy|import scipy|import sympy", glob="*.py")` — Python structure
-- `Grep("Module\\[|Block\\[|Function\\[|SetDelayed", glob="*.{m,wl}")` — Mathematica definitions
-- `Glob("**/main.py"), Glob("**/run.py"), Glob("**/compute*.py"), Glob("**/solve*.py")` — Entry points
+- `find_files("**/*.tex")` then `search_files("\\\\section|\\\\subsection|\\\\newcommand|\\\\DeclareMathOperator", glob="*.tex")` — Document structure
+- `search_files("\\\\newcommand|\\\\renewcommand|\\\\DeclareMathOperator", glob="*.{tex,sty}")` — Custom macros
+- `search_files("^class |^def |import numpy|import scipy|import sympy", glob="*.py")` — Python structure
+- `search_files("Module\\[|Block\\[|Function\\[|SetDelayed", glob="*.{m,wl}")` — Mathematica definitions
+- `find_files("**/main.py"), find_files("**/run.py"), find_files("**/compute*.py"), find_files("**/solve*.py")` — Entry points
 
 **For methodology focus:**
 
-- `Grep("approx|\\\\sim|leading order|perturbat|expansion|truncat|neglect|assumption|regime", glob="*.tex")` — Approximation markers
-- `Grep("tolerance|convergence|error|precision|epsilon|threshold|validate", glob="*.{py,m,wl}")` — Numerical checks
-- `Grep("TODO|FIXME|HACK|XXX|CHECK|VERIFY|WRONG|BUG", glob="*.{tex,py,m,wl,ipynb}")` — Outstanding markers
-- `Glob("**/test_*.py"), Glob("**/*_test.py"), Glob("**/check_*.py"), Glob("**/verify_*.py")` — Validation scripts
-- `Grep("known|analytic|exact|benchmark|reference|literature", glob="*.{py,tex,ipynb}")` — Known result comparisons
+- `search_files("approx|\\\\sim|leading order|perturbat|expansion|truncat|neglect|assumption|regime", glob="*.tex")` — Approximation markers
+- `search_files("tolerance|convergence|error|precision|epsilon|threshold|validate", glob="*.{py,m,wl}")` — Numerical checks
+- `search_files("TODO|FIXME|HACK|XXX|CHECK|VERIFY|WRONG|BUG", glob="*.{tex,py,m,wl,ipynb}")` — Outstanding markers
+- `find_files("**/test_*.py"), find_files("**/*_test.py"), find_files("**/check_*.py"), find_files("**/verify_*.py")` — Validation scripts
+- `search_files("known|analytic|exact|benchmark|reference|literature", glob="*.{py,tex,ipynb}")` — Known result comparisons
 
 **For status focus:**
 
-- `Grep("TODO|FIXME|TBD|PLACEHOLDER|incomplete|unfinished|need to|should check", glob="*.tex")` — Incomplete sections
-- `Grep("^%.*equation|^%.*deriv|^#.*TODO|^#.*FIXME", glob="*.{tex,py}")` — Commented-out work
-- `Grep("pass$|raise NotImplementedError|return None|# placeholder|# stub", glob="*.py")` — Stubs
-- `Grep("limit|special case|boundary|diverge|singular|pole|branch cut", glob="*.{tex,py}")` — Unchecked limits
-- `Grep("\\\\cite\\{\\}|\\\\ref\\{\\}|citation needed", glob="*.tex")` — Missing references
-- `Grep("valid for|breaks down|fails when|only when|as long as|in the limit", glob="*.tex")` — Validity ranges
+- `search_files("TODO|FIXME|TBD|PLACEHOLDER|incomplete|unfinished|need to|should check", glob="*.tex")` — Incomplete sections
+- `search_files("^%.*equation|^%.*deriv|^#.*TODO|^#.*FIXME", glob="*.{tex,py}")` — Commented-out work
+- `search_files("pass$|raise NotImplementedError|return None|# placeholder|# stub", glob="*.py")` — Stubs
+- `search_files("limit|special case|boundary|diverge|singular|pole|branch cut", glob="*.{tex,py}")` — Unchecked limits
+- `search_files("\\\\cite\\{\\}|\\\\ref\\{\\}|citation needed", glob="*.tex")` — Missing references
+- `search_files("valid for|breaks down|fails when|only when|as long as|in the limit", glob="*.tex")` — Validity ranges
 
 Read key files identified during exploration. Use find_files and Grep liberally. For LaTeX files, pay attention to `\input{}` and `\include{}` commands to trace the full document structure. For Jupyter notebooks, examine both code cells and markdown cells. For Mathematica notebooks, look for function definitions and symbolic manipulations.
 </step>
@@ -264,7 +264,7 @@ Templates give you the WHAT (sections to fill). This section gives you the HOW (
 
 **FORMALISM.md — "Physical System" section:**
 
-1. Grep for defining statements: `Grep("model|system|consider|study|investigate", glob="*.tex")`
+1. Grep for defining statements: `search_files("model|system|consider|study|investigate", glob="*.tex")`
 2. Identify the Lagrangian/Hamiltonian/action — this defines the system
 3. Extract energy scales by looking at coupling constants, masses, temperatures
 4. List degrees of freedom by reading the field content or particle content
@@ -272,7 +272,7 @@ Templates give you the WHAT (sections to fill). This section gives you the HOW (
 
 **FORMALISM.md — "Symmetries" section:**
 
-1. Look for explicit symmetry statements: `Grep("symmetry|invariant|conserved|Noether|Ward|selection rule", glob="*.tex")`
+1. Look for explicit symmetry statements: `search_files("symmetry|invariant|conserved|Noether|Ward|selection rule", glob="*.tex")`
 2. For EACH symmetry found, determine: is it exact or approximate? If approximate, what breaks it?
 3. Derive consequences: each continuous symmetry → conserved current (Noether). Each discrete symmetry → selection rule.
 4. Check for anomalies: classical symmetries that are broken quantum-mechanically
@@ -280,7 +280,7 @@ Templates give you the WHAT (sections to fill). This section gives you the HOW (
 
 **CONVENTIONS.md — "Approximations Made" section:**
 
-1. Search for approximation markers: `Grep("approx|neglect|leading order|to first order|truncat|assume|valid for", glob="*.tex")`
+1. Search for approximation markers: `search_files("approx|neglect|leading order|to first order|truncat|assume|valid for", glob="*.tex")`
 2. For EACH approximation, ask three questions:
    - **What is the expansion parameter?** (e.g., g ≪ 1, ε = 4−d, 1/N)
    - **What is its numerical value in this project?** (e.g., g = 0.3 — is this really ≪ 1?)
@@ -297,7 +297,7 @@ Templates give you the WHAT (sections to fill). This section gives you the HOW (
    - High/low temperature limits
    - Large/small system size limits
    - Weak/strong coupling limits
-2. Search for whether each limit was checked: `Grep("limit|reduce|recover|special case|when .* goes to", glob="*.tex")`
+2. Search for whether each limit was checked: `search_files("limit|reduce|recover|special case|when .* goes to", glob="*.tex")`
 3. For limits NOT checked, assess: is the expected limiting behavior known from other work? If yes, this is a gap to flag.
 
 **CONCERNS.md — "Unjustified Approximations" section:**
@@ -669,7 +669,7 @@ Templates are stored as separate reference files. Load only the templates for yo
 
 If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` does not exist), fall back to this procedure:
 
-1. **Check alternate locations:** Template files may be installed at a different path depending on your runtime. Search for the template filename using find_files: `Glob("**/theory-mapper-templates/FORMALISM.md")`
+1. **Check alternate locations:** Template files may be installed at a different path depending on your runtime. Search for the template filename using find_files: `find_files("**/theory-mapper-templates/FORMALISM.md")`
 
 2. **If no template is found anywhere:** Use the section structure from the `<template_filling_guidance>` section of this prompt. The guidance describes what each section should contain — use that as your structural template.
 

@@ -12,7 +12,7 @@ context_cost: medium
 
 Copy-paste-ready Python/SymPy templates for the most common computational verification tasks. These provide the **external oracle** that breaks LLM self-consistency loops — every VERIFICATION.md must include at least one executed code block from this catalog.
 
-**Usage:** Copy the relevant template, replace the placeholder comments with actual expressions from the phase artifacts, execute via Bash, and paste both the code AND output into VERIFICATION.md.
+**Usage:** Copy the relevant template, replace the placeholder comments with actual expressions from the phase artifacts, execute via shell, and paste both the code AND output into VERIFICATION.md.
 
 ---
 

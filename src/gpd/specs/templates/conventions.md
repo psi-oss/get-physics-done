@@ -34,7 +34,7 @@ Populate sections marked "Required" for your project type. Sections marked "—"
 
 **Relationship to other files:**
 
-- `research-map/CONVENTIONS.md` is an analysis snapshot produced by `$gpd-map-theory` — it documents what conventions ARE in existing work
+- `research-map/CONVENTIONS.md` is an analysis snapshot produced by `/gpd:map-theory` — it documents what conventions ARE in existing work
 - `CONVENTIONS.md` (this file) is prescriptive and persistent — it documents what conventions MUST BE followed going forward
 - `NOTATION_GLOSSARY.md` lists every symbol; CONVENTIONS.md records the choices that govern how those symbols behave (signs, factors, normalizations)
 

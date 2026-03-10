@@ -1467,9 +1467,9 @@ Extract `model_profile` from config.json (one of: `deep-theory`, `numerical`, `e
 
 Use find_files to find verification files, then Read the most recent:
 
-1. `Glob(".gpd/phases/*/VERIFICATION.md")` -- find all verification reports
+1. `find_files(".gpd/phases/*/VERIFICATION.md")` -- find all verification reports
 2. Read the most recently modified file
-3. `Glob(".gpd/phases/*/REVIEW.md")` -- find all review reports
+3. `find_files(".gpd/phases/*/REVIEW.md")` -- find all review reports
 4. Read the most recently modified file
 
 Extract from verification context:
@@ -1484,7 +1484,7 @@ Extract from verification context:
 <step name="check_active_session">
 **First:** Check for active debugging sessions.
 
-Use `Glob(".gpd/debug/*.md")` and filter out files containing "resolved" in their names.
+Use `find_files(".gpd/debug/*.md")` and filter out files containing "resolved" in their names.
 
 **If active sessions exist AND no $ARGUMENTS:**
 

@@ -148,7 +148,7 @@ Create: .gpd/debug/{slug}.md
 ```
 
 ```
-Task(
+task(
   prompt=filled_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",
@@ -187,7 +187,7 @@ Task(
   - "Add more context" — gather more symptoms, spawn again
   - "Simplify the problem" — suggest stripping to minimal reproducing case
 
-## 5. Spawn Continuation Agent (After Checkpoint)
+## 5. Spawn Continuation agent (After Checkpoint)
 
 When user responds to checkpoint, spawn fresh agent:
 
@@ -211,7 +211,7 @@ goal: find_and_fix
 ```
 
 ```
-Task(
+task(
   prompt=continuation_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",

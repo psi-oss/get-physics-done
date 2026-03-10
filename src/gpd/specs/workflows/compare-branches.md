@@ -20,7 +20,7 @@ git branch --list 'hypothesis/*' --format='%(refname:short)'
 ```
 ERROR: No hypothesis branches found.
 
-Create hypothesis branches with $gpd-branch-hypothesis <description>
+Create hypothesis branches with /gpd:branch-hypothesis <description>
 ```
 
 Exit.
@@ -47,7 +47,7 @@ git show {branch}:.gpd/hypotheses/{slug}/HYPOTHESIS.md 2>/dev/null
 
 **If STATE.md is missing on a branch:** Mark the branch as "no state data" in the comparison table. This branch has no completed work to compare.
 
-**If HYPOTHESIS.md is missing:** The branch was created manually without `$gpd-branch-hypothesis`. Use the branch name as the description and mark hypothesis metadata as "N/A".
+**If HYPOTHESIS.md is missing:** The branch was created manually without `/gpd:branch-hypothesis`. Use the branch name as the description and mark hypothesis metadata as "N/A".
 
 For each branch, collect:
 
@@ -97,7 +97,7 @@ Extract the same data (STATE.md, SUMMARYs, VERIFICATIONs) from the parent branch
 No completed plans found on any branch. Nothing to compare yet.
 
 Complete at least one plan on each branch before comparing:
-  $gpd-execute-phase <phase-number>
+  /gpd:execute-phase <phase-number>
 ```
 
 Exit.
@@ -164,7 +164,7 @@ git show {branch}:{summary_path} > .gpd/tmp/gpd-branch-summary.md 2>/dev/null
 gpd summary-extract .gpd/tmp/gpd-branch-summary.md --field key_results
 ```
 
-Alternatively, use the Read tool on the `git show` output to parse the YAML frontmatter directly.
+Alternatively, use the file_read tool on the `git show` output to parse the YAML frontmatter directly.
 
 Parse each entry for: quantity name, numerical value, uncertainty (if present), units.
 
@@ -327,8 +327,8 @@ Present completion:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-branch-hypothesis <desc>` -- create another hypothesis branch
-- `$gpd-progress` -- check overall research progress
+- `/gpd:branch-hypothesis <desc>` -- create another hypothesis branch
+- `/gpd:progress` -- check overall research progress
 - List branches: `git branch --list 'hypothesis/*'`
 
 ───────────────────────────────────────────────────────────────

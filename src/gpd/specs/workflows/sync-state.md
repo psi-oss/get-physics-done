@@ -24,7 +24,7 @@ JSON_EXISTS=$(test -f "$STATE_JSON" && echo true || echo false)
 **If neither exists:**
 
 ```
-No state files found. Run $gpd-new-project to initialize project state.
+No state files found. Run /gpd:new-project to initialize project state.
 ```
 
 Exit.

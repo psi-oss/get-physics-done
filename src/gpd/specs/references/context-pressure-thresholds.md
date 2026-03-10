@@ -21,7 +21,7 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-consistency-checker | < 30% | 30-45% | 45-60% | > 60% | phase pair | Reads many cross-phase artifacts; needs headroom for compliance matrix |
 | gpd-debugger | < 30% | 30-50% | 50-65% | > 65% | investigation technique | Must hold hypothesis context, evidence history, and eliminated alternatives simultaneously |
 | gpd-literature-reviewer | < 35% | 35-50% | 50-60% | > 60% | review area | Each paper reviewed ~2-3%; many papers needed for thorough review |
-| gpd-phase-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | WebSearch results ~2-4% each; synthesize after 8-10 searches |
+| gpd-phase-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | web_search results ~2-4% each; synthesize after 8-10 searches |
 | gpd-project-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | Same as phase-researcher; limit to 10-15 searches before synthesizing |
 | gpd-planner | < 35% | 35-50% | 50-65% | > 65% | plan file | Large plan output (~5-8% per plan); keep plans concise |
 | gpd-plan-checker | < 35% | 35-50% | 50-65% | > 65% | plan check | Each verification dimension ~2-3%; exploratory (8 dims) vs comprehensive (15 dims) |
@@ -55,7 +55,7 @@ Three clusters based on how aggressively agents must manage context:
 | Activity | Estimated Cost | Notes |
 |---|---|---|
 | File read | ~2-5% | Larger files cost more |
-| WebSearch result | ~2-4% | Search results vary in length |
+| web_search result | ~2-4% | Search results vary in length |
 | Substantial output block | ~1-3% | Derivations, analyses, code |
 | Plan file produced | ~5-8% | Complex plans with task breakdowns |
 | Paper section drafted | ~5-10% | Equations and text combined |

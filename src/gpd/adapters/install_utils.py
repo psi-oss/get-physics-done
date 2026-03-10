@@ -15,7 +15,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
+from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -406,8 +406,37 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
             r"\1" + target,
             content,
         )
+        # Function-style invocation, e.g. Task(...) or shell(...)
+        content = re.sub(
+            r"\b" + escaped + r"(?=\s*\()",
+            target,
+            content,
+        )
 
     return content
+
+
+def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str) -> str:
+    """Translate shared markdown content from canonical source form to *runtime*.
+
+    This is used for markdown copied into installed shared content directories
+    such as ``get-physics-done/workflows/`` and ``references/``. Those files are
+    read directly by installed commands and agents, so command syntax, tool
+    references, placeholders, and lightweight formatting need the same
+    runtime-specific adaptation as primary prompts.
+    """
+    runtime_key = "claude-code" if runtime == "claude" else runtime
+    content = replace_placeholders(content, path_prefix)
+
+    if runtime_key == "codex":
+        content = content.replace("/gpd:", "$gpd-")
+    elif runtime_key == "opencode":
+        content = content.replace("/gpd:", "/gpd-")
+
+    if runtime_key == "gemini":
+        content = strip_sub_tags(content)
+
+    return convert_tool_references_in_body(content, reference_translation_map(runtime_key))
 
 
 def expand_at_includes(
@@ -618,7 +647,7 @@ def _copy_dir_contents(
     path_prefix: str,
     runtime: str,
 ) -> None:
-    """Recursively copy directory contents with path replacement in .md files.
+    """Recursively copy directory contents with runtime translation in .md files.
 
     Symlinks are skipped to avoid cycles and broken links.
     """
@@ -633,14 +662,7 @@ def _copy_dir_contents(
             _copy_dir_contents(entry, dest, path_prefix, runtime)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
-
-            if runtime == "codex":
-                content = content.replace("/gpd:", "$gpd-")
-
-            if runtime == "gemini":
-                content = strip_sub_tags(content)
-
+            content = _translate_markdown_for_runtime(content, path_prefix, runtime)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy

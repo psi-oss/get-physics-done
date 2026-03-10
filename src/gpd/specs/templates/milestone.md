@@ -2,7 +2,7 @@
 template_version: 1
 ---
 
-<!-- For the detailed archive format used by $gpd-complete-milestone, see milestone-archive.md -->
+<!-- For the detailed archive format used by /gpd:complete-milestone, see milestone-archive.md -->
 
 # Milestone Entry Template
 

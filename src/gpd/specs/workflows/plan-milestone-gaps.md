@@ -1,5 +1,5 @@
 <purpose>
-Create all phases necessary to close research gaps identified by `$gpd-audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical phases, creates phase entries in ROADMAP.md, and offers to plan each phase. One command creates all fix phases -- no manual `$gpd-add-phase` per gap.
+Create all phases necessary to close research gaps identified by `/gpd:audit-milestone`. Reads MILESTONE-AUDIT.md, groups gaps into logical phases, creates phase entries in ROADMAP.md, and offers to plan each phase. One command creates all fix phases -- no manual `/gpd:add-phase` per gap.
 
 Research gaps include: missing derivations, unchecked limiting cases, incomplete analysis, missing figures, unvalidated numerical results, missing comparisons with literature.
 </purpose>
@@ -26,7 +26,7 @@ Parse YAML frontmatter to extract structured gaps:
 If no audit file exists or has no gaps, error:
 
 ```
-No audit gaps found. Run `$gpd-audit-milestone` first.
+No audit gaps found. Run `/gpd:audit-milestone` first.
 ```
 
 ## 2. Prioritize Gaps
@@ -75,7 +75,7 @@ Find highest existing phase:
 PHASES=$(gpd phase list)
 HIGHEST=$(echo "$PHASES" | gpd json get .directories[-1] --default "")
 if [ -z "$HIGHEST" ]; then
-  echo "ERROR: No existing phases found. Create phases with $gpd-plan-phase first."
+  echo "ERROR: No existing phases found. Create phases with /gpd:plan-phase first."
   # STOP — cannot determine gap phase numbering without existing phases
 fi
 ```
@@ -165,7 +165,7 @@ gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files .gpd/ROADMAP.
 
 **Plan first gap closure phase**
 
-`$gpd-plan-phase {N}`
+`/gpd:plan-phase {N}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -173,15 +173,15 @@ gpd commit "docs(roadmap): add gap closure phases {N}-{M}" --files .gpd/ROADMAP.
 
 **Also available:**
 
-- `$gpd-execute-phase {N}` -- if plans already exist
+- `/gpd:execute-phase {N}` -- if plans already exist
 - `cat .gpd/ROADMAP.md` -- see updated roadmap
 
 ---
 
 **After all gap phases complete:**
 
-`$gpd-audit-milestone` -- re-audit to verify gaps closed
-`$gpd-complete-milestone {version}` -- archive when audit passes
+`/gpd:audit-milestone` -- re-audit to verify gaps closed
+`/gpd:complete-milestone {version}` -- archive when audit passes
 ```
 
 </process>
@@ -285,6 +285,6 @@ tasks:
 - [ ] ROADMAP.md updated with new phases
 - [ ] Phase directories created
 - [ ] Changes committed
-- [ ] Researcher knows to run `$gpd-plan-phase` next
+- [ ] Researcher knows to run `/gpd:plan-phase` next
 
 </success_criteria>

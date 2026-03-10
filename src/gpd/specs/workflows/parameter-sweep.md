@@ -1,7 +1,7 @@
 <purpose>
 Execute a systematic parameter sweep over one or two parameters, computing a specified quantity at each point (or grid point) in the parameter space. Leverages wave-based parallel execution from execute-phase.md to evaluate independent parameter values concurrently, then aggregates results into structured data and a summary report.
 
-Called from $gpd-parameter-sweep command. References wave-based execution patterns from execute-phase.md.
+Called from /gpd:parameter-sweep command. References wave-based execution patterns from execute-phase.md.
 </purpose>
 
 <core_principle>
@@ -238,14 +238,14 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
 2. **Spawn executor agents for all plans in the wave:**
 
-   Follow the same Task() spawning pattern as execute-phase.md step `execute_waves`.
+   Follow the same task() spawning pattern as execute-phase.md step `execute_waves`.
 
    > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```
-   Task(
+   task(
      subagent_type="gpd-executor",
      model="{executor_model}",
      prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
@@ -260,7 +260,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
        <phase_class>numerical</phase_class>
 
        <files_to_read>
-       Read these files at execution start using the Read tool:
+       Read these files at execution start using the file_read tool:
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
        - Plan: ${SWEEP_DIR}/sweep-{PADDED_INDEX}-PLAN.md
@@ -593,9 +593,9 @@ Completed: {M}/{N}
 ## Next Steps
 
 - **Visualize:** Plot the sweep data to inspect features
-- **Refine:** `$gpd-parameter-sweep {phase} --adaptive` -- add points near interesting features
-- **Converge:** `$gpd-numerical-convergence {phase}` -- verify convergence at key points
-- **Branch:** `$gpd-branch-hypothesis` -- investigate features with different methods
+- **Refine:** `/gpd:parameter-sweep {phase} --adaptive` -- add points near interesting features
+- **Converge:** `/gpd:numerical-convergence {phase}` -- verify convergence at key points
+- **Branch:** `/gpd:branch-hypothesis` -- investigate features with different methods
 
 ---
 ```

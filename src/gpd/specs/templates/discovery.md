@@ -8,7 +8,7 @@ Template for `.gpd/phases/XX-name/DISCOVERY.md` - pre-planning discovery of phys
 
 **Purpose:** Document what was discovered about a physics problem before planning begins. Answers: what methods exist, what is known, what tools are available, what approximations are valid, and what the recommended approach is.
 
-**Relationship to research.md:** This template produces DISCOVERY.md (pre-planning exploration). The research.md template produces RESEARCH.md (comprehensive literature survey). Discovery is lighter and more action-oriented; research is deeper and more exhaustive. For comprehensive literature surveys, use $gpd-research-phase instead.
+**Relationship to research.md:** This template produces DISCOVERY.md (pre-planning exploration). The research.md template produces RESEARCH.md (comprehensive literature survey). Discovery is lighter and more action-oriented; research is deeper and more exhaustive. For comprehensive literature surveys, use /gpd:research-phase instead.
 
 ---
 

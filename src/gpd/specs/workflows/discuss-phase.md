@@ -141,7 +141,7 @@ Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phas
 ```
 Phase [X] not found in roadmap.
 
-Use $gpd-progress to see available phases.
+Use /gpd:progress to see available phases.
 ```
 
 Exit workflow.
@@ -158,9 +158,9 @@ ls ${phase_dir}/*-CONTEXT.md 2>/dev/null
 
 **If exists:**
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Existing context"
 - question: "Phase [X] already has context. What do you want to do?"
@@ -216,7 +216,7 @@ We'll clarify HOW to approach this problem.
 (New research questions belong in other phases.)
 ```
 
-**Then use AskUserQuestion (multiSelect: true):**
+**Then use ask_user (multiSelect: true):**
 
 - header: "Discuss"
 - question: "Which methodological areas do you want to discuss for [phase name]?"
@@ -273,11 +273,11 @@ Ask 4 questions per area before offering to continue or move on. Each answer oft
    Let's talk about [Area].
    ```
 
-2. **Ask 4 questions using AskUserQuestion:**
+2. **Ask 4 questions using ask_user:**
 
    - header: "[Area]"
    - question: Specific methodological decision for this area
-   - options: 2-3 concrete choices (AskUserQuestion adds "Other" automatically)
+   - options: 2-3 concrete choices (ask_user adds "Other" automatically)
    - Include "You decide" as an option when reasonable -- captures AI discretion
 
    **Socratic follow-ups after each answer:**
@@ -295,7 +295,7 @@ Ask 4 questions per area before offering to continue or move on. Each answer oft
    If "More questions" -> ask 4 more, then check again
    If "Next area" -> proceed to next selected area
 
-   **Hard bound: Maximum 8 question rounds per area.** If 8 rounds are reached without the user selecting "Next area", summarize progress so far and move to the next area. If context usage exceeds 50% before reaching 8 rounds, summarize progress so far and suggest the user run `/clear` followed by `$gpd-resume-work` to continue with fresh context.
+   **Hard bound: Maximum 8 question rounds per area.** If 8 rounds are reached without the user selecting "Next area", summarize progress so far and move to the next area. If context usage exceeds 50% before reaching 8 rounds, summarize progress so far and suggest the user run `/clear` followed by `/gpd:resume-work` to continue with fresh context.
 
 4. **After all areas complete:**
    - header: "Done"
@@ -451,15 +451,15 @@ Created: .gpd/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 **Phase ${PHASE}: [Name]** -- [Goal from ROADMAP.md]
 
-`$gpd-plan-phase ${PHASE}`
+`/gpd:plan-phase ${PHASE}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-plan-phase ${PHASE} --skip-research` -- plan without literature review
-- `$gpd-list-phase-assumptions ${PHASE}` -- see what the AI assumes before planning
+- `/gpd:plan-phase ${PHASE} --skip-research` -- plan without literature review
+- `/gpd:list-phase-assumptions ${PHASE}` -- see what the AI assumes before planning
 - Review/edit CONTEXT.md before continuing
 
 ---

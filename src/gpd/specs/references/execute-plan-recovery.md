@@ -89,7 +89,7 @@ Rollback complete. Repository restored to pre-plan state.
 Checkpoint tag preserved: ${CHECKPOINT_TAG}
 
 Next steps:
-- $gpd-execute-phase {phase} -- retry (will detect no prior commits)
+- /gpd:execute-phase {phase} -- retry (will detect no prior commits)
 - Review plan for issues before retrying
 ```
 
@@ -173,6 +173,6 @@ Recovery: ${RECOVERY_FILE}
 Checkpoint: ${CHECKPOINT_TAG} (for future rollback if needed)
 
 Next steps:
-- $gpd-execute-phase {phase} -- will detect partial completion, offer resume
+- /gpd:execute-phase {phase} -- will detect partial completion, offer resume
 - Review ${RECOVERY_FILE} for recovery options
 ```

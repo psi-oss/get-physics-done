@@ -106,7 +106,7 @@ Last updated: 2026-02-24
 
 ### 17. verify-conventions Not Integrated Into Inter-Wave Gates (Integration Gap)
 
-**Bug:** The execute-phase workflow uses `convention set` to lock conventions before parallel waves, but does NOT call `verify-conventions` between waves. The verify-conventions command exists and is available via `$gpd-validate-conventions`, but it is not part of the automatic execute-phase flow.
+**Bug:** The execute-phase workflow uses `convention set` to lock conventions before parallel waves, but does NOT call `verify-conventions` between waves. The verify-conventions command exists and is available via `/gpd:validate-conventions`, but it is not part of the automatic execute-phase flow.
 
 **Status:** Fixed. Inter-wave verification gates (execute-phase.md step 8, lines 302-370) now include convention consistency checks via `gpd convention check --raw` between waves. Gates are controlled by `workflow.verify_between_waves` config ("auto" by default — enabled for deep-theory/review profiles, disabled for others). Also includes dimensional spot-checks on wave SUMMARY.md outputs.
 
@@ -160,7 +160,7 @@ All affected locations updated:
 
 ### 26. derive-equation.md Bypasses All Convention Defense Layers
 
-**Bug:** The standalone `$gpd-derive-equation` workflow had no convention lock verification, no ASSERT_CONVENTION requirement, and no cross-phase consistency check. Derivations performed via this workflow bypassed L1, L2, L3, L4, and L6 entirely.
+**Bug:** The standalone `/gpd:derive-equation` workflow had no convention lock verification, no ASSERT_CONVENTION requirement, and no cross-phase consistency check. Derivations performed via this workflow bypassed L1, L2, L3, L4, and L6 entirely.
 
 **Status:** Fixed. derive-equation.md now has full convention defense coverage:
 - **Pre-step:** `gpd init phase-op --include state,config` loads convention lock + `convention check --raw` verifies consistency
@@ -189,7 +189,7 @@ All affected locations updated:
 
 **Bug:** The gpd-verifier agent prompt had no documentation about which orchestrators spawn it, unlike all other 16 agents which document their spawning context.
 
-**Status:** Fixed. Added spawning documentation: `$gpd-execute-phase` (automatic post-phase verification), `$gpd-execute-phase --gaps-only` (re-verification after gap closure), `$gpd-verify-work` (standalone), `$gpd-regression-check` (re-verify truths). Wiring test added (suite 25: "documents spawning context").
+**Status:** Fixed. Added spawning documentation: `/gpd:execute-phase` (automatic post-phase verification), `/gpd:execute-phase --gaps-only` (re-verification after gap closure), `/gpd:verify-work` (standalone), `/gpd:regression-check` (re-verify truths). Wiring test added (suite 25: "documents spawning context").
 
 ### GPD Bug 28 (originally under Platform-Specific). ASSERT_CONVENTION Metric Signature Equivalence Not Normalized
 
@@ -247,11 +247,11 @@ These bugs affect specific AI agents. The installer handles most translation aut
 
 #### P1. No Subagent Spawning (Some Runtimes)
 
-**Bug:** Some runtimes do not provide a subagent spawning mechanism (equivalent to Task()). All GPD workflows that spawn subagents (execute-phase, plan-phase, new-project, literature-review, write-paper) fall back to sequential in-context execution on these platforms.
+**Bug:** Some runtimes do not provide a subagent spawning mechanism (equivalent to task()). All GPD workflows that spawn subagents (execute-phase, plan-phase, new-project, literature-review, write-paper) fall back to sequential in-context execution on these platforms.
 
 **Impact:** No parallel agent execution. All work runs sequentially in the main context window. Context pressure builds faster. Long research projects may hit context limits before completion.
 
-**Workaround:** Use `$gpd-quick` for individual tasks. Break large projects into smaller milestones. Use `$gpd-pause-work` proactively when context exceeds 50%.
+**Workaround:** Use `/gpd:quick` for individual tasks. Break large projects into smaller milestones. Use `/gpd:pause-work` proactively when context exceeds 50%.
 
 #### P2. Command Syntax Differences
 
@@ -267,7 +267,7 @@ These bugs affect specific AI agents. The installer handles most translation aut
 
 #### P4. No @ File References (Some Runtimes)
 
-**Bug:** Some runtimes do not support `@file.md` references in prompts. All file content must be loaded via explicit Read tool calls.
+**Bug:** Some runtimes do not support `@file.md` references in prompts. All file content must be loaded via explicit file_read tool calls.
 
 **Impact:** Similar to bug #2 (@ references in Task prompts), but applies to ALL file references, not just subagent prompts.
 

@@ -19,6 +19,7 @@ import pytest
 from gpd.adapters.install_utils import (
     build_hook_command,
     copy_with_path_replacement,
+    convert_tool_references_in_body,
     expand_at_includes,
     generate_manifest,
     parse_jsonc,
@@ -475,6 +476,42 @@ class TestCopyWithPathReplacement:
 
         content = (dest / "commands.md").read_text(encoding="utf-8")
         assert "$gpd-execute-phase" in content
+        assert "/gpd:" not in content
+
+    def test_function_style_tool_invocations_are_rewritten(self) -> None:
+        """Contextual tool references like task(...) should rewrite cleanly."""
+        content = 'task(prompt="Do work")\nUse shell to run it.\nUse ask_user([{"label": "Yes"}])'
+        result = convert_tool_references_in_body(
+            content,
+            {"task": "Task", "shell": "Bash", "ask_user": "AskUserQuestion"},
+        )
+
+        assert 'Task(prompt="Do work")' in result
+        assert "Use Bash to run it." in result
+        assert 'Use AskUserQuestion([{"label": "Yes"}])' in result
+
+    def test_opencode_runtime_translates_shared_markdown_content(self, tmp_path: Path) -> None:
+        """Shared content copied for OpenCode should adapt commands and tool names."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "workflow.md").write_text(
+            'Use ask_user([{"label": "Yes"}])\n'
+            'Launch task(prompt="Run it")\n'
+            'Search with web_search then web_fetch.\n'
+            'Run /gpd:plan-phase 3 next.\n',
+            encoding="utf-8",
+        )
+
+        dest = tmp_path / "dest"
+        copy_with_path_replacement(src, dest, "/custom/", "opencode")
+
+        content = (dest / "workflow.md").read_text(encoding="utf-8")
+        assert 'question([{"label": "Yes"}])' in content
+        assert 'task(prompt="Run it")' in content
+        assert "websearch then webfetch" in content
+        assert "/gpd-plan-phase 3" in content
+        assert "ask_user(" not in content
+        assert "web_search" not in content
         assert "/gpd:" not in content
 
     def test_overwrites_existing_dest(self, tmp_path: Path) -> None:

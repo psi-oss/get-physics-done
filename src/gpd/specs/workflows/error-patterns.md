@@ -20,12 +20,12 @@ test -f .gpd/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 No error patterns recorded yet.
 
-Error patterns are captured by $gpd-debug when root causes are confirmed.
+Error patterns are captured by /gpd:debug when root causes are confirmed.
 They help the verifier and planner proactively check for recurring issues.
 
 ---
 
-Start a debugging session with $gpd-debug to begin building the pattern database.
+Start a debugging session with /gpd:debug to begin building the pattern database.
 ```
 
 Exit.
@@ -62,7 +62,7 @@ Unknown category: "{input}"
 
 Available categories: sign, factor, convention, numerical, approximation, boundary, gauge, combinatorial
 
-Usage: $gpd-error-patterns [category]
+Usage: /gpd:error-patterns [category]
 ```
 
 Exit.
@@ -84,7 +84,7 @@ Filter the patterns table to show only rows matching the category.
 
 ---
 
-Showing {N} of {total} patterns. Run `$gpd-error-patterns` to see all.
+Showing {N} of {total} patterns. Run `/gpd:error-patterns` to see all.
 ```
 
 </step>
@@ -114,7 +114,7 @@ Showing {N} of {total} patterns. Run `$gpd-error-patterns` to see all.
 
 ---
 
-{total} patterns recorded. Filter by category: `$gpd-error-patterns sign`
+{total} patterns recorded. Filter by category: `/gpd:error-patterns sign`
 ```
 
 </step>
@@ -126,9 +126,9 @@ Present available actions:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-error-patterns <category>` -- filter by category
-- `$gpd-debug` -- start a debugging session (records new patterns)
-- `$gpd-verify-work` -- run verification (checks against known patterns)
+- `/gpd:error-patterns <category>` -- filter by category
+- `/gpd:debug` -- start a debugging session (records new patterns)
+- `/gpd:verify-work` -- run verification (checks against known patterns)
 - `gpd pattern search "<keyword>"` -- search global cross-project pattern library
 - `gpd pattern list` -- list all global patterns (from all projects)
 

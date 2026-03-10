@@ -77,9 +77,9 @@ Different phases require different levels of rigor. Identify the appropriate lev
 
 | Priority | Tool                       | Use For                                                                       | Trust Level          |
 | -------- | -------------------------- | ----------------------------------------------------------------------------- | -------------------- |
-| 1st      | WebSearch (arXiv)          | Papers, review articles, recent results, known solutions                      | HIGH (peer-reviewed) |
-| 2nd      | WebFetch                   | arXiv abstracts, textbook tables of contents, lecture notes, documentation    | HIGH-MEDIUM          |
-| 3rd      | WebSearch (general)        | Community discussions, computational tool comparisons, implementation details | Needs verification   |
+| 1st      | web_search (arXiv)          | Papers, review articles, recent results, known solutions                      | HIGH (peer-reviewed) |
+| 2nd      | web_fetch                   | arXiv abstracts, textbook tables of contents, lecture notes, documentation    | HIGH-MEDIUM          |
+| 3rd      | web_search (general)        | Community discussions, computational tool comparisons, implementation details | Needs verification   |
 | 4th      | Project search (Grep/Glob) | Existing implementations in this repo, prior work, related tasks              | HIGH (local)         |
 
 ### arXiv Search Strategy
@@ -115,7 +115,7 @@ For physical constants, particle data, atomic spectra, material properties:
 
 Prefer official database values over values quoted in papers.
 
-### WebSearch Query Templates
+### web_search Query Templates
 
 ```
 Domain:      "[physics topic] computational methods [current year]"
@@ -138,7 +138,7 @@ Always include current year for tool/software queries. Use multiple query variat
 | MEDIUM | Recent arXiv preprints by established groups, single peer-reviewed source, computational benchmarks | State with attribution      |
 | LOW    | Single arXiv preprint, blog post, unverified computation, training data only                        | Flag as needing validation  |
 
-**Source priority:** Textbooks/Reviews -> Peer-reviewed papers -> arXiv preprints (cited) -> arXiv preprints (recent) -> WebSearch (verified) -> WebSearch (unverified)
+**Source priority:** Textbooks/Reviews -> Peer-reviewed papers -> arXiv preprints (cited) -> arXiv preprints (recent) -> web_search (verified) -> web_search (unverified)
 
 ### Verification Protocol
 

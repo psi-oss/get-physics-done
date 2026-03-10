@@ -5,7 +5,7 @@ Create executable phase prompts (PLAN.md files) for a research phase with integr
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/ui-brand.md
 - {GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md -- Template for spawning gpd-planner agents (placeholders, continuation format, failure protocol)
 - {GPD_INSTALL_DIR}/templates/phase-prompt.md -- PLAN.md output format (frontmatter, task XML, must-haves schema)
@@ -46,7 +46,7 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default guided)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
 
-**If `planning_exists` is false:** Error -- run `$gpd-new-project` first.
+**If `planning_exists` is false:** Error -- run `/gpd:new-project` first.
 
 ## 2. Parse and Normalize Arguments
 
@@ -66,7 +66,7 @@ When `--inline-discuss` is present, combine discuss-phase and plan-phase into a 
 3. Record responses as a lightweight CONTEXT.md in the phase directory (same format as discuss-phase output, but with only the critical decisions — skip the full Socratic dialogue)
 4. Proceed to step 5 with the context populated
 
-This is NOT the full discuss-phase flow — just the 2-3 most impactful questions. If the phase is complex enough to need full discussion, the researcher should run `$gpd-discuss-phase` separately.
+This is NOT the full discuss-phase flow — just the 2-3 most impactful questions. If the phase is complex enough to need full discussion, the researcher should run `/gpd:discuss-phase` separately.
 
 **If no phase number:** Detect next unplanned phase from roadmap.
 
@@ -219,7 +219,7 @@ Display banner:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```bash
 PHASE_DESC=$(gpd roadmap get-phase "${PHASE}" | gpd json get .section --default "")
@@ -238,7 +238,7 @@ Answer: "What mathematical methods, physical principles, and computational tools
 </objective>
 
 <phase_context>
-IMPORTANT: If CONTEXT.md exists below, it contains user decisions from $gpd-discuss-phase.
+IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /gpd:discuss-phase.
 
 - **Decisions** = Locked -- research THESE deeply, no alternatives
 - **AI's Discretion** = Freedom areas -- research options, recommend
@@ -278,7 +278,7 @@ Write to: {phase_dir}/{phase}-RESEARCH.md
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + research_prompt,
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",
@@ -380,7 +380,7 @@ Write to: {phase_dir}/{phase}-EXPERIMENT-DESIGN.md
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-experiment-designer.md for your role and instructions.\n\n" + experiment_prompt,
   subagent_type="gpd-experiment-designer",
   model="{experiment_model}",
@@ -413,7 +413,7 @@ ls "${PHASE_DIR}"/*-PLAN.md 2>/dev/null
 
 ## 7. Use Context Files from INIT
 
-Most file contents are already loaded via `--include` in step 1 (`@` syntax doesn't work across Task() boundaries):
+Most file contents are already loaded via `--include` in step 1 (`@` syntax doesn't work across task() boundaries):
 
 ```bash
 # Extract from INIT JSON
@@ -477,7 +477,7 @@ Planner prompt:
 **Requirements:** {requirements_content}
 
 **Phase Context:**
-IMPORTANT: If context exists below, it contains USER DECISIONS from $gpd-discuss-phase.
+IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
 
 - **Decisions** = LOCKED -- honor exactly, do not revisit
 - **AI's Discretion** = Freedom -- make methodological choices
@@ -525,7 +525,7 @@ See `{GPD_INSTALL_DIR}/references/context-budget.md` for detailed budget allocat
 </context_budget_guidance>
 
 <downstream_consumer>
-Output consumed by $gpd-execute-phase. Plans need:
+Output consumed by /gpd:execute-phase. Plans need:
 
 - Frontmatter (wave, depends_on, files_modified, autonomous)
 - Tasks in XML format
@@ -547,7 +547,7 @@ Output consumed by $gpd-execute-phase. Plans need:
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
@@ -620,7 +620,7 @@ In addition to structural checks, verify:
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt,
   subagent_type="gpd-plan-checker",
   model="{checker_model}",
@@ -710,7 +710,7 @@ Return what changed.
 ```
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
@@ -757,7 +757,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 **Execute Phase {X}** -- run all {N} plans
 
-$gpd-execute-phase {X}
+/gpd:execute-phase {X}
 
 <sub>/clear first -> fresh context window</sub>
 
@@ -766,7 +766,7 @@ $gpd-execute-phase {X}
 **Also available:**
 
 - cat .gpd/phases/{phase-dir}/\*-PLAN.md -- review plans
-- $gpd-plan-phase {X} --research -- re-research first
+- /gpd:plan-phase {X} --research -- re-research first
 
 ---
 

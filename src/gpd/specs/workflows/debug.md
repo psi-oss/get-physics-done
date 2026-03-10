@@ -148,10 +148,10 @@ For each gap, fill the debug subagent prompt template (see `{GPD_INSTALL_DIR}/te
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\n" + filled_investigation_subagent_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",
@@ -325,7 +325,7 @@ Agents only diagnose -- plan-phase --gaps handles fixes (no fix application).
 **Agent times out:**
 
 - Check DEBUG-{slug}.md for partial progress
-- Can resume with $gpd-debug
+- Can resume with /gpd:debug
 
 **All agents fail:**
 

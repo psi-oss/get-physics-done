@@ -14,8 +14,8 @@ Phase number: $ARGUMENTS (required)
 ```
 Error: Phase number required.
 
-Usage: $gpd-list-phase-assumptions [phase-number]
-Example: $gpd-list-phase-assumptions 3
+Usage: /gpd:list-phase-assumptions [phase-number]
+Example: /gpd:list-phase-assumptions 3
 ```
 
 Exit workflow.
@@ -212,8 +212,8 @@ Present next steps:
 
 ```
 What's next?
-1. Discuss methodology ($gpd-discuss-phase ${PHASE}) - Socratic dialogue to make methodological decisions
-2. Plan this phase ($gpd-plan-phase ${PHASE}) - Create detailed research execution plans
+1. Discuss methodology (/gpd:discuss-phase ${PHASE}) - Socratic dialogue to make methodological decisions
+2. Plan this phase (/gpd:plan-phase ${PHASE}) - Create detailed research execution plans
 3. Re-examine assumptions - I'll analyze again with your corrections
 4. Done for now
 ```

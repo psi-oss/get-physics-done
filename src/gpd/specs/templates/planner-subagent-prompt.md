@@ -23,7 +23,7 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 **Requirements:** {requirements_content}
 
 **Phase Context:**
-IMPORTANT: If context exists below, it contains USER DECISIONS from $gpd-discuss-phase.
+IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
 
 - **Decisions** = LOCKED -- honor exactly, do not revisit
 - **AI's Discretion** = Freedom -- make methodological choices
@@ -69,7 +69,7 @@ See `{GPD_INSTALL_DIR}/references/context-budget.md` for detailed budget allocat
 </context_budget_guidance>
 
 <downstream_consumer>
-Output consumed by $gpd-execute-phase. Plans need:
+Output consumed by /gpd:execute-phase. Plans need:
 
 - Frontmatter (`wave`, `depends_on`, `files_modified`, `autonomous`, `conventions`, `must_haves`)
 - Tasks in XML format

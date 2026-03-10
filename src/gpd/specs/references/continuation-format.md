@@ -44,7 +44,7 @@ Standard format for presenting next steps after completing a research command or
 
 **02-03: Perturbative Corrections** -- Compute one-loop self-energy with RPA screening
 
-`$gpd-execute-phase 2`
+`/gpd:execute-phase 2`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -52,7 +52,7 @@ Standard format for presenting next steps after completing a research command or
 
 **Also available:**
 - Review plan before executing
-- `$gpd-list-phase-assumptions 2` -- check physical assumptions
+- `/gpd:list-phase-assumptions 2` -- check physical assumptions
 
 ---
 ```
@@ -69,7 +69,7 @@ Add note that this is the last plan and what comes after:
 **02-03: Perturbative Corrections** -- Compute one-loop self-energy with RPA screening
 <sub>Final plan in Phase 2</sub>
 
-`$gpd-execute-phase 2`
+`/gpd:execute-phase 2`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -91,15 +91,15 @@ Add note that this is the last plan and what comes after:
 
 **Phase 2: Linear Response** -- Compute susceptibilities and response functions
 
-`$gpd-plan-phase 2`
+`/gpd:plan-phase 2`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-discuss-phase 2` -- gather context first
-- `$gpd-research-phase 2` -- investigate unknowns
+- `/gpd:discuss-phase 2` -- gather context first
+- `/gpd:research-phase 2` -- investigate unknowns
 - Review roadmap
 
 ---
@@ -120,15 +120,15 @@ Show completion status before next action:
 
 **Phase 3: Non-perturbative Effects** -- Instanton contributions, resummation, and strong-coupling analysis
 
-`$gpd-plan-phase 3`
+`/gpd:plan-phase 3`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-discuss-phase 3` -- gather context first
-- `$gpd-research-phase 3` -- investigate unknowns
+- `/gpd:discuss-phase 3` -- gather context first
+- `/gpd:research-phase 3` -- investigate unknowns
 - Review what Phase 2 established
 
 ---
@@ -145,11 +145,11 @@ When there's no clear primary action:
 
 **Phase 3: Non-perturbative Effects** -- Instanton contributions, resummation, and strong-coupling analysis
 
-**To plan directly:** `$gpd-plan-phase 3`
+**To plan directly:** `/gpd:plan-phase 3`
 
-**To discuss context first:** `$gpd-discuss-phase 3`
+**To discuss context first:** `/gpd:discuss-phase 3`
 
-**To research unknowns:** `$gpd-research-phase 3`
+**To research unknowns:** `/gpd:research-phase 3`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -169,7 +169,7 @@ All 4 phases completed
 
 **Start v1.1** -- questioning -> literature review -> research plan -> roadmap
 
-`$gpd-new-milestone`
+`/gpd:new-milestone`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -216,7 +216,7 @@ Extract: `**02-03: Perturbative Corrections** -- Compute one-loop self-energy wi
 ## To Continue
 
 Run `/clear`, then paste:
-$gpd-execute-phase 2
+/gpd:execute-phase 2
 ```
 
 User has no idea what 02-03 is about.
@@ -224,7 +224,7 @@ User has no idea what 02-03 is about.
 ### Don't: Missing /clear explanation
 
 ```
-`$gpd-plan-phase 3`
+`/gpd:plan-phase 3`
 
 Run /clear first.
 ```
@@ -244,7 +244,7 @@ Sounds like an afterthought. Use "Also available:" instead.
 
 ````
 ```
-$gpd-plan-phase 3
+/gpd:plan-phase 3
 ```
 ````
 

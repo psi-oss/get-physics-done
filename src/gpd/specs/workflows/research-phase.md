@@ -1,7 +1,7 @@
 <purpose>
 Research mathematical methods, physical principles, and computational tools needed to approach a phase. Spawns gpd-phase-researcher with phase context.
 
-Standalone research command. For most workflows, use `$gpd-plan-phase` which integrates research automatically.
+Standalone research command. For most workflows, use `/gpd:plan-phase` which integrates research automatically.
 </purpose>
 
 <process>
@@ -66,10 +66,10 @@ gpd state snapshot | gpd json get .decisions --default "[]"
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.
 
 <objective>
@@ -132,7 +132,7 @@ Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 
 ## Step 5: Handle Return
 
-**If the researcher agent fails to spawn or returns an error:** Report the failure. Offer: 1) Retry with the same context, 2) Execute the research in the main context (slower but reliable), 3) Skip research and proceed to `$gpd-plan-phase` directly (planner will work with less context). Do not silently continue without research output.
+**If the researcher agent fails to spawn or returns an error:** Report the failure. Offer: 1) Retry with the same context, 2) Execute the research in the main context (slower but reliable), 3) Skip research and proceed to `/gpd:plan-phase` directly (planner will work with less context). Do not silently continue without research output.
 
 - `## RESEARCH COMPLETE` -- Display summary, offer: Plan/Dig deeper/Review/Done
 - `## CHECKPOINT REACHED` -- Present to user, spawn continuation

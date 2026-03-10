@@ -598,7 +598,7 @@ order of the transition, but we should discuss it in the paper's introduction.
 
 Not every paper deserves the same reading depth. Allocate reading effort strategically to stay within context budget while maximizing the review's value.
 
-### Tier 1: Full Read (~50% of reading effort)
+### Tier 1: Full file_read (~50% of reading effort)
 
 **Which papers:** Papers that directly address the physics question of the current project. These are the papers you would cite in the Introduction as "closest prior work" and compare against in the Results section.
 

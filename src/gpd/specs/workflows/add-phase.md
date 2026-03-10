@@ -11,15 +11,15 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="parse_arguments">
 Parse the command arguments:
 - All arguments become the phase description
-- Example: `$gpd-add-phase Develop effective Hamiltonian formalism` -> description = "Develop effective Hamiltonian formalism"
-- Example: `$gpd-add-phase Validate perturbative expansion against exact diagonalization` -> description = "Validate perturbative expansion against exact diagonalization"
+- Example: `/gpd:add-phase Develop effective Hamiltonian formalism` -> description = "Develop effective Hamiltonian formalism"
+- Example: `/gpd:add-phase Validate perturbative expansion against exact diagonalization` -> description = "Validate perturbative expansion against exact diagonalization"
 
 If no arguments provided:
 
 ```
 ERROR: Phase description required
-Usage: $gpd-add-phase <description>
-Example: $gpd-add-phase Derive renormalization group equations
+Usage: /gpd:add-phase <description>
+Example: /gpd:add-phase Derive renormalization group equations
 ```
 
 Exit.
@@ -40,7 +40,7 @@ Check `roadmap_exists` from init JSON. If false:
 
 ```
 ERROR: No roadmap found (.gpd/ROADMAP.md)
-Run $gpd-new-project to initialize.
+Run /gpd:new-project to initialize.
 ```
 
 Exit.
@@ -103,14 +103,14 @@ Roadmap updated: .gpd/ROADMAP.md
 
 **Phase {N}: {description}**
 
-`$gpd-plan-phase {N}`
+`/gpd:plan-phase {N}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-add-phase <description>` -- add another phase
+- `/gpd:add-phase <description>` -- add another phase
 - Review roadmap
 
 ---

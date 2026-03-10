@@ -27,7 +27,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 Phase not found. Available phases:
 [list from roadmap]
 
-Usage: $gpd-show-phase <phase-number>
+Usage: /gpd:show-phase <phase-number>
 ```
 
 Exit.
@@ -150,7 +150,7 @@ Present:
 | Validation   | 04-VALIDATION.md         | complete | 5      | 5      | 0      |
 ```
 
-If no verification files: "No verification performed yet. Run $gpd-verify-work {phase} to validate results."
+If no verification files: "No verification performed yet. Run /gpd:verify-work {phase} to validate results."
 </step>
 
 <step name="convention_changes">
@@ -224,9 +224,9 @@ Present with human-readable sizes:
 
 ----------------------------------------------------------------
 **Also available:**
-- $gpd-verify-work {N} -- run physics validation checks
-- $gpd-execute-phase {N} -- execute pending plans
-- $gpd-plan-phase {N} -- create new plans
+- /gpd:verify-work {N} -- run physics validation checks
+- /gpd:execute-phase {N} -- execute pending plans
+- /gpd:plan-phase {N} -- create new plans
 ----------------------------------------------------------------
 ```
 

@@ -135,12 +135,12 @@ Your custom files in other locations are preserved:
 - Custom hooks -- preserved
 - Your runtime config files -- preserved
 
-If you've modified any GPD files directly, they'll be automatically backed up to `gpd-local-patches/` and can be reapplied with `$gpd-reapply-patches` after the update.
+If you've modified any GPD files directly, they'll be automatically backed up to `gpd-local-patches/` and can be reapplied with `/gpd:reapply-patches` after the update.
 ```
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - Question: "Proceed with update?"
 - Options:
@@ -172,13 +172,13 @@ Clear the update cache so statusline indicator disappears:
 **If LOCAL install:**
 
 ```bash
-rm -f ~/.gpd/cache/gpd-update-check.json
+rm -f ~/.gpd/cache/gpd:update-check.json
 ```
 
 **If GLOBAL install:**
 
 ```bash
-rm -f ~/.gpd/cache/gpd-update-check.json
+rm -f ~/.gpd/cache/gpd:update-check.json
 ```
 
 </step>
@@ -207,7 +207,7 @@ Check for gpd-local-patches/backup-meta.json in the config directory.
 
 ```
 Local patches were backed up before the update.
-Run $gpd-reapply-patches to merge your modifications into the new version.
+Run /gpd:reapply-patches to merge your modifications into the new version.
 ```
 
 **If no patches:** Continue normally.

@@ -3,7 +3,7 @@ Verify research phase goal achievement through computational verification. Check
 
 Executed by a verification subagent spawned from execute-phase.md.
 
-Can also be invoked directly via `$gpd-verify-work` for re-verification after manual fixes. When invoked standalone, the workflow runs identically but returns results to the user instead of to the execute-phase orchestrator.
+Can also be invoked directly via `/gpd:verify-work` for re-verification after manual fixes. When invoked standalone, the workflow runs identically but returns results to the user instead of to the execute-phase orchestrator.
 </purpose>
 
 <core_principle>
@@ -247,7 +247,7 @@ For each artifact, execute the applicable checks from the following protocols. E
 
 **CRITICAL**: The code templates below are SKELETONS. You MUST:
 1. Replace ALL placeholder comments with actual expressions from the phase artifacts
-2. Actually EXECUTE the resulting Python scripts via Bash
+2. Actually EXECUTE the resulting Python scripts via shell
 3. Report the numerical output — do NOT just reason about what the output would be
 4. If a script fails to run, report the failure explicitly
 

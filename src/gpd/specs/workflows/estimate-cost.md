@@ -28,7 +28,7 @@ If `project_exists` is false (no `.gpd/` directory):
 ```
 No planning structure found.
 
-Run $gpd-new-project to start a new research project.
+Run /gpd:new-project to start a new research project.
 ```
 
 Exit.
@@ -38,7 +38,7 @@ If `roadmap_exists` is false:
 ```
 No ROADMAP.md found. Cannot estimate costs without a roadmap.
 
-Run $gpd-new-project or $gpd-new-milestone to create one.
+Run /gpd:new-project or /gpd:new-milestone to create one.
 ```
 
 Exit.
@@ -208,15 +208,15 @@ After each agent spawn completes, record usage to `.gpd/cost-log.json`:
 }
 ```
 
-**View cost summary:** `$gpd-estimate-cost all` shows cumulative spend vs estimates.
+**View cost summary:** `/gpd:estimate-cost all` shows cumulative spend vs estimates.
 
-Note: Token counts must be extracted from Task tool return metadata. If not available, estimate from context usage percentage x 200K.
+Note: Token counts must be extracted from task tool return metadata. If not available, estimate from context usage percentage x 200K.
 </step>
 
 <step name="notes">
 **Append contextual notes:**
 
-- If any phases have 0 plans: "**Note:** {N} phases have no plans yet. Estimates use heuristic (~130K tokens per phase). Run `$gpd-plan-phase` for accurate estimates."
+- If any phases have 0 plans: "**Note:** {N} phases have no plans yet. Estimates use heuristic (~130K tokens per phase). Run `/gpd:plan-phase` for accurate estimates."
 - If profile is `deep-theory`: "**Note:** deep-theory profile uses tier-1 for most agents. Expect costs near the tier-1 column."
 - If profile is `review` (default): "**Note:** review profile uses tier-1 for verification agents, tier-2 for execution. Expect costs between tier-2 and tier-1 columns."
   </step>

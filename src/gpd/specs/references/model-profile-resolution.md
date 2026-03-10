@@ -25,7 +25,7 @@ references/model-profiles.md
 Look up the agent in the table for the resolved profile. Pass the model parameter to Task calls:
 
 ```
-Task(
+task(
   prompt="...",
   subagent_type="gpd-planner",
   model="{resolved_model}"  # e.g., "tier-1" resolved to platform model for deep-theory profile
@@ -49,7 +49,7 @@ The orchestrator should NOT auto-switch profiles. If signals suggest a different
 ```
 Current profile: review
 This phase involves heavy numerical simulation. Consider switching:
-  $gpd-set-profile numerical
+  /gpd:set-profile numerical
 ```
 
 ## Usage

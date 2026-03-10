@@ -17,6 +17,7 @@ PROMPT_ROOTS = (
 
 INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\"([a-z0-9-]+)\"\)")
 INIT_USAGE_RE = re.compile(r"\bgpd init ([a-z0-9-]+)\b")
+NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 
 
 def _iter_prompt_sources() -> list[Path]:
@@ -41,5 +42,16 @@ def test_prompt_sources_use_only_real_gpd_init_subcommands() -> None:
             subcommand = match.group(1)
             if subcommand not in allowed:
                 invalid.append(f"{path.relative_to(REPO_ROOT)} -> {subcommand}")
+
+    assert invalid == []
+
+
+def test_prompt_sources_use_canonical_gpd_command_syntax() -> None:
+    invalid: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        for match in NON_CANONICAL_GPD_COMMAND_RE.finditer(content):
+            invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
 
     assert invalid == []

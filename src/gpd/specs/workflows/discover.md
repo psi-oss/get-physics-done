@@ -6,7 +6,7 @@ Can be invoked before plan-phase for deeper literature/method investigation, or 
 
 This workflow discovers the physics landscape: what is known, what is open, what tools exist, what methods are standard, what data is available, what approximations are valid.
 
-NOTE: For comprehensive literature survey ("what do experts know about this"), use $gpd-research-phase instead, which produces a full-depth RESEARCH.md. This workflow produces a quick-depth RESEARCH.md (depth: quick) suitable for method selection and landscape scanning.
+NOTE: For comprehensive literature survey ("what do experts know about this"), use /gpd:research-phase instead, which produces a full-depth RESEARCH.md. This workflow produces a quick-depth RESEARCH.md (depth: quick) suitable for method selection and landscape scanning.
 </purpose>
 
 <depth_levels>
@@ -29,7 +29,7 @@ Physics results can be subtle and sign conventions vary across references. Alway
 1. **Standard references FIRST** - Textbooks, review articles, established databases (PDG, NIST, OEIS)
 2. **Primary literature** - Original papers where results were derived
 3. **Preprint servers** - arXiv for recent developments
-4. **WebSearch LAST** - For community discussions, code repositories, and numerical benchmarks only
+4. **web_search LAST** - For community discussions, code repositories, and numerical benchmarks only
 
 See {GPD_INSTALL_DIR}/templates/research.md for the RESEARCH.md template structure (use `depth: quick` for discovery-level output).
 </source_hierarchy>
@@ -265,10 +265,10 @@ Contents of RESEARCH.md:
 <step name="confidence_gate">
 After creating RESEARCH.md, check confidence level.
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
 If confidence is LOW:
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Low Confidence"
 - question: "Discovery confidence is LOW: [reason]. How would you like to proceed?"
@@ -306,8 +306,8 @@ Confidence: [level]
 
 What's next?
 
-1. Discuss phase context ($gpd-discuss-phase [current-phase])
-2. Create phase plan ($gpd-plan-phase [current-phase])
+1. Discuss phase context (/gpd:discuss-phase [current-phase])
+2. Create phase plan (/gpd:plan-phase [current-phase])
 3. Refine discovery (dig deeper)
 4. Review discovery
 
