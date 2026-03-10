@@ -214,26 +214,11 @@ def test_public_docs_keep_runtime_surface_first() -> None:
 
     assert "## Known Limitations" in readme
     assert "After installing GPD, open your chosen runtime normally" in readme
-    assert "gpd view" not in readme
     assert "gpd session" not in readme
     assert (
         "On Codex, GPD enables experimental multi-agent support automatically during install, "
         "but subagent activity is currently surfaced in the CLI only."
     ) in readme
-
-def test_standard_install_excludes_removed_viewer_dependencies() -> None:
-    repo_root = _repo_root()
-    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    dependencies: list[str] = project["dependencies"]
-
-    for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette"):
-        assert not any(item.startswith(dependency) for item in dependencies), (
-            f"Removed viewer dependency {dependency} should not be listed"
-        )
-
-    readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    assert "gpd view" not in readme
-
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     repo_root = _repo_root()

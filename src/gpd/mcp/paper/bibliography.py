@@ -195,11 +195,19 @@ def enrich_with_ads(bibcodes: list[str]) -> dict[str, str]:
             result = json.loads(resp.read())
 
         export_text = result.get("export", "")
-        # Parse into per-bibcode mapping
+        if not isinstance(export_text, str) or not export_text.strip():
+            return {}
+
+        entry_chunks = re.split(r"(?m)(?=^@\w)", export_text.strip())
         mapping: dict[str, str] = {}
-        for bibcode in bibcodes:
-            if bibcode in export_text:
-                mapping[bibcode] = export_text
+        for chunk in entry_chunks:
+            entry = chunk.strip()
+            if not entry:
+                continue
+            for bibcode in bibcodes:
+                if bibcode in entry:
+                    mapping[bibcode] = entry + "\n"
+                    break
         return mapping
 
     except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):

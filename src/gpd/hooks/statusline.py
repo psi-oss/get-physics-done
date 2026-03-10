@@ -42,6 +42,11 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
+def _mapping(value: object) -> dict[str, object]:
+    """Return *value* when it is a dict, otherwise an empty mapping."""
+    return value if isinstance(value, dict) else {}
+
+
 def _read_position(workspace_dir: str) -> str:
     """Read research position from .gpd/state.json."""
     state_file = Path(workspace_dir) / PLANNING_DIR_NAME / STATE_JSON_FILENAME
@@ -80,7 +85,7 @@ def _read_current_task(session_id: str) -> str:
             continue
         try:
             for f in todos_dir.iterdir():
-                if f.name.startswith(session_id) and "-agent-" in f.name and f.suffix == ".json":
+                if f.name.startswith(f"{session_id}-agent-") and f.suffix == ".json":
                     try:
                         matches.append((f.stat().st_mtime, f))
                     except OSError as exc:
@@ -145,10 +150,21 @@ def main() -> None:
         _debug(f"Failed to parse stdin JSON: {exc}")
         return
 
-    model = (data.get("model") or {}).get("display_name", "unknown")
-    workspace_dir = (data.get("workspace") or {}).get("current_dir", os.getcwd())
-    session_id = data.get("session_id", "")
-    remaining = (data.get("context_window") or {}).get("remaining_percentage")
+    model_value = data.get("model")
+    if isinstance(model_value, str) and model_value:
+        model = model_value
+    else:
+        model = str(_mapping(model_value).get("display_name") or "unknown")
+
+    workspace_value = data.get("workspace")
+    if isinstance(workspace_value, str) and workspace_value:
+        workspace_dir = workspace_value
+    else:
+        workspace_dir = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
+
+    session_value = data.get("session_id")
+    session_id = session_value if isinstance(session_value, str) else ""
+    remaining = _mapping(data.get("context_window")).get("remaining_percentage")
 
     ctx = _context_bar(remaining) if remaining is not None else ""
     position = _read_position(workspace_dir)

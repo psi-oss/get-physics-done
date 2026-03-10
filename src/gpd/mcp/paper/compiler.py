@@ -208,11 +208,22 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         combined_log = "".join(combined_log_parts)
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
         fix_result = try_autofix(tex_content, combined_log)
-        if fix_result.was_modified and fix_result.fixed_content and not compile_errors:
+        if fix_result.was_modified and fix_result.fixed_content:
             await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
             logger.info("Applied autofix: %s", fix_result.fixes_applied)
+
+            combined_log_parts = []
+            compile_errors = []
+
             returncode, log = await run_cmd(base_cmd, cwd)
-            record_result("pdflatex autofix pass", returncode, log)
+            record_result("pdflatex autofix pass 1", returncode, log)
+            if bibtex and aux_path.exists():
+                returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
+                record_result("bibtex autofix", returncode, log)
+            returncode, log = await run_cmd(base_cmd, cwd)
+            record_result("pdflatex autofix pass 2", returncode, log)
+            returncode, log = await run_cmd(base_cmd, cwd)
+            record_result("pdflatex autofix pass 3", returncode, log)
             if not compile_errors and pdf_path.exists():
                 return CompilationResult(success=True, pdf_path=pdf_path)
 

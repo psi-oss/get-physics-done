@@ -58,6 +58,17 @@ class TestNormalization:
         assert result.exists()
         assert result.suffix == ".png"
 
+    def test_normalize_passthrough_same_file_is_noop(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        src = out / "fig.png"
+        Image.new("RGB", (10, 10), color="purple").save(src)
+
+        result = normalize_figure(src, out)
+
+        assert result == src
+        assert result.exists()
+
     def test_normalize_svg_no_converter(self, tmp_path, monkeypatch):
         src = tmp_path / "input" / "fig.svg"
         src.parent.mkdir()

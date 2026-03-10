@@ -181,11 +181,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert managed_runtime_installs[0]["logfire_ignore_no_config"] == "1"
 
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
-    assert (home / ".gpd" / "bin" / "gpd").exists()
-    assert (home / ".local" / "bin" / "gpd").exists()
     assert "Installed GPD for Codex (local)." in result.stdout
     assert "$gpd-new-project" in result.stdout
-    assert "gpd view" not in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

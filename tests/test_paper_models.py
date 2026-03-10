@@ -161,6 +161,20 @@ class TestTemplates:
         tex = render_paper(config)
         assert "aastex631" in tex
 
+    def test_render_keeps_full_document_when_section_content_is_fenced(self):
+        from gpd.mcp.paper.template_registry import render_paper
+
+        config = PaperConfig(
+            title="Fenced Content",
+            authors=[Author(name="Fence Tester")],
+            abstract="Abstract.",
+            sections=[Section(title="Intro", content="```latex\nE = mc^2\n```")],
+        )
+        tex = render_paper(config)
+        assert r"\documentclass" in tex
+        assert "```" not in tex
+        assert "E = mc^2" in tex
+
     def test_render_jhep_paper(self):
         from gpd.mcp.paper.template_registry import render_paper
 
@@ -178,6 +192,20 @@ class TestTemplates:
         assert r"\affiliation[1]{CERN}" in tex
         assert r"\emailAdd{a@example.com}" in tex
         assert r"\bibliographystyle{JHEP}" in tex
+
+    def test_render_nature_affiliation_does_not_concatenate_small_with_text(self):
+        from gpd.mcp.paper.template_registry import render_paper
+
+        config = PaperConfig(
+            title="Nature Paper",
+            authors=[Author(name="A", affiliation="Institute of Testing")],
+            abstract="Abstract.",
+            sections=[Section(title="Intro", content="Text.")],
+            journal="nature",
+        )
+        tex = render_paper(config)
+        assert r"{\small Institute of Testing}" in tex
+        assert r"\smallInstitute" not in tex
 
     def test_render_with_figures(self):
         from gpd.mcp.paper.template_registry import render_paper

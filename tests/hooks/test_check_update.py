@@ -301,3 +301,23 @@ class TestMainThrottle:
             main()
 
         mock_popen.assert_called_once()
+
+    def test_fresh_local_runtime_cache_suppresses_spawn(self, tmp_path: Path) -> None:
+        """Any fresh runtime cache should satisfy throttle, not just the home .gpd cache."""
+        home = tmp_path / "home"
+        local_cache = tmp_path / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_not_called()

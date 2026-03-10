@@ -188,6 +188,21 @@ class TestReadCurrentTask:
         with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[Path("/nonexistent/todos")]):
             assert _read_current_task("session-123") == ""
 
+    def test_session_prefix_collision_uses_exact_session_match(self, tmp_path: Path) -> None:
+        todo_dir = tmp_path / "todos"
+        todo_dir.mkdir()
+        (todo_dir / "session-12-agent-b.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Wrong task"}]),
+            encoding="utf-8",
+        )
+        (todo_dir / "session-1-agent-a.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Correct task"}]),
+            encoding="utf-8",
+        )
+
+        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+            assert _read_current_task("session-1") == "Correct task"
+
 
 # ─── _check_update edge cases ──────────────────────────────────────────────
 
@@ -321,6 +336,17 @@ class TestMain:
         """context_window=None → 'or {}' fallback, remaining is None → no bar."""
         output = self._run_main({"context_window": None})
         assert "%" not in output
+
+    def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
+        output = self._run_main(
+            {
+                "model": "gpt-5",
+                "workspace": "/tmp/research-project",
+                "context_window": "not-a-mapping",
+            }
+        )
+        assert "gpt-5" in output
+        assert "research-project" in output
 
     def test_invalid_json_stdin_no_crash(self) -> None:
         """Invalid JSON on stdin → main() returns silently, no crash."""

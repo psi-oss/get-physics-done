@@ -21,7 +21,6 @@ const { version: packageVersion, repository } = require("../package.json");
 const PYTHON_PACKAGE_NAME = "get-physics-done";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
-const LAUNCHER_MARKER = "Managed by Get Physics Done";
 const GITHUB_FALLBACK_BRANCH = "main";
 
 const red = "\x1b[31m";
@@ -238,89 +237,6 @@ function managedEnvDir(gpdHome) {
 
 function managedPythonPath(venvDir) {
   return path.join(venvDir, isWindows() ? "Scripts" : "bin", isWindows() ? "python.exe" : "python");
-}
-
-function launcherBasename() {
-  return isWindows() ? "gpd.cmd" : "gpd";
-}
-
-function managedLauncherPath(gpdHome) {
-  return path.join(gpdHome, "bin", launcherBasename());
-}
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-function launcherContents(pythonPath) {
-  if (isWindows()) {
-    return `@echo off\r\nREM ${LAUNCHER_MARKER}\r\n"${pythonPath}" -m gpd.cli %*\r\n`;
-  }
-  return `#!/bin/sh\n# ${LAUNCHER_MARKER}\nexec ${shellQuote(pythonPath)} -m gpd.cli "$@"\n`;
-}
-
-function writeLauncher(launcherPath, pythonPath) {
-  fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
-  fs.writeFileSync(launcherPath, launcherContents(pythonPath), { encoding: "utf-8" });
-  if (!isWindows()) {
-    fs.chmodSync(launcherPath, 0o755);
-  }
-}
-
-function isManagedLauncher(launcherPath) {
-  try {
-    return fs.readFileSync(launcherPath, "utf-8").includes(LAUNCHER_MARKER);
-  } catch {
-    return false;
-  }
-}
-
-function preferredUserBinDirs(gpdHome) {
-  const home = os.homedir();
-  return [
-    path.join(gpdHome, "bin"),
-    path.join(home, ".local", "bin"),
-    path.join(home, "bin"),
-  ];
-}
-
-function pathEntrySet() {
-  return new Set(
-    (process.env.PATH || "")
-      .split(path.delimiter)
-      .filter(Boolean)
-      .map((entry) => path.resolve(entry))
-  );
-}
-
-function exposeLauncher(gpdHome, pythonPath) {
-  const primaryLauncher = managedLauncherPath(gpdHome);
-  writeLauncher(primaryLauncher, pythonPath);
-
-  const pathEntries = pathEntrySet();
-  let conflictPath = null;
-  for (const candidateDir of preferredUserBinDirs(gpdHome)) {
-    const resolvedDir = path.resolve(candidateDir);
-    if (!pathEntries.has(resolvedDir)) {
-      continue;
-    }
-
-    const candidateLauncher = path.join(resolvedDir, launcherBasename());
-    if (path.resolve(candidateLauncher) === path.resolve(primaryLauncher)) {
-      return { primaryLauncher, exposedLauncher: candidateLauncher, conflictPath: null };
-    }
-
-    fs.mkdirSync(resolvedDir, { recursive: true });
-    if (fs.existsSync(candidateLauncher) && !isManagedLauncher(candidateLauncher)) {
-      conflictPath = candidateLauncher;
-      continue;
-    }
-
-    writeLauncher(candidateLauncher, pythonPath);
-    return { primaryLauncher, exposedLauncher: candidateLauncher, conflictPath: null };
-  }
-
-  return { primaryLauncher, exposedLauncher: null, conflictPath };
 }
 
 function ensureManagedEnvironment(basePython) {
@@ -641,7 +557,7 @@ function buildRuntimeInstallArgs(runtimes, scope, forceStatusline) {
   return installArgs;
 }
 
-function printCompletionSummary(runtimes, scope, launcherInfo) {
+function printCompletionSummary(runtimes, scope) {
   console.log("");
   success(`Installed GPD for ${formatRuntimeList(runtimes)} (${scope}).`);
   console.log("");
@@ -655,14 +571,6 @@ function printCompletionSummary(runtimes, scope, launcherInfo) {
     console.log("  Start a new project:");
     for (const runtime of runtimes) {
       console.log(`  ${RUNTIMES[runtime].name.padEnd(width)}  ${RUNTIMES[runtime].startCommand}`);
-    }
-  }
-
-  if (!launcherInfo.exposedLauncher) {
-    console.log(`  Shell CLI path:      ${launcherInfo.primaryLauncher}`);
-    console.log(`  Add to PATH:         ${path.dirname(launcherInfo.primaryLauncher)}`);
-    if (launcherInfo.conflictPath) {
-      console.log(`  Existing launcher left untouched:  ${launcherInfo.conflictPath}`);
     }
   }
   console.log("");
@@ -709,7 +617,6 @@ async function main() {
     process.exit(1);
   }
 
-  const launcherInfo = exposeLauncher(managedEnv.gpdHome, managedEnv.python);
   log(`Installing GPD for ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
 
   // Suppress logfire warning during install
@@ -723,7 +630,7 @@ async function main() {
   });
 
   if (result.status === 0) {
-    printCompletionSummary(selectedRuntimes, scope, launcherInfo);
+    printCompletionSummary(selectedRuntimes, scope);
   } else {
     error("Installation failed. Check the output above for details.");
     process.exit(1);

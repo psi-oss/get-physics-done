@@ -60,6 +60,11 @@ def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     return [preferred_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != preferred_runtime]
 
 
+def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
+    """Return the workspace-local config directory for a runtime."""
+    return (cwd or Path.cwd()) / LOCAL_RUNTIME_DIR_NAMES[runtime]
+
+
 def detect_active_runtime() -> str:
     """Detect which AI agent is currently active.
 
@@ -71,7 +76,14 @@ def detect_active_runtime() -> str:
         if os.environ.get(env_var):
             return runtime
 
-    # 2. Fall back to checking which runtime directories exist
+    # 2. Fall back to checking workspace-local runtime dirs
+    cwd = Path.cwd()
+    for runtime in ALL_RUNTIMES:
+        runtime_dir = _local_runtime_dir(runtime, cwd)
+        if runtime_dir.is_dir():
+            return runtime
+
+    # 3. Fall back to checking which home runtime directories exist
     home = Path.home()
     for runtime in ALL_RUNTIMES:
         runtime_dir = home / RUNTIME_DIR_NAMES[runtime]
@@ -136,9 +148,18 @@ def get_cache_dirs() -> list[Path]:
 
 def get_update_cache_files() -> list[Path]:
     """Return all candidate update-cache files in priority scan order."""
-    return [Path.home() / ".gpd" / "cache" / "gpd-update-check.json"] + [
-        d / "gpd-update-check.json" for d in get_cache_dirs()
-    ]
+    preferred_runtime = detect_active_runtime()
+    paths: list[Path] = []
+    cwd = Path.cwd()
+    home = Path.home()
+
+    if preferred_runtime in ALL_RUNTIMES:
+        paths.append(_local_runtime_dir(preferred_runtime, cwd) / "cache" / "gpd-update-check.json")
+        paths.append((home / RUNTIME_DIR_NAMES[preferred_runtime]) / "cache" / "gpd-update-check.json")
+
+    paths.append(home / ".gpd" / "cache" / "gpd-update-check.json")
+    paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs())
+    return _unique_paths(paths)
 
 
 def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
@@ -154,7 +175,7 @@ def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
     cwd = Path.cwd()
     home = Path.home()
     for runtime in _prioritized_runtimes(detect_active_runtime()):
-        dirs.append(cwd / LOCAL_RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
+        dirs.append(_local_runtime_dir(runtime, cwd) / "get-physics-done")
         dirs.append(home / RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
     return _unique_paths(dirs)
 

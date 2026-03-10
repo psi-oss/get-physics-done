@@ -118,21 +118,24 @@ def _do_check(cache_file: Path) -> None:
 
 def main() -> None:
     """Entry point: throttle-check for updates, spawn background worker if needed."""
-    home = Path.home()
-    cache_dir = home / ".gpd" / "cache"
-    cache_file = cache_dir / "gpd-update-check.json"
+    from gpd.hooks.runtime_detect import get_update_cache_files
 
-    # Throttle: skip if checked recently
-    if cache_file.exists():
+    cache_candidates = get_update_cache_files()
+    cache_file = cache_candidates[0] if cache_candidates else (Path.home() / ".gpd" / "cache" / "gpd-update-check.json")
+
+    # Throttle: skip if any candidate cache was checked recently.
+    for candidate in cache_candidates:
+        if not candidate.exists():
+            continue
         try:
-            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            cache = json.loads(candidate.read_text(encoding="utf-8"))
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)
                 if 0 <= age < UPDATE_CHECK_TTL_SECONDS:
                     return
         except Exception as exc:
-            _debug(f"Failed to read update cache: {exc}")
+            _debug(f"Failed to read update cache {candidate}: {exc}")
 
     # Spawn background child to do the actual check
     try:

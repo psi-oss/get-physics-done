@@ -949,12 +949,12 @@ def validate_package_integrity(gpd_root: Path) -> None:
             )
 
 
-def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bool) -> str:
+def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bool, explicit_target: bool = False) -> str:
     """Compute the path prefix for placeholder replacement.
 
     Global installs use absolute path; local installs use ``./.<config_dir>/``.
     """
-    if is_global:
+    if is_global or explicit_target:
         return str(target_dir).replace("\\", "/") + "/"
     return f"./{config_dir_name}/"
 
@@ -1153,13 +1153,14 @@ def build_hook_command(
     is_global: bool,
     config_dir_name: str,
     interpreter: str | None = None,
+    explicit_target: bool = False,
 ) -> str:
     """Build the shell command string for a hook script.
 
     Shared by Claude Code and Gemini adapters.
     """
     command_interpreter = interpreter or _hook_python_interpreter()
-    if is_global:
+    if is_global or explicit_target:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")
         return f"{shlex.quote(command_interpreter)} {shlex.quote(hooks_path)}"
     return f"{shlex.quote(command_interpreter)} {shlex.quote(f'{config_dir_name}/hooks/{hook_filename}')}"

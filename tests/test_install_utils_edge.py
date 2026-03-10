@@ -294,6 +294,19 @@ class TestBuildHookCommand:
 
         assert command == "/custom/venv/bin/python .claude/hooks/statusline.py"
 
+    def test_explicit_target_uses_absolute_hook_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
+
+        command = build_hook_command(
+            tmp_path,
+            "statusline.py",
+            is_global=False,
+            config_dir_name=".claude",
+            explicit_target=True,
+        )
+
+        assert command == f"/custom/venv/bin/python {tmp_path / 'hooks' / 'statusline.py'}"
+
 
 # =========================================================================
 # 3. write_settings

@@ -47,6 +47,8 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
 
     if fmt in PASSTHROUGH_FORMATS:
         dest = output_dir / source.name
+        if source.resolve() == dest.resolve():
+            return dest
         shutil.copy2(source, dest)
         return dest
 
@@ -59,6 +61,8 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
     if fmt == "eps":
         # pdflatex auto-converts EPS via epstopdf
         dest = output_dir / source.name
+        if source.resolve() == dest.resolve():
+            return dest
         shutil.copy2(source, dest)
         logger.info("EPS file copied; epstopdf will handle conversion during compilation: %s", source.name)
         return dest

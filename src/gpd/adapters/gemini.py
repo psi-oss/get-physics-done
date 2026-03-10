@@ -390,12 +390,14 @@ class GeminiAdapter(RuntimeAdapter):
             HOOK_SCRIPTS["statusline"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         update_check_cmd = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["check_update"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         ensure_update_hook(settings, update_check_cmd)
 
@@ -479,9 +481,22 @@ class GeminiAdapter(RuntimeAdapter):
                     del settings["experimental"]
                 modified = True
 
+            # Remove GPD MCP servers
+            mcp_servers = settings.get("mcpServers")
+            if isinstance(mcp_servers, dict):
+                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+                if removed_keys:
+                    for key in removed_keys:
+                        del mcp_servers[key]
+                    if not mcp_servers:
+                        del settings["mcpServers"]
+                    modified = True
+
             if modified:
                 write_settings(settings_path, settings)
-                logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental)")
+                logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
 
         return result
 

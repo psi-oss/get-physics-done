@@ -16,6 +16,7 @@ import logging
 import re
 import shlex
 import shutil
+import sys
 import tomllib
 from pathlib import Path
 
@@ -239,6 +240,16 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     return f"---\n{new_frontmatter}\n---{body}"
 
 
+def _codex_hook_interpreter() -> str:
+    """Return the interpreter used to install Codex hook commands."""
+    return sys.executable or "python3"
+
+
+def _toml_string(value: str) -> str:
+    """Serialize a Python string as a TOML basic string."""
+    return json.dumps(value, ensure_ascii=False)
+
+
 # ─── Adapter Class ───────────────────────────────────────────────────────────
 
 
@@ -315,7 +326,7 @@ class CodexAdapter(RuntimeAdapter):
         Returns dict with 'notify' key containing the command array.
         """
         command = hook_config.get("command", "")
-        return {"notify": ["python3", str(command)]}
+        return {"notify": [_codex_hook_interpreter(), str(command)]}
 
     def install(
         self,
@@ -326,6 +337,7 @@ class CodexAdapter(RuntimeAdapter):
         # Codex CLI typically installs globally to ~/.codex + ~/.agents/skills/.
         is_global: bool = True,
         skills_dir: Path | None = None,
+        explicit_target: bool = False,
     ) -> dict[str, object]:
         """Full GPD installation into a Codex CLI configuration directory.
 
@@ -333,12 +345,14 @@ class CodexAdapter(RuntimeAdapter):
         to the base class template method.
         """
         self._skills_dir = _resolve_codex_skills_dir(target_dir, is_global=is_global, skills_dir=skills_dir)
-        return super().install(gpd_root, target_dir, is_global=is_global)
+        return super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
 
     # --- Template method hooks ---
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
-        return str(target_dir).replace("\\", "/") + "/" if is_global else f"./{self.config_dir_name}/"
+        if is_global or getattr(self, "_install_explicit_target", False):
+            return str(target_dir).replace("\\", "/") + "/"
+        return f"./{self.config_dir_name}/"
 
     def _pre_cleanup(self, target_dir: Path) -> None:
         pre_install_cleanup(target_dir, codex_skills_dir=str(self._skills_dir))
@@ -376,11 +390,13 @@ class CodexAdapter(RuntimeAdapter):
         return agent_count
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
-        _configure_config_toml(target_dir, is_global)
+        _configure_config_toml(
+            target_dir,
+            is_global,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
 
         # Wire MCP servers into config.toml.
-        import sys
-
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
@@ -644,14 +660,14 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
         args = entry.get("args", [])
         args_list = list(args) if isinstance(args, list) else []
         lines.append(f"\n[mcp_servers.{name}]")
-        lines.append(f'command = "{cmd}"')
-        args_toml = ", ".join(f'"{a}"' for a in args_list)
+        lines.append(f"command = {_toml_string(cmd)}")
+        args_toml = ", ".join(_toml_string(str(a)) for a in args_list)
         lines.append(f"args = [{args_toml}]")
         env = entry.get("env", {})
         if isinstance(env, dict) and env:
             lines.append(f"\n[mcp_servers.{name}.env]")
             for k, v in env.items():
-                lines.append(f'{k} = "{v}"')
+                lines.append(f"{k} = {_toml_string(str(v))}")
 
     content += "\n".join(lines) + "\n"
     config_toml.write_text(content, encoding="utf-8")
@@ -858,6 +874,8 @@ def _remove_gpd_multi_agent_config(toml_content: str) -> str:
 def _configure_config_toml(
     target_dir: Path,
     is_global: bool,
+    *,
+    explicit_target: bool = False,
 ) -> None:
     """Configure GPD runtime settings in Codex config.toml."""
     config_toml = target_dir / "config.toml"
@@ -873,7 +891,7 @@ def _configure_config_toml(
         "gpd-check-update",
     )
 
-    if is_global:
+    if is_global or explicit_target:
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     else:
         desired_path = f".codex/hooks/{notify_hook}"
@@ -907,12 +925,12 @@ def _parse_notify_assignment(line: str) -> list[str] | None:
 
 
 def _build_notify_line(desired_path: str) -> str:
-    return f'notify = ["python3", "{desired_path}"]'
+    return f"notify = [{_toml_string(_codex_hook_interpreter())}, {_toml_string(desired_path)}]"
 
 
 def _build_notify_wrapper_line(existing_notify: list[str], desired_path: str) -> str:
     existing_cmd = " ".join(shlex.quote(arg) for arg in existing_notify)
-    gpd_cmd = f"python3 {shlex.quote(desired_path)}"
+    gpd_cmd = f"{shlex.quote(_codex_hook_interpreter())} {shlex.quote(desired_path)}"
     shell_script = (
         'tmp="$(mktemp "${TMPDIR:-/tmp}/gpd-codex-notify.XXXXXX")" || exit 0; '
         'cat > "$tmp"; '

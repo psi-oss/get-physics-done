@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -143,7 +144,7 @@ class TestGenerateAgent:
 class TestGenerateHook:
     def test_returns_notify_array(self, adapter: CodexAdapter) -> None:
         result = adapter.generate_hook("notify", {"command": "check_update.py"})
-        assert result == {"notify": ["python3", "check_update.py"]}
+        assert result == {"notify": [sys.executable or "python3", "check_update.py"]}
 
 
 class TestInstall:
@@ -224,11 +225,29 @@ class TestInstall:
         config_toml = target / "config.toml"
         assert config_toml.exists()
         content = config_toml.read_text(encoding="utf-8")
-        expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        expected_notify = (
+            f'notify = ["{(sys.executable or "python3").replace("\\\\", "\\\\\\\\")}", '
+            f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        )
         assert "# GPD update notification" in content
         assert expected_notify in content
         assert "[features]" in content
         assert "multi_agent = true" in content
+
+    def test_install_with_explicit_target_uses_absolute_notify_path(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "custom-codex"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert f'"{(target / "hooks" / "codex_notify.py").as_posix()}"' in content
+        assert '".codex/hooks/codex_notify.py"' not in content
 
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -377,7 +396,7 @@ class TestUninstall:
             'model = "gpt-4"\n'
             '# My notes about gpd-style naming\n'
             'custom = "my-gpd-tool"\n'
-            'notify = ["python3", "/path/codex_notify.py"]\n',
+            f'notify = ["{sys.executable or "python3"}", "/path/codex_notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -399,7 +418,7 @@ class TestUninstall:
             'model = "gpt-4"\n'
             "\n"
             "# GPD update notification\n"
-            'notify = ["python3", "/path/codex_notify.py"]\n',
+            f'notify = ["{sys.executable or "python3"}", "/path/codex_notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -428,7 +447,10 @@ class TestLegacyHookUpgrade:
         _configure_config_toml(target, is_global=True)
 
         content = config_toml.read_text(encoding="utf-8")
-        expected_notify = f'notify = ["python3", "{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        expected_notify = (
+            f'notify = ["{(sys.executable or "python3").replace("\\\\", "\\\\\\\\")}", '
+            f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+        )
         assert expected_notify in content
         assert 'custom_tool = ["toolctl", "/path/to/my-tool"]' in content
 
@@ -465,6 +487,29 @@ class TestLegacyHookUpgrade:
         assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
         assert "codex_notify" not in cleaned
         assert "GPD original notify" not in cleaned
+
+    def test_mcp_toml_escapes_windows_paths(self, tmp_path: Path) -> None:
+        from gpd.adapters.codex import _write_mcp_servers_codex_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+
+        count = _write_mcp_servers_codex_toml(
+            target,
+            {
+                "gpd-test": {
+                    "command": r"C:\Python311\python.exe",
+                    "args": [r"C:\Program Files\GPD\server.py"],
+                    "env": {"PYTHONPATH": r"C:\Users\tester\venv"},
+                }
+            },
+        )
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        assert count == 1
+        assert r'command = "C:\\Python311\\python.exe"' in content
+        assert r'args = ["C:\\Program Files\\GPD\\server.py"]' in content
+        assert r'PYTHONPATH = "C:\\Users\\tester\\venv"' in content
 
     def test_wraps_existing_false_multi_agent_and_restores_it_on_uninstall(
         self,

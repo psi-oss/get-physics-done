@@ -355,6 +355,41 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
     assert captured_calls[0]["is_global"] is False
 
 
+def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
+    """_install_single_runtime forwards explicit_target when --target-dir is used."""
+    from gpd.cli import _install_single_runtime
+
+    captured_calls: list[dict[str, object]] = []
+    target = tmp_path / "custom-runtime-dir"
+
+    class SpyAdapter:
+        runtime_name = "claude-code"
+        display_name = "Claude Code"
+        config_dir_name = ".claude"
+        help_command = "/gpd:help"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def install(self, gpd_root, target_dir, *, is_global=False, explicit_target=False):
+            captured_calls.append(
+                {
+                    "is_global": is_global,
+                    "explicit_target": explicit_target,
+                    "target_dir": target_dir,
+                }
+            )
+            return {"runtime": "claude-code", "commands": 0, "agents": 0}
+
+    with patch("gpd.adapters.get_adapter", return_value=SpyAdapter()):
+        _install_single_runtime("claude-code", is_global=False, target_dir_override=str(target))
+
+    assert len(captured_calls) == 1
+    assert captured_calls[0]["is_global"] is False
+    assert captured_calls[0]["explicit_target"] is True
+    assert captured_calls[0]["target_dir"] == target
+
+
 # ─── Validation edge cases ───────────────────────────────────────────────────
 
 

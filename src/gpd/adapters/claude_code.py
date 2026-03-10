@@ -117,12 +117,14 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             HOOK_SCRIPTS["statusline"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         update_check_command = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["check_update"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         ensure_update_hook(settings, update_check_command)
 
@@ -185,6 +187,44 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             should_install_statusline,
             force_statusline=force_statusline,
         )
+
+    def uninstall(self, target_dir: Path) -> dict[str, object]:
+        """Remove GPD from Claude Code config and clean the matching MCP config."""
+        result = super().uninstall(target_dir)
+
+        try:
+            is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
+        except OSError:
+            is_global_target = target_dir.expanduser() == self.global_config_dir.expanduser()
+
+        if not is_global_target:
+            return result
+
+        mcp_config_path = Path.home() / ".claude.json"
+        if not mcp_config_path.exists():
+            return result
+
+        import json as _json
+
+        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+        mcp_config = read_settings(mcp_config_path)
+        mcp_servers = mcp_config.get("mcpServers")
+        if not isinstance(mcp_servers, dict):
+            return result
+
+        removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+        if not removed_keys:
+            return result
+
+        for key in removed_keys:
+            del mcp_servers[key]
+        if not mcp_servers:
+            del mcp_config["mcpServers"]
+
+        mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
+        result["removed"].append("MCP servers from .claude.json")
+        return result
 
 
 # ---------------------------------------------------------------------------

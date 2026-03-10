@@ -18,6 +18,11 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
+def _mapping(value: object) -> dict[str, object]:
+    """Return *value* when it is a dict, otherwise an empty mapping."""
+    return value if isinstance(value, dict) else {}
+
+
 def _trigger_update_check(cwd: str) -> None:
     """Opportunistically refresh the update cache (throttled by check_update)."""
     try:
@@ -74,7 +79,11 @@ def main() -> None:
     if data.get("type") != "agent-turn-complete":
         return
 
-    cwd = (data.get("workspace") or {}).get("current_dir", os.getcwd())
+    workspace_value = data.get("workspace")
+    if isinstance(workspace_value, str) and workspace_value:
+        cwd = workspace_value
+    else:
+        cwd = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
     _trigger_update_check(cwd)
     _check_and_notify_update()
 

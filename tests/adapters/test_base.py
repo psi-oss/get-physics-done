@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -103,6 +104,31 @@ class TestUninstallBase:
         target.mkdir()
         result = adapter.uninstall(target)
         assert result["removed"] == []
+
+    def test_uninstall_cleans_jsonc_settings(self, tmp_path: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir(parents=True)
+        (target / "settings.json").write_text(
+            '{\n'
+            '  // user comment\n'
+            '  "statusLine": {"type": "command", "command": "python .claude/hooks/statusline.py"},\n'
+            '  "hooks": {\n'
+            '    "SessionStart": [\n'
+            '      {"hooks": [{"type": "command", "command": "python .claude/hooks/check_update.py"}]}\n'
+            "    ]\n"
+            "  },\n"
+            '  "theme": "solarized",\n'
+            "}\n",
+            encoding="utf-8",
+        )
+
+        adapter.uninstall(target)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["theme"] == "solarized"
+        assert "statusLine" not in settings
+        assert settings.get("hooks") in ({}, None)
 
 
 class TestAdapterConformance:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from gpd.mcp.paper.compiler import _compile_manual_multipass, _compile_with_latexmk
+from gpd.utils.latex import AutoFixResult
 
 
 class _FakeProcess:
@@ -65,3 +66,44 @@ async def test_manual_multipass_rejects_pdf_when_any_pass_fails(tmp_path, monkey
     assert result.error == "pdflatex pass 1 exited with code 1"
     assert result.log is not None
     assert "pdflatex output" in result.log
+
+
+@pytest.mark.asyncio
+async def test_manual_multipass_applies_autofix_even_after_compile_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("broken content", encoding="utf-8")
+    pdf_path = tmp_path / "paper.pdf"
+    call_count = 0
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 4:
+            pdf_path.write_bytes(b"%PDF-fake")
+            return _FakeProcess(returncode=0, stdout=b"autofix ok", stderr=b"")
+        return _FakeProcess(returncode=1 if call_count == 1 else 0, stdout=b"Missing $ inserted", stderr=b"")
+
+    def fake_which(binary: str) -> str | None:
+        if binary == "pdflatex":
+            return "/usr/bin/pdflatex"
+        return None
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "gpd.utils.latex.try_autofix",
+        lambda tex, log: AutoFixResult(
+            fixed_content=r"\documentclass{article}\begin{document}fixed\end{document}",
+            fixes_applied=("fixed",),
+            was_modified=True,
+        ),
+    )
+
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+
+    assert result.success is True
+    assert result.pdf_path == pdf_path
+    assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
