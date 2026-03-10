@@ -3,12 +3,12 @@
  * GPD installer — sets up Get Physics Done in your AI agent.
  *
  * Usage:
- *   npx github:physicalsuperintelligence/get-physics-done
- *   npx github:physicalsuperintelligence/get-physics-done --claude --global
- *   npx github:physicalsuperintelligence/get-physics-done --gemini --global
- *   npx github:physicalsuperintelligence/get-physics-done --codex --local
- *   npx github:physicalsuperintelligence/get-physics-done --opencode --global
- *   npx github:physicalsuperintelligence/get-physics-done --all --global
+ *   npx -y github:physicalsuperintelligence/get-physics-done
+ *   npx -y github:physicalsuperintelligence/get-physics-done --claude --global
+ *   npx -y github:physicalsuperintelligence/get-physics-done --gemini --global
+ *   npx -y github:physicalsuperintelligence/get-physics-done --codex --local
+ *   npx -y github:physicalsuperintelligence/get-physics-done --opencode --global
+ *   npx -y github:physicalsuperintelligence/get-physics-done --all --global
  */
 
 const fs = require("fs");
@@ -481,7 +481,7 @@ function printBanner() {
 }
 
 function printHelp() {
-  const installCommand = "npx github:physicalsuperintelligence/get-physics-done";
+  const installCommand = "npx -y github:physicalsuperintelligence/get-physics-done";
   console.log(` ${yellow}Usage:${reset} ${installCommand} [options]`);
   console.log("");
   console.log(` ${yellow}Options:${reset}`);

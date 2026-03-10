@@ -145,9 +145,9 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
     assert "`--codex`" in readme
     assert "`--opencode`" in readme
     assert "`--all`" in readme
-    assert "npx github:physicalsuperintelligence/get-physics-done --all --global" in readme
-    assert "npx github:physicalsuperintelligence/get-physics-done --codex --local" in content
-    assert "npx github:physicalsuperintelligence/get-physics-done --opencode --global" in content
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --all --global" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --codex --local" in content
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --opencode --global" in content
     assert 'args.includes("--all")' in content
     assert 'args.includes("--claude")' in content
     assert 'args.includes("--gemini")' in content
@@ -180,7 +180,7 @@ def test_public_cli_surface_is_unified() -> None:
 
 def test_install_docs_use_only_public_npx_flow() -> None:
     repo_root = _repo_root()
-    npx_command = "npx github:physicalsuperintelligence/get-physics-done"
+    npx_command = "npx -y github:physicalsuperintelligence/get-physics-done"
     disallowed_markers = (
         "uv tool install",
         "python3 -m pip install",
@@ -235,14 +235,17 @@ def test_standard_install_excludes_removed_viewer_dependencies() -> None:
     assert "gpd view" not in readme
 
 
-def test_claude_sdk_is_optional_for_public_install() -> None:
+def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
-    optional = project["optional-dependencies"]
+    optional = project.get("optional-dependencies", {})
 
     assert not any(item.startswith("claude-agent-sdk") for item in dependencies)
-    assert any(item.startswith("claude-agent-sdk") for item in optional["claude-subagents"])
+    assert "claude-subagents" not in optional
+    assert not any(
+        item.startswith("claude-agent-sdk") for items in optional.values() for item in items
+    )
     assert "scientific" not in optional
 
 
@@ -251,7 +254,7 @@ def test_claude_sdk_is_optional_for_public_install() -> None:
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     repo_root = _repo_root()
-    expected = "npx github:physicalsuperintelligence/get-physics-done"
+    expected = "npx -y github:physicalsuperintelligence/get-physics-done"
     stale_markers = (
         "packages/gpd",
         "uv pip install -e",
@@ -272,7 +275,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "uv run pytest tests/test_release_consistency.py -v" in content
     assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
     assert "Cross-runtime release checks:" in content
-    assert "Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`." in content
+    assert "Public install docs should use `npx -y github:physicalsuperintelligence/get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
 
 

@@ -17,7 +17,7 @@
   ],
   "registry_prefix": "gpd_conventions",
   "prerequisites": [
-    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done"
+    "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done"
   ],
   "health_check": {
     "tool": "subfield_defaults",

@@ -23,27 +23,27 @@ Bootstrap prerequisites:
 Install GPD with `npx`:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done
+npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
+The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime selection and scope directly:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done --claude --global
+npx -y github:physicalsuperintelligence/get-physics-done --claude --global
 ```
 
 To install every supported runtime in one pass:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done --all --global
+npx -y github:physicalsuperintelligence/get-physics-done --all --global
 ```
 
 For a project-local install instead of a global one:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done --codex --local
+npx -y github:physicalsuperintelligence/get-physics-done --codex --local
 ```
 
 ## Supported Runtimes

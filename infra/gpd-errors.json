@@ -23,7 +23,7 @@
   ],
   "registry_prefix": "gpd_errors",
   "prerequisites": [
-    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done"
+    "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done"
   ],
   "health_check": {
     "tool": "list_error_classes",

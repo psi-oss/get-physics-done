@@ -46,4 +46,4 @@ def test_notify_uses_latest_local_cache_and_valid_install_command(tmp_path: Path
     output = stderr.getvalue()
     assert "Update available: v1.2.3" in output
     assert "v1.3.0" in output
-    assert "Run: npx github:physicalsuperintelligence/get-physics-done --claude" in output
+    assert "Run: npx -y github:physicalsuperintelligence/get-physics-done --claude" in output

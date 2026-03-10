@@ -13,7 +13,7 @@
   ],
   "registry_prefix": "gpd_arxiv",
   "prerequisites": [
-    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done",
+    "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done",
     "pip install arxiv-mcp-server"
   ],
   "health_check": {
