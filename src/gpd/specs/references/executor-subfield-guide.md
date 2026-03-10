@@ -9,6 +9,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 | Domain | Subfield Guide | Verification Domain |
 |--------|---------------|-------------------|
 | QFT | `subfields/qft.md` | `verification-domain-qft.md` |
+| Quantum Gravity | `subfields/quantum-gravity.md` | `verification-domain-gr-cosmology.md` + `verification-domain-qft.md` |
 | Condensed Matter | `subfields/condensed-matter.md` | `verification-domain-condmat.md` |
 | Statistical Mechanics | `subfields/stat-mech.md` | `verification-domain-statmech.md` |
 | General Relativity & Cosmology | `subfields/gr-cosmology.md` | `verification-domain-gr-cosmology.md` |
@@ -33,6 +34,14 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Supersymmetry and protected sectors:** Distinguish rigid SUSY from supergravity, state the preserved supercharge or BPS condition, and identify whether the result is a component computation, an index, or a localization calculation. Do not treat protected observables as generic ones.
 - **Asymptotic symmetries and soft limits:** For massless gauge bosons or gravitons, state the null-infinity boundary conditions and whether a soft theorem is being used as a Ward identity of a large gauge/BMS charge. Do not quote the infrared triangle heuristically without matching the charge, flux, and observable conventions.
 - **Generalized symmetries:** Identify the charged extended operators, the degree of the background field, and whether dynamical matter screens the operator. Do not claim center symmetry, higher-group structure, or non-invertible defects without writing the corresponding defect action or fusion data explicitly.
+
+## Quantum Gravity
+
+- **Regime declaration:** State whether the task is semiclassical gravity, holography, black-hole-information bookkeeping, asymptotic safety/FRG, or a canonical/discrete approach. Do not mix their observables or approximation schemes by slogan.
+- **Semiclassical control:** Verify the curvature and backreaction regime explicitly before trusting Hawking, horizon, or QFT-in-curved-spacetime reasoning. A low-curvature background plus a renormalized stress tensor is a prerequisite, not an afterthought.
+- **Generalized entropy and islands:** For Page-curve or entropy claims, state the radiation subsystem, the candidate quantum extremal surfaces, and the competing saddles. No "information recovery" claim is complete without this saddle comparison.
+- **Boundary conditions matter:** AdS, flat, and de Sitter asymptotics use different observables and different dictionaries. Load `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, or `protocols/de-sitter-space.md` explicitly rather than importing one regime's logic into another.
+- **UV-completion claims:** In asymptotic-safety or discrete/canonical work, demand approach-specific control: truncation/regulator stability for FRG, or a clean continuum/semi-classical observable for LQG/CDT/causal-set style calculations.
 
 ## Renormalization Group
 

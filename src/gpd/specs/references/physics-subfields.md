@@ -22,6 +22,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | Subfield | Reference | Key Topics |
 |----------|-----------|------------|
 | Quantum Field Theory | references/subfields/qft.md | Perturbative QFT, renormalization, Feynman diagrams, gauge theories, EFTs, lattice QFT, generalized symmetries, supersymmetry |
+| Quantum Gravity | references/subfields/quantum-gravity.md | Semiclassical gravity, black hole information, holography, quantum chaos, asymptotic safety, nonperturbative approaches |
 | Condensed Matter | references/subfields/condensed-matter.md | Many-body, DFT, DMFT, tensor networks, topological phases, band theory |
 | GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, de Sitter space, numerical relativity, gravitational waves, black holes |
 | Statistical Mechanics | references/subfields/stat-mech.md | Phase transitions, Monte Carlo, critical phenomena, RG, exactly solved models |
@@ -47,6 +48,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Phase transitions, critical exponents, Monte Carlo   | Statistical Mechanics | Condensed Matter for lattice models                            |
 | CMB, large-scale structure, N-body                   | Cosmology             | GR for metric perturbations                                    |
 | de Sitter space, cosmological horizons, dS/CFT       | GR & Cosmology        | QFT for fields in curved spacetime; Mathematical Physics for representation theory |
+| Black hole information, Page curve, replica wormholes, holography | Quantum Gravity | GR for geometry; QFT for matter entanglement and EFT control |
 | Higher-form symmetries, non-invertible defects, center symmetry, anomalies | QFT | Mathematical Physics for categorical/topological structure; Condensed Matter for topological-order applications |
 | Superfields, BPS bounds, localization, Seiberg-Witten, superconformal index | QFT | Mathematical Physics for representation theory; GR for supergravity or holography |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |

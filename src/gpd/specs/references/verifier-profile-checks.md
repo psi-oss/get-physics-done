@@ -13,6 +13,7 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
 | QFT, gauge theory, scattering | QFT Checklist |
 | Condensed matter, many-body, materials | Condensed Matter / Many-Body Checklist |
 | General relativity, cosmology, black holes | GR / Cosmology Checklist |
+| Quantum gravity, semiclassical gravity, holography | GR / Cosmology Checklist + QFT Checklist |
 | Quantum mechanics, atomic physics, AMO | QM / Atomic Physics Checklist |
 | Statistical mechanics, thermodynamics, phase transitions | Statistical Mechanics / Thermodynamics Checklist |
 | Nuclear physics, particle physics, collider | Nuclear / Particle Physics Checklist |
