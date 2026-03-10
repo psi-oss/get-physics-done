@@ -227,27 +227,23 @@ def convention_lock_status(project_dir: str) -> dict:
     Returns all set conventions and lists which of the 18 standard
     fields are still unset.
     """
-    try:
-        with gpd_span("mcp.conventions.lock_status"):
-            lock = _load_lock_from_project(project_dir)
-            result = convention_list(lock)
+    with gpd_span("mcp.conventions.lock_status"):
+        lock = _load_lock_from_project(project_dir)
+        result = convention_list(lock)
 
-            set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
-            unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
-            custom = {k: e.value for k, e in result.conventions.items() if not e.canonical and e.is_set}
+        set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
+        unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
+        custom = {k: e.value for k, e in result.conventions.items() if not e.canonical and e.is_set}
 
-            return {
-                "lock": lock.model_dump(exclude_none=True),
-                "set_count": result.set_count,
-                "total_standard_fields": result.canonical_total,
-                "set_fields": set_fields,
-                "unset_fields": unset_fields,
-                "custom_conventions": custom,
-                "completeness_percent": round(len(set_fields) / result.canonical_total * 100, 1),
-            }
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("convention_lock_status failed: %s", exc)
-        return {"error": str(exc)}
+        return {
+            "lock": lock.model_dump(exclude_none=True),
+            "set_count": result.set_count,
+            "total_standard_fields": result.canonical_total,
+            "set_fields": set_fields,
+            "unset_fields": unset_fields,
+            "custom_conventions": custom,
+            "completeness_percent": round(len(set_fields) / result.canonical_total * 100, 1),
+        }
 
 
 @mcp.tool()
@@ -265,51 +261,47 @@ def convention_set(
 
     Custom conventions use the 'custom:' prefix: key="custom:my_convention".
     """
-    try:
-        with gpd_span("mcp.conventions.set", convention_key=key):
-            # Validate custom key eagerly (before acquiring the file lock).
+    with gpd_span("mcp.conventions.set", convention_key=key):
+        # Validate custom key eagerly (before acquiring the file lock).
+        if key.startswith("custom:"):
+            custom_key = key[len("custom:") :]
+            if not custom_key:
+                raise ConventionError("Custom convention key cannot be empty")
+
+        def _mutate(lock: ConventionLock) -> object:
             if key.startswith("custom:"):
-                custom_key = key[len("custom:") :]
-                if not custom_key:
-                    raise ConventionError("Custom convention key cannot be empty")
+                return _convention_set(lock, key[len("custom:") :], value, force=force)
+            return _convention_set(lock, key, value, force=force)
 
-            def _mutate(lock: ConventionLock) -> object:
-                if key.startswith("custom:"):
-                    return _convention_set(lock, key[len("custom:") :], value, force=force)
-                return _convention_set(lock, key, value, force=force)
+        # Atomic read-modify-write under file lock to prevent TOCTOU races.
+        _lock, result = _update_lock_in_project(project_dir, _mutate)
 
-            # Atomic read-modify-write under file lock to prevent TOCTOU races.
-            _lock, result = _update_lock_in_project(project_dir, _mutate)
-
-            if not result.updated:
-                return {
-                    "status": "already_set",
-                    "key": result.key,
-                    "current_value": result.previous,
-                    "requested_value": result.value,
-                    "message": result.hint or f"Convention '{result.key}' already set. Use force=True to override.",
-                }
-
-            response: dict[str, object] = {
-                "status": "set",
+        if not result.updated:
+            return {
+                "status": "already_set",
                 "key": result.key,
-                "value": result.value,
-                "type": "custom" if result.custom else "standard",
+                "current_value": result.previous,
+                "requested_value": result.value,
+                "message": result.hint or f"Convention '{result.key}' already set. Use force=True to override.",
             }
-            if result.previous is not None:
-                response["previous_value"] = result.previous
-                response["forced"] = True
 
-            # Warn about non-standard values for known fields
-            canonical = normalize_key(key)
-            options = CONVENTION_OPTIONS.get(canonical, [])
-            if options and result.value not in options:
-                response["warning"] = f"Non-standard value '{value}' for '{canonical}'. Known options: {options}"
+        response: dict[str, object] = {
+            "status": "set",
+            "key": result.key,
+            "value": result.value,
+            "type": "custom" if result.custom else "standard",
+        }
+        if result.previous is not None:
+            response["previous_value"] = result.previous
+            response["forced"] = True
 
-            return response
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("convention_set failed: %s", exc)
-        return {"error": str(exc)}
+        # Warn about non-standard values for known fields
+        canonical = normalize_key(key)
+        options = CONVENTION_OPTIONS.get(canonical, [])
+        if options and result.value not in options:
+            response["warning"] = f"Non-standard value '{value}' for '{canonical}'. Known options: {options}"
+
+        return response
 
 
 @mcp.tool()
@@ -319,49 +311,45 @@ def convention_check(lock: dict) -> dict:
     Checks which fields are set, flags missing critical conventions,
     and identifies potential inconsistencies between related fields.
     """
-    try:
-        with gpd_span("mcp.conventions.check"):
-            parsed = ConventionLock(**lock)
-            result = _convention_check(parsed)
+    with gpd_span("mcp.conventions.check"):
+        parsed = ConventionLock(**lock)
+        result = _convention_check(parsed)
 
-        # Critical fields that should almost always be set
-        critical = {"metric_signature", "fourier_convention", "natural_units"}
-        missing_critical = [m.key for m in result.missing if m.key in critical]
+    # Critical fields that should almost always be set
+    critical = {"metric_signature", "fourier_convention", "natural_units"}
+    missing_critical = [m.key for m in result.missing if m.key in critical]
 
-        # Consistency checks beyond what conventions.py provides
-        issues: list[str] = []
-        metric = parsed.metric_signature
-        fourier = parsed.fourier_convention
-        units = parsed.natural_units
+    # Consistency checks beyond what conventions.py provides
+    issues: list[str] = []
+    metric = parsed.metric_signature
+    fourier = parsed.fourier_convention
+    units = parsed.natural_units
 
-        if metric and fourier:
-            if "euclidean" in (metric or "").lower() and fourier == "QFT":
-                issues.append(
-                    "Euclidean metric with QFT Fourier convention may cause sign issues. Check Wick rotation conventions."
-                )
-
-        if units == "SI" and metric and ("(+,-,-,-)" in (metric or "") or "mostly-plus" in (metric or "").lower()):
+    if metric and fourier:
+        if "euclidean" in (metric or "").lower() and fourier == "QFT":
             issues.append(
-                "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
+                "Euclidean metric with QFT Fourier convention may cause sign issues. Check Wick rotation conventions."
             )
 
-        if parsed.renormalization_scheme and not parsed.regularization_scheme:
-            issues.append(
-                "Renormalization scheme set without regularization scheme. These are typically specified together."
-            )
+    if units == "SI" and metric and ("(+,-,-,-)" in (metric or "") or "mostly-plus" in (metric or "").lower()):
+        issues.append(
+            "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
+        )
 
-        return {
-            "valid": len(missing_critical) == 0,
-            "completeness_percent": round(result.set_count / result.total * 100, 1),
-            "set_fields": [s.key for s in result.set_conventions],
-            "unset_fields": [m.key for m in result.missing],
-            "missing_critical": missing_critical,
-            "issues": issues,
-            "total_standard_fields": result.total,
-        }
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("convention_check failed: %s", exc)
-        return {"error": str(exc)}
+    if parsed.renormalization_scheme and not parsed.regularization_scheme:
+        issues.append(
+            "Renormalization scheme set without regularization scheme. These are typically specified together."
+        )
+
+    return {
+        "valid": len(missing_critical) == 0,
+        "completeness_percent": round(result.set_count / result.total * 100, 1),
+        "set_fields": [s.key for s in result.set_conventions],
+        "unset_fields": [m.key for m in result.missing],
+        "missing_critical": missing_critical,
+        "issues": issues,
+        "total_standard_fields": result.total,
+    }
 
 
 @mcp.tool()
@@ -371,52 +359,48 @@ def convention_diff(lock_a: dict, lock_b: dict) -> dict:
     Useful for detecting convention drift between phases or comparing
     a plan's conventions against the project lock.
     """
-    try:
-        with gpd_span("mcp.conventions.diff"):
-            parsed_a = ConventionLock(**lock_a)
-            parsed_b = ConventionLock(**lock_b)
-            result = _convention_diff(parsed_a, parsed_b)
+    with gpd_span("mcp.conventions.diff"):
+        parsed_a = ConventionLock(**lock_a)
+        parsed_b = ConventionLock(**lock_b)
+        result = _convention_diff(parsed_a, parsed_b)
 
-        critical_fields = {"metric_signature", "fourier_convention", "natural_units"}
-        diffs: list[dict[str, object]] = []
+    critical_fields = {"metric_signature", "fourier_convention", "natural_units"}
+    diffs: list[dict[str, object]] = []
 
-        for d in result.changed:
-            diffs.append(
-                {
-                    "field": d.key,
-                    "value_a": d.from_value,
-                    "value_b": d.to_value,
-                    "severity": "critical" if d.key in critical_fields else "warning",
-                }
-            )
-        for d in result.added:
-            diffs.append(
-                {
-                    "field": d.key,
-                    "value_a": None,
-                    "value_b": d.to_value,
-                    "severity": "info",
-                }
-            )
-        for d in result.removed:
-            diffs.append(
-                {
-                    "field": d.key,
-                    "value_a": d.from_value,
-                    "value_b": None,
-                    "severity": "info",
-                }
-            )
+    for d in result.changed:
+        diffs.append(
+            {
+                "field": d.key,
+                "value_a": d.from_value,
+                "value_b": d.to_value,
+                "severity": "critical" if d.key in critical_fields else "warning",
+            }
+        )
+    for d in result.added:
+        diffs.append(
+            {
+                "field": d.key,
+                "value_a": None,
+                "value_b": d.to_value,
+                "severity": "info",
+            }
+        )
+    for d in result.removed:
+        diffs.append(
+            {
+                "field": d.key,
+                "value_a": d.from_value,
+                "value_b": None,
+                "severity": "info",
+            }
+        )
 
-        return {
-            "identical": len(diffs) == 0,
-            "diff_count": len(diffs),
-            "diffs": diffs,
-            "critical_diffs": [d for d in diffs if d["severity"] == "critical"],
-        }
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("convention_diff failed: %s", exc)
-        return {"error": str(exc)}
+    return {
+        "identical": len(diffs) == 0,
+        "diff_count": len(diffs),
+        "diffs": diffs,
+        "critical_diffs": [d for d in diffs if d["severity"] == "critical"],
+    }
 
 
 @mcp.tool()
@@ -432,38 +416,34 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
     """
     from gpd.core.conventions import parse_assert_conventions
 
-    try:
-        with gpd_span("mcp.conventions.assert_validate"):
-            parsed_lock = ConventionLock(**lock)
-            assertions = parse_assert_conventions(file_content)
-            mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
+    with gpd_span("mcp.conventions.assert_validate"):
+        parsed_lock = ConventionLock(**lock)
+        assertions = parse_assert_conventions(file_content)
+        mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
 
-        if not assertions:
-            return {
-                "valid": False,
-                "assertions_found": 0,
-                "message": "No ASSERT_CONVENTION lines found. Every derivation file must include at least one.",
-                "mismatches": [],
-                "assertions": [],
-            }
-
+    if not assertions:
         return {
-            "valid": len(mismatches) == 0,
-            "assertions_found": len(assertions),
-            "assertions": [{"key": k, "value": v} for k, v in assertions],
-            "mismatches": [
-                {
-                    "key": m.key,
-                    "file_value": m.file_value,
-                    "lock_value": m.lock_value,
-                    "message": f"Convention mismatch: file declares {m.key}={m.file_value} but lock has {m.key}={m.lock_value}",
-                }
-                for m in mismatches
-            ],
+            "valid": False,
+            "assertions_found": 0,
+            "message": "No ASSERT_CONVENTION lines found. Every derivation file must include at least one.",
+            "mismatches": [],
+            "assertions": [],
         }
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("assert_convention_validate failed: %s", exc)
-        return {"error": str(exc)}
+
+    return {
+        "valid": len(mismatches) == 0,
+        "assertions_found": len(assertions),
+        "assertions": [{"key": k, "value": v} for k, v in assertions],
+        "mismatches": [
+            {
+                "key": m.key,
+                "file_value": m.file_value,
+                "lock_value": m.lock_value,
+                "message": f"Convention mismatch: file declares {m.key}={m.file_value} but lock has {m.key}={m.lock_value}",
+            }
+            for m in mismatches
+        ],
+    }
 
 
 @mcp.tool()
@@ -478,30 +458,26 @@ def subfield_defaults(domain: str) -> dict:
     algebraic_qft, string_field_theory, quantum_info, soft_matter, fluid_plasma,
     classical_mechanics.
     """
-    try:
-        with gpd_span("mcp.conventions.subfield_defaults", domain=domain):
-            defaults = SUBFIELD_DEFAULTS.get(domain)
-        if defaults is None:
-            return {
-                "found": False,
-                "domain": domain,
-                "available_domains": sorted(SUBFIELD_DEFAULTS.keys()),
-                "message": f"No defaults for domain '{domain}'.",
-            }
-
+    with gpd_span("mcp.conventions.subfield_defaults", domain=domain):
+        defaults = SUBFIELD_DEFAULTS.get(domain)
+    if defaults is None:
         return {
-            "found": True,
+            "found": False,
             "domain": domain,
-            "defaults": defaults,
-            "field_count": len(defaults),
-            "unset_fields": [f for f in KNOWN_CONVENTIONS if f not in defaults],
-            "message": (
-                f"Recommended conventions for {domain}. Sets {len(defaults)} of {len(KNOWN_CONVENTIONS)} standard fields."
-            ),
+            "available_domains": sorted(SUBFIELD_DEFAULTS.keys()),
+            "message": f"No defaults for domain '{domain}'.",
         }
-    except (GPDError, ValidationError, Exception) as exc:
-        logger.warning("subfield_defaults failed: %s", exc)
-        return {"error": str(exc)}
+
+    return {
+        "found": True,
+        "domain": domain,
+        "defaults": defaults,
+        "field_count": len(defaults),
+        "unset_fields": [f for f in KNOWN_CONVENTIONS if f not in defaults],
+        "message": (
+            f"Recommended conventions for {domain}. Sets {len(defaults)} of {len(KNOWN_CONVENTIONS)} standard fields."
+        ),
+    }
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

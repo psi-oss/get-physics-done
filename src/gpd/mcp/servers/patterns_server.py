@@ -55,27 +55,23 @@ def lookup_pattern(
         category: Filter by error category (e.g., "sign-error", "factor-error").
         keywords: Free-text search across titles, domains, categories, and tags.
     """
-    try:
-        with gpd_span("mcp.patterns.lookup", domain=domain or "", category=category or ""):
-            if keywords:
-                result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
-                return {
-                    "count": result.count,
-                    "patterns": [p.model_dump() for p in result.matches],
-                    "query": result.query,
-                    "library_exists": None,
-                }
-
-            result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
+    with gpd_span("mcp.patterns.lookup", domain=domain or "", category=category or ""):
+        if keywords:
+            result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
             return {
                 "count": result.count,
-                "patterns": [p.model_dump() for p in result.patterns],
-                "query": None,
-                "library_exists": result.library_exists,
+                "patterns": [p.model_dump() for p in result.matches],
+                "query": result.query,
+                "library_exists": None,
             }
-    except (GPDError, Exception) as exc:
-        logger.warning("lookup_pattern failed: %s", exc)
-        return {"error": str(exc)}
+
+        result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
+        return {
+            "count": result.count,
+            "patterns": [p.model_dump() for p in result.patterns],
+            "query": None,
+            "library_exists": result.library_exists,
+        }
 
 
 @mcp.tool()
@@ -102,22 +98,18 @@ def add_pattern(
         detection: How to detect this error.
         prevention: How to prevent it.
     """
-    try:
-        with gpd_span("mcp.patterns.add", domain=domain, category=category):
-            result = pattern_add(
-                domain=domain,
-                title=title,
-                category=category,
-                severity=severity,
-                description=description,
-                detection=detection,
-                prevention=prevention,
-                root=_DEFAULT_PATTERNS_ROOT,
-            )
-            return result.model_dump()
-    except (GPDError, Exception) as exc:
-        logger.warning("add_pattern failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.patterns.add", domain=domain, category=category):
+        result = pattern_add(
+            domain=domain,
+            title=title,
+            category=category,
+            severity=severity,
+            description=description,
+            detection=detection,
+            prevention=prevention,
+            root=_DEFAULT_PATTERNS_ROOT,
+        )
+        return result.model_dump()
 
 
 @mcp.tool()
@@ -130,13 +122,9 @@ def promote_pattern(pattern_id: str) -> dict:
     Args:
         pattern_id: Pattern ID (e.g., "qft-sign-error-fourier-convention-switch").
     """
-    try:
-        with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
-            result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
-            return result.model_dump()
-    except (GPDError, Exception) as exc:
-        logger.warning("promote_pattern failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
+        result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
+        return result.model_dump()
 
 
 @mcp.tool()
@@ -147,13 +135,9 @@ def seed_patterns() -> dict:
     convention pitfalls, and dimensional mistakes in QFT, condensed matter,
     and statistical mechanics. Idempotent — safe to call multiple times.
     """
-    try:
-        with gpd_span("mcp.patterns.seed"):
-            result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
-            return result.model_dump()
-    except (GPDError, Exception) as exc:
-        logger.warning("seed_patterns failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.patterns.seed"):
+        result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
+        return result.model_dump()
 
 
 @mcp.tool()

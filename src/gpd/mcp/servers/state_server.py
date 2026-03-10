@@ -42,15 +42,11 @@ def get_state(project_dir: str) -> dict:
         project_dir: Absolute path to the project root directory.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.get", phase=""):
-            state_obj = load_state_json(cwd)
-            if state_obj is None:
-                return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
-            return state_obj
-    except Exception as exc:
-        logger.warning("get_state failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.get", phase=""):
+        state_obj = load_state_json(cwd)
+        if state_obj is None:
+            return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
+        return state_obj
 
 
 @mcp.tool()
@@ -64,25 +60,21 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
     from gpd.core.phases import find_phase
 
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.phase_info", phase=phase):
-            info = find_phase(cwd, phase)
-            if info is None:
-                return {"error": f"Phase {phase} not found"}
-            plan_count = len(info.plans)
-            summary_count = len(info.summaries)
-            return {
-                "phase_number": info.phase_number,
-                "phase_name": info.phase_name,
-                "directory": info.directory,
-                "phase_slug": info.phase_slug,
-                "plan_count": plan_count,
-                "summary_count": summary_count,
-                "complete": plan_count > 0 and summary_count >= plan_count,
-            }
-    except Exception as exc:
-        logger.warning("get_phase_info failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.phase_info", phase=phase):
+        info = find_phase(cwd, phase)
+        if info is None:
+            return {"error": f"Phase {phase} not found"}
+        plan_count = len(info.plans)
+        summary_count = len(info.summaries)
+        return {
+            "phase_number": info.phase_number,
+            "phase_name": info.phase_name,
+            "directory": info.directory,
+            "phase_slug": info.phase_slug,
+            "plan_count": plan_count,
+            "summary_count": summary_count,
+            "complete": plan_count > 0 and summary_count >= plan_count,
+        }
 
 
 @mcp.tool()
@@ -95,12 +87,8 @@ def advance_plan(project_dir: str) -> dict:
         project_dir: Absolute path to the project root directory.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.advance_plan"):
-            return state_advance_plan(cwd).model_dump()
-    except Exception as exc:
-        logger.warning("advance_plan failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.advance_plan"):
+        return state_advance_plan(cwd).model_dump()
 
 
 @mcp.tool()
@@ -114,12 +102,8 @@ def get_progress(project_dir: str) -> dict:
         project_dir: Absolute path to the project root directory.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.progress"):
-            return state_update_progress(cwd).model_dump()
-    except Exception as exc:
-        logger.warning("get_progress failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.progress"):
+        return state_update_progress(cwd).model_dump()
 
 
 @mcp.tool()
@@ -133,13 +117,9 @@ def validate_state(project_dir: str) -> dict:
         project_dir: Absolute path to the project root directory.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.validate"):
-            result = state_validate(cwd)
-            return result.model_dump()
-    except Exception as exc:
-        logger.warning("validate_state failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.validate"):
+        result = state_validate(cwd)
+        return result.model_dump()
 
 
 @mcp.tool()
@@ -155,13 +135,9 @@ def run_health_check(project_dir: str, fix: bool = False) -> dict:
         fix: If True, attempt auto-fixes for common issues.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.health", fix=str(fix)):
-            report = run_health(cwd, fix=fix)
-            return report.model_dump()
-    except Exception as exc:
-        logger.warning("run_health_check failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.health", fix=str(fix)):
+        report = run_health(cwd, fix=fix)
+        return report.model_dump()
 
 
 @mcp.tool()
@@ -175,13 +151,9 @@ def get_config(project_dir: str) -> dict:
         project_dir: Absolute path to the project root directory.
     """
     cwd = Path(project_dir)
-    try:
-        with gpd_span("mcp.state.config"):
-            config = load_config(cwd)
-            return config.model_dump()
-    except Exception as exc:
-        logger.warning("get_config failed: %s", exc)
-        return {"error": str(exc)}
+    with gpd_span("mcp.state.config"):
+        config = load_config(cwd)
+        return config.model_dump()
 
 
 # ---------------------------------------------------------------------------

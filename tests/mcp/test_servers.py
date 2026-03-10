@@ -698,8 +698,8 @@ class TestStateServer:
         from gpd.mcp.servers.state_server import get_state
 
         with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
-            result = get_state("/fake/project")
-        assert result == {"error": "boom"}
+            with pytest.raises(GPDError, match="boom"):
+                get_state("/fake/project")
 
     def test_get_phase_info_found(self):
         from gpd.mcp.servers.state_server import get_phase_info

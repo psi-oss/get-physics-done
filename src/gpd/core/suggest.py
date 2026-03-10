@@ -182,8 +182,7 @@ def _load_config(cwd: Path) -> dict[str, object]:
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical loader)
     which validates the current config schema and nested config sections.
-    Falls back to built-in defaults on any error so
-    that suggest never crashes due to a bad config file.
+    Falls back to built-in defaults when the config file doesn't exist yet.
     """
     try:
         from gpd.core.config import load_config as _load_config_canonical
@@ -193,8 +192,10 @@ def _load_config(cwd: Path) -> dict[str, object]:
             "autonomy": str(cfg.autonomy.value),
             "research_mode": str(cfg.research_mode.value),
         }
-    except Exception:  # noqa: BLE001
-        logger.warning("suggest: canonical config load failed, using defaults", exc_info=True)
+    except (FileNotFoundError, OSError):
+        return dict(_CONFIG_DEFAULTS)
+    except ImportError:
+        logger.warning("suggest: config module not available, using defaults", exc_info=True)
         return dict(_CONFIG_DEFAULTS)
 
 
@@ -730,7 +731,7 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         from gpd.core.state import load_state_json
 
         return load_state_json(cwd)
-    except Exception:  # noqa: BLE001
+    except (FileNotFoundError, OSError, ImportError):
         logger.debug("suggest: state load failed", exc_info=True)
 
     # Fallback: direct JSON read

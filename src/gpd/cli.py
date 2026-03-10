@@ -1660,9 +1660,11 @@ def config_get(
     config_path = ProjectLayout(_get_cwd()).config_json
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
         _output({"key": key, "found": False})
         return
+    except json.JSONDecodeError as e:
+        _error(f"Malformed config.json: {e}")
     parts = key.split(".")
     current: object = raw
     for part in parts:
