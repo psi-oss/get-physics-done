@@ -244,6 +244,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-arxiv": "output",
     "gpd-graph": "visualization",
     "gpd-decisions": "status",
+    "gpd-error-propagation": "analysis",
     "gpd-error": "diagnostics",
     "gpd-sensitivity": "analysis",
     "gpd-numerical": "analysis",

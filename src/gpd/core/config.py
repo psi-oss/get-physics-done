@@ -327,6 +327,8 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         raw = config_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return GPDProjectConfig()
+    except (PermissionError, UnicodeDecodeError, OSError) as exc:
+        raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
 
     try:
         parsed = json.loads(raw)

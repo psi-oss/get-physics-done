@@ -1212,7 +1212,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             content = roadmap_path.read_text(encoding="utf-8")
 
             max_phase = 0
-            for m in re.finditer(r"###\s*Phase\s+(\d+)(?:\.\d+)?:", content, re.IGNORECASE):
+            for m in re.finditer(r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?:", content, re.IGNORECASE):
                 num = int(m.group(1))
                 if num > max_phase:
                     max_phase = num
@@ -1280,7 +1280,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             content = roadmap_path.read_text(encoding="utf-8")
 
             escaped = re.escape(after_phase)
-            if not re.search(rf"###\s*Phase\s+{escaped}:", content, re.IGNORECASE):
+            if not re.search(rf"#{{2,4}}\s*Phase\s+{escaped}:", content, re.IGNORECASE):
                 raise PhaseValidationError(f"Phase {after_phase} not found in ROADMAP.md")
 
             normalized_base = phase_normalize(after_phase)
@@ -1309,14 +1309,14 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                 f"- [ ] TBD (run plan-phase {decimal_phase} to break down)\n"
             )
 
-            header_pattern = re.compile(rf"(###\s*Phase\s+{escaped}:[^\n]*\n)", re.IGNORECASE)
+            header_pattern = re.compile(rf"(#{{2,4}}\s*Phase\s+{escaped}:[^\n]*\n)", re.IGNORECASE)
             header_match = header_pattern.search(content)
             if not header_match:
                 raise PhaseValidationError(f"Could not find Phase {after_phase} header")
 
             header_idx = content.index(header_match.group(0))
             after_header = content[header_idx + len(header_match.group(0)) :]
-            next_phase_match = re.search(r"\n###\s+Phase\s+\d", after_header, re.IGNORECASE)
+            next_phase_match = re.search(r"\n#{2,4}\s+Phase\s+\d", after_header, re.IGNORECASE)
 
             if next_phase_match:
                 insert_idx = header_idx + len(header_match.group(0)) + next_phase_match.start()
@@ -1395,7 +1395,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
             # Remove phase section
             section_pattern = re.compile(
-                rf"\n?###\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n###\s+Phase\s+\d|$)",
+                rf"\n?#{{2,4}}\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n#{{2,4}}\s+Phase\s+\d|$)",
                 re.IGNORECASE,
             )
             roadmap_content = section_pattern.sub("", roadmap_content)
@@ -1418,7 +1418,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             if not is_decimal:
                 removed_int = int(normalized)
                 roadmap_content = re.sub(
-                    r"(###\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
+                    r"(#{2,4}\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
                     lambda m: f"{m.group(1)}{_decrement_phase_reference(m.group(2), removed_int)}{m.group(3)}",
                     roadmap_content,
                     flags=re.IGNORECASE,
@@ -1769,7 +1769,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                     flags=re.IGNORECASE,
                 )
                 roadmap_content = re.sub(
-                    rf"(###\s*Phase\s+{roadmap_escaped}[\s\S]*?\*\*Plans:\*\*\s*)[^\n]+",
+                    rf"(#{{2,4}}\s*Phase\s+{roadmap_escaped}[\s\S]*?\*\*Plans:\*\*\s*)[^\n]+",
                     rf"\g<1>{summary_count}/{plan_count} plans complete",
                     roadmap_content,
                     flags=re.IGNORECASE,

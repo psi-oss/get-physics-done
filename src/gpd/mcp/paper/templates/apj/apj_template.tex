@@ -35,6 +35,7 @@
 \BLOCK{else}
 \begin{figure}
 \BLOCK{endif}
+\centering
 \includegraphics[width=\VAR{fig.width}]{\VAR{fig.path}}
 \caption{\VAR{fig.caption}}
 \label{fig:\VAR{fig.label}}
@@ -50,8 +51,6 @@
 \VAR{acknowledgments}
 \BLOCK{endif}
 
-\bibliography{\VAR{bib_file}}
-
 \BLOCK{if appendix_sections}
 \appendix
 \BLOCK{for section in appendix_sections}
@@ -60,6 +59,8 @@
 \VAR{section.content}
 \BLOCK{endfor}
 \BLOCK{endif}
+
+\bibliography{\VAR{bib_file}}
 
 \BLOCK{if attribution_footer}
 \begin{center}

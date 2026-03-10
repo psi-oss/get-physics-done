@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
     PLAN_SUFFIX,
-    PLANNING_DIR_NAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
     SUMMARY_SUFFIX,

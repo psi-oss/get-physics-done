@@ -278,12 +278,39 @@ _EMOJI_RE = re.compile(
     flags=re.UNICODE,
 )
 
+# Build a math-mode variant of the mapping that strips $...$ wrappers.
+# Inside math regions we need the bare command (e.g. \alpha), not $\alpha$.
+_DOLLAR_WRAP_RE = re.compile(r"^\$(.+)\$$")
+_UNICODE_TO_LATEX_MATH: dict[str, str] = {}
+for _char, _cmd in _UNICODE_TO_LATEX.items():
+    _m = _DOLLAR_WRAP_RE.match(_cmd)
+    _UNICODE_TO_LATEX_MATH[_char] = _m.group(1) if _m else _cmd
+
+
+def _apply_unicode_replacements(text: str, mapping: dict[str, str]) -> str:
+    """Replace Unicode characters in *text* using *mapping*."""
+    for char, cmd in mapping.items():
+        text = text.replace(char, cmd)
+    return text
+
 
 def sanitize_latex(latex: str) -> str:
-    """Convert Unicode chars to LaTeX commands and strip emojis."""
-    for char, cmd in _UNICODE_TO_LATEX.items():
-        latex = latex.replace(char, cmd)
-    return _EMOJI_RE.sub("", latex)
+    """Convert Unicode chars to LaTeX commands and strip emojis.
+
+    Math-mode-aware: inside existing ``$...$``, ``$$...$$``, ``\\[...\\]``,
+    ``\\(...\\)``, and ``\\begin{equation}``-style environments, Unicode
+    characters are replaced with bare LaTeX commands (no extra ``$``
+    delimiters).  Outside math mode the ``$...$``-wrapped forms are used so
+    the commands render correctly.
+    """
+    parts = _split_by_math_mode(latex)
+    result: list[str] = []
+    for segment, is_math in parts:
+        if is_math:
+            result.append(_apply_unicode_replacements(segment, _UNICODE_TO_LATEX_MATH))
+        else:
+            result.append(_apply_unicode_replacements(segment, _UNICODE_TO_LATEX))
+    return _EMOJI_RE.sub("", "".join(result))
 
 
 def clean_latex_fences(raw: str) -> str:

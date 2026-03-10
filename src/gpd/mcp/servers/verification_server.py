@@ -182,7 +182,7 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
 
         # Get domain-specific guidance
         domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
-        relevant_domain_checks = [c for c in domain_checks if check_id in c.get("check_ids", "")]
+        relevant_domain_checks = [c for c in domain_checks if check_id in c.get("check_ids", "").split(",")]
 
         # Scan artifact for obvious issues
         issues: list[str] = []
@@ -283,14 +283,22 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
         lhs_dims = _parse_dimensions(lhs_str)
         rhs_dims = _parse_dimensions(rhs_str)
 
+        no_annotations = all(v == 0 for v in lhs_dims.values()) and all(
+            v == 0 for v in rhs_dims.values()
+        )
         match = _dims_equal(lhs_dims, rhs_dims)
         result: dict[str, object] = {
             "expression": expr,
-            "valid": match,
+            "valid": match and not no_annotations,
+            "no_dimensions_found": no_annotations,
             "lhs_dimensions": {k: v for k, v in lhs_dims.items() if v != 0},
             "rhs_dimensions": {k: v for k, v in rhs_dims.items() if v != 0},
         }
-        if not match:
+        if no_annotations:
+            result["note"] = (
+                "No dimension annotations found — cannot verify"
+            )
+        elif not match:
             mismatches = {}
             for dim in set(lhs_dims.keys()) | set(rhs_dims.keys()):
                 lv = lhs_dims.get(dim, 0)
@@ -519,8 +527,15 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
         "recommendation": (
             "Full coverage"
             if len(uncovered) == 0 and len(partial) == 0
-            else f"{len(uncovered)} error classes have no active detection. "
-            f"Consider enabling checks: {sorted({c for u in uncovered for c in u.get('missing_checks', [])})}"
+            else (
+                f"{len(partial)} error classes have partial coverage. "
+                f"Consider enabling checks: {sorted({c for p in partial for c in p.get('missing_checks', [])})}"
+            )
+            if len(uncovered) == 0
+            else (
+                f"{len(uncovered)} error classes have no active detection. "
+                f"Consider enabling checks: {sorted({c for u in uncovered for c in u.get('missing_checks', [])} | {c for p in partial for c in p.get('missing_checks', [])})}"
+            )
         ),
     }
 
