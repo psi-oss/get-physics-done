@@ -125,7 +125,10 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
     assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
-    assert "==${packageVersion}" in content
+    assert 'const GITHUB_FALLBACK_BRANCH = "main"' in content
+    assert "==${version}" in content
+    assert "archive/refs/tags/v${version}.tar.gz" in content
+    assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
     assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
     assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in content
 
@@ -294,7 +297,10 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
         assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
-        assert "==${packageVersion}" in install_content
+        assert 'const GITHUB_FALLBACK_BRANCH = "main"' in install_content
+        assert "==${version}" in install_content
         assert '"-m", "venv"' in install_content
         assert '".gpd"' in install_content
+        assert "archive/refs/tags/v${version}.tar.gz" in install_content
+        assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in install_content
         assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in install_content

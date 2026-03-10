@@ -20,6 +20,8 @@ import stat
 import sys
 
 LOG_PATH = pathlib.Path({str(log_path)!r})
+FAIL_PYPI_RELEASE = os.environ.get("FAKE_PIP_FAIL_PYPI") == "1"
+FAIL_TAG_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_TAG_ARCHIVE") == "1"
 
 
 def record() -> None:
@@ -74,6 +76,16 @@ if args == ["-m", "ensurepip", "--upgrade"]:
     raise SystemExit(0)
 
 if args[:4] == ["-m", "pip", "install", "--upgrade"]:
+    target = args[-1]
+    if FAIL_PYPI_RELEASE and target == "get-physics-done==0.1.0":
+        record()
+        sys.stderr.write("ERROR: Could not find a version that satisfies the requirement get-physics-done==0.1.0 (from versions: none)\\n")
+        sys.stderr.write("ERROR: No matching distribution found for get-physics-done==0.1.0\\n")
+        raise SystemExit(1)
+    if FAIL_TAG_ARCHIVE and target.endswith("/archive/refs/tags/v0.1.0.tar.gz"):
+        record()
+        sys.stderr.write("ERROR: HTTP error 404 while getting tagged archive\\n")
+        raise SystemExit(1)
     record()
     raise SystemExit(0)
 
@@ -89,9 +101,7 @@ raise SystemExit(0)
     script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
-@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) -> None:
+def _run_bootstrap_with_fake_python(tmp_path: Path, *, extra_env: dict[str, str] | None = None) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
     repo_root = Path(__file__).resolve().parent.parent
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -106,6 +116,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     env["HOME"] = str(home)
     env["GPD_HOME"] = str(home / ".gpd")
     env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin), env.get("PATH", "")])
+    if extra_env:
+        env.update(extra_env)
 
     result = subprocess.run(
         ["node", "bin/install.js", "--codex", "--local"],
@@ -115,6 +127,14 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
         text=True,
         check=False,
     )
+
+    return result, home, log_path
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(tmp_path)
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
@@ -145,3 +165,27 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert (home / ".gpd" / "bin" / "gpd").exists()
     assert (home / ".local" / "bin" / "gpd").exists()
     assert "Shell CLI:           gpd view" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_missing(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={"FAKE_PIP_FAIL_PYPI": "1", "FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == [
+        "get-physics-done==0.1.0",
+        "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v0.1.0.tar.gz",
+        "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz",
+    ]
+    assert "PyPI install failed. Falling back to GitHub source archive for v0.1.0..." in result.stdout
+    assert "GitHub source archive for v0.1.0 failed. Falling back to current main branch source archive..." in result.stdout

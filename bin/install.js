@@ -15,12 +15,13 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const readline = require("readline");
-const { version: packageVersion } = require("../package.json");
+const { version: packageVersion, repository } = require("../package.json");
 
 const PYTHON_PACKAGE_NAME = "get-physics-done";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
 const LAUNCHER_MARKER = "Managed by Get Physics Done";
+const GITHUB_FALLBACK_BRANCH = "main";
 
 const RUNTIMES = {
   "claude-code": { name: "Claude Code" },
@@ -85,6 +86,65 @@ function checkPip(python) {
     return null;
   }
   return (result.stdout || result.stderr).trim();
+}
+
+function repositoryBaseUrl(repositoryField) {
+  const raw = typeof repositoryField === "string"
+    ? repositoryField
+    : repositoryField && typeof repositoryField.url === "string"
+      ? repositoryField.url
+      : "";
+  if (!raw) {
+    return null;
+  }
+
+  let normalized = raw.trim();
+  if (normalized.startsWith("git+")) {
+    normalized = normalized.slice(4);
+  }
+  if (normalized.startsWith("git@github.com:")) {
+    normalized = `https://github.com/${normalized.slice("git@github.com:".length)}`;
+  }
+  normalized = normalized.replace(/\.git$/i, "").replace(/\/+$/, "");
+  return normalized || null;
+}
+
+function githubSourceCandidates(version) {
+  const repoBaseUrl = repositoryBaseUrl(repository);
+  if (!repoBaseUrl) {
+    return [];
+  }
+
+  return [
+    {
+      label: `GitHub source archive for v${version}`,
+      spec: `${repoBaseUrl}/archive/refs/tags/v${version}.tar.gz`,
+    },
+    {
+      label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
+      spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
+    },
+  ];
+}
+
+function runPipInstall(python, spec, env) {
+  const result = spawnSync(
+    python,
+    ["-m", "pip", "install", "--upgrade", spec],
+    {
+      encoding: "utf-8",
+      env,
+    }
+  );
+
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+
+  return result;
 }
 
 function gpdHomeDir() {
@@ -233,6 +293,29 @@ function ensureManagedEnvironment(basePython) {
   return { gpdHome, venvDir, python: managedPython };
 }
 
+function installManagedPackage(python, version) {
+  const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${version}`;
+  const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
+
+  log(`Installing ${pythonPackageSpec} into the managed environment...`);
+  let installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv);
+  if (installResult.status === 0) {
+    return { ok: true, pythonPackageSpec };
+  }
+
+  const fallbacks = githubSourceCandidates(version);
+  for (const [index, candidate] of fallbacks.entries()) {
+    const previousLabel = index === 0 ? "PyPI install" : fallbacks[index - 1].label;
+    log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+    installResult = runPipInstall(python, candidate.spec, pipInstallEnv);
+    if (installResult.status === 0) {
+      return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
+    }
+  }
+
+  return { ok: false, pythonPackageSpec };
+}
+
 async function prompt(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -266,19 +349,9 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${packageVersion}`;
-
-  log(`Installing ${pythonPackageSpec} into the managed environment...`);
-  const packageResult = spawnSync(
-    managedEnv.python,
-    ["-m", "pip", "install", "--upgrade", pythonPackageSpec],
-    {
-      stdio: "inherit",
-      env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
-    }
-  );
-  if (packageResult.status !== 0) {
-    error(`Failed to install ${pythonPackageSpec}.`);
+  const packageInstall = installManagedPackage(managedEnv.python, packageVersion);
+  if (!packageInstall.ok) {
+    error(`Failed to install ${packageInstall.pythonPackageSpec}.`);
     process.exit(1);
   }
 
