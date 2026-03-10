@@ -806,7 +806,7 @@ Evaluate across all 10 dimensions with emphasis on:
 4. Literature context -- proper citations, comparison with prior work
 5. Publishability -- overall assessment for {target_journal}
 
-Write report to .gpd/REFEREE-REPORT.md
+Write `.gpd/REFEREE-REPORT.md` and the matching `.gpd/REFEREE-REPORT.tex` companion.
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )

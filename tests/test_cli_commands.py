@@ -384,6 +384,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:write-paper"
         assert payload["review_contract"]["review_mode"] == "publication"
+        assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
 
     def test_review_contract_peer_review_uses_typed_registry_surface(self) -> None:
@@ -398,6 +399,7 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:peer-review"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/REFEREE-REPORT.md" in payload["review_contract"]["required_outputs"]
+        assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == [
             "project_state",
             "roadmap",
@@ -604,6 +606,27 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is True
         assert "resolved to" in checks["manuscript"]["detail"]
+
+    def test_review_preflight_peer_review_directory_uses_lexicographic_fallback_without_main_file(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "main.tex").unlink()
+        (paper_dir / "z-notes.tex").write_text("\\section{Notes}\n", encoding="utf-8")
+        (paper_dir / "a-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "a-appendix.md" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_strict_blocks_dirty_bibliography_audit(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"

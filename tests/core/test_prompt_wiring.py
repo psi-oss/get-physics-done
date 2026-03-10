@@ -10,6 +10,193 @@ from gpd import registry
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
+
+COMMAND_SPAWN_TOKENS = {
+    "literature-review.md": ["gpd-literature-reviewer"],
+    "debug.md": ["gpd-debugger"],
+    "map-theory.md": ["gpd-theory-mapper"],
+    "plan-phase.md": ["gpd-planner", "gpd-plan-checker"],
+    "quick.md": ["gpd-planner", "gpd-executor"],
+    "research-phase.md": ["gpd-phase-researcher"],
+    "write-paper.md": ["gpd-paper-writer", "gpd-bibliographer", "gpd-referee"],
+    "peer-review.md": ["gpd-referee"],
+}
+
+WORKFLOW_SPAWN_TOKENS = {
+    "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker", "gpd-experiment-designer"],
+    "execute-phase.md": [
+        "gpd-executor",
+        "gpd-debugger",
+        "gpd-verifier",
+        "gpd-consistency-checker",
+        "gpd-notation-coordinator",
+        "gpd-experiment-designer",
+    ],
+    "verify-work.md": ["gpd-planner", "gpd-plan-checker"],
+    "write-paper.md": ["gpd-paper-writer", "gpd-bibliographer", "gpd-referee"],
+    "new-project.md": [
+        "gpd-project-researcher",
+        "gpd-research-synthesizer",
+        "gpd-roadmapper",
+        "gpd-notation-coordinator",
+    ],
+    "new-milestone.md": ["gpd-project-researcher", "gpd-research-synthesizer", "gpd-roadmapper"],
+}
+
+AGENT_REFERENCE_TOKENS = {
+    "gpd-bibliographer.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/publication/publication-pipeline-modes.md",
+        "templates/notation-glossary.md",
+        "references/publication/bibtex-standards.md",
+    ],
+    "gpd-consistency-checker.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/shared/cross-project-patterns.md",
+        "references/examples/contradiction-resolution-example.md",
+        "references/verification/meta/verification-hierarchy-mapping.md",
+        "templates/uncertainty-budget.md",
+        "templates/conventions.md",
+    ],
+    "gpd-debugger.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/shared/cross-project-patterns.md",
+        "workflows/record-insight.md",
+    ],
+    "gpd-executor.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/shared/cross-project-patterns.md",
+        "references/tooling/tool-integration.md",
+        "references/execution/executor-index.md",
+        "references/execution/executor-subfield-guide.md",
+        "references/execution/executor-deviation-rules.md",
+        "references/execution/executor-verification-flows.md",
+        "references/execution/executor-task-checkpoints.md",
+        "references/execution/executor-completion.md",
+        "references/execution/executor-worked-example.md",
+        "references/protocols/order-of-limits.md",
+        "references/methods/approximation-selection.md",
+        "references/verification/errors/llm-physics-errors.md",
+        "references/verification/core/code-testing-physics.md",
+        "references/orchestration/checkpoints.md",
+        "templates/state-machine.md",
+        "templates/summary.md",
+        "templates/calculation-log.md",
+    ],
+    "gpd-experiment-designer.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/examples/ising-experiment-design-example.md",
+    ],
+    "gpd-notation-coordinator.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/conventions/subfield-convention-defaults.md",
+        "templates/conventions.md",
+    ],
+    "gpd-paper-writer.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/publication/publication-pipeline-modes.md",
+        "templates/notation-glossary.md",
+        "templates/latex-preamble.md",
+        "references/publication/figure-generation-templates.md",
+    ],
+    "gpd-phase-researcher.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/research/research-modes.md",
+    ],
+    "gpd-plan-checker.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+    ],
+    "gpd-planner.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "templates/planner-subagent-prompt.md",
+        "templates/phase-prompt.md",
+        "templates/parameter-table.md",
+        "templates/summary.md",
+        "workflows/execute-plan.md",
+        "references/protocols/order-of-limits.md",
+        "references/methods/approximation-selection.md",
+        "references/verification/core/code-testing-physics.md",
+        "references/orchestration/checkpoints.md",
+        "references/planning/planner-conventions.md",
+        "references/planning/planner-approximations.md",
+        "references/planning/planner-scope-examples.md",
+        "references/planning/planner-tdd.md",
+        "references/planning/planner-iterative.md",
+        "references/protocols/hypothesis-driven-research.md",
+    ],
+    "gpd-project-researcher.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/research/research-modes.md",
+    ],
+    "gpd-referee.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/publication/publication-pipeline-modes.md",
+        "templates/paper/referee-report.tex",
+    ],
+    "gpd-research-synthesizer.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "templates/research-project/SUMMARY.md",
+    ],
+    "gpd-roadmapper.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "templates/roadmap.md",
+        "templates/state.md",
+    ],
+    "gpd-theory-mapper.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "references/templates/theory-mapper/FORMALISM.md",
+        "references/templates/theory-mapper/REFERENCES.md",
+        "references/templates/theory-mapper/ARCHITECTURE.md",
+        "references/templates/theory-mapper/STRUCTURE.md",
+        "references/templates/theory-mapper/CONVENTIONS.md",
+        "references/templates/theory-mapper/VALIDATION.md",
+        "references/templates/theory-mapper/CONCERNS.md",
+    ],
+    "gpd-verifier.md": [
+        "references/shared/shared-protocols.md",
+        "references/physics-subfields.md",
+        "references/verification/core/verification-core.md",
+        "references/research/research-modes.md",
+        "references/verification/meta/verification-hierarchy-mapping.md",
+        "references/verification/core/computational-verification-templates.md",
+    ],
+}
+
+
+def _assert_contains_tokens(path: Path, tokens: list[str]) -> None:
+    content = path.read_text(encoding="utf-8")
+    missing = [token for token in tokens if token not in content]
+    assert missing == [], f"{path.relative_to(REPO_ROOT)} missing {missing}"
 
 
 def test_planner_templates_exist():
@@ -22,6 +209,14 @@ def test_planner_templates_exist():
     assert "template_version: 1" in phase_prompt.read_text(encoding="utf-8")
     assert "<planning_context>" in planner_prompt.read_text(encoding="utf-8")
     assert "must_haves:" in phase_prompt.read_text(encoding="utf-8")
+
+
+def test_referee_latex_template_exists() -> None:
+    referee_template = TEMPLATES_DIR / "paper" / "referee-report.tex"
+    assert referee_template.exists()
+    content = referee_template.read_text(encoding="utf-8")
+    assert "template_version: 1" in content
+    assert "\\RecommendationBadge" in content
 
 
 def test_prompt_sources_do_not_use_stale_agent_install_paths():
@@ -59,6 +254,31 @@ def test_workflow_task_prompts_do_not_embed_at_references() -> None:
     assert invalid == []
 
 
+def test_commands_reference_same_stem_workflows() -> None:
+    workflow_stems = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
+
+    for command_path in sorted(COMMANDS_DIR.glob("*.md")):
+        if command_path.stem not in workflow_stems:
+            continue
+        expected = f"@{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
+        assert expected in command_path.read_text(encoding="utf-8"), command_path
+
+
+def test_commands_reference_expected_spawn_agents() -> None:
+    for command_name, agent_tokens in COMMAND_SPAWN_TOKENS.items():
+        _assert_contains_tokens(COMMANDS_DIR / command_name, agent_tokens)
+
+
+def test_workflows_reference_expected_spawn_agents() -> None:
+    for workflow_name, agent_tokens in WORKFLOW_SPAWN_TOKENS.items():
+        _assert_contains_tokens(WORKFLOWS_DIR / workflow_name, agent_tokens)
+
+
+def test_agents_reference_expected_shared_specs() -> None:
+    for agent_name, reference_tokens in AGENT_REFERENCE_TOKENS.items():
+        _assert_contains_tokens(AGENTS_DIR / agent_name, reference_tokens)
+
+
 def test_review_commands_expose_typed_contracts() -> None:
     write_paper = registry.get_command("gpd:write-paper")
     peer_review = registry.get_command("peer-review")
@@ -68,10 +288,12 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert write_paper.review_contract is not None
     assert write_paper.review_contract.review_mode == "publication"
     assert "artifact manifest" in write_paper.review_contract.required_evidence
+    assert ".gpd/REFEREE-REPORT.tex" in write_paper.review_contract.required_outputs
 
     assert peer_review.review_contract is not None
     assert peer_review.review_contract.review_mode == "publication"
     assert ".gpd/REFEREE-REPORT.md" in peer_review.review_contract.required_outputs
+    assert ".gpd/REFEREE-REPORT.tex" in peer_review.review_contract.required_outputs
     assert "manuscript" in peer_review.review_contract.preflight_checks
 
     assert verify_work.review_contract is not None

@@ -124,7 +124,7 @@ def _parse_str_list(raw: object) -> list[str]:
 _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
     "gpd:write-paper": {
         "review_mode": "publication",
-        "required_outputs": ["paper/main.tex", ".gpd/REFEREE-REPORT.md"],
+        "required_outputs": ["paper/main.tex", ".gpd/REFEREE-REPORT.md", ".gpd/REFEREE-REPORT.tex"],
         "required_evidence": [
             "phase summaries or milestone digest",
             "verification reports",
@@ -157,7 +157,7 @@ _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
     },
     "gpd:peer-review": {
         "review_mode": "publication",
-        "required_outputs": [".gpd/REFEREE-REPORT.md", ".gpd/CONSISTENCY-REPORT.md"],
+        "required_outputs": [".gpd/REFEREE-REPORT.md", ".gpd/REFEREE-REPORT.tex", ".gpd/CONSISTENCY-REPORT.md"],
         "required_evidence": [
             "existing manuscript",
             "phase summaries or milestone digest",

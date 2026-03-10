@@ -548,7 +548,7 @@ Run standalone skeptical peer review on an existing manuscript.
 - Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
 - Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
 - Spawns gpd-referee as a dedicated manuscript reviewer
-- Produces `.gpd/REFEREE-REPORT.md` (or revision-round follow-up reports)
+- Produces `.gpd/REFEREE-REPORT.md` plus `.gpd/REFEREE-REPORT.tex` (or revision-round follow-up pairs)
 - Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
 
 Usage: `/gpd:peer-review`

@@ -64,7 +64,7 @@ The workflow handles all logic including:
 - [ ] Manuscript target located or explicitly resolved from arguments
 - [ ] Review preflight passed or blocking issues were surfaced clearly
 - [ ] gpd-referee spawned with manuscript and supporting artifacts
-- [ ] `.gpd/REFEREE-REPORT.md` or `.gpd/REFEREE-REPORT-R{N}.md` created
+- [ ] `.gpd/REFEREE-REPORT.md` or `.gpd/REFEREE-REPORT-R{N}.md` created with matching `.tex` companion
 - [ ] `.gpd/CONSISTENCY-REPORT.md` created when supported by the referee workflow
 - [ ] Recommendation, issue counts, and actionable next steps presented
 - [ ] Revision rounds respected if prior author responses already exist

@@ -1,6 +1,6 @@
 ---
 name: gpd-referee
-description: Reads completed research as skeptical journal referee. Challenges claims, finds holes, evaluates novelty, generates mock referee report. Does not modify research files — writes only REFEREE-REPORT.md and CONSISTENCY-REPORT.md.
+description: Reads completed research as skeptical journal referee. Challenges claims, finds holes, evaluates novelty, generates mock referee report. Does not modify research files — writes only REFEREE-REPORT.md, REFEREE-REPORT.tex, and CONSISTENCY-REPORT.md.
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: red
 ---
@@ -38,6 +38,7 @@ Your job: Read the research as if you are reviewing it for a top journal. Find e
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` -- Mode adaptation for referee strictness, scope of critique, and recommendation thresholds by autonomy and research_mode (load when reviewing for paper submission)
+- `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex` -- Canonical polished LaTeX companion template for the default referee-report `.tex` artifact
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
@@ -1088,7 +1089,17 @@ Organize findings:
 
 ## Referee Report Structure
 
-Create `.gpd/REFEREE-REPORT.md`:
+Create `.gpd/REFEREE-REPORT.md` as the canonical machine-readable artifact.
+Also create `.gpd/REFEREE-REPORT.tex` as the default polished presentation artifact using `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
+
+Keep the two files semantically aligned:
+
+- Same recommendation, confidence, issue counts, issue IDs, and major section ordering
+- Same major/minor issue titles and remediation guidance
+- Markdown remains the source of truth for the YAML `actionable_items` block
+- LaTeX should render the same issue IDs and action matrix in presentation-friendly tables/boxes
+
+Markdown structure:
 
 ```markdown
 ---
@@ -1515,7 +1526,12 @@ The round 3 report must explicitly state: "This is the final review round. My re
 
 ### Revision Report Format
 
-Create `.gpd/REFEREE-REPORT-R{N}.md`:
+Create `.gpd/REFEREE-REPORT-R{N}.md` as the canonical revision-round artifact.
+Also create `.gpd/REFEREE-REPORT-R{N}.tex` using the same LaTeX template adapted for revision-round headings and resolution-tracker sections.
+
+Keep the Markdown and LaTeX revision reports aligned on recommendation, round number, issue IDs, and remaining actionable items.
+
+Markdown structure:
 
 ```markdown
 ---
@@ -1601,7 +1617,7 @@ _Reviewer: AI assistant (gpd-referee)_
 - [ ] New/modified content checked for dimensional consistency, limiting cases, and notation consistency
 - [ ] Unchanged content NOT re-evaluated (reduced scope)
 - [ ] New issues from revisions identified and flagged
-- [ ] Round N+1 report written with issue resolution tracker
+- [ ] Round N+1 markdown and LaTeX reports written with issue resolution tracker
 - [ ] Final recommendation provided (mandatory for round 3)
 - [ ] Actionable items include round provenance (`from_round` field)
 

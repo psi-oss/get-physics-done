@@ -168,7 +168,7 @@ Plus full markdown report with tables for requirements, phases, consistency, ope
 
 ## 7. Optional: Mock Peer Review
 
-If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps.
+If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps, with a canonical Markdown report plus a polished LaTeX companion artifact.
 
 **Check config or ask user:**
 
@@ -228,7 +228,7 @@ Evaluate across all 10 dimensions:
 9. Presentation quality -- organization, figures
 10. Publishability -- overall assessment
 
-Write report to .gpd/REFEREE-REPORT.md
+Write `.gpd/REFEREE-REPORT.md` and the matching `.gpd/REFEREE-REPORT.tex` companion.
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )
@@ -247,6 +247,7 @@ Read the report and include a summary in the presented results:
 **Major issues:** {N}
 **Minor issues:** {N}
 **Report:** .gpd/REFEREE-REPORT.md
+**LaTeX report:** .gpd/REFEREE-REPORT.tex
 
 {2-3 sentence summary of key findings}
 ```

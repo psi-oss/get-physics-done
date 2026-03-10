@@ -133,6 +133,7 @@ Evaluate across all 10 dimensions with emphasis on:
 5. Publishability -- whether the manuscript is ready, needs revision, or should be rejected
 
 Write `.gpd/REFEREE-REPORT.md` (or the next revision-round report if prior author responses exist).
+Also write the matching `.gpd/REFEREE-REPORT.tex` companion for the same round.
 Also write `.gpd/CONSISTENCY-REPORT.md` when applicable.
 
 Return REVIEW COMPLETE with recommendation, confidence, and issue counts.",
@@ -167,6 +168,7 @@ Present:
 **Major issues:** {N}
 **Minor issues:** {M}
 **Report:** {path}
+**LaTeX report:** {path or "not written"}
 **Consistency report:** {path or "not written"}
 ```
 </step>

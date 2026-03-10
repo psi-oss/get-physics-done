@@ -222,6 +222,7 @@ class TestParseCommandFile:
             "manuscript",
         ]
         assert ".gpd/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
+        assert ".gpd/REFEREE-REPORT.tex" in cmd.review_contract.required_outputs
 
 
 class TestEncodingEdgeCases:
