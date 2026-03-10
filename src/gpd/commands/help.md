@@ -50,8 +50,9 @@ Output this and STOP (do not display the full reference):
 7. `/gpd:help --all` — Full command reference
 
 **Workflow:** new-project → plan-phase → execute-phase → verify-work → repeat → complete-milestone
+**Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
 
-Run `/gpd:help --all` for all 58 commands.
+Run `/gpd:help --all` for all 59 commands.
 
 --- END of default output. STOP here. ---
 
@@ -516,6 +517,18 @@ Structure and write a physics paper from research results.
 
 Usage: `/gpd:write-paper "Critical exponents via RG"`
 Usage: `/gpd:write-paper --from-phases 1,3,5` (subset of phases)
+
+**`/gpd:peer-review [paper directory or manuscript path]`**
+Run standalone skeptical peer review on an existing manuscript.
+
+- Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
+- Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
+- Spawns gpd-referee as a dedicated manuscript reviewer
+- Produces `.gpd/REFEREE-REPORT.md` (or revision-round follow-up reports)
+- Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
+
+Usage: `/gpd:peer-review`
+Usage: `/gpd:peer-review paper/`
 
 **`/gpd:respond-to-referees`**
 Structure point-by-point response to referee reports and revise the manuscript.

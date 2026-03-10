@@ -43,6 +43,20 @@ Phase {N} complete:
   /gpd:complete-milestone   — If all phases done
 ```
 
+**Manuscript exists, no referee report yet:**
+```
+Publication workflow:
+  /gpd:peer-review         — Run standalone peer review on the manuscript
+  /gpd:arxiv-submission    — Package only after review passes
+```
+
+**Referee report exists:**
+```
+Revision workflow:
+  /gpd:respond-to-referees — Draft responses and revise the manuscript
+  /gpd:peer-review         — Re-run peer review after revision
+```
+
 For full command reference: `/gpd:help --all`
 </step>
 
@@ -66,6 +80,9 @@ Project ─── the overall research goal
 4. `/gpd:verify-work` — Verify physics correctness
 5. Repeat 2-4 for each phase
 6. `/gpd:write-paper` — Generate publication from results
+7. `/gpd:peer-review` — Run standalone manuscript review before submission
+8. `/gpd:respond-to-referees` — Address reviewer comments if needed
+9. `/gpd:arxiv-submission` — Package the approved manuscript
 
 **Example:** Studying the 3D Ising critical exponent:
 - Phase 1: Set up Wolff cluster MC algorithm
@@ -524,6 +541,18 @@ Structure and write a physics paper from research results.
 
 Usage: `/gpd:write-paper "Critical exponents via RG"`
 Usage: `/gpd:write-paper --from-phases 1,3,5` (subset of phases)
+
+**`/gpd:peer-review [paper directory or manuscript path]`**
+Run standalone skeptical peer review on an existing manuscript.
+
+- Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
+- Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
+- Spawns gpd-referee as a dedicated manuscript reviewer
+- Produces `.gpd/REFEREE-REPORT.md` (or revision-round follow-up reports)
+- Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
+
+Usage: `/gpd:peer-review`
+Usage: `/gpd:peer-review paper/`
 
 **`/gpd:respond-to-referees`**
 Structure point-by-point response to referee reports and revise the manuscript.

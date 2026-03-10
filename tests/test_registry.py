@@ -203,6 +203,25 @@ class TestParseCommandFile:
         assert cmd.name == "extra"
         assert cmd.content == "Body."
 
+    def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:
+        f = tmp_path / "peer-review.md"
+        f.write_text(
+            "---\nname: gpd:peer-review\ndescription: Peer review\nrequires:\n  files: [\"paper/*.tex\"]\n---\nBody.",
+            encoding="utf-8",
+        )
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.review_contract is not None
+        assert cmd.review_contract.review_mode == "publication"
+        assert "existing manuscript" in cmd.review_contract.required_evidence
+        assert cmd.review_contract.preflight_checks == [
+            "project_state",
+            "roadmap",
+            "conventions",
+            "research_artifacts",
+            "manuscript",
+        ]
+
 
 class TestEncodingEdgeCases:
     """Tests for files with encoding issues."""
@@ -504,6 +523,24 @@ class TestPublicAPI:
         registry.invalidate_cache()
 
         assert registry.list_skills() == ["gpd-debugger", "gpd-plan-phase"]
+
+    def test_list_review_commands_returns_only_review_commands(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "peer-review.md").write_text(
+            "---\nname: gpd:peer-review\ndescription: Peer review\n---\nReview body.",
+            encoding="utf-8",
+        )
+        (commands_dir / "debug.md").write_text(
+            "---\nname: gpd:debug\ndescription: Debug\n---\nDebug body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        assert registry.list_review_commands() == ["gpd:peer-review"]
 
     def test_get_agent_returns_correct_def(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"

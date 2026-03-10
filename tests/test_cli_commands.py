@@ -122,6 +122,8 @@ def gpd_project(tmp_path: Path) -> Path:
                 "verification_steps": ["rerun", "compare", "inspect"],
                 "minimum_viable": "1 core",
                 "recommended": "2 cores",
+                "last_verified": "2026-03-10T00:00:00+00:00",
+                "last_verified_platform": "macOS-15-arm64",
                 "random_seeds": [],
                 "seeding_strategy": "",
             }
@@ -384,6 +386,26 @@ class TestReviewValidationCommands:
         assert payload["review_contract"]["review_mode"] == "publication"
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
 
+    def test_review_contract_peer_review_uses_typed_registry_surface(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-contract", "peer-review"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["review_contract"]["review_mode"] == "publication"
+        assert ".gpd/REFEREE-REPORT.md" in payload["review_contract"]["required_outputs"]
+        assert payload["review_contract"]["preflight_checks"] == [
+            "project_state",
+            "roadmap",
+            "conventions",
+            "research_artifacts",
+            "manuscript",
+        ]
+
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,
@@ -404,6 +426,30 @@ class TestReviewValidationCommands:
             "research_artifacts",
             "verification_reports",
         } <= check_names
+
+    def test_review_preflight_peer_review_strict(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["passed"] is True
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["project_state"]["passed"] is True
+        assert checks["state_integrity"]["passed"] is True
+        assert checks["roadmap"]["passed"] is True
+        assert checks["research_artifacts"]["passed"] is True
+        assert checks["verification_reports"]["passed"] is True
+        assert checks["manuscript"]["passed"] is True
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["bibliography_audit_clean"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+        assert checks["reproducibility_ready"]["passed"] is True
 
     def test_review_preflight_strict_blocks_review_integrity_failures(self, gpd_project: Path) -> None:
         planning = gpd_project / ".gpd"
@@ -469,6 +515,85 @@ class TestReviewValidationCommands:
         assert payload["passed"] is False
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
+
+    def test_review_preflight_peer_review_fails_without_manuscript(self, gpd_project: Path) -> None:
+        (gpd_project / "paper" / "main.tex").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["passed"] is False
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is False
+
+    def test_review_preflight_peer_review_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "ARTIFACT-MANIFEST.json").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["artifact_manifest"]["passed"] is False
+
+    def test_review_preflight_peer_review_strict_blocks_dirty_bibliography_audit(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+            json.dumps(
+                {
+                    "generated_at": "2026-03-10T00:00:00+00:00",
+                    "total_sources": 2,
+                    "resolved_sources": 1,
+                    "partial_sources": 1,
+                    "unverified_sources": 0,
+                    "failed_sources": 0,
+                    "entries": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["bibliography_audit_clean"]["passed"] is False
+
+    def test_review_preflight_peer_review_strict_blocks_non_ready_reproducibility_manifest(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        manifest = json.loads((paper_dir / "reproducibility-manifest.json").read_text(encoding="utf-8"))
+        manifest["last_verified"] = ""
+        manifest["last_verified_platform"] = ""
+        (paper_dir / "reproducibility-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["reproducibility_manifest"]["passed"] is True
+        assert checks["reproducibility_ready"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"

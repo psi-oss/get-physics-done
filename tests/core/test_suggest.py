@@ -290,30 +290,33 @@ def test_missing_conventions_suggest_set(tmp_path: Path) -> None:
 # ─── Paper Pipeline ────────────────────────────────────────────────────────────
 
 
-def test_paper_exists_suggests_submission(tmp_path: Path) -> None:
-    """Paper draft suggests arXiv submission."""
+def test_paper_exists_suggests_peer_review_before_submission(tmp_path: Path) -> None:
+    """Paper draft suggests peer review before arXiv submission."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     (root / "paper").mkdir()
     (root / "paper" / "main.tex").write_text("\\documentclass{article}\n")
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
+    assert "peer-review" in actions
     assert "arxiv-submission" in actions
+    peer_review = next(s for s in result.suggestions if s.action == "peer-review")
+    arxiv_submission = next(s for s in result.suggestions if s.action == "arxiv-submission")
+    assert peer_review.priority < arxiv_submission.priority
     assert result.context.has_paper is True
 
 
-def test_referee_report_suggests_response(tmp_path: Path) -> None:
-    """Referee report suggests responding to referees."""
+def test_referee_report_in_planning_root_suggests_response(tmp_path: Path) -> None:
+    """Referee report in .gpd suggests responding to referees."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     (root / "paper").mkdir()
     (root / "paper" / "main.tex").write_text("\\documentclass{article}\n")
-    paper_dir = root / ".gpd" / "paper"
-    paper_dir.mkdir()
-    (paper_dir / "REFEREE-REPORT-1.md").write_text("Major revision needed.\n")
+    (root / ".gpd" / "REFEREE-REPORT.md").write_text("Major revision needed.\n")
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
     assert "respond-to-referees" in actions
+    assert "peer-review" not in actions
     assert "arxiv-submission" not in actions  # referee response takes precedence
 
 

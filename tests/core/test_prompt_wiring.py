@@ -61,12 +61,18 @@ def test_workflow_task_prompts_do_not_embed_at_references() -> None:
 
 def test_review_commands_expose_typed_contracts() -> None:
     write_paper = registry.get_command("gpd:write-paper")
+    peer_review = registry.get_command("peer-review")
     verify_work = registry.get_command("verify-work")
     respond_to_referees = registry.get_command("respond-to-referees")
 
     assert write_paper.review_contract is not None
     assert write_paper.review_contract.review_mode == "publication"
     assert "artifact manifest" in write_paper.review_contract.required_evidence
+
+    assert peer_review.review_contract is not None
+    assert peer_review.review_contract.review_mode == "publication"
+    assert ".gpd/REFEREE-REPORT.md" in peer_review.review_contract.required_outputs
+    assert "manuscript" in peer_review.review_contract.preflight_checks
 
     assert verify_work.review_contract is not None
     assert verify_work.review_contract.required_state == "phase_executed"
@@ -75,3 +81,4 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert respond_to_referees.review_contract is not None
     assert "structured referee issues" in respond_to_referees.review_contract.required_evidence
     assert "gpd:write-paper" in registry.list_review_commands()
+    assert "gpd:peer-review" in registry.list_review_commands()

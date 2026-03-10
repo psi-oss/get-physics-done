@@ -139,6 +139,10 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `/gpd:progress` | Show project state and recommend the next step |
 | `/gpd:discuss-phase N` | Explore a phase before committing to a plan |
 | `/gpd:quick` | Run a smaller task with a lighter workflow |
+| `/gpd:write-paper` | Draft a manuscript from completed research artifacts |
+| `/gpd:peer-review` | Run standalone peer review on a manuscript before submission |
+| `/gpd:respond-to-referees` | Structure referee responses and revise the manuscript |
+| `/gpd:arxiv-submission` | Validate and package the manuscript for arXiv |
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
 

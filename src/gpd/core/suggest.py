@@ -295,10 +295,11 @@ def _has_literature_review(cwd: Path) -> bool:
 
 def _has_referee_report(cwd: Path) -> bool:
     """Check if any referee report files exist."""
-    paper_dir = _planning_dir(cwd) / "paper"
-    if not paper_dir.is_dir():
-        return False
-    return any(f.name.startswith("REFEREE") for f in paper_dir.iterdir() if f.is_file())
+    candidate_dirs = (_planning_dir(cwd), _planning_dir(cwd) / "paper")
+    for directory in candidate_dirs:
+        if directory.is_dir() and any(f.name.startswith("REFEREE-REPORT") for f in directory.iterdir() if f.is_file()):
+            return True
+    return False
 
 
 def _has_paper(cwd: Path) -> bool:
@@ -659,6 +660,14 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 )
             )
         else:
+            suggestions.append(
+                _MutableRecommendation(
+                    action="peer-review",
+                    priority=4,
+                    command=_format_command("peer-review"),
+                    reason="Paper draft exists — run standalone peer review before submission packaging",
+                )
+            )
             suggestions.append(
                 _MutableRecommendation(
                     action="arxiv-submission",

@@ -572,6 +572,7 @@ class TestSkillsServerIntegration:
         # Spot-check known skills
         assert "gpd-debug" in names or "gpd-debugger" in names
         assert "gpd-discover" in names
+        assert "gpd-peer-review" in names
 
         # Each skill has expected shape
         for skill in result["skills"]:
@@ -639,6 +640,15 @@ class TestSkillsServerIntegration:
         assert result["suggestion"] == "gpd-execute-phase"
         assert result["confidence"] > 0
 
+    def test_route_skill_selects_peer_review(self):
+        from gpd.mcp.servers.skills_server import route_skill
+
+        result = route_skill("peer review this manuscript like a referee")
+
+        assert isinstance(result, dict)
+        assert result["suggestion"] == "gpd-peer-review"
+        assert result["confidence"] > 0
+
     def test_get_skill_index_complete(self):
         from gpd.mcp.servers.skills_server import get_skill_index
 
@@ -648,4 +658,5 @@ class TestSkillsServerIntegration:
         assert result["total_skills"] > 10
         assert "index_text" in result
         assert "/gpd:" in result["index_text"]
+        assert "/gpd:peer-review" in result["index_text"]
         assert len(result["categories"]) > 3

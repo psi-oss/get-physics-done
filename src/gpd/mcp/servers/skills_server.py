@@ -129,6 +129,7 @@ def route_skill(task_description: str) -> dict:
             "gpd-debug": ["debug", "fix", "investigate", "error", "bug"],
             "gpd-new-project": ["new", "create", "initialize", "start", "project"],
             "gpd-write-paper": ["write", "paper", "draft", "manuscript"],
+            "gpd-peer-review": ["peer", "referee", "reviewer", "manuscript"],
             "gpd-literature-review": ["literature", "review", "papers", "citations", "references"],
             "gpd-progress": ["progress", "status", "where", "current"],
             "gpd-derive-equation": ["derive", "equation", "calculate", "computation"],
