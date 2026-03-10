@@ -28,10 +28,16 @@ npx github:physicalsuperintelligence/get-physics-done
 
 That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
 
-If you want to skip the prompts, pass the runtime and scope directly:
+If you want to skip the prompts, pass the runtime selection and scope directly:
 
 ```bash
 npx github:physicalsuperintelligence/get-physics-done --claude --global
+```
+
+To install every supported runtime in one pass:
+
+```bash
+npx github:physicalsuperintelligence/get-physics-done --all --global
 ```
 
 For a project-local install instead of a global one:
@@ -42,7 +48,7 @@ npx github:physicalsuperintelligence/get-physics-done --codex --local
 
 ## Supported Runtimes
 
-GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag:
+GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
 
 | Runtime | `npx` flag | Help command | Start command |
 |---------|------------|--------------|---------------|

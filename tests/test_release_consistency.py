@@ -144,13 +144,18 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
     assert "`--gemini`" in readme
     assert "`--codex`" in readme
     assert "`--opencode`" in readme
+    assert "`--all`" in readme
+    assert "npx github:physicalsuperintelligence/get-physics-done --all --global" in readme
     assert "npx github:physicalsuperintelligence/get-physics-done --codex --local" in content
     assert "npx github:physicalsuperintelligence/get-physics-done --opencode --global" in content
+    assert 'args.includes("--all")' in content
     assert 'args.includes("--claude")' in content
     assert 'args.includes("--gemini")' in content
     assert 'args.includes(`--${key}`)' in content
-    assert '"codex": { name: "Codex" }' in content
-    assert '"opencode": { name: "OpenCode" }' in content
+    assert '"codex": {' in content
+    assert 'name: "Codex"' in content
+    assert '"opencode": {' in content
+    assert 'name: "OpenCode"' in content
 
 
 def test_export_workflow_uses_release_attribution_footer() -> None:

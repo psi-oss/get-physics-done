@@ -111,7 +111,12 @@ raise SystemExit(0)
     script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _run_bootstrap_with_fake_python(tmp_path: Path, *, extra_env: dict[str, str] | None = None) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
+def _run_bootstrap_with_fake_python(
+    tmp_path: Path,
+    *,
+    installer_args: list[str] | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
     repo_root = Path(__file__).resolve().parent.parent
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -130,7 +135,7 @@ def _run_bootstrap_with_fake_python(tmp_path: Path, *, extra_env: dict[str, str]
         env.update(extra_env)
 
     result = subprocess.run(
-        ["node", "bin/install.js", "--codex", "--local"],
+        ["node", "bin/install.js", *(installer_args or ["--codex", "--local"])],
         cwd=repo_root,
         env=env,
         capture_output=True,
@@ -174,7 +179,28 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
     assert (home / ".gpd" / "bin" / "gpd").exists()
     assert (home / ".local" / "bin" / "gpd").exists()
-    assert "Shell CLI:           gpd view" in result.stdout
+    assert "Installed GPD for Codex (local)." in result.stdout
+    assert "$gpd-new-project" in result.stdout
+    assert "gpd view" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(tmp_path, installer_args=["--all", "--global"])
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "--all", "--global"]
+    ]
+
+    assert len(managed_runtime_installs) == 1
+    assert "Claude Code" in result.stdout
+    assert "Gemini CLI" in result.stdout
+    assert "Codex" in result.stdout
+    assert "OpenCode" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
