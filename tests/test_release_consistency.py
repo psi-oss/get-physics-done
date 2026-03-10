@@ -30,12 +30,12 @@ def _project_script_lines(repo_root: Path) -> list[str]:
     return script_lines
 
 
-def _public_release_version(repo_root: Path) -> str:
+def _python_release_version(repo_root: Path) -> str:
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert package_json["version"] == pyproject["project"]["version"]
-    return str(package_json["version"])
+    assert package_json["gpdPythonVersion"] == pyproject["project"]["version"]
+    return str(pyproject["project"]["version"])
 
 
 def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Path, Path]:
@@ -129,17 +129,22 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert 'require("../package.json")' in content
+    assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
     assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
     assert 'const GITHUB_FALLBACK_BRANCH = "main"' in content
+    assert "matchingPythonReleaseInstallCandidate" in content
+    assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
     assert "==${version}" in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
     assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
+    assert "git+${repoSshUrl}@v${version}" in content
+    assert "git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}" in content
     assert "git+${repoGitUrl}@v${version}" in content
     assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in content
     assert "function repositoryGitUrl(" in content
-    assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
+    assert "function repositorySshGitUrl(" in content
 
 
 def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None:
@@ -357,7 +362,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
 
 def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path: Path) -> None:
     repo_root = _repo_root()
-    version = _public_release_version(repo_root)
+    version = _python_release_version(repo_root)
     wheel, sdist = _build_public_release_artifacts(repo_root, tmp_path / "dist")
     wheel_template_paths, sdist_template_paths = _paper_template_paths(repo_root)
 
@@ -388,12 +393,16 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert install_js is not None
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
+        assert "gpdPythonVersion" in install_content
         assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
         assert 'const GITHUB_FALLBACK_BRANCH = "main"' in install_content
+        assert "matchingPythonReleaseInstallCandidate" in install_content
         assert "==${version}" in install_content
         assert '"-m", "venv"' in install_content
         assert '".gpd"' in install_content
         assert "archive/refs/tags/v${version}.tar.gz" in install_content
         assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in install_content
+        assert "git+${repoSshUrl}@v${version}" in install_content
+        assert "git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
         assert "git+${repoGitUrl}@v${version}" in install_content
         assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
