@@ -245,6 +245,57 @@ class TestHistoryDigest:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 4b. observe
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestObserve:
+    def test_observe_sessions_filters_by_command(self) -> None:
+        _invoke("timestamp")
+        result = _invoke("--raw", "observe", "sessions", "--command", "timestamp")
+        parsed = json.loads(result.output)
+        assert parsed["count"] >= 1
+        assert all(session["command"] == "timestamp" for session in parsed["sessions"])
+
+    def test_observe_show_filters_by_session(self) -> None:
+        _invoke("timestamp")
+        sessions = json.loads(_invoke("--raw", "observe", "sessions", "--command", "timestamp").output)
+        session_id = sessions["sessions"][0]["session_id"]
+        result = _invoke("--raw", "observe", "show", "--session", session_id, "--category", "cli")
+        parsed = json.loads(result.output)
+        assert parsed["count"] >= 1
+        assert all(event["session_id"] == session_id for event in parsed["events"])
+        assert all(event["category"] == "cli" for event in parsed["events"])
+
+    def test_observe_event_writes_custom_event(self) -> None:
+        result = _invoke(
+            "--raw",
+            "observe",
+            "event",
+            "workflow",
+            "wave-start",
+            "--action",
+            "start",
+            "--status",
+            "active",
+            "--command",
+            "execute-phase",
+            "--phase",
+            "01",
+            "--plan",
+            "01",
+            "--data",
+            '{"wave": 1}',
+        )
+        parsed = json.loads(result.output)
+        assert parsed["category"] == "workflow"
+        assert parsed["name"] == "wave-start"
+        observed = json.loads(_invoke("--raw", "observe", "show", "--category", "workflow", "--name", "wave-start").output)
+        assert observed["count"] >= 1
+        assert any(event.get("data", {}).get("wave") == 1 for event in observed["events"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 5. regression-check
 # ═══════════════════════════════════════════════════════════════════════════
 

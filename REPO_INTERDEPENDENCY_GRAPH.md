@@ -1,0 +1,1171 @@
+# Repository Interdependency Graph
+
+Generated on `2026-03-10` from the current worktree.
+
+## Status
+
+This is the rebuilt root graph artifact for the repo. It is designed to be the concrete dependency map, while [REPO_INTERDEPENDENCY_GRAPH_AUDIT.md](/Users/sergio/GitHub/get-physics-done/REPO_INTERDEPENDENCY_GRAPH_AUDIT.md) remains the companion document that records where absolute completeness is not statically provable.
+
+This graph therefore includes:
+
+- canonical in-repo source edges
+- installed and mirrored artifact edges
+- generated-output nodes used by build and test contracts
+- external package, binary, service, and CI action nodes where they are operationally authoritative
+- conditional and candidate-set edges where the code does not resolve to a single fixed file
+
+## Scope
+
+- Live repo files analyzed in the current tree: `904`
+- Python files under `src/` and `tests/`: `147`
+- `src/gpd/commands/*.md`: `59`
+- `src/gpd/agents/*.md`: `17`
+- `src/gpd/specs/workflows/*.md`: `60`
+- `src/gpd/specs/templates/**/*.md`: `65`
+- `src/gpd/specs/references/**/*.md`: `155`
+- `src/gpd/adapters/*.py`: `8`
+- `src/gpd/hooks/*.py`: `5`
+- `src/gpd/mcp/servers/*.py`: `8`
+- `tests/**` files: `85`
+- `.claude/commands/gpd/*.md`: `58`
+- `.claude/agents/*.md`: `17`
+- `.claude/get-physics-done/workflows/**/*.md`: `59`
+- `.claude/get-physics-done/templates/**/*.md`: `65`
+- `.claude/get-physics-done/references/**/*.md`: `154`
+- `infra/gpd-*.json`: `8`
+
+Excluded as noise from node counting, but still modeled where contractually relevant:
+
+- `.git/**`
+- `__pycache__/**`
+- `.venv/**`
+- `.pytest_cache/**`
+- `.mypy_cache/**`
+- `.ruff_cache/**`
+
+Generated-output families are modeled when code or tests depend on them:
+
+- `dist/*.whl`
+- `dist/*.tar.gz`
+- `<workspace>/.gpd/**`
+- runtime config files and caches
+- paper build outputs such as `paper.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
+
+## Edge Taxonomy
+
+| Edge Type | Meaning |
+| --- | --- |
+| `hard-import` | Normal Python import or direct module dependency |
+| `package-data-load` | Runtime file loaded from package data, often via `importlib.resources` |
+| `authority` | Canonical source-of-truth relation, such as packaging metadata or descriptor builder |
+| `materialized` | Install-time copied or rewritten output |
+| `partial-ownership` | File or tree is selectively managed, not wholly owned |
+| `config-mutation` | Only specific config keys/sections are added, updated, or removed |
+| `semantic` | Policy or behavioral dependency expressed in docs/config rather than code import form |
+| `spawn` | One unit launches another unit or subprocess |
+| `conditional-spawn` | Spawn active only under a branch, severity gate, optional mode, or detected gap |
+| `include` | Explicit markdown include or prompt include |
+| `conditional-include` | Include/reference active only under a branch, severity gate, or selector |
+| `candidate-set` | Ordered family of possible paths rather than one fixed path |
+| `external-package` | Python package dependency |
+| `external-binary` | System binary dependency |
+| `external-service` | Network endpoint or remote authority |
+| `generated-output` | Build/test/runtime generated artifact |
+| `manifest-contract` | Test or runtime contract over manifest structure, hashes, or tracked cleanup |
+| `negative-packaging-contract` | Contract that a file/dependency must be excluded from shipped artifacts |
+| `count-contract` | Contract over counts, field cardinality, registry totals, or inventory shape |
+| `ordering-contract` | Contract that depends on a specific ordering or precedence rule |
+| `schema-contains` | Schema/model contains another schema/model as a typed field |
+| `schema-canonicalizes` | Schema is used to normalize persisted data before writing |
+| `schema-derived-constant` | Constants or field lists derived from schema structure |
+| `entity-id-ref` | Object graph linked by IDs inside serialized data |
+| `decorator-wrap` | Runtime behavior changed via decorator application |
+| `span-context` | Runtime behavior instrumented through direct span context blocks |
+| `golden-fixture-contract` | Tests depend on curated fixture corpora as canonical truth tables |
+| `typed-roundtrip` | Tests or runtime paths validate typed serialize/deserialize normalization |
+| `mention` | Weak text/path mention; low confidence compared with operational edges |
+
+## High-Level Graph
+
+```mermaid
+flowchart TD
+    package_json[package.json] --> install_js[bin/install.js]
+    pyproject[pyproject.toml] --> cli[src/gpd/cli.py]
+    pyproject --> mcp_scripts[src/gpd/mcp/servers/*.py]
+    install_js --> cli
+    cli --> core[src/gpd/core/*.py]
+    cli --> adapters[src/gpd/adapters/*.py]
+    cli --> hooks[src/gpd/hooks/*.py]
+    cli --> paper[src/gpd/mcp/paper/*.py]
+    registry[src/gpd/registry.py] --> commands[src/gpd/commands/*.md]
+    registry --> agents[src/gpd/agents/*.md]
+    commands --> workflows[src/gpd/specs/workflows/*.md]
+    workflows --> templates[src/gpd/specs/templates/**/*.md]
+    workflows --> refs[src/gpd/specs/references/**/*.md]
+    workflows --> agents
+    adapters --> claude_snapshot[.claude/**]
+    adapters --> runtime_cfg[external runtime configs]
+    hooks --> runtime_cfg
+    hooks --> workspace_state[external .gpd/**]
+    builtin[src/gpd/mcp/builtin_servers.py] --> infra[infra/gpd-*.json]
+    paper --> paper_outputs[generated paper/build outputs]
+    tests[tests/**] --> cli
+    tests --> core
+    tests --> adapters
+    tests --> paper
+    ci[.github/workflows/test.yml] --> tests
+    ci --> pyproject
+    ci --> gh_actions[external GitHub Actions]
+```
+
+## Canonical Authority Chains
+
+- `package.json -> bin/install.js`
+  `authority`
+  npm/bootstrap surface; `bin/install.js` reads package version and repository metadata.
+
+- `bin/install.js -> package.json`
+  `package-data-load`
+
+- `bin/install.js -> src/gpd/cli.py`
+  `spawn`
+  The Node installer ultimately hands off to `python -m gpd.cli install ...`.
+
+- `bin/install.js -> external Python package {get-physics-done}`
+  `external-package`
+
+- `bin/install.js -> GitHub source archive candidate family {https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v<version>.tar.gz, https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz}`
+  `external-service`
+
+- `bin/install.js -> GitHub git candidate family {git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main}`
+  `external-service`
+
+- `bin/install.js -> external binaries {node, python3, python, git}`
+  `external-binary`
+
+- `bin/install.js -> ${GPD_HOME:-~/.gpd}/venv/**`
+  `generated-output`
+
+- `pyproject.toml -> src/gpd/cli.py`
+  `authority`
+  Python console-script authority for `gpd`.
+
+- `pyproject.toml -> src/gpd/mcp/servers/*.py`
+  `authority`
+  Console-script authority for `gpd-mcp-*` entrypoints.
+
+- `src/gpd/version.py -> pyproject.toml`
+  `authority`
+  Fallback version source when installed metadata is unavailable.
+
+- `pyproject.toml -> external Python packages {typer, rich, pydantic, PyYAML, logfire, mcp[cli], pytest, pytest-asyncio, hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
+  `external-package`
+
+- `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`
+  `authority`
+  Canonical descriptor builder for committed MCP descriptors.
+
+- `README.md -> CONTRIBUTING.md`
+  `authority`
+  Public docs split between user-facing and contributor-facing flows.
+
+## Root, Build, Release, and Governance Surface
+
+- `README.md -> .github/workflows/test.yml`
+  `mention`
+  CI badge link only; weaker than execution or packaging edges.
+
+- `.github/workflows/test.yml -> tests/**`
+  `authority`
+  Runs `uv run pytest tests/ -v` across the whole test tree.
+
+- `.github/workflows/test.yml -> pyproject.toml`
+  `authority`
+  The workflow uses project dependency metadata via `uv sync --dev`.
+
+- `.github/workflows/test.yml -> uv.lock`
+  `authority`
+  Locked dependency resolution surface for CI.
+
+- `.github/workflows/test.yml -> actions/checkout@v4`
+  `external-service`
+
+- `.github/workflows/test.yml -> actions/setup-python@v5`
+  `external-service`
+
+- `.github/workflows/test.yml -> astral-sh/setup-uv@v4`
+  `external-service`
+
+- `.github/pull_request_template.md -> src/**`
+  `partial-ownership`
+  PR policy requires source changes to carry tests and docs implications.
+
+- `.github/pull_request_template.md -> tests/**`
+  `partial-ownership`
+
+- `.github/pull_request_template.md -> README.md`
+  `partial-ownership`
+
+- `.github/ISSUE_TEMPLATE/bug_report.yml -> src/gpd/cli.py`
+  `semantic`
+  Reporter is asked for `gpd --version`.
+
+- `.github/ISSUE_TEMPLATE/bug_report.yml -> pyproject.toml`
+  `semantic`
+  Public package metadata and version surface.
+
+- `.github/ISSUE_TEMPLATE/bug_report.yml -> package.json`
+  `semantic`
+
+- `.github/ISSUE_TEMPLATE/feature_request.yml -> src/gpd/cli.py`
+  `semantic`
+
+- `.github/ISSUE_TEMPLATE/feature_request.yml -> src/gpd/commands/**`
+  `semantic`
+
+- `CONTRIBUTING.md -> src/gpd/mcp/builtin_servers.py`
+  `authority`
+  Contributor docs explicitly require keeping descriptors in sync with the canonical builder.
+
+- `CONTRIBUTING.md -> infra/gpd-*.json`
+  `authority`
+
+## CLI, Core Runtime, Schema, and Object Layers
+
+- `src/gpd/cli.py -> src/gpd/core/*.py`
+  `hard-import` plus `candidate-set`
+  The CLI is a dynamic router over core modules and over on-disk project layout under `<cwd>/.gpd/**`.
+
+- `src/gpd/cli.py -> external project-layout family <cwd>/.gpd/{state.json,STATE.md,config.json,phases/**,milestones/**,traces/**}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> ordered paper-config candidate family {paper,manuscript,draft,.gpd/paper}/{PAPER-CONFIG.json,paper-config.json}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> ordered paper-config candidate family {paper,manuscript,draft,.gpd/paper}/{PAPER-CONFIG.json,paper-config.json}`
+  `ordering-contract`
+  `_resolve_existing_input_path()` returns the first existing config from the declared candidate order.
+
+- `src/gpd/cli.py -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> peer-review manuscript candidate family {target/main.tex, target/main.md, lexicographically first direct *.tex/*.md fallback}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> peer-review manuscript candidate family {target/main.tex, target/main.md, lexicographically first direct *.tex/*.md fallback}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> bibliography candidate family {config_path.parent, output_dir, <cwd>/references}/{<bib_stem>.bib}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> bibliography candidate family {config_path.parent, output_dir, <cwd>/references}/{<bib_stem>.bib}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> strict review artifact manifest candidates {manuscript.parent/ARTIFACT-MANIFEST.json, <cwd>/.gpd/paper/ARTIFACT-MANIFEST.json}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> strict review artifact manifest candidates {manuscript.parent/ARTIFACT-MANIFEST.json, <cwd>/.gpd/paper/ARTIFACT-MANIFEST.json}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> strict review bibliography audit candidates {manuscript.parent/BIBLIOGRAPHY-AUDIT.json, <cwd>/.gpd/paper/BIBLIOGRAPHY-AUDIT.json}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> strict review bibliography audit candidates {manuscript.parent/BIBLIOGRAPHY-AUDIT.json, <cwd>/.gpd/paper/BIBLIOGRAPHY-AUDIT.json}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> strict review reproducibility manifest candidates {manuscript.parent/reproducibility-manifest.json, manuscript.parent/REPRODUCIBILITY-MANIFEST.json, <cwd>/.gpd/paper/reproducibility-manifest.json}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> strict review reproducibility manifest candidates {manuscript.parent/reproducibility-manifest.json, manuscript.parent/REPRODUCIBILITY-MANIFEST.json, <cwd>/.gpd/paper/reproducibility-manifest.json}`
+  `ordering-contract`
+
+- `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> src/gpd/adapters/__init__.py`
+  `hard-import`
+
+- `src/gpd/cli.py -> src/gpd/mcp/paper/models.py`
+  `hard-import`
+
+- `src/gpd/cli.py -> src/gpd/mcp/paper/bibliography.py`
+  `hard-import`
+
+- `src/gpd/cli.py -> src/gpd/mcp/paper/compiler.py`
+  `hard-import`
+
+- `src/gpd/core/state.py -> src/gpd/contracts.py`
+  `schema-contains`
+  `ResearchState` contains `ConventionLock` and related typed state structures.
+
+- `src/gpd/core/state.py -> src/gpd/core/results.py`
+  `schema-contains`
+  `ResearchState.intermediate_results` contains `IntermediateResult | str`.
+
+- `src/gpd/core/state.py -> state.json`
+  `schema-canonicalizes`
+
+- `src/gpd/core/state.py -> STATE.md`
+  `schema-canonicalizes`
+
+- `src/gpd/core/state.py -> state.json.bak`
+  `generated-output`
+
+- `src/gpd/core/results.py -> src/gpd/contracts.py`
+  `schema-contains`
+  `IntermediateResult` uses `VerificationEvidence`.
+
+- `src/gpd/core/results.py -> src/gpd/core/results.py::{IntermediateResult, MissingDep}`
+  `schema-contains`
+  `ResultDeps.result/direct_deps/transitive_deps` contain typed result/dependency records.
+
+- `src/gpd/core/results.py -> IntermediateResult.depends_on`
+  `entity-id-ref`
+  Internal result graph by ID, not by file path.
+
+- `src/gpd/core/state.py -> src/gpd/core/results.py::IntermediateResult.id`
+  `entity-id-ref`
+  `state_validate()` resolves `depends_on[*]` as references to concrete result IDs.
+
+- `src/gpd/core/conventions.py -> src/gpd/core/conventions.py::{ConventionEntry, ConventionDiff}`
+  `schema-contains`
+  Convention list/check/diff result models are nested typed structures, not flat dicts.
+
+- `src/gpd/mcp/paper/models.py -> BibliographyAudit -> ArtifactManifest -> ArtifactRecord -> ArtifactSourceRef`
+  `schema-contains`
+
+- `src/gpd/mcp/paper/models.py -> src/gpd/mcp/paper/models.py::{Author, Section, FigureRef, ArtifactManifest}`
+  `schema-contains`
+
+- `src/gpd/mcp/paper/models.py -> src/gpd/mcp/paper/bibliography.py::BibliographyAudit`
+  `schema-contains`
+
+- `src/gpd/mcp/paper/models.py -> PaperOutput`
+  `schema-canonicalizes`
+  Paper-layer typed outputs normalize emitted manifest/audit structures.
+
+- `src/gpd/contracts.py -> src/gpd/core/conventions.py`
+  `schema-derived-constant`
+  `ConventionLock.model_fields` drives known-convention lists and related counts.
+
+- `src/gpd/contracts.py -> src/gpd/core/state.py`
+  `schema-derived-constant`
+
+- `src/gpd/contracts.py -> tests/test_metadata_consistency.py`
+  `count-contract`
+
+- `src/gpd/core/observability.py -> src/gpd/core/*.py`
+  `decorator-wrap`
+  Runtime behavior changed through decorator application.
+
+- `src/gpd/core/observability.py -> src/gpd/core/state.py`
+  `decorator-wrap`
+
+- `src/gpd/core/observability.py -> src/gpd/core/results.py`
+  `decorator-wrap`
+
+- `src/gpd/core/observability.py -> src/gpd/core/conventions.py`
+  `decorator-wrap`
+
+- `src/gpd/core/observability.py -> src/gpd/core/phases.py`
+  `span-context`
+
+- `src/gpd/core/observability.py -> src/gpd/core/health.py`
+  `span-context`
+
+- `src/gpd/core/observability.py -> src/gpd/adapters/*.py`
+  `span-context`
+
+- `src/gpd/core/observability.py -> src/gpd/mcp/servers/*.py`
+  `span-context`
+
+## Registry, Commands, Agents, Workflows, Templates, and References
+
+- `src/gpd/registry.py -> src/gpd/commands/*.md`
+  `authority`
+  Canonical parser for command prompt definitions.
+
+- `src/gpd/registry.py -> src/gpd/agents/*.md`
+  `authority`
+  Canonical parser for agent prompt definitions.
+
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,estimate-cost,execute-phase,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+  `include`
+  Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+
+- `src/gpd/commands/literature-review.md -> src/gpd/agents/gpd-literature-reviewer.md`
+  `spawn`
+
+- `src/gpd/commands/debug.md -> src/gpd/agents/gpd-debugger.md`
+  `spawn`
+
+- `src/gpd/commands/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
+  `spawn`
+
+- `src/gpd/commands/plan-phase.md -> src/gpd/agents/{gpd-planner,gpd-plan-checker}.md`
+  `spawn`
+
+- `src/gpd/commands/quick.md -> src/gpd/agents/{gpd-planner,gpd-executor}.md`
+  `spawn`
+
+- `src/gpd/commands/research-phase.md -> src/gpd/agents/gpd-phase-researcher.md`
+  `spawn`
+
+- `src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-referee}.md`
+  `spawn`
+
+- `src/gpd/commands/peer-review.md -> src/gpd/agents/gpd-referee.md`
+  `spawn`
+
+- `src/gpd/commands/new-project.md -> src/gpd/specs/workflows/new-project.md`
+  `include`
+
+- `src/gpd/commands/new-project.md -> src/gpd/specs/references/research/questioning.md`
+  `include`
+
+- `src/gpd/commands/new-project.md -> src/gpd/specs/references/ui/ui-brand.md`
+  `include`
+
+- `src/gpd/commands/new-project.md -> src/gpd/specs/templates/project.md`
+  `include`
+
+- `src/gpd/commands/new-project.md -> src/gpd/specs/templates/requirements.md`
+  `include`
+
+- `src/gpd/commands/new-milestone.md -> src/gpd/specs/workflows/new-milestone.md`
+  `include`
+
+- `src/gpd/commands/new-milestone.md -> src/gpd/specs/references/research/questioning.md`
+  `include`
+
+- `src/gpd/commands/new-milestone.md -> src/gpd/specs/references/ui/ui-brand.md`
+  `include`
+
+- `src/gpd/commands/new-milestone.md -> src/gpd/specs/templates/project.md`
+  `include`
+
+- `src/gpd/commands/new-milestone.md -> src/gpd/specs/templates/requirements.md`
+  `include`
+
+- `src/gpd/commands/discuss-phase.md -> src/gpd/specs/templates/context.md`
+  `include`
+
+- `src/gpd/commands/complete-milestone.md -> src/gpd/specs/templates/milestone-archive.md`
+  `include`
+
+- `src/gpd/commands/execute-phase.md -> src/gpd/specs/references/ui/ui-brand.md`
+  `include`
+
+- `src/gpd/commands/plan-phase.md -> src/gpd/specs/references/ui/ui-brand.md`
+  `include`
+
+- `src/gpd/commands/research-phase.md -> src/gpd/specs/references/orchestration/model-profile-resolution.md`
+  `include`
+
+- `src/gpd/commands/verify-work.md -> src/gpd/specs/references/verification/core/verification-core.md`
+  `include`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-phase-researcher.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-planner.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-plan-checker.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-experiment-designer.md`
+  `conditional-spawn`
+  Only when numerical indicators or mode require it.
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/specs/templates/planner-subagent-prompt.md`
+  `include`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/specs/templates/phase-prompt.md`
+  `include`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/specs/references/ui/ui-brand.md`
+  `include`
+
+- `src/gpd/specs/workflows/plan-phase.md -> src/gpd/specs/references/orchestration/context-budget.md`
+  `include`
+
+- `src/gpd/agents/gpd-planner.md -> src/gpd/specs/templates/planner-subagent-prompt.md`
+  `include`
+
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/shared/shared-protocols.md`
+  `include`
+
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
+  `include`
+
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
+  `include`
+
+- `src/gpd/agents/{gpd-consistency-checker,gpd-debugger,gpd-plan-checker,gpd-planner,gpd-referee,gpd-verifier}.md -> src/gpd/specs/references/verification/core/verification-core.md`
+  `include`
+
+- `src/gpd/agents/{gpd-bibliographer,gpd-paper-writer,gpd-referee}.md -> src/gpd/specs/references/publication/publication-pipeline-modes.md`
+  `include`
+
+- `src/gpd/agents/{gpd-phase-researcher,gpd-project-researcher,gpd-verifier}.md -> src/gpd/specs/references/research/research-modes.md`
+  `include`
+
+- `src/gpd/agents/{gpd-consistency-checker,gpd-debugger,gpd-executor}.md -> src/gpd/specs/references/shared/cross-project-patterns.md`
+  `include`
+
+- `src/gpd/agents/gpd-bibliographer.md -> src/gpd/specs/{templates/notation-glossary.md,references/publication/bibtex-standards.md}`
+  `include`
+
+- `src/gpd/agents/gpd-consistency-checker.md -> src/gpd/specs/{references/examples/contradiction-resolution-example.md,references/verification/meta/verification-hierarchy-mapping.md,templates/uncertainty-budget.md,templates/conventions.md}`
+  `include`
+
+- `src/gpd/agents/gpd-debugger.md -> src/gpd/specs/workflows/record-insight.md`
+  `include`
+
+- `src/gpd/agents/gpd-experiment-designer.md -> src/gpd/specs/references/examples/ising-experiment-design-example.md`
+  `include`
+
+- `src/gpd/agents/gpd-notation-coordinator.md -> src/gpd/specs/{references/conventions/subfield-convention-defaults.md,templates/conventions.md}`
+  `include`
+
+- `src/gpd/agents/gpd-paper-writer.md -> src/gpd/specs/{templates/notation-glossary.md,templates/latex-preamble.md,references/publication/figure-generation-templates.md}`
+  `include`
+
+- `src/gpd/agents/gpd-planner.md -> src/gpd/specs/{templates/phase-prompt.md,templates/parameter-table.md,templates/summary.md,workflows/execute-plan.md,references/protocols/order-of-limits.md,references/methods/approximation-selection.md,references/verification/core/code-testing-physics.md,references/orchestration/checkpoints.md,references/planning/planner-conventions.md,references/planning/planner-approximations.md,references/planning/planner-scope-examples.md,references/planning/planner-tdd.md,references/planning/planner-iterative.md,references/protocols/hypothesis-driven-research.md}`
+  `include`
+
+- `src/gpd/agents/gpd-executor.md -> src/gpd/specs/{references/tooling/tool-integration.md,references/execution/executor-index.md,references/execution/executor-subfield-guide.md,references/execution/executor-deviation-rules.md,references/execution/executor-verification-flows.md,references/execution/executor-task-checkpoints.md,references/execution/executor-completion.md,references/execution/executor-worked-example.md,references/protocols/order-of-limits.md,references/methods/approximation-selection.md,references/verification/errors/llm-physics-errors.md,references/verification/core/code-testing-physics.md,references/orchestration/checkpoints.md,templates/state-machine.md,templates/summary.md,templates/calculation-log.md}`
+  `include`
+
+- `src/gpd/agents/gpd-research-synthesizer.md -> src/gpd/specs/templates/research-project/SUMMARY.md`
+  `include`
+
+- `src/gpd/agents/gpd-roadmapper.md -> src/gpd/specs/templates/{roadmap.md,state.md}`
+  `include`
+
+- `src/gpd/agents/gpd-roadmapper.md -> src/gpd/specs/templates/project-types/{qft-calculation,algebraic-qft,conformal-bootstrap,string-field-theory,stat-mech-simulation}.md`
+  `conditional-include`
+  Selector family with explicit statically named candidates.
+
+- `src/gpd/agents/gpd-verifier.md -> src/gpd/specs/{references/verification/meta/verification-hierarchy-mapping.md,references/verification/core/computational-verification-templates.md,references/verification/domains/verification-domain-{qft,condmat,statmech,gr-cosmology,amo,nuclear-particle,astrophysics,fluid-plasma,mathematical-physics,algebraic-qft,string-field-theory,quantum-info,soft-matter}.md}`
+  `include`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/workflows/execute-plan.md`
+  `include`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/workflows/verify-phase.md`
+  `include`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/workflows/transition.md`
+  `include`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-executor.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-debugger.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-verifier.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-consistency-checker.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-notation-coordinator.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-experiment-designer.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}`
+  `include`
+
+- `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
+  `include`
+
+- `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/{references/execution/git-integration.md,references/execution/execute-plan-recovery.md,references/execution/execute-plan-validation.md,references/execution/execute-plan-checkpoints.md,references/protocols/reproducibility.md,references/execution/executor-index.md,references/orchestration/context-budget.md,references/orchestration/checkpoints.md,templates/summary.md}`
+  `include`
+
+- `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/templates/calculation-log.md`
+  `include`
+
+- `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/templates/recovery-plan.md`
+  `include`
+
+- `src/gpd/specs/workflows/verify-phase.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
+  `include`
+
+- `src/gpd/specs/workflows/verify-phase.md -> src/gpd/specs/{references/verification/core/verification-core.md,references/verification/core/verification-numerical.md,references/verification/meta/verification-independence.md,templates/verification-report.md,workflows/numerical-convergence.md}`
+  `include`
+
+- `src/gpd/specs/workflows/verify-work.md -> src/gpd/specs/templates/research-verification.md`
+  `include`
+
+- `src/gpd/specs/workflows/verify-work.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
+  `include`
+
+- `src/gpd/specs/workflows/verify-work.md -> src/gpd/specs/{references/verification/meta/verification-independence.md,workflows/debug.md}`
+  `include`
+
+- `src/gpd/specs/workflows/verify-work.md -> src/gpd/agents/gpd-planner.md`
+  `conditional-spawn`
+  Gap-closure branch, not unconditional base flow.
+
+- `src/gpd/specs/workflows/verify-work.md -> src/gpd/agents/gpd-plan-checker.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/error-propagation.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
+  `include`
+
+- `src/gpd/specs/workflows/error-propagation.md -> src/gpd/specs/templates/uncertainty-budget.md`
+  `include`
+
+- `src/gpd/specs/workflows/error-propagation.md -> src/gpd/specs/templates/parameter-table.md`
+  `include`
+
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-paper-writer.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-bibliographer.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-referee.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/{references/publication/publication-pipeline-modes.md,references/publication/paper-quality-scoring.md,templates/latex-preamble.md,templates/paper/supplemental-material.md,templates/paper/experimental-comparison.md}`
+  `include`
+
+- `src/gpd/specs/workflows/debug.md -> src/gpd/specs/templates/debug-subagent-prompt.md`
+  `conditional-include`
+  One per detected gap.
+
+- `src/gpd/specs/workflows/debug.md -> src/gpd/agents/gpd-debugger.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/audit-milestone.md -> src/gpd/agents/gpd-consistency-checker.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/audit-milestone.md -> src/gpd/agents/gpd-referee.md`
+  `conditional-spawn`
+  Only when config/user request enables referee review.
+
+- `src/gpd/specs/workflows/validate-conventions.md -> src/gpd/agents/gpd-notation-coordinator.md`
+  `conditional-spawn`
+  Severity-gated by critical convention conflicts.
+
+- `src/gpd/specs/workflows/validate-conventions.md -> src/gpd/agents/gpd-consistency-checker.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/quick.md -> src/gpd/agents/gpd-planner.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/quick.md -> src/gpd/agents/gpd-executor.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/project.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/{references/research/questioning.md,references/conventions/subfield-convention-defaults.md}`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/research-project/PRIOR-WORK.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/research-project/METHODS.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/research-project/COMPUTATIONAL.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/research-project/PITFALLS.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/specs/templates/research-project/SUMMARY.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/agents/{gpd-project-researcher,gpd-research-synthesizer,gpd-roadmapper}.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/new-project.md -> src/gpd/agents/gpd-notation-coordinator.md`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/new-milestone.md -> src/gpd/specs/templates/research-project/SUMMARY.md`
+  `include`
+
+- `src/gpd/specs/workflows/new-milestone.md -> src/gpd/agents/{gpd-project-researcher,gpd-research-synthesizer,gpd-roadmapper}.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/literature-review.md -> src/gpd/agents/gpd-bibliographer.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/parameter-sweep.md -> src/gpd/specs/{workflows/execute-plan.md,templates/summary.md}`
+  `include`
+
+- `src/gpd/specs/workflows/parameter-sweep.md -> src/gpd/agents/gpd-executor.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/respond-to-referees.md -> src/gpd/agents/gpd-paper-writer.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/research-phase.md -> src/gpd/specs/references/orchestration/model-profile-resolution.md`
+  `include`
+
+- `src/gpd/specs/workflows/research-phase.md -> src/gpd/agents/gpd-phase-researcher.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/{arxiv-submission,compact-state,compare-experiment,discover,insert-phase,resume-work,sensitivity-analysis,sync-state}.md -> src/gpd/specs/{references/publication/paper-quality-scoring.md,templates/state-archive.md,templates/paper/experimental-comparison.md,templates/research.md,references/orchestration/agent-infrastructure.md,references/orchestration/continuation-format.md,templates/parameter-table.md,templates/state-json-schema.md}`
+  `include`
+
+- `src/gpd/specs/templates/continuation-prompt.md -> src/gpd/specs/{workflows/execute-plan.md,templates/summary.md,references/orchestration/checkpoints.md,references/verification/core/verification-core.md}`
+  `include`
+
+- `src/gpd/specs/templates/phase-prompt.md -> src/gpd/specs/{workflows/execute-plan.md,templates/summary.md}`
+  `include`
+
+- `src/gpd/specs/templates/planner-subagent-prompt.md -> src/gpd/specs/references/orchestration/context-budget.md`
+  `include`
+
+- `src/gpd/specs/templates/learned-pattern.md -> src/gpd/specs/references/shared/cross-project-patterns.md`
+  `include`
+
+- `src/gpd/specs/references/execution/execute-plan-recovery.md -> src/gpd/specs/templates/recovery-plan.md`
+  `include`
+
+- `src/gpd/agents/gpd-theory-mapper.md -> src/gpd/specs/references/templates/theory-mapper/{FORMALISM,REFERENCES,ARCHITECTURE,STRUCTURE,CONVENTIONS,VALIDATION,CONCERNS}.md`
+  `include`
+
+## Adapters, Manifests, Installed Artifacts, and Selective Ownership
+
+- `src/gpd/adapters/base.py -> src/gpd/adapters/install_utils.py`
+  `hard-import`
+
+- `src/gpd/adapters/base.py -> src/gpd/adapters/install_utils.py::pre_install_cleanup`
+  `spawn`
+
+- `src/gpd/adapters/install_utils.py::pre_install_cleanup -> save_local_patches() -> gpd-file-manifest.json["files"] -> gpd-local-patches/**`
+  `manifest-contract`
+  The manifest is a control-plane node and selective-backup baseline, not just inventory.
+
+- `src/gpd/adapters/install_utils.py -> .claude/commands/gpd/**`
+  `materialized`
+
+- `src/gpd/adapters/install_utils.py -> .claude/agents/**`
+  `materialized`
+
+- `src/gpd/adapters/install_utils.py -> .claude/get-physics-done/**`
+  `materialized`
+
+- `src/gpd/adapters/install_utils.py -> .claude/hooks/**`
+  `materialized`
+
+- `src/gpd/adapters/install_utils.py -> .claude/get-physics-done/VERSION`
+  `materialized`
+
+- `src/gpd/adapters/install_utils.py -> .claude/gpd-file-manifest.json`
+  `materialized`
+
+- `src/gpd/cli.py::_install_single_runtime -> adapter.install()`
+  `spawn`
+
+- `src/gpd/cli.py::_install_single_runtime -> src/gpd/adapters/install_utils.py::compute_path_prefix`
+  `spawn`
+
+- `src/gpd/cli.py::_install_single_runtime -> adapter.finalize_install() -> src/gpd/adapters/install_utils.py::finish_install()`
+  `spawn`
+  Final config persistence happens here for Claude and Gemini.
+
+- `src/gpd/adapters/claude_code.py -> .claude/settings.json`
+  `config-mutation`
+
+- `src/gpd/adapters/claude_code.py -> ~/.claude.json`
+  `config-mutation`
+  Global MCP wiring for Claude.
+
+- `src/gpd/adapters/gemini.py -> settings.json["experimental.enableAgents"]`
+  `config-mutation`
+
+- `src/gpd/adapters/codex.py -> config.toml`
+  `config-mutation`
+
+- `src/gpd/adapters/codex.py -> ~/.agents/skills`
+  `partial-ownership`
+
+- `src/gpd/adapters/codex.py -> gpd-file-manifest.json::codex_skills_dir`
+  `manifest-contract`
+  Used later by uninstall to locate shared skills.
+
+- `src/gpd/adapters/opencode.py -> opencode.json`
+  `config-mutation`
+
+- `src/gpd/adapters/opencode.py -> permission.read["<configDir>/get-physics-done/*"]`
+  `partial-ownership`
+
+- `src/gpd/adapters/opencode.py -> permission.external_directory["<configDir>/get-physics-done/*"]`
+  `partial-ownership`
+
+- `src/gpd/adapters/base.py -> HOOK_SCRIPTS.values()`
+  `partial-ownership`
+  Uninstall removes only bundled GPD hook filenames, not arbitrary user hooks.
+
+- `.claude/settings.json`
+  `generated-output`
+  Checked-in installed snapshot; currently host-shaped because it contains a machine-local interpreter path.
+
+- `.claude/settings.local.json -> src/gpd/mcp/builtin_servers.py`
+  `config-mutation`
+  Local runtime config enabling GPD MCP behavior.
+
+### Selective Ownership Statement
+
+Adapters do not own an entire runtime tree. They own only:
+
+- `commands/gpd/**`
+- `agents/gpd-*` or GPD-managed skills
+- `get-physics-done/**`
+- bundled hook filenames
+- `VERSION`
+- `gpd-file-manifest.json`
+- `gpd-local-patches/**`
+- specific config keys or sections
+
+They explicitly preserve:
+
+- non-GPD commands
+- non-GPD agents
+- unrelated hook files
+- unrelated config keys
+- unrelated OpenCode permission entries
+
+## Hooks, Runtime Detection, Caches, and External Authorities
+
+- `src/gpd/hooks/runtime_detect.py -> src/gpd/adapters/__init__.py`
+  `authority`
+  Adapter metadata source of truth for runtime names, iteration order, and config-dir resolution.
+
+- `src/gpd/hooks/runtime_detect.py -> src/gpd/adapters/base.py`
+  `authority`
+
+- `src/gpd/hooks/runtime_detect.py -> src/gpd/adapters/{claude_code,codex,gemini,opencode}.py`
+  `authority`
+
+- `src/gpd/hooks/runtime_detect.py -> environment signals {CLAUDE_CODE_SESSION, CLAUDE_CODE, CODEX_SESSION, CODEX_CLI, GEMINI_CLI, OPENCODE_SESSION, CLAUDE_CONFIG_DIR, CODEX_CONFIG_DIR, GEMINI_CONFIG_DIR, OPENCODE_CONFIG_DIR, OPENCODE_CONFIG, XDG_CONFIG_HOME}`
+  `candidate-set`
+
+- `src/gpd/hooks/runtime_detect.py -> candidate runtime directories {cwd}/{.claude,.codex,.gemini,.opencode} and {home}/{.claude,.codex,.gemini,.config/opencode}`
+  `candidate-set`
+
+- `tests/hooks/test_runtime_detect.py -> src/gpd/hooks/runtime_detect.py::ALL_RUNTIMES`
+  `ordering-contract`
+
+- `src/gpd/hooks/statusline.py -> <workspace>/.gpd/state.json`
+  `candidate-set`
+
+- `src/gpd/hooks/statusline.py -> freshest valid update-cache candidate from runtime_detect.get_update_cache_files()`
+  `candidate-set`
+
+- `src/gpd/hooks/statusline.py -> candidate todo family {local,global runtime dirs}/todos/<session>-agent-*.json`
+  `candidate-set`
+
+- `src/gpd/hooks/statusline.py -> stdin payload schema {model, workspace, session_id, context_window}`
+  `candidate-set`
+
+- `src/gpd/hooks/statusline.py -> src/gpd/adapters/__init__.py`
+  `partial-ownership`
+  Uses adapter-formatted update command for runtime UI output.
+
+- `src/gpd/hooks/check_update.py -> src/gpd/version.py`
+  `hard-import`
+
+- `src/gpd/hooks/check_update.py -> VERSION candidate family under runtime install dirs`
+  `candidate-set`
+
+- `src/gpd/hooks/check_update.py -> update-cache candidate family including ~/.gpd/cache/gpd-update-check.json`
+  `candidate-set`
+
+- `src/gpd/hooks/check_update.py -> https://pypi.org/pypi/get-physics-done/json`
+  `external-service`
+  Latest-version authority.
+
+- `src/gpd/hooks/codex_notify.py -> src/gpd/hooks/check_update.py`
+  `spawn`
+
+- `src/gpd/hooks/codex_notify.py -> freshest valid update-cache candidate set`
+  `candidate-set`
+
+- `src/gpd/hooks/codex_notify.py -> stdin payload schema {type, workspace}`
+  `candidate-set`
+
+- `src/gpd/hooks/codex_notify.py -> src/gpd/adapters/__init__.py`
+  `partial-ownership`
+  Uses adapter `update_command` presentation surface.
+
+## MCP Servers, Paper Pipeline, Package Data, and External Packages
+
+- `src/gpd/mcp/builtin_servers.py -> infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json`
+  `authority`
+
+- `src/gpd/mcp/builtin_servers.py -> external Python package {arxiv_mcp_server}`
+  `external-package`
+
+- `src/gpd/mcp/paper/template_registry.py -> src/gpd/mcp/paper/templates/**`
+  `package-data-load`
+
+- `src/gpd/mcp/paper/template_registry.py -> external Python package {jinja2}`
+  `external-package`
+
+- `src/gpd/mcp/paper/bibliography.py -> external Python packages {arxiv, pybtex}`
+  `external-package`
+
+- `src/gpd/mcp/paper/figures.py -> external Python packages {Pillow, cairosvg}`
+  `external-package`
+
+- `src/gpd/mcp/paper/figures.py -> cairosvg`
+  `conditional-include`
+  Optional converter path; not always exercised.
+
+- `src/gpd/mcp/paper/figures.py -> epstopdf`
+  `conditional-include`
+  Downstream conversion path; weaker than the hard binary/compiler edges.
+
+- `src/gpd/mcp/paper/compiler.py -> kpsewhich`
+  `external-binary`
+
+- `src/gpd/mcp/paper/compiler.py -> latexmk`
+  `external-binary`
+
+- `src/gpd/mcp/paper/compiler.py -> pdflatex`
+  `external-binary`
+
+- `src/gpd/mcp/paper/compiler.py -> xelatex`
+  `external-binary`
+
+- `src/gpd/mcp/paper/compiler.py -> bibtex`
+  `external-binary`
+
+- `pyproject.toml -> external Python packages {hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
+  `external-package`
+
+- `tests/test_paper_e2e.py -> src/gpd/mcp/paper/compiler.py`
+  `hard-import`
+
+- `tests/test_paper_e2e.py -> src/gpd/mcp/paper/template_registry.py`
+  `hard-import`
+
+- `tests/test_paper_e2e.py -> src/gpd/mcp/paper/artifact_manifest.py`
+  `hard-import`
+
+- `tests/test_paper_e2e.py -> src/gpd/mcp/paper/bibliography.py`
+  `hard-import`
+
+- `tests/test_paper_e2e.py -> generated outputs {main.tex, references.bib, ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json, paper.pdf, figures/**}`
+  `generated-output`
+
+- `tests/test_bibliography.py -> src/gpd/mcp/paper/bibliography.py`
+  `hard-import`
+
+- `tests/test_bibliography.py -> external Python packages {arxiv, pybtex}`
+  `external-package`
+
+- `tests/test_figures.py -> src/gpd/mcp/paper/figures.py`
+  `hard-import`
+
+- `tests/test_figures.py -> external Python packages {Pillow, cairosvg}`
+  `conditional-include`
+  Much of the test surface validates fallback/error behavior rather than proving live converter availability.
+
+## Test and Contract Graph
+
+- `tests/test_metadata_consistency.py -> README.md`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> pyproject.toml`
+  `count-contract`
+  Includes `[project.requires-python]` contract.
+
+- `tests/test_metadata_consistency.py -> bin/install.js`
+  `count-contract`
+  Python floor must match installer text.
+
+- `tests/test_metadata_consistency.py -> src/gpd/registry.py`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/core/__init__.py`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/cli.py`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/commands/health.md`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/commands/**`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/agents/**`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> src/gpd/mcp/servers/**`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> gpd.contracts.ConventionLock`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> gpd.core.health._ALL_CHECKS`
+  `count-contract`
+
+- `tests/test_metadata_consistency.py -> gpd.core.patterns.PatternDomain`
+  `count-contract`
+
+- `tests/test_release_consistency.py -> README.md`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> CONTRIBUTING.md`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> CITATION.cff`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> LICENSE`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> package.json`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> pyproject.toml`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> pyproject optional surface excluding {claude-agent-sdk, claude-subagents, scientific}`
+  `negative-packaging-contract`
+
+- `tests/test_release_consistency.py -> bin/install.js`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> src/gpd/specs/workflows/export.md`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> src/gpd/mcp/builtin_servers.py::build_public_descriptors()`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> infra/gpd-*.json`
+  `manifest-contract`
+
+- `tests/test_release_consistency.py -> dist/*.whl`
+  `generated-output`
+
+- `tests/test_release_consistency.py -> dist/*.tar.gz`
+  `generated-output`
+
+- `tests/test_release_consistency.py -> src/gpd/mcp/viewer/cli.py`
+  `negative-packaging-contract`
+
+- `tests/test_release_consistency.py -> docs/USER-GUIDE.md`
+  `negative-packaging-contract`
+
+- `tests/test_release_consistency.py -> MANUAL-TEST-PLAN.md`
+  `negative-packaging-contract`
+
+- `tests/test_install_lifecycle.py -> gpd-file-manifest.json`
+  `manifest-contract`
+  Includes `version`, `timestamp`, `file_hash`, stale-file cleanup, Codex skills entries, and OpenCode path-shape constraints.
+
+- `tests/test_install_lifecycle.py -> corrupted settings/config cleanup behavior`
+  `manifest-contract`
+
+- `tests/test_install_lifecycle.py -> corrupted runtime config cleanup {settings.json, opencode.json}`
+  `manifest-contract`
+
+- `tests/test_install_edge_cases.py -> src/gpd/adapters/install_utils.py::write_settings`
+  `manifest-contract`
+  Read-only directory `PermissionError` contract.
+
+- `tests/test_install_edge_cases.py -> src/gpd/adapters/install_utils.py::validate_package_integrity`
+  `manifest-contract`
+
+- `tests/test_install_edge_cases.py -> src/gpd/registry._parse_agent_file`
+  `manifest-contract`
+
+- `tests/test_install_edge_cases.py -> src/gpd/registry._parse_frontmatter`
+  `manifest-contract`
+
+- `tests/test_install_edge_cases.py -> HOME / runtime env fallback rules`
+  `candidate-set`
+
+- `tests/test_install_edge_cases.py -> explicit --target-dir bypasses HOME`
+  `ordering-contract`
+
+- `tests/core/test_cli_install.py -> src/gpd/cli.py::_install_single_runtime`
+  `spawn`
+
+- `tests/core/test_cli_install.py -> src/gpd/adapters/install_utils.py::compute_path_prefix`
+  `spawn`
+
+- `tests/core/test_cli_install.py -> adapter presentation surface {display_name, help_command, relative target formatting, blank-line formatting, raw JSON output shape}`
+  `manifest-contract`
+
+- `tests/test_parity.py -> tests/fixtures/parity/*.json`
+  `golden-fixture-contract`
+
+- `tests/test_parity.py -> gpd.contracts / gpd.core.conventions / gpd.core.results`
+  `typed-roundtrip`
+
+## Checked-In Installed Snapshot: `.claude/**`
+
+- `.claude/commands/gpd/**`, `.claude/agents/**`, `.claude/hooks/**`, and `.claude/get-physics-done/**` are installed-layout artifacts, not canonical authoring locations.
+
+- These nodes should be read as:
+  canonical source asset -> transformed/materialized installed artifact
+
+- `.claude/settings.json` and `.claude/settings.local.json` are runtime-shaped config artifacts, not portable config authorities.
+
+- `.claude/gpd-file-manifest.json` is both:
+  `materialized`
+  `manifest-contract`
+  It is inventory, backup baseline, and uninstall control-plane data.
+
+## External and Generated Node Families
+
+Operationally important node families that are not canonical repo files:
+
+- `<workspace>/.gpd/{state.json,STATE.md,state.json.bak,config.json,phases/**,milestones/**,traces/**}`
+- runtime config dirs `{cwd,home}/{.claude,.codex,.gemini,.opencode,.config/opencode}`
+- update caches `*/cache/gpd-update-check.json`
+- runtime install `*/get-physics-done/VERSION`
+- `dist/*.whl`
+- `dist/*.tar.gz`
+- paper outputs `main.tex`, `references.bib`, `paper.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
+- GitHub Actions used by CI
+- PyPI version endpoint `https://pypi.org/pypi/get-physics-done/json`
+
+These are first-class parts of the operational graph, even though many are generated, external, or workspace-specific.
+
+## Completeness Notes
+
+This rebuilt file is substantially more complete than the missing original graph artifact because it now models:
+
+- external nodes
+- generated nodes
+- negative packaging contracts
+- manifest contracts
+- selective ownership instead of whole-tree ownership
+- candidate-set and precedence edges
+- schema/object edge classes beyond file adjacency
+
+Static ceiling assessment:
+
+- After four review waves, the remaining incompleteness is predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
+- The graph is therefore close to the practical static-analysis ceiling for this repo, but not equivalent to a proven exhaustive runtime dependency graph.
+
+What it still cannot honestly claim on its own:
+
+- a fully proven execution trace for every runtime branch
+- exhaustive object-level call/dataflow coverage across all code paths
+- absolute completeness for external environment state not present in the worktree
+
+That is why the companion file [REPO_INTERDEPENDENCY_GRAPH_AUDIT.md](/Users/sergio/GitHub/get-physics-done/REPO_INTERDEPENDENCY_GRAPH_AUDIT.md) remains necessary. The graph file is the map; the audit is the proof of where the map is still bounded.

@@ -11,7 +11,7 @@ Make paper/report review, verification, and revision handling trustworthy enough
 ## Current Strengths
 
 - Strong review philosophy: independence, physics-first verification, explicit confidence handling.
-- Good operational scaffolding: typed paper models, compiler fallbacks, convention lock, state persistence, trace logging.
+- Good operational scaffolding: typed paper models, compiler fallbacks, convention lock, state persistence, local observability, and trace logging.
 - Rich workflow intent: `write-paper`, `respond-to-referees`, `verify-phase`, `verify-work`, `gpd-referee`, `gpd-verifier`, `gpd-paper-writer`, `gpd-bibliographer`.
 - Better-than-average prompt hygiene and wiring tests.
 
@@ -50,7 +50,7 @@ Important publication checks currently degrade to warnings or partial flow conti
 
 ### 4. Provenance is too shallow
 
-`IntermediateResult.verified` is a boolean, not an evidence record. Traces are JSONL event streams, but they are not claim-aware, artifact-aware, or result-aware enough for expert audit.
+Local observability and traces now provide a durable session/workflow trail under `.gpd/observability/` and `.gpd/traces/`, which is materially better than relying on transient runtime UI state alone. That still falls short of expert-grade provenance. `IntermediateResult.verified` is still a boolean, not a typed evidence record, and the event streams are not yet claim-aware, artifact-aware, or result-aware enough for expert audit.
 
 ### 5. Review plurality is missing
 
@@ -175,7 +175,7 @@ Primary touchpoints:
 
 ### E. Provenance Graph
 
-Promote traces and result dependencies into a real provenance graph.
+Promote local observability events, traces, and result dependencies into a real provenance graph.
 
 Add links from trace events to:
 
@@ -188,6 +188,7 @@ Add links from trace events to:
 
 Primary touchpoints:
 
+- `src/gpd/core/observability.py`
 - `src/gpd/core/trace.py`
 - `src/gpd/core/results.py`
 - new `src/gpd/mcp/servers/provenance_server.py`

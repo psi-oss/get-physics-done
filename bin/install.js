@@ -1009,14 +1009,12 @@ async function main() {
 
   log(`Installing GPD for ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
 
-  // Suppress logfire warning during install
-  const installEnv = { ...process.env, LOGFIRE_IGNORE_NO_CONFIG: "1" };
   const installArgs = buildRuntimeInstallArgs(selectedRuntimes, scope, forceStatusline);
 
   // Run the installer through the managed Python interpreter.
   const result = spawnSync(managedEnv.python, installArgs, {
     stdio: "inherit",
-    env: installEnv,
+    env: process.env,
   });
 
   if (result.status === 0) {

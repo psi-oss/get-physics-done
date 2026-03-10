@@ -496,7 +496,19 @@ PLAN_START_EPOCH=$(date +%s)
 </step>
 
 <step name="trace_logging">
-The execute-plan workflow starts and stops the execution trace automatically. During task execution, log significant events using:
+The execute-plan workflow starts and stops the execution trace automatically, and the broader session/workflow event stream lives under `.gpd/observability/`. During task execution, use trace logging for low-level execution milestones and explicit observability events for workflow- or agent-level facts when available:
+
+```bash
+gpd observe event <category> <name> --phase <N> --plan <PLAN> --data '{"key":"value"}' 2>/dev/null || true
+```
+
+Examples:
+- `workflow execute-plan.start`
+- `task task-complete`
+- `verification verification-complete`
+- `session continuity-updated`
+
+For detailed execution breadcrumbs, log significant events using:
 
 ```bash
 gpd trace log <event_type> --data '{"description":"<text>"}' 2>/dev/null || true
@@ -511,7 +523,7 @@ Log these events during execution:
 - `error` — when a computation fails or produces unexpected results
 - `context_pressure` — when context usage transitions to YELLOW/ORANGE/RED
 
-Trace logging is best-effort (the `|| true` ensures failures are silent). Do not skip research work to log traces.
+Observability and trace logging are best-effort (the `|| true` ensures failures are silent). Do not skip research work to log metadata. If the runtime does not expose internal tool calls or opaque subagent internals, do not fabricate them; log only the agent facts you can actually observe locally.
 </step>
 
 <step name="determine_execution_pattern">

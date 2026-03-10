@@ -257,9 +257,27 @@ gpd validate consistency
 
 ---
 
-## gpd CLI Execution Trace Logging
+## gpd CLI Local Observability and Trace Logging
 
-Used during plan execution to create a post-mortem debugging trail. Trace files are JSONL at `.gpd/traces/{phase}-{plan}.jsonl`.
+GPD keeps two complementary local audit layers:
+
+- `.gpd/observability/` for session-, workflow-, and agent-level events
+- `.gpd/traces/{phase}-{plan}.jsonl` for plan-local debugging details
+
+Use observability for durable workflow facts and trace for low-level execution milestones.
+
+```bash
+# Record a local observability event (preferred for workflow / agent milestones)
+gpd observe event <category> <name> [--phase N] [--plan NAME] [--data '{"key":"value"}']
+
+# Inspect recent observability sessions
+gpd observe sessions [--last N]
+
+# Show observability events with optional filters
+gpd observe show [--session ID] [--category CATEGORY] [--phase N] [--plan NAME] [--last N]
+```
+
+Trace files remain JSONL at `.gpd/traces/{phase}-{plan}.jsonl`:
 
 ```bash
 # Start a trace for a plan execution
@@ -276,6 +294,8 @@ gpd trace stop
 # Show trace events with optional filters
 gpd trace show [--phase N] [--plan NAME] [--type TYPE] [--last N]
 ```
+
+If a given runtime does not expose internal tool calls or opaque subagent internals, do not invent them. Log only the workflow and agent facts you can actually observe or emit locally.
 
 ---
 
@@ -317,7 +337,7 @@ gpd query search --affects <term>
 
 ## gpd CLI Cost Estimation
 
-Estimate API token costs before executing phases:
+Estimate API token costs before executing phases. Some local builds may omit the cost subcommands; observability logs remain the canonical execution trail.
 
 ```bash
 # Estimate cost for a specific phase

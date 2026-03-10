@@ -49,6 +49,7 @@ def test_raw_version_subcommand_outputs_json():
 def test_help():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    assert "observe" in result.output
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
@@ -290,6 +291,139 @@ def test_trace_stop(mock_stop):
     result = runner.invoke(app, ["trace", "stop"])
     assert result.exit_code == 0
     mock_stop.assert_called_once()
+
+
+def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
+    planning = tmp_path / ".gpd" / "observability" / "sessions"
+    planning.mkdir(parents=True)
+    (planning / "cli-session-1.json").write_text(
+        json.dumps(
+            {
+                "session_id": "cli-session-1",
+                "command": "timestamp",
+                "status": "ok",
+                "started_at": "2026-03-10T00:00:00+00:00",
+                "last_event_at": "2026-03-10T00:00:01+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "observe", "sessions"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["count"] >= 1
+    assert any(session["session_id"] == "cli-session-1" for session in payload["sessions"])
+    assert any(session.get("command") == "timestamp" for session in payload["sessions"])
+
+
+def test_observe_show_filters_events(tmp_path: Path) -> None:
+    obs_dir = tmp_path / ".gpd" / "observability"
+    obs_dir.mkdir(parents=True)
+    events_file = obs_dir / "events.jsonl"
+    events_file.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:00+00:00",
+                        "session_id": "cli-a",
+                        "category": "cli",
+                        "name": "command",
+                        "action": "start",
+                        "status": "active",
+                        "command": "timestamp",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:01+00:00",
+                        "session_id": "cli-a",
+                        "category": "trace",
+                        "name": "trace_start",
+                        "action": "log",
+                        "status": "ok",
+                        "command": "trace start",
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "observe", "show", "--category", "cli", "--command", "timestamp"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["count"] == 1
+    assert payload["events"][0]["category"] == "cli"
+    assert payload["events"][0]["command"] == "timestamp"
+
+
+def test_observe_event_appends_event(tmp_path: Path) -> None:
+    (tmp_path / ".gpd").mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(tmp_path),
+            "observe",
+            "event",
+            "workflow",
+            "wave-start",
+            "--action",
+            "start",
+            "--status",
+            "active",
+            "--command",
+            "execute-phase",
+            "--phase",
+            "03",
+            "--plan",
+            "01",
+            "--data",
+            '{"wave": 2}',
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["category"] == "workflow"
+    assert payload["name"] == "wave-start"
+    assert payload["data"]["wave"] == 2
+    events_file = tmp_path / ".gpd" / "observability" / "events.jsonl"
+    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(event["category"] == "workflow" and event["name"] == "wave-start" for event in events)
+
+
+def test_cli_invocation_writes_observability_files(tmp_path: Path) -> None:
+    (tmp_path / ".gpd").mkdir()
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "timestamp"])
+
+    assert result.exit_code == 0
+    obs_dir = tmp_path / ".gpd" / "observability"
+    events_file = obs_dir / "events.jsonl"
+    assert events_file.exists()
+    sessions_dir = obs_dir / "sessions"
+    session_logs = sorted(sessions_dir.glob("*.jsonl"))
+    assert session_logs
+    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(event["category"] == "cli" and event["action"] == "start" for event in events)
+    assert any(
+        event["category"] == "cli"
+        and event["action"] == "finish"
+        and event["status"] == "ok"
+        and event["command"] == "timestamp"
+        for event in events
+    )
 
 
 # ─── suggest ────────────────────────────────────────────────────────────────

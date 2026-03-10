@@ -17,9 +17,10 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -35,6 +36,20 @@ err_console = Console(stderr=True)
 # Global state threaded through typer context
 _raw: bool = False
 _cwd: Path = Path(".")
+_active_cli_observation: "_CliObservationContext | None" = None
+
+
+@dataclasses.dataclass(frozen=True)
+class _CliObservationContext:
+    session_id: str
+    started_at: str
+    argv: list[str]
+    command: str
+    cwd_hint: Path
+    events_file: Path
+    session_events_file: Path
+    session_meta_file: Path
+    current_session_file: Path
 
 
 def _output(data: object) -> None:
@@ -210,36 +225,370 @@ def _json_cli_output(data: object) -> None:
         console.print(data, highlight=False)
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _observability_paths(cwd: Path) -> dict[str, Path]:
+    from gpd.core.constants import ProjectLayout
+
+    layout = ProjectLayout(cwd)
+    obs_dir = getattr(layout, "observability_dir", layout.gpd / "observability")
+    sessions_dir = getattr(layout, "observability_sessions_dir", obs_dir / "sessions")
+    events_file = getattr(layout, "observability_events", obs_dir / "events.jsonl")
+    current_session = getattr(layout, "current_observability_session", obs_dir / "current-session.json")
+    return {
+        "gpd_dir": layout.gpd,
+        "obs_dir": obs_dir,
+        "sessions_dir": sessions_dir,
+        "events_file": events_file,
+        "current_session": current_session,
+    }
+
+
+def _read_json_file(path: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _read_jsonl_file(path: Path) -> list[dict[str, object]]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (FileNotFoundError, OSError):
+        return []
+
+    records: list[dict[str, object]] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def _append_jsonl_file(path: Path, payload: dict[str, object]) -> None:
+    from gpd.core.utils import file_lock
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    serialized = json.dumps(payload, default=str)
+    with file_lock(path):
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(serialized + "\n")
+
+
+def _write_json_file(path: Path, payload: dict[str, object]) -> None:
+    from gpd.core.utils import atomic_write
+
+    atomic_write(path, json.dumps(payload, indent=2, default=str))
+
+
+def _extract_cwd_from_argv(argv: list[str]) -> Path:
+    for idx, token in enumerate(argv):
+        if token == "--cwd" and idx + 1 < len(argv):
+            return Path(argv[idx + 1])
+        if token.startswith("--cwd="):
+            return Path(token.split("=", 1)[1])
+    return Path(".")
+
+
+def _command_from_argv(argv: list[str]) -> str:
+    tokens: list[str] = []
+    skip_value = False
+    for token in argv:
+        if skip_value:
+            skip_value = False
+            continue
+        if token == "--cwd":
+            skip_value = True
+            continue
+        if token.startswith("--cwd=") or token in {"--raw", "--version", "-v"}:
+            continue
+        if token.startswith("-"):
+            continue
+        tokens.append(token)
+    return " ".join(tokens[:3]) or "root"
+
+
+def _start_cli_observation_for_command(
+    cwd_hint: Path,
+    *,
+    command: str,
+    argv: list[str] | None = None,
+) -> _CliObservationContext | None:
+    from gpd.core.observability import ensure_session, observe_event
+
+    resolved_cwd = cwd_hint.resolve(strict=False)
+    paths = _observability_paths(resolved_cwd)
+    if not paths["gpd_dir"].exists():
+        return None
+
+    normalized_argv = argv or []
+    session = ensure_session(
+        resolved_cwd,
+        source="cli",
+        command=command,
+        metadata={"argv": normalized_argv, "raw": _raw},
+    )
+    if session is None:
+        return None
+
+    observe_event(
+        resolved_cwd,
+        category="cli",
+        name="command",
+        action="start",
+        status="active",
+        command=command,
+        session_id=session.session_id,
+        data={"argv": normalized_argv, "cwd": str(resolved_cwd), "raw": _raw},
+    )
+
+    context = _CliObservationContext(
+        session_id=session.session_id,
+        started_at=session.started_at,
+        argv=normalized_argv,
+        command=command,
+        cwd_hint=resolved_cwd,
+        events_file=paths["events_file"],
+        session_events_file=paths["sessions_dir"] / f"{session.session_id}.jsonl",
+        session_meta_file=paths["sessions_dir"] / f"{session.session_id}.json",
+        current_session_file=paths["current_session"],
+    )
+    return context
+
+
+def _emit_observability_event(
+    cwd: Path,
+    *,
+    category: str,
+    name: str,
+    action: str = "log",
+    status: str = "ok",
+    command: str | None = None,
+    phase: str | None = None,
+    plan: str | None = None,
+    session_id: str | None = None,
+    data: dict[str, object] | None = None,
+) -> object:
+    from gpd.core.observability import observe_event
+
+    result = observe_event(
+        cwd.resolve(strict=False),
+        category=category,
+        name=name,
+        action=action,
+        status=status,
+        command=command,
+        phase=phase,
+        plan=plan,
+        session_id=session_id,
+        data=data,
+    )
+    if hasattr(result, "recorded") and getattr(result, "recorded") is False:
+        raise GPDError("Local observability unavailable for this working directory")
+    return result
+
+
+def _finish_cli_observation(
+    context: _CliObservationContext | None,
+    *,
+    status: str,
+    exit_code: int = 0,
+    error: str | None = None,
+) -> None:
+    from gpd.core.observability import observe_event
+
+    if context is None:
+        return
+
+    finished_at = _utc_now_iso()
+    final_cwd = _cwd.resolve(strict=False)
+    finish_data: dict[str, object] = {
+        "argv": context.argv,
+        "cwd": str(final_cwd),
+        "exit_code": exit_code,
+        "finished_at": finished_at,
+    }
+    if error:
+        finish_data["error"] = error
+    observe_event(
+        final_cwd,
+        category="cli",
+        name="command",
+        action="finish",
+        status=status,
+        command=context.command,
+        session_id=context.session_id,
+        data=finish_data,
+    )
+
+
+def _finish_cli_observation_if_active(
+    context: _CliObservationContext | None,
+    *,
+    status: str,
+    exit_code: int = 0,
+    error: str | None = None,
+) -> None:
+    if context is None:
+        return
+    current = _read_json_file(context.current_session_file)
+    metadata = _read_json_file(context.session_meta_file)
+    if current and current.get("session_id") == context.session_id and current.get("status") == "active":
+        _finish_cli_observation(context, status=status, exit_code=exit_code, error=error)
+        return
+    if metadata and metadata.get("status") == "active":
+        _finish_cli_observation(context, status=status, exit_code=exit_code, error=error)
+
+
+def _collect_observability_events(cwd: Path) -> list[dict[str, object]]:
+    paths = _observability_paths(cwd)
+    events: list[dict[str, object]] = []
+    if paths["events_file"].exists():
+        events.extend(_read_jsonl_file(paths["events_file"]))
+    elif paths["sessions_dir"].is_dir():
+        for session_events_file in sorted(paths["sessions_dir"].glob("*.jsonl")):
+            events.extend(_read_jsonl_file(session_events_file))
+    events.sort(key=lambda item: str(item.get("timestamp", "")))
+    return events
+
+
+def _collect_observability_sessions(cwd: Path) -> list[dict[str, object]]:
+    paths = _observability_paths(cwd)
+    sessions: dict[str, dict[str, object]] = {}
+
+    if paths["sessions_dir"].is_dir():
+        for meta_file in sorted(paths["sessions_dir"].glob("*.json")):
+            payload = _read_json_file(meta_file)
+            if not payload:
+                continue
+            session_id = str(payload.get("session_id") or meta_file.stem)
+            payload.setdefault("session_id", session_id)
+            payload["meta_file"] = _format_display_path(meta_file)
+            sessions[session_id] = payload
+
+        for events_file in sorted(paths["sessions_dir"].glob("*.jsonl")):
+            entries = _read_jsonl_file(events_file)
+            if not entries:
+                continue
+            session_id = str(entries[0].get("session_id") or events_file.stem)
+            record = sessions.setdefault(session_id, {"session_id": session_id})
+            record.setdefault("started_at", entries[0].get("timestamp"))
+            record["last_event_at"] = entries[-1].get("timestamp")
+            record.setdefault("command", entries[0].get("command") or entries[0].get("name"))
+            record.setdefault("cwd", entries[0].get("cwd"))
+            record.setdefault("status", entries[-1].get("status") or "active")
+            record["event_count"] = len(entries)
+            record["events_file"] = _format_display_path(events_file)
+
+    current = _read_json_file(paths["current_session"])
+    if current:
+        session_id = str(current.get("session_id") or "current")
+        record = sessions.setdefault(session_id, {"session_id": session_id})
+        record.update({k: v for k, v in current.items() if v is not None})
+        record["active"] = True
+
+    return sorted(sessions.values(), key=lambda item: str(item.get("last_event_at", "")), reverse=True)
+
+
+def _filter_observability_events(
+    cwd: Path,
+    *,
+    session: str | None = None,
+    category: str | None = None,
+    name: str | None = None,
+    action: str | None = None,
+    status: str | None = None,
+    command: str | None = None,
+    phase: str | None = None,
+    plan: str | None = None,
+    last: int | None = None,
+) -> dict[str, object]:
+    from gpd.core.observability import show_events
+
+    return show_events(
+        cwd,
+        session=session,
+        category=category,
+        name=name,
+        action=action,
+        status=status,
+        command=command,
+        phase=phase,
+        plan=plan,
+        last=last,
+    ).model_dump(mode="json")
+
+
+def _filter_observability_sessions(
+    cwd: Path,
+    *,
+    status: str | None = None,
+    command: str | None = None,
+    last: int | None = None,
+) -> dict[str, object]:
+    from gpd.core.observability import list_sessions
+
+    sessions = list_sessions(cwd, command=command, last=last).model_dump(mode="json")
+    if status:
+        filtered = [session_info for session_info in sessions["sessions"] if str(session_info.get("status")) == status]
+        return {"count": len(filtered), "sessions": filtered}
+    return sessions
+
+
 # ─── App setup ──────────────────────────────────────────────────────────────
 
 class _GPDTyper(typer.Typer):
     """Typer subclass that catches GPDError and prints a user-friendly message."""
 
     def __call__(self, *args: object, **kwargs: object) -> object:
-        global _raw, _cwd  # noqa: PLW0603
+        global _raw, _cwd, _active_cli_observation  # noqa: PLW0603
         _raw = False
         _cwd = Path(".")
+        _active_cli_observation = None
         try:
             return super().__call__(*args, **kwargs)
         except KeyError as exc:
             msg = f"Command or resource not found: {exc}"
+            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=msg)
             if _raw:
                 err_console.print_json(json.dumps({"error": msg}))
             else:
                 err_console.print(f"[bold red]Error:[/] {msg}", highlight=False)
             raise SystemExit(1) from None
         except GPDError as exc:
+            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
             if _raw:
                 err_console.print_json(json.dumps({"error": str(exc)}))
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
         except TimeoutError as exc:
+            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
             if _raw:
                 err_console.print_json(json.dumps({"error": str(exc)}))
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
+        except SystemExit as exc:
+            raw_code = exc.code if isinstance(exc.code, int) else 0
+            status = "ok" if raw_code == 0 else "error"
+            error = None if raw_code == 0 else str(exc.code)
+            _finish_cli_observation_if_active(_active_cli_observation, status=status, exit_code=raw_code, error=error)
+            raise
+        except Exception as exc:
+            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
+            raise
+        finally:
+            _active_cli_observation = None
 
 
 app = _GPDTyper(
@@ -252,6 +601,7 @@ app = _GPDTyper(
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     raw: bool = typer.Option(
         False,
         "--raw",
@@ -270,9 +620,29 @@ def main(
     ),
 ) -> None:
     """GPD — Get Physics Done."""
-    global _raw, _cwd  # noqa: PLW0603
+    global _raw, _cwd, _active_cli_observation  # noqa: PLW0603
     _raw = raw
     _cwd = Path(cwd)
+    command_tokens: list[str] = []
+    if ctx.invoked_subcommand:
+        command_tokens.append(ctx.invoked_subcommand)
+    if ctx.invoked_subcommand == "observe" and ctx.args:
+        command_tokens.append(str(ctx.args[0]))
+    command = " ".join(command_tokens) or _command_from_argv([str(arg) for arg in sys.argv[1:]])
+    argv = command_tokens + [str(arg) for arg in ctx.args]
+    _active_cli_observation = _start_cli_observation_for_command(
+        _cwd,
+        command=command,
+        argv=argv,
+    )
+    if _active_cli_observation is not None:
+        ctx.call_on_close(
+            lambda observed=_active_cli_observation: _finish_cli_observation_if_active(
+                observed,
+                status="ok",
+                exit_code=0,
+            )
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1300,6 +1670,90 @@ def trace_show(
     from gpd.core.trace import trace_show
 
     _output(trace_show(_get_cwd(), phase=phase, plan=plan, event_type=event_type, last=last))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# observe — Local observability logs
+# ═══════════════════════════════════════════════════════════════════════════
+
+observe_app = typer.Typer(help="Inspect local observability sessions and events")
+app.add_typer(observe_app, name="observe")
+
+
+@observe_app.command("sessions")
+def observe_sessions(
+    status: str | None = typer.Option(None, "--status", help="Filter by session status"),
+    command: str | None = typer.Option(None, "--command", help="Filter by command label"),
+    last: int | None = typer.Option(None, "--last", help="Show most recent N sessions"),
+) -> None:
+    """List recorded local observability sessions."""
+    _output(_filter_observability_sessions(_get_cwd(), status=status, command=command, last=last))
+
+
+@observe_app.command("event")
+def observe_event(
+    category: str = typer.Argument(..., help="Event category"),
+    name: str = typer.Argument(..., help="Event name"),
+    action: str = typer.Option("log", "--action", help="Event action"),
+    status: str = typer.Option("ok", "--status", help="Event status"),
+    command: str | None = typer.Option(None, "--command", help="Associated command label"),
+    phase: str | None = typer.Option(None, "--phase", help="Associated phase"),
+    plan: str | None = typer.Option(None, "--plan", help="Associated plan"),
+    session: str | None = typer.Option(None, "--session", help="Explicit session id"),
+    data: str | None = typer.Option(None, "--data", help="JSON event payload"),
+) -> None:
+    """Append one local observability event."""
+    parsed_data = None
+    if data:
+        try:
+            raw_data = json.loads(data)
+        except json.JSONDecodeError:
+            parsed_data = {"raw": data}
+        else:
+            parsed_data = raw_data if isinstance(raw_data, dict) else {"value": raw_data}
+    _output(
+        _emit_observability_event(
+            _get_cwd(),
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            session_id=session,
+            data=parsed_data,
+        )
+    )
+
+
+@observe_app.command("show")
+def observe_show(
+    session: str | None = typer.Option(None, "--session", help="Filter by session id"),
+    category: str | None = typer.Option(None, "--category", help="Filter by event category"),
+    name: str | None = typer.Option(None, "--name", help="Filter by event name"),
+    action: str | None = typer.Option(None, "--action", help="Filter by event action"),
+    status: str | None = typer.Option(None, "--status", help="Filter by event status"),
+    command: str | None = typer.Option(None, "--command", help="Filter by command label"),
+    phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
+    plan: str | None = typer.Option(None, "--plan", help="Filter by plan"),
+    last: int | None = typer.Option(None, "--last", help="Show last N matching events"),
+) -> None:
+    """Show local observability events with optional filters."""
+    _output(
+        _filter_observability_events(
+            _get_cwd(),
+            session=session,
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            last=last,
+        )
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

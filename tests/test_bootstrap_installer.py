@@ -33,7 +33,6 @@ def record() -> None:
         "argv": sys.argv[1:],
         "exe": sys.argv[0],
         "managed": "venv" in pathlib.Path(sys.argv[0]).parts,
-        "logfire_ignore_no_config": os.environ.get("LOGFIRE_IGNORE_NO_CONFIG"),
     }}
     with LOG_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry) + "\\n")
@@ -179,7 +178,6 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local"]
     ]
     assert len(managed_runtime_installs) == 1
-    assert managed_runtime_installs[0]["logfire_ignore_no_config"] == "1"
 
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
     assert "Installed GPD for Codex (local)." in result.stdout

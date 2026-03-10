@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import gpd.core.trace as trace_module
 from gpd.core.errors import TraceError
 from gpd.core.trace import (
     USER_EVENT_TYPES,
@@ -53,6 +54,7 @@ class TestTraceStart:
         assert event["type"] == "trace_start"
         assert event["phase"] == "01"
         assert event["plan"] == "plan-01"
+        assert event["trace_id"] == "01-plan-01"
         assert "timestamp" in event
 
     def test_sets_active_trace_marker(self, project: Path) -> None:
@@ -87,12 +89,18 @@ class TestTraceLog:
         assert isinstance(result, TraceLogResult)
         assert result.logged is True
         assert result.event_type == "checkpoint"
+        assert result.phase == "01"
+        assert result.plan == "plan-01"
+        assert result.trace_id == "01-plan-01"
 
         trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
         lines = trace_file.read_text().strip().splitlines()
         assert len(lines) == 2  # trace_start + checkpoint
         event = json.loads(lines[1])
         assert event["type"] == "checkpoint"
+        assert event["phase"] == "01"
+        assert event["plan"] == "plan-01"
+        assert event["trace_id"] == "01-plan-01"
         assert event["data"]["step"] == "verify"
 
     def test_unknown_event_type_raises(self, project: Path) -> None:
@@ -149,6 +157,9 @@ class TestTraceStop:
         lines = trace_file.read_text().strip().splitlines()
         last = json.loads(lines[-1])
         assert last["type"] == "trace_stop"
+        assert last["phase"] == "01"
+        assert last["plan"] == "plan-01"
+        assert last["trace_id"] == "01-plan-01"
         assert "summary" in last
         assert "event_counts" in last["summary"]
 
@@ -276,3 +287,33 @@ class TestTraceEdgeCases:
         show_result = trace_show(project, phase="03", plan="integration")
         assert isinstance(show_result, TraceShowResult)
         assert show_result.count == 5  # start + 3 logs + stop
+
+    def test_trace_mirrors_events_to_observability_helpers(self, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def fake_helper(helper_name: str, *, cwd: Path | None = None, **kwargs: object) -> object | None:
+            if helper_name in {"ensure_session", "ensure_observability_session", "start_session"}:
+                return {"session_id": "sess-trace-1"}
+            if helper_name in {"observe_event", "record_event", "log_event"}:
+                payload = dict(kwargs)
+                if cwd is not None:
+                    payload["cwd"] = cwd
+                calls.append((helper_name, payload))
+                return {"recorded": True}
+            return None
+
+        monkeypatch.setattr(trace_module, "_call_observability_helper", fake_helper)
+
+        start_result = trace_start(project, "05", "plan-a")
+        log_result = trace_log(project, "info", {"message": "hello"})
+        stop_result = trace_stop(project)
+
+        assert start_result.session_id == "sess-trace-1"
+        assert log_result.session_id == "sess-trace-1"
+        assert stop_result.session_id == "sess-trace-1"
+        assert len(calls) == 3
+        assert [payload["action"] for _, payload in calls] == ["start", "log", "stop"]
+        assert all(payload["category"] == "trace" for _, payload in calls)
+        assert all(payload["phase"] == "05" for _, payload in calls)
+        assert all(payload["plan"] == "plan-a" for _, payload in calls)
+        assert all(payload["trace_id"] == "05-plan-a" for _, payload in calls)

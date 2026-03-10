@@ -30,6 +30,10 @@ __all__ = [
     "MIN_PYTHON_MAJOR",
     "MIN_PYTHON_MINOR",
     "OPTIONAL_PLANNING_FILES",
+    "OBSERVABILITY_CURRENT_SESSION_FILENAME",
+    "OBSERVABILITY_DIR_NAME",
+    "OBSERVABILITY_EVENTS_FILENAME",
+    "OBSERVABILITY_SESSIONS_DIR_NAME",
     "PATTERNS_BY_DOMAIN_DIR",
     "PATTERNS_DIR_NAME",
     "PATTERNS_INDEX_FILENAME",
@@ -111,6 +115,18 @@ PHASES_DIR_NAME = "phases"
 
 TRACES_DIR_NAME = "traces"
 """Subdirectory under .gpd/ for execution trace JSONL files."""
+
+OBSERVABILITY_DIR_NAME = "observability"
+"""Subdirectory under .gpd/ for local session/event observability logs."""
+
+OBSERVABILITY_SESSIONS_DIR_NAME = "sessions"
+"""Subdirectory under observability/ containing per-session metadata and event streams."""
+
+OBSERVABILITY_EVENTS_FILENAME = "events.jsonl"
+"""Append-only project-level event stream for local observability."""
+
+OBSERVABILITY_CURRENT_SESSION_FILENAME = "current-session.json"
+"""Pointer to the most recent active local observability session."""
 
 MILESTONES_DIR_NAME = "milestones"
 """Subdirectory under .gpd/ for archived milestone snapshots."""
@@ -301,6 +317,7 @@ class ProjectLayout:
         layout = ProjectLayout(project_root)
         state_json = layout.state_json        # project_root / ".gpd" / "state.json"
         traces     = layout.traces_dir        # project_root / ".gpd" / "traces"
+        events     = layout.observability_events  # project_root / ".gpd" / "observability" / "events.jsonl"
         phase_dir  = layout.phase_dir("01-setup")
     """
 
@@ -371,6 +388,22 @@ class ProjectLayout:
         return self.gpd / TRACES_DIR_NAME
 
     @property
+    def observability_dir(self) -> Path:
+        return self.gpd / OBSERVABILITY_DIR_NAME
+
+    @property
+    def observability_sessions_dir(self) -> Path:
+        return self.observability_dir / OBSERVABILITY_SESSIONS_DIR_NAME
+
+    @property
+    def observability_events(self) -> Path:
+        return self.observability_dir / OBSERVABILITY_EVENTS_FILENAME
+
+    @property
+    def current_observability_session(self) -> Path:
+        return self.observability_dir / OBSERVABILITY_CURRENT_SESSION_FILENAME
+
+    @property
     def milestones_dir(self) -> Path:
         return self.gpd / MILESTONES_DIR_NAME
 
@@ -391,6 +424,16 @@ class ProjectLayout:
     @property
     def active_trace(self) -> Path:
         return self.traces_dir / ACTIVE_TRACE_FILENAME
+
+    def observability_session_events(self, session_id: str) -> Path:
+        """Return the per-session observability JSONL path."""
+        safe_session = "".join(c if c.isalnum() or c in "._-" else "-" for c in session_id)
+        return self.observability_sessions_dir / f"{safe_session}.jsonl"
+
+    def observability_session_meta(self, session_id: str) -> Path:
+        """Return the per-session observability metadata path."""
+        safe_session = "".join(c if c.isalnum() or c in "._-" else "-" for c in session_id)
+        return self.observability_sessions_dir / f"{safe_session}.json"
 
     def phase_dir(self, phase_name: str) -> Path:
         """Return path to a specific phase directory."""

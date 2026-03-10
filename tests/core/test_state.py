@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.state import (
@@ -20,6 +21,7 @@ from gpd.core.state import (
     state_load,
     state_extract_field,
     state_has_field,
+    state_record_session,
     state_replace_field,
     state_validate,
     validate_state_transition,
@@ -30,6 +32,18 @@ def _state_with_result(result: dict) -> dict:
     state = default_state_dict()
     state["intermediate_results"] = [result]
     return state
+
+
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _event_name(event: dict[str, object]) -> str | None:
+    for key in ("name", "span_name", "event", "event_name"):
+        value = event.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 # ─── default_state_dict ──────────────────────────────────────────────────────
 
@@ -594,6 +608,33 @@ def test_parse_state_to_json_structure():
     assert "metrics" not in result
     assert len(result["decisions"]) == 1
     assert len(result["blockers"]) == 1
+
+
+def test_state_record_session_emits_local_observability_events(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir()
+    layout.phases_dir.mkdir()
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "4"
+    state["position"]["status"] = "Executing"
+    state["session"]["last_date"] = "2026-03-01T10:00:00+00:00"
+    state["session"]["stopped_at"] = "Phase 4 P1"
+    state["session"]["resume_file"] = "resume.md"
+    save_state_json(tmp_path, state)
+
+    result = state_record_session(tmp_path, stopped_at="Phase 4 P2", resume_file="NEXT.md")
+    assert result.recorded is True
+
+    observability_dir = layout.gpd / "observability"
+    events_path = observability_dir / "events.jsonl"
+    assert events_path.exists()
+
+    events = _read_jsonl(events_path)
+    event_names = {_event_name(event) for event in events}
+    assert "session.continuity.recorded" in event_names
 
 
 # ─── model types ─────────────────────────────────────────────────────────────

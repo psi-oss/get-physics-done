@@ -315,7 +315,7 @@ class CodexAdapter(RuntimeAdapter):
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        _copy_commands_as_skills(commands_src, self._skills_dir, "gpd", path_prefix)
+        _copy_commands_as_skills(commands_src, self._skills_dir, "gpd", path_prefix, gpd_root / "specs")
         if verify_installed(self._skills_dir, "command skills"):
             logger.info("Installed command skills")
         else:
@@ -481,6 +481,7 @@ def _copy_commands_as_skills(
     skills_dir: Path,
     prefix: str,
     path_prefix: str,
+    gpd_src_root: Path | None = None,
 ) -> None:
     """Copy commands as Codex skill directories.
 
@@ -510,7 +511,9 @@ def _copy_commands_as_skills(
             skill_dir.mkdir(parents=True, exist_ok=True)
 
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
+            if gpd_src_root:
+                content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="codex")
+            content = replace_placeholders(content, path_prefix, "codex")
             content = _convert_to_codex_skill(content, skill_name)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -545,11 +548,11 @@ def _copy_agents_as_skills(
         skill_dir.mkdir(parents=True, exist_ok=True)
 
         content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix)
+        content = replace_placeholders(content, path_prefix, "codex")
 
         # Expand @ includes (Codex doesn't support @ file inclusion)
         if gpd_content_dir:
-            content = expand_at_includes(content, str(gpd_content_dir), path_prefix)
+            content = expand_at_includes(content, str(gpd_content_dir), path_prefix, runtime="codex")
 
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -578,11 +581,11 @@ def _copy_agents_as_agent_files(
             continue
 
         content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix)
+        content = replace_placeholders(content, path_prefix, "codex")
 
         # Expand @ includes for Codex
         if gpd_content_dir:
-            content = expand_at_includes(content, str(gpd_content_dir), path_prefix)
+            content = expand_at_includes(content, str(gpd_content_dir), path_prefix, runtime="codex")
 
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 

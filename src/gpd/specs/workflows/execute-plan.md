@@ -94,7 +94,13 @@ PLAN_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 PLAN_START_EPOCH=$(date +%s)
 ```
 
-Start execution trace for debugging (if trace module available):
+Record workflow start in the local observability stream, then start the plan-local execution trace:
+
+```bash
+gpd observe event workflow execute-plan.start --phase "${phase}" --plan "${plan}" 2>/dev/null || true
+```
+
+Start execution trace for debugging:
 
 ```bash
 gpd trace start "${phase}" "${plan}" 2>/dev/null || true
@@ -223,6 +229,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
 2. Per task:
    - `type="auto"`: Execute derivation/calculation/simulation. Verify done criteria including dimensional checks. Commit (see task_commit). Track hash for Summary.
      ```bash
+     gpd observe event task task-complete --phase "${phase}" --plan "${plan}" --data "{\"task\":\"${TASK_NUM}\",\"description\":\"${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      gpd trace log checkpoint --data "{\"description\":\"Task ${TASK_NUM} done: ${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      ```
      **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
@@ -232,6 +239,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      - **yolo:** Skip ALL checkpoint types. Log checkpoint events to trace but never stop. Only hard stops: unrecoverable computation error, context pressure RED, or explicit STOP in plan.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
+   gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
    gpd trace log assertion --data "{\"description\":\"Verification: ${VERIFICATION_RESULT}\"}" 2>/dev/null || true
    ```
 4. Confirm `<success_criteria>` met
@@ -477,6 +485,7 @@ gpd_return:
 gpd state record-session \
   --stopped-at "Completed ${phase}-${plan}-PLAN.md" \
   --resume-file "None"
+gpd observe event session continuity-updated --phase "${phase}" --plan "${plan}" --data "{\"stopped_at\":\"Completed ${phase}-${plan}-PLAN.md\",\"resume_file\":\"None\"}" 2>/dev/null || true
 ```
 
 Keep STATE.md under 150 lines.
@@ -513,6 +522,12 @@ gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase
 </step>
 
 <step name="stop_trace">
+Record workflow completion in the local observability stream, then stop the plan-local trace:
+
+```bash
+gpd observe event workflow execute-plan.complete --phase "${phase}" --plan "${plan}" 2>/dev/null || true
+```
+
 Stop execution trace (captures event summary):
 
 ```bash
@@ -521,7 +536,7 @@ gpd trace stop 2>/dev/null || true
 </step>
 
 <step name="track_cost">
-Record token consumption for cost analysis:
+Optional token-cost tracking (only if your local build exposes cost commands and the runtime provides token counts):
 
 ```bash
 gpd cost-track --phase "${phase}" --plan "${plan}" --agent executor --tokens "${tokens_used:-0}" 2>/dev/null || true

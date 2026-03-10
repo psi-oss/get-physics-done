@@ -236,6 +236,7 @@ def _install_commands_as_toml(
     commands_src: Path,
     commands_dest: Path,
     path_prefix: str,
+    gpd_src_root: Path,
     explicit_config_dir: str | None = None,
 ) -> None:
     """Install commands as .toml files in nested ``commands/gpd/`` structure.
@@ -251,7 +252,7 @@ def _install_commands_as_toml(
     commands_dest.mkdir(parents=True, exist_ok=True)
 
     attribution = get_commit_attribution("gemini", explicit_config_dir=explicit_config_dir)
-    _copy_commands_recursive(commands_src, commands_dest, path_prefix, attribution)
+    _copy_commands_recursive(commands_src, commands_dest, path_prefix, attribution, gpd_src_root)
 
 
 def _copy_commands_recursive(
@@ -259,16 +260,18 @@ def _copy_commands_recursive(
     dest_dir: Path,
     path_prefix: str,
     attribution: str | None,
+    gpd_src_root: Path,
 ) -> None:
     """Recursively copy commands, converting .md to .toml for Gemini."""
     for entry in sorted(src_dir.iterdir()):
         if entry.is_dir():
             sub_dest = dest_dir / entry.name
             sub_dest.mkdir(parents=True, exist_ok=True)
-            _copy_commands_recursive(entry, sub_dest, path_prefix, attribution)
+            _copy_commands_recursive(entry, sub_dest, path_prefix, attribution, gpd_src_root)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
+            content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="gemini")
+            content = replace_placeholders(content, path_prefix, "gemini")
             content = process_attribution(content, attribution)
             content = strip_sub_tags(content)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -345,7 +348,7 @@ class GeminiAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         commands_dest = target_dir / "commands" / "gpd"
         (target_dir / "commands").mkdir(parents=True, exist_ok=True)
-        _install_commands_as_toml(commands_src, commands_dest, path_prefix)
+        _install_commands_as_toml(commands_src, commands_dest, path_prefix, gpd_root / "specs")
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd (TOML format)")
         else:

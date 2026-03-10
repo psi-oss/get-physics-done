@@ -15,7 +15,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map
+from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map, translate_for_runtime
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,6 +35,13 @@ HOOK_SCRIPTS: dict[str, str] = {
     "check_update": "check_update.py",
     "codex_notify": "codex_notify.py",
     "runtime_detect": "runtime_detect.py",
+}
+
+_RUNTIME_INSTALL_FLAGS: dict[str, str] = {
+    "claude-code": "--claude",
+    "codex": "--codex",
+    "gemini": "--gemini",
+    "opencode": "--opencode",
 }
 
 # ---------------------------------------------------------------------------
@@ -58,11 +65,26 @@ def expand_tilde(file_path: str | None) -> str | None:
     return file_path
 
 
-def replace_placeholders(content: str, path_prefix: str) -> str:
+def _replace_runtime_placeholders(content: str, path_prefix: str, runtime: str | None) -> str:
+    """Replace runtime-specific placeholders in installed prompt content."""
+    if not runtime:
+        return content
+
+    config_dir = path_prefix[:-1] if path_prefix.endswith("/") else path_prefix
+    global_config_dir = str(Path(get_global_dir(runtime)).expanduser()).replace("\\", "/")
+    install_flag = _RUNTIME_INSTALL_FLAGS.get(runtime, f"--{runtime}")
+
+    content = content.replace("{GPD_CONFIG_DIR}", config_dir)
+    content = content.replace("{GPD_GLOBAL_CONFIG_DIR}", global_config_dir)
+    content = content.replace("{GPD_RUNTIME_FLAG}", install_flag)
+    return content
+
+
+def replace_placeholders(content: str, path_prefix: str, runtime: str | None = None) -> str:
     """Replace GPD path placeholders in file content.
 
-    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, and ``~/.claude/``
-    references with *path_prefix*-based paths.
+    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, runtime placeholders,
+    and ``~/.claude/`` references with *path_prefix*-based paths.
 
     The source spec files always use ``~/.claude/`` as a canonical placeholder
     for the runtime config directory, regardless of the target runtime.  This
@@ -75,7 +97,7 @@ def replace_placeholders(content: str, path_prefix: str) -> str:
     content = content.replace("{GPD_INSTALL_DIR}", path_prefix + "get-physics-done")
     content = content.replace("{GPD_AGENTS_DIR}", path_prefix + "agents")
     content = re.sub(r"~/\.claude/", path_prefix, content)
-    return content
+    return _replace_runtime_placeholders(content, path_prefix, runtime)
 
 
 def get_opencode_global_dir() -> str:
@@ -344,6 +366,58 @@ def strip_sub_tags(content: str) -> str:
     return re.sub(r"<sub>(.*?)</sub>", r"*(\1)*", content)
 
 
+def _translate_frontmatter_tool_names(content: str, runtime: str) -> str:
+    """Translate canonical tool names inside YAML frontmatter lists."""
+    if not content.startswith("---"):
+        return content
+
+    fm_end = re.search(r"\n---[ \t]*(?:\n|$)", content[3:])
+    if not fm_end:
+        return content
+
+    frontmatter_start = 4 if content.startswith("---\n") else 3
+    frontmatter_end = 3 + fm_end.start()
+    body_start = 3 + fm_end.end()
+    frontmatter = content[frontmatter_start:frontmatter_end].strip("\n")
+    body = content[body_start:]
+
+    translated_lines: list[str] = []
+    in_tool_array = False
+
+    for line in frontmatter.split("\n"):
+        stripped = line.strip()
+        field_match = re.match(r"^(\s*)(allowed-tools|tools):\s*(.*)$", line)
+        if field_match:
+            indent, key, value = field_match.groups()
+            if not value:
+                in_tool_array = True
+                translated_lines.append(f"{indent}{key}:")
+                continue
+
+            in_tool_array = False
+            parsed = [part.strip() for part in value.split(",") if part.strip()]
+            mapped = [translate_for_runtime(part, runtime) for part in parsed]
+            mapped = [part for part in mapped if part]
+            translated_lines.append(f"{indent}{key}: {', '.join(mapped)}" if mapped else f"{indent}{key}:")
+            continue
+
+        if in_tool_array:
+            item_match = re.match(r"^(\s*)-\s+(.*)$", line)
+            if item_match:
+                indent, tool_name = item_match.groups()
+                mapped = translate_for_runtime(tool_name.strip(), runtime)
+                if mapped:
+                    translated_lines.append(f"{indent}- {mapped}")
+                continue
+            if stripped:
+                in_tool_array = False
+
+        translated_lines.append(line)
+
+    translated_frontmatter = "\n".join(translated_lines)
+    return f"---\n{translated_frontmatter}\n---{body}"
+
+
 def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None]) -> str:
     """Replace tool-name references in body text using *tool_map*.
 
@@ -401,7 +475,8 @@ def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str
     references, placeholders, and lightweight formatting need the same
     runtime-specific adaptation as primary prompts.
     """
-    content = replace_placeholders(content, path_prefix)
+    content = replace_placeholders(content, path_prefix, runtime)
+    content = _translate_frontmatter_tool_names(content, runtime)
 
     if runtime == "codex":
         content = content.replace("/gpd:", "$gpd-")
@@ -419,6 +494,7 @@ def expand_at_includes(
     src_root: str | Path,
     path_prefix: str,
     *,
+    runtime: str | None = None,
     depth: int = 0,
     include_stack: set[str] | None = None,
 ) -> str:
@@ -492,7 +568,13 @@ def expand_at_includes(
 
         # Resolve against source directory
         src_path: Path | None = None
-        if "get-physics-done/" in include_path:
+        if include_path.startswith("{GPD_INSTALL_DIR}/"):
+            relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
+            src_path = src_root / relative_path
+        elif include_path.startswith("{GPD_AGENTS_DIR}/"):
+            relative_path = include_path[len("{GPD_AGENTS_DIR}/") :]
+            src_path = src_root.parent / "agents" / relative_path
+        elif "get-physics-done/" in include_path:
             gpd_idx = include_path.index("get-physics-done/")
             relative_path = include_path[gpd_idx:]
             src_path = src_root.parent / relative_path
@@ -529,11 +611,12 @@ def expand_at_includes(
                     body = body[actual_end:].strip()
 
             # Normalize path references in included content before recursion
-            body = replace_placeholders(body, path_prefix)
+            body = replace_placeholders(body, path_prefix, runtime)
             body = expand_at_includes(
                 body,
                 str(src_root),
                 path_prefix,
+                runtime=runtime,
                 depth=depth + 1,
                 include_stack=include_stack,
             )

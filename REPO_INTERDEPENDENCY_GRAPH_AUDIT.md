@@ -13,11 +13,11 @@ It is strong as a mixed-confidence architectural map, but it is not an exhaustiv
 This audit combined:
 
 - direct inspection of runtime, docs, CI, adapter, hook, and test files in the current worktree
-- two waves of focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
+- four waves of focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
 - usable returned findings from the docs/CI, methodology, and adapter/materialization slices
 - local verification of representative files where the graph is most likely to overclaim completeness
 
-Note: the previously referenced `REPO_INTERDEPENDENCY_GRAPH.md` file is **not present** in the current worktree, so this audit is written as a standalone root-level assessment rather than as a patch to that file.
+This audit is now the companion skepticism document for [REPO_INTERDEPENDENCY_GRAPH.md](/Users/sergio/GitHub/get-physics-done/REPO_INTERDEPENDENCY_GRAPH.md). The graph file is the rebuilt dependency atlas; this file records where static analysis still cannot honestly prove absolute completeness.
 
 ## Confidence Summary
 
@@ -447,4 +447,8 @@ If the goal is an honest repo-wide dependency atlas, the work is already useful.
 
 If the goal is a literally complete directed graph of **all** file and object interdependencies, the answer is no: more extraction work is still required.
 
-The second-wave audit did not change that headline. It only made the same conclusion more precise by surfacing dynamic path-resolution, generated-artifact, and test-contract edges that the first wave still treated too coarsely.
+Static ceiling conclusion:
+
+- After the fourth wave, the graph appears close to the practical static-analysis ceiling for this worktree.
+- The remaining uncertainty is now concentrated in dynamic runtime state, environment-specific external nodes, precedence-dependent candidate sets, and branch-conditional execution that static inspection cannot fully resolve.
+- That means the graph is now substantially stronger than before, but "absolutely complete" is still not a defensible claim unless those dynamic/runtime branches are exercised, not just read.

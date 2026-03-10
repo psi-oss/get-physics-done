@@ -229,11 +229,10 @@ def test_public_docs_keep_runtime_surface_first() -> None:
 
     assert "## Known Limitations" in readme
     assert "After installing GPD, open your chosen runtime normally" in readme
-    assert "gpd session" not in readme
-    assert (
-        "On Codex, GPD enables experimental multi-agent support automatically during install, "
-        "but subagent activity is currently surfaced in the CLI only."
-    ) in readme
+    assert "## Local Observability" in readme
+    assert ".gpd/observability/" in readme
+    assert "STATE.md: concise human-readable continuity state" in readme
+    assert "fabricate opaque provider internals" in readme
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     repo_root = _repo_root()

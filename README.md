@@ -161,6 +161,18 @@ The `gpd` CLI also exposes machine-readable validation commands for review-grade
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
 | `gpd validate reproducibility-manifest <file.json> --strict` | Validate a reproducibility manifest and require review-ready coverage |
 
+## Local Observability
+
+GPD now keeps a project-local observability trail under `.gpd/observability/` alongside the existing state and trace artifacts.
+
+- `events.jsonl`: append-only project event stream for workflow, command, agent, and verification activity
+- `sessions/*.jsonl`: per-session event streams for reconstruction and handoff
+- `current-session.json`: latest session metadata for status and resume tooling
+- `.gpd/traces/`: plan-local execution traces for detailed debugging and post-mortem review
+- `STATE.md`: concise human-readable continuity state, not the full event ledger
+
+These layers complement each other: traces are narrow and plan-specific, while observability is broader and session-oriented.
+
 ## Requirements
 
 - Node.js with `npm`/`npx`
@@ -171,7 +183,7 @@ The `gpd` CLI also exposes machine-readable validation commands for review-grade
 
 ## Known Limitations
 
-- On Codex, GPD enables experimental multi-agent support automatically during install, but subagent activity is currently surfaced in the CLI only.
+- Runtime-internal tool and subagent detail is limited by what the active provider/runtime exposes. GPD records the workflow, session, and trace events it can emit locally, but it does not fabricate opaque provider internals.
 
 ## Citation
 

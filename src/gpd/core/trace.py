@@ -14,8 +14,11 @@ trace_show   — display/filter trace events
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -24,8 +27,26 @@ from pydantic import BaseModel, Field
 
 from gpd.core.constants import ProjectLayout
 from gpd.core.errors import TraceError
-from gpd.core.observability import gpd_span, instrument_gpd_function
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
+
+try:
+    import gpd.core.observability as _observability
+    from gpd.core.observability import gpd_span, instrument_gpd_function
+except ModuleNotFoundError:  # pragma: no cover - compatibility during observability replacement
+    _observability = None
+
+    @contextmanager
+    def gpd_span(_name: str, **_attrs: object) -> Generator[None, None, None]:
+        yield None
+
+    def instrument_gpd_function(
+        _span_name: str | None = None,
+        **_default_attrs: object,
+    ) -> Callable:
+        def decorator(func: Callable) -> Callable:
+            return func
+
+        return decorator
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +101,9 @@ class TraceEvent(BaseModel):
     event_type: str = Field(alias="type")
     phase: str | None = None
     plan: str | None = None
+    trace_id: str | None = None
+    session_id: str | None = None
+    event_id: str | None = None
     data: dict[str, object] | None = None
     summary: dict[str, object] | None = None
 
@@ -93,6 +117,8 @@ class ActiveTrace(BaseModel):
     plan: str
     file: str
     started_at: str
+    trace_id: str | None = None
+    session_id: str | None = None
 
 
 class TraceStartResult(BaseModel):
@@ -102,6 +128,8 @@ class TraceStartResult(BaseModel):
     phase: str
     plan: str
     file: str
+    trace_id: str | None = None
+    session_id: str | None = None
 
 
 class TraceLogResult(BaseModel):
@@ -109,6 +137,10 @@ class TraceLogResult(BaseModel):
 
     logged: bool = True
     event_type: str
+    phase: str | None = None
+    plan: str | None = None
+    trace_id: str | None = None
+    session_id: str | None = None
 
 
 class TraceStopResult(BaseModel):
@@ -117,6 +149,8 @@ class TraceStopResult(BaseModel):
     stopped: bool = True
     phase: str
     plan: str
+    trace_id: str | None = None
+    session_id: str | None = None
     event_counts: dict[str, int] = Field(default_factory=dict)
 
 
@@ -154,6 +188,14 @@ def _trace_file_path(cwd: Path, phase: str, plan: str) -> Path:
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _safe_trace_component(value: str) -> str:
+    return "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
+
+
+def _trace_id(phase: str, plan: str) -> str:
+    return f"{_safe_trace_component(phase)}-{_safe_trace_component(plan)}"
 
 
 def _read_active_trace(cwd: Path) -> ActiveTrace | None:
@@ -199,6 +241,112 @@ def _append_line(file_path: Path, line: str) -> None:
             f.write(line + "\n")
 
 
+def _extract_session_id(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, dict):
+        candidate = value.get("session_id") or value.get("id")
+        return str(candidate) if candidate else None
+    for attr in ("session_id", "id"):
+        candidate = getattr(value, attr, None)
+        if candidate:
+            return str(candidate)
+    return None
+
+
+def _call_observability_helper(helper_name: str, *, cwd: Path | None = None, **kwargs: object) -> object | None:
+    helper = getattr(_observability, helper_name, None)
+    if not callable(helper):
+        return None
+
+    try:
+        signature = inspect.signature(helper)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is None:
+        try:
+            return helper(cwd=cwd, **kwargs) if cwd is not None else helper(**kwargs)
+        except TypeError:
+            return None
+
+    bound_kwargs: dict[str, object] = {}
+    if cwd is not None and "cwd" in signature.parameters:
+        bound_kwargs["cwd"] = cwd
+
+    for key, value in kwargs.items():
+        if key in signature.parameters:
+            bound_kwargs[key] = value
+
+    try:
+        return helper(**bound_kwargs)
+    except TypeError:
+        return None
+
+
+def _ensure_observability_session(cwd: Path, *, phase: str, plan: str) -> str | None:
+    metadata = {"component": "trace", "phase": phase, "plan": plan, "trace_id": _trace_id(phase, plan)}
+
+    for helper_name in ("ensure_session", "ensure_observability_session", "start_session"):
+        session_id = _extract_session_id(
+            _call_observability_helper(helper_name, cwd=cwd, source="trace", metadata=metadata)
+        )
+        if session_id:
+            return session_id
+
+    for helper_name in ("get_current_session_id", "current_session_id", "get_current_session", "current_session"):
+        session_id = _extract_session_id(_call_observability_helper(helper_name, cwd=cwd))
+        if session_id:
+            return session_id
+
+    return None
+
+
+def _emit_observability_event(
+    cwd: Path,
+    *,
+    action: str,
+    event_type: str,
+    phase: str,
+    plan: str,
+    trace_id: str,
+    session_id: str | None,
+    data: dict[str, object] | None = None,
+    summary: dict[str, object] | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "trace_event_type": event_type,
+        "trace_action": action,
+        "phase": phase,
+        "plan": plan,
+        "trace_id": trace_id,
+    }
+    if data is not None:
+        payload["data"] = data
+    if summary is not None:
+        payload["summary"] = summary
+
+    for helper_name in ("observe_event", "record_event", "log_event"):
+        result = _call_observability_helper(
+            helper_name,
+            cwd=cwd,
+            category="trace",
+            name=event_type,
+            action=action,
+            entity_type="trace",
+            entity_id=trace_id,
+            phase=phase,
+            plan=plan,
+            trace_id=trace_id,
+            session_id=session_id,
+            data=payload,
+        )
+        if result is not None:
+            return
+
+
 # ─── Public API ───────────────────────────────────────────────────────────────
 
 
@@ -230,8 +378,19 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
 
     trace_file = _trace_file_path(cwd, phase, plan)
     started_at = _now_iso()
+    trace_id = _trace_id(phase, plan)
+    session_id = _ensure_observability_session(cwd, phase=phase, plan=plan)
 
-    line = json.dumps({"timestamp": started_at, "type": "trace_start", "phase": phase, "plan": plan})
+    line = json.dumps(
+        {
+            "timestamp": started_at,
+            "type": "trace_start",
+            "phase": phase,
+            "plan": plan,
+            "trace_id": trace_id,
+            "session_id": session_id,
+        }
+    )
     _append_line(trace_file, line)
 
     # NOTE: active.file stores an absolute path as a string.  If the project
@@ -239,7 +398,14 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     # trace_log / trace_stop will break because the stored path no longer
     # resolves.  A full fix requires a schema migration to store relative
     # paths; for now we document the limitation.
-    marker = ActiveTrace(phase=phase, plan=plan, file=str(trace_file), started_at=started_at)
+    marker = ActiveTrace(
+        phase=phase,
+        plan=plan,
+        file=str(trace_file),
+        started_at=started_at,
+        trace_id=trace_id,
+        session_id=session_id,
+    )
     atomic_write(_active_trace_path(cwd), marker.model_dump_json(indent=2))
 
     # relative_to raises ValueError when trace_file is not under cwd
@@ -252,7 +418,17 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     with gpd_span("trace.start", **{"gpd.phase": phase, "gpd.plan": plan}):
         logger.info("trace_started", extra={"phase": phase, "plan": plan, "file": rel})
 
-    return TraceStartResult(phase=phase, plan=plan, file=rel)
+    _emit_observability_event(
+        cwd,
+        action="start",
+        event_type=TraceEventType.TRACE_START,
+        phase=phase,
+        plan=plan,
+        trace_id=trace_id,
+        session_id=session_id,
+    )
+
+    return TraceStartResult(phase=phase, plan=plan, file=rel, trace_id=trace_id, session_id=session_id)
 
 
 @instrument_gpd_function("trace.log")
@@ -269,7 +445,16 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
     if active is None:
         raise TraceError("No active trace. Call trace_start() first.")
 
-    line = _serialize_event(event_type, data=data)
+    trace_id = active.trace_id or _trace_id(active.phase, active.plan)
+    session_id = active.session_id or _ensure_observability_session(cwd, phase=active.phase, plan=active.plan)
+    line = _serialize_event(
+        event_type,
+        phase=active.phase,
+        plan=active.plan,
+        trace_id=trace_id,
+        session_id=session_id,
+        data=data,
+    )
     # NOTE: active.file is an absolute path string (see trace_start comment).
     # If the project directory has been moved since the trace was started,
     # this Path() will point to a stale location.
@@ -278,7 +463,24 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
     with gpd_span("trace.log", **{"gpd.trace_event_type": event_type}):
         pass
 
-    return TraceLogResult(event_type=event_type)
+    _emit_observability_event(
+        cwd,
+        action="log",
+        event_type=event_type,
+        phase=active.phase,
+        plan=active.plan,
+        trace_id=trace_id,
+        session_id=session_id,
+        data=data,
+    )
+
+    return TraceLogResult(
+        event_type=event_type,
+        phase=active.phase,
+        plan=active.plan,
+        trace_id=trace_id,
+        session_id=session_id,
+    )
 
 
 @instrument_gpd_function("trace.stop")
@@ -293,6 +495,8 @@ def trace_stop(cwd: Path) -> TraceStopResult:
         raise TraceError("No active trace to stop.")
 
     trace_file = Path(active.file)
+    trace_id = active.trace_id or _trace_id(active.phase, active.plan)
+    session_id = active.session_id or _ensure_observability_session(cwd, phase=active.phase, plan=active.plan)
 
     # Count events by type
     counts: dict[str, int] = {}
@@ -304,6 +508,10 @@ def trace_stop(cwd: Path) -> TraceStopResult:
         {
             "timestamp": stopped_at,
             "type": "trace_stop",
+            "phase": active.phase,
+            "plan": active.plan,
+            "trace_id": trace_id,
+            "session_id": session_id,
             "summary": {
                 "started_at": active.started_at,
                 "stopped_at": stopped_at,
@@ -321,7 +529,24 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     with gpd_span("trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
         logger.info("trace_stopped", extra={"phase": active.phase, "plan": active.plan, "counts": counts})
 
-    return TraceStopResult(phase=active.phase, plan=active.plan, event_counts=counts)
+    _emit_observability_event(
+        cwd,
+        action="stop",
+        event_type=TraceEventType.TRACE_STOP,
+        phase=active.phase,
+        plan=active.plan,
+        trace_id=trace_id,
+        session_id=session_id,
+        summary={"started_at": active.started_at, "stopped_at": stopped_at, "event_counts": counts},
+    )
+
+    return TraceStopResult(
+        phase=active.phase,
+        plan=active.plan,
+        trace_id=trace_id,
+        session_id=session_id,
+        event_counts=counts,
+    )
 
 
 @instrument_gpd_function("trace.show")

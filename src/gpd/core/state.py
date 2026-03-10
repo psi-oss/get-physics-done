@@ -39,7 +39,7 @@ from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
 from gpd.core.extras import Uncertainty as PropagatedUncertainty
-from gpd.core.observability import instrument_gpd_function
+from gpd.core.observability import gpd_span, instrument_gpd_function
 from gpd.core.results import IntermediateResult
 from gpd.core.utils import (
     atomic_write,
@@ -1838,6 +1838,13 @@ def state_record_session(
     """Record session info in STATE.md."""
     md_path = _state_md_path(cwd)
     if not md_path.exists():
+        with gpd_span(
+            "session.continuity.missing_state",
+            cwd=str(cwd),
+            stopped_at=stopped_at or "",
+            resume_file=resume_file or "None",
+        ):
+            pass
         return RecordSessionResult(recorded=False, error="STATE.md not found")
 
     with _state_lock(cwd):
@@ -1864,8 +1871,23 @@ def state_record_session(
 
         if updated:
             _write_state_markdown_locked(cwd, content)
+            with gpd_span(
+                "session.continuity.recorded",
+                cwd=str(cwd),
+                updated_fields=",".join(updated),
+                stopped_at=stopped_at or "",
+                resume_file=resume,
+            ):
+                pass
             return RecordSessionResult(recorded=True, updated=updated)
 
+        with gpd_span(
+            "session.continuity.noop",
+            cwd=str(cwd),
+            stopped_at=stopped_at or "",
+            resume_file=resume,
+        ):
+            pass
         return RecordSessionResult(recorded=False, reason="No session fields found in STATE.md")
 
 
