@@ -63,9 +63,6 @@ gpd state snapshot | gpd json get .decisions --default "[]"
 ```
 
 ## Step 4: Spawn Researcher
-
-> See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
-
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```

@@ -116,9 +116,6 @@ Continue to spawn_agents.
 Spawn 4 parallel gpd-theory-mapper agents.
 
 Use task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
-
-> See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
-
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **CRITICAL:** Use the dedicated `gpd-theory-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.

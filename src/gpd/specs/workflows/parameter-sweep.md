@@ -239,9 +239,6 @@ Execute the sweep plans using wave-based parallel execution following the execut
 2. **Spawn executor agents for all plans in the wave:**
 
    Follow the same task() spawning pattern as execute-phase.md step `execute_waves`.
-
-   > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
-
    > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```

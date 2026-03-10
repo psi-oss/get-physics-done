@@ -25,7 +25,6 @@ def test_planner_templates_exist():
 def test_prompt_sources_do_not_use_stale_agent_install_paths():
     files = [
         REPO_ROOT / "src/gpd/specs/references/agent-delegation.md",
-        REPO_ROOT / "src/gpd/specs/references/known-bugs-active.md",
         REPO_ROOT / "src/gpd/specs/templates/continuation-prompt.md",
     ]
 

@@ -196,7 +196,7 @@ Pattern B only (verify-only checkpoints). Skip for A/C.
    - Append `## Self-Check: PASSED` or `## Self-Check: FAILED` to SUMMARY
    - Run physics validation checks (dimensional consistency, limiting cases) -> Append `## Validation: PASSED` or `## Validation: FAILED`
 
-   > **Known bug workaround:** The `classifyHandoffIfNeeded` bug may report successful subagents as failed. Always spot-check output files and git commits before treating a result as failed. See `{GPD_INSTALL_DIR}/references/known-bugs.md` §1 for details.
+   > **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
 
 </step>
 

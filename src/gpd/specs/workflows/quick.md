@@ -127,9 +127,6 @@ If plan not found, error: "Planner failed to create ${next_num}-PLAN.md"
 **Step 5: Spawn executor**
 
 Spawn gpd-executor with plan reference:
-
-> See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
-
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
@@ -162,7 +159,7 @@ After executor returns:
 2. Extract commit hash from executor output
 3. Report completion status
 
-> **Known bug workaround:** The `classifyHandoffIfNeeded` bug may report successful subagents as failed. Always spot-check output files and git commits before treating a result as failed. See `{GPD_INSTALL_DIR}/references/known-bugs.md` §1 for details.
+> **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
 
 If summary not found, error: "Executor failed to create ${next_num}-SUMMARY.md"
 

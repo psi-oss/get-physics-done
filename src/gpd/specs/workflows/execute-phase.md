@@ -788,7 +788,7 @@ for DEP in $(echo "$PLAN_DEPS" | tr ',' ' '); do
 done
 ```
 
-> **Known bug workaround:** The `classifyHandoffIfNeeded` bug may report successful subagents as failed. Always spot-check output files and git commits before treating a result as failed. See `{GPD_INSTALL_DIR}/references/known-bugs.md` §1 for details.
+> **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
 </step>
 
 <step name="checkpoint_handling">
@@ -1472,7 +1472,7 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
 
 <failure_handling>
 
-- **classifyHandoffIfNeeded false failure:** See `{GPD_INSTALL_DIR}/references/known-bugs.md`. Spot-check (SUMMARY exists, commits present) -> if pass, treat as success
+- **classifyHandoffIfNeeded false failure:** Spot-check (SUMMARY exists, commits present) -> if pass, treat as success
 - **Agent fails mid-plan:** Missing SUMMARY.md -> report, route to wave_failure_handling for user decision
 - **Dependency chain breaks:** Wave N plan fails -> identify Wave N+1 dependents via `depends_on` frontmatter -> auto-skip with clear message -> user chooses at wave level
 - **All agents in wave fail:** Systemic issue -> stop, report for investigation, offer wave-level rollback
