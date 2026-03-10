@@ -29,7 +29,7 @@ from datetime import date
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import (
     ENV_DATA_DIR,
@@ -142,6 +142,8 @@ _CONFIDENCE_PROMOTION: dict[str, str | None] = {
 
 class PatternEntry(BaseModel):
     """A single pattern in the library index."""
+
+    model_config = ConfigDict(validate_assignment=True)
 
     id: str
     file: str

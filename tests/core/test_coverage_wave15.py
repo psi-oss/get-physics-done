@@ -803,7 +803,7 @@ class TestCheckLatestReturn:
             "# Summary\n\n"
             "```yaml\n"
             "gpd_return:\n"
-            "  status: complete\n"
+            "  status: completed\n"
             "  phase: '01'\n"
             "  plan: 01-setup-01\n"
             "  tasks_completed: 3\n"
@@ -815,8 +815,7 @@ class TestCheckLatestReturn:
         (phase_dir / "01-setup-01-SUMMARY.md").write_text(summary_content)
 
         result = check_latest_return(tmp_path)
-        # Should pass or warn (depending on exact required fields)
-        assert result.status.value in ("ok", "warn", "fail")
+        assert result.status.value == "ok"
 
     def test_summary_without_return_block(self, tmp_path: Path) -> None:
         from gpd.core.health import check_latest_return

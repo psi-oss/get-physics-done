@@ -698,7 +698,10 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         for f in sorted(pending_dir.iterdir()):
             if not f.is_file() or not f.name.endswith(".md"):
                 continue
-            content = f.read_text(encoding="utf-8")
+            try:
+                content = f.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, PermissionError, OSError):
+                continue
             title = _extract_frontmatter_field(content, "title") or "Untitled"
             todo_area = _extract_frontmatter_field(content, "area") or "general"
             created = _extract_frontmatter_field(content, "created") or "unknown"

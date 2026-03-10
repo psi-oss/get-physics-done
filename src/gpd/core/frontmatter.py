@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.constants import (
     PLAN_SUFFIX,
@@ -332,6 +332,8 @@ class CommitVerification(BaseModel):
 
 
 class ArtifactCheck(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     path: str
     exists: bool = False
     issues: list[str] = Field(default_factory=list)

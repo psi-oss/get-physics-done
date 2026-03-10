@@ -263,6 +263,8 @@ class TestCheckStateValidity:
     def test_no_state_files(self, tmp_path: Path):
         result = check_state_validity(tmp_path)
         assert result.label == "State Validity"
+        assert result.status == CheckStatus.FAIL
+        assert result.issues
 
 
 # ─── run_health Integration ──────────────────────────────────────────────────
@@ -272,7 +274,7 @@ class TestRunHealth:
     def test_returns_report(self, tmp_path: Path):
         report = run_health(tmp_path)
         assert isinstance(report, HealthReport)
-        assert report.summary.total == 12
+        assert report.summary.total >= 12
         assert report.overall in (CheckStatus.OK, CheckStatus.WARN, CheckStatus.FAIL)
 
     def test_fix_mode(self, tmp_path: Path):

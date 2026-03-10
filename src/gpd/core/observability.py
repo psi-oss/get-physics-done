@@ -695,27 +695,30 @@ def show_events(
             last=last,
         )
     else:
-        global_events = _filter_events(
-            _read_events(layout.observability_events),
-            category=category,
-            name=name,
-            action=action,
-            status=status,
-            command=command,
-            phase=phase,
-            plan=plan,
-            last=last,
-        )
-        events = global_events or _filter_events(
-            _read_session_events(layout),
-            category=category,
-            name=name,
-            action=action,
-            status=status,
-            command=command,
-            phase=phase,
-            plan=plan,
-            last=last,
-        )
+        global_file = layout.observability_events
+        if global_file.exists():
+            events = _filter_events(
+                _read_events(global_file),
+                category=category,
+                name=name,
+                action=action,
+                status=status,
+                command=command,
+                phase=phase,
+                plan=plan,
+                last=last,
+            )
+        else:
+            events = _filter_events(
+                _read_session_events(layout),
+                category=category,
+                name=name,
+                action=action,
+                status=status,
+                command=command,
+                phase=phase,
+                plan=plan,
+                last=last,
+            )
 
     return ObservabilityShowResult(count=len(events), events=events)

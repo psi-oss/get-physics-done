@@ -115,6 +115,12 @@ def test_show_events_falls_back_to_session_streams_when_global_stream_missing(tm
 
 
 def test_show_events_falls_back_when_global_stream_has_no_matching_records(tmp_path: Path) -> None:
+    """When global events file exists, show_events uses it as authoritative source.
+
+    It should NOT fall back to session events just because the filter yields no
+    matches from the global file.  This prevents non-deterministic data source
+    switching.
+    """
     project = _bootstrap_project(tmp_path)
     obs_dir = project / ".gpd" / "observability"
     obs_dir.mkdir(parents=True, exist_ok=True)
@@ -155,8 +161,9 @@ def test_show_events_falls_back_when_global_stream_has_no_matching_records(tmp_p
 
     result = show_events(project, category="cli", command="timestamp")
 
-    assert result.count == 1
-    assert result.events[0]["session_id"] == "session-a"
+    # Global file exists but has no events matching command="timestamp".
+    # The fix ensures we do NOT fall back to session events in this case.
+    assert result.count == 0
 
 
 def test_prefixed_attrs_renames_cwd_to_gpd_cwd():

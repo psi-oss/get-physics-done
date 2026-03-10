@@ -17,7 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.config import GPDProjectConfig, load_config
 from gpd.core.constants import (
@@ -77,6 +77,8 @@ class CheckStatus(StrEnum):
 
 class HealthCheck(BaseModel):
     """Result of a single health check."""
+
+    model_config = ConfigDict(validate_assignment=True)
 
     status: CheckStatus
     label: str

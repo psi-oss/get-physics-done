@@ -293,6 +293,8 @@ class RecordMetricResult(BaseModel):
 class UpdateProgressResult(BaseModel):
     """Returned by :func:`state_update_progress`."""
 
+    model_config = ConfigDict(frozen=True)
+
     updated: bool
     error: str | None = None
     reason: str | None = None
@@ -305,6 +307,8 @@ class UpdateProgressResult(BaseModel):
 class AddDecisionResult(BaseModel):
     """Returned by :func:`state_add_decision`."""
 
+    model_config = ConfigDict(frozen=True)
+
     added: bool
     error: str | None = None
     reason: str | None = None
@@ -313,6 +317,8 @@ class AddDecisionResult(BaseModel):
 
 class AddBlockerResult(BaseModel):
     """Returned by :func:`state_add_blocker`."""
+
+    model_config = ConfigDict(frozen=True)
 
     added: bool
     error: str | None = None
@@ -323,6 +329,8 @@ class AddBlockerResult(BaseModel):
 class ResolveBlockerResult(BaseModel):
     """Returned by :func:`state_resolve_blocker`."""
 
+    model_config = ConfigDict(frozen=True)
+
     resolved: bool
     error: str | None = None
     reason: str | None = None
@@ -332,6 +340,8 @@ class ResolveBlockerResult(BaseModel):
 class RecordSessionResult(BaseModel):
     """Returned by :func:`state_record_session`."""
 
+    model_config = ConfigDict(frozen=True)
+
     recorded: bool
     error: str | None = None
     reason: str | None = None
@@ -340,6 +350,8 @@ class RecordSessionResult(BaseModel):
 
 class StateSnapshotResult(BaseModel):
     """Returned by :func:`state_snapshot`."""
+
+    model_config = ConfigDict(frozen=True)
 
     current_phase: str | None = None
     current_phase_name: str | None = None
@@ -359,6 +371,8 @@ class StateSnapshotResult(BaseModel):
 
 class StateCompactResult(BaseModel):
     """Returned by :func:`state_compact`."""
+
+    model_config = ConfigDict(frozen=True)
 
     compacted: bool
     error: str | None = None
@@ -580,10 +594,13 @@ def parse_state_md(content: str) -> dict:
                 continue
             phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
             if phase_match:
+                phase_val = phase_match.group(1)
+                if phase_val == "\u2014":
+                    phase_val = None
                 parts = phase_match.group(2).split(" \u2014 ", 1)
                 decisions.append(
                     {
-                        "phase": phase_match.group(1),
+                        "phase": phase_val,
                         "summary": parts[0].strip(),
                         "rationale": parts[1].strip() if len(parts) > 1 else None,
                     }
@@ -997,7 +1014,7 @@ def generate_state_markdown(raw: dict) -> str:
         for d in s["decisions"]:
             dd = d if isinstance(d, dict) else {}
             rat = f" \u2014 {dd['rationale']}" if dd.get("rationale") else ""
-            p(f"- [Phase {dd.get('phase') or '?'}]: {dd.get('summary', '')}{rat}")
+            p(f"- [Phase {dd.get('phase') or '—'}]: {dd.get('summary', '')}{rat}")
     p("")
 
     p("### Active Approximations")
@@ -2210,7 +2227,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
             archived_b: list[str] = []
             for line in blk_lines:
                 if line.startswith("- ") and (
-                    re.search(r"\[resolved\]", line, re.IGNORECASE) or re.search(r"~~.*~~", line)
+                    re.search(r"\[resolved\]", line, re.IGNORECASE) or re.search(r"~~.*?~~", line)
                 ):
                     archived_b.append(line)
                 else:

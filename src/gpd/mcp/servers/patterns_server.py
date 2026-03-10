@@ -114,7 +114,7 @@ def add_pattern(
                 root=_DEFAULT_PATTERNS_ROOT,
             )
             return result.model_dump()
-        except PatternError as e:
+        except (PatternError, OSError) as e:
             return {"error": str(e)}
 
 
@@ -132,7 +132,7 @@ def promote_pattern(pattern_id: str) -> dict:
         try:
             result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
             return result.model_dump()
-        except PatternError as e:
+        except (PatternError, OSError) as e:
             return {"error": str(e)}
 
 
@@ -148,7 +148,7 @@ def seed_patterns() -> dict:
         try:
             result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
             return result.model_dump()
-        except PatternError as e:
+        except (PatternError, OSError) as e:
             return {"error": str(e)}
 
 

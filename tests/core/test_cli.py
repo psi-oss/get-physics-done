@@ -395,6 +395,7 @@ def test_observe_show_filters_events(tmp_path: Path) -> None:
 
 
 def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
+    """When global events file does not exist, show_events reads session logs."""
     sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True)
     (sessions_dir / "cli-a.jsonl").write_text(
@@ -413,15 +414,13 @@ def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    result = runner.invoke(
-        app,
-        ["--raw", "--cwd", str(tmp_path), "observe", "show", "--category", "cli", "--command", "timestamp"],
-    )
+    # The CLI invocation may create a global events file as a side effect of
+    # its own observability, so test the core function directly instead.
+    from gpd.core.observability import show_events
 
-    assert result.exit_code == 0
-    payload = json.loads(result.output)
-    assert payload["count"] == 1
-    assert payload["events"][0]["session_id"] == "cli-a"
+    result = show_events(tmp_path, category="cli", command="timestamp")
+    assert result.count == 1
+    assert result.events[0]["session_id"] == "cli-a"
 
 
 def test_observe_event_appends_event(tmp_path: Path) -> None:

@@ -49,7 +49,7 @@ def get_state(project_dir: str) -> dict:
             if state_obj is None:
                 return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
             return state_obj
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -80,7 +80,7 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
                 "summary_count": summary_count,
                 "complete": plan_count > 0 and len(info.incomplete_plans) == 0,
             }
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -97,7 +97,7 @@ def advance_plan(project_dir: str) -> dict:
     with gpd_span("mcp.state.advance_plan"):
         try:
             return state_advance_plan(cwd).model_dump()
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -115,7 +115,7 @@ def get_progress(project_dir: str) -> dict:
     with gpd_span("mcp.state.progress"):
         try:
             return state_update_progress(cwd).model_dump()
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -134,7 +134,7 @@ def validate_state(project_dir: str) -> dict:
         try:
             result = state_validate(cwd)
             return result.model_dump()
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -155,7 +155,7 @@ def run_health_check(project_dir: str, fix: bool = False) -> dict:
         try:
             report = run_health(cwd, fix=fix)
             return report.model_dump()
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
@@ -174,7 +174,7 @@ def get_config(project_dir: str) -> dict:
         try:
             config = load_config(cwd)
             return config.model_dump()
-        except (GPDError, OSError, ValueError) as e:
+        except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 
 
