@@ -54,10 +54,8 @@ __all__ = [
     "STATE_JSON_BACKUP_FILENAME",
     "STATE_WRITE_INTENT_FILENAME",
     "SPECS_REFERENCES_DIR",
-    "SPECS_AGENTS_DIR",
     "SPECS_WORKFLOWS_DIR",
     "SPECS_TEMPLATES_DIR",
-    "SPECS_SKILLS_DIR",
 ]
 
 # ─── Planning Directory Layout ────────────────────────────────────────────────
@@ -128,17 +126,11 @@ STANDALONE_SUMMARY = "SUMMARY.md"
 SPECS_REFERENCES_DIR = "references"
 """Reference markdown files (protocols, errors, verification checklists)."""
 
-SPECS_AGENTS_DIR = "agents"
-"""Agent prompt files (gpd-executor.md, etc.)."""
-
 SPECS_WORKFLOWS_DIR = "workflows"
 """Workflow definition files."""
 
 SPECS_TEMPLATES_DIR = "templates"
 """Project and phase template files."""
-
-SPECS_SKILLS_DIR = "skills"
-"""Skill definition directories (gpd-execute-phase/, etc.)."""
 
 # ─── Pattern Library Layout ───────────────────────────────────────────────────
 # On-disk layout for the cross-project pattern library.
@@ -190,8 +182,7 @@ REQUIRED_SPECS_SUBDIRS: tuple[str, ...] = (
     SPECS_REFERENCES_DIR,
     SPECS_TEMPLATES_DIR,
     SPECS_WORKFLOWS_DIR,
-    SPECS_AGENTS_DIR,
-    SPECS_SKILLS_DIR,
+    PATTERNS_DIR_NAME,
 )
 """Subdirectories expected in the specs/ bundle root."""
 

@@ -1,8 +1,8 @@
-"""GPD content registry — single source of truth for discovering commands, agents, and specs.
+"""GPD content registry — single source of truth for discovering commands and agents.
 
-All GPD content (commands, agents, spec-agents, spec-skills) lives in markdown files
-with YAML frontmatter. This module parses them once, caches the results, and exposes
-typed dataclass definitions so every consumer (commands/__init__.py, agents/__init__.py,
+Primary GPD commands and agents live in markdown files with YAML frontmatter.
+This module parses them once, caches the results, and exposes typed dataclass
+definitions so every consumer (commands/__init__.py, agents/__init__.py,
 adapters, CLI, MCP) gets the same data without re-parsing.
 """
 
@@ -20,8 +20,6 @@ _PKG_ROOT = Path(__file__).resolve().parent  # gpd/
 AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 SPECS_DIR = _PKG_ROOT / "specs"
-SPECS_AGENTS_DIR = SPECS_DIR / "agents"
-SPECS_SKILLS_DIR = SPECS_DIR / "skills"
 
 # ─── Frontmatter regex ───────────────────────────────────────────────────────
 
@@ -41,7 +39,7 @@ class AgentDef:
     tools: list[str]
     color: str
     path: str
-    source: str  # "agents" or "specs/agents"
+    source: str  # "agents"
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +53,7 @@ class CommandDef:
     allowed_tools: list[str]
     content: str
     path: str
-    source: str  # "commands" or "specs/skills"
+    source: str  # "commands"
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,19 +178,8 @@ _cache = _RegistryCache()
 
 
 def _discover_agents() -> dict[str, AgentDef]:
-    """Discover all agent definitions from agents/ and specs/agents/ directories.
-
-    Primary agents (agents/) take precedence over specs/agents/ for the same name.
-    """
+    """Discover all agent definitions from the primary agents/ directory."""
     result: dict[str, AgentDef] = {}
-
-    # 1. specs/agents/ (legacy location, loaded first so primary overrides)
-    if SPECS_AGENTS_DIR.is_dir():
-        for path in sorted(SPECS_AGENTS_DIR.glob("*.md")):
-            agent = _parse_agent_file(path, source="specs/agents")
-            result[agent.name] = agent
-
-    # 2. agents/ (primary, overrides specs/agents)
     if AGENTS_DIR.is_dir():
         for path in sorted(AGENTS_DIR.glob("*.md")):
             agent = _parse_agent_file(path, source="agents")
@@ -202,46 +189,12 @@ def _discover_agents() -> dict[str, AgentDef]:
 
 
 def _discover_commands() -> dict[str, CommandDef]:
-    """Discover all command definitions from commands/ and specs/skills/ directories.
-
-    Primary commands (commands/) take precedence over specs/skills/ for the same name.
-    """
+    """Discover all command definitions from the primary commands/ directory."""
     result: dict[str, CommandDef] = {}
-
-    # 1. specs/skills/ (legacy location, loaded first so primary overrides)
-    if SPECS_SKILLS_DIR.is_dir():
-        for skill_dir in sorted(SPECS_SKILLS_DIR.iterdir()):
-            if not skill_dir.is_dir():
-                continue
-            skill_md = skill_dir / "SKILL.md"
-            if skill_md.is_file():
-                cmd = _parse_command_file(skill_md, source="specs/skills")
-                # Use directory name as canonical name if frontmatter name differs
-                canonical_name = skill_dir.name
-                result[canonical_name] = CommandDef(
-                    name=canonical_name,
-                    description=cmd.description,
-                    argument_hint=cmd.argument_hint,
-                    requires=cmd.requires,
-                    allowed_tools=cmd.allowed_tools,
-                    content=cmd.content,
-                    path=cmd.path,
-                    source=cmd.source,
-                )
-
-    # 2. commands/ (primary, overrides specs/skills)
-    #    Key by path.stem (e.g. "debug") — the frontmatter name may differ
-    #    (e.g. "gpd:debug") but callers use the filesystem stem.
-    #    Also remove the corresponding gpd-{stem} spec/skill entry so that
-    #    primary commands fully replace their specs/skills counterparts
-    #    (specs/skills use "gpd-debug" dir names while commands use "debug.md").
     if COMMANDS_DIR.is_dir():
         for path in sorted(COMMANDS_DIR.glob("*.md")):
             cmd = _parse_command_file(path, source="commands")
             result[path.stem] = cmd
-            # Remove the gpd-prefixed specs/skills duplicate if it exists
-            gpd_prefixed = f"gpd-{path.stem}"
-            result.pop(gpd_prefixed, None)
 
     return result
 
@@ -336,10 +289,6 @@ def _canonical_skill_name_for_command(registry_name: str, command: CommandDef) -
 
 def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef]) -> dict[str, SkillDef]:
     """Build the canonical skill surface from primary commands and agents.
-
-    Legacy `specs/skills/` and `specs/agents/` mirrors are intentionally
-    excluded here. The MCP skills surface should reflect the canonical
-    command/agent sources only.
     """
     result: dict[str, SkillDef] = {}
 
@@ -454,9 +403,7 @@ __all__ = [
     "COMMANDS_DIR",
     "CommandDef",
     "SkillDef",
-    "SPECS_AGENTS_DIR",
     "SPECS_DIR",
-    "SPECS_SKILLS_DIR",
     "get_agent",
     "get_command",
     "get_skill",

@@ -88,7 +88,7 @@ def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
 
 
 def convert_tool_name(tool_name: str) -> str:
-    """Convert a canonical GPD tool name or legacy alias to OpenCode format.
+    """Convert a canonical GPD tool name or runtime alias to OpenCode format.
 
     OpenCode keeps MCP tools as-is, so this never returns ``None``.
     """

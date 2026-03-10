@@ -32,10 +32,7 @@ def test_prompt_sources_do_not_use_stale_agent_install_paths():
 
 
 def test_prompt_sources_use_real_pattern_library_description():
-    verifier_files = [
-        REPO_ROOT / "src/gpd/agents/gpd-verifier.md",
-        REPO_ROOT / "src/gpd/specs/agents/gpd-verifier.md",
-    ]
+    verifier_files = [REPO_ROOT / "src/gpd/agents/gpd-verifier.md"]
 
     for path in verifier_files:
         content = path.read_text(encoding="utf-8")

@@ -584,7 +584,7 @@ class TestSkillsServerIntegration:
             assert result["name"] == "gpd-debugger"
             assert result["file_count"] >= 1
 
-    def test_get_skill_prefers_canonical_command_over_legacy_spec(self):
+    def test_get_skill_uses_canonical_command_content(self):
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-help")

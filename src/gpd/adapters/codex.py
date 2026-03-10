@@ -96,7 +96,7 @@ def _is_global_codex_target(target_dir: Path) -> bool:
 
 
 def _convert_codex_tool_name(tool_name: str) -> str | None:
-    """Convert a canonical GPD tool name or legacy alias to Codex format.
+    """Convert a canonical GPD tool name or runtime alias to Codex format.
 
     Returns ``None`` if the tool should be excluded (for example ``task``,
     which Codex auto-discovers).

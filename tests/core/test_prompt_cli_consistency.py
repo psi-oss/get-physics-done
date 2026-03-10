@@ -10,8 +10,6 @@ CLI_PATH = REPO_ROOT / "src/gpd/cli.py"
 PROMPT_ROOTS = (
     REPO_ROOT / "src/gpd/commands",
     REPO_ROOT / "src/gpd/agents",
-    REPO_ROOT / "src/gpd/specs/agents",
-    REPO_ROOT / "src/gpd/specs/skills",
     REPO_ROOT / "src/gpd/specs/workflows",
     REPO_ROOT / "src/gpd/specs/references",
     REPO_ROOT / "src/gpd/specs/templates",

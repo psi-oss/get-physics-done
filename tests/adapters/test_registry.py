@@ -12,11 +12,9 @@ from gpd.adapters.tool_names import (
     CONTEXTUAL_TOOL_REFERENCE_NAMES,
     CODEX,
     GEMINI,
-    LEGACY_CLAUDE_ALIASES,
     OPENCODE,
     RUNTIME_TABLES,
     canonical,
-    legacy_claude_reference_map,
     reference_translation_map,
     translate,
     translate_for_runtime,
@@ -132,14 +130,11 @@ class TestToolNames:
         assert translate_for_runtime("mcp__physics", "gemini") is None
         assert translate_for_runtime("mcp__physics", "codex") == "mcp__physics"
 
-    def test_reference_translation_map_includes_canonical_and_legacy_names(self) -> None:
+    def test_reference_translation_map_uses_only_canonical_source_names(self) -> None:
         mapping = reference_translation_map("opencode")
         assert mapping["ask_user"] == "question"
-        assert mapping["AskUserQuestion"] == "question"
+        assert "AskUserQuestion" not in mapping
         assert "read_file" not in mapping  # identical names are omitted
-
-    def test_legacy_claude_reference_map_matches_declared_aliases(self) -> None:
-        assert legacy_claude_reference_map() == LEGACY_CLAUDE_ALIASES
 
     def test_contextual_reference_names_cover_common_english_tools(self) -> None:
         assert {"Read", "Write", "Edit", "shell", "task", "agent"} <= CONTEXTUAL_TOOL_REFERENCE_NAMES

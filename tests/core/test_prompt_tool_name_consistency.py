@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from gpd.adapters.install_utils import convert_tool_references_in_body
-from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, canonical, legacy_claude_reference_map
+from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, CLAUDE_CODE, canonical
 from gpd.registry import _parse_frontmatter, _parse_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -48,11 +48,11 @@ def test_primary_prompt_frontmatter_uses_canonical_tool_names() -> None:
 
 def test_primary_prompt_bodies_use_canonical_tool_references() -> None:
     invalid: list[str] = []
-    legacy_map = legacy_claude_reference_map()
+    runtime_alias_map = {runtime_name: canonical_name for canonical_name, runtime_name in CLAUDE_CODE.items()}
 
     for path in _iter_prompt_sources():
         _meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
-        if convert_tool_references_in_body(body, legacy_map) != body:
+        if convert_tool_references_in_body(body, runtime_alias_map) != body:
             invalid.append(str(path.relative_to(REPO_ROOT)))
 
     assert invalid == []

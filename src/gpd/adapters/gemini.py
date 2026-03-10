@@ -43,7 +43,7 @@ _TOOL_REFERENCE_MAP = reference_translation_map("gemini")
 
 
 def _convert_gemini_tool_name(tool_name: str) -> str | None:
-    """Convert a canonical GPD tool name or legacy alias to Gemini CLI format.
+    """Convert a canonical GPD tool name or runtime alias to Gemini CLI format.
 
     Returns ``None`` if the tool should be excluded from the Gemini config
     (MCP tools are auto-discovered at runtime and ``task`` is auto-registered).

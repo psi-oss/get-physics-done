@@ -483,15 +483,11 @@ class TestSkillsServer:
 
     @pytest.fixture(autouse=True)
     def _mock_skill_registry(self, tmp_path):
-        """Create fake commands/agents and stale legacy mirrors for MCP tests."""
+        """Create fake commands/agents for MCP skill tests."""
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        specs_skills_dir = tmp_path / "skills"
-        specs_skills_dir.mkdir()
-        specs_agents_dir = tmp_path / "specs-agents"
-        specs_agents_dir.mkdir()
 
         (commands_dir / "execute-phase.md").write_text(
             "---\n"
@@ -531,52 +527,9 @@ class TestSkillsServer:
             encoding="utf-8",
         )
 
-        stale_exec = specs_skills_dir / "gpd-execute-phase"
-        stale_exec.mkdir()
-        (stale_exec / "SKILL.md").write_text(
-            "---\n"
-            "name: gpd-execute-phase\n"
-            "description: Stale execute skill.\n"
-            "---\n"
-            "\n"
-            "Stale execute spec that should be ignored.\n",
-            encoding="utf-8",
-        )
-
-        debugger = specs_skills_dir / "gpd-debugger"
-        debugger.mkdir()
-        (debugger / "SKILL.md").write_text(
-            "---\n"
-            "name: gpd-debugger\n"
-            "description: Stale debugger skill.\n"
-            "---\n"
-            "\n"
-            "Stale debugger skill.\n",
-            encoding="utf-8",
-        )
-        stale_debugger_agent = specs_agents_dir / "gpd-debugger.md"
-        stale_debugger_agent.write_text(
-            "---\n"
-            "name: gpd-debugger\n"
-            "description: Stale debugger agent.\n"
-            "---\n"
-            "\n"
-            "Stale debugger agent.\n",
-            encoding="utf-8",
-        )
-
-        ignored = specs_skills_dir / "not-a-gpd-skill"
-        ignored.mkdir()
-        (ignored / "SKILL.md").write_text(
-            "---\nname: not-a-gpd-skill\ndescription: Ignore me.\n---\n\nIgnored.\n",
-            encoding="utf-8",
-        )
-
         with (
             patch("gpd.registry.COMMANDS_DIR", commands_dir),
             patch("gpd.registry.AGENTS_DIR", agents_dir),
-            patch("gpd.registry.SPECS_SKILLS_DIR", specs_skills_dir),
-            patch("gpd.registry.SPECS_AGENTS_DIR", specs_agents_dir),
         ):
             from gpd.registry import invalidate_cache
 
@@ -614,7 +567,6 @@ class TestSkillsServer:
         result = get_skill("gpd-execute-phase")
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
-        assert "Stale execute spec" not in result["content"]
         assert result["file_count"] == 1
 
     def test_get_skill_agent_uses_primary_agent_content(self):
@@ -623,8 +575,6 @@ class TestSkillsServer:
         result = get_skill("gpd-debugger")
         assert result["name"] == "gpd-debugger"
         assert "Primary debugger agent" in result["content"]
-        assert "Stale debugger skill" not in result["content"]
-        assert "Stale debugger agent" not in result["content"]
 
     def test_get_skill_resolves_install_and_agents_placeholders(self):
         from gpd.mcp.servers.skills_server import get_skill

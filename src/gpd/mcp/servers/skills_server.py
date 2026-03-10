@@ -33,9 +33,6 @@ def _infer_category(skill_name: str) -> str:
 
 def _load_skill_index() -> list[content_registry.SkillDef]:
     """Load available skills from the canonical commands/agents registry.
-
-    Legacy ``specs/skills/`` and ``specs/agents/`` mirrors are intentionally
-    excluded by the registry's canonical skill builder.
     """
     return [content_registry.get_skill(name) for name in content_registry.list_skills()]
 

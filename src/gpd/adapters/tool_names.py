@@ -93,25 +93,6 @@ RUNTIME_TABLES: dict[str, dict[str, str]] = {
 CANONICAL_TOOL_NAMES: tuple[str, ...] = tuple(CLAUDE_CODE)
 """Canonical GPD tool names supported across runtimes."""
 
-LEGACY_CLAUDE_ALIASES: dict[str, str] = {
-    "Read": "file_read",
-    "Write": "file_write",
-    "Edit": "file_edit",
-    "Bash": "shell",
-    "Grep": "search_files",
-    "Glob": "find_files",
-    "WebSearch": "web_search",
-    "WebFetch": "web_fetch",
-    "NotebookEdit": "notebook_edit",
-    "Agent": "agent",
-    "AskUserQuestion": "ask_user",
-    "TodoWrite": "todo_write",
-    "Task": "task",
-    "SlashCommand": "slash_command",
-    "ToolSearch": "tool_search",
-}
-"""Legacy Claude-style tool names still accepted during transition."""
-
 CONTEXTUAL_TOOL_REFERENCE_NAMES: frozenset[str] = frozenset(
     {
         "Read",
@@ -135,33 +116,25 @@ _AUTO_DISCOVERED_TOOLS: dict[str, frozenset[str]] = {
 }
 _DROP_MCP_FRONTMATTER_TOOLS: frozenset[str] = frozenset({"gemini"})
 
-# Legacy runtime-specific names found in existing specs → canonical names.
-# Start with the inverse of every runtime table so already-converted names
+# Non-canonical runtime spellings → canonical names.
+# Start with the inverse of every runtime table so adapter-native names
 # canonicalize correctly regardless of which adapter produced them.
-_LEGACY_ALIASES: dict[str, str] = {
+_RUNTIME_ALIASES: dict[str, str] = {
     runtime_name: canonical_name
     for table in RUNTIME_TABLES.values()
     for canonical_name, runtime_name in table.items()
 }
-_LEGACY_ALIASES.update(
-    {
-        "read_file": "file_read",
-        "write_file": "file_write",
-        "edit_file": "file_edit",
-        **LEGACY_CLAUDE_ALIASES,
-    }
-)
 
 
 def canonical(name: str) -> str:
     """Normalize a tool name to its canonical GPD form.
 
-    Accepts any runtime-specific name or legacy alias and returns
+    Accepts any runtime-specific tool name and returns
     the canonical GPD name (e.g. ``"Read"`` → ``"file_read"``).
     """
     if name in CANONICAL_TOOL_NAMES:
         return name
-    return _LEGACY_ALIASES.get(name, name)
+    return _RUNTIME_ALIASES.get(name, name)
 
 
 def translate(name: str, runtime: str) -> str:
@@ -194,18 +167,11 @@ def translate_list(names: list[str], runtime: str) -> list[str]:
     return [translate(n, runtime) for n in names]
 
 
-def legacy_claude_reference_map() -> dict[str, str]:
-    """Return the legacy Claude-style tool names mapped to canonical names."""
-    return dict(LEGACY_CLAUDE_ALIASES)
-
-
-def reference_translation_map(runtime: str, *, include_legacy: bool = True) -> dict[str, str | None]:
+def reference_translation_map(runtime: str) -> dict[str, str | None]:
     """Build a source-to-runtime mapping for prompt body tool references."""
     mapping: dict[str, str | None] = {
         name: translate_for_runtime(name, runtime) for name in CANONICAL_TOOL_NAMES
     }
-    if include_legacy:
-        mapping.update({name: translate_for_runtime(name, runtime) for name in LEGACY_CLAUDE_ALIASES})
     return {source: target for source, target in mapping.items() if target and source != target}
 
 
@@ -215,11 +181,9 @@ __all__ = [
     "CONTEXTUAL_TOOL_REFERENCE_NAMES",
     "CODEX",
     "GEMINI",
-    "LEGACY_CLAUDE_ALIASES",
     "OPENCODE",
     "RUNTIME_TABLES",
     "canonical",
-    "legacy_claude_reference_map",
     "reference_translation_map",
     "translate",
     "translate_for_runtime",

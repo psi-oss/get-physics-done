@@ -24,6 +24,9 @@ from gpd.core.constants import (
     MIN_PYTHON_MAJOR,
     MIN_PYTHON_MINOR,
     OPTIONAL_PLANNING_FILES,
+    PATTERNS_BY_DOMAIN_DIR,
+    PATTERNS_DIR_NAME,
+    PATTERNS_INDEX_FILENAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     RECOMMENDED_PYTHON_VERSION,
@@ -662,9 +665,9 @@ class DoctorReport(BaseModel):
 def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> DoctorReport:
     """Cross-runtime installation verification.
 
-    Checks that GPD is correctly installed: agent files, reference
-    files, workflow files, template files, skill directories, Python version,
-    and package importability.
+    Checks that the bundled specs content is correctly installed: references,
+    workflows, templates, learned-pattern assets, Python version, and package
+    importability.
 
     Args:
         specs_dir: Path to the specs directory. Required (no automatic discovery).
@@ -698,23 +701,38 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 2. Agent files
-        agents_dir = sd / "agents"
-        agent_count = 0
-        agent_issues: list[str] = []
-        if agents_dir.is_dir():
-            agent_files = [f for f in agents_dir.iterdir() if f.name.startswith("gpd-") and f.suffix == ".md"]
-            agent_count = len(agent_files)
-            if agent_count == 0:
-                agent_issues.append("No gpd-*.md agent files found")
-        else:
-            agent_issues.append(f"Agents directory not found: {agents_dir}")
+        # 2. Learned-pattern library bundle
+        patterns_dir = sd / PATTERNS_DIR_NAME
+        pattern_index = patterns_dir / PATTERNS_INDEX_FILENAME
+        patterns_by_domain = patterns_dir / PATTERNS_BY_DOMAIN_DIR
+        pattern_issues: list[str] = []
+        pattern_warnings: list[str] = []
+        if not patterns_dir.is_dir():
+            pattern_issues.append(f"Pattern library directory not found: {patterns_dir}")
+        if not pattern_index.is_file():
+            pattern_issues.append(f"Pattern library index not found: {pattern_index}")
+        if not patterns_by_domain.is_dir():
+            pattern_issues.append(f"Pattern-by-domain directory not found: {patterns_by_domain}")
+        pattern_file_count = sum(1 for _ in patterns_by_domain.rglob("*.md")) if patterns_by_domain.is_dir() else 0
+        if not pattern_issues and pattern_file_count == 0:
+            pattern_warnings.append("No learned pattern markdown files found")
         checks.append(
             HealthCheck(
-                status=CheckStatus.FAIL if agent_issues else CheckStatus.OK,
-                label="Agent Files",
-                details={"agents_dir": str(agents_dir), "agent_count": agent_count},
-                issues=agent_issues,
+                status=(
+                    CheckStatus.FAIL
+                    if pattern_issues
+                    else CheckStatus.WARN
+                    if pattern_warnings
+                    else CheckStatus.OK
+                ),
+                label="Pattern Library",
+                details={
+                    "patterns_dir": str(patterns_dir),
+                    "pattern_index": str(pattern_index),
+                    "pattern_file_count": pattern_file_count,
+                },
+                issues=pattern_issues,
+                warnings=pattern_warnings,
             )
         )
 
@@ -790,22 +808,6 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
                 label="Package Imports",
                 details={"modules_checked": 4},
                 issues=import_issues,
-            )
-        )
-
-        # 8. Skill directories
-        skills_dir = sd / "skills"
-        skill_count = (
-            sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
-            if skills_dir.is_dir()
-            else 0
-        )
-        checks.append(
-            HealthCheck(
-                status=CheckStatus.OK if skill_count > 0 else CheckStatus.WARN,
-                label="Skill Files",
-                details={"skill_count": skill_count},
-                warnings=[] if skill_count > 0 else ["No gpd-* skill directories found"],
             )
         )
 

@@ -493,7 +493,6 @@ class TestRegistryInvalidYaml:
         (agents_dir / "broken.yaml").write_text("---\n: : : invalid\n---\n", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
-        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent")
 
         result = registry._discover_agents()
         assert "valid" in result

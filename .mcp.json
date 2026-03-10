@@ -1,0 +1,81 @@
+{
+  "mcpServers": {
+    "gpd-conventions": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.conventions_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-errors": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.errors_mcp"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-patterns": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.patterns_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-protocols": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.protocols_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-skills": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.skills_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-state": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.state_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-verification": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.verification_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "arxiv": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m arxiv_mcp_server"
+      ]
+    }
+  }
+}
