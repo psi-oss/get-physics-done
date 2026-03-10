@@ -658,9 +658,7 @@ function printCompletionSummary(runtimes, scope, launcherInfo) {
     }
   }
 
-  if (launcherInfo.exposedLauncher) {
-    console.log("  Shell CLI:           gpd view");
-  } else {
+  if (!launcherInfo.exposedLauncher) {
     console.log(`  Shell CLI path:      ${launcherInfo.primaryLauncher} view`);
     console.log(`  Add to PATH:         ${path.dirname(launcherInfo.primaryLauncher)}`);
     if (launcherInfo.conflictPath) {
