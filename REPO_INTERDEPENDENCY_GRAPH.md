@@ -4,7 +4,7 @@ Generated on `2026-03-10` from the current worktree.
 
 ## Status
 
-This is the rebuilt root graph artifact for the repo. It is designed to be the concrete dependency map, while [REPO_INTERDEPENDENCY_GRAPH_AUDIT.md](/Users/sergio/GitHub/get-physics-done/REPO_INTERDEPENDENCY_GRAPH_AUDIT.md) remains the companion document that records where absolute completeness is not statically provable.
+This is the rebuilt root graph artifact for the repo. It is designed to be both the concrete dependency map and the root-level record of where absolute completeness is still not statically provable.
 
 This graph therefore includes:
 
@@ -771,6 +771,9 @@ flowchart TD
 - `src/gpd/adapters/install_utils.py -> .claude/gpd-file-manifest.json`
   `materialized`
 
+- `src/gpd/hooks/{check_update,statusline,codex_notify,runtime_detect}.py -> .claude/hooks/{check_update,statusline,codex_notify,runtime_detect}.py`
+  `materialized`
+
 - `src/gpd/cli.py::_install_single_runtime -> adapter.install()`
   `spawn`
 
@@ -781,17 +784,59 @@ flowchart TD
   `spawn`
   Final config persistence happens here for Claude and Gemini.
 
+- `src/gpd/adapters/install_utils.py::ensure_update_hook -> settings.json["hooks"]["SessionStart"]`
+  `config-mutation`
+
+- `src/gpd/adapters/install_utils.py::ensure_update_hook -> existing non-GPD SessionStart hook entries`
+  `partial-ownership`
+
+- `src/gpd/adapters/install_utils.py::finish_install -> settings.json["statusLine"]`
+  `config-mutation`
+
+- `src/gpd/adapters/install_utils.py::finish_install -> preexisting non-GPD statusLine command`
+  `partial-ownership`
+
 - `src/gpd/adapters/claude_code.py -> .claude/settings.json`
   `config-mutation`
+
+- `src/gpd/adapters/claude_code.py -> <workspace>/.mcp.json["mcpServers"]`
+  `config-mutation`
+
+- `src/gpd/adapters/claude_code.py -> .mcp.json["mcpServers"][GPD_MCP_SERVER_KEYS]`
+  `partial-ownership`
 
 - `src/gpd/adapters/claude_code.py -> ~/.claude.json`
   `config-mutation`
   Global MCP wiring for Claude.
 
+- `src/gpd/adapters/claude_code.py -> ~/.claude.json["mcpServers"][GPD_MCP_SERVER_KEYS]`
+  `partial-ownership`
+
 - `src/gpd/adapters/gemini.py -> settings.json["experimental.enableAgents"]`
   `config-mutation`
 
+- `src/gpd/adapters/gemini.py -> settings.json["mcpServers"]`
+  `config-mutation`
+
+- `src/gpd/adapters/gemini.py -> settings.json["mcpServers"][GPD_MCP_SERVER_KEYS]`
+  `partial-ownership`
+
+- `src/gpd/adapters/gemini.py -> settings.json["statusLine"]`
+  `config-mutation`
+
 - `src/gpd/adapters/codex.py -> config.toml`
+  `config-mutation`
+
+- `src/gpd/adapters/codex.py -> config.toml[mcp_servers.gpd-*]`
+  `config-mutation`
+
+- `src/gpd/adapters/codex.py -> non-GPD [mcp_servers.*] sections`
+  `partial-ownership`
+
+- `src/gpd/adapters/codex.py -> config.toml[notify]`
+  `config-mutation`
+
+- `src/gpd/adapters/codex.py -> config.toml[features].experimental_use_subagents`
   `config-mutation`
 
 - `src/gpd/adapters/codex.py -> ~/.agents/skills`
@@ -801,8 +846,17 @@ flowchart TD
   `manifest-contract`
   Used later by uninstall to locate shared skills.
 
+- `src/gpd/adapters/install_utils.py::write_manifest -> gpd-file-manifest.json["files"]["skills/gpd-*/SKILL.md"]`
+  `manifest-contract`
+
 - `src/gpd/adapters/opencode.py -> opencode.json`
   `config-mutation`
+
+- `src/gpd/adapters/opencode.py -> opencode.json["mcp"]`
+  `config-mutation`
+
+- `src/gpd/adapters/opencode.py -> opencode.json["mcp"][GPD_MCP_SERVER_KEYS]`
+  `partial-ownership`
 
 - `src/gpd/adapters/opencode.py -> permission.read["<configDir>/get-physics-done/*"]`
   `partial-ownership`
@@ -814,6 +868,9 @@ flowchart TD
   `partial-ownership`
   Uninstall removes only bundled GPD hook filenames, not arbitrary user hooks.
 
+- `src/gpd/adapters/opencode.py::write_manifest -> gpd-file-manifest.json["files"]["command/gpd-*.md"]`
+  `manifest-contract`
+
 - `.claude/settings.json`
   `generated-output`
   Checked-in installed snapshot; currently host-shaped because it contains a machine-local interpreter path.
@@ -821,6 +878,10 @@ flowchart TD
 - `.claude/settings.local.json -> src/gpd/mcp/builtin_servers.py`
   `config-mutation`
   Local runtime config enabling GPD MCP behavior.
+
+- `.claude/settings.local.json -> .mcp.json["mcpServers"]`
+  `authority`
+  `enabledMcpjsonServers[*]` selects which project-level MCP servers Claude should enable.
 
 ### Selective Ownership Statement
 
@@ -849,6 +910,9 @@ They explicitly preserve:
   `authority`
   Adapter metadata source of truth for runtime names, iteration order, and config-dir resolution.
 
+- `src/gpd/hooks/runtime_detect.py -> src/gpd/adapters/install_utils.py`
+  `hard-import`
+
 - `src/gpd/hooks/runtime_detect.py -> src/gpd/adapters/base.py`
   `authority`
 
@@ -867,6 +931,9 @@ They explicitly preserve:
 - `src/gpd/hooks/statusline.py -> <workspace>/.gpd/state.json`
   `candidate-set`
 
+- `src/gpd/hooks/statusline.py -> src/gpd/hooks/runtime_detect.py`
+  `hard-import`
+
 - `src/gpd/hooks/statusline.py -> freshest valid update-cache candidate from runtime_detect.get_update_cache_files()`
   `candidate-set`
 
@@ -883,11 +950,20 @@ They explicitly preserve:
 - `src/gpd/hooks/check_update.py -> src/gpd/version.py`
   `hard-import`
 
+- `src/gpd/hooks/check_update.py -> src/gpd/hooks/runtime_detect.py`
+  `hard-import`
+
 - `src/gpd/hooks/check_update.py -> VERSION candidate family under runtime install dirs`
   `candidate-set`
 
+- `src/gpd/hooks/check_update.py -> VERSION candidate family under runtime install dirs`
+  `ordering-contract`
+
 - `src/gpd/hooks/check_update.py -> update-cache candidate family including ~/.gpd/cache/gpd-update-check.json`
   `candidate-set`
+
+- `src/gpd/hooks/check_update.py -> update-cache candidate family including ~/.gpd/cache/gpd-update-check.json`
+  `ordering-contract`
 
 - `src/gpd/hooks/check_update.py -> https://pypi.org/pypi/get-physics-done/json`
   `external-service`
@@ -906,25 +982,53 @@ They explicitly preserve:
   `partial-ownership`
   Uses adapter `update_command` presentation surface.
 
+- `src/gpd/core/context.py -> src/gpd/adapters/__init__.py`
+  `authority`
+  Adapter iteration determines the runtime config directories excluded from project scans.
+
 ## MCP Servers, Paper Pipeline, Package Data, and External Packages
 
 - `src/gpd/mcp/builtin_servers.py -> infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json`
   `authority`
 
+- `src/gpd/mcp/builtin_servers.py -> external binary {python}`
+  `external-binary`
+
 - `src/gpd/mcp/builtin_servers.py -> external Python package {arxiv_mcp_server}`
+  `external-package`
+
+- `infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json -> external binary {python}`
+  `external-binary`
+
+- `infra/gpd-arxiv.json -> external Python package {arxiv_mcp_server}`
   `external-package`
 
 - `src/gpd/mcp/paper/template_registry.py -> src/gpd/mcp/paper/templates/**`
   `package-data-load`
 
+- `src/gpd/mcp/paper/template_registry.py -> src/gpd/mcp/paper/models.py`
+  `hard-import`
+
+- `src/gpd/mcp/paper/template_registry.py -> src/gpd/utils/latex.py`
+  `hard-import`
+
 - `src/gpd/mcp/paper/template_registry.py -> external Python package {jinja2}`
   `external-package`
 
-- `src/gpd/mcp/paper/bibliography.py -> external Python packages {arxiv, pybtex}`
+- `src/gpd/mcp/paper/models.py -> external Python package {pydantic}`
+  `external-package`
+
+- `src/gpd/mcp/paper/bibliography.py -> external Python packages {arxiv, pybtex, pydantic}`
   `external-package`
 
 - `src/gpd/mcp/paper/figures.py -> external Python packages {Pillow, cairosvg}`
   `external-package`
+
+- `src/gpd/mcp/paper/figures.py -> inkscape`
+  `external-binary`
+
+- `src/gpd/mcp/paper/figures.py -> generated outputs {normalized/copied figure files under output_dir}`
+  `generated-output`
 
 - `src/gpd/mcp/paper/figures.py -> cairosvg`
   `conditional-include`
@@ -949,8 +1053,17 @@ They explicitly preserve:
 - `src/gpd/mcp/paper/compiler.py -> bibtex`
   `external-binary`
 
-- `pyproject.toml -> external Python packages {hatchling, pybtex, jinja2, Pillow, arxiv-mcp-server}`
+- `src/gpd/mcp/paper/compiler.py -> external Python package {pybtex}`
   `external-package`
+
+- `src/gpd/mcp/paper/bibliography.py -> generated outputs {*.bib, BIBLIOGRAPHY-AUDIT.json}`
+  `generated-output`
+
+- `src/gpd/mcp/paper/artifact_manifest.py -> ARTIFACT-MANIFEST.json`
+  `generated-output`
+
+- `src/gpd/mcp/paper/compiler.py -> generated outputs {figures/**, main.tex, <bib>.bib, BIBLIOGRAPHY-AUDIT.json, ARTIFACT-MANIFEST.json, paper.pdf}`
+  `generated-output`
 
 - `tests/test_paper_e2e.py -> src/gpd/mcp/paper/compiler.py`
   `hard-import`
@@ -973,12 +1086,30 @@ They explicitly preserve:
 - `tests/test_bibliography.py -> external Python packages {arxiv, pybtex}`
   `external-package`
 
+- `tests/test_bibliography.py -> generated outputs {refs.bib, bibliography-audit.json}`
+  `generated-output`
+
 - `tests/test_figures.py -> src/gpd/mcp/paper/figures.py`
   `hard-import`
+
+- `tests/test_figures.py -> inkscape`
+  `external-binary`
 
 - `tests/test_figures.py -> external Python packages {Pillow, cairosvg}`
   `conditional-include`
   Much of the test surface validates fallback/error behavior rather than proving live converter availability.
+
+- `tests/test_paper_compiler_regressions.py -> external binaries {latexmk, pdflatex}`
+  `external-binary`
+
+- `tests/test_paper_compiler_regressions.py -> paper.pdf`
+  `generated-output`
+
+- `tests/test_bootstrap_installer.py -> GitHub source/archive/git candidate family {https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v0.1.0.tar.gz, https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v0.1.0, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
+  `external-service`
+
+- `tests/test_bootstrap_installer.py -> ${GPD_HOME:-~/.gpd}/venv/**`
+  `generated-output`
 
 ## Test and Contract Graph
 
@@ -1075,6 +1206,16 @@ They explicitly preserve:
   `manifest-contract`
   Includes `version`, `timestamp`, `file_hash`, stale-file cleanup, Codex skills entries, and OpenCode path-shape constraints.
 
+- `tests/adapters/test_install_roundtrip.py -> installed runtime gpd-file-manifest.json families under {.claude,.gemini,.codex,.opencode}`
+  `manifest-contract`
+
+- `tests/adapters/test_install_roundtrip.py -> adapter source-command inventory versus Gemini .toml command count and Codex skill count`
+  `count-contract`
+
+- `tests/adapters/test_install_roundtrip.py -> src/gpd/adapters/{claude_code,gemini,codex,opencode}.py`
+  `typed-roundtrip`
+  Install/readback serialization surfaces are verified per runtime.
+
 - `tests/test_install_lifecycle.py -> corrupted settings/config cleanup behavior`
   `manifest-contract`
 
@@ -1109,11 +1250,68 @@ They explicitly preserve:
 - `tests/core/test_cli_install.py -> adapter presentation surface {display_name, help_command, relative target formatting, blank-line formatting, raw JSON output shape}`
   `manifest-contract`
 
-- `tests/test_parity.py -> tests/fixtures/parity/*.json`
+- `tests/test_cli_commands.py -> paper artifact files {ARTIFACT-MANIFEST.json, BIBLIOGRAPHY-AUDIT.json, reproducibility-manifest.json}`
+  `manifest-contract`
+
+- `tests/core/test_reproducibility.py -> src/gpd/core/reproducibility.py`
+  `manifest-contract`
+  `ReproducibilityManifest` review-readiness validation is enforced here.
+
+- `tests/adapters/test_registry.py -> src/gpd/adapters/__init__.py::list_runtimes()`
+  `ordering-contract`
+
+- `tests/test_registry.py -> src/gpd/registry.py::{list_agents(),list_commands(),list_skills()}`
+  `ordering-contract`
+
+- `tests/core/test_patterns.py -> src/gpd/core/patterns.py::{VALID_DOMAINS,VALID_CATEGORIES}`
+  `count-contract`
+
+- `tests/core/test_patterns.py -> src/gpd/core/patterns.py::{VALID_SEVERITIES,CONFIDENCE_LEVELS,pattern_list()}`
+  `ordering-contract`
+
+- `tests/core/test_edge_cases.py -> src/gpd/core/phases.py`
+  `count-contract`
+  Phase completeness and milestone phase counting are contract-checked.
+
+- `tests/core/test_edge_cases.py -> src/gpd/core/phases.py::{roadmap_analyze(),roadmap_get_phase()}`
+  `ordering-contract`
+
+- `tests/core/test_phases.py -> src/gpd/core/phases.py::list_phases()`
+  `ordering-contract`
+
+- `tests/core/test_phases_stress.py -> src/gpd/core/phases.py::list_phases()`
+  `ordering-contract`
+
+- `tests/core/test_query.py -> src/gpd/core/query.py`
+  `ordering-contract`
+  Query results are phase-sorted.
+
+- `tests/core/test_suggest.py -> src/gpd/core/suggest.py`
+  `ordering-contract`
+  Priority sorting and decimal-phase ordering are both under contract.
+
+- `tests/core/test_coverage_wave14.py -> src/gpd/core/utils.py::compare_phase_numbers()`
+  `ordering-contract`
+
+- `tests/core/test_health.py -> src/gpd/core/health.py`
+  `typed-roundtrip`
+
+- `tests/core/test_frontmatter.py + tests/core/test_frontmatter_edge.py + tests/core/test_properties.py -> src/gpd/core/frontmatter.py`
+  `typed-roundtrip`
+
+- `tests/core/test_state.py + tests/core/test_state_stress.py + tests/core/test_state_coverage_gaps.py + tests/core/test_coverage_wave14.py -> src/gpd/core/state.py`
+  `typed-roundtrip`
+  Markdown/json persistence, normalization, sync, backup, and tagged verification-record preservation are all exercised.
+
+- `tests/test_parity.py -> tests/fixtures/parity/{convention_labels,known_conventions,convention_set,convention_check,convention_diff,convention_list,result_id_format,intentional_enhancements}.json`
   `golden-fixture-contract`
 
 - `tests/test_parity.py -> gpd.contracts / gpd.core.conventions / gpd.core.results`
   `typed-roundtrip`
+
+- `src/gpd/core/results.py -> src/gpd/contracts.py`
+  `typed-roundtrip`
+  Verification evidence is normalized through typed dump/load paths, not merely stored as raw dicts.
 
 ## Checked-In Installed Snapshot: `.claude/**`
 
@@ -1134,7 +1332,9 @@ They explicitly preserve:
 Operationally important node families that are not canonical repo files:
 
 - `<workspace>/.gpd/{state.json,STATE.md,state.json.bak,config.json,phases/**,milestones/**,traces/**}`
+- `${GPD_HOME:-~/.gpd}/venv/**`
 - runtime config dirs `{cwd,home}/{.claude,.codex,.gemini,.opencode,.config/opencode}`
+- `<workspace>/.mcp.json`
 - update caches `*/cache/gpd-update-check.json`
 - runtime install `*/get-physics-done/VERSION`
 - `dist/*.whl`
@@ -1145,9 +1345,70 @@ Operationally important node families that are not canonical repo files:
 
 These are first-class parts of the operational graph, even though many are generated, external, or workspace-specific.
 
-## Completeness Notes
+## Completeness and Limits
 
-This rebuilt file is substantially more complete than the missing original graph artifact because it now models:
+This section folds the former audit into the main graph file. The graph is the atlas; this appendix records the confidence level, the practical static-analysis ceiling, and the remaining boundaries that static reading still cannot cross.
+
+### Bottom Line
+
+The graph is an observed-and-inferred static dependency atlas for this repo.
+
+It is now at or extremely near the practical static-analysis ceiling for the current worktree.
+
+It is still **not** a proven exhaustive runtime graph of all file and object interdependencies.
+
+### What This Assessment Checked
+
+This assessment combined:
+
+- direct inspection of runtime, docs, CI, adapter, hook, and test files in the current worktree
+- five waves of focused audit subagent deployments covering runtime, tests, docs/CI, adapters/mirrors, prompt/specs, release/build, and methodology
+- local verification of representative files where the graph was most likely to overclaim completeness
+
+The fifth wave closed most of the remaining statically recoverable gaps that were still obvious in earlier revisions:
+
+- explicit prompt/spec include and spawn edges
+- ordered fallback and candidate-set precedence
+- config-scope partial ownership inside shared runtime files
+- object/schema containment and typed-roundtrip edges
+- installer/build external package and binary surfaces
+
+### Confidence Summary
+
+High confidence coverage:
+
+- packaging and bootstrap authority chains such as `package.json -> bin/install.js -> src/gpd/cli.py`
+- Python packaging/version authority such as `pyproject.toml -> src/gpd/cli.py` and `src/gpd/version.py -> pyproject.toml`
+- committed MCP descriptor authority such as `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`
+- many direct Python import relationships under `src/gpd/**`
+- broad source-to-installed-layout correspondence between `src/gpd/**` and checked-in installed artifacts like `.claude/**`
+
+High-to-medium confidence coverage:
+
+- prompt/workflow/agent/reference topology under `src/gpd/commands`, `src/gpd/agents`, and `src/gpd/specs/**`
+- generated-output, manifest-contract, negative-packaging-contract, count-contract, and ordering-contract edges
+- broad test-to-source consumption patterns
+
+Lower-confidence or inherently incomplete coverage:
+
+- live runtime-resolved file I/O under `.gpd/**`, runtime config files, caches, todos, and install locations
+- semantic governance dependencies under `.github/**`
+- external tool availability and actual environment-specific subprocess behavior
+- full object-level call graphs, mutation graphs, inheritance graphs, and dataflow
+
+### Overstatement Guardrails
+
+The graph should be read with these limits in mind:
+
+- mention-derived doc links are weaker than hard imports, spawns, or contracts
+- installed artifacts under `.claude/**` are not canonical authoring locations
+- adapters usually do not own an entire shared config file; they own selected keys, sections, or managed entries
+- candidate-set edges describe ordered possibilities, not one guaranteed realized path
+- contract edges should not be confused with hard-import edges
+
+### Static Ceiling Assessment
+
+This rebuilt file is substantially more complete than the earlier graph state because it now models:
 
 - external nodes
 - generated nodes
@@ -1155,17 +1416,30 @@ This rebuilt file is substantially more complete than the missing original graph
 - manifest contracts
 - selective ownership instead of whole-tree ownership
 - candidate-set and precedence edges
+- conditional spawn edges distinct from includes
 - schema/object edge classes beyond file adjacency
+- config-scope ownership inside shared runtime files
+- explicit prompt/spec/reference include families
+- installer/build external-package and external-binary surfaces
 
-Static ceiling assessment:
+After five review waves, the remaining incompleteness appears predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
 
-- After four review waves, the remaining incompleteness is predominantly dynamic, external, or runtime-branch-specific rather than obviously statically recoverable from the current worktree.
-- The graph is therefore close to the practical static-analysis ceiling for this repo, but not equivalent to a proven exhaustive runtime dependency graph.
+The graph is therefore strong enough to answer "as complete as it could possibly be statically" with a practical yes.
 
-What it still cannot honestly claim on its own:
+It is still not equivalent to a proven exhaustive runtime dependency graph.
+
+### What This File Still Cannot Honestly Claim
 
 - a fully proven execution trace for every runtime branch
 - exhaustive object-level call/dataflow coverage across all code paths
 - absolute completeness for external environment state not present in the worktree
+- confirmation of which candidate path or conditional branch is actually taken in a live user environment
 
-That is why the companion file [REPO_INTERDEPENDENCY_GRAPH_AUDIT.md](/Users/sergio/GitHub/get-physics-done/REPO_INTERDEPENDENCY_GRAPH_AUDIT.md) remains necessary. The graph file is the map; the audit is the proof of where the map is still bounded.
+### If This Ever Needs To Go Further
+
+The next step would not be more broad repo reading. It would require deeper extraction and execution work:
+
+- automated extraction for `read_text`, `write_text`, `glob`, `rglob`, manifest writes, and config writes
+- function-level command-activated lazy edges from `src/gpd/cli.py`
+- a deeper Python object graph for functions, methods, classes, inheritance, and call/dataflow
+- runtime execution traces to prove branch/path selection instead of only reading static code
