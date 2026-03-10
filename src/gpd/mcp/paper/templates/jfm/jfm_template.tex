@@ -16,15 +16,15 @@
 \BLOCK{endfor}
 }
 
+\begin{document}
+
+\maketitle
+
 \BLOCK{for author in authors}
 \BLOCK{if author.affiliation}
 \footnotetext[\VAR{loop.index}]{\VAR{author.affiliation}}
 \BLOCK{endif}
 \BLOCK{endfor}
-
-\begin{document}
-
-\maketitle
 
 \begin{abstract}
 \VAR{abstract}

@@ -61,7 +61,7 @@ def _extract_steps_and_checkpoints(body: str) -> tuple[list[str], list[str]]:
                 stripped = line.strip()
                 if re.match(r"^(\d+\.|[-*])\s+", stripped):
                     steps.append(re.sub(r"^(\d+\.|[-*])\s+", "", stripped).strip())
-        if any(kw in title_lower for kw in ("verification", "checkpoint", "check", "common pitfall", "common error")):
+        elif any(kw in title_lower for kw in ("verification", "checkpoint", "check", "common pitfall", "common error")):
             for line in section["content"].split("\n"):
                 stripped = line.strip()
                 if re.match(r"^(\d+\.|[-*])\s+", stripped):

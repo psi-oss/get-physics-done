@@ -101,9 +101,9 @@ def _fix_missing_document_begin(tex: str) -> str:
             r"\\usepackage(?:\[[^\]]*\])?\s*\{[^}]*\}",
             r"\\newcommand\s*\{[^}]*\}(?:\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}",
             r"\\renewcommand\s*\{[^}]*\}(?:\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}",
-            r"\\author\s*\{[^}]*\}",
-            r"\\title\s*\{[^}]*\}",
-            r"\\date\s*\{[^}]*\}",
+            r"\\author\s*\{(?:[^{}]|\{[^{}]*\})*\}",
+            r"\\title\s*\{(?:[^{}]|\{[^{}]*\})*\}",
+            r"\\date\s*\{(?:[^{}]|\{[^{}]*\})*\}",
         ]
         last_preamble_end = 0
         for pattern in preamble_patterns:
@@ -111,7 +111,7 @@ def _fix_missing_document_begin(tex: str) -> str:
                 if match.end() > last_preamble_end:
                     last_preamble_end = match.end()
         if last_preamble_end == 0:
-            dc_match = re.search(r"\\documentclass[^\n]*\n", tex)
+            dc_match = re.search(r"\\documentclass[^\n]*(?:\n|$)", tex)
             if dc_match:
                 last_preamble_end = dc_match.end()
         if last_preamble_end > 0:

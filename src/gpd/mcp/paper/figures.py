@@ -94,8 +94,11 @@ def _convert_svg(source: Path, output_dir: Path) -> Path:
 
         cairosvg.svg2pdf(url=str(source), write_to=str(dest))
         return dest
-    except Exception:
+    except ImportError:
         pass
+    except Exception:
+        if dest.exists():
+            dest.unlink()
 
     # Fall back to inkscape
     try:
@@ -115,7 +118,10 @@ def _convert_svg(source: Path, output_dir: Path) -> Path:
 
 def _convert_tiff(source: Path, output_dir: Path) -> Path:
     """Convert TIFF to PNG using Pillow."""
-    from PIL import Image
+    try:
+        from PIL import Image
+    except ImportError:
+        raise RuntimeError(f"TIFF conversion requires Pillow (pip install Pillow). Cannot convert: {source}")
 
     dest = _unique_dest(output_dir, Path(f"{source.stem}.png"))
     with Image.open(source) as img:

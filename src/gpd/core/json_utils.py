@@ -185,18 +185,24 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
 
     # Traverse / create intermediate containers
     current: object = data
+    traversal_complete = True
     for step_key, is_idx in steps[:-1]:
         if is_idx and isinstance(current, list):
             try:
                 current = current[step_key]  # type: ignore[index]
             except (IndexError, TypeError):
+                traversal_complete = False
                 break
         elif isinstance(current, dict):
             if step_key not in current or not isinstance(current[step_key], (dict, list)):
                 current[step_key] = {}  # type: ignore[index]
             current = current[step_key]  # type: ignore[index]
         else:
+            traversal_complete = False
             break
+
+    if not traversal_complete:
+        return {"file": str(fp), "path": path, "updated": False, "error": "intermediate path not traversable"}
 
     # Set the final value
     updated = False

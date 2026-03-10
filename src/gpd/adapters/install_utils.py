@@ -523,9 +523,10 @@ def expand_at_includes(
             # Strip frontmatter from included file (only include the body)
             body = included
             if body.startswith("---"):
-                end_idx = body.index("---", 3) if "---" in body[3:] else -1
-                if end_idx != -1:
-                    actual_end = end_idx + 3
+                # Match closing --- only at the start of a line
+                fm_end = re.search(r"\n---[ \t]*(?:\n|$)", body[3:])
+                if fm_end:
+                    actual_end = 3 + fm_end.end()
                     body = body[actual_end:].strip()
 
             # Normalize path references in included content before recursion

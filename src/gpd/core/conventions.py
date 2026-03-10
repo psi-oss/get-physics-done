@@ -403,7 +403,10 @@ def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | Non
         if not summary_path.is_file():
             continue
 
-        content = summary_path.read_text(encoding="utf-8")
+        try:
+            content = summary_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
 
         try:
             fm, _body = extract_frontmatter(content)
@@ -413,7 +416,7 @@ def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | Non
         # Check frontmatter for convention-related fields
         fm_conventions = fm.get("conventions")
         if isinstance(fm_conventions, dict):
-            conventions.update(fm_conventions)
+            conventions.update({k: str(v) for k, v in fm_conventions.items() if v is not None})
         elif isinstance(fm_conventions, list):
             for conv in fm_conventions:
                 match = re.match(r"^([^=:]+?)\s*[=:]\s*(.+)$", str(conv))
@@ -424,7 +427,7 @@ def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | Non
         if isinstance(fm_lock, dict):
             for k, v in fm_lock.items():
                 if k != "custom_conventions":
-                    conventions[k] = v
+                    conventions[k] = str(v) if v is not None else v
             custom = fm_lock.get("custom_conventions")
             if isinstance(custom, dict):
                 conventions.update(custom)

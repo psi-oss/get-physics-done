@@ -276,9 +276,11 @@ def _try_get_milestone_info(cwd: Path) -> dict:
 
 def _detect_platform() -> str:
     """Detect the AI agent platform (claude, codex, gemini, etc.)."""
-    from gpd.hooks.runtime_detect import detect_active_runtime, runtime_to_adapter_name
-
-    return runtime_to_adapter_name(detect_active_runtime())
+    try:
+        from gpd.hooks.runtime_detect import detect_active_runtime, runtime_to_adapter_name
+        return runtime_to_adapter_name(detect_active_runtime())
+    except Exception:
+        return "unknown"
 
 
 _PLATFORM = _detect_platform()

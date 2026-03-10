@@ -588,6 +588,8 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     config: dict = {}
     if config_path.exists():
         config = parse_jsonc(config_path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict):
+            config = {}
 
     existing_mcp = config.get("mcp", {})
     if not isinstance(existing_mcp, dict):

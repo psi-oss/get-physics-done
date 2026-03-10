@@ -109,10 +109,10 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                 return "marginal"
             return "invalid"
         if bound == 0:
-            # "much less than zero" — mirror the >> 0 logic
-            if abs(val) < 0.1:
+            # "much less than zero" — value should be very negative
+            if val < -10:
                 return "valid"
-            if abs(val) < 1:
+            if val < -1:
                 return "marginal"
             return "invalid"
         if abs(val) < 0.1 * abs(bound):

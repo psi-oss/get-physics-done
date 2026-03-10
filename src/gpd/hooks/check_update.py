@@ -16,10 +16,10 @@ from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
 
 try:
     from packaging.version import InvalidVersion, Version
-except ModuleNotFoundError:
+except ImportError:
     try:
         from pip._vendor.packaging.version import InvalidVersion, Version
-    except ModuleNotFoundError:
+    except ImportError:
         InvalidVersion = ValueError
         Version = None
 

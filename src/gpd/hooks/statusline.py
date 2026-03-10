@@ -151,6 +151,9 @@ def main() -> None:
         _debug(f"Failed to parse stdin JSON: {exc}")
         return
 
+    if not isinstance(data, dict):
+        return
+
     try:
         model_value = data.get("model")
         if isinstance(model_value, str) and model_value:
