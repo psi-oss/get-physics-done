@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import textwrap
 from pathlib import Path
 
@@ -525,6 +526,50 @@ def test_phase_complete_success(tmp_path: Path) -> None:
     assert result.is_last_phase is False
 
 
+def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+        **Plans:** 1 plans
+
+        ### Phase 2: Build
+        **Goal:** build
+        **Plans:** 0 plans
+        """,
+    )
+    _create_state(
+        tmp_path,
+        """\
+        **Current Phase:** 1
+        **Current Phase Name:** Setup
+        **Total Phases:** 2
+        **Current Plan:** 1
+        **Total Plans in Phase:** 1
+        **Status:** in_progress
+        **Last Activity:** 2026-03-01
+        **Last Activity Description:** Working
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("done")
+
+    result = phase_complete(tmp_path, "1")
+
+    assert result.next_phase == "02"
+    assert result.next_phase_name == "Build"
+    assert result.is_last_phase is False
+
+    state = (tmp_path / ".planning" / "STATE.md").read_text()
+    assert "**Current Phase:** 02" in state
+    assert "**Current Phase Name:** Build" in state
+    assert "**Status:** Ready to plan" in state
+
+
 def test_phase_complete_not_found(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     with pytest.raises(PhaseNotFoundError):
@@ -560,6 +605,29 @@ def test_milestone_complete_success(tmp_path: Path) -> None:
     assert result.milestones_updated is True
 
 
+def test_milestone_complete_counts_unscaffolded_roadmap_phases(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Test
+
+        ### Phase 1: Setup
+        **Goal:** setup
+
+        ### Phase 2: Build
+        **Goal:** build
+        """,
+    )
+
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Done\n---\n")
+
+    with pytest.raises(MilestoneIncompleteError):
+        milestone_complete(tmp_path, "v1.0", name="Test")
+
+
 def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "## v1.0\n")
@@ -574,6 +642,107 @@ def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
 def test_milestone_complete_empty_version(tmp_path: Path) -> None:
     with pytest.raises(PhaseValidationError, match="version required"):
         milestone_complete(tmp_path, "")
+
+
+def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 1: Setup
+        **Goal:** setup
+
+        ### Phase 2: Derivation
+        **Goal:** derive
+
+        ### Phase 3: Validation
+        **Goal:** validate
+        """,
+    )
+    _create_state(
+        tmp_path,
+        """\
+        **Current Phase:** 2
+        **Current Phase Name:** Derivation
+        **Total Phases:** 3
+        **Current Plan:** 2
+        **Total Plans in Phase:** 2
+        **Status:** in_progress
+        **Last Activity:** 2026-03-01
+        **Last Activity Description:** Deriving
+        """,
+    )
+
+    _create_phase_dir(tmp_path, "01-setup")
+    derivation_dir = _create_phase_dir(tmp_path, "02-derivation")
+    (derivation_dir / "02-01-PLAN.md").write_text("plan")
+    (derivation_dir / "02-02-PLAN.md").write_text("plan")
+    validation_dir = _create_phase_dir(tmp_path, "03-validation")
+    (validation_dir / "03-01-PLAN.md").write_text("plan")
+
+    phase_remove(tmp_path, "2")
+
+    state = (tmp_path / ".planning" / "STATE.md").read_text()
+    assert "**Current Phase:** 02" in state
+    assert "**Current Phase Name:** Validation" in state
+    assert "**Total Phases:** 2" in state
+    assert "**Current Plan:** Not started" in state
+    assert "**Total Plans in Phase:** 1" in state
+
+    state_json = json.loads((tmp_path / ".planning" / "state.json").read_text())
+    assert state_json["position"]["current_phase"] == "02"
+    assert state_json["position"]["current_phase_name"] == "Validation"
+    assert state_json["position"]["total_phases"] == 2
+
+
+def test_phase_remove_integer_renumbers_decimal_roadmap_references(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ## Phase Overview
+
+        - [ ] Phase 1: Setup
+        - [ ] Phase 2: Main
+        - [ ] Phase 2.1: Hotfix
+
+        | Phase | Status | Updated |
+        |---|---|---|
+        | 1. Setup | Ready | - |
+        | 2. Main | Ready | - |
+        | 2.1. Hotfix | Ready | - |
+
+        ### Phase 1: Setup
+        **Goal:** setup
+        **Artifact:** 01-01-PLAN.md
+
+        ### Phase 2: Main
+        **Goal:** main
+        **Artifact:** 02-01-PLAN.md
+
+        ### Phase 2.1: Hotfix
+        **Goal:** fix
+        **Depends on:** Phase 2
+        **Artifact:** 02.1-01-PLAN.md
+        """,
+    )
+
+    _create_phase_dir(tmp_path, "01-setup")
+    main_dir = _create_phase_dir(tmp_path, "02-main")
+    (main_dir / "02-01-PLAN.md").write_text("plan")
+    hotfix_dir = _create_phase_dir(tmp_path, "02.1-hotfix")
+    (hotfix_dir / "02.1-01-PLAN.md").write_text("plan")
+
+    phase_remove(tmp_path, "1")
+
+    roadmap = (tmp_path / ".planning" / "ROADMAP.md").read_text()
+    assert "### Phase 1: Main" in roadmap
+    assert "### Phase 1.1: Hotfix" in roadmap
+    assert "- [ ] Phase 1.1: Hotfix" in roadmap
+    assert "| 1.1. Hotfix | Ready | - |" in roadmap
+    assert "**Depends on:** Phase 1" in roadmap
+    assert "01.1-01-PLAN.md" in roadmap
+    assert "02.1-01-PLAN.md" not in roadmap
 
 
 # ─── get_milestone_info ──────────────────────────────────────────────────────────

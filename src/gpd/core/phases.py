@@ -1091,7 +1091,8 @@ def _get_next_roadmap_phase(cwd: Path, phase_num: str) -> RoadmapPhase | None:
     """Return the next roadmap phase after *phase_num*, even if no directory exists yet."""
     normalized = phase_normalize(phase_num)
     for phase in _get_roadmap_phase_sequence(cwd):
-        if compare_phase_numbers(phase.number, normalized) > 0:
+        phase_number = phase_normalize(phase.number)
+        if compare_phase_numbers(phase_number, normalized) > 0:
             return phase
     return None
 
@@ -1102,7 +1103,7 @@ def _get_roadmap_phase_by_number(cwd: Path, phase_num: str | None) -> RoadmapPha
     if normalized is None:
         return None
     for phase in _get_roadmap_phase_sequence(cwd):
-        if compare_phase_numbers(phase.number, normalized) == 0:
+        if compare_phase_numbers(phase_normalize(phase.number), normalized) == 0:
             return phase
     return None
 
@@ -1876,7 +1877,9 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
     archive_dir.mkdir(parents=True, exist_ok=True)
 
     with gpd_span("milestone.complete", version=version, milestone=milestone_name):
-        # Gather stats from roadmap phases so unscaffolded phases still count.
+        # Gather stats from the union of roadmap phases and on-disk phase dirs so
+        # milestone completion cannot ignore either unscaffolded roadmap entries
+        # or real phase work that exists only on disk.
         phase_count = 0
         completed_phase_count = 0
         total_plans = 0
@@ -1884,14 +1887,30 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
         accomplishments: list[str] = []
 
         roadmap = roadmap_analyze(cwd)
-        phase_count = roadmap.phase_count
-        completed_phase_count = roadmap.completed_phases
-        total_plans = roadmap.total_plans
+        roadmap_phase_map = {phase_normalize(phase.number): phase for phase in roadmap.phases}
+        disk_phase_numbers = {
+            phase_normalize(match.group(1))
+            for phase_dir in _list_phase_dirs(cwd)
+            if (match := re.match(r"^(\d+(?:\.\d+)*)", phase_dir))
+        }
+        all_phase_numbers = sorted(set(roadmap_phase_map) | disk_phase_numbers, key=_phase_sort_key)
+        phase_count = len(all_phase_numbers)
 
-        for roadmap_phase in roadmap.phases:
-            phase_info = find_phase(cwd, roadmap_phase.number)
+        for phase_number in all_phase_numbers:
+            roadmap_phase = roadmap_phase_map.get(phase_number)
+            phase_info = find_phase(cwd, phase_number)
+
+            if roadmap_phase is not None:
+                total_plans += roadmap_phase.plan_count
+            elif phase_info is not None:
+                total_plans += len(phase_info.plans)
+
             if phase_info is None:
                 continue
+
+            if is_phase_complete(len(phase_info.plans), len(phase_info.summaries)):
+                completed_phase_count += 1
+
             phase_dir = phases_dir / Path(phase_info.directory).name
             for summary_name in phase_info.summaries:
                 content = (phase_dir / summary_name).read_text(encoding="utf-8")

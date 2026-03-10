@@ -693,7 +693,7 @@ class TestPhaseCompleteLargeProject:
         result = phase_complete(tmp_path, "1")
         assert result.completed_phase == "1"
         assert result.next_phase == "02"
-        assert result.next_phase_name == "build"
+        assert result.next_phase_name == "Build"
         assert result.is_last_phase is False
 
     def test_complete_last_phase_is_last(self, tmp_path: Path) -> None:
