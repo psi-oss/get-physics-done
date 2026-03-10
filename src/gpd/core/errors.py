@@ -28,10 +28,7 @@ Errors defined in their owning modules (inherit GPDError):
     │   ├── RoadmapNotFoundError
     │   └── MilestoneIncompleteError
     ├── FrontmatterParseError(ValueError)    # frontmatter.py
-    ├── FrontmatterValidationError(ValueError) # frontmatter.py
-    └── FeatureFlagError                     # observability.py
-        ├── UnknownPresetError
-        └── FlagNotInitializedError
+    └── FrontmatterValidationError(ValueError) # frontmatter.py
 
 Domain error classes also inherit from their stdlib counterpart (KeyError,
 ValueError) where applicable, preserving backwards compatibility with existing

@@ -906,41 +906,12 @@ class TestProjectLayoutPredicates:
 
 
 # ---------------------------------------------------------------------------
-# 16. FeatureFlags.disabled_flags / load_feature_flags / gpd_span /
-#     instrument_gpd_function
+# 16. gpd_span / instrument_gpd_function
 # ---------------------------------------------------------------------------
 
 
 class TestObservability:
     """Tests for observability module functions with zero coverage."""
-
-    def test_load_feature_flags_defaults(self) -> None:
-        from gpd.core.observability import load_feature_flags
-
-        flags = load_feature_flags(env={})
-        assert isinstance(flags, dict)
-        assert "gpd.enabled" in flags
-
-    def test_load_feature_flags_with_env_override(self) -> None:
-        from gpd.core.observability import load_feature_flags
-
-        flags = load_feature_flags(env={"GPD_FLAG_GPD_ENABLED": "false"})
-        assert flags["gpd.enabled"] is False
-
-    def test_load_feature_flags_env_true(self) -> None:
-        from gpd.core.observability import load_feature_flags
-
-        flags = load_feature_flags(env={"GPD_FLAG_GPD_ENABLED": "true"})
-        assert flags["gpd.enabled"] is True
-
-    def test_feature_flags_disabled_flags(self) -> None:
-        from gpd.core.observability import FeatureFlags
-
-        ff = FeatureFlags({"gpd.enabled": True, "gpd.conventions.enabled": False, "gpd.conventions.lock": True})
-        disabled = ff.disabled_flags()
-        assert "gpd.conventions.enabled" in disabled
-        # gpd.conventions.lock should also be disabled because parent is off
-        assert "gpd.conventions.lock" in disabled
 
     def test_gpd_span_basic(self) -> None:
         from gpd.core.observability import gpd_span

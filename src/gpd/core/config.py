@@ -261,9 +261,9 @@ DEFAULT_COST_PER_MILLION: dict[str, TierCost] = {
 class GPDProjectConfig(BaseModel):
     """Configuration for a GPD project, loaded from .gpd/config.json.
 
-    Named GPDProjectConfig to avoid collision with contracts.GPDConfig
-    which controls feature-flag toggles. This model controls project-level
-    workflow settings (model profile, autonomy, git strategy, etc.).
+    Named GPDProjectConfig to distinguish it from other shared project
+    contracts. This model controls project-level workflow settings
+    (model profile, autonomy, git strategy, etc.).
     """
 
     model_profile: ModelProfile = ModelProfile.REVIEW
