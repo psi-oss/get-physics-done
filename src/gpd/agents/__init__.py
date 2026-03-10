@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gpd.registry import AGENTS_DIR, list_agents  # noqa: F401
+from gpd.registry import AGENTS_DIR, list_agents
 from gpd.registry import get_agent as _get_agent
 
 

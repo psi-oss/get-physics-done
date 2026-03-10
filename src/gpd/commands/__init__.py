@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gpd.registry import COMMANDS_DIR, list_commands  # noqa: F401
+from gpd.registry import COMMANDS_DIR, list_commands
 from gpd.registry import get_command as _get_command
 
 
