@@ -76,6 +76,14 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Dipole approximation:** Valid when the wavelength >> atomic size (lambda >> a_0). For X-rays or inner-shell transitions: may need multipole expansion.
 - **Light-atom interaction gauges:** Length gauge (E.r) vs velocity gauge (A.p). Physical results (transition rates, cross sections) must be gauge-independent. Intermediate quantities (matrix elements) are gauge-dependent.
 
+## Nuclear & Particle Physics
+
+- **Observable definition:** Distinguish inclusive, fiducial, unfolded, detector-level, and particle-level observables before comparing with theory. Do not compare a parton-level prediction directly to a detector-level measurement.
+- **Likelihoods and covariance:** Use the published covariance matrix or public likelihood when available. Correlated experimental systematics, PDF errors, and theory nuisances should not be added in quadrature as if independent.
+- **Phenomenology pipeline:** State the full chain: matching/running -> hard process -> shower/hadronization -> detector/reconstruction -> statistical inference. For flavor observables, replace the shower/detector stages with hadronic matrix elements and experimental likelihoods, but keep the same bookkeeping discipline.
+- **EFT validity:** In SMEFT or WET fits, state the operator basis, matching scale, RG running, truncation order, and the kinematic regime used to justify the EFT. Do not interpret events with `E ~ Lambda` as controlled EFT constraints without explicit discussion.
+- **Recasting and reinterpretation:** Validate any recast against published benchmark cutflows, efficiencies, or SM yields before claiming limits. If a public likelihood or `pyhf` model exists, prefer it over ad hoc `chi^2` approximations.
+
 ## Path Integrals
 
 <!-- Load path-integrals.md protocol dynamically per protocol_loading section. -->

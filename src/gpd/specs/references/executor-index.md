@@ -21,7 +21,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | **Statistical mechanics / simulation** | `verification-domain-statmech.md`, `protocols/monte-carlo.md` or `protocols/molecular-dynamics.md`; add `protocols/conformal-bootstrap.md` when the target is critical exponents, universality class data, or the critical-point CFT |
 | **General relativity / cosmology** | `verification-domain-gr-cosmology.md`, plus `protocols/general-relativity.md`, `protocols/de-sitter-space.md`, `protocols/asymptotic-symmetries.md`, or `protocols/cosmological-perturbation-theory.md` depending on regime |
 | **AMO physics** | `verification-domain-amo.md`, `executor-subfield-guide.md` §AMO |
-| **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `executor-subfield-guide.md` §Nuclear |
+| **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `protocols/phenomenology.md`, and `executor-subfield-guide.md` §Nuclear & Particle Physics |
 | **Astrophysics** | `verification-domain-astrophysics.md`, `executor-subfield-guide.md` §Astrophysics |
 | **Mathematical physics** | `verification-domain-mathematical-physics.md`, `executor-subfield-guide.md` §Mathematical Physics, plus `protocols/conformal-bootstrap.md` or `protocols/holography-ads-cft.md` for CFT-heavy problems |
 | **Conformal bootstrap / CFT** | `verification-domain-mathematical-physics.md`, `protocols/conformal-bootstrap.md`, and `subfields/qft.md` or `subfields/mathematical-physics.md` depending on whether the project is field-theoretic or structural |
@@ -64,4 +64,4 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 
 ## Protocol Files
 
-See `shared-protocols.md` §Detailed Protocol References for the full protocol index (43 protocols across 4 categories).
+See `shared-protocols.md` §Detailed Protocol References for the full protocol index (44 protocols across 4 categories).

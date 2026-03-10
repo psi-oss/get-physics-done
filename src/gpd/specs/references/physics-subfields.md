@@ -26,7 +26,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, de Sitter space, numerical relativity, gravitational waves, black holes |
 | Statistical Mechanics | references/subfields/stat-mech.md | Phase transitions, Monte Carlo, critical phenomena, RG, exactly solved models |
 | AMO Physics | references/subfields/amo.md | Quantum optics, cold atoms, scattering theory, master equations, BEC |
-| Nuclear & Particle | references/subfields/nuclear-particle.md | QCD, nuclear structure, collider phenomenology, PDFs, effective theories |
+| Nuclear & Particle | references/subfields/nuclear-particle.md | QCD, nuclear structure, collider phenomenology, flavor physics, PDFs, effective theories, global fits |
 | Quantum Information | references/subfields/quantum-info.md | Circuits, error correction, entanglement, tensor networks, variational algorithms |
 | Fluid & Plasma | references/subfields/fluid-plasma.md | Navier-Stokes, MHD, turbulence, kinetic theory, spectral methods |
 | Mathematical Physics | references/subfields/mathematical-physics.md | Rigorous proofs, functional analysis, representation theory, integrable systems, CFT, topological defects |
@@ -52,6 +52,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |
 | Collider physics, PDFs, cross sections               | Nuclear/Particle      | QFT for calculational methods                                  |
+| Global fits, SMEFT, public likelihoods, recasting    | Nuclear/Particle      | QFT for matching/running; Mathematical Physics for statistics-aware inference structure |
 | CFD, turbulence, MHD                                 | Fluid Dynamics/Plasma | Stat Mech for turbulence theory                                |
 | Black holes, gravitational waves, spacetime geometry | General Relativity    | QFT for Hawking radiation                                      |
 | Rigorous proofs, topology, representation theory     | Mathematical Physics  | Relevant physical subfield                                     |

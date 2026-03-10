@@ -16,7 +16,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (Feynman diagram computation, loop integrals), `protocols/lattice-gauge-theory.md` (non-perturbative QCD, hadron spectrum), `protocols/effective-field-theory.md` (chiral perturbation theory, HQET, SCET), `protocols/scattering-theory.md` (cross sections, partial waves, resonances), `protocols/renormalization-group.md` (running couplings, beta functions, asymptotic freedom), `protocols/path-integrals.md` (functional methods, instantons, anomalies), `protocols/group-theory.md` (gauge symmetry, representations, Clebsch-Gordan), `protocols/resummation.md` (Borel summation of QCD perturbative series), `protocols/large-n-expansion.md` ('t Hooft limit, 1/N_c expansion), `protocols/random-matrix-theory.md` (nuclear level spacings, Dirac operator spectra in QCD).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md` (Feynman diagram computation, loop integrals), `protocols/lattice-gauge-theory.md` (non-perturbative QCD, hadron spectrum), `protocols/effective-field-theory.md` (chiral perturbation theory, HQET, SCET), `protocols/phenomenology.md` (likelihoods, global fits, recasting, EFT validity), `protocols/scattering-theory.md` (cross sections, partial waves, resonances), `protocols/renormalization-group.md` (running couplings, beta functions, asymptotic freedom), `protocols/path-integrals.md` (functional methods, instantons, anomalies), `protocols/group-theory.md` (gauge symmetry, representations, Clebsch-Gordan), `protocols/resummation.md` (Borel summation of QCD perturbative series), `protocols/large-n-expansion.md` ('t Hooft limit, 1/N_c expansion), `protocols/random-matrix-theory.md` (nuclear level spacings, Dirac operator spectra in QCD).
 
 **Cross Sections and Decay Rates:**
 
@@ -54,6 +54,13 @@ context_cost: medium
 - Missing transverse energy: imbalance in transverse plane; signatures of neutrinos, dark matter candidates
 - Background estimation: data-driven methods (ABCD, sideband fits, template methods)
 
+**Phenomenology Workflow:**
+
+- State whether the task is a parameter scan, global fit, recast, reinterpretation, or sensitivity forecast
+- Prefer fiducial observables and public likelihoods/covariance matrices over back-solving from a quoted 95% CL number
+- Propagate correlated experimental systematics, PDF/scale uncertainties, and nuisance parameters consistently
+- In EFT fits, state the operator basis, matching scale, running, truncation order, and kinematic validity cuts
+
 **Nuclear Structure:**
 
 - Shell model: nucleons fill single-particle levels; magic numbers (2, 8, 20, 28, 50, 82, 126)
@@ -74,12 +81,17 @@ context_cost: medium
 | **ROOT**                    | Data analysis framework (C++/Python) | Histograms, fitting, I/O; standard in HEP                                          |
 | **HepMC3**                  | Event record format                  | Standard interface between generators and detector simulation                      |
 | **Rivet**                   | Analysis preservation                | Validated analyses from published papers; comparison with data                     |
+| **pyhf**                    | Public likelihood inference          | HistFactory/JSON statistical models; reinterpretation and profiling                |
 | **LHAPDF**                  | Parton distribution functions        | Standard PDF interface; all major PDF sets                                         |
 | **FastJet**                 | Jet finding algorithms               | anti-k_T, Cambridge/Aachen, k_T; standard for jet physics                          |
 | **CheckMATE / MadAnalysis** | BSM reinterpretation                 | Recasting LHC searches for new physics                                             |
 | **SModelS**                 | Simplified model constraints         | Database of LHC constraints on BSM                                                 |
 | **FeynRules**               | Model file generation                | Define BSM models; generate UFO output for MadGraph                                |
 | **SARAH**                   | SUSY model builder                   | Generates model files, RGEs, mass spectra                                          |
+| **HEPfit**                  | Global precision fits                | Bayesian/statistical fits combining EW, Higgs, flavor, and BSM observables         |
+| **flavio**                  | Flavor and precision phenomenology   | Predictions, likelihoods, and plots for WET/SMEFT-style analyses                   |
+| **EOS**                     | Flavor likelihoods and inference     | Predictions, Bayesian inference, and pseudo-event simulation                        |
+| **SMEFiT**                  | SMEFT global fits                    | Multi-operator EFT inference with basis rotations and reporting tools              |
 | **NuShellX / BIGSTICK**     | Nuclear shell model                  | Large-scale shell model diagonalization                                            |
 
 ## Validation Strategies
@@ -121,6 +133,12 @@ context_cost: medium
 - Top quark pair production: known to NNLO; compare with measured cross section
 - Drell-Yan: clean theoretical prediction; standard comparison for PDFs
 
+**Likelihoods and Fits:**
+
+- Use the published covariance matrix or public likelihood when available; summary tables are not a substitute
+- Distinguish a profile-likelihood limit, a Bayesian credible interval, and a best-fit point; they are not interchangeable outputs
+- In EFT fits, inspect operator correlations and flat directions before quoting a "bound" on a single coefficient
+
 ## Common Pitfalls
 
 - **Incorrect color factors:** SU(3) group theory: C_F = 4/3, C_A = 3, T_R = 1/2. Misidentifying these changes cross sections by O(1) factors
@@ -130,6 +148,9 @@ context_cost: medium
 - **Forgetting spin averaging for initial state:** Unpolarized cross section requires 1/(2*s_A + 1)/(2*s_B + 1) averaging factor. For gluons: 1/2 from transverse polarizations in d=4 (but 1/(d-2) in dimensional regularization)
 - **Infrared safety of observables:** Only IR-safe observables (jets, event shapes) have well-defined perturbative predictions. Particle-level observables (individual hadron spectra) require fragmentation functions
 - **Scale variation as theory uncertainty:** Varying mu_R and mu_F by factor of 2 is convention, not a rigorous uncertainty estimate. True error can be larger, especially when NLO corrections are large
+- **Comparing to the wrong observable definition:** Detector-level, fiducial, and unfolded results are not interchangeable. Match the published analysis object exactly.
+- **One-operator-at-a-time EFT bounds:** Single-coefficient limits can disappear once correlations and flat directions are included in a global fit.
+- **Unvalidated recasting:** A reinterpretation that does not reproduce published benchmark efficiencies, cutflows, or SM yields is not yet a trustworthy constraint.
 
 ---
 
@@ -139,6 +160,7 @@ context_cost: medium
 |----------|-------------|-----------------|
 | **Neutrino mass mechanism** | Dirac vs Majorana, neutrinoless double-beta decay predictions | Good — nuclear matrix elements + BSM models |
 | **Muon g-2 anomaly** | SM prediction vs experiment — is there new physics at 5sigma? | Excellent — multi-loop QED/QCD/EW calculations |
+| **Global SMEFT / public-likelihood fits** | How do correlated electroweak, Higgs, top, Drell-Yan, and flavor data constrain multi-operator new physics? | Excellent — EFT matching, likelihood bookkeeping, and public reinterpretation tools fit the workflow well |
 | **Nuclear EFT (chiral EFT)** | Systematic nuclear forces from chiral perturbation theory | Good — power counting + many-body methods |
 | **Quark-gluon plasma** | QGP properties from heavy-ion collisions, jet quenching, flow | Moderate — requires hydro + transport codes |
 | **Dark matter direct detection** | Nuclear response functions for WIMP-nucleus scattering | Good — shell model + EFT matching |

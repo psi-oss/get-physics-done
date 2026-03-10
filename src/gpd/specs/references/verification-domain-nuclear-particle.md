@@ -2,6 +2,11 @@
 load_when:
   - "nuclear physics verification"
   - "particle physics verification"
+  - "phenomenology"
+  - "global fit"
+  - "likelihood"
+  - "SMEFT"
+  - "recast"
   - "collider physics"
   - "parton distribution"
   - "CKM matrix"
@@ -226,6 +231,35 @@ Verification:
 ```
 
 </matching_and_eft>
+
+<phenomenology_likelihoods>
+
+## Likelihood, Covariance, and EFT Validity Checks
+
+Phenomenology constraints live or die on the exact observable definition and the correlated uncertainty model. A quoted limit or best fit without a clear likelihood object is not a finished result.
+
+```
+Inference chain:
+  model / EFT parameters
+    -> running / matching
+    -> theory prediction
+    -> detector or hadronic layer
+    -> covariance / likelihood
+    -> constraint or posterior
+```
+
+**Verification:**
+
+```
+1. Match the theory prediction to the published observable definition: fiducial, unfolded, detector-level, angular binning, and normalization.
+2. Use the full covariance matrix or public likelihood when available. Do not collapse correlated systematics into a single uncorrelated error bar.
+3. Propagate scale, PDF, hadronic, lattice, and parametric uncertainties separately from experimental systematics, and verify they are not double counted.
+4. In EFT fits, state the operator basis, matching scale, running, truncation order, and any energy cut used to justify EFT validity.
+5. For recasts, reproduce benchmark cutflows, efficiencies, or SM yields before scanning new-physics parameter points.
+6. In global fits, inspect parameter correlations and flat directions. One-operator-at-a-time bounds are not generic multi-parameter constraints.
+```
+
+</phenomenology_likelihoods>
 
 ## Worked Examples
 
