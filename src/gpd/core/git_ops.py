@@ -77,7 +77,7 @@ _NAN_PATTERN = re.compile(
         | -?Inf
         | -?INF
     )
-    (?:$|[\s,\]\)])      # followed by end, whitespace, or delimiter
+    (?:$|[\s,.\]\);:!?])  # followed by end, whitespace, or delimiter/punctuation
     """,
     re.VERBOSE | re.MULTILINE,
 )

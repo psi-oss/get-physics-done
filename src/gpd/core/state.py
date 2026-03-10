@@ -448,7 +448,7 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
         return None
 
     matched_key = None
-    for key in VALID_TRANSITIONS:
+    for key in sorted(VALID_TRANSITIONS, key=len, reverse=True):
         if current_lower.startswith(key):
             matched_key = key
             break
@@ -823,16 +823,6 @@ def ensure_state_schema(raw: dict | None) -> dict:
 from gpd.core.conventions import CONVENTION_LABELS as _CONVENTION_LABELS  # noqa: E402
 
 
-def _is_bogus_value(v: object) -> bool:
-    """Check if a convention value is effectively unset.
-
-    Delegates to :func:`gpd.core.conventions.is_bogus_value` for consistency.
-    """
-    from gpd.core.conventions import is_bogus_value
-
-    return is_bogus_value(v)
-
-
 def _escape_pipe(v: object) -> str:
     """Escape pipe characters for markdown tables."""
     return str(v).replace("|", "\\|")
@@ -999,19 +989,19 @@ def generate_state_markdown(raw: dict) -> str:
     p("")
     cl = s.get("convention_lock") or {}
 
-    set_conventions = [(k, label) for k, label in _CONVENTION_LABELS.items() if not _is_bogus_value(cl.get(k))]
+    set_conventions = [(k, label) for k, label in _CONVENTION_LABELS.items() if not is_bogus_value(cl.get(k))]
 
     # Collect custom conventions
     custom_convs = cl.get("custom_conventions") or {}
     custom_entries: list[tuple[str, str, object]] = []
     for key, value in custom_convs.items():
-        if not _is_bogus_value(value):
+        if not is_bogus_value(value):
             label = key.replace("_", " ").title()
             custom_entries.append((key, label, value))
 
     # Also collect custom flat keys not covered by the standard labels
     for key, value in cl.items():
-        if key not in _CONVENTION_LABELS and key != "custom_conventions" and not _is_bogus_value(value):
+        if key not in _CONVENTION_LABELS and key != "custom_conventions" and not is_bogus_value(value):
             if not any(k == key for k, _, _ in custom_entries):
                 label = key.replace("_", " ").title()
                 custom_entries.append((key, label, value))
@@ -1093,7 +1083,12 @@ def _intent_path(cwd: Path) -> Path:
     return ProjectLayout(cwd).state_intent
 
 
-def _recover_intent(cwd: Path) -> None:
+def _state_lock(cwd: Path, timeout: float = 5.0):
+    """Return the canonical lock for all dual-file state operations."""
+    return file_lock(_state_json_path(cwd), timeout=timeout)
+
+
+def _recover_intent_locked(cwd: Path) -> None:
     """Recover from interrupted dual-file write (intent marker left behind)."""
     intent_file = _intent_path(cwd)
     json_path = _state_json_path(cwd)
@@ -1118,28 +1113,38 @@ def _recover_intent(cwd: Path) -> None:
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
 
-    with file_lock(json_path):
-        if json_tmp_exists and md_tmp_exists:
-            # Both temp files ready — complete the interrupted write
-            os.rename(json_tmp, json_path)
-            os.rename(md_tmp, md_path)
-        else:
-            # Partial — rollback by cleaning up temp files
-            if json_tmp_exists:
-                try:
-                    json_tmp.unlink()
-                except OSError:
-                    pass
-            if md_tmp_exists:
-                try:
-                    md_tmp.unlink()
-                except OSError:
-                    pass
+    if json_tmp_exists and md_tmp_exists:
+        # Both temp files ready — complete the interrupted write
+        os.rename(json_tmp, json_path)
+        os.rename(md_tmp, md_path)
+    else:
+        # Partial — rollback by cleaning up temp files
+        if json_tmp_exists:
+            try:
+                json_tmp.unlink()
+            except OSError:
+                pass
+        if md_tmp_exists:
+            try:
+                md_tmp.unlink()
+            except OSError:
+                pass
 
-        try:
-            intent_file.unlink(missing_ok=True)
-        except OSError:
-            pass
+    try:
+        intent_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _recover_intent(cwd: Path) -> None:
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+
+
+def _write_state_markdown_locked(cwd: Path, content: str) -> dict:
+    """Write STATE.md and sync state.json while holding the canonical state lock."""
+    atomic_write(_state_md_path(cwd), content)
+    return sync_state_json_core(cwd, content)
 
 
 def sync_state_json_core(cwd: Path, md_content: str) -> dict:
@@ -1217,7 +1222,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
 @instrument_gpd_function("state.sync")
 def sync_state_json(cwd: Path, md_content: str) -> dict:
     """Parse STATE.md and sync into state.json (with locking)."""
-    with file_lock(_state_json_path(cwd)):
+    with _state_lock(cwd):
         return sync_state_json_core(cwd, md_content)
 
 
@@ -1230,44 +1235,42 @@ def load_state_json(cwd: Path) -> dict | None:
     json_path = _state_json_path(cwd)
     bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
 
-    # Recover from interrupted writes
-    _recover_intent(cwd)
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
 
-    try:
-        raw = json_path.read_text(encoding="utf-8")
-        return ensure_state_schema(json.loads(raw))
-    except FileNotFoundError:
-        pass
-    except (json.JSONDecodeError, OSError) as e:
-        if os.environ.get(ENV_GPD_DEBUG):
-            logger.debug("state.json parse error: %s", e)
-        # Try backup
         try:
-            bak_raw = bak_path.read_text(encoding="utf-8")
-            restored = ensure_state_schema(json.loads(bak_raw))
-            with file_lock(json_path):
-                atomic_write(json_path, bak_raw)
-            return restored
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            raw = json_path.read_text(encoding="utf-8")
+            return ensure_state_schema(json.loads(raw))
+        except FileNotFoundError:
+            pass
+        except (json.JSONDecodeError, OSError) as e:
             if os.environ.get(ENV_GPD_DEBUG):
-                logger.debug("state.json.bak restore failed")
+                logger.debug("state.json parse error: %s", e)
+            # Try backup
+            try:
+                bak_raw = bak_path.read_text(encoding="utf-8")
+                restored = ensure_state_schema(json.loads(bak_raw))
+                atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
+                return restored
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                if os.environ.get(ENV_GPD_DEBUG):
+                    logger.debug("state.json.bak restore failed")
 
-    # Fall back to STATE.md
-    md_path = _state_md_path(cwd)
-    try:
-        content = md_path.read_text(encoding="utf-8")
-        with file_lock(json_path):
-            return ensure_state_schema(sync_state_json_core(cwd, content))
-    except (FileNotFoundError, OSError):
-        if os.environ.get(ENV_GPD_DEBUG):
-            logger.debug("STATE.md fallback failed")
-        return None
+        # Fall back to STATE.md
+        md_path = _state_md_path(cwd)
+        try:
+            content = md_path.read_text(encoding="utf-8")
+            return sync_state_json_core(cwd, content)
+        except (FileNotFoundError, OSError):
+            if os.environ.get(ENV_GPD_DEBUG):
+                logger.debug("STATE.md fallback failed")
+            return None
 
 
 def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
     """Core write logic: write state.json + regenerate STATE.md atomically.
 
-    Caller MUST hold the lock on state.json.
+    Caller MUST hold the canonical state lock.
     """
     planning = _planning_dir(cwd)
     planning.mkdir(parents=True, exist_ok=True)
@@ -1282,10 +1285,12 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
     json_backup = safe_read_file(json_path)
     md_backup = safe_read_file(md_path)
 
+    normalized = ensure_state_schema(state_obj)
+
     try:
         # Phase 1: Write both temp files
-        json_tmp.write_text(json.dumps(state_obj, indent=2) + "\n", encoding="utf-8")
-        md_tmp.write_text(generate_state_markdown(state_obj), encoding="utf-8")
+        json_tmp.write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
+        md_tmp.write_text(generate_state_markdown(normalized), encoding="utf-8")
 
         # Phase 2: Write intent marker, then rename both
         intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
@@ -1298,7 +1303,7 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 
         # Backup
         try:
-            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json.dumps(state_obj, indent=2) + "\n")
+            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json.dumps(normalized, indent=2) + "\n")
         except OSError:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("Failed to write state.json backup")
@@ -1326,7 +1331,7 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 @instrument_gpd_function("state.save")
 def save_state_json(cwd: Path, state_obj: dict) -> None:
     """Save state.json + STATE.md atomically (with locking)."""
-    with file_lock(_state_json_path(cwd)):
+    with _state_lock(cwd):
         save_state_json_locked(cwd, state_obj)
 
 
@@ -1401,7 +1406,7 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
     if not md_path.exists():
         return StateUpdateResult(updated=False, reason="STATE.md not found")
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         field_norm = field.replace("_", " ")
 
@@ -1415,8 +1420,7 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
 
         new_content = state_replace_field(content, field_norm, value)
         if new_content != content:
-            atomic_write(md_path, new_content)
-            sync_state_json(cwd, new_content)
+            _write_state_markdown_locked(cwd, new_content)
             return StateUpdateResult(updated=True)
 
         return StateUpdateResult(updated=False, reason=f'Field "{field}" not found in STATE.md')
@@ -1432,7 +1436,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
             "Run 'gpd init' to create the project state file before patching."
         )
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         updated: list[str] = []
         failed: list[str] = []
@@ -1453,22 +1457,14 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                         failed.append(field)
                         continue
 
-            escaped = re.escape(field_norm)
-            pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
-            if pattern.search(content):
-                safe_val = str(value)
-
-                def _rep(m: re.Match, sv: str = safe_val) -> str:
-                    return m.group(1) + sv
-
-                content = pattern.sub(_rep, content, count=1)
+            if state_has_field(content, field_norm):
+                content = state_replace_field(content, field_norm, value)
                 updated.append(field)
             else:
                 failed.append(field)
 
         if updated:
-            atomic_write(md_path, content)
-            sync_state_json(cwd, content)
+            _write_state_markdown_locked(cwd, content)
 
     return StatePatchResult(updated=updated, failed=failed)
 
@@ -1480,7 +1476,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
     if not md_path.exists():
         return AdvancePlanResult(advanced=False, error="STATE.md not found")
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         current_plan_raw = state_extract_field(content, "Current Plan")
         total_plans_raw = state_extract_field(content, "Total Plans in Phase")
@@ -1507,8 +1503,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
                 return AdvancePlanResult(advanced=False, error=transition_error)
             content = state_replace_field(content, "Status", "Phase complete \u2014 ready for verification")
             content = state_replace_field(content, "Last Activity", today)
-            atomic_write(md_path, content)
-            sync_state_json(cwd, content)
+            _write_state_markdown_locked(cwd, content)
             return AdvancePlanResult(
                 advanced=False,
                 reason="last_plan",
@@ -1524,8 +1519,7 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
             return AdvancePlanResult(advanced=False, error=transition_error)
         content = state_replace_field(content, "Status", "Ready to execute")
         content = state_replace_field(content, "Last Activity", today)
-        atomic_write(md_path, content)
-        sync_state_json(cwd, content)
+        _write_state_markdown_locked(cwd, content)
         return AdvancePlanResult(
             advanced=True,
             previous_plan=current_plan,
@@ -1552,7 +1546,7 @@ def state_record_metric(
     if not phase or not plan or not duration:
         return RecordMetricResult(recorded=False, error="phase, plan, and duration required")
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
 
         pattern = re.compile(
@@ -1574,8 +1568,7 @@ def state_record_metric(
             table_body = table_body + "\n" + new_row
 
         new_content = pattern.sub(lambda _: f"{table_header}{table_body}\n", content, count=1)
-        atomic_write(md_path, new_content)
-        sync_state_json(cwd, new_content)
+        _write_state_markdown_locked(cwd, new_content)
         return RecordMetricResult(recorded=True, phase=phase, plan=plan, duration=duration)
 
 
@@ -1586,7 +1579,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
     if not md_path.exists():
         return UpdateProgressResult(updated=False, error="STATE.md not found")
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
 
         phases_dir = ProjectLayout(cwd).phases_dir
@@ -1612,8 +1605,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
         progress_pattern = re.compile(r"(\*\*Progress:\*\*\s*)(.*)", re.IGNORECASE)
         if progress_pattern.search(content):
             new_content = progress_pattern.sub(lambda m: m.group(1) + progress_str, content, count=1)
-            atomic_write(md_path, new_content)
-            sync_state_json(cwd, new_content)
+            _write_state_markdown_locked(cwd, new_content)
             return UpdateProgressResult(
                 updated=True, percent=percent, completed=total_completed, total=total_plans, bar=progress_str
             )
@@ -1639,7 +1631,7 @@ def state_add_decision(
     rat_str = f" \u2014 {rationale}" if rationale else ""
     entry = f"- [Phase {phase or '?'}]: {summary}{rat_str}"
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
             r"(###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
@@ -1656,8 +1648,7 @@ def state_add_decision(
         section_body = section_body.rstrip() + "\n" + entry + "\n"
 
         new_content = pattern.sub(lambda _: f"{match.group(1)}{section_body}", content, count=1)
-        atomic_write(md_path, new_content)
-        sync_state_json(cwd, new_content)
+        _write_state_markdown_locked(cwd, new_content)
         return AddDecisionResult(added=True, decision=entry)
 
 
@@ -1672,7 +1663,7 @@ def state_add_blocker(cwd: Path, text: str) -> AddBlockerResult:
 
     entry = f"- {text}"
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
             r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
@@ -1689,8 +1680,7 @@ def state_add_blocker(cwd: Path, text: str) -> AddBlockerResult:
         section_body = section_body.rstrip() + "\n" + entry + "\n"
 
         new_content = pattern.sub(lambda _: f"{match.group(1)}{section_body}", content, count=1)
-        atomic_write(md_path, new_content)
-        sync_state_json(cwd, new_content)
+        _write_state_markdown_locked(cwd, new_content)
         return AddBlockerResult(added=True, blocker=text)
 
 
@@ -1707,7 +1697,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
             resolved=False, error="search text must be at least 3 characters to avoid accidental matches"
         )
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
             r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
@@ -1751,8 +1741,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
         new_content = pattern.sub(lambda _: f"{match.group(1)}{new_body}", content, count=1)
 
         if remove_idx != -1:
-            atomic_write(md_path, new_content)
-            sync_state_json(cwd, new_content)
+            _write_state_markdown_locked(cwd, new_content)
             return ResolveBlockerResult(resolved=True, blocker=text)
 
         return ResolveBlockerResult(resolved=False, blocker=text, reason="no match found")
@@ -1770,7 +1759,7 @@ def state_record_session(
     if not md_path.exists():
         return RecordSessionResult(recorded=False, error="STATE.md not found")
 
-    with file_lock(md_path):
+    with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         now = datetime.now(tz=UTC).isoformat()
         updated: list[str] = []
@@ -1801,8 +1790,7 @@ def state_record_session(
             updated.append("Resume File")
 
         if updated:
-            atomic_write(md_path, content)
-            sync_state_json(cwd, content)
+            _write_state_markdown_locked(cwd, content)
             return RecordSessionResult(recorded=True, updated=updated)
 
         return RecordSessionResult(recorded=False, reason="No session fields found in STATE.md")
@@ -1811,53 +1799,28 @@ def state_record_session(
 @instrument_gpd_function("state.snapshot")
 def state_snapshot(cwd: Path) -> StateSnapshotResult:
     """Fast snapshot of state for progress/routing commands."""
-    json_path = _state_json_path(cwd)
-    if json_path.exists():
-        try:
-            state_obj = json.loads(json_path.read_text(encoding="utf-8"))
-            pos = state_obj.get("position") or {}
-            cp = pos.get("current_phase")
-            return StateSnapshotResult(
-                current_phase=phase_normalize(str(cp)) if cp is not None else None,
-                current_phase_name=pos.get("current_phase_name"),
-                total_phases=pos.get("total_phases"),
-                current_plan=str(pos["current_plan"]) if pos.get("current_plan") is not None else None,
-                total_plans_in_phase=pos.get("total_plans_in_phase"),
-                status=pos.get("status"),
-                progress_percent=pos.get("progress_percent"),
-                last_activity=pos.get("last_activity"),
-                last_activity_desc=pos.get("last_activity_desc"),
-                decisions=state_obj.get("decisions"),
-                blockers=state_obj.get("blockers"),
-                paused_at=pos.get("paused_at"),
-                session=state_obj.get("session"),
-            )
-        except (json.JSONDecodeError, OSError):
-            if os.environ.get(ENV_GPD_DEBUG):
-                logger.debug("state.json read failed, falling back")
-
-    # Fall back to parsing STATE.md
-    md_path = _state_md_path(cwd)
-    if not md_path.exists():
+    state_obj = load_state_json(cwd)
+    if state_obj is None:
         return StateSnapshotResult(error="STATE.md not found")
 
-    content = md_path.read_text(encoding="utf-8")
-    parsed = parse_state_md(content)
-    cp = parsed["position"]["current_phase"]
+    pos = state_obj.get("position")
+    if not isinstance(pos, dict):
+        pos = {}
+    cp = pos.get("current_phase")
     return StateSnapshotResult(
         current_phase=phase_normalize(str(cp)) if cp is not None else None,
-        current_phase_name=parsed["position"]["current_phase_name"],
-        total_phases=parsed["position"]["total_phases"],
-        current_plan=parsed["position"]["current_plan"],
-        total_plans_in_phase=parsed["position"]["total_plans_in_phase"],
-        status=parsed["position"]["status"],
-        progress_percent=parsed["position"]["progress_percent"],
-        last_activity=parsed["position"]["last_activity"],
-        last_activity_desc=parsed["position"]["last_activity_desc"],
-        decisions=parsed["decisions"],
-        blockers=parsed["blockers"],
-        paused_at=parsed["position"]["paused_at"],
-        session=parsed["session"],
+        current_phase_name=pos.get("current_phase_name"),
+        total_phases=pos.get("total_phases"),
+        current_plan=str(pos["current_plan"]) if pos.get("current_plan") is not None else None,
+        total_plans_in_phase=pos.get("total_plans_in_phase"),
+        status=pos.get("status"),
+        progress_percent=pos.get("progress_percent"),
+        last_activity=pos.get("last_activity"),
+        last_activity_desc=pos.get("last_activity_desc"),
+        decisions=state_obj.get("decisions"),
+        blockers=state_obj.get("blockers"),
+        paused_at=pos.get("paused_at"),
+        session=state_obj.get("session"),
     )
 
 
@@ -1875,7 +1838,12 @@ def state_validate(cwd: Path) -> StateValidateResult:
     # Load state.json
     state_json = None
     try:
-        state_json = json.loads(json_path.read_text(encoding="utf-8"))
+        raw_state_json = json.loads(json_path.read_text(encoding="utf-8"))
+        if not isinstance(raw_state_json, dict):
+            issues.append(
+                f"state.json root must be an object, got {type(raw_state_json).__name__}; validating normalized fallback"
+            )
+        state_json = ensure_state_schema(raw_state_json)
     except FileNotFoundError:
         issues.append("state.json not found")
     except (json.JSONDecodeError, OSError) as e:
@@ -1895,7 +1863,9 @@ def state_validate(cwd: Path) -> StateValidateResult:
         return StateValidateResult(valid=False, issues=issues, warnings=warnings)
 
     # Cross-check position fields
-    if state_json and state_md and state_json.get("position") and state_md.get("position"):
+    json_pos = state_json.get("position") if isinstance(state_json, dict) else None
+    md_pos = state_md.get("position") if isinstance(state_md, dict) else None
+    if isinstance(json_pos, dict) and isinstance(md_pos, dict):
         pos_fields = [
             "current_phase",
             "current_phase_name",
@@ -1909,8 +1879,8 @@ def state_validate(cwd: Path) -> StateValidateResult:
         ]
         phase_fields = {"current_phase", "current_phase_name"}
         for field in pos_fields:
-            json_val = state_json["position"].get(field)
-            md_val = state_md["position"].get(field)
+            json_val = json_pos.get(field)
+            md_val = md_pos.get(field)
             if json_val is not None and md_val is not None:
                 if field in phase_fields:
                     j_str = phase_normalize(str(json_val))
@@ -1922,7 +1892,7 @@ def state_validate(cwd: Path) -> StateValidateResult:
                     issues.append(f'position.{field} mismatch: json="{json_val}" vs md="{md_val}"')
 
     # Convention lock completeness
-    if state_json and state_json.get("convention_lock"):
+    if state_json and isinstance(state_json.get("convention_lock"), dict):
         cl = state_json["convention_lock"]
         set_fields = [k for k in KNOWN_CONVENTIONS if not is_bogus_value(cl.get(k))]
         unset = [k for k in KNOWN_CONVENTIONS if is_bogus_value(cl.get(k))]
@@ -1930,16 +1900,16 @@ def state_validate(cwd: Path) -> StateValidateResult:
             warnings.append(f"convention_lock: {len(unset)} conventions unset ({', '.join(unset)})")
 
     # NaN in numeric fields
-    if state_json and state_json.get("position"):
+    if isinstance(json_pos, dict):
         for field in ("total_phases", "total_plans_in_phase", "progress_percent"):
-            val = state_json["position"].get(field)
+            val = json_pos.get(field)
             if val is not None and isinstance(val, float) and val != val:
                 issues.append(f"position.{field} is NaN")
 
     # Status vocabulary
-    if state_json and state_json.get("position") and state_json["position"].get("status"):
-        if not is_valid_status(state_json["position"]["status"]):
-            warnings.append(f'position.status "{state_json["position"]["status"]}" is not a recognized status')
+    if isinstance(json_pos, dict) and json_pos.get("status"):
+        if not is_valid_status(str(json_pos["status"])):
+            warnings.append(f'position.status "{json_pos["status"]}" is not a recognized status')
 
     # Schema completeness
     if state_json:
@@ -1957,9 +1927,9 @@ def state_validate(cwd: Path) -> StateValidateResult:
                 warnings.append(f'schema: missing section "{section}" in state.json (will be auto-created)')
 
     # Phase range validation
-    if state_json and state_json.get("position"):
-        cp = state_json["position"].get("current_phase")
-        tp = state_json["position"].get("total_phases")
+    if isinstance(json_pos, dict):
+        cp = json_pos.get("current_phase")
+        tp = json_pos.get("total_phases")
         if cp is not None and tp is not None:
             current_num = safe_parse_int(cp, None)
             total_num = safe_parse_int(tp, None)
@@ -1979,7 +1949,7 @@ def state_validate(cwd: Path) -> StateValidateResult:
                 seen.add(r["id"])
 
     # Cross-check: phase directory exists
-    current_phase = state_json["position"].get("current_phase") if state_json and state_json.get("position") else None
+    current_phase = json_pos.get("current_phase") if isinstance(json_pos, dict) else None
     if current_phase is not None:
         phases_dir = ProjectLayout(cwd).phases_dir
         if phases_dir.exists():
@@ -2017,185 +1987,177 @@ def state_compact(cwd: Path) -> StateCompactResult:
     if not md_path.exists():
         return StateCompactResult(compacted=False, error="STATE.md not found")
 
-    with file_lock(md_path):
-        with file_lock(_state_json_path(cwd)):
-            content = md_path.read_text(encoding="utf-8")
-            lines = content.split("\n")
-            total_lines = len(lines)
-            warn_threshold = STATE_LINES_TARGET
-            line_budget = STATE_LINES_BUDGET
+    with _state_lock(cwd):
+        content = md_path.read_text(encoding="utf-8")
+        lines = content.split("\n")
+        total_lines = len(lines)
+        warn_threshold = STATE_LINES_TARGET
+        line_budget = STATE_LINES_BUDGET
 
-            if total_lines <= warn_threshold:
-                return StateCompactResult(compacted=False, reason="within_budget", lines=total_lines, warn=False)
+        if total_lines <= warn_threshold:
+            return StateCompactResult(compacted=False, reason="within_budget", lines=total_lines, warn=False)
 
-            soft_mode = total_lines < line_budget
+        soft_mode = total_lines < line_budget
 
-            # Determine current phase
-            state_obj = None
+        # Determine current phase
+        state_obj = None
+        try:
+            state_obj = ensure_state_schema(json.loads(_state_json_path(cwd).read_text(encoding="utf-8")))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+        current_phase = state_obj["position"].get("current_phase") if state_obj and state_obj.get("position") else None
+
+        # Compute keep thresholds
+        keep_phase_min = None
+        metrics_phase_min = None
+        if current_phase is not None:
+            segs = str(current_phase).split(".")
             try:
-                state_obj = json.loads(_state_json_path(cwd).read_text(encoding="utf-8"))
-            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                first_seg = int(segs[0])
+                dec_segs = list(segs)
+                dec_segs[0] = str(max(1, first_seg - 1))
+                keep_phase_min = ".".join(dec_segs)
+                met_segs = list(segs)
+                met_segs[0] = str(max(0, first_seg - 1))
+                metrics_phase_min = ".".join(met_segs)
+            except ValueError:
                 pass
 
-            current_phase = (
-                state_obj["position"].get("current_phase") if state_obj and state_obj.get("position") else None
-            )
+        planning = _planning_dir(cwd)
+        archive_path = planning / "STATE-ARCHIVE.md"
+        archive_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        archive_entries: list[str] = []
+        working = content
 
-            # Compute keep thresholds
-            keep_phase_min = None
-            metrics_phase_min = None
-            if current_phase is not None:
-                segs = str(current_phase).split(".")
-                try:
-                    first_seg = int(segs[0])
-                    dec_segs = list(segs)
-                    dec_segs[0] = str(max(1, first_seg - 1))
-                    keep_phase_min = ".".join(dec_segs)
-                    met_segs = list(segs)
-                    met_segs[0] = str(max(0, first_seg - 1))
-                    metrics_phase_min = ".".join(met_segs)
-                except ValueError:
-                    pass
-
-            planning = _planning_dir(cwd)
-            archive_path = planning / "STATE-ARCHIVE.md"
-            archive_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            archive_entries: list[str] = []
-            working = content
-
-            # 1. Archive decisions older than keep threshold
-            if keep_phase_min is not None:
-                dec_pattern = re.compile(
-                    r"(###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
-                    re.IGNORECASE,
-                )
-                dec_match = dec_pattern.search(working)
-                if dec_match:
-                    dec_lines = dec_match.group(2).split("\n")
-                    kept: list[str] = []
-                    archived: list[str] = []
-                    for line in dec_lines:
-                        pm = re.match(r"^\s*-\s*\[Phase\s+([\d.]+)", line, re.IGNORECASE)
-                        if pm:
-                            if compare_phase_numbers(pm.group(1), keep_phase_min) < 0:
-                                archived.append(line)
-                            else:
-                                kept.append(line)
-                        else:
-                            kept.append(line)
-                    if archived:
-                        archive_entries.append(f"### Decisions (phases < {keep_phase_min})\n\n" + "\n".join(archived))
-                        working = dec_pattern.sub(lambda _: f"{dec_match.group(1)}" + "\n".join(kept), working, count=1)
-
-            # 2. Archive resolved blockers
-            blk_pattern = re.compile(
-                r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+        # 1. Archive decisions older than keep threshold
+        if keep_phase_min is not None:
+            dec_pattern = re.compile(
+                r"(###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
                 re.IGNORECASE,
             )
-            blk_match = blk_pattern.search(working)
-            if blk_match:
-                blk_lines = blk_match.group(2).split("\n")
-                kept_b: list[str] = []
-                archived_b: list[str] = []
-                for line in blk_lines:
-                    if line.startswith("- ") and (
-                        re.search(r"\[resolved\]", line, re.IGNORECASE) or re.search(r"~~.*~~", line)
-                    ):
-                        archived_b.append(line)
+            dec_match = dec_pattern.search(working)
+            if dec_match:
+                dec_lines = dec_match.group(2).split("\n")
+                kept: list[str] = []
+                archived: list[str] = []
+                for line in dec_lines:
+                    pm = re.match(r"^\s*-\s*\[Phase\s+([\d.]+)", line, re.IGNORECASE)
+                    if pm:
+                        if compare_phase_numbers(pm.group(1), keep_phase_min) < 0:
+                            archived.append(line)
+                        else:
+                            kept.append(line)
                     else:
-                        kept_b.append(line)
-                if archived_b:
-                    archive_entries.append("### Resolved Blockers\n\n" + "\n".join(archived_b))
-                    working = blk_pattern.sub(lambda _: f"{blk_match.group(1)}" + "\n".join(kept_b), working, count=1)
+                        kept.append(line)
+                if archived:
+                    archive_entries.append(f"### Decisions (phases < {keep_phase_min})\n\n" + "\n".join(archived))
+                    working = dec_pattern.sub(lambda _: f"{dec_match.group(1)}" + "\n".join(kept), working, count=1)
 
-            # 3. Archive old metrics (full mode only)
-            if not soft_mode and metrics_phase_min is not None:
-                met_pattern = re.compile(
-                    r"(##\s*Performance Metrics[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n)([\s\S]*?)(?=\n##|\n$|$)",
-                    re.IGNORECASE,
-                )
-                met_match = met_pattern.search(working)
-                if met_match:
-                    met_rows = [r for r in met_match.group(2).split("\n") if r.strip()]
-                    kept_m: list[str] = []
-                    archived_m: list[str] = []
-                    for row in met_rows:
-                        pm = re.search(r"Phase\s+([\d.]+)", row, re.IGNORECASE)
-                        if pm:
-                            if compare_phase_numbers(pm.group(1), metrics_phase_min) < 0:
-                                archived_m.append(row)
-                            else:
-                                kept_m.append(row)
+        # 2. Archive resolved blockers
+        blk_pattern = re.compile(
+            r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+            re.IGNORECASE,
+        )
+        blk_match = blk_pattern.search(working)
+        if blk_match:
+            blk_lines = blk_match.group(2).split("\n")
+            kept_b: list[str] = []
+            archived_b: list[str] = []
+            for line in blk_lines:
+                if line.startswith("- ") and (
+                    re.search(r"\[resolved\]", line, re.IGNORECASE) or re.search(r"~~.*~~", line)
+                ):
+                    archived_b.append(line)
+                else:
+                    kept_b.append(line)
+            if archived_b:
+                archive_entries.append("### Resolved Blockers\n\n" + "\n".join(archived_b))
+                working = blk_pattern.sub(lambda _: f"{blk_match.group(1)}" + "\n".join(kept_b), working, count=1)
+
+        # 3. Archive old metrics (full mode only)
+        if not soft_mode and metrics_phase_min is not None:
+            met_pattern = re.compile(
+                r"(##\s*Performance Metrics[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n)([\s\S]*?)(?=\n##|\n$|$)",
+                re.IGNORECASE,
+            )
+            met_match = met_pattern.search(working)
+            if met_match:
+                met_rows = [r for r in met_match.group(2).split("\n") if r.strip()]
+                kept_m: list[str] = []
+                archived_m: list[str] = []
+                for row in met_rows:
+                    pm = re.search(r"Phase\s+([\d.]+)", row, re.IGNORECASE)
+                    if pm:
+                        if compare_phase_numbers(pm.group(1), metrics_phase_min) < 0:
+                            archived_m.append(row)
                         else:
                             kept_m.append(row)
-                    if archived_m:
-                        archive_entries.append(
-                            "### Performance Metrics\n\n"
-                            "| Label | Duration | Tasks | Files |\n"
-                            "| ----- | -------- | ----- | ----- |\n" + "\n".join(archived_m)
-                        )
-                        working = met_pattern.sub(
-                            lambda _: f"{met_match.group(1)}" + "\n".join(kept_m) + "\n", working, count=1
-                        )
+                    else:
+                        kept_m.append(row)
+                if archived_m:
+                    archive_entries.append(
+                        "### Performance Metrics\n\n"
+                        "| Label | Duration | Tasks | Files |\n"
+                        "| ----- | -------- | ----- | ----- |\n" + "\n".join(archived_m)
+                    )
+                    working = met_pattern.sub(
+                        lambda _: f"{met_match.group(1)}" + "\n".join(kept_m) + "\n", working, count=1
+                    )
 
-            # 4. Archive session records (full mode only, keep last 3)
-            if not soft_mode:
-                sess_pattern = re.compile(
-                    r"(##\s*Session(?:\s+Continuity)?\s*\n)([\s\S]*?)(?=\n##|$)",
-                    re.IGNORECASE,
-                )
-                sess_match = sess_pattern.search(working)
-                if sess_match:
-                    sess_lines = sess_match.group(2).split("\n")
-                    session_blocks: list[list[str]] = []
-                    current_block: list[str] = []
-                    for line in sess_lines:
-                        if re.search(r"\*\*Last (?:session|Date):\*\*", line, re.IGNORECASE) and current_block:
-                            session_blocks.append(current_block)
-                            current_block = []
-                        current_block.append(line)
-                    if current_block:
-                        session_blocks.append(current_block)
-
-                    if len(session_blocks) > 3:
-                        archived_s = session_blocks[:-3]
-                        kept_s = session_blocks[-3:]
-                        archive_entries.append(
-                            "### Session Records\n\n" + "\n\n".join("\n".join(b) for b in archived_s)
-                        )
-                        working = sess_pattern.sub(
-                            lambda _: f"{sess_match.group(1)}" + "\n".join("\n".join(b) for b in kept_s) + "\n",
-                            working,
-                            count=1,
-                        )
-
-            if not archive_entries:
-                return StateCompactResult(
-                    compacted=False, reason="nothing_to_archive", lines=total_lines, warn=soft_mode
-                )
-
-            # Write archive
-            archive_header = f"## Archived {archive_date} (from phase {current_phase or '?'})\n\n"
-            archive_block = archive_header + "\n\n".join(archive_entries) + "\n\n"
-
-            if archive_path.exists():
-                existing = archive_path.read_text(encoding="utf-8")
-                atomic_write(archive_path, existing + "\n" + archive_block)
-            else:
-                atomic_write(
-                    archive_path,
-                    "# STATE Archive\n\nHistorical state entries archived from STATE.md.\n\n" + archive_block,
-                )
-
-            # Write compacted STATE.md + sync
-            atomic_write(md_path, working)
-            sync_state_json_core(cwd, working)
-
-            new_lines = len(working.split("\n"))
-            return StateCompactResult(
-                compacted=True,
-                original_lines=total_lines,
-                new_lines=new_lines,
-                archived_lines=total_lines - new_lines,
-                soft_mode=soft_mode,
+        # 4. Archive session records (full mode only, keep last 3)
+        if not soft_mode:
+            sess_pattern = re.compile(
+                r"(##\s*Session(?:\s+Continuity)?\s*\n)([\s\S]*?)(?=\n##|$)",
+                re.IGNORECASE,
             )
+            sess_match = sess_pattern.search(working)
+            if sess_match:
+                sess_lines = sess_match.group(2).split("\n")
+                session_blocks: list[list[str]] = []
+                current_block: list[str] = []
+                for line in sess_lines:
+                    if re.search(r"\*\*Last (?:session|Date):\*\*", line, re.IGNORECASE) and current_block:
+                        session_blocks.append(current_block)
+                        current_block = []
+                    current_block.append(line)
+                if current_block:
+                    session_blocks.append(current_block)
+
+                if len(session_blocks) > 3:
+                    archived_s = session_blocks[:-3]
+                    kept_s = session_blocks[-3:]
+                    archive_entries.append("### Session Records\n\n" + "\n\n".join("\n".join(b) for b in archived_s))
+                    working = sess_pattern.sub(
+                        lambda _: f"{sess_match.group(1)}" + "\n".join("\n".join(b) for b in kept_s) + "\n",
+                        working,
+                        count=1,
+                    )
+
+        if not archive_entries:
+            return StateCompactResult(compacted=False, reason="nothing_to_archive", lines=total_lines, warn=soft_mode)
+
+        # Write archive
+        archive_header = f"## Archived {archive_date} (from phase {current_phase or '?'})\n\n"
+        archive_block = archive_header + "\n\n".join(archive_entries) + "\n\n"
+
+        if archive_path.exists():
+            existing = archive_path.read_text(encoding="utf-8")
+            atomic_write(archive_path, existing + "\n" + archive_block)
+        else:
+            atomic_write(
+                archive_path,
+                "# STATE Archive\n\nHistorical state entries archived from STATE.md.\n\n" + archive_block,
+            )
+
+        # Write compacted STATE.md + sync
+        _write_state_markdown_locked(cwd, working)
+
+        new_lines = len(working.split("\n"))
+        return StateCompactResult(
+            compacted=True,
+            original_lines=total_lines,
+            new_lines=new_lines,
+            archived_lines=total_lines - new_lines,
+            soft_mode=soft_mode,
+        )

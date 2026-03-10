@@ -48,8 +48,8 @@ from gpd.core.state import (
 )
 from gpd.core.utils import (
     atomic_write,
-    compare_phase_numbers,
     phase_normalize,
+    phase_sort_key,
     safe_parse_int,
     safe_read_file,
 )
@@ -293,18 +293,17 @@ def check_orphans(cwd: Path) -> HealthCheck:
 
     dirs = sorted(
         (d for d in phases_dir.iterdir() if d.is_dir()),
-        key=lambda d: compare_phase_numbers(d.name, "0"),
+        key=lambda d: phase_sort_key(d.name),
     )
 
     for phase_dir in dirs:
         files = [f.name for f in phase_dir.iterdir() if f.is_file()]
-        plans = [f for f in files if f.endswith(PLAN_SUFFIX)]
-        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX)]
+        plans = [f for f in files if layout.is_plan_file(f)]
+        summaries = [f for f in files if layout.is_summary_file(f)]
 
         # Summaries without matching plans
         for summary in summaries:
-            plan_name = summary.replace(SUMMARY_SUFFIX, PLAN_SUFFIX)
-            if plan_name not in plans:
+            if layout.strip_summary_suffix(summary) not in {layout.strip_plan_suffix(plan) for plan in plans}:
                 warnings.append(f"Orphan summary: {phase_dir.name}/{summary} (no matching plan)")
 
         # Empty phase directories
@@ -380,7 +379,8 @@ def check_config(cwd: Path) -> HealthCheck:
 
 def check_plan_frontmatter(cwd: Path) -> HealthCheck:
     """Check plan file frontmatter for 'wave' field and numbering gaps."""
-    phases_dir = ProjectLayout(cwd).phases_dir
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     warnings: list[str] = []
     details: dict[str, object] = {"plans_checked": 0, "plans_missing_wave": 0, "numbering_gaps": 0}
 
@@ -389,15 +389,17 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
 
     dirs = sorted(
         (d for d in phases_dir.iterdir() if d.is_dir()),
-        key=lambda d: compare_phase_numbers(d.name, "0"),
+        key=lambda d: phase_sort_key(d.name),
     )
 
     for phase_dir in dirs:
-        plans = sorted(f.name for f in phase_dir.iterdir() if f.is_file() and f.name.endswith(PLAN_SUFFIX))
+        plans = sorted(f.name for f in phase_dir.iterdir() if f.is_file() and layout.is_plan_file(f.name))
 
         # Plan numbering gaps
         plan_nums: list[int] = []
         for p in plans:
+            if p == "PLAN.md":
+                continue
             pm = re.search(r"-(\d{2})-PLAN\.md$", p)
             if pm:
                 plan_nums.append(int(pm.group(1)))
@@ -429,7 +431,8 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
 
 def check_latest_return(cwd: Path) -> HealthCheck:
     """Validate the gpd_return YAML block in the most recent SUMMARY file."""
-    phases_dir = ProjectLayout(cwd).phases_dir
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     warnings: list[str] = []
     issues: list[str] = []
     details: dict[str, object] = {}
@@ -441,7 +444,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
             if not phase_dir.is_dir():
                 continue
             for f in phase_dir.iterdir():
-                if f.is_file() and f.name.endswith(SUMMARY_SUFFIX):
+                if f.is_file() and layout.is_summary_file(f.name):
                     mtime = f.stat().st_mtime
                     if latest is None or mtime > latest[0]:
                         latest = (mtime, f, f"{phase_dir.name}/{f.name}")
@@ -613,11 +616,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
         cwd: Project root directory.
         fix: If True, attempt auto-fixes for common issues.
     """
-    with gpd_span("gpd.health.run", **{"gpd.health.fix": fix}):
+    with gpd_span("health.run", **{"gpd.health.fix": fix}):
         checks: list[HealthCheck] = []
 
         for name, check_fn in _ALL_CHECKS:
-            with gpd_span(f"gpd.health.check.{name}"):
+            with gpd_span(f"health.check.{name}"):
                 if name == "environment":
                     checks.append(check_fn())  # type: ignore[operator]
                 else:
@@ -684,7 +687,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             version = None
     sd = specs_dir
 
-    with gpd_span("gpd.doctor.run"):
+    with gpd_span("doctor.run"):
         checks: list[HealthCheck] = []
 
         # 1. Specs directory structure

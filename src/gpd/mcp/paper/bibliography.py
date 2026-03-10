@@ -281,8 +281,8 @@ def build_bibliography(sources: list[CitationSource], enrich: bool = True) -> Bi
         # 2. ADS enrichment for sources with bibcode
         bibcodes = [s.bibcode for s in enriched if s.bibcode]
         if bibcodes:
-            enrich_with_ads(bibcodes)
-            # ADS enrichment currently returns raw BibTeX; for now we just
-            # ensure the call doesn't crash. Full integration deferred.
+            # TODO: Integrate ADS enrichment -- enrich_with_ads(bibcodes)
+            # returns raw BibTeX keyed by bibcode.  Full integration deferred.
+            pass
 
     return create_bibliography(enriched)

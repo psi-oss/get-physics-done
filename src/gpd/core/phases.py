@@ -680,7 +680,7 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
             return RoadmapPhaseResult(found=False, error="ROADMAP.md not found")
 
         escaped_phase = re.escape(str(phase_num))
-        phase_pattern = re.compile(rf"###\s*Phase\s+{escaped_phase}:\s*([^\n]+)", re.IGNORECASE)
+        phase_pattern = re.compile(rf"#{{2,4}}\s*Phase\s+{escaped_phase}:\s*([^\n]+)", re.IGNORECASE)
         header_match = phase_pattern.search(content)
 
         if not header_match:
@@ -690,7 +690,7 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
         header_index = header_match.start()
 
         rest_of_content = content[header_index:]
-        next_header = re.search(r"\n###\s+Phase\s+\d", rest_of_content, re.IGNORECASE)
+        next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest_of_content, re.IGNORECASE)
         section_end = header_index + next_header.start() if next_header else len(content)
         section = content[header_index:section_end].strip()
 
@@ -984,7 +984,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             phase_dir_names = [d.name for d in phases_dir.iterdir() if d.is_dir()]
 
         # Extract all phase headings
-        phase_pattern = re.compile(r"###\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
+        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
         phases: list[RoadmapPhase] = []
 
         for match in phase_pattern.finditer(content):
@@ -994,7 +994,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             # Extract section text
             section_start = match.start()
             rest = content[section_start:]
-            next_header = re.search(r"\n###\s+Phase\s+\d", rest, re.IGNORECASE)
+            next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest, re.IGNORECASE)
             section_end = section_start + next_header.start() if next_header else len(content)
             section = content[section_start:section_end]
 

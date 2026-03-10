@@ -311,8 +311,11 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
         raise ResultNotFoundError(result_id)
 
     # Normalize depends_on to list
-    if "depends_on" in updates and not isinstance(updates["depends_on"], list):
-        updates["depends_on"] = [updates["depends_on"]]
+    if "depends_on" in updates:
+        if updates["depends_on"] is None:
+            updates["depends_on"] = []
+        elif not isinstance(updates["depends_on"], list):
+            updates["depends_on"] = [updates["depends_on"]]
 
     # Coerce verified to bool
     if "verified" in updates:

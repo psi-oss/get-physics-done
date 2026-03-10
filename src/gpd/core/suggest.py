@@ -249,7 +249,7 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
                 status=status,
                 plan_count=plan_count,
                 summary_count=summary_count,
-                incomplete_count=plan_count - summary_count,
+                incomplete_count=max(0, plan_count - summary_count),
                 has_research=has_research,
                 has_verification=has_verification,
             )

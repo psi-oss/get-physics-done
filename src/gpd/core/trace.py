@@ -239,7 +239,7 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     atomic_write(_active_trace_path(cwd), marker.model_dump_json(indent=2))
 
     rel = str(trace_file.relative_to(cwd))
-    with gpd_span("gpd.trace.start", **{"gpd.phase": phase, "gpd.plan": plan}):
+    with gpd_span("trace.start", **{"gpd.phase": phase, "gpd.plan": plan}):
         logger.info("trace_started", extra={"phase": phase, "plan": plan, "file": rel})
 
     return TraceStartResult(phase=phase, plan=plan, file=rel)
@@ -262,7 +262,7 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
     line = _serialize_event(event_type, data=data)
     _append_line(Path(active.file), line)
 
-    with gpd_span("gpd.trace.log", **{"gpd.trace_event_type": event_type}):
+    with gpd_span("trace.log", **{"gpd.trace_event_type": event_type}):
         pass
 
     return TraceLogResult(event_type=event_type)
@@ -302,7 +302,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
 
     _active_trace_path(cwd).unlink(missing_ok=True)
 
-    with gpd_span("gpd.trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
+    with gpd_span("trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
         logger.info("trace_stopped", extra={"phase": active.phase, "plan": active.plan, "counts": counts})
 
     return TraceStopResult(phase=active.phase, plan=active.plan, event_counts=counts)
@@ -328,7 +328,7 @@ def trace_show(
     """
     traces = _traces_dir(cwd)
 
-    with gpd_span("gpd.trace.show", **{"gpd.phase": phase or "", "gpd.plan": plan or ""}):
+    with gpd_span("trace.show", **{"gpd.phase": phase or "", "gpd.plan": plan or ""}):
         # Specific phase + plan
         if phase and plan:
             tf = _trace_file_path(cwd, phase, plan)

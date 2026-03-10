@@ -234,10 +234,8 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
 
     phase_dirs = sorted(
         [d for d in phases_dir.iterdir() if d.is_dir()],
-        key=lambda d: d.name,
+        key=lambda d: _phase_sort_key(d.name),
     )
-    # Sort using segment-by-segment phase comparison
-    phase_dirs.sort(key=lambda d: _phase_sort_key(d.name))
 
     for dir_path in phase_dirs:
         phase_match = re.match(r"^(\d+(?:\.\d+)*)", dir_path.name)

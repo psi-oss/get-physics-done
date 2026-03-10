@@ -56,6 +56,8 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "command": "python",
         "args": ["-m", "arxiv_mcp_server"],
         "env": {},
+        "optional": True,
+        "module_check": "arxiv_mcp_server",
     },
 }
 
