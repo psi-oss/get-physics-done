@@ -186,7 +186,7 @@ def check_state_validity(cwd: Path) -> HealthCheck:
         state_obj = json.loads(layout.state_json.read_text(encoding="utf-8"))
         if isinstance(state_obj, dict) and state_obj.get("position", {}).get("current_phase") is not None:
             phase = str(state_obj["position"]["current_phase"])
-            if not re.match(r"^\d{2}(\.\d+)*$", phase):
+            if not re.match(r"^\d{2,}(\.\d+)*$", phase):
                 warnings.append(f'phase ID format: "{phase}" -- expected zero-padded')
     except (FileNotFoundError, json.JSONDecodeError, OSError, AttributeError, KeyError, TypeError):
         pass

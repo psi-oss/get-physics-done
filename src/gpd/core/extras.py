@@ -146,9 +146,9 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
             if distance > 0:
                 return "marginal"
             return "invalid"
-        if abs(val) > 10 * abs(bound):
+        if val > 10 * bound:
             return "valid"
-        if abs(val) > 2 * abs(bound):
+        if val > 2 * bound:
             return "marginal"
         return "invalid"
 
@@ -199,10 +199,10 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
             if abs(val) < 1:
                 return "marginal"
             return "invalid"
-        ratio = abs(val / bound)
-        if 0.3 < ratio < 3:
+        rel_diff = abs(val - bound) / max(abs(bound), 1e-15)
+        if rel_diff < 0.7:
             return "valid"
-        if 0.1 < ratio < 10:
+        if rel_diff < 1.5:
             return "marginal"
         return "invalid"
 
@@ -244,6 +244,13 @@ def _parse_float(s: str) -> float | None:
         return v if math.isfinite(v) else None
     except (ValueError, TypeError):
         return None
+
+
+def _item_text(item: object) -> str:
+    """Extract a plain string from a list item that may be a dict or str."""
+    if isinstance(item, dict):
+        return str(item.get("text", ""))
+    return str(item)
 
 
 # ─── Approximation Commands ──────────────────────────────────────────────────────
@@ -418,15 +425,17 @@ def question_resolve(state: dict, text: str) -> int:
 
     # Try exact match (case-insensitive)
     for i, q in enumerate(questions):
-        if q.lower() == text.lower():
+        q_text = _item_text(q)
+        if q_text.lower() == text.lower():
             questions.pop(i)
             return before - len(questions)
 
-    # Fall back to word-boundary match
+    # Fall back to substring match with word-boundary-like assertions
     escaped = re.escape(text)
-    pattern = re.compile(rf"\b{escaped}\b", re.IGNORECASE)
+    pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", re.IGNORECASE)
     for i, q in enumerate(questions):
-        if pattern.search(q):
+        q_text = _item_text(q)
+        if pattern.search(q_text):
             questions.pop(i)
             return before - len(questions)
 
@@ -479,15 +488,17 @@ def calculation_complete(state: dict, text: str) -> int:
 
     # Try exact match (case-insensitive)
     for i, c in enumerate(calculations):
-        if c.lower() == text.lower():
+        c_text = _item_text(c)
+        if c_text.lower() == text.lower():
             calculations.pop(i)
             return before - len(calculations)
 
-    # Fall back to word-boundary match
+    # Fall back to substring match with word-boundary-like assertions
     escaped = re.escape(text)
-    pattern = re.compile(rf"\b{escaped}\b", re.IGNORECASE)
+    pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", re.IGNORECASE)
     for i, c in enumerate(calculations):
-        if pattern.search(c):
+        c_text = _item_text(c)
+        if pattern.search(c_text):
             calculations.pop(i)
             return before - len(calculations)
 

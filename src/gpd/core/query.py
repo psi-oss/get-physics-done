@@ -193,6 +193,9 @@ def parse_phase_range(range_str: str | None) -> tuple[str, str] | None:
     if len(parts) == 2:
         if not _is_valid_phase_str(parts[0]) or not _is_valid_phase_str(parts[1]):
             return None
+        if compare_phase_numbers(parts[0], parts[1]) > 0:
+            logger.warning("Inverted phase range '%s'; swapping to '%s-%s'", range_str, parts[1], parts[0])
+            parts[0], parts[1] = parts[1], parts[0]
         return (parts[0], parts[1])
     return None
 

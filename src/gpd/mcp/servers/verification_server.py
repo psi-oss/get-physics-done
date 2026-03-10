@@ -139,7 +139,7 @@ ERROR_CLASS_COVERAGE: dict[int, dict[str, object]] = {
 # ─── Dimension Parsing ────────────────────────────────────────────────────────
 
 # Base dimensions: [M], [L], [T], [Q], [Theta]
-_DIM_PATTERN = re.compile(r"\[([MLTQ]|Theta)\](?:\^(-?\d+))?")
+_DIM_PATTERN = re.compile(r"\[([MLTQ]|Theta)\](?:\^([+-]?\d+))?")
 
 
 def _parse_dimensions(expr: str) -> dict[str, int]:

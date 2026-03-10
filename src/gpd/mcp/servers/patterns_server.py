@@ -65,12 +65,14 @@ def lookup_pattern(
                     "count": result.count,
                     "patterns": [p.model_dump() for p in result.matches],
                     "query": result.query,
+                    "library_exists": None,
                 }
 
             result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
             return {
                 "count": result.count,
                 "patterns": [p.model_dump() for p in result.patterns],
+                "query": None,
                 "library_exists": result.library_exists,
             }
     except (GPDError, Exception) as exc:

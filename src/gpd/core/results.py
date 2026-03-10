@@ -91,7 +91,7 @@ def _auto_generate_id(state: dict) -> str:
     for the random part to provide good collision resistance.
     """
     position = state.get("position", {})
-    phase = position.get("current_phase", 0)
+    phase = position.get("current_phase") or 0
     padded_phase = phase_normalize(str(phase))
 
     normalized_current = phase_unpad(str(phase))
@@ -322,7 +322,7 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
 
     # Coerce verified to bool
     if "verified" in updates:
-        updates["verified"] = updates["verified"] is True or str(updates["verified"]).strip().lower() == "true"
+        updates["verified"] = bool(updates["verified"]) or str(updates["verified"]).strip().lower() == "true"
 
     updated_fields: list[str] = []
     for field in RESULT_FIELDS:

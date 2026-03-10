@@ -58,9 +58,6 @@
 \VAR{acknowledgments}
 \BLOCK{endif}
 
-\bibliographystyle{jfm}
-\bibliography{\VAR{bib_file}}
-
 \BLOCK{if appendix_sections}
 \appendix
 \BLOCK{for section in appendix_sections}
@@ -69,6 +66,9 @@
 \VAR{section.content}
 \BLOCK{endfor}
 \BLOCK{endif}
+
+\bibliographystyle{jfm}
+\bibliography{\VAR{bib_file}}
 
 \BLOCK{if attribution_footer}
 \begin{center}

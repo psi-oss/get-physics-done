@@ -34,6 +34,20 @@ def detect_format(path: Path) -> str:
     return ext
 
 
+def _unique_dest(output_dir: Path, source: Path) -> Path:
+    """Return a unique destination path, adding a numeric suffix if needed."""
+    dest = output_dir / source.name
+    if not dest.exists() or source.resolve() == dest.resolve():
+        return dest
+    stem = source.stem
+    suffix = source.suffix
+    counter = 1
+    while dest.exists():
+        dest = output_dir / f"{stem}_{counter}{suffix}"
+        counter += 1
+    return dest
+
+
 def normalize_figure(source: Path, output_dir: Path) -> Path:
     """Normalize a figure to a pdflatex-compatible format.
 
@@ -46,7 +60,7 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
     fmt = detect_format(source)
 
     if fmt in PASSTHROUGH_FORMATS:
-        dest = output_dir / source.name
+        dest = _unique_dest(output_dir, source)
         if source.resolve() == dest.resolve():
             return dest
         shutil.copy2(source, dest)
@@ -60,7 +74,7 @@ def normalize_figure(source: Path, output_dir: Path) -> Path:
 
     if fmt == "eps":
         # pdflatex auto-converts EPS via epstopdf
-        dest = output_dir / source.name
+        dest = _unique_dest(output_dir, source)
         if source.resolve() == dest.resolve():
             return dest
         shutil.copy2(source, dest)
@@ -169,8 +183,13 @@ def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) ->
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     result: list[FigureRef] = []
+    errors: list[str] = []
 
     for fig in figures:
+        if not fig.path.exists():
+            errors.append(f"Figure not found: {fig.path}")
+            continue
+
         # Normalize
         normalized_path = normalize_figure(fig.path, output_dir)
 
@@ -189,5 +208,8 @@ def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) ->
             }
         )
         result.append(updated)
+
+    for err in errors:
+        logger.warning(err)
 
     return result

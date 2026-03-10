@@ -1160,6 +1160,11 @@ def _remap_phase_after_removal(current_phase: str | None, removed_phase: str, re
         if current_base != removed_base or len(current_parts) == 1:
             return current_norm if _phase_exists(current_norm) else _closest_previous(current_norm)
 
+        # Only handle single-level decimals (e.g. "06.2"); multi-level
+        # sub-phases like "06.1.2" are not subject to decimal renumbering.
+        if len(current_parts) != 2 or "." in removed_decimal:
+            return current_norm if _phase_exists(current_norm) else _closest_previous(current_norm)
+
         current_decimal = int(current_parts[1])
         removed_decimal_int = int(removed_decimal)
         if current_decimal < removed_decimal_int:
@@ -1596,6 +1601,11 @@ def _renumber_decimal_phases(phases_dir: Path, normalized: str) -> tuple[list[Re
         return renamed_dirs, renamed_files
 
     base_parts = normalized.split(".")
+    # Only renumber single-level decimal phases (e.g. "06.2").
+    # Multi-level phases like "06.1.2" are sub-phases of sub-phases
+    # and should not trigger sibling renumbering.
+    if len(base_parts) != 2:
+        return renamed_dirs, renamed_files
     base_int = base_parts[0]
     removed_decimal = int(base_parts[1])
 

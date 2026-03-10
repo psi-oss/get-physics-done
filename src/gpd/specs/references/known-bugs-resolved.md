@@ -86,7 +86,7 @@ Last updated: 2026-02-24
 
 **Status:** Fixed.
 
-### 13. gpd CLI Required Runtime 18+ (Caveat)
+### 13. GPD CLI Required Runtime 18+ (Caveat)
 
 **Bug:** The original CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required runtime 18 or later. Previously it had no version check at startup, so older environments failed cryptically.
 

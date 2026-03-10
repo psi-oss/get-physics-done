@@ -151,10 +151,8 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     - allowed-tools: optional tool restrictions
     - color: removed (not supported by Codex CLI)
     """
-    # Replace path references
-    converted = content.replace("~/.claude/", "~/.codex/")
     # Replace /gpd: with $gpd- for Codex skill invocation syntax
-    converted = converted.replace("/gpd:", "$gpd-")
+    converted = content.replace("/gpd:", "$gpd-")
 
     if not converted.startswith("---"):
         return f"---\nname: {skill_name}\ndescription: GPD skill - {skill_name}\n---\n{converted}"
@@ -964,7 +962,7 @@ def _install_gpd_notify_config(
         cleaned_lines.append(line)
 
     notify_block: list[str]
-    if existing_notify:
+    if existing_notify is not None:
         notify_block = [
             _GPD_NOTIFY_COMMENT,
             _GPD_NOTIFY_BACKUP_PREFIX + json.dumps(existing_notify),

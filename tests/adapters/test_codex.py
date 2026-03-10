@@ -95,9 +95,11 @@ class TestConvertToCodexSkill:
         assert "$gpd-execute-phase" in result
 
     def test_path_conversion(self) -> None:
-        content = "---\nname: test\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
+        """Path conversion is handled by replace_placeholders in the install pipeline.
+        _convert_to_codex_skill only handles /gpd: -> $gpd- and frontmatter conversion."""
+        content = "---\nname: test\ndescription: D\n---\nSee /gpd:execute-phase"
         result = _convert_to_codex_skill(content, "gpd-test")
-        assert "~/.codex/agents/gpd-verifier.md" in result
+        assert "$gpd-execute-phase" in result
 
     def test_description_preserved(self) -> None:
         content = "---\nname: test\ndescription: My description\n---\nBody"

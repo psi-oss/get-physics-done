@@ -68,10 +68,11 @@ def list_skills(category: str | None = None) -> dict:
     try:
         with gpd_span("mcp.skills.list", category=category or ""):
             skills = [_public_skill(skill) for skill in _load_skill_index()]
+            all_categories = sorted({s["category"] for s in skills})
             if category:
                 skills = [s for s in skills if s["category"] == category]
 
-            categories = sorted({s["category"] for s in skills})
+            categories = all_categories
             return {
                 "skills": skills,
                 "count": len(skills),

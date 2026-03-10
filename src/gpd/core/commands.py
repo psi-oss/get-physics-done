@@ -530,7 +530,7 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
                 score_match = re.match(r"(\d+)/(\d+)", score_str)
                 verified = int(score_match.group(1)) if score_match else 0
                 total = int(score_match.group(2)) if score_match else 0
-                gap_count = total - verified if total > verified else 1
+                gap_count = total - verified if total > verified else (1 if not score_match else 0)
 
                 issues.append(
                     RegressionIssue(
@@ -548,7 +548,7 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
 
 
 _GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```")
-_GPD_RETURN_FIELD_RE = re.compile(r"^\s{2}(\w+):\s*(.+)")
+_GPD_RETURN_FIELD_RE = re.compile(r"^\s{2,4}(\w+):\s*(.+)")
 
 
 @instrument_gpd_function("commands.validate_return")

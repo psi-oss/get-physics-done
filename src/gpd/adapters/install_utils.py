@@ -525,7 +525,7 @@ def expand_at_includes(
             if body.startswith("---"):
                 end_idx = body.index("---", 3) if "---" in body[3:] else -1
                 if end_idx != -1:
-                    actual_end = body.index("---", 3) + 3
+                    actual_end = end_idx + 3
                     body = body[actual_end:].strip()
 
             # Normalize path references in included content before recursion

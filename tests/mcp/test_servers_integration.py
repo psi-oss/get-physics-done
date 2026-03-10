@@ -190,7 +190,7 @@ class TestConventionsServerIntegration:
 
         assert result["status"] == "already_set"
         assert result["current_value"] == "(+,-,-,-)"
-        assert result["requested_value"] == "(-,+,+,+)"
+        assert result["requested_value"] == "mostly-plus"
 
     def test_convention_check_real_lock(self, gpd_project: Path):
         from gpd.mcp.servers.conventions_server import convention_check

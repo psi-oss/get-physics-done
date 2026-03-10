@@ -102,7 +102,7 @@ def _read_current_task(session_id: str) -> str:
         todos = json.loads(matches[0][1].read_text(encoding="utf-8"))
         for t in todos:
             if t.get("status") == "in_progress":
-                return t.get("activeForm", "")
+                return t.get("activeForm") or ""
     except Exception as exc:
         _debug(f"Failed to parse todo file: {exc}")
 

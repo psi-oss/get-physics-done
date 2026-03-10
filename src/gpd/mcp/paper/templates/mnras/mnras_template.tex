@@ -59,9 +59,6 @@ $^{\VAR{loop.index}}$\VAR{author.affiliation}\\
 \VAR{acknowledgments}
 \BLOCK{endif}
 
-\bibliographystyle{mnras}
-\bibliography{\VAR{bib_file}}
-
 \BLOCK{if appendix_sections}
 \appendix
 \BLOCK{for section in appendix_sections}
@@ -70,6 +67,9 @@ $^{\VAR{loop.index}}$\VAR{author.affiliation}\\
 \VAR{section.content}
 \BLOCK{endfor}
 \BLOCK{endif}
+
+\bibliographystyle{mnras}
+\bibliography{\VAR{bib_file}}
 
 \BLOCK{if attribution_footer}
 \begin{center}

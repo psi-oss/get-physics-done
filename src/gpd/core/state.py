@@ -479,7 +479,7 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 def state_extract_field(content: str, field_name: str) -> str | None:
     """Extract a **Field:** value from STATE.md content."""
     escaped = re.escape(field_name)
-    pattern = re.compile(rf"\*\*{escaped}:\*\*\s*(.+)", re.IGNORECASE)
+    pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     return match.group(1).strip() if match else None
 
@@ -490,7 +490,7 @@ def state_replace_field(content: str, field_name: str, new_value: str) -> str:
     Returns the updated content if the field was found, or original content unchanged.
     """
     escaped = re.escape(field_name)
-    pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
+    pattern = re.compile(rf"(\*\*{escaped}:\*\*[ \t]*)(.*)", re.IGNORECASE)
     if not pattern.search(content):
         if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("State field '%s' not found in STATE.md — update skipped", field_name)
@@ -597,7 +597,7 @@ def parse_state_md(content: str) -> dict:
                     continue
                 phase_match = re.match(r"^\[Phase\s+([^\]]+)\]:\s*(.*)", text, re.IGNORECASE)
                 if phase_match:
-                    parts = phase_match.group(2).split(" \u2014 ")
+                    parts = phase_match.group(2).split(" \u2014 ", 1)
                     decisions.append(
                         {
                             "phase": phase_match.group(1),
@@ -1256,11 +1256,11 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     json_path = _state_json_path(cwd)
     merged = _build_state_from_markdown(cwd, md_content)
 
-    json_content = json.dumps(merged, indent=2)
+    json_content = json.dumps(merged, indent=2) + "\n"
     atomic_write(json_path, json_content)
     # Create backup
     try:
-        atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_content + "\n")
+        atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_content)
     except OSError:
         if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("sync_state_json backup write failed")
@@ -1428,12 +1428,15 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
                 if err:
                     return StateUpdateResult(updated=False, reason=err)
 
-        new_content = state_replace_field(content, field_norm, value)
-        if new_content != content:
-            _write_state_markdown_locked(cwd, new_content)
-            return StateUpdateResult(updated=True)
+        if not state_has_field(content, field_norm):
+            return StateUpdateResult(updated=False, reason=f'Field "{field}" not found in STATE.md')
 
-        return StateUpdateResult(updated=False, reason=f'Field "{field}" not found in STATE.md')
+        new_content = state_replace_field(content, field_norm, value)
+        if new_content == content:
+            return StateUpdateResult(updated=False, reason=f'Field "{field}" already has the requested value')
+
+        _write_state_markdown_locked(cwd, new_content)
+        return StateUpdateResult(updated=True)
 
 
 @instrument_gpd_function("state.patch")
@@ -1733,7 +1736,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
 
         if remove_idx == -1:
             escaped = re.escape(text)
-            word_pattern = re.compile(rf"\b{escaped}\b", re.IGNORECASE)
+            word_pattern = re.compile(rf"\b{escaped}(?=\s|[),;:\]!?]|$)", re.IGNORECASE)
             for i, line in enumerate(section_lines):
                 if not line.startswith("- "):
                     continue

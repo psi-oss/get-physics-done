@@ -137,21 +137,31 @@ async def _compile_with_latexmk(tex_path: Path, output_dir: Path, compiler: str)
             stderr=asyncio.subprocess.PIPE,
             cwd=str(tex_path.parent),
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+        except (asyncio.TimeoutError, TimeoutError):
+            process.kill()
+            await process.wait()
+            return CompilationResult(success=False, error="Compilation timed out after 120 seconds")
 
         pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if process.returncode == 0 and pdf_path.exists():
-            return CompilationResult(success=True, pdf_path=pdf_path)
-
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
+
+        if pdf_path.exists():
+            if process.returncode == 0:
+                return CompilationResult(success=True, pdf_path=pdf_path)
+            return CompilationResult(
+                success=False,
+                pdf_path=pdf_path,
+                error=f"latexmk exited with code {process.returncode}",
+                log=log_content[-5000:],
+            )
+
         if process.returncode != 0:
             error = f"latexmk exited with code {process.returncode}"
         else:
             error = "latexmk finished without producing a PDF"
         return CompilationResult(success=False, error=error, log=log_content[-5000:])
-
-    except TimeoutError:
-        return CompilationResult(success=False, error="Compilation timed out after 120 seconds")
     except FileNotFoundError:
         return CompilationResult(success=False, error="latexmk not found")
 
@@ -169,7 +179,12 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except (asyncio.TimeoutError, TimeoutError):
+            process.kill()
+            await process.wait()
+            raise
         return process.returncode or 0, stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
     cwd = str(tex_path.parent)
@@ -232,7 +247,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         error = compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
-    except TimeoutError:
+    except (asyncio.TimeoutError, TimeoutError):
         return CompilationResult(success=False, error="Compilation timed out")
 
 
@@ -266,7 +281,8 @@ async def build_paper(
     # 2. Write .bib file
     bib_content = ""
     if bib_data:
-        bib_path = output_dir / f"{config.bib_file}.bib"
+        bib_stem = config.bib_file.removesuffix(".bib")
+        bib_path = output_dir / f"{bib_stem}.bib"
         await asyncio.to_thread(write_bib_file, bib_data, bib_path)
         bib_content = await asyncio.to_thread(bib_path.read_text, encoding="utf-8")
 

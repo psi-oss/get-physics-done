@@ -105,7 +105,9 @@ def extract_frontmatter(content: str) -> tuple[dict, str]:
         yaml_str = match.group(1)
         body = clean[match.end() :]
         try:
-            meta = yaml.safe_load(yaml_str) or {}
+            meta = yaml.safe_load(yaml_str)
+            if meta is None:
+                meta = {}
         except yaml.YAMLError as exc:
             raise FrontmatterParseError(str(exc)) from exc
         if not isinstance(meta, dict):
@@ -191,7 +193,7 @@ def parse_must_haves_block(content: str, block_name: str) -> list:
     Returns an empty list when the block is absent or not a list.
     """
     meta, _ = extract_frontmatter(content)
-    must_haves = meta.get("must_haves") or meta.get("must-haves")
+    must_haves = meta.get("must_haves") if "must_haves" in meta else meta.get("must-haves")
     if not isinstance(must_haves, dict):
         return []
     block = must_haves.get(block_name)
@@ -508,7 +510,7 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
             errors.append(f"Missing required frontmatter field: {fname}")
 
     # must_haves validation
-    must_haves = meta.get("must_haves") or meta.get("must-haves")
+    must_haves = meta.get("must_haves") if "must_haves" in meta else meta.get("must-haves")
     if must_haves is not None:
         if not isinstance(must_haves, dict):
             if isinstance(must_haves, list):
@@ -556,7 +558,7 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
         warnings.append("No <task> elements found")
 
     # Wave/depends_on consistency
-    deps = meta.get("depends_on") or meta.get("depends-on")
+    deps = meta.get("depends_on") if "depends_on" in meta else meta.get("depends-on")
     wave = meta.get("wave")
     if wave is not None:
         try:
@@ -757,7 +759,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
 
         if exists:
             file_content = safe_read_file(art_full) or ""
-            line_count = file_content.count("\n") if file_content else 0
+            line_count = len(file_content.splitlines()) if file_content else 0
 
             min_lines = artifact.get("min_lines")
             if min_lines and line_count < min_lines:

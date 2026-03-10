@@ -71,7 +71,7 @@ def _is_older_than(a: str, b: str) -> bool:
         except InvalidVersion as exc:
             _debug(f"Version parsing failed for {a!r} vs {b!r}: {exc}")
 
-    def parts(v: str) -> tuple[int, int, int]:
+    def parts(v: str) -> tuple[int, int, int, int]:
         numeric_parts: list[int] = []
         for segment in v.split("."):
             digits = []
@@ -83,7 +83,9 @@ def _is_older_than(a: str, b: str) -> bool:
             if len(numeric_parts) == 3:
                 break
         numeric_parts.extend([0] * (3 - len(numeric_parts)))
-        return (numeric_parts[0], numeric_parts[1], numeric_parts[2])
+        # Pre-release versions (dev/alpha/beta/rc) sort before final release
+        is_pre = 0 if not any(tag in v for tag in ("dev", "alpha", "beta", "rc")) else -1
+        return (numeric_parts[0], numeric_parts[1], numeric_parts[2], is_pre)
 
     return parts(normalized_a) < parts(normalized_b)
 

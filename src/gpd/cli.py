@@ -589,24 +589,6 @@ def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
     return ConventionLock(**lock_data)
 
 
-def _save_lock(lock: object) -> None:
-    """Save ConventionLock back to state.json and regenerate STATE.md."""
-    import json
-
-    from gpd.core.constants import ProjectLayout
-    from gpd.core.state import save_state_json_locked
-    from gpd.core.utils import file_lock
-
-    cwd = _get_cwd()
-    state_path = ProjectLayout(cwd).state_json
-    with file_lock(state_path):
-        try:
-            raw = json.loads(state_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            raw = {}
-        raw["convention_lock"] = lock.model_dump(exclude_none=True)  # type: ignore[union-attr]
-        save_state_json_locked(cwd, raw)
-
 
 @convention_app.command("set")
 def convention_set(
@@ -696,22 +678,36 @@ def result_add(
     verified: bool = typer.Option(False, "--verified", help="Mark as verified"),
 ) -> None:
     """Add an intermediate result to the results registry."""
+    import json as _json
+
+    from gpd.core.constants import ProjectLayout
     from gpd.core.results import result_add
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
 
     deps = depends_on.split(",") if depends_on else []
-    state = _load_state_dict()
-    res = result_add(
-        state,
-        result_id=id,
-        equation=equation,
-        description=description,
-        units=units,
-        validity=validity,
-        phase=phase,
-        depends_on=deps,
-        verified=verified,
-    )
-    _save_state_dict(state)
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = result_add(
+            state,
+            result_id=id,
+            equation=equation,
+            description=description,
+            units=units,
+            validity=validity,
+            phase=phase,
+            depends_on=deps,
+            verified=verified,
+        )
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -766,11 +762,25 @@ def result_verify(
     result_id: str = typer.Argument(..., help="Result ID to mark verified"),
 ) -> None:
     """Mark a result as verified."""
-    from gpd.core.results import result_verify
+    import json as _json
 
-    state = _load_state_dict()
-    res = result_verify(state, result_id)
-    _save_state_dict(state)
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.results import result_verify
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = result_verify(state, result_id)
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -786,7 +796,12 @@ def result_update(
     verified: bool | None = typer.Option(None, "--verified/--no-verified", help="Mark as verified or un-verify"),
 ) -> None:
     """Update an existing result."""
+    import json as _json
+
+    from gpd.core.constants import ProjectLayout
     from gpd.core.results import result_update
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
 
     opts: dict[str, object] = {}
     if equation is not None:
@@ -803,9 +818,19 @@ def result_update(
         opts["depends_on"] = depends_on.split(",")
     if verified is not None:
         opts["verified"] = verified
-    state = _load_state_dict()
-    _fields, updated = result_update(state, result_id, **opts)
-    _save_state_dict(state)
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        _fields, updated = result_update(state, result_id, **opts)
+        save_state_json_locked(cwd, state)
     _output(updated)
 
 
@@ -1365,7 +1390,12 @@ def approximation_add(
     status: str | None = typer.Option(None, "--status", help="Status"),
 ) -> None:
     """Add an approximation to track."""
+    import json as _json
+
+    from gpd.core.constants import ProjectLayout
     from gpd.core.extras import approximation_add
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
 
     # Filter None values so core function defaults ("", "valid") take effect
     kwargs: dict[str, str] = {}
@@ -1377,9 +1407,19 @@ def approximation_add(
         kwargs["current_value"] = current_value
     if status is not None:
         kwargs["status"] = status
-    state = _load_state_dict()
-    res = approximation_add(state, name=name or "", **kwargs)
-    _save_state_dict(state)
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = approximation_add(state, name=name or "", **kwargs)
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1412,7 +1452,12 @@ def uncertainty_add(
     method: str | None = typer.Option(None, "--method", help="Method used"),
 ) -> None:
     """Add an uncertainty measurement."""
+    import json as _json
+
+    from gpd.core.constants import ProjectLayout
     from gpd.core.extras import uncertainty_add
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
 
     # Filter None values so core function defaults ("") take effect
     kwargs: dict[str, str] = {}
@@ -1424,9 +1469,19 @@ def uncertainty_add(
         kwargs["phase"] = phase
     if method is not None:
         kwargs["method"] = method
-    state = _load_state_dict()
-    res = uncertainty_add(state, quantity=quantity or "", **kwargs)
-    _save_state_dict(state)
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = uncertainty_add(state, quantity=quantity or "", **kwargs)
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1447,11 +1502,25 @@ def question_add(
     text: list[str] = typer.Argument(..., help="Question text"),
 ) -> None:
     """Add an open research question."""
-    from gpd.core.extras import question_add
+    import json as _json
 
-    state = _load_state_dict()
-    res = question_add(state, " ".join(text))
-    _save_state_dict(state)
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.extras import question_add
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = question_add(state, " ".join(text))
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1468,11 +1537,25 @@ def question_resolve(
     text: list[str] = typer.Argument(..., help="Question text to resolve"),
 ) -> None:
     """Mark a question as resolved."""
-    from gpd.core.extras import question_resolve
+    import json as _json
 
-    state = _load_state_dict()
-    res = question_resolve(state, " ".join(text))
-    _save_state_dict(state)
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.extras import question_resolve
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = question_resolve(state, " ".join(text))
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1485,11 +1568,25 @@ def calculation_add(
     text: list[str] = typer.Argument(..., help="Calculation description"),
 ) -> None:
     """Add a calculation to track."""
-    from gpd.core.extras import calculation_add
+    import json as _json
 
-    state = _load_state_dict()
-    res = calculation_add(state, " ".join(text))
-    _save_state_dict(state)
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.extras import calculation_add
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = calculation_add(state, " ".join(text))
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1506,11 +1603,25 @@ def calculation_complete(
     text: list[str] = typer.Argument(..., help="Calculation to mark complete"),
 ) -> None:
     """Mark a calculation as complete."""
-    from gpd.core.extras import calculation_complete
+    import json as _json
 
-    state = _load_state_dict()
-    res = calculation_complete(state, " ".join(text))
-    _save_state_dict(state)
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.extras import calculation_complete
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = calculation_complete(state, " ".join(text))
+        save_state_json_locked(cwd, state)
     _output(res)
 
 
@@ -1574,7 +1685,7 @@ def config_set(
             parsed = value
         current[parts[-1]] = parsed
         atomic_write(config_path, json.dumps(raw, indent=2) + "\n")
-    _output({"key": key, "value": value, "updated": True})
+    _output({"key": key, "value": parsed, "updated": True})
 
 
 @config_app.command("ensure-section")

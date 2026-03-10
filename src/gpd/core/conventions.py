@@ -270,6 +270,7 @@ def convention_set(lock: ConventionLock, key: str, value: str, *, force: bool = 
     """
     cleaned = sanitize_value(value)
     canonical_key = normalize_key(key)
+    cleaned = normalize_value(canonical_key, cleaned)
     is_custom = canonical_key not in KNOWN_CONVENTIONS
 
     if is_custom:
@@ -278,7 +279,7 @@ def convention_set(lock: ConventionLock, key: str, value: str, *, force: bool = 
         previous = getattr(lock, canonical_key, None)
 
     # Immutability gate: require force to overwrite existing non-null convention
-    if previous is not None and previous != cleaned and not force:
+    if previous is not None and not is_bogus_value(previous) and previous != cleaned and not force:
         return ConventionSetResult(
             updated=False,
             key=canonical_key,
@@ -352,11 +353,13 @@ def convention_diff(lock_a: ConventionLock, lock_b: ConventionLock) -> Conventio
     for key in KNOWN_CONVENTIONS:
         val_a = getattr(lock_a, key, None)
         val_b = getattr(lock_b, key, None)
-        if val_a is None and val_b is not None:
+        norm_a = normalize_value(key, val_a) if val_a is not None else None
+        norm_b = normalize_value(key, val_b) if val_b is not None else None
+        if norm_a is None and norm_b is not None:
             added.append(ConventionDiff(key=key, to_value=val_b))
-        elif val_a is not None and val_b is None:
+        elif norm_a is not None and norm_b is None:
             removed.append(ConventionDiff(key=key, from_value=val_a))
-        elif val_a is not None and val_b is not None and val_a != val_b:
+        elif norm_a is not None and norm_b is not None and norm_a != norm_b:
             changed.append(ConventionDiff(key=key, from_value=val_a, to_value=val_b))
 
     # Compare custom conventions
@@ -364,11 +367,13 @@ def convention_diff(lock_a: ConventionLock, lock_b: ConventionLock) -> Conventio
     for key in sorted(all_custom_keys):
         val_a = lock_a.custom_conventions.get(key)
         val_b = lock_b.custom_conventions.get(key)
-        if val_a is None and val_b is not None:
+        norm_a = normalize_value(key, val_a) if val_a is not None else None
+        norm_b = normalize_value(key, val_b) if val_b is not None else None
+        if norm_a is None and norm_b is not None:
             added.append(ConventionDiff(key=key, to_value=val_b))
-        elif val_a is not None and val_b is None:
+        elif norm_a is not None and norm_b is None:
             removed.append(ConventionDiff(key=key, from_value=val_a))
-        elif val_a is not None and val_b is not None and val_a != val_b:
+        elif norm_a is not None and norm_b is not None and norm_a != norm_b:
             changed.append(ConventionDiff(key=key, from_value=val_a, to_value=val_b))
 
     return ConventionDiffResult(changed=changed, added=added, removed=removed)
@@ -520,7 +525,7 @@ def convention_check(lock: ConventionLock) -> ConventionCheckResult:
             set_conventions.append(ConventionEntry(key=key, label=label, value=val, is_set=True, canonical=True))
 
     for key, val in lock.custom_conventions.items():
-        if val is not None:
+        if val is not None and not is_bogus_value(val):
             custom.append(ConventionEntry(key=key, value=val, is_set=True, canonical=False))
 
     return ConventionCheckResult(

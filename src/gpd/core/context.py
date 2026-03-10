@@ -285,7 +285,10 @@ def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
         if not d.is_dir():
             continue
         name = d.name
-        if name == normalized or name.startswith(normalized + "-") or name.startswith(normalized + "."):
+        # Strip leading zeros from the directory's numeric prefix for comparison
+        dir_prefix_match = re.match(r"^0*(\d+(?:\.\d+)*)", name)
+        dir_normalized = dir_prefix_match.group(1) if dir_prefix_match else name
+        if dir_normalized == normalized or dir_normalized.startswith(normalized + ".") or name.startswith(normalized + "-") or name.startswith(normalized + "."):
             dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", name)
             phase_number = dir_match.group(1) if dir_match else normalized
             phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None

@@ -33,7 +33,7 @@ async def test_latexmk_rejects_pdf_when_exit_code_is_nonzero(tmp_path, monkeypat
     result = await _compile_with_latexmk(tex_path, tmp_path, "pdflatex")
 
     assert result.success is False
-    assert result.pdf_path is None
+    assert result.pdf_path is not None  # PDF returned even on non-zero exit
     assert result.error == "latexmk exited with code 2"
     assert result.log is not None
     assert "latexmk stdout" in result.log
