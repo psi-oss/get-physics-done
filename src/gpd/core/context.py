@@ -25,11 +25,23 @@ from gpd.core.config import (
 from gpd.core.constants import (
     AGENT_ID_FILENAME,
     CONFIG_FILENAME,
+    CONTEXT_SUFFIX,
     PHASES_DIR_NAME,
+    PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
+    RESEARCH_SUFFIX,
     ROADMAP_FILENAME,
+    STANDALONE_CONTEXT,
+    STANDALONE_PLAN,
+    STANDALONE_RESEARCH,
+    STANDALONE_SUMMARY,
+    STANDALONE_VALIDATION,
+    STANDALONE_VERIFICATION,
     STATE_MD_FILENAME,
+    SUMMARY_SUFFIX,
+    VALIDATION_SUFFIX,
+    VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
 from gpd.core.utils import (
@@ -282,21 +294,21 @@ def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
             phase_slug = _generate_slug(phase_name) if phase_name else None
 
             phase_files = sorted(f.name for f in d.iterdir() if f.is_file())
-            plans = [f for f in phase_files if f.endswith("-PLAN.md") or f == "PLAN.md"]
-            summaries = [f for f in phase_files if f.endswith("-SUMMARY.md") or f == "SUMMARY.md"]
-            has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
-            has_context = any(f.endswith("-CONTEXT.md") or f == "CONTEXT.md" for f in phase_files)
-            has_verification = any(f.endswith("-VERIFICATION.md") or f == "VERIFICATION.md" for f in phase_files)
-            has_validation = any(f.endswith("-VALIDATION.md") or f == "VALIDATION.md" for f in phase_files)
+            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
+            has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
+            has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == STANDALONE_VERIFICATION for f in phase_files)
+            has_validation = any(f.endswith(VALIDATION_SUFFIX) or f == STANDALONE_VALIDATION for f in phase_files)
 
             # Incomplete plans: plans without matching summaries
             summary_prefixes = set()
             for s in summaries:
-                prefix = s.removesuffix("-SUMMARY.md") if s.endswith("-SUMMARY.md") else ""
+                prefix = s.removesuffix(SUMMARY_SUFFIX) if s.endswith(SUMMARY_SUFFIX) else ""
                 summary_prefixes.add(prefix)
             incomplete_plans = []
             for p in plans:
-                prefix = p.removesuffix("-PLAN.md") if p.endswith("-PLAN.md") else ""
+                prefix = p.removesuffix(PLAN_SUFFIX) if p.endswith(PLAN_SUFFIX) else ""
                 if prefix not in summary_prefixes:
                     incomplete_plans.append(p)
 
@@ -508,16 +520,16 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         result["requirements_content"] = _safe_read_file_truncated(planning / "REQUIREMENTS.md")
     if "context" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
-        result["context_content"] = _find_phase_artifact(phase_dir, "-CONTEXT.md", "CONTEXT.md")
+        result["context_content"] = _find_phase_artifact(phase_dir, CONTEXT_SUFFIX, STANDALONE_CONTEXT)
     if "research" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
-        result["research_content"] = _find_phase_artifact(phase_dir, "-RESEARCH.md", "RESEARCH.md")
+        result["research_content"] = _find_phase_artifact(phase_dir, RESEARCH_SUFFIX, STANDALONE_RESEARCH)
     if "verification" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
-        result["verification_content"] = _find_phase_artifact(phase_dir, "-VERIFICATION.md", "VERIFICATION.md")
+        result["verification_content"] = _find_phase_artifact(phase_dir, VERIFICATION_SUFFIX, STANDALONE_VERIFICATION)
     if "validation" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
-        result["validation_content"] = _find_phase_artifact(phase_dir, "-VALIDATION.md", "VALIDATION.md")
+        result["validation_content"] = _find_phase_artifact(phase_dir, VALIDATION_SUFFIX, STANDALONE_VALIDATION)
 
     return result
 
@@ -527,7 +539,7 @@ def init_new_project(cwd: Path) -> dict:
     config = load_config(cwd)
 
     # Detect Brave Search API key
-    brave_key_file = Path.home() / ".gpd" / "brave_api_key"
+    brave_key_file = Path.home() / PLANNING_DIR_NAME / "brave_api_key"
     has_brave_search = bool(os.environ.get("BRAVE_API_KEY") or brave_key_file.exists())
 
     # Detect existing research files (walk up to depth 3, max 5 files)
@@ -847,8 +859,8 @@ def init_milestone_op(cwd: Path) -> dict:
                 continue
             phase_count += 1
             phase_files = [f.name for f in d.iterdir() if f.is_file()]
-            plans = [f for f in phase_files if f.endswith("-PLAN.md") or f == "PLAN.md"]
-            summaries = [f for f in phase_files if f.endswith("-SUMMARY.md") or f == "SUMMARY.md"]
+            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
             if _is_phase_complete(len(plans), len(summaries)):
                 completed_phases += 1
     except FileNotFoundError:
@@ -956,9 +968,9 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
             phase_path = phases_dir / dir_name
             phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
 
-            plans = [f for f in phase_files if f.endswith("-PLAN.md") or f == "PLAN.md"]
-            summaries = [f for f in phase_files if f.endswith("-SUMMARY.md") or f == "SUMMARY.md"]
-            has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
+            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
 
             if _is_phase_complete(len(plans), len(summaries)):
                 status = "complete"

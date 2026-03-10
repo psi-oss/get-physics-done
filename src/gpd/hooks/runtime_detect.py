@@ -8,6 +8,8 @@ Provides shared constants for runtime directory paths.
 import os
 from pathlib import Path
 
+from gpd.core.constants import PLANNING_DIR_NAME
+
 # Runtime identifiers
 RUNTIME_CLAUDE = "claude"
 RUNTIME_CODEX = "codex"
@@ -157,7 +159,7 @@ def get_update_cache_files() -> list[Path]:
         paths.append(_local_runtime_dir(preferred_runtime, cwd) / "cache" / "gpd-update-check.json")
         paths.append((home / RUNTIME_DIR_NAMES[preferred_runtime]) / "cache" / "gpd-update-check.json")
 
-    paths.append(home / ".gpd" / "cache" / "gpd-update-check.json")
+    paths.append(home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
     paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs())
     return _unique_paths(paths)
 

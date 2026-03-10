@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from gpd.core.constants import ENV_GPD_DEBUG
+from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
 
 try:
     from packaging.version import InvalidVersion, Version
@@ -121,7 +121,7 @@ def main() -> None:
     from gpd.hooks.runtime_detect import get_update_cache_files
 
     cache_candidates = get_update_cache_files()
-    cache_file = cache_candidates[0] if cache_candidates else (Path.home() / ".gpd" / "cache" / "gpd-update-check.json")
+    cache_file = cache_candidates[0] if cache_candidates else (Path.home() / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
 
     # Throttle: skip if any candidate cache was checked recently.
     for candidate in cache_candidates:

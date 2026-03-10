@@ -60,7 +60,11 @@ def _fix_unescaped_underscores(tex: str) -> str:
         else:
             # Protect underscores inside common LaTeX commands
             protected = re.sub(
-                r"(\\(?:ref|label|cite|url|href|eqref|autoref|cref|Cref)\{[^}]*\})",
+                r"(\\(?:ref|label|cite|url|href|eqref|autoref|cref|Cref"
+                r"|includegraphics|input|include|bibliography|bibliographystyle"
+                r"|hyperref|nameref|pageref"
+                r"|citep|citet|citealp|citeauthor|citeyear"
+                r"|parencite|textcite)\{[^}]*\})",
                 lambda m: m.group(0).replace("_", "\x00"),
                 content,
             )
