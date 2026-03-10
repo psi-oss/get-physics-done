@@ -202,7 +202,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     ]
     assert len(managed_pip_installs) == 1
     assert "--quiet" in managed_pip_installs[0]["argv"]
-    assert managed_pip_installs[0]["argv"][-1] == PYTHON_PACKAGE_SPEC
+    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
 
     managed_runtime_installs = [
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local"]
@@ -236,7 +236,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
         entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
     assert len(managed_pip_installs) == 1
-    assert managed_pip_installs[0]["argv"][-1] == PYTHON_PACKAGE_SPEC
+    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
 
     managed_runtime_uninstalls = [
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", "codex", "--local"]
@@ -357,8 +357,8 @@ def test_bootstrap_reinstall_force_reinstalls_matching_release(tmp_path: Path) -
 
     assert len(managed_pip_installs) == 1
     assert "--force-reinstall" in managed_pip_installs[0]["argv"]
-    assert managed_pip_installs[0]["argv"][-1] == PYTHON_PACKAGE_SPEC
-    assert f"Reinstalling {PYTHON_PACKAGE_SPEC} into the managed environment..." in result.stdout
+    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
+    assert f"Reinstalling GPD from GitHub source archive for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -468,10 +468,10 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_missing(tmp_path: Path) -> None:
+def test_bootstrap_falls_back_to_main_archive_when_tag_archive_install_fails(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
-        extra_env={"FAKE_PIP_FAIL_PYPI": "1", "FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
+        extra_env={"FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -482,11 +482,9 @@ def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_mis
     ]
 
     assert managed_pip_targets == [
-        PYTHON_PACKAGE_SPEC,
         TAG_ARCHIVE_SPEC,
         MAIN_ARCHIVE_SPEC,
     ]
-    assert f"PyPI install failed. Falling back to GitHub source archive for v{PYTHON_PACKAGE_VERSION}..." in result.stdout
     assert (
         f"GitHub source archive for v{PYTHON_PACKAGE_VERSION} failed. Falling back to current main branch source archive..."
         in result.stdout
@@ -495,17 +493,12 @@ def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_mis
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_skips_missing_pypi_release_when_preflight_marks_it_unavailable(tmp_path: Path) -> None:
+def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources_are_unavailable(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
-            "FAKE_PIP_FAIL_PYPI": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
-                    PYTHON_PACKAGE_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "HTTP 404",
-                    },
                     TAG_ARCHIVE_SPEC: {
                         "availability": "unavailable",
                         "reason": "HTTP 404",
@@ -543,11 +536,8 @@ def test_bootstrap_skips_missing_pypi_release_when_preflight_marks_it_unavailabl
     ]
 
     assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
-    assert f"Detected that PyPI release {PYTHON_PACKAGE_SPEC} is unavailable (HTTP 404)." in result.stdout
-    assert (
-        f"Using HTTPS git checkout of main instead of the unavailable PyPI release {PYTHON_PACKAGE_SPEC}."
-        in result.stdout
-    )
+    assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
+    assert "PyPI release" not in result.stdout
     assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 
@@ -557,7 +547,6 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
-            "FAKE_PIP_FAIL_PYPI": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     TAG_ARCHIVE_SPEC: {
@@ -596,16 +585,13 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
         entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_targets == [
-        PYTHON_PACKAGE_SPEC,
-        MAIN_HTTPS_GIT_SPEC,
-    ]
+    assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable (HTTP 404)." in result.stdout
     assert "Detected that current main branch source archive is unavailable (HTTP 404)." in result.stdout
     assert "Detected that SSH git checkout for v" in result.stdout
     assert "Detected that SSH git checkout of main is unavailable (git@github.com: Permission denied (publickey).)." in result.stdout
     assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable (tag v{PYTHON_PACKAGE_VERSION} is not published)." in result.stdout
-    assert "PyPI install failed. Using HTTPS git checkout of main." in result.stdout
+    assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
     assert "HTTP error 404 while getting tagged archive" not in result.stderr
 
 
@@ -615,7 +601,6 @@ def test_bootstrap_falls_back_to_ssh_git_when_archive_urls_fail(tmp_path: Path) 
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
-            "FAKE_PIP_FAIL_PYPI": "1",
             "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
             "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
             "FAKE_PIP_FAIL_TAG_GIT": "1",
@@ -630,7 +615,6 @@ def test_bootstrap_falls_back_to_ssh_git_when_archive_urls_fail(tmp_path: Path) 
     ]
 
     assert managed_pip_targets == [
-        PYTHON_PACKAGE_SPEC,
         TAG_ARCHIVE_SPEC,
         MAIN_ARCHIVE_SPEC,
         TAG_SSH_GIT_SPEC,
