@@ -74,6 +74,8 @@ After installing GPD, open your chosen runtime normally and use the installed GP
 
 On Codex, GPD installs as skills rather than slash commands. Use `$gpd-help` and `$gpd-new-project`, not `/gpd:help` or `/gpd:new-project`.
 
+If you want a short Codex-specific walkthrough, see [`TUTORIAL.md`](TUTORIAL.md).
+
 ## What GPD Does
 
 GPD guides research in four stages:
