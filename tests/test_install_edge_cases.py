@@ -493,10 +493,14 @@ class TestRegistryInvalidYaml:
         (agents_dir / "broken.yaml").write_text("---\n: : : invalid\n---\n", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+        registry.invalidate_cache()
 
-        result = registry._discover_agents()
-        assert "valid" in result
-        assert len(result) == 1  # broken.yaml not loaded
+        try:
+            result = registry._discover_agents()
+            assert "valid" in result
+            assert len(result) == 1  # broken.yaml not loaded
+        finally:
+            registry.invalidate_cache()
 
     def test_agent_with_empty_yaml_block(self, tmp_path: Path) -> None:
         """Agent .md with empty YAML block (--- followed by ---) uses stem as name."""

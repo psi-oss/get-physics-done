@@ -484,6 +484,14 @@ class TestRegistryCache:
 class TestPublicAPI:
     """Tests for the module-level public API functions."""
 
+    @pytest.fixture(autouse=True)
+    def _clean_cache(self):
+        """Ensure registry cache is invalidated before and after each test."""
+        from gpd import registry
+        registry.invalidate_cache()
+        yield
+        registry.invalidate_cache()
+
     def test_get_agent_not_found_raises_key_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent")
         registry.invalidate_cache()

@@ -52,7 +52,7 @@ mcp = FastMCP("gpd-conventions")
 
 # Valid options per field — enriches responses beyond what conventions.py tracks.
 CONVENTION_OPTIONS: dict[str, list[str]] = {
-    "metric_signature": ["(+,-,-,-)", "(-,+,+,+)", "Euclidean (+,+,+,+)"],
+    "metric_signature": ["(+,-,-,-)", "(-,+,+,+)", "Euclidean (+,+,+,+)", "mostly-minus", "mostly-plus", "euclidean"],
     "fourier_convention": ["physics", "math", "symmetric", "QFT"],
     "natural_units": ["natural", "SI", "CGS", "lattice"],
     "gauge_choice": ["Coulomb", "Lorenz", "axial", "Feynman", "light-cone"],

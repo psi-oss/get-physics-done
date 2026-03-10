@@ -224,8 +224,9 @@ class TestInstall:
         config_toml = target / "config.toml"
         assert config_toml.exists()
         content = config_toml.read_text(encoding="utf-8")
+        escaped_exe = (sys.executable or "python3").replace("\\", "\\\\")
         expected_notify = (
-            f'notify = ["{(sys.executable or "python3").replace("\\\\", "\\\\\\\\")}", '
+            f'notify = ["{escaped_exe}", '
             f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
         )
         assert "# GPD update notification" in content

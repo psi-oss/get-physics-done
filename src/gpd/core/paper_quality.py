@@ -52,7 +52,7 @@ class CoverageMetric(BaseModel):
     def _validate_bounds(self) -> CoverageMetric:
         if self.satisfied < 0 or self.total < 0:
             raise ValueError("coverage metrics must be non-negative")
-        if self.total and self.satisfied > self.total:
+        if self.satisfied > self.total:
             raise ValueError("satisfied cannot exceed total")
         return self
 

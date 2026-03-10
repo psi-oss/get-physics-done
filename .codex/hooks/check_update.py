@@ -7,6 +7,7 @@ triggered opportunistically from the Codex notify hook.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -84,7 +85,7 @@ def _is_older_than(a: str, b: str) -> bool:
                 break
         numeric_parts.extend([0] * (3 - len(numeric_parts)))
         # Pre-release versions (dev/alpha/beta/rc) sort before final release
-        is_pre = 0 if not any(tag in v for tag in ("dev", "alpha", "beta", "rc")) else -1
+        is_pre = -1 if re.search(r"(?:dev|alpha|beta|rc|\d+[ab]\d+)", v) else 0
         return (numeric_parts[0], numeric_parts[1], numeric_parts[2], is_pre)
 
     return parts(normalized_a) < parts(normalized_b)

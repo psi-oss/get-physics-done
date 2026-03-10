@@ -744,6 +744,6 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         parsed = json.loads(raw)
         if isinstance(parsed, dict):
             return parsed
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
         logger.debug("suggest: state load failed", exc_info=True)
     return None

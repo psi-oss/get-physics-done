@@ -5,7 +5,19 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from gpd import registry
+
+
+@pytest.fixture(autouse=True)
+def _clean_registry_cache():
+    """Ensure fresh registry cache for each test."""
+    from gpd import registry
+    registry.invalidate_cache()
+    yield
+    registry.invalidate_cache()
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"

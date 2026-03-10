@@ -8,10 +8,13 @@ Provides the canonical registry of GPD's built-in MCP servers. Used by:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
 from copy import deepcopy
+
+logger = logging.getLogger(__name__)
 
 
 # Canonical definition of all GPD built-in MCP servers.
@@ -390,6 +393,7 @@ def build_mcp_servers_dict(
         args_list: list[str] = list(raw_args) if isinstance(raw_args, list) else []
         resolved_args = [_resolve_env(str(a)) for a in args_list]
         if any(_UNRESOLVED_RE.search(a) for a in resolved_args):
+            logger.debug("Skipping server %s: unresolved env vars in args", name)
             continue
 
         entry: dict[str, object] = {"command": cmd, "args": resolved_args}
@@ -398,6 +402,7 @@ def build_mcp_servers_dict(
         if isinstance(raw_env, dict) and raw_env:
             resolved_env = {k: _resolve_env(str(v)) for k, v in raw_env.items()}
             if any(_UNRESOLVED_RE.search(v) for v in resolved_env.values()):
+                logger.debug("Skipping server %s: unresolved env vars in env", name)
                 continue
             entry["env"] = resolved_env
 

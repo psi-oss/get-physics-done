@@ -419,7 +419,8 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
         )
 
     valid = len(issues) == 0
-    ready = valid and checksum_coverage == 100.0 and seed_coverage == 100.0 and not warnings
+    blocking_warnings = [w for w in warnings if "approximate" not in w.message.lower()]
+    ready = valid and checksum_coverage == 100.0 and seed_coverage == 100.0 and not blocking_warnings
     return ReproducibilityValidationResult(
         valid=valid,
         issues=issues,
