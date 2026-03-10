@@ -302,7 +302,7 @@ async def build_paper(
                 config.journal,
             )
             errors.extend(fig_errors)
-        except (ValueError, RuntimeError) as exc:
+        except (ValueError, RuntimeError, OSError) as exc:
             errors.append(f"Figure preparation failed: {exc}")
             prepared = []
             figure_source_pairs = []

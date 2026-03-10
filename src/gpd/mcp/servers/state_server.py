@@ -95,7 +95,10 @@ def advance_plan(project_dir: str) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.advance_plan"):
-        return state_advance_plan(cwd).model_dump()
+        try:
+            return state_advance_plan(cwd).model_dump()
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -128,8 +131,11 @@ def validate_state(project_dir: str) -> dict:
     """
     cwd = Path(project_dir)
     with gpd_span("mcp.state.validate"):
-        result = state_validate(cwd)
-        return result.model_dump()
+        try:
+            result = state_validate(cwd)
+            return result.model_dump()
+        except (GPDError, OSError, ValueError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()

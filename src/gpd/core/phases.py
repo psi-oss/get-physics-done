@@ -880,12 +880,12 @@ def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
         errors: list[str] = []
         for plan_file in phase_info.plans:
             plan_id = _strip_suffix(_strip_suffix(plan_file, PLAN_SUFFIX), STANDALONE_PLAN)
-            content = (phase_dir / plan_file).read_text(encoding="utf-8")
             try:
+                content = (phase_dir / plan_file).read_text(encoding="utf-8")
                 fm = _extract_frontmatter(content)
                 files_modified = _ensure_list(fm.get("files_modified"), field_name="files_modified")
                 depends_on = _ensure_list(fm.get("depends_on"), field_name="depends_on")
-            except (FrontmatterParseError, PhaseValidationError) as exc:
+            except (FrontmatterParseError, PhaseValidationError, OSError, UnicodeDecodeError) as exc:
                 errors.append(f"{plan_file}: {exc}")
                 continue
 
@@ -925,12 +925,12 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
 
         for plan_file in phase_info.plans:
             plan_id = _strip_suffix(_strip_suffix(plan_file, PLAN_SUFFIX), STANDALONE_PLAN)
-            content = (phase_dir / plan_file).read_text(encoding="utf-8")
             try:
+                content = (phase_dir / plan_file).read_text(encoding="utf-8")
                 fm = _extract_frontmatter(content)
                 files_modified = _ensure_list(fm.get("files_modified"), field_name="files_modified")
                 depends_on = _ensure_list(fm.get("depends_on"), field_name="depends_on")
-            except (FrontmatterParseError, PhaseValidationError) as exc:
+            except (FrontmatterParseError, PhaseValidationError, OSError, UnicodeDecodeError) as exc:
                 validation_errors.append(f"{plan_file}: {exc}")
                 continue
 
@@ -1949,10 +1949,12 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
 
             phase_dir = phases_dir / Path(phase_info.directory).name
             for summary_name in phase_info.summaries:
-                content = (phase_dir / summary_name).read_text(encoding="utf-8")
                 try:
+                    content = (phase_dir / summary_name).read_text(encoding="utf-8")
                     fm = _extract_frontmatter(content)
                 except FrontmatterParseError as exc:
+                    raise PhaseValidationError(f"{summary_name}: {exc}") from exc
+                except (OSError, UnicodeDecodeError) as exc:
                     raise PhaseValidationError(f"{summary_name}: {exc}") from exc
 
                 one_liner = fm.get("one-liner")
@@ -2126,5 +2128,4 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
             total_plans=total_plans,
             total_summaries=total_summaries,
             percent=percent,
-            total_plans_in_phase=total_plans,
         )
