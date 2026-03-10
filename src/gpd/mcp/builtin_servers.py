@@ -8,6 +8,7 @@ Provides the canonical registry of GPD's built-in MCP servers. Used by:
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
 
@@ -61,6 +62,7 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 }
 
 _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
+_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
 
 # Keys that are GPD-managed and should be removed on uninstall.
 GPD_MCP_SERVER_KEYS = frozenset(_BUILTIN_SERVERS.keys())
@@ -68,9 +70,17 @@ GPD_MCP_SERVER_KEYS = frozenset(_BUILTIN_SERVERS.keys())
 
 def _resolve_env(value: str) -> str:
     """Resolve ${VAR:-default} patterns in a string."""
-    from gpd.mcp.discovery.sources import resolve_env_vars
+    def _replace(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        default = match.group(2)
+        env_val = os.environ.get(var_name)
+        if env_val is not None:
+            return env_val
+        if default is not None:
+            return default
+        return match.group(0)
 
-    return resolve_env_vars(value)
+    return _ENV_VAR_PATTERN.sub(_replace, value)
 
 
 def _is_module_available(module_name: str) -> bool:

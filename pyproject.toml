@@ -32,11 +32,6 @@ dependencies = [
     "arxiv-mcp-server>=0.1.0",
 ]
 
-[project.optional-dependencies]
-claude-subagents = [
-    "claude-agent-sdk>=0.1.19",
-]
-
 [project.scripts]
 gpd = "gpd.cli:app"
 "gpd-mcp-conventions" = "gpd.mcp.servers.conventions_server:main"
