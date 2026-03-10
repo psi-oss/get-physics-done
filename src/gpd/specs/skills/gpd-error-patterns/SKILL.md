@@ -102,7 +102,7 @@ Display the full contents formatted as:
 **Also show relevant patterns from the global cross-project library.**
 
 ```bash
-gpd init learned-patterns 2>/dev/null || true
+gpd pattern init 2>/dev/null || true
 DOMAIN=$(grep -m1 "domain:" .gpd/PROJECT.md 2>/dev/null | sed 's/.*: *//' || echo "")
 GLOBAL=$(gpd pattern list ${DOMAIN:+--domain "$DOMAIN"} --raw 2>/dev/null)
 ```
