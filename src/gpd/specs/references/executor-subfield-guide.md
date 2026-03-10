@@ -43,7 +43,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Semiclassical control:** Verify the curvature and backreaction regime explicitly before trusting Hawking, horizon, or QFT-in-curved-spacetime reasoning. A low-curvature background plus a renormalized stress tensor is a prerequisite, not an afterthought.
 - **Generalized entropy and islands:** For Page-curve or entropy claims, state the radiation subsystem, the candidate quantum extremal surfaces, and the competing saddles. No "information recovery" claim is complete without this saddle comparison.
 - **Boundary conditions matter:** AdS, flat, and de Sitter asymptotics use different observables and different dictionaries. Load `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, or `protocols/de-sitter-space.md` explicitly rather than importing one regime's logic into another.
-- **UV-completion claims:** In asymptotic-safety or discrete/canonical work, demand approach-specific control: truncation/regulator stability for FRG, or a clean continuum/semi-classical observable for LQG/CDT/causal-set style calculations.
+- **UV-completion claims:** In asymptotic-safety or discrete/canonical work, demand approach-specific control: truncation/regulator stability for FRG, or a clean continuum/semi-classical observable for discrete/canonical constructions such as CDT or causal-set calculations.
 
 ## String Theory
 

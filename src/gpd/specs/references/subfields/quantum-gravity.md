@@ -8,7 +8,7 @@ load_when:
   - "holography"
   - "AdS/CFT"
   - "asymptotic safety"
-  - "loop quantum gravity"
+  - "background independent gravity"
   - "causal dynamical triangulations"
 tier: 2
 context_cost: medium
@@ -45,7 +45,6 @@ context_cost: medium
 
 - Canonical quantization emphasizes constraints, Dirac observables, Wheeler-DeWitt-type equations, and the problem of time
 - Asymptotic safety emphasizes functional RG flows, fixed points, and truncation systematics
-- Loop quantum gravity emphasizes background-independent quantum geometry and spin-network/spinfoam structures
 - Causal dynamical triangulations and causal-set approaches emphasize continuum emergence from nonperturbative discrete structures
 - These are not interchangeable approximations of one calculation; each framework comes with its own notion of observable and approximation control
 
@@ -104,7 +103,7 @@ context_cost: medium
 | **Black hole information / islands** | When and why do semiclassical gravity plus generalized entropy recover unitary Page-curve behavior? | Penington, Almheiri, Maldacena, Hartman, Engelhardt | Good — strong on saddle competition, entropy bookkeeping, and regime checks |
 | **Holography beyond AdS** | What is the right observable framework for flat-space, celestial, or de Sitter quantum gravity? | Strominger, Pasterski, Anninos, Donnay, Ciambelli | Good — symmetry and dictionary discipline are essential; the full dualities remain unsettled |
 | **Asymptotic safety** | Does gravity possess a UV fixed point with predictive infrared consequences? | Reuter, Eichhorn, Percacci, Pawlowski | Good — truncation bookkeeping and RG reasoning are a natural fit |
-| **Background-independent quantum gravity** | How do LQG, CDT, and causal-set approaches recover semiclassical spacetime and controlled observables? | Ashtekar, Bianchi, Ambjorn, Loll, Surya | Moderate — conceptually strong, but workflow and observables remain highly approach-specific |
+| **Discrete and causal quantum gravity** | How do CDT and causal-set approaches recover semiclassical spacetime and controlled observables? | Ambjorn, Loll, Surya | Moderate — conceptually strong, but workflow and observables remain highly approach-specific |
 | **Quantum gravity and quantum information** | How far can entanglement wedges, error correction, chaos, and complexity reorganize spacetime physics? | Harlow, Jafferis, Hayden, Penington | Good — especially for controlled entropy and reconstruction problems |
 
 ## Methodology Decision Tree
@@ -120,7 +119,7 @@ What regime of quantum gravity?
 ├── UV completion via continuum RG
 │   └── Asymptotic safety / functional RG
 ├── Background-independent canonical or discrete framework
-│   └── LQG / spinfoams / CDT / causal sets
+│   └── Wheeler-DeWitt methods / CDT / causal sets
 └── Positive or flat asymptotics
     └── Load de Sitter or asymptotic-symmetries references explicitly
 ```
