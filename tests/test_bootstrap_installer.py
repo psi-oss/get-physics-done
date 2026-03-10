@@ -24,6 +24,7 @@ FAIL_PYPI_RELEASE = os.environ.get("FAKE_PIP_FAIL_PYPI") == "1"
 FAIL_TAG_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_TAG_ARCHIVE") == "1"
 FAIL_BRANCH_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_BRANCH_ARCHIVE") == "1"
 FAIL_TAG_GIT = os.environ.get("FAKE_PIP_FAIL_TAG_GIT") == "1"
+EMIT_PIP_SUCCESS_NOISE = os.environ.get("FAKE_PIP_SUCCESS_NOISE") == "1"
 
 
 def record() -> None:
@@ -96,6 +97,8 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
         record()
         sys.stderr.write("ERROR: git checkout could not find tag v0.1.0\\n")
         raise SystemExit(1)
+    if EMIT_PIP_SUCCESS_NOISE:
+        print("Requirement already satisfied: noisy-package==1.0.0")
     record()
     raise SystemExit(0)
 
@@ -168,6 +171,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
         entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
     assert len(managed_pip_installs) == 1
+    assert "--quiet" in managed_pip_installs[0]["argv"]
     assert managed_pip_installs[0]["argv"][-1] == "get-physics-done==0.1.0"
 
     managed_runtime_installs = [
@@ -182,6 +186,19 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert "Installed GPD for Codex (local)." in result.stdout
     assert "$gpd-new-project" in result.stdout
     assert "gpd view" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={"FAKE_PIP_SUCCESS_NOISE": "1"},
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    assert "Requirement already satisfied: noisy-package==1.0.0" not in result.stdout
+    assert "Installed GPD for Codex (local)." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

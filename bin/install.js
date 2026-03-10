@@ -206,23 +206,26 @@ function sourceInstallCandidates(version) {
 }
 
 function runPipInstall(python, spec, env) {
-  const result = spawnSync(
+  return spawnSync(
     python,
-    ["-m", "pip", "install", "--upgrade", spec],
+    ["-m", "pip", "install", "--upgrade", "--quiet", spec],
     {
       encoding: "utf-8",
       env,
     }
   );
+}
 
+function flushCapturedOutput(result) {
   if (result.stdout) {
     process.stdout.write(result.stdout);
   }
   if (result.stderr) {
     process.stderr.write(result.stderr);
   }
-
-  return result;
+  if (result.error) {
+    process.stderr.write(`${result.error.message}\n`);
+  }
 }
 
 function gpdHomeDir() {
@@ -380,6 +383,7 @@ function installManagedPackage(python, version) {
   if (installResult.status === 0) {
     return { ok: true, pythonPackageSpec };
   }
+  flushCapturedOutput(installResult);
 
   const fallbacks = sourceInstallCandidates(version);
   for (const [index, candidate] of fallbacks.entries()) {
@@ -389,6 +393,7 @@ function installManagedPackage(python, version) {
     if (installResult.status === 0) {
       return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
     }
+    flushCapturedOutput(installResult);
   }
 
   return { ok: false, pythonPackageSpec };
@@ -465,18 +470,25 @@ function formatRuntimeList(runtimes) {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
+function printBannerBox(lines) {
+  const width = Math.max(...lines.map((line) => line.length));
+  const border = "─".repeat(width + 2);
+  console.log(`${cyan}╭${border}╮${reset}`);
+  for (const line of lines) {
+    console.log(`${cyan}│ ${line.padEnd(width)} │${reset}`);
+  }
+  console.log(`${cyan}╰${border}╯${reset}`);
+}
+
 function printBanner() {
   console.log("");
-  console.log(`${cyan} ██████╗ ██████╗ ██████╗`);
-  console.log(`██╔════╝ ██╔══██╗██╔══██╗`);
-  console.log(`██║  ███╗██████╔╝██║  ██║`);
-  console.log(`██║   ██║██╔═══╝ ██║  ██║`);
-  console.log(`╚██████╔╝██║     ██████╔╝`);
-  console.log(` ╚═════╝ ╚═╝     ╚═════╝${reset}`);
-  console.log("");
-  console.log(` ${bold}Get Physics Done${reset} ${dim}v${packageVersion}${reset}`);
-  console.log(" Open-source AI copilot for physics research");
-  console.log(" for Claude Code, Gemini CLI, Codex, and OpenCode.");
+  printBannerBox([
+    "  ____ ____  ____      ∿  λ  ∫",
+    " / ___|  _ \\|  _ \\     Get Physics Done",
+    " | |  _| |_) | | | |    Open-source AI copilot for physics research",
+    " | |_| |  __/| |_| |    Claude Code · Gemini CLI · Codex · OpenCode",
+    `  \\____|_|   |____/     v${packageVersion}`,
+  ]);
   console.log("");
 }
 

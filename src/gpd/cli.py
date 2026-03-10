@@ -1871,14 +1871,18 @@ def version_cmd() -> None:
 # install — Install GPD into a runtime
 # ═══════════════════════════════════════════════════════════════════════════
 
-_GPD_BANNER = r"""
- ██████╗ ██████╗ ██████╗
-██╔════╝ ██╔══██╗██╔══██╗
-██║  ███╗██████╔╝██║  ██║
-██║   ██║██╔═══╝ ██║  ██║
-╚██████╔╝██║     ██████╔╝
- ╚═════╝ ╚═╝     ╚═════╝
-"""
+def _render_gpd_banner(version: str) -> str:
+    lines = (
+        "  ____ ____  ____      ∿  λ  ∫",
+        " / ___|  _ \\|  _ \\     Get Physics Done",
+        " | |  _| |_) | | | |    Open-source AI copilot for physics research",
+        " | |_| |  __/| |_| |    Claude Code · Gemini CLI · Codex · OpenCode",
+        f"  \\____|_|   |____/     v{version}",
+    )
+    width = max(len(line) for line in lines)
+    border = "─" * (width + 2)
+    body = [f"│ {line.ljust(width)} │" for line in lines]
+    return "\n".join((f"╭{border}╮", *body, f"╰{border}╯"))
 
 
 def _prompt_runtimes() -> list[str]:
@@ -2025,8 +2029,8 @@ def install(
         selected = list(runtimes)
     else:
         # Interactive mode
-        console.print(_GPD_BANNER, style="bold blue")
-        console.print(f"[bold]GPD v{gpd.__version__}[/] — Get Physics Done\n")
+        console.print(_render_gpd_banner(gpd.__version__), style="bold blue")
+        console.print()
         selected = _prompt_runtimes()
 
     # Resolve location
