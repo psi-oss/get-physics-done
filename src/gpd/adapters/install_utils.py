@@ -37,34 +37,6 @@ HOOK_SCRIPTS: dict[str, str] = {
     "runtime_detect": "runtime_detect.py",
 }
 
-# Legacy GPD hook basenames from older installs. Stored without extension so
-# cleanup can remove stale files regardless of their historical suffix.
-LEGACY_HOOK_BASENAMES = {
-    "gpd-statusline",
-    "gpd-check-update",
-    "gpd-codex-notify",
-    "statusline",
-    "gpd-intel-index",
-    "gpd-intel-session",
-    "gpd-intel-prune",
-}
-
-# Orphaned files from previous GPD versions (relative to config dir)
-_ORPHANED_FILES = [
-    "hooks/gpd-notify.sh",  # Removed in v1.6.x
-]
-
-# Orphaned hook command patterns to remove from settings
-_ORPHANED_HOOK_PATTERNS = [
-    "gpd-notify.sh",  # Removed in v1.6.x
-    "gpd-statusline",
-    "gpd-check-update",
-    "gpd-codex-notify",
-    "gpd-intel-index",
-    "gpd-intel-session",
-    "gpd-intel-prune",
-]
-
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
@@ -437,7 +409,7 @@ def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str
     elif runtime_key == "opencode":
         content = content.replace("/gpd:", "/gpd-")
 
-    if runtime_key == "gemini":
+    if runtime_key in ("gemini", "codex", "opencode"):
         content = strip_sub_tags(content)
 
     return convert_tool_references_in_body(content, reference_translation_map(runtime_key))
@@ -673,56 +645,6 @@ def _copy_dir_contents(
             import shutil
 
             shutil.copy2(str(entry), str(dest))
-
-
-# ---------------------------------------------------------------------------
-# Cleanup helpers
-# ---------------------------------------------------------------------------
-
-
-def cleanup_orphaned_files(config_dir: str | Path) -> list[str]:
-    """Remove orphaned files from previous GPD versions.
-
-    Returns a list of relative paths that were removed.
-    """
-    config_dir = Path(config_dir)
-    removed: list[str] = []
-
-    for rel_path in _ORPHANED_FILES:
-        full_path = config_dir / rel_path
-        if full_path.exists():
-            full_path.unlink()
-            removed.append(rel_path)
-
-    return removed
-
-
-def cleanup_orphaned_hooks(settings: dict[str, object]) -> dict[str, object]:
-    """Remove orphaned hook registrations from *settings*.
-
-    Mutates and returns *settings* with orphaned GPD hooks removed.
-    """
-    hooks = settings.get("hooks")
-    if isinstance(hooks, dict):
-        for event_type, hook_entries in list(hooks.items()):
-            if not isinstance(hook_entries, list):
-                continue
-            filtered = []
-            for entry in hook_entries:
-                entry_hooks = entry.get("hooks") if isinstance(entry, dict) else None
-                if isinstance(entry_hooks, list):
-                    has_orphaned = False
-                    for h in entry_hooks:
-                        cmd = h.get("command", "") if isinstance(h, dict) else ""
-                        if any(pattern in cmd for pattern in _ORPHANED_HOOK_PATTERNS):
-                            has_orphaned = True
-                            break
-                    if has_orphaned:
-                        continue
-                filtered.append(entry)
-            hooks[event_type] = filtered
-
-    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -970,7 +892,7 @@ def pre_install_cleanup(
     *,
     codex_skills_dir: str | None = None,
 ) -> None:
-    """Common pre-install cleanup: remove stale patches, save local patches, clean orphans."""
+    """Common pre-install cleanup: remove stale patches and current install files."""
     import shutil as _shutil
 
     patches_dir = target_dir / PATCHES_DIR_NAME
@@ -978,7 +900,6 @@ def pre_install_cleanup(
         _shutil.rmtree(patches_dir)
 
     save_local_patches(target_dir, codex_skills_dir=codex_skills_dir)
-    cleanup_orphaned_files(target_dir)
 
     gpd_dir = target_dir / "get-physics-done"
     if gpd_dir.exists():
@@ -989,9 +910,6 @@ def pre_install_cleanup(
         for hook_name in HOOK_SCRIPTS.values():
             hook_path = hooks_dir / hook_name
             if hook_path.exists():
-                hook_path.unlink()
-        for hook_path in hooks_dir.iterdir():
-            if hook_path.is_file() and hook_path.stem in LEGACY_HOOK_BASENAMES:
                 hook_path.unlink()
 
 
@@ -1115,7 +1033,7 @@ def ensure_update_hook(settings: dict[str, object], update_check_command: str) -
             if not isinstance(h, dict):
                 continue
             cmd = h.get("command", "")
-            if isinstance(cmd, str) and ("gpd-check-update" in cmd or "check_update" in cmd):
+            if isinstance(cmd, str) and "check_update.py" in cmd:
                 return
 
     session_start.append({"hooks": [{"type": "command", "command": update_check_command}]})
@@ -1140,8 +1058,7 @@ def finish_install(
 
         if (
             isinstance(existing_cmd, str)
-            and "gpd-statusline" not in existing_cmd
-            and "statusline" not in existing_cmd
+            and "statusline.py" not in existing_cmd
             and not force_statusline
         ):
             _install_logger.warning("Skipping statusline (already configured by another tool)")

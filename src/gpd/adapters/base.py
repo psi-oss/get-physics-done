@@ -9,7 +9,6 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
-    LEGACY_HOOK_BASENAMES,
     compute_path_prefix,
     copy_hook_scripts,
     install_gpd_content,
@@ -272,7 +271,7 @@ class RuntimeAdapter(abc.ABC):
                 for hook_path in hooks_dir.iterdir():
                     if not hook_path.is_file():
                         continue
-                    if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
+                    if hook_path.name in HOOK_SCRIPTS.values():
                         hook_path.unlink()
                         hook_count += 1
                 if hook_count:
@@ -311,10 +310,7 @@ class RuntimeAdapter(abc.ABC):
                     sl = settings.get("statusLine")
                     if isinstance(sl, dict):
                         cmd = sl.get("command", "")
-                        if isinstance(cmd, str) and (
-                            "gpd-statusline" in cmd
-                            or "statusline.py" in cmd
-                        ):
+                        if isinstance(cmd, str) and "statusline.py" in cmd:
                             del settings["statusLine"]
                             settings_modified = True
                     # Remove GPD hooks from SessionStart
@@ -331,12 +327,7 @@ class RuntimeAdapter(abc.ABC):
                                     and any(
                                         isinstance(h, dict)
                                         and isinstance(h.get("command"), str)
-                                        and (
-                                            "gpd-check-update" in h["command"]
-                                            or "check_update" in h["command"]
-                                            or "gpd-statusline" in h["command"]
-                                            or "statusline.py" in h["command"]
-                                        )
+                                        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
                                         for h in entry["hooks"]
                                     )
                                 )

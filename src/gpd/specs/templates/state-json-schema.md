@@ -168,7 +168,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 **Written by:** `gpd result add`
 **Read by:** gpd-executor (downstream phases), gpd-verifier, gpd-paper-writer
 
-**Note:** Legacy entries from STATE.md migration may be plain strings instead of objects. Code handles both formats.
+**Note:** Markdown-derived entries in this section may be plain strings instead of structured objects. Code handles both formats.
 
 ### `DecisionObject`
 

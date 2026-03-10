@@ -227,21 +227,21 @@ def test_ensure_state_schema_partial():
     assert "decisions" in result
 
 
-def test_ensure_state_schema_drops_removed_legacy_keys():
-    legacy = {
+def test_ensure_state_schema_does_not_migrate_removed_keys():
+    removed_keys = {
         "project": {"core_question": "Why?", "current_focus": "Testing"},
         "metrics": [{"label": "Phase 1 P1", "duration": "12m"}],
         "session": {"last_session": "2026-03-10"},
         "position": {"progress": "[#####.....] 50%"},
     }
-    result = ensure_state_schema(legacy)
+    result = ensure_state_schema(removed_keys)
     assert result["project_reference"]["core_research_question"] is None
     assert result["project_reference"]["current_focus"] is None
     assert result["performance_metrics"]["rows"] == []
     assert result["session"]["last_date"] is None
     assert result["position"]["progress_percent"] == 0
-    assert "project" not in result
-    assert "metrics" not in result
+    assert result["project"] == removed_keys["project"]
+    assert result["metrics"] == removed_keys["metrics"]
 
 
 def test_ensure_state_schema_empty_dict():

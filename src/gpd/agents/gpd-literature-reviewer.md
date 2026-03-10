@@ -1620,7 +1620,7 @@ gpd_return:
   field_assessment: settled | active_research | active_debate | speculative
 ```
 
-Do NOT use legacy status names (REVIEW COMPLETE, REVIEW INCONCLUSIVE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

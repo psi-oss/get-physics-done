@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.errors import ValidationError
 from gpd.core.json_utils import (
     json_get,
     json_keys,
@@ -63,7 +64,7 @@ def test_json_get_default_on_bad_json():
 
 
 def test_json_get_raises_on_bad_json_no_default():
-    with pytest.raises(ValueError, match="Invalid JSON"):
+    with pytest.raises(ValidationError, match="Invalid JSON"):
         json_get("not json", ".key")
 
 

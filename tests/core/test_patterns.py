@@ -80,7 +80,13 @@ class TestPatternsRootResolution:
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
         monkeypatch.setattr(Path, "home", lambda: fake_home)
 
-        assert patterns_root(specs_root=tmp_path / "project") == fake_home / ".gpd" / "learned-patterns"
+        assert patterns_root() == fake_home / ".gpd" / "learned-patterns"
+
+    def test_specs_root_overrides_env_and_home(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+
+        assert patterns_root(specs_root=tmp_path / "project") == tmp_path / "project" / "learned-patterns"
 
 
 # ─── pattern_init / ensure_library ───────────────────────────────────────────

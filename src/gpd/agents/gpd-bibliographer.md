@@ -1014,7 +1014,7 @@ gpd_return:
   verification_sources: [INSPIRE, ADS, arXiv, DOI, Google Scholar]  # sources used
 ```
 
-Do NOT use legacy status names (BIBLIOGRAPHY UPDATED, CITATION ISSUES FOUND). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

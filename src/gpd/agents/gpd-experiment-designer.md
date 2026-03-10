@@ -962,7 +962,7 @@ partial_design: [path to partial EXPERIMENT-DESIGN.md if written]
 
 All returns to the orchestrator MUST use this YAML envelope for reliable parsing:
 
-**DEPRECATION:** Do NOT use legacy status names (EXPERIMENT DESIGN COMPLETE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ```yaml
 gpd_return:

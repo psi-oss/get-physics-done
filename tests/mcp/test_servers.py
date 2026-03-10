@@ -660,10 +660,10 @@ class TestSkillsServer:
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
 
-    def test_get_skill_accepts_registry_key_alias(self):
+    def test_get_skill_accepts_command_style_name(self):
         from gpd.mcp.servers.skills_server import get_skill
 
-        result = get_skill("execute-phase")
+        result = get_skill("gpd:execute-phase")
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
 

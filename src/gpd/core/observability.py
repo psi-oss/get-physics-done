@@ -23,7 +23,11 @@ def gpd_span(name: str, **attrs: object) -> Generator[logfire.LogfireSpan, None,
         attr_key = key if key.startswith("gpd.") else f"gpd.{key}"
         prefixed[attr_key] = value
 
-    with logfire.span(f"gpd.{name}", name=name, **prefixed) as span:
+    # Pass the span name via _span_name (logfire's dedicated kwarg) and store
+    # it as the "gpd.span_name" attribute instead of bare "name", which could
+    # collide with logfire internals or OpenTelemetry reserved attribute names.
+    msg = f"gpd.{name}"
+    with logfire.span(msg, _span_name=msg, **{"gpd.span_name": name}, **prefixed) as span:
         yield span
 
 

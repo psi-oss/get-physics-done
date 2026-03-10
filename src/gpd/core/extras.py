@@ -93,6 +93,9 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         return None
 
     # Pattern: "x << bound" — much less than
+    # NOTE: the single-bound < / > patterns checked later would also match
+    # "<<" / ">>" strings via re.search, but they are unreachable because
+    # the << / >> branches are tested first and return early.
     m = re.search(r"<<\s*([0-9.eE+-]+)", range_str)
     if m:
         bound = _parse_float(m.group(1))
@@ -131,12 +134,16 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
                 return "marginal"
             return "invalid"
         if bound < 0:
-            # For negative bound, "much greater than" means much less negative or positive
-            if val > abs(bound) * 10:  # way more positive
+            # For negative bound, "much greater than" means the value is far
+            # above the bound.  Use the *distance* from the bound (val - bound)
+            # scaled by |bound| to judge how much greater the value is.
+            distance = val - bound  # positive when val > bound
+            scale = abs(bound)
+            if distance > 10 * scale:
                 return "valid"
-            if val > abs(bound) * 2:  # somewhat more positive
+            if distance > 2 * scale:
                 return "marginal"
-            if val > 0:  # at least positive
+            if distance > 0:
                 return "marginal"
             return "invalid"
         if abs(val) > 10 * abs(bound):

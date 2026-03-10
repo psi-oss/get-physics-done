@@ -36,7 +36,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("file_edit") == "apply_patch"
         assert adapter.translate_tool_name("shell") == "shell"
 
-    def test_legacy_alias(self, adapter: CodexAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: CodexAdapter) -> None:
         assert adapter.translate_tool_name("Read") == "read_file"
         assert adapter.translate_tool_name("Edit") == "apply_patch"
 
@@ -430,30 +430,7 @@ class TestUninstall:
         assert "codex_notify" not in content
 
 
-class TestLegacyHookUpgrade:
-    def test_rewrites_legacy_notify_without_touching_unrelated_tool_lines(self, tmp_path: Path) -> None:
-        """Configuring notify should only replace the GPD notify line."""
-        from gpd.adapters.codex import _configure_config_toml
-
-        target = tmp_path / ".codex"
-        target.mkdir()
-        (target / "hooks").mkdir()
-        config_toml = target / "config.toml"
-        config_toml.write_text(
-            'custom_tool = ["toolctl", "/path/to/my-tool"]\n'
-            'notify = ["toolctl", "/path/to/gpd-codex-notify"]\n',
-            encoding="utf-8",
-        )
-        _configure_config_toml(target, is_global=True)
-
-        content = config_toml.read_text(encoding="utf-8")
-        expected_notify = (
-            f'notify = ["{(sys.executable or "python3").replace("\\\\", "\\\\\\\\")}", '
-            f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
-        )
-        assert expected_notify in content
-        assert 'custom_tool = ["toolctl", "/path/to/my-tool"]' in content
-
+class TestNotifyConfiguration:
     def test_wraps_existing_notify_and_restores_it_on_uninstall(
         self,
         adapter: CodexAdapter,

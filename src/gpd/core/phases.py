@@ -1241,6 +1241,30 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
 
             atomic_write(roadmap_path, updated)
 
+        # Update total_phases in STATE.md to stay in sync with ROADMAP
+        state_path = _state_path(cwd)
+        if state_path.exists():
+            with file_lock(state_path):
+                state_content = state_path.read_text(encoding="utf-8")
+                updated_roadmap = roadmap_analyze(cwd)
+                total_phases = updated_roadmap.phase_count
+                state_content = re.sub(
+                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    rf"\g<1>{total_phases}",
+                    state_content,
+                )
+                state_content = re.sub(
+                    r"(\bof\s+)\d+(\s*(?:\(|phases?))",
+                    rf"\g<1>{total_phases}\2",
+                    state_content,
+                    flags=re.IGNORECASE,
+                )
+                atomic_write(state_path, state_content)
+                try:
+                    _sync_state_json(cwd, state_content)
+                except Exception:
+                    logger.warning("phase_add: failed to sync state.json after STATE.md update", exc_info=True)
+
         return PhaseAddResult(
             phase_number=new_phase_num,
             padded=padded,
@@ -1328,6 +1352,30 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
 
             updated = content[:insert_idx] + phase_entry + content[insert_idx:]
             atomic_write(roadmap_path, updated)
+
+        # Update total_phases in STATE.md to stay in sync with ROADMAP
+        state_path = _state_path(cwd)
+        if state_path.exists():
+            with file_lock(state_path):
+                state_content = state_path.read_text(encoding="utf-8")
+                updated_roadmap = roadmap_analyze(cwd)
+                total_phases = updated_roadmap.phase_count
+                state_content = re.sub(
+                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    rf"\g<1>{total_phases}",
+                    state_content,
+                )
+                state_content = re.sub(
+                    r"(\bof\s+)\d+(\s*(?:\(|phases?))",
+                    rf"\g<1>{total_phases}\2",
+                    state_content,
+                    flags=re.IGNORECASE,
+                )
+                atomic_write(state_path, state_content)
+                try:
+                    _sync_state_json(cwd, state_content)
+                except Exception:
+                    logger.warning("phase_insert: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseInsertResult(
             phase_number=decimal_phase,
@@ -1530,7 +1578,10 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                     )
 
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("phase_remove: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseRemoveResult(
             removed=target_phase,
@@ -1850,7 +1901,10 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                     )
 
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("phase_complete: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,
@@ -2007,7 +2061,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         state_content,
                     )
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("milestone_complete: failed to sync state.json after STATE.md update", exc_info=True)
 
         return MilestoneCompleteResult(
             version=version,

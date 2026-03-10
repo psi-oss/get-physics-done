@@ -1693,7 +1693,7 @@ gpd_return:
   dimensions_evaluated: N  # out of 10
 ```
 
-Do NOT use legacy status names (REVIEW COMPLETE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

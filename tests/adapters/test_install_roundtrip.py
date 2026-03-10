@@ -160,18 +160,18 @@ class TestGeminiRoundtrip:
     def test_agents_tool_names_converted(self, installed: Path) -> None:
         """Gemini agents use Gemini tool names (read_file, not Read)."""
         verifier = installed / "agents" / "gpd-verifier.md"
-        if verifier.exists():
-            content = verifier.read_text(encoding="utf-8")
-            # Tools should be in Gemini format
-            if "tools:" in content:
-                end = content.find("---", 3)
-                if end > 0:
-                    fm = content[3:end]
-                    # "Read" should be converted to "read_file"
-                    tools_idx = fm.find("tools:")
-                    if tools_idx >= 0:
-                        tools_section = fm[tools_idx:]
-                        assert "read_file" in tools_section or "Read" not in tools_section
+        if not verifier.exists():
+            pytest.skip("gpd-verifier.md not found in installed agents")
+        agent_content = verifier.read_text(encoding="utf-8")
+        if "tools:" not in agent_content:
+            pytest.skip("gpd-verifier.md has no tools: field")
+        end = agent_content.find("---", 3)
+        assert end > 0, "gpd-verifier.md has malformed frontmatter"
+        fm = agent_content[3:end]
+        tools_idx = fm.find("tools:")
+        assert tools_idx >= 0, "tools: not found in frontmatter"
+        tools_section = fm[tools_idx:]
+        assert "read_file" in tools_section or "Read" not in tools_section
 
     def test_gpd_content_installed(self, installed: Path) -> None:
         """get-physics-done/ content is present."""
@@ -192,14 +192,17 @@ class TestGeminiRoundtrip:
         assert "google_web_search" in reference
         assert "WebSearch" not in reference
 
+    @pytest.mark.skip(
+        reason="Gemini install() builds settings in-memory but finish_install() writes them; "
+        "settings.json is not on disk after install() alone"
+    )
     def test_settings_json_has_experimental(self, installed: Path) -> None:
         """settings.json enables experimental.enableAgents."""
-        # install() returns settings but doesn't always write them to disk
-        # (finish_install does that). But it does write hooks into settings.
-        # Let's check settings.json was at least initialized
-        installed / "settings.json"
-        # The install method configures settings in-memory and returns them.
-        # We verify the returned result in the install result test.
+        settings_path = installed / "settings.json"
+        assert settings_path.exists(), "settings.json not written to disk"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        experimental = settings.get("experimental", {})
+        assert experimental.get("enableAgents") is True
 
     def test_manifest_present(self, installed: Path) -> None:
         """File manifest exists and has version."""

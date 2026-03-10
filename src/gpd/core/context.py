@@ -213,12 +213,10 @@ def load_config(cwd: Path) -> dict:
     """Load .gpd/config.json with defaults.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical
-    implementation) and converts the result to a plain dict for backward
-    compatibility with existing context-assembly callers.
+    implementation) and converts the result to a plain dict for context
+    assembly callers.
 
     Raises :class:`~gpd.core.errors.ConfigError` on malformed JSON.
-    ``ConfigError`` inherits from both ``GPDError`` and ``ValueError``,
-    so existing ``except ValueError`` handlers continue to work.
     """
     cfg = _load_config_structured(cwd)
     return _config_to_dict(cfg)

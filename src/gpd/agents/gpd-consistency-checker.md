@@ -106,7 +106,7 @@ gpd_return:
   issues_found: {count}
 ```
 
-Do NOT use legacy status names (CONSISTENT, WARNING, INCONSISTENT). Map all to: `completed` | `failed`.
+Use only status names: `completed` | `failed`.
 
 ### When to use which mode:
 
@@ -984,8 +984,8 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
-  # Mapping from legacy values: CONSISTENT → completed, WARNING → completed (with warnings in issues),
-  # INCONSISTENT → failed, CHECKPOINT → checkpoint
+  # Use canonical status values directly.
+  # Put warnings in issues instead of encoding them in the status field.
   files_written: [CONSISTENCY-CHECK.md, ...]
   issues: [list of issues encountered, if any — include warnings here]
   next_actions: [list of recommended follow-up actions]

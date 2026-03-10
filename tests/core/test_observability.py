@@ -28,4 +28,8 @@ def test_gpd_span_interpolates_name_and_prefixes_attrs() -> None:
         with gpd_span("test.span", domain="physics"):
             pass
 
-    span_factory.assert_called_once_with("gpd.test.span", name="test.span", **{"gpd.domain": "physics"})
+    span_factory.assert_called_once_with(
+        "gpd.test.span",
+        _span_name="gpd.test.span",
+        **{"gpd.span_name": "test.span", "gpd.domain": "physics"},
+    )

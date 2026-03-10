@@ -206,6 +206,9 @@ def result_list(
         normalized_filter = phase_unpad(phase)
         results = [r for r in results if r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_filter]
 
+    if verified is True and unverified is True:
+        raise ValueError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
+
     if verified is True:
         results = [r for r in results if r.get("verified") is True]
 

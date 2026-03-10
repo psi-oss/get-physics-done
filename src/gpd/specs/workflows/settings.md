@@ -144,7 +144,7 @@ ask_user([
       { label: "Mathematica", description: "Symbolic computation, exact results" },
       { label: "Julia", description: "High-performance numerical computing" },
       { label: "C/C++", description: "Performance-critical simulations" },
-      { label: "Fortran", description: "Legacy HPC codes, LAPACK-heavy work" },
+      { label: "Fortran", description: "Fortran-based HPC codes, LAPACK-heavy work" },
       { label: "MATLAB", description: "Matrix computations, signal processing" },
       { label: "SymPy", description: "Python symbolic math" },
       { label: "Maple", description: "Computer algebra, differential equations" },

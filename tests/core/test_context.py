@@ -24,6 +24,7 @@ from gpd.core.context import (
     init_verify_work,
     load_config,
 )
+from gpd.core.errors import ConfigError, ValidationError
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,14 +120,14 @@ class TestLoadConfig:
     def test_removed_mode_key_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"mode": "yolo"})
-        with pytest.raises(ValueError, match="`mode` was removed; use `autonomy`"):
+        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
             load_config(tmp_path)
 
     def test_removed_parallelization_object_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"parallelization": {"enabled": False}})
         with pytest.raises(
-            ValueError,
+            ConfigError,
             match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
         ):
             load_config(tmp_path)
@@ -135,7 +136,7 @@ class TestLoadConfig:
         _setup_project(tmp_path)
         config_path = tmp_path / ".gpd" / "config.json"
         config_path.write_text("not valid json {{{")
-        with pytest.raises(ValueError, match="Malformed config.json"):
+        with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
 
@@ -157,7 +158,7 @@ class TestInitExecutePhase:
         assert ctx["state_exists"] is False
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase is required"):
+        with pytest.raises(ValidationError, match="phase is required"):
             init_execute_phase(tmp_path, "")
 
     def test_includes_state(self, tmp_path: Path) -> None:
@@ -291,7 +292,7 @@ class TestInitVerifyWork:
         assert ctx["has_verification"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase is required"):
+        with pytest.raises(ValidationError, match="phase is required"):
             init_verify_work(tmp_path, "")
 
 

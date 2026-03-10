@@ -57,12 +57,12 @@ def _read_position(workspace_dir: str) -> str:
         pos = state.get("position", {})
         phase = pos.get("current_phase")
         total_phases = pos.get("total_phases")
-        if not phase or not total_phases:
+        if phase is None or total_phases is None:
             return ""
         result = f"P{phase}/{total_phases}"
         plan = pos.get("current_plan")
         total_plans = pos.get("total_plans_in_phase")
-        if plan and total_plans:
+        if plan is not None and total_plans is not None:
             result += f" plan {plan}/{total_plans}"
         return result
     except Exception as exc:
@@ -167,7 +167,7 @@ def main() -> None:
         session_id = session_value if isinstance(session_value, str) else ""
         remaining = _mapping(data.get("context_window")).get("remaining_percentage")
 
-        ctx = _context_bar(remaining) if remaining is not None else ""
+        ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) else ""
         position = _read_position(workspace_dir)
         task = _read_current_task(session_id)
         gpd_update = _check_update()

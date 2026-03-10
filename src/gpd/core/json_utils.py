@@ -7,17 +7,23 @@ and returns a plain Python object suitable for printing.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from gpd.core.errors import ValidationError
 from gpd.core.utils import atomic_write
 
+_MISSING = object()  # sentinel: key not found (distinct from JSON null)
 
-def _resolve_path(data: object, key: str) -> object | None:
+
+def _resolve_path(data: object, key: str) -> object:
     """Walk a dot-path like ``.section``, ``.waves``, or ``.directories[-1]``.
 
     Leading dots are stripped.  Bracket notation for integer indices is
     supported (e.g. ``[-1]``, ``[0]``).
+
+    Returns *_MISSING* when the path does not exist, preserving ``None``
+    for actual JSON ``null`` values.
     """
     parts: list[str] = []
     raw = key.lstrip(".")
@@ -33,9 +39,10 @@ def _resolve_path(data: object, key: str) -> object | None:
             base, rest = segment.split("[", 1)
             if base:
                 parts.append(base)
-            # rest looks like '-1]' or '\"key\"]'
-            idx_str = rest.rstrip("]").strip('"').strip("'")
-            parts.append(f"[{idx_str}]")
+            # rest looks like '-1]' or '-1][2]' (multi-bracket)
+            for bracket_match in re.finditer(r"\[([^\]]*)\]", "[" + rest):
+                idx_str = bracket_match.group(1).strip('"').strip("'")
+                parts.append(f"[{idx_str}]")
         else:
             parts.append(segment)
 
@@ -47,19 +54,19 @@ def _resolve_path(data: object, key: str) -> object | None:
                 idx = int(idx_inner)
                 current = current[idx]
             except (ValueError, TypeError, IndexError, KeyError):
-                return None
+                return _MISSING
         elif isinstance(current, dict):
             if part in current:
                 current = current[part]
             else:
-                return None
+                return _MISSING
         elif isinstance(current, list):
             try:
                 current = current[int(part)]
             except (ValueError, IndexError):
-                return None
+                return _MISSING
         else:
-            return None
+            return _MISSING
     return current
 
 
@@ -73,9 +80,11 @@ def json_get(stdin_text: str, key: str, default: str | None = None) -> str:
         raise ValidationError(f"Invalid JSON input: {stdin_text[:80]!r}") from err
 
     result = _resolve_path(data, key)
-    if result is None:
+    if result is _MISSING:
         return default if default is not None else ""
 
+    if result is None:
+        return "null"
     if isinstance(result, str):
         return result
     return json.dumps(result, separators=(",", ":"))
@@ -89,6 +98,8 @@ def json_keys(stdin_text: str, key: str) -> str:
         return ""
 
     obj = _resolve_path(data, key)
+    if obj is _MISSING or obj is None:
+        return ""
     if isinstance(obj, dict):
         return "\n".join(str(k) for k in obj)
     return ""
@@ -102,6 +113,8 @@ def json_list(stdin_text: str, key: str) -> str:
         return ""
 
     obj = _resolve_path(data, key)
+    if obj is _MISSING or obj is None:
+        return ""
     if isinstance(obj, list):
         return "\n".join(str(item) for item in obj)
     if isinstance(obj, dict):
@@ -120,7 +133,7 @@ def json_pluck(stdin_text: str, key: str, field: str) -> str:
         return ""
 
     arr = _resolve_path(data, key)
-    if not isinstance(arr, list):
+    if arr is _MISSING or not isinstance(arr, list):
         return ""
 
     values: list[str] = []
@@ -149,14 +162,48 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     except (json.JSONDecodeError, ValueError):
         parsed_value = value
 
-    # Set in the data dict at the given path
-    parts = path.lstrip(".").split(".")
-    current = data
-    for part in parts[:-1]:
-        if part not in current or not isinstance(current[part], dict):
-            current[part] = {}
-        current = current[part]
-    current[parts[-1]] = parsed_value
+    # Parse path into (key_or_index, is_index) steps
+    steps: list[tuple[str | int, bool]] = []
+    for segment in path.lstrip(".").split("."):
+        if not segment:
+            continue
+        if "[" in segment:
+            base, rest = segment.split("[", 1)
+            if base:
+                steps.append((base, False))
+            for m in re.finditer(r"\[([^\]]*)\]", "[" + rest):
+                idx_str = m.group(1).strip('"').strip("'")
+                try:
+                    steps.append((int(idx_str), True))
+                except ValueError:
+                    steps.append((idx_str, False))
+        else:
+            steps.append((segment, False))
+
+    # Traverse / create intermediate containers
+    current: object = data
+    for step_key, is_idx in steps[:-1]:
+        if is_idx and isinstance(current, list):
+            try:
+                current = current[step_key]  # type: ignore[index]
+            except (IndexError, TypeError):
+                break
+        elif isinstance(current, dict):
+            if step_key not in current or not isinstance(current[step_key], (dict, list)):
+                current[step_key] = {}  # type: ignore[index]
+            current = current[step_key]  # type: ignore[index]
+        else:
+            break
+
+    # Set the final value
+    final_key, final_is_idx = steps[-1]
+    if final_is_idx and isinstance(current, list):
+        try:
+            current[final_key] = parsed_value  # type: ignore[index]
+        except (IndexError, TypeError):
+            pass
+    elif isinstance(current, dict):
+        current[final_key] = parsed_value  # type: ignore[index]
 
     fp.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(fp, json.dumps(data, indent=2) + "\n")
@@ -191,6 +238,6 @@ def json_sum_lengths(stdin_text: str, keys: list[str]) -> str:
     total = 0
     for key in keys:
         obj = _resolve_path(data, key)
-        if isinstance(obj, (list, dict, str)):
+        if obj is not _MISSING and isinstance(obj, (list, dict, str)):
             total += len(obj)
     return str(total)

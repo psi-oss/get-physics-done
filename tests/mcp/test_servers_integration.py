@@ -589,20 +589,13 @@ class TestSkillsServerIntegration:
     def test_get_skill_real_skill(self):
         from gpd.mcp.servers.skills_server import get_skill
 
-        result = get_skill("gpd-debug")
+        result = get_skill("gpd-debugger")
 
         assert isinstance(result, dict)
-        # If gpd-debug exists, check its structure
-        if "error" not in result:
-            assert result["name"] == "gpd-debug"
-            assert result["file_count"] >= 1
-            assert len(result["content"]) > 0
-        else:
-            # Fall back to gpd-debugger if gpd-debug doesn't exist
-            result = get_skill("gpd-debugger")
-            assert "error" not in result
-            assert result["name"] == "gpd-debugger"
-            assert result["file_count"] >= 1
+        assert "error" not in result, f"gpd-debugger skill not found: {result}"
+        assert result["name"] == "gpd-debugger"
+        assert result["file_count"] >= 1
+        assert len(result["content"]) > 0
 
     def test_get_skill_uses_canonical_command_content(self):
         from gpd.mcp.servers.skills_server import get_skill

@@ -223,7 +223,7 @@ class TestEncodingEdgeCases:
         f = tmp_path / "bom-agent.md"
         f.write_bytes(b"\xef\xbb\xbf---\nname: bom-test\n---\nBody.")
         agent = _parse_agent_file(f, source="agents")
-        assert agent.name == "bom-agent"
+        assert agent.name == "bom-test"
         assert "Body." in agent.system_prompt
 
 
@@ -549,7 +549,7 @@ class TestPublicAPI:
         monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
         registry.invalidate_cache()
 
-        skill = registry.get_skill("execute-phase")
+        skill = registry.get_skill("gpd:execute-phase")
         assert isinstance(skill, SkillDef)
         assert skill.name == "gpd-execute-phase"
         assert skill.registry_name == "execute-phase"

@@ -19,7 +19,6 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.config import load_config
-from gpd.core.errors import GPDError
 from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.state import (
@@ -51,7 +50,7 @@ def get_state(project_dir: str) -> dict:
             if state_obj is None:
                 return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
             return state_obj
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("get_state failed: %s", exc)
         return {"error": str(exc)}
 
@@ -83,7 +82,7 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
                 "summary_count": summary_count,
                 "complete": plan_count > 0 and summary_count >= plan_count,
             }
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("get_phase_info failed: %s", exc)
         return {"error": str(exc)}
 
@@ -101,7 +100,7 @@ def advance_plan(project_dir: str) -> dict:
     try:
         with gpd_span("mcp.state.advance_plan"):
             return state_advance_plan(cwd).model_dump()
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("advance_plan failed: %s", exc)
         return {"error": str(exc)}
 
@@ -120,7 +119,7 @@ def get_progress(project_dir: str) -> dict:
     try:
         with gpd_span("mcp.state.progress"):
             return state_update_progress(cwd).model_dump()
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("get_progress failed: %s", exc)
         return {"error": str(exc)}
 
@@ -140,7 +139,7 @@ def validate_state(project_dir: str) -> dict:
         with gpd_span("mcp.state.validate"):
             result = state_validate(cwd)
             return result.model_dump()
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("validate_state failed: %s", exc)
         return {"error": str(exc)}
 
@@ -162,7 +161,7 @@ def run_health_check(project_dir: str, fix: bool = False) -> dict:
         with gpd_span("mcp.state.health", fix=str(fix)):
             report = run_health(cwd, fix=fix)
             return report.model_dump()
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("run_health_check failed: %s", exc)
         return {"error": str(exc)}
 
@@ -182,7 +181,7 @@ def get_config(project_dir: str) -> dict:
         with gpd_span("mcp.state.config"):
             config = load_config(cwd)
             return config.model_dump()
-    except GPDError as exc:
+    except Exception as exc:
         logger.warning("get_config failed: %s", exc)
         return {"error": str(exc)}
 

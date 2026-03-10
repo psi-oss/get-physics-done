@@ -32,6 +32,7 @@ from gpd.core.frontmatter import (
     splice_frontmatter,
     validate_frontmatter,
 )
+from gpd.core.errors import ValidationError
 from gpd.core.health import (
     CheckStatus,
     check_config,
@@ -122,8 +123,8 @@ See: .gpd/PROJECT.md
 ## Session Continuity
 
 **Last session:** 2026-03-09
-**Stopped At:** Phase 01, Plan 01, Task 2
-**Resume File:** .gpd/phases/01-test/01-test-01-PLAN.md
+**Stopped at:** Phase 01, Plan 01, Task 2
+**Resume file:** .gpd/phases/01-test/01-test-01-PLAN.md
 """
 
 
@@ -261,8 +262,8 @@ class TestEnsureStateSchema:
         result = ensure_state_schema({"_custom_key": "preserved", "position": "invalid"})
         assert result.get("_custom_key") == "preserved"
 
-    def test_removed_legacy_project_key_is_dropped(self) -> None:
-        """Removed top-level legacy keys are discarded during schema cleanup."""
+    def test_removed_project_key_is_not_migrated(self) -> None:
+        """Removed top-level keys no longer populate the current schema."""
         result = ensure_state_schema({
             "project": {
                 "core_question": "How does X work?",
@@ -272,7 +273,10 @@ class TestEnsureStateSchema:
         pr = result["project_reference"]
         assert pr["core_research_question"] is None
         assert pr["current_focus"] is None
-        assert "project" not in result
+        assert result["project"] == {
+            "core_question": "How does X work?",
+            "current_focus": "Testing",
+        }
 
     def test_non_dict_returns_defaults(self) -> None:
         """A non-dict input (e.g. list) returns defaults."""
@@ -675,8 +679,8 @@ class TestJsonUtilsErrorHandling:
         assert json_get("NOT JSON", ".key", default="fallback") == "fallback"
 
     def test_json_get_invalid_json_no_default_raises(self) -> None:
-        """json_get with invalid JSON and no default raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid JSON"):
+        """json_get with invalid JSON and no default raises ValidationError."""
+        with pytest.raises(ValidationError, match="Invalid JSON"):
             json_get("NOT JSON", ".key")
 
     def test_json_get_missing_key_returns_empty(self) -> None:

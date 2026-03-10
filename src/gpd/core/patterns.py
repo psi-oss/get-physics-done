@@ -216,9 +216,12 @@ class PatternSeedResult(BaseModel):
 def patterns_root(specs_root: Path | None = None) -> Path:
     """Resolve the patterns library root directory.
 
-    Precedence: ``GPD_PATTERNS_ROOT`` env > ``GPD_DATA_DIR`` env >
-    ``~/.gpd/learned-patterns``.
+    Precedence: *specs_root* argument > ``GPD_PATTERNS_ROOT`` env >
+    ``GPD_DATA_DIR`` env > ``~/.gpd/learned-patterns``.
     """
+    if specs_root is not None:
+        return specs_root / PATTERNS_DIR_NAME
+
     explicit = os.environ.get(ENV_PATTERNS_ROOT, "").strip()
     if explicit:
         return Path(explicit) if Path(explicit).is_absolute() else Path.cwd() / explicit

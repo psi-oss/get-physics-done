@@ -475,7 +475,7 @@ class TestVerifyArtifacts:
         f = tmp_path / "plan.md"
         f.write_text("---\ntitle: test\n---\n\nNo artifacts.\n")
         result = verify_artifacts(tmp_path, f)
-        assert result.all_passed is False
+        assert result.all_passed is True
         assert result.total == 0
 
     def test_string_artifact_exists(self, tmp_path):

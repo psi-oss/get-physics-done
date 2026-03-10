@@ -18,7 +18,7 @@ Last updated: 2026-02-24
 
 ### 6. Dollar Sign Backreference in State Replace Calls
 
-**Bug:** Several legacy state update paths passed user-provided text directly into regex replacement strings without escaping `$` characters. That caused replacement backreference syntax such as `$1` and `$&` to be interpreted instead of treated literally.
+**Bug:** Several previous state update paths passed user-provided text directly into regex replacement strings without escaping `$` characters. That caused replacement backreference syntax such as `$1` and `$&` to be interpreted instead of treated literally.
 
 **Affected locations:**
 - `cmdStateRecordMetric` — metrics table body includes user-provided phase/duration values
@@ -34,7 +34,7 @@ Last updated: 2026-02-24
 
 ### 7. Phase Remove Cascading Renumber in ROADMAP.md
 
-**Bug:** The legacy `cmdPhaseRemove` phase-management implementation renumbered subsequent phase references in ROADMAP.md using a reverse loop (from maxPhase down to removedInt+1). This caused cascading renames: "Phase 8" -> "Phase 7", then the new "Phase 7" was caught again by the "Phase 7" -> "Phase 6" rename, producing incorrect numbering.
+**Bug:** The previous `cmdPhaseRemove` phase-management implementation renumbered subsequent phase references in ROADMAP.md using a reverse loop (from maxPhase down to removedInt+1). This caused cascading renames: "Phase 8" -> "Phase 7", then the new "Phase 7" was caught again by the "Phase 7" -> "Phase 6" rename, producing incorrect numbering.
 
 **Example:** Removing phase 5 from [1,2,3,4,5,6,7,8] would produce [1,2,3,4,5,5,5] instead of [1,2,3,4,5,6,7].
 
@@ -54,7 +54,7 @@ Last updated: 2026-02-24
 
 ### 9. Progress Data Loss from Unconditional Delete in syncStateJson
 
-**Bug:** In the legacy `syncStateJson` state-sync implementation, the line `delete merged.position.progress` executed unconditionally after attempting a `%` regex match on the progress string. If the regex didn't match (e.g., progress was "Drafting introduction" instead of "50%"), the progress field was silently destroyed.
+**Bug:** In the previous `syncStateJson` state-sync implementation, the line `delete merged.position.progress` executed unconditionally after attempting a `%` regex match on the progress string. If the regex didn't match (e.g., progress was "Drafting introduction" instead of "50%"), the progress field was silently destroyed.
 
 **Fix:** Moved the `delete merged.position.progress` inside the `if (m)` block so it only fires when the percentage was successfully extracted.
 
@@ -62,7 +62,7 @@ Last updated: 2026-02-24
 
 ### 10. NaN Propagation from Non-Numeric Total Phases/Plans
 
-**Bug:** `parseStateMd` in the legacy state parser used `parseInt(value, 10)` on `Total Phases` and `Total Plans in Phase` fields without a NaN guard. If these fields contained non-numeric values like "TBD" or "N/A", `parseInt` returned `NaN`, which propagated into state.json and serialized as `null`, silently losing the original value.
+**Bug:** `parseStateMd` in the previous state parser used `parseInt(value, 10)` on `Total Phases` and `Total Plans in Phase` fields without a NaN guard. If these fields contained non-numeric values like "TBD" or "N/A", `parseInt` returned `NaN`, which propagated into state.json and serialized as `null`, silently losing the original value.
 
 **Fix:** Replaced with `safeParseInt(value, null)` from the shared utility layer, which never returns NaN. Non-numeric values produce `null`.
 
@@ -70,7 +70,7 @@ Last updated: 2026-02-24
 
 ### 11. progress_percent Null-to-Zero Roundtrip Corruption
 
-**Bug:** `renderStateMd` in the legacy state renderer used `const pct = s.position.progress_percent ?? 0` to render the progress bar. When progress was genuinely unknown (`null`), this defaulted to `0`, rendering `[░░░░░░░░░░] 0%` in STATE.md. On the next parse, this re-read as `progress_percent: 0`, permanently replacing "unknown" with "zero progress".
+**Bug:** `renderStateMd` in the previous state renderer used `const pct = s.position.progress_percent ?? 0` to render the progress bar. When progress was genuinely unknown (`null`), this defaulted to `0`, rendering `[░░░░░░░░░░] 0%` in STATE.md. On the next parse, this re-read as `progress_percent: 0`, permanently replacing "unknown" with "zero progress".
 
 **Fix:** Only render the progress bar when `pct != null`. Unknown progress now correctly omits the progress bar entirely.
 
@@ -78,7 +78,7 @@ Last updated: 2026-02-24
 
 ### 12. depends-on Hyphenated YAML Key Ignored in Wave Validation
 
-**Bug:** `validateWaves` and `cmdPhasePlanIndex` in the legacy phase-planning module only checked `fm.depends_on` (underscore) from YAML frontmatter, ignoring `fm["depends-on"]` (hyphen). YAML allows both `depends_on:` and `depends-on:` as keys, and the hyphenated form is common. This caused silent dependency loss — plans with `depends-on:` appeared to have no dependencies, potentially executing out of order.
+**Bug:** `validateWaves` and `cmdPhasePlanIndex` in the previous phase-planning module only checked `fm.depends_on` (underscore) from YAML frontmatter, ignoring `fm["depends-on"]` (hyphen). YAML allows both `depends_on:` and `depends-on:` as keys, and the hyphenated form is common. This caused silent dependency loss — plans with `depends-on:` appeared to have no dependencies, potentially executing out of order.
 
 **Note:** The existing code already had this hyphen fallback pattern for `files-modified` vs `files_modified`, but it was missing for `depends-on`.
 
@@ -86,21 +86,21 @@ Last updated: 2026-02-24
 
 **Status:** Fixed.
 
-### 13. gpd CLI Required a Deprecated Runtime 18+ (Caveat)
+### 13. gpd CLI Required Runtime 18+ (Caveat)
 
-**Bug:** The original CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required a deprecated runtime 18 or later. Previously it had no version check at startup, so older environments failed cryptically.
+**Bug:** The original CLI used `SharedArrayBuffer` for `Atomics.wait` (used in file locking). This required runtime 18 or later. Previously it had no version check at startup, so older environments failed cryptically.
 
-**Status:** Obsolete. The CLI has been rewritten in Python. The `gpd health` command checks Python version and environment. The deprecated runtime dependency no longer exists.
+**Status:** Obsolete. The CLI has been rewritten in Python. The `gpd health` command checks Python version and environment. The old runtime dependency no longer exists.
 
 ### 15. State Auto-Compact Implementation Lost During Concurrent Edits
 
-**Bug:** The `cmdStateAutoCompact` function and its `state auto-compact` CLI routing were implemented in the legacy state and CLI routing modules but lost during concurrent edits by multiple agents. The function body and routing were present in one session but absent in the next.
+**Bug:** The `cmdStateAutoCompact` function and its `state auto-compact` CLI routing were implemented in the previous state and CLI routing modules but lost during concurrent edits by multiple agents. The function body and routing were present in one session but absent in the next.
 
 **Status:** Fixed. Auto-compact is wired into transition.md (step `auto_compact_state`, lines 469-491) — calls `state compact` after each phase transition and commits if compaction occurred. Progress.md (line 153) runs a compaction health check and warns when STATE.md exceeds the 150-line target. The `state compact` command uses a 1500-line hard threshold for automatic compaction and a 150-line soft warning threshold.
 
 ### 16. validate-return Command Integration
 
-**Bug:** The `gpd validate-return` command was implemented in the legacy CLI/router stack and initially reported as having no callers.
+**Bug:** The `gpd validate-return` command was implemented in the previous CLI/router stack and initially reported as having no callers.
 
 **Status:** Fixed. `execute-phase.md` (line 264) calls `validate-return` as part of post-execution validation for each agent SUMMARY. The command validates gpd_return YAML envelopes and marks plans as NEEDS_REVIEW if validation fails (non-fatal warning). Additionally, `gpd health` checks for gpd_return presence in the system health dashboard.
 

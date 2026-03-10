@@ -67,7 +67,6 @@ class SkillDef:
     path: str
     source_kind: str  # "command" or "agent"
     registry_name: str
-    aliases: tuple[str, ...] = ()
 
 
 # ─── Parsing helpers ─────────────────────────────────────────────────────────
@@ -75,6 +74,7 @@ class SkillDef:
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
+    text = text.lstrip('﻿')
     match = _FRONTMATTER_RE.match(text)
     if not match:
         return {}, text
@@ -312,7 +312,6 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
         skill_name = _canonical_skill_name_for_command(registry_name, command)
         if skill_name in result:
             raise ValueError(f"Duplicate skill name {skill_name!r} from command registry")
-        aliases = (registry_name,) if registry_name != skill_name else ()
         result[skill_name] = SkillDef(
             name=skill_name,
             description=command.description,
@@ -321,7 +320,6 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
             path=command.path,
             source_kind="command",
             registry_name=registry_name,
-            aliases=aliases,
         )
 
     for registry_name, agent in sorted(agents.items()):
@@ -330,7 +328,6 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
         skill_name = agent.name
         if skill_name in result:
             raise ValueError(f"Duplicate skill name {skill_name!r} across commands and agents")
-        aliases = (registry_name,) if registry_name != skill_name else ()
         result[skill_name] = SkillDef(
             name=skill_name,
             description=agent.description,
@@ -339,7 +336,6 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
             path=agent.path,
             source_kind="agent",
             registry_name=registry_name,
-            aliases=aliases,
         )
 
     return result
@@ -386,21 +382,15 @@ def list_skills() -> list[str]:
 
 
 def get_skill(name: str) -> SkillDef:
-    """Get a canonical skill definition by canonical name or registry alias."""
+    """Get a canonical skill definition by canonical name."""
     skills = _cache.skills()
     candidates = [name]
     if name.startswith("gpd:"):
         candidates.append(name.replace("gpd:", "gpd-", 1))
-    elif not name.startswith("gpd-"):
-        candidates.append(f"gpd-{name}")
 
     for candidate in candidates:
         skill = skills.get(candidate)
         if skill is not None:
-            return skill
-
-    for skill in skills.values():
-        if name in skill.aliases:
             return skill
 
     raise KeyError(f"Skill not found: {name}")

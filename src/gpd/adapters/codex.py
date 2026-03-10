@@ -23,7 +23,6 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
-    LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     convert_tool_references_in_body,
@@ -361,8 +360,11 @@ class CodexAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         _copy_commands_as_skills(commands_src, self._skills_dir, "gpd", path_prefix)
+        if verify_installed(self._skills_dir, "command skills"):
+            logger.info("Installed command skills")
+        else:
+            failures.append("command skills")
         skill_count = sum(1 for d in self._skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
-        logger.info("Installed %d command skills", skill_count)
         return skill_count
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -471,7 +473,7 @@ class CodexAdapter(RuntimeAdapter):
                 for hook_path in hooks_dir.iterdir():
                     if not hook_path.is_file():
                         continue
-                    if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
+                    if hook_path.name in HOOK_SCRIPTS.values():
                         hook_path.unlink()
                         counts["hooks"] += 1
 
@@ -881,12 +883,6 @@ def _configure_config_toml(
         toml_content = config_toml.read_text(encoding="utf-8")
 
     notify_hook = HOOK_SCRIPTS["codex_notify"]
-    legacy_markers = (
-        "codex_notify.py",
-        "check_update.py",
-        "gpd-codex-notify",
-        "gpd-check-update",
-    )
 
     if is_global or explicit_target:
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
@@ -895,7 +891,6 @@ def _configure_config_toml(
     configured = _install_gpd_notify_config(
         toml_content,
         desired_path=desired_path,
-        legacy_markers=legacy_markers,
     )
     config_toml.write_text(
         _install_gpd_multi_agent_config(configured),
@@ -903,8 +898,8 @@ def _configure_config_toml(
     )
 
 
-def _line_contains_gpd_notify(line: str, legacy_markers: tuple[str, ...]) -> bool:
-    return any(marker in line for marker in legacy_markers)
+def _line_contains_gpd_notify(line: str) -> bool:
+    return "codex_notify.py" in line
 
 
 def _parse_notify_assignment(line: str) -> list[str] | None:
@@ -947,7 +942,6 @@ def _install_gpd_notify_config(
     toml_content: str,
     *,
     desired_path: str,
-    legacy_markers: tuple[str, ...],
 ) -> str:
     desired_line = _build_notify_line(desired_path)
     cleaned_lines: list[str] = []
@@ -963,7 +957,7 @@ def _install_gpd_notify_config(
         if stripped.startswith("notify"):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
-            if _line_contains_gpd_notify(line, legacy_markers):
+            if _line_contains_gpd_notify(line):
                 continue
             existing_notify = _parse_notify_assignment(line)
             continue
@@ -990,12 +984,6 @@ def _install_gpd_notify_config(
 
 
 def _remove_gpd_notify_config(toml_content: str) -> str:
-    legacy_markers = (
-        "codex_notify.py",
-        "check_update.py",
-        "gpd-codex-notify",
-        "gpd-check-update",
-    )
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     original_notify: str | None = None
@@ -1011,7 +999,7 @@ def _remove_gpd_notify_config(toml_content: str) -> str:
                 insert_at = len(cleaned_lines)
             original_notify = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
             continue
-        if stripped.startswith("notify") and _line_contains_gpd_notify(line, legacy_markers):
+        if stripped.startswith("notify") and _line_contains_gpd_notify(line):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             continue

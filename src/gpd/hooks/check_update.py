@@ -83,7 +83,7 @@ def _is_older_than(a: str, b: str) -> bool:
             if len(numeric_parts) == 3:
                 break
         numeric_parts.extend([0] * (3 - len(numeric_parts)))
-        return tuple(numeric_parts[:3])
+        return (numeric_parts[0], numeric_parts[1], numeric_parts[2])
 
     return parts(normalized_a) < parts(normalized_b)
 

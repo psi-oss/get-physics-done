@@ -181,8 +181,8 @@ def _load_config(cwd: Path) -> dict[str, object]:
     """Load project config.json with defaults. Returns flat dict with autonomy & research_mode.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical loader)
-    which handles backward compatibility for the legacy ``mode`` field and
-    nested config sections.  Falls back to built-in defaults on any error so
+    which validates the current config schema and nested config sections.
+    Falls back to built-in defaults on any error so
     that suggest never crashes due to a bad config file.
     """
     try:
@@ -193,7 +193,7 @@ def _load_config(cwd: Path) -> dict[str, object]:
             "autonomy": str(cfg.autonomy.value),
             "research_mode": str(cfg.research_mode.value),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("suggest: canonical config load failed, using defaults", exc_info=True)
         return dict(_CONFIG_DEFAULTS)
 
@@ -730,8 +730,8 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         from gpd.core.state import load_state_json
 
         return load_state_json(cwd)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        logger.debug("suggest: state load failed", exc_info=True)
 
     # Fallback: direct JSON read
     state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
@@ -741,5 +741,5 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         if isinstance(parsed, dict):
             return parsed
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
+        logger.debug("suggest: state load failed", exc_info=True)
     return None

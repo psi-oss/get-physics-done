@@ -671,7 +671,7 @@ All returns use the `gpd_return` YAML envelope in `<structured_returns>` below. 
 
 **For convention conflicts:** `gpd_return` with `status: failed`, extended fields: `conflicts` (array of {category, phase_a, phase_b, value_a, value_b, test_value_result, suggested_resolution}), `severity`
 
-Do NOT use legacy status names (CONVENTIONS ESTABLISHED, CONVENTION UPDATE, CONVENTION CONFLICT). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </return_format>
 

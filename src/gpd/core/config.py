@@ -348,12 +348,18 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
 
     try:
         return GPDProjectConfig(
-            model_profile=_get_nested(parsed, "model_profile") or _CONFIG_DEFAULTS.model_profile,
+            model_profile=_coalesce(
+                _get_nested(parsed, "model_profile"),
+                _CONFIG_DEFAULTS.model_profile,
+            ),
             autonomy=_coalesce(
                 _get_nested(parsed, "autonomy"),
                 _CONFIG_DEFAULTS.autonomy,
             ),
-            research_mode=_get_nested(parsed, "research_mode") or _CONFIG_DEFAULTS.research_mode,
+            research_mode=_coalesce(
+                _get_nested(parsed, "research_mode"),
+                _CONFIG_DEFAULTS.research_mode,
+            ),
             commit_docs=_coalesce(
                 _get_nested(parsed, "commit_docs", section="planning", field="commit_docs"),
                 _CONFIG_DEFAULTS.commit_docs,
@@ -394,7 +400,10 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
                 _get_nested(parsed, "brave_search"),
                 _CONFIG_DEFAULTS.brave_search,
             ),
-            model_map=_get_nested(parsed, "model_map") or None,
+            model_map=_coalesce(
+                _get_nested(parsed, "model_map"),
+                None,
+            ),
             cost_per_million=_parse_cost_per_million(parsed),
         )
     except (ValueError, TypeError) as e:
@@ -411,7 +420,7 @@ def _coalesce(value: object, default: object) -> object:
 def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:
     """Parse cost_per_million override from config."""
     raw = _get_nested(parsed, "cost_per_million")
-    if not raw or not isinstance(raw, dict):
+    if raw is None or not isinstance(raw, dict):
         return None
     result: dict[str, TierCost] = {}
     for tier, costs in raw.items():
@@ -419,6 +428,7 @@ def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:
             try:
                 result[tier] = TierCost.model_validate(costs)
             except ValueError:
+                logger.warning("Ignoring invalid cost_per_million entry for tier %r: %r", tier, costs)
                 continue
     return result if result else None
 

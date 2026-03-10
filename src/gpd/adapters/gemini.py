@@ -20,7 +20,6 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     build_hook_command,
-    cleanup_orphaned_hooks,
     convert_tool_references_in_body,
     ensure_update_hook,
     expand_at_includes,
@@ -374,7 +373,7 @@ class GeminiAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
-        settings = cleanup_orphaned_hooks(read_settings(settings_path))
+        settings = read_settings(settings_path)
 
         # Enable experimental agents (required for custom sub-agents in Gemini CLI)
         experimental = settings.get("experimental")
@@ -456,7 +455,7 @@ class GeminiAdapter(RuntimeAdapter):
             status_line = settings.get("statusLine")
             if isinstance(status_line, dict):
                 cmd = status_line.get("command", "")
-                if isinstance(cmd, str) and ("gpd-statusline" in cmd or "statusline.py" in cmd):
+                if isinstance(cmd, str) and "statusline.py" in cmd:
                     del settings["statusLine"]
                     modified = True
 
@@ -517,12 +516,7 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and (
-            "gpd-check-update" in h["command"]
-            or "check_update" in h["command"]
-            or "gpd-statusline" in h["command"]
-            or "statusline.py" in h["command"]
-        )
+        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
         for h in entry_hooks
     )
 

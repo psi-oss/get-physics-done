@@ -615,12 +615,37 @@ def convention_set(
     force: bool = typer.Option(False, "--force", help="Overwrite existing convention"),
 ) -> None:
     """Set a convention in the convention lock."""
-    from gpd.core.conventions import convention_set
+    import json as _json
 
-    lock = _load_lock()
-    result = convention_set(lock, key, value, force=force)
-    if result.updated:
-        _save_lock(lock)
+    from gpd.contracts import ConventionLock
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.conventions import convention_set
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    # Perform the entire read-modify-write under a single file lock to avoid
+    # the TOCTOU race that existed when _load_lock() ran before _save_lock().
+    with file_lock(state_path):
+        try:
+            raw = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raw = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+
+        lock_data = raw.get("convention_lock", {})
+        if not isinstance(lock_data, dict):
+            lock_data = {}
+        lock = ConventionLock(**lock_data)
+
+        result = convention_set(lock, key, value, force=force)
+        if result.updated:
+            raw["convention_lock"] = lock.model_dump(exclude_none=True)
+            save_state_json_locked(cwd, raw)
+
     _output(result)
 
 
@@ -870,7 +895,10 @@ def frontmatter_get(
     from gpd.core.frontmatter import extract_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     meta, _ = extract_frontmatter(fm_content)
     if field:
         _output(meta.get(field))
@@ -888,7 +916,10 @@ def frontmatter_set(
     from gpd.core.frontmatter import splice_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     updated = splice_frontmatter(fm_content, {field: value})
     file_path.write_text(updated, encoding="utf-8")
     _output({"updated": field, "value": value})
@@ -902,9 +933,15 @@ def frontmatter_merge(
     """Merge JSON data into frontmatter."""
     from gpd.core.frontmatter import deep_merge_frontmatter
 
-    merge_data = json.loads(data)
+    try:
+        merge_data = json.loads(data)
+    except json.JSONDecodeError as e:
+        _error(f"Malformed JSON in --data: {e}")
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     updated = deep_merge_frontmatter(fm_content, merge_data)
     file_path.write_text(updated, encoding="utf-8")
     _output({"merged": True, "file": file})
@@ -919,7 +956,10 @@ def frontmatter_validate(
     from gpd.core.frontmatter import validate_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     _output(validate_frontmatter(fm_content, schema))
 
 

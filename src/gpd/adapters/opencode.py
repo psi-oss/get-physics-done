@@ -22,7 +22,6 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
-    LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     compute_path_prefix,
@@ -513,7 +512,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         for hook_path in hooks_dir.iterdir():
             if not hook_path.is_file():
                 continue
-            if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
+            if hook_path.name in HOOK_SCRIPTS.values():
                 hook_path.unlink()
                 counts["hooks"] += 1
 

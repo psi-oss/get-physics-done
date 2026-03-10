@@ -10,7 +10,6 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     build_hook_command,
-    cleanup_orphaned_hooks,
     copy_with_path_replacement,
     ensure_update_hook,
     read_settings,
@@ -111,7 +110,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
-        settings = cleanup_orphaned_hooks(read_settings(settings_path))
+        settings = read_settings(settings_path)
         statusline_command = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["statusline"],

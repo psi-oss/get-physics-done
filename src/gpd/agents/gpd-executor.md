@@ -1035,7 +1035,7 @@ gpd_return:
   duration_seconds: NNN
 ```
 
-> **Deprecation:** Do NOT use legacy status names (`PLAN COMPLETE`). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

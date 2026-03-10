@@ -1857,10 +1857,8 @@ All returns to the orchestrator MUST use this YAML envelope for reliable parsing
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
-  # Mapping from legacy labels:
-  #   ROOT_CAUSE_FOUND → completed
-  #   TROUBLESHOOTING_COMPLETE → completed
-  #   INVESTIGATION_INCONCLUSIVE → failed
+  # Use canonical status values directly.
+  # Capture detailed investigation outcomes in issues and next_actions.
   #   CHECKPOINT_REACHED → checkpoint
   files_written: [.gpd/debug/{slug}.md, ...]
   issues: [list of issues encountered, if any]
@@ -1870,7 +1868,7 @@ gpd_return:
 
 The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `session_file` is an extended field specific to this agent.
 
-> **Deprecation:** Do NOT use legacy status names (`ROOT CAUSE FOUND`, `TROUBLESHOOTING COMPLETE`, `INVESTIGATION INCONCLUSIVE`, `CHECKPOINT REACHED`). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

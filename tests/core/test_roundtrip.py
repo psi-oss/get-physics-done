@@ -1,6 +1,6 @@
 """Round-trip integration tests that exercise multiple gpd/core modules together.
 
-Ported from the legacy integration suite — tests that span phase create→list→complete,
+Ported from the historical integration suite — tests that span phase create→list→complete,
 roadmap analyze→phase add→re-analyze, phase remove with renumbering, milestone lifecycle,
 multi-level decimal phase handling, and phase-complete state transitions.
 """

@@ -2826,7 +2826,7 @@ Execute: `/gpd:execute-phase {phase} --gaps-only`
 
 Follow templates in checkpoints and revision_mode sections respectively.
 
-> **Deprecation:** Do NOT use legacy status names (`PLANNING COMPLETE`, `GAP CLOSURE PLANS CREATED`). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

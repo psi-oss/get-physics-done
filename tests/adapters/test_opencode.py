@@ -43,7 +43,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("ask_user") == "question"
         assert adapter.translate_tool_name("slash_command") == "skill"
 
-    def test_legacy_alias(self, adapter: OpenCodeAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: OpenCodeAdapter) -> None:
         assert adapter.translate_tool_name("AskUserQuestion") == "question"
         assert adapter.translate_tool_name("SlashCommand") == "skill"
 
@@ -116,7 +116,7 @@ class TestConvertFrontmatter:
         result = convert_claude_to_opencode_frontmatter(content)
         assert "~/.config/opencode/agents/gpd-verifier.md" in result
 
-    def test_legacy_tool_name_in_body_is_left_unchanged(self) -> None:
+    def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
         result = convert_claude_to_opencode_frontmatter(content)
         assert result == content

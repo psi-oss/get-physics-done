@@ -3909,7 +3909,7 @@ gpd_return:
   confidence: HIGH | MEDIUM | LOW | UNRELIABLE
 ```
 
-> **Deprecation:** Do NOT use legacy status names (`VERIFICATION COMPLETE`, `CHECKS PASSED`, `VERIFIED`). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

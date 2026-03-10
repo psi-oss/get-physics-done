@@ -1054,7 +1054,7 @@ When unable to proceed:
 
 Append this YAML block after the markdown return. Required per agent-infrastructure.md:
 
-**DEPRECATION:** Do NOT use legacy status names (SYNTHESIS COMPLETE, SYNTHESIS BLOCKED). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ```yaml
 gpd_return:

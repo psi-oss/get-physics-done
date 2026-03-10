@@ -39,10 +39,11 @@ def phase_normalize(name: str) -> str:
     Sub-levels are NOT padded: "3.1.2" -> "03.1.2", "12" -> "12".
     Non-numeric prefixes are returned as-is.
     """
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
+    match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
-    parts = match.group(1).split(".")
+    numeric, suffix = match.group(1), match.group(2)
+    parts = numeric.split(".")
     normalized = []
     for i, part in enumerate(parts):
         try:
@@ -50,7 +51,7 @@ def phase_normalize(name: str) -> str:
             normalized.append(str(v).zfill(2) if i == 0 else str(v))
         except ValueError:
             normalized.append(part)
-    return ".".join(normalized)
+    return ".".join(normalized) + suffix
 
 
 def phase_unpad(name: str) -> str:
@@ -59,17 +60,18 @@ def phase_unpad(name: str) -> str:
     Returns the "display" form: "08.1.1" -> "8.1.1".
     Preserves all decimal levels.
     """
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
+    match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
-    parts = match.group(1).split(".")
+    numeric, suffix = match.group(1), match.group(2)
+    parts = numeric.split(".")
     unpadded = []
     for part in parts:
         try:
             unpadded.append(str(int(part)))
         except ValueError:
             unpadded.append(part)
-    return ".".join(unpadded)
+    return ".".join(unpadded) + suffix
 
 
 def compare_phase_numbers(a: str, b: str) -> int:
@@ -169,7 +171,7 @@ def safe_read_file_truncated(path: Path, max_chars: int | None = None) -> str | 
     content = safe_read_file(path)
     if content is None:
         return None
-    limit = max_chars or MAX_INCLUDE_CHARS
+    limit = max_chars if max_chars is not None else MAX_INCLUDE_CHARS
     if len(content) <= limit:
         return content
     return content[:limit] + f"\n\n...truncated ({len(content)} chars total, showing first {limit})."

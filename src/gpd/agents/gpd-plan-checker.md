@@ -1348,7 +1348,7 @@ gpd_return:
   escalation: null | {pattern, options}  # present when status is blocked (after 3 rounds)
 ```
 
-Do NOT use legacy status names (VERIFICATION PASSED, ISSUES FOUND). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

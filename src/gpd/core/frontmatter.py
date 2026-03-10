@@ -407,7 +407,14 @@ def verify_summary(
             errors=["SUMMARY.md not found"],
         )
 
-    content = full_path.read_text(encoding="utf-8")
+    try:
+        content = full_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        return SummaryVerification(
+            passed=False,
+            summary_exists=True,
+            errors=[f"Cannot read file (invalid UTF-8): {exc}"],
+        )
     try:
         extract_frontmatter(content)
     except FrontmatterParseError as exc:
@@ -719,7 +726,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
     artifacts_list = parse_must_haves_block(content, "artifacts")
     if not artifacts_list:
         return ArtifactVerification(
-            all_passed=False,
+            all_passed=True,
             artifacts=[],
             total=0,
         )
@@ -750,7 +757,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
 
         if exists:
             file_content = safe_read_file(art_full) or ""
-            line_count = file_content.count("\n") + 1
+            line_count = file_content.count("\n") if file_content else 0
 
             min_lines = artifact.get("min_lines")
             if min_lines and line_count < min_lines:

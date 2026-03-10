@@ -1099,7 +1099,7 @@ gpd_return:
   phases_created: {count}
 ```
 
-Do NOT use legacy status names (ROADMAP CREATED, ROADMAP REVISED). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

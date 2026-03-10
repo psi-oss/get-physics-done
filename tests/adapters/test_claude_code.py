@@ -41,7 +41,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("shell") == "Bash"
         assert adapter.translate_tool_name("search_files") == "Grep"
 
-    def test_legacy_alias(self, adapter: ClaudeCodeAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: ClaudeCodeAdapter) -> None:
         assert adapter.translate_tool_name("Read") == "Read"
         assert adapter.translate_tool_name("Bash") == "Bash"
 

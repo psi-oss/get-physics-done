@@ -42,7 +42,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("search_files") == "search_file_content"
         assert adapter.translate_tool_name("web_search") == "google_web_search"
 
-    def test_legacy_alias(self, adapter: GeminiAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: GeminiAdapter) -> None:
         assert adapter.translate_tool_name("Read") == "read_file"
         assert adapter.translate_tool_name("Bash") == "run_shell_command"
 

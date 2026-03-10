@@ -10,6 +10,7 @@ File locking via fcntl.flock() prevents concurrent modification.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -434,22 +435,22 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
 
 
 def is_valid_status(value: str) -> bool:
-    """Check if a status value is recognized (case-insensitive prefix match)."""
+    """Check if a status value is recognized (case-insensitive exact match)."""
     lower = value.lower()
-    return any(lower.startswith(s.lower()) for s in VALID_STATUSES)
+    return any(lower.strip() == s.lower() for s in VALID_STATUSES)
 
 
 def validate_state_transition(current_status: str, new_status: str) -> str | None:
     """Validate a state transition. Returns None if valid, or an error message."""
-    current_lower = current_status.lower()
-    new_lower = new_status.lower()
+    current_lower = current_status.strip().lower()
+    new_lower = new_status.strip().lower()
 
     if current_lower == new_lower:
         return None
 
     matched_key = None
     for key in sorted(VALID_TRANSITIONS, key=len, reverse=True):
-        if current_lower.startswith(key):
+        if current_lower == key:
             matched_key = key
             break
 
@@ -463,7 +464,7 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
     if allowed is None:
         return None
 
-    if any(new_lower.startswith(target) for target in allowed):
+    if any(new_lower == target for target in allowed):
         return None
 
     return f'Invalid transition: "{current_status}" \u2192 "{new_status}". Valid targets: {", ".join(allowed)}'
@@ -628,9 +629,9 @@ def parse_state_md(content: str) -> dict:
     )
     if session_match:
         sec = session_match.group(1)
-        ld = re.search(r"\*\*Last (?:session|Date):\*\*\s*(.+)", sec, re.IGNORECASE)
-        sa = re.search(r"\*\*Stopped [Aa]t:\*\*\s*(.+)", sec)
-        rf = re.search(r"\*\*Resume [Ff]ile:\*\*\s*(.+)", sec)
+        ld = re.search(r"\*\*Last session:\*\*\s*(.+)", sec)
+        sa = re.search(r"\*\*Stopped at:\*\*\s*(.+)", sec)
+        rf = re.search(r"\*\*Resume file:\*\*\s*(.+)", sec)
         if ld:
             session["last_date"] = ld.group(1).strip()
         if sa:
@@ -638,15 +639,15 @@ def parse_state_md(content: str) -> dict:
         if rf:
             session["resume_file"] = rf.group(1).strip()
     if not session["last_date"]:
-        ls = state_extract_field(content, "Last session") or state_extract_field(content, "Last Date")
+        ls = state_extract_field(content, "Last session")
         if ls:
             session["last_date"] = ls
     if not session["stopped_at"]:
-        sa = state_extract_field(content, "Stopped At") or state_extract_field(content, "Stopped at")
+        sa = state_extract_field(content, "Stopped at")
         if sa:
             session["stopped_at"] = sa
     if not session["resume_file"]:
-        rf = state_extract_field(content, "Resume File") or state_extract_field(content, "Resume file")
+        rf = state_extract_field(content, "Resume file")
         if rf:
             session["resume_file"] = rf
 
@@ -745,28 +746,12 @@ def parse_state_to_json(content: str) -> dict:
 # ─── Schema Enforcement ───────────────────────────────────────────────────────
 
 
-def _drop_removed_legacy_keys(raw: dict) -> dict:
-    """Drop removed state keys before Pydantic validation."""
-    raw.pop("project", None)
-    raw.pop("metrics", None)
-
-    session = raw.get("session")
-    if isinstance(session, dict):
-        session.pop("last_session", None)
-
-    position = raw.get("position")
-    if isinstance(position, dict):
-        position.pop("progress", None)
-
-    return raw
-
-
 def ensure_state_schema(raw: dict | None) -> dict:
     """Merge a (possibly incomplete) state dict with defaults so every field exists.
 
     Uses Pydantic model_validate to populate missing fields from ResearchState defaults.
     Type-mismatched fields (e.g. string where list expected) are dropped so Pydantic
-    fills them with defaults. Removed legacy keys are discarded rather than migrated.
+    fills them with defaults.
 
     If validation still fails after top-level type fixup (e.g. wrong types inside nested
     objects), the offending top-level keys are progressively removed until validation
@@ -777,7 +762,7 @@ def ensure_state_schema(raw: dict | None) -> dict:
     if not raw or not isinstance(raw, dict):
         return default_state_dict()
 
-    normalized = _drop_removed_legacy_keys(dict(raw))  # shallow copy to avoid mutating input
+    normalized = copy.deepcopy(raw)  # deep copy to avoid mutating caller's nested objects
 
     # Drop fields with wrong types so Pydantic can refill them from defaults.
     defaults = default_state_dict()
@@ -1113,12 +1098,21 @@ def _recover_intent_locked(cwd: Path) -> None:
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
 
-    if json_tmp_exists and md_tmp_exists:
-        # Both temp files ready — complete the interrupted write
+    # Validate temp file content before promoting
+    json_valid = False
+    if json_tmp_exists:
+        try:
+            json.loads(json_tmp.read_text(encoding="utf-8"))
+            json_valid = True
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
+
+    if json_tmp_exists and md_tmp_exists and json_valid:
+        # Both temp files ready and valid — complete the interrupted write
         os.rename(json_tmp, json_path)
         os.rename(md_tmp, md_path)
     else:
-        # Partial — rollback by cleaning up temp files
+        # Partial or corrupt — rollback by cleaning up temp files
         if json_tmp_exists:
             try:
                 json_tmp.unlink()
@@ -1289,8 +1283,8 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 
     try:
         # Phase 1: Write both temp files
-        json_tmp.write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
-        md_tmp.write_text(generate_state_markdown(normalized), encoding="utf-8")
+        atomic_write(json_tmp, json.dumps(normalized, indent=2) + "\n")
+        atomic_write(md_tmp, generate_state_markdown(normalized))
 
         # Phase 2: Write intent marker, then rename both
         intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
@@ -1317,12 +1311,12 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
         # Restore backups
         if json_backup is not None:
             try:
-                json_path.write_text(json_backup, encoding="utf-8")
+                atomic_write(json_path, json_backup)
             except OSError:
                 pass
         if md_backup is not None:
             try:
-                md_path.write_text(md_backup, encoding="utf-8")
+                atomic_write(md_path, md_backup)
             except OSError:
                 pass
         raise
@@ -1768,26 +1762,18 @@ def state_record_session(
         if new_content != content:
             content = new_content
             updated.append("Last session")
-        new_content = state_replace_field(content, "Last Date", now)
-        if new_content != content:
-            content = new_content
-            updated.append("Last Date")
 
         if stopped_at:
-            new_content = state_replace_field(content, "Stopped At", stopped_at)
-            if new_content == content:
-                new_content = state_replace_field(content, "Stopped at", stopped_at)
+            new_content = state_replace_field(content, "Stopped at", stopped_at)
             if new_content != content:
                 content = new_content
-                updated.append("Stopped At")
+                updated.append("Stopped at")
 
         resume = resume_file or "None"
-        new_content = state_replace_field(content, "Resume File", resume)
-        if new_content == content:
-            new_content = state_replace_field(content, "Resume file", resume)
+        new_content = state_replace_field(content, "Resume file", resume)
         if new_content != content:
             content = new_content
-            updated.append("Resume File")
+            updated.append("Resume file")
 
         if updated:
             _write_state_markdown_locked(cwd, content)

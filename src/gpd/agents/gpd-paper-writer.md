@@ -1514,7 +1514,7 @@ Flag for researcher review. Run `/gpd:debug` to investigate the discrepancy befo
 - Figures referenced: {list}
 ```
 
-**DEPRECATION:** Do NOT use legacy status names (SECTION DRAFTED, WRITING BLOCKED). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ```yaml
 gpd_return:

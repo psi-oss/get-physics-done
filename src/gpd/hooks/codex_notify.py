@@ -35,7 +35,7 @@ def _trigger_update_check(cwd: str) -> None:
             start_new_session=True,
         )
     except OSError as exc:
-        _debug(f"Failed to spawn gpd-check-update: {exc}")
+        _debug(f"Failed to spawn check_update.py: {exc}")
 
 
 def _check_and_notify_update() -> None:
