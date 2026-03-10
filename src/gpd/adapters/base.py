@@ -263,9 +263,9 @@ class RuntimeAdapter(abc.ABC):
                     except (ValueError, OSError):
                         mcp_data = None
                     if isinstance(mcp_data, dict) and isinstance(mcp_data.get("mcpServers"), dict):
-                        from gpd.mcp.builtin_servers import GPD_MANAGED_MCP_SERVER_KEYS
+                        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-                        gpd_mcp = [k for k in mcp_data["mcpServers"] if k in GPD_MANAGED_MCP_SERVER_KEYS]
+                        gpd_mcp = [k for k in mcp_data["mcpServers"] if k in GPD_MCP_SERVER_KEYS]
                         for k in gpd_mcp:
                             del mcp_data["mcpServers"][k]
                         if gpd_mcp:

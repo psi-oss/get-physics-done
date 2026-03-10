@@ -402,14 +402,13 @@ class GeminiAdapter(RuntimeAdapter):
         # Wire MCP servers into settings so they start automatically.
         import sys
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict, remove_legacy_mcp_server_entries
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
         if mcp_servers:
             existing_mcp = settings.get("mcpServers", {})
             if not isinstance(existing_mcp, dict):
                 existing_mcp = {}
-            remove_legacy_mcp_server_entries(existing_mcp)
             existing_mcp.update(mcp_servers)
             settings["mcpServers"] = existing_mcp
 

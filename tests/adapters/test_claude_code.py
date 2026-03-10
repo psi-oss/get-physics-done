@@ -206,35 +206,6 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .claude/hooks/check_update.py" in cmds
 
-    def test_install_rewrites_legacy_arxiv_mcp_server(
-        self,
-        adapter: ClaudeCodeAdapter,
-        gpd_root: Path,
-        tmp_path: Path,
-    ) -> None:
-        target = tmp_path / "target" / ".claude"
-        target.mkdir(parents=True)
-        mcp_config_path = target.parent / ".mcp.json"
-        mcp_config_path.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {
-                        "arxiv": {"command": "python", "args": ["-m", "legacy_server"]},
-                        "custom": {"command": "keep"},
-                    }
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
-        adapter.install(gpd_root, target)
-
-        mcp_config = json.loads(mcp_config_path.read_text(encoding="utf-8"))
-        assert "gpd-arxiv" in mcp_config["mcpServers"]
-        assert "arxiv" not in mcp_config["mcpServers"]
-        assert mcp_config["mcpServers"]["custom"]["command"] == "keep"
-
     def test_install_raises_on_missing_dirs(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
         bad_root = tmp_path / "empty"
         bad_root.mkdir()

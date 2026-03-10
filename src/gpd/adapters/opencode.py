@@ -568,9 +568,9 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         except (json.JSONDecodeError, OSError):
             oc_mcp = None
         if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcp"), dict):
-            from gpd.mcp.builtin_servers import GPD_MANAGED_MCP_SERVER_KEYS
+            from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-            gpd_keys = [k for k in oc_mcp["mcp"] if k in GPD_MANAGED_MCP_SERVER_KEYS]
+            gpd_keys = [k for k in oc_mcp["mcp"] if k in GPD_MCP_SERVER_KEYS]
             for k in gpd_keys:
                 del oc_mcp["mcp"][k]
             if gpd_keys:
@@ -632,9 +632,6 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     existing_mcp = config.get("mcp", {})
     if not isinstance(existing_mcp, dict):
         existing_mcp = {}
-    from gpd.mcp.builtin_servers import remove_legacy_mcp_server_entries
-
-    remove_legacy_mcp_server_entries(existing_mcp)
 
     for name, entry in servers.items():
         cmd = str(entry.get("command", ""))

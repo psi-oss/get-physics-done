@@ -62,24 +62,8 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 
 _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
 
-# Legacy keys we no longer emit but still need to clean up on reinstall/uninstall.
-_LEGACY_GPD_MCP_SERVER_KEYS = frozenset({"arxiv"})
-
-# Canonical keys that GPD emits today.
+# Keys that are GPD-managed and should be removed on uninstall.
 GPD_MCP_SERVER_KEYS = frozenset(_BUILTIN_SERVERS.keys())
-
-# All keys GPD should manage, including retired aliases from older installs.
-GPD_MANAGED_MCP_SERVER_KEYS = GPD_MCP_SERVER_KEYS | _LEGACY_GPD_MCP_SERVER_KEYS
-
-
-def remove_legacy_mcp_server_entries(servers: dict[str, object]) -> bool:
-    """Remove legacy MCP server aliases from a mutable server mapping."""
-    removed = False
-    for key in _LEGACY_GPD_MCP_SERVER_KEYS:
-        if key in servers:
-            del servers[key]
-            removed = True
-    return removed
 
 
 def _resolve_env(value: str) -> str:

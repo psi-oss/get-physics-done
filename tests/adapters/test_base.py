@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -104,33 +103,6 @@ class TestUninstallBase:
         target.mkdir()
         result = adapter.uninstall(target)
         assert result["removed"] == []
-
-    def test_removes_legacy_and_canonical_mcp_servers(self, tmp_path: Path) -> None:
-        adapter = get_adapter("claude-code")
-        target = tmp_path / ".claude"
-        target.mkdir()
-        mcp_path = tmp_path / ".mcp.json"
-        mcp_path.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {
-                        "arxiv": {"command": "python"},
-                        "gpd-arxiv": {"command": "python"},
-                        "custom": {"command": "keep"},
-                    }
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
-        result = adapter.uninstall(target)
-
-        cleaned = json.loads(mcp_path.read_text(encoding="utf-8"))
-        assert "arxiv" not in cleaned["mcpServers"]
-        assert "gpd-arxiv" not in cleaned["mcpServers"]
-        assert cleaned["mcpServers"]["custom"]["command"] == "keep"
-        assert "MCP servers from .mcp.json" in result["removed"]
 
 
 class TestAdapterConformance:

@@ -229,34 +229,6 @@ class TestInstall:
         assert "[features]" in content
         assert "multi_agent = true" in content
 
-    def test_install_rewrites_legacy_arxiv_mcp_section(
-        self,
-        adapter: CodexAdapter,
-        gpd_root: Path,
-        tmp_path: Path,
-    ) -> None:
-        target = tmp_path / ".codex"
-        target.mkdir()
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        config_toml = target / "config.toml"
-        config_toml.write_text(
-            '[mcp_servers.arxiv]\n'
-            'command = "python"\n'
-            'args = ["-m", "legacy_server"]\n'
-            '\n'
-            '[mcp_servers.custom]\n'
-            'command = "toolctl"\n',
-            encoding="utf-8",
-        )
-
-        adapter.install(gpd_root, target, skills_dir=skills)
-
-        content = config_toml.read_text(encoding="utf-8")
-        assert "[mcp_servers.gpd-arxiv]" in content
-        assert "[mcp_servers.arxiv]" not in content
-        assert "[mcp_servers.custom]" in content
-
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
