@@ -557,7 +557,7 @@ def parse_state_md(content: str) -> dict:
 
     # Project fields
     project = {
-        "core_question": state_extract_field(content, "Core research question"),
+        "core_research_question": state_extract_field(content, "Core research question"),
         "current_focus": state_extract_field(content, "Current focus"),
         "project_md_updated": None,
     }
@@ -702,7 +702,7 @@ def parse_state_to_json(content: str) -> dict:
         "_version": 1,
         "_synced_at": datetime.now(tz=UTC).isoformat(),
         "project_reference": {
-            "core_research_question": _strip_placeholder(parsed["project"]["core_question"]),
+            "core_research_question": _strip_placeholder(parsed["project"]["core_research_question"]),
             "current_focus": _strip_placeholder(parsed["project"]["current_focus"]),
             "project_md_updated": parsed["project"]["project_md_updated"],
         },

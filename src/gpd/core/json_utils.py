@@ -223,7 +223,10 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     if updated:
         fp.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(fp, json.dumps(working, indent=2) + "\n")
-    return {"file": str(fp), "path": path, "updated": updated}
+    result: dict[str, object] = {"file": str(fp), "path": path, "updated": updated}
+    if not updated:
+        result["error"] = "type mismatch at final path element"
+    return result
 
 
 def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, object]:

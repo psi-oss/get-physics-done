@@ -77,7 +77,7 @@ CONVENTION_OPTIONS: dict[str, list[str]] = {
 SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
     "qft": {
         "natural_units": "natural",
-        "metric_signature": "(+,-,-,-)",
+        "metric_signature": "mostly-minus",
         "fourier_convention": "physics",
         "index_positioning": "Einstein",
         "state_normalization": "relativistic",
@@ -87,7 +87,7 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "condensed_matter": {
         "natural_units": "natural",
-        "metric_signature": "Euclidean (+,+,+,+)",
+        "metric_signature": "euclidean",
         "fourier_convention": "physics",
         "state_normalization": "non-relativistic",
         "creation_annihilation_order": "normal",
@@ -99,7 +99,7 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "gr_cosmology": {
         "natural_units": "natural",
-        "metric_signature": "(-,+,+,+)",
+        "metric_signature": "mostly-plus",
         "fourier_convention": "physics",
         "index_positioning": "Einstein",
         "coordinate_system": "spherical",
@@ -111,7 +111,7 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "nuclear_particle": {
         "natural_units": "natural",
-        "metric_signature": "(+,-,-,-)",
+        "metric_signature": "mostly-minus",
         "fourier_convention": "physics",
         "state_normalization": "relativistic",
         "levi_civita_sign": "+1",
@@ -126,7 +126,7 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "algebraic_qft": {
         "natural_units": "natural",
-        "metric_signature": "(+,-,-,-)",
+        "metric_signature": "mostly-minus",
         "fourier_convention": "physics",
         "index_positioning": "Einstein",
         "state_normalization": "relativistic",

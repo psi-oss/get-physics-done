@@ -93,9 +93,9 @@ class TestComparePhaseNumbers:
         assert compare_phase_numbers("2", "2.1") < 0
 
     def test_different_depth_shorter_equal_prefix(self) -> None:
-        # "2" vs "2.0" — numerically equal, but lexicographic fallback
-        # makes "2" < "2.0" so the result is -1
-        assert compare_phase_numbers("2", "2.0") < 0
+        # "2" vs "2.0" — numerically equal (2 == 2, trailing .0 is 0);
+        # suffix-only fallback correctly treats them as equal.
+        assert compare_phase_numbers("2", "2.0") == 0
 
     def test_non_numeric_falls_back_to_lex(self) -> None:
         # Non-numeric strings that don't match the numeric regex
@@ -103,10 +103,10 @@ class TestComparePhaseNumbers:
         assert compare_phase_numbers("def", "abc") > 0
 
     def test_padded_vs_unpadded(self) -> None:
-        # "02" and "2" are numerically equal, but lexicographic fallback
-        # means "02" < "2" (since "0" < "2" in ASCII)
-        assert compare_phase_numbers("02", "2") < 0
-        assert compare_phase_numbers("2", "02") > 0
+        # "02" and "2" are numerically equal; suffix-only fallback
+        # correctly treats them as equal.
+        assert compare_phase_numbers("02", "2") == 0
+        assert compare_phase_numbers("2", "02") == 0
 
     def test_three_level_comparison(self) -> None:
         assert compare_phase_numbers("1.2.3", "1.2.4") < 0
@@ -424,19 +424,15 @@ class TestStateCompact:
         cwd = _make_large_state_md(tmp_path, n_old_decisions=50, extra_lines=80)
         result = state_compact(cwd)
 
-        if result.compacted:
-            archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
-            assert archive_path.exists()
-            archive_content = archive_path.read_text(encoding="utf-8")
-            assert "Old decision" in archive_content
+        assert result.compacted, f"Expected compaction to trigger, got reason={result.reason}"
+        archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
+        assert archive_path.exists()
+        archive_content = archive_path.read_text(encoding="utf-8")
+        assert "Old decision" in archive_content
 
-            # Current phase decision should still be in STATE.md
-            md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
-            assert "Current phase decision" in md
-        else:
-            # If nothing_to_archive because keep_phase_min logic didn't fire,
-            # that's acceptable — verify the reason is sensible
-            assert result.reason in ("within_budget", "nothing_to_archive")
+        # Current phase decision should still be in STATE.md
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
+        assert "Current phase decision" in md
 
     def test_compact_archives_resolved_blockers(self, tmp_path: Path) -> None:
         """Resolved blockers should be archived."""
@@ -445,18 +441,16 @@ class TestStateCompact:
         )
         result = state_compact(cwd)
 
-        if result.compacted:
-            archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
-            assert archive_path.exists()
-            archive_content = archive_path.read_text(encoding="utf-8")
-            # Either decisions or resolved blockers were archived
-            assert "Old decision" in archive_content or "Resolved" in archive_content
+        assert result.compacted, f"Expected compaction to trigger, got reason={result.reason}"
+        archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
+        assert archive_path.exists()
+        archive_content = archive_path.read_text(encoding="utf-8")
+        # Either decisions or resolved blockers were archived
+        assert "Old decision" in archive_content or "Resolved" in archive_content
 
-            # Active blocker should still be in STATE.md
-            md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
-            assert "Active blocker still open" in md
-        else:
-            assert result.reason in ("within_budget", "nothing_to_archive")
+        # Active blocker should still be in STATE.md
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
+        assert "Active blocker still open" in md
 
     def test_compact_appends_to_existing_archive(self, tmp_path: Path) -> None:
         """If STATE-ARCHIVE.md already exists, compact should append."""
@@ -465,9 +459,9 @@ class TestStateCompact:
         archive_path.write_text("# STATE Archive\n\nPrevious entries.\n\n", encoding="utf-8")
 
         result = state_compact(cwd)
-        if result.compacted:
-            archive_content = archive_path.read_text(encoding="utf-8")
-            assert "Previous entries." in archive_content
+        assert result.compacted, f"Expected compaction to trigger, got reason={result.reason}"
+        archive_content = archive_path.read_text(encoding="utf-8")
+        assert "Previous entries." in archive_content
 
     def test_compact_syncs_json_after_compaction(self, tmp_path: Path) -> None:
         """After compacting, state.json should reflect the updated STATE.md."""

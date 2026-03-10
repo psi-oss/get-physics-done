@@ -9,7 +9,7 @@
 
 \title[\VAR{title}]{\VAR{title}}
 
-\author[]{
+\author[\BLOCK{for author in authors}\VAR{author.name}\BLOCK{if not loop.last}, \BLOCK{endif}\BLOCK{endfor}]{
 \BLOCK{for author in authors}
 \VAR{author.name}\BLOCK{if author.affiliation}$^{\VAR{loop.index}}$\BLOCK{endif}\BLOCK{if not loop.last}, \BLOCK{endif}
 \BLOCK{endfor}

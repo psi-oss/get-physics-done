@@ -160,7 +160,7 @@ def test_parse_state_md_position():
 def test_parse_state_md_project():
     parsed = parse_state_md(MINIMAL_STATE_MD)
     proj = parsed["project"]
-    assert proj["core_question"] == "How does X work?"
+    assert proj["core_research_question"] == "How does X work?"
     assert proj["current_focus"] == "Testing the parser"
     assert proj["project_md_updated"] == "2026-03-01"
 

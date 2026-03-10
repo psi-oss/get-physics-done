@@ -216,7 +216,7 @@ def check_compaction_needed(cwd: Path) -> HealthCheck:
         re.IGNORECASE,
     )
     decision_count = (
-        len(re.findall(r"^\s*-\s+\[Phase", dec_match.group(1), re.MULTILINE | re.IGNORECASE)) if dec_match else 0
+        len(re.findall(r"^\s*-\s+\[?Phase", dec_match.group(1), re.MULTILINE | re.IGNORECASE)) if dec_match else 0
     )
 
     triggers: list[str] = []

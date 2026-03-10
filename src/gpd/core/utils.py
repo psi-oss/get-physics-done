@@ -90,10 +90,12 @@ def compare_phase_numbers(a: str, b: str) -> int:
         b_val = int(b_parts[i]) if i < len(b_parts) else 0
         if a_val != b_val:
             return a_val - b_val
-    # Fall back to lexicographic for non-numeric suffixes
-    if a < b:
+    # Fall back to lexicographic comparison of non-numeric suffixes only
+    a_suffix = a[a_match.end():] if a_match else a
+    b_suffix = b[b_match.end():] if b_match else b
+    if a_suffix < b_suffix:
         return -1
-    if a > b:
+    if a_suffix > b_suffix:
         return 1
     return 0
 
