@@ -21,6 +21,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | **Statistical mechanics / simulation** | `verification-domain-statmech.md`, `protocols/monte-carlo.md` or `protocols/molecular-dynamics.md`; add `protocols/conformal-bootstrap.md` when the target is critical exponents, universality class data, or the critical-point CFT |
 | **General relativity / cosmology** | `verification-domain-gr-cosmology.md`, plus `protocols/general-relativity.md`, `protocols/de-sitter-space.md`, `protocols/asymptotic-symmetries.md`, or `protocols/cosmological-perturbation-theory.md` depending on regime |
 | **Quantum gravity / holography** | `subfields/quantum-gravity.md`, plus `verification-domain-gr-cosmology.md`, `verification-domain-qft.md`, and `protocols/holography-ads-cft.md`, `protocols/de-sitter-space.md`, or `protocols/asymptotic-symmetries.md` depending on asymptotics |
+| **String theory / compactification** | `subfields/string-theory.md`, plus `verification-domain-qft.md`, `verification-domain-mathematical-physics.md`, and `protocols/supersymmetry.md`, `protocols/holography-ads-cft.md`, `protocols/de-sitter-space.md`, or `protocols/path-integrals.md` depending on regime |
 | **AMO physics** | `verification-domain-amo.md`, `executor-subfield-guide.md` §AMO |
 | **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `protocols/phenomenology.md`, and `executor-subfield-guide.md` §Nuclear & Particle Physics |
 | **Astrophysics** | `verification-domain-astrophysics.md`, `executor-subfield-guide.md` §Astrophysics |
@@ -59,6 +60,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | Statistical mechanics / cosmology / fluids | `verification-domain-statmech.md` |
 | General relativity / cosmology | `verification-domain-gr-cosmology.md` |
 | Quantum gravity / holography | `verification-domain-gr-cosmology.md` + `verification-domain-qft.md` |
+| String theory / compactification | `verification-domain-qft.md` + `verification-domain-mathematical-physics.md` + `verification-domain-gr-cosmology.md` |
 | AMO physics | `verification-domain-amo.md` |
 | Nuclear / particle physics | `verification-domain-nuclear-particle.md` |
 | Astrophysics | `verification-domain-astrophysics.md` |

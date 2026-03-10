@@ -26,6 +26,19 @@ When establishing conventions for a project, use the subfield (from PROJECT.md `
 | Renormalization | MS-bar | Default for perturbative QCD |
 | Gamma matrices | Dirac basis (P&S Ch. 3) | γ^0 = diag(1,1,−1,−1) |
 
+**String Theory**
+
+| Category | Default | Rationale |
+|----------|---------|-----------|
+| Units | Natural: hbar = c = 1; keep `alpha'` explicit until fixed | Avoids hiding the string scale |
+| String tension | `T = 1/(2*pi*alpha')` | Standard Polyakov/Polchinski normalization |
+| Expansion parameters | Track `alpha'` and `g_s` separately | Derivative corrections and genus expansion are different approximations |
+| Spacetime signature | Mostly minus Lorentzian for target space; Wick rotate worldsheet when using Euclidean CFT/path integrals | Standard split between target-space and worldsheet calculations |
+| Worldsheet gauge | Conformal gauge unless otherwise stated | Default in perturbative worldsheet computations |
+| Physical state condition | BRST cohomology (or equivalent Virasoro constraints in older notation) | Modern consistency language |
+| Compactification hierarchy | Keep `M_KK`, `M_s`, and low-energy EFT scale explicit | Needed for controlled dimensional reduction |
+| Duality language | State exactly which duality is used (T, S, U, mirror, AdS/CFT) and what is matched | Prevents slogan-level "duality" claims |
+
 **Condensed Matter (Analytical)**
 
 | Category | Default | Rationale |
@@ -139,3 +152,17 @@ When establishing conventions for a project, use the subfield (from PROJECT.md `
 | Branch cuts | log(z): cut along (−∞, 0] | Principal branch default; document any departure |
 | Summation | Einstein convention for repeated indices | State explicitly; identify which indices are summed |
 | Boundary conditions | Dirichlet, Neumann, or Robin — state regularity | Specify data regularity (H^{1/2}, L², etc.) |
+
+**String Field Theory**
+
+| Category | Default | Rationale |
+|----------|---------|-----------|
+| Units | Natural: `c = ħ = 1`; state explicitly whether `alpha' = 1` or `alpha' = 2` | Both conventions are common and materially different |
+| Target-space metric | `(+,−,−,−)` for spacetime observables; worldsheet Euclidean after Wick rotation | Keeps target-space and worldsheet roles distinct |
+| Fourier convention | Physics: `e^{−ikx}` forward, `dk/(2π)` measure | Standard when extracting spacetime fields and amplitudes |
+| Hilbert space | State explicitly: small or large Hilbert space | Superstring formulations are not interchangeable across this choice |
+| Ghost number | Open bosonic field usually ghost number `1`; closed bosonic field ghost number `2` | Canonical covariant SFT assignments |
+| Picture number | State sector-by-sector (NS/R) and formulation explicitly | Superstring consistency depends on it |
+| BPZ / reality | BPZ inner product and reality condition written explicitly | Needed for cyclicity and gauge invariance |
+| Gauge choice | Siegel gauge for level truncation unless another gauge is justified | Standard numerical starting point |
+| Closed-string constraints | State whether `b_0^- = 0`, `L_0^- = 0`, and level matching are imposed | Required for closed-string fields and vertices |

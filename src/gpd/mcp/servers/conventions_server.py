@@ -124,6 +124,12 @@ SUBFIELD_DEFAULTS: dict[str, dict[str, str]] = {
         "natural_units": "natural",
         "index_positioning": "Einstein",
     },
+    "string_field_theory": {
+        "natural_units": "natural",
+        "fourier_convention": "physics",
+        "index_positioning": "Einstein",
+        "creation_annihilation_order": "normal",
+    },
     "quantum_info": {
         "natural_units": "natural",
         "state_normalization": "non-relativistic",
@@ -456,7 +462,8 @@ def subfield_defaults(domain: str) -> dict:
 
     Valid domains: qft, condensed_matter, stat_mech, gr_cosmology,
     amo, nuclear_particle, astrophysics, mathematical_physics,
-    quantum_info, soft_matter, fluid_plasma, classical_mechanics.
+    string_field_theory, quantum_info, soft_matter, fluid_plasma,
+    classical_mechanics.
     """
     with gpd_span("mcp.conventions.subfield_defaults", domain=domain):
         defaults = SUBFIELD_DEFAULTS.get(domain)

@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, `protocols/generalized-symmetries.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/string-field-theory.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, `protocols/generalized-symmetries.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
 
 **Feynman Diagrams and Perturbation Theory:**
 
@@ -85,6 +85,13 @@ context_cost: medium
 - Saddle-point/stationary phase approximation for semiclassical limit
 - Instantons: classical solutions in Euclidean space; tunneling, vacuum structure, theta parameter
 - Schwinger-Dyson equations: exact functional relations between Green's functions
+
+**String Field Theory:**
+
+- Off-shell formulation of string interactions with BRST gauge structure
+- Open bosonic cubic SFT, Berkovits WZW-like superstring SFT, and modern `A_infinity` / `L_infinity` formulations
+- Benchmark problems: tachyon condensation, marginal deformations, shifted backgrounds, and open/closed couplings
+- Verification requires ghost/picture bookkeeping, BPZ cyclicity, and control of level truncation
 
 ## Key Tools and Software
 
@@ -167,6 +174,7 @@ context_cost: medium
 | **Supersymmetric QFT / protected sectors** | How far can localization, indices, dualities, and superconformal constraints determine strongly coupled dynamics? | Pestun, Rastelli, Razamat, Tachikawa, Komargodski | Excellent — protected observables are highly constrained; unprotected quantities still need explicit control |
 | **Asymptotic safety** | Does gravity have a UV fixed point? Compute critical exponents of the gravitational RG | Reuter, Percacci, Eichhorn groups | Good — functional RG, truncation systematics |
 | **Conformal bootstrap** | Determine CFT data (dimensions, OPE coefficients) non-perturbatively | Simmons-Duffin, Poland, Rychkov | Excellent — algebraic + numerical optimization |
+| **String field theory** | Can off-shell string interactions and background shifts be controlled in a formulation that remains computationally practical? | Sen, Zwiebach, Erler, Schnabl, Maccaferri | Good — algebraic and gauge-structure heavy; truncation control is essential |
 | **Precision Higgs/EW** | NNLO and N3LO corrections for LHC processes | CERN theory, Mistlberger, Czakon | Good — multi-loop integrals, IBP reduction |
 | **Non-perturbative QCD** | Lattice determination of hadron spectrum, form factors, PDFs at physical quark masses | BMW, RBC-UKQCD, MILC, ETM | Moderate — requires lattice infrastructure |
 | **EFT for gravitational waves** | Post-Minkowskian expansion for binary inspiral: quantum field theory methods for classical gravity | Bern, Cheung, Porto, Buonanno | Excellent — Feynman diagrams + classical limit |
@@ -182,6 +190,7 @@ Is there a small expansion parameter?
 ├── NO (strong coupling)
 │   ├── Lattice feasible? → Lattice QFT (Monte Carlo)
 │   ├── Large N? → 1/N expansion, holography
+│   ├── Stringy off-shell background problem? → String field theory
 │   ├── Conformal? → Bootstrap methods
 │   └── Topological? → Exact results (instantons, anomalies, index theorems)
 └── MIXED (perturbative + non-perturbative)

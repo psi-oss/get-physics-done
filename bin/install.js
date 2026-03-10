@@ -561,11 +561,9 @@ async function selectRuntimes(args) {
   console.log(
     ` ${cyan}1${reset}) ${RUNTIMES["claude-code"].name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("claude-code"))})${reset}`
   );
-  console.log(
-    ` ${cyan}2${reset}) ${RUNTIMES.opencode.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("opencode"))})${reset} - open source, free models`
-  );
-  console.log(` ${cyan}3${reset}) ${RUNTIMES.gemini.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("gemini"))})${reset}`);
-  console.log(` ${cyan}4${reset}) ${RUNTIMES.codex.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("codex"))})${reset}`);
+  console.log(` ${cyan}2${reset}) ${RUNTIMES.gemini.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("gemini"))})${reset}`);
+  console.log(` ${cyan}3${reset}) ${RUNTIMES.codex.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("codex"))})${reset}`);
+  console.log(` ${cyan}4${reset}) ${RUNTIMES.opencode.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("opencode"))})${reset}`);
   console.log(` ${cyan}5${reset}) All runtimes`);
   console.log("");
 

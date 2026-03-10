@@ -1,80 +1,80 @@
 {
   "mcpServers": {
     "gpd-conventions": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.conventions_server"
+        "-m",
+        "gpd.mcp.servers.conventions_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-errors": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.errors_mcp"
+        "-m",
+        "gpd.mcp.servers.errors_mcp"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-patterns": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.patterns_server"
+        "-m",
+        "gpd.mcp.servers.patterns_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-protocols": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.protocols_server"
+        "-m",
+        "gpd.mcp.servers.protocols_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-skills": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.skills_server"
+        "-m",
+        "gpd.mcp.servers.skills_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-state": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.state_server"
+        "-m",
+        "gpd.mcp.servers.state_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-verification": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m gpd.mcp.servers.verification_server"
+        "-m",
+        "gpd.mcp.servers.verification_server"
       ],
       "env": {
         "LOG_LEVEL": "WARNING"
       }
     },
     "gpd-arxiv": {
-      "command": "/bin/sh",
+      "command": "/Users/sergio/.gpd/venv/bin/python",
       "args": [
-        "-c",
-        "exec \"$HOME/GitHub/get-physics-done/.venv/bin/python3\" -m arxiv_mcp_server"
+        "-m",
+        "arxiv_mcp_server"
       ]
     }
   }

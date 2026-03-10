@@ -1,6 +1,6 @@
 """GPD Protocols MCP server — exposes physics computation protocols via MCP tools.
 
-Loads 47 protocol files from specs/references/protocols/, parses YAML frontmatter
+Loads protocol files from specs/references/protocols/, parses YAML frontmatter
 and markdown body, and serves them via FastMCP tools.
 
 Entry point: python -m gpd.mcp.servers.protocols_server
@@ -88,6 +88,7 @@ def _infer_domain(name: str, load_when: list[str]) -> str:
         "hamiltonian-mechanics",
         "scattering-theory",
         "supersymmetry",
+        "string-field-theory",
         "cosmological-perturbation-theory",
         "holography-ads-cft",
         "quantum-error-correction",

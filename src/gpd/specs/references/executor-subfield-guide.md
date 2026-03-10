@@ -10,6 +10,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 |--------|---------------|-------------------|
 | QFT | `subfields/qft.md` | `verification-domain-qft.md` |
 | Quantum Gravity | `subfields/quantum-gravity.md` | `verification-domain-gr-cosmology.md` + `verification-domain-qft.md` |
+| String Theory | `subfields/string-theory.md` | `verification-domain-qft.md` + `verification-domain-mathematical-physics.md` + `verification-domain-gr-cosmology.md` |
 | Condensed Matter | `subfields/condensed-matter.md` | `verification-domain-condmat.md` |
 | Statistical Mechanics | `subfields/stat-mech.md` | `verification-domain-statmech.md` |
 | General Relativity & Cosmology | `subfields/gr-cosmology.md` | `verification-domain-gr-cosmology.md` |
@@ -42,6 +43,14 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Generalized entropy and islands:** For Page-curve or entropy claims, state the radiation subsystem, the candidate quantum extremal surfaces, and the competing saddles. No "information recovery" claim is complete without this saddle comparison.
 - **Boundary conditions matter:** AdS, flat, and de Sitter asymptotics use different observables and different dictionaries. Load `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, or `protocols/de-sitter-space.md` explicitly rather than importing one regime's logic into another.
 - **UV-completion claims:** In asymptotic-safety or discrete/canonical work, demand approach-specific control: truncation/regulator stability for FRG, or a clean continuum/semi-classical observable for LQG/CDT/causal-set style calculations.
+
+## String Theory
+
+- **Framework declaration:** State whether the task is perturbative worldsheet string theory, D-brane/duality physics, compactification/moduli stabilization, swampland reasoning, or string field theory. Do not flatten them into generic "stringy effects."
+- **Worldsheet consistency first:** For perturbative spectra or amplitudes, verify central-charge balance, BRST/GSO conditions, level matching, and modular invariance before interpreting spacetime states or couplings.
+- **Expansion bookkeeping:** Keep `alpha'` and `g_s` separate. Higher-derivative corrections, string loops, and non-perturbative effects are different approximation layers and should never be merged into one generic uncertainty.
+- **Compactification discipline:** State the internal geometry, flux/orientifold data, tadpole conditions, stabilized moduli, and the hierarchy among the low-energy scale, KK scale, and string scale. A 4d EFT is not controlled until this hierarchy is explicit.
+- **Conjectural vs. established claims:** Swampland arguments, de Sitter constructions, and phenomenological statements must be labeled by their status: theorem, explicit example, controlled approximation, or conjecture. Do not present active debates as settled.
 
 ## Renormalization Group
 

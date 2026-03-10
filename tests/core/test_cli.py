@@ -37,7 +37,6 @@ def test_help():
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
-    assert "view" in result.output
 
 
 def test_state_help():
@@ -62,10 +61,10 @@ def test_session_command_is_not_exposed():
     assert "No such command 'session'" in result.output
 
 
-def test_view_help():
+def test_view_command_is_not_exposed():
     result = runner.invoke(app, ["view", "--help"])
-    assert result.exit_code == 0
-    assert "push" in result.output
+    assert result.exit_code != 0
+    assert "No such command 'view'" in result.output
 
 
 # ─── state subcommands ──────────────────────────────────────────────────────

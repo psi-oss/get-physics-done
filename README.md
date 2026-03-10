@@ -131,18 +131,6 @@ These commands run inside your installed AI runtime after GPD has been installed
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
 
-## Terminal CLI
-
-The same `gpd` install also includes the frame viewer. Use it from your shell when you want to inspect MCP simulation outputs:
-
-```bash
-gpd view
-```
-
-`gpd view` is a regular terminal utility. The research workflow itself runs inside your installed AI runtime.
-
-If `gpd` is not yet on your `PATH` after install, run `~/.gpd/bin/gpd view` or add `~/.gpd/bin` to your shell `PATH`.
-
 ## Requirements
 
 - Node.js with `npm`/`npx`

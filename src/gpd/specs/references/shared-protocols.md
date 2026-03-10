@@ -318,6 +318,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Scattering Theory | `protocols/scattering-theory.md` | Cross sections, phase shifts, S-matrix, partial waves, optical theorem |
 | Phenomenology | `protocols/phenomenology.md` | Likelihoods, global fits, EFT validity, recasting, correlated uncertainties, public reinterpretation |
 | Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, BPS bounds, localization, Seiberg-Witten/duality, soft breaking, supergravity caveats |
+| String Field Theory | `protocols/string-field-theory.md` | BRST string fields, star product, BV, `A_infinity` / `L_infinity`, tachyon condensation |
 | Cosmological Perturbation Theory | `protocols/cosmological-perturbation-theory.md` | Inflation, scalar/tensor perturbations, gauge choices, power spectra |
 | de Sitter Space | `protocols/de-sitter-space.md` | Positive cosmological constant, cosmological horizons, dS/CFT, static patch holography |
 | Holography / AdS-CFT | `protocols/holography-ads-cft.md` | AdS/CFT dictionary, holographic renormalization, entanglement entropy |
@@ -372,6 +373,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Nuclear / Particle Physics | `verification-domain-nuclear-particle.md` | Magic numbers, shell model, parton sum rules, CKM unitarity |
 | Astrophysics | `verification-domain-astrophysics.md` | Eddington luminosity, stellar structure, Jeans mass, opacity |
 | Mathematical Physics | `verification-domain-mathematical-physics.md` | Analyticity, spectral theory, asymptotics, distribution theory |
+| String Field Theory | `verification-domain-string-field-theory.md` | BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence |
 | Quantum Information | `verification-domain-quantum-info.md` | CPTP maps, entanglement measures, information bounds, channel capacity |
 | Soft Matter / Biophysics | `verification-domain-soft-matter.md` | Equilibration, scaling laws, force fields, finite-size analysis |
 

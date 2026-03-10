@@ -22,14 +22,14 @@ Useful checks:
 ```bash
 uv run pytest tests/test_release_consistency.py -v
 uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
-uv run pytest tests/core/test_cli.py tests/mcp/test_viewer_cli.py -v
+uv run pytest tests/core/test_cli.py -v
 uv run pytest tests/ -v
 ```
 
 Cross-runtime release checks:
 
 - `tests/adapters/test_registry.py` and `tests/adapters/test_install_roundtrip.py` cover install-time translation across Claude Code, Gemini CLI, Codex, and OpenCode.
-- `tests/core/test_cli.py` and `tests/mcp/test_viewer_cli.py` cover the public `gpd` CLI surface and `gpd view`.
+- `tests/core/test_cli.py` covers the public `gpd` CLI surface.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
 
 ## Release-Facing Guardrails

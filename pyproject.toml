@@ -28,10 +28,6 @@ dependencies = [
     "pybtex>=0.24",
     "Pillow>=10.0",
     "jinja2>=3.1",
-    # Unified CLI surfaces
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
-    "sse-starlette>=1.6",
     # MCP servers
     "arxiv-mcp-server>=0.1.0",
 ]

@@ -23,6 +23,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 |----------|-----------|------------|
 | Quantum Field Theory | references/subfields/qft.md | Perturbative QFT, renormalization, Feynman diagrams, gauge theories, EFTs, lattice QFT, generalized symmetries, supersymmetry |
 | Quantum Gravity | references/subfields/quantum-gravity.md | Semiclassical gravity, black hole information, holography, quantum chaos, asymptotic safety, nonperturbative approaches |
+| String Theory | references/subfields/string-theory.md | Worldsheet CFT, D-branes, dualities, compactification, moduli stabilization, swampland, string phenomenology |
 | Condensed Matter | references/subfields/condensed-matter.md | Many-body, DFT, DMFT, tensor networks, topological phases, band theory |
 | GR & Cosmology | references/subfields/gr-cosmology.md | Perturbation theory, CMB, inflation, de Sitter space, numerical relativity, gravitational waves, black holes |
 | Statistical Mechanics | references/subfields/stat-mech.md | Phase transitions, Monte Carlo, critical phenomena, RG, exactly solved models |
@@ -31,6 +32,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | Quantum Information | references/subfields/quantum-info.md | Circuits, error correction, entanglement, tensor networks, variational algorithms |
 | Fluid & Plasma | references/subfields/fluid-plasma.md | Navier-Stokes, MHD, turbulence, kinetic theory, spectral methods |
 | Mathematical Physics | references/subfields/mathematical-physics.md | Rigorous proofs, functional analysis, representation theory, integrable systems, CFT, topological defects |
+| String Field Theory | references/subfields/string-field-theory.md | Open/closed superstrings, BRST, BV, tachyon condensation, `A_infinity` / `L_infinity` |
 | Classical Mechanics | references/subfields/classical-mechanics.md | Lagrangian/Hamiltonian dynamics, nonlinear dynamics, chaos, celestial mechanics |
 | Soft Matter & Biophysics | references/subfields/soft-matter-biophysics.md | Polymer physics, membrane dynamics, active matter, colloids, self-assembly, biomolecular simulation |
 | Astrophysics | references/subfields/astrophysics.md | Stellar structure, accretion disks, compact objects, radiative transfer, gravitational waves, nucleosynthesis |
@@ -49,11 +51,13 @@ When a research project spans multiple subfields, use this guide to identify the
 | CMB, large-scale structure, N-body                   | Cosmology             | GR for metric perturbations                                    |
 | de Sitter space, cosmological horizons, dS/CFT       | GR & Cosmology        | QFT for fields in curved spacetime; Mathematical Physics for representation theory |
 | Black hole information, Page curve, replica wormholes, holography | Quantum Gravity | GR for geometry; QFT for matter entanglement and EFT control |
+| Worldsheet CFT, D-branes, compactification, moduli stabilization, swampland | String Theory | QFT for low-energy EFT; Mathematical Physics for modular/CFT structure; Quantum Gravity for holography or black-hole applications |
 | Higher-form symmetries, non-invertible defects, center symmetry, anomalies | QFT | Mathematical Physics for categorical/topological structure; Condensed Matter for topological-order applications |
 | Superfields, BPS bounds, localization, Seiberg-Witten, superconformal index | QFT | Mathematical Physics for representation theory; GR for supergravity or holography |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |
 | Collider physics, PDFs, cross sections               | Nuclear/Particle      | QFT for calculational methods                                  |
+| Open/closed string interactions, tachyon condensation, BRST string vertices | String Field Theory | QFT for BRST/BV language; Mathematical Physics for homotopy algebra; GR for background geometry |
 | Global fits, SMEFT, public likelihoods, recasting    | Nuclear/Particle      | QFT for matching/running; Mathematical Physics for statistics-aware inference structure |
 | CFD, turbulence, MHD                                 | Fluid Dynamics/Plasma | Stat Mech for turbulence theory                                |
 | Black holes, gravitational waves, spacetime geometry | General Relativity    | QFT for Hawking radiation                                      |
@@ -61,7 +65,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Newtonian mechanics, Lagrangian/Hamiltonian dynamics | Classical Mechanics   | Mathematical Physics for geometric mechanics                   |
 | Topological phases, Berry curvature                  | Condensed Matter      | Mathematical Physics for topology                              |
 | Lattice gauge theory                                 | QFT                   | Stat Mech for Monte Carlo; Condensed Matter for tensor methods |
-| Quantum gravity, holography                          | GR + QFT              | Mathematical Physics for rigor                                 |
+| Quantum gravity, holography                          | Quantum Gravity       | String Theory for UV completions, D-branes, or compactification data; Mathematical Physics for rigor |
 | Asymptotic symmetries, soft theorems, memory, celestial amplitudes | GR & Cosmology | QFT for scattering amplitudes; Mathematical Physics for representation theory |
 | Polymers, membranes, colloids, self-assembly         | Soft Matter           | Stat Mech for phase behavior; Fluid for hydrodynamics          |
 | Active matter, molecular motors, biophysics          | Soft Matter           | Stat Mech for non-equilibrium; Fluid for active hydrodynamics  |

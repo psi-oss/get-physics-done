@@ -208,29 +208,31 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
-def test_public_docs_keep_terminal_surface_runtime_first() -> None:
+def test_public_docs_keep_runtime_surface_first() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Known Limitations" in readme
     assert "After installing GPD, open your chosen runtime normally" in readme
-    assert "gpd view" in readme
+    assert "gpd view" not in readme
     assert "gpd session" not in readme
     assert (
         "On Codex, GPD enables experimental multi-agent support automatically during install, "
         "but subagent activity is currently surfaced in the CLI only."
     ) in readme
 
-def test_standard_install_includes_viewer_surface_dependencies() -> None:
+def test_standard_install_excludes_removed_viewer_dependencies() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
 
     for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette"):
-        assert any(item.startswith(dependency) for item in dependencies), f"Missing runtime dependency for {dependency}"
+        assert not any(item.startswith(dependency) for item in dependencies), (
+            f"Removed viewer dependency {dependency} should not be listed"
+        )
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    assert "gpd view" in readme
+    assert "gpd view" not in readme
 
 
 def test_claude_sdk_is_optional_for_public_install() -> None:
@@ -286,7 +288,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
     with zipfile.ZipFile(wheel) as wheel_zip:
         wheel_names = set(wheel_zip.namelist())
         assert "gpd/cli.py" in wheel_names
-        assert "gpd/mcp/viewer/cli.py" in wheel_names
+        assert "gpd/mcp/viewer/cli.py" not in wheel_names
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         assert "gpd = gpd.cli:app" in entry_points
 

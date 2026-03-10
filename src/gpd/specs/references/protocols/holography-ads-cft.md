@@ -27,6 +27,8 @@ Holographic calculations connect gravitational theories in (d+1)-dimensional ant
 - See `supersymmetry.md` for BPS bounds, indices, localization, and local-vs-global SUSY caveats
 - See `numerical-relativity.md` for numerical solutions of bulk equations
 
+For worldsheet derivations of the duality, D-brane constructions, or compactification input data, also load `subfields/string-theory.md`.
+
 ## Step 1: Declare Holographic Setup and Conventions
 
 Before any holographic calculation, explicitly state:
