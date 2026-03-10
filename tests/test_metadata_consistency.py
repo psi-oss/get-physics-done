@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
 from gpd import registry as content_registry
+from gpd.registry import VALID_CONTEXT_MODES
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
 from gpd.core.health import _ALL_CHECKS
@@ -111,3 +113,24 @@ def test_health_check_count_matches_skill_documentation() -> None:
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command
     assert "All checks reported with status" in command
+
+
+def test_every_command_declares_valid_context_mode() -> None:
+    commands_dir = _repo_root() / "src" / "gpd" / "commands"
+    pattern = re.compile(r"^context_mode:\s*(.+?)\s*$", re.MULTILINE)
+
+    missing: list[str] = []
+    invalid: list[str] = []
+
+    for path in sorted(commands_dir.glob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        match = pattern.search(content)
+        if match is None:
+            missing.append(path.name)
+            continue
+        mode = match.group(1).strip()
+        if mode not in VALID_CONTEXT_MODES:
+            invalid.append(f"{path.name}: {mode}")
+
+    assert missing == []
+    assert invalid == []

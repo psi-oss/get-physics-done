@@ -416,6 +416,28 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "gpd:verify-work" in registry.list_review_commands()
 
 
+def test_representative_commands_expose_expected_context_modes() -> None:
+    assert registry.get_command("help").context_mode == "global"
+    assert registry.get_command("map-theory").context_mode == "projectless"
+    assert registry.get_command("discover").context_mode == "project-aware"
+    assert registry.get_command("peer-review").context_mode == "project-required"
+
+
+def test_representative_prompts_use_centralized_command_context_preflight() -> None:
+    expected = {
+        COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
+        COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
+        COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
+        COMMANDS_DIR / "literature-review.md": "gpd --raw validate command-context literature-review",
+        COMMANDS_DIR / "sensitivity-analysis.md": "gpd --raw validate command-context sensitivity-analysis",
+        WORKFLOWS_DIR / "peer-review.md": "gpd --raw validate command-context peer-review",
+        WORKFLOWS_DIR / "progress.md": "gpd --raw validate command-context progress",
+    }
+
+    for path, token in expected.items():
+        assert token in path.read_text(encoding="utf-8"), path
+
+
 def test_list_review_commands_contains_all_expected_commands() -> None:
     """Regression: line 307 duplicated the gpd:peer-review check instead of
     testing gpd:respond-to-referees and gpd:verify-work."""

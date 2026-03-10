@@ -19,6 +19,8 @@ PROMPT_ROOTS = (
 
 INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\"([a-z0-9-]+)\"\)")
 INIT_USAGE_RE = re.compile(r"\bgpd init ([a-z0-9-]+)\b")
+VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\"([a-z0-9-]+)\"\)")
+VALIDATE_USAGE_RE = re.compile(r"\bgpd(?:\s+--raw)?\s+validate\s+([a-z0-9-]+)\b")
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 
 
@@ -34,6 +36,11 @@ def _declared_init_subcommands() -> set[str]:
     return set(INIT_COMMAND_RE.findall(content))
 
 
+def _declared_validate_subcommands() -> set[str]:
+    content = CLI_PATH.read_text(encoding="utf-8")
+    return set(VALIDATE_COMMAND_RE.findall(content))
+
+
 def test_prompt_sources_use_only_real_gpd_init_subcommands() -> None:
     allowed = _declared_init_subcommands()
     invalid: list[str] = []
@@ -41,6 +48,20 @@ def test_prompt_sources_use_only_real_gpd_init_subcommands() -> None:
     for path in _iter_prompt_sources():
         content = path.read_text(encoding="utf-8")
         for match in INIT_USAGE_RE.finditer(content):
+            subcommand = match.group(1)
+            if subcommand not in allowed:
+                invalid.append(f"{path.relative_to(REPO_ROOT)} -> {subcommand}")
+
+    assert invalid == []
+
+
+def test_prompt_sources_use_only_real_gpd_validate_subcommands() -> None:
+    allowed = _declared_validate_subcommands()
+    invalid: list[str] = []
+
+    for path in _iter_prompt_sources():
+        content = path.read_text(encoding="utf-8")
+        for match in VALIDATE_USAGE_RE.finditer(content):
             subcommand = match.group(1)
             if subcommand not in allowed:
                 invalid.append(f"{path.relative_to(REPO_ROOT)} -> {subcommand}")

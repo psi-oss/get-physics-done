@@ -182,6 +182,7 @@ class TestParseCommandFile:
         assert cmd.name == "bare"
         assert cmd.description == ""
         assert cmd.argument_hint == ""
+        assert cmd.context_mode == "project-required"
         assert cmd.requires == {}
         assert cmd.allowed_tools == []
 
@@ -228,6 +229,7 @@ class TestParseCommandFile:
         cmd = _parse_command_file(f, source="commands")
 
         assert cmd.review_contract is not None
+        assert cmd.context_mode == "project-required"
         assert cmd.review_contract.review_mode == "publication"
         assert "existing manuscript" in cmd.review_contract.required_evidence
         assert cmd.review_contract.preflight_checks == [
@@ -639,6 +641,7 @@ class TestDataclasses:
             name="c",
             description="d",
             argument_hint="",
+            context_mode="project-required",
             requires={},
             allowed_tools=[],
             content="",
@@ -658,6 +661,7 @@ class TestDataclasses:
             name="c",
             description="d",
             argument_hint="",
+            context_mode="project-required",
             requires={},
             allowed_tools=[],
             content="",
