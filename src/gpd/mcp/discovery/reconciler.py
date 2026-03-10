@@ -1,18 +1,17 @@
-"""Modal reconciliation for optional hosted MCP discovery.
+"""Reconciliation helpers for MCP tool discovery.
 
-deployment_status.json is treated as a stale hint only. Availability is only
-confirmed by a live check via modal.Cls.from_name().
+Provides deployment status checks and tool reconciliation.  Modal-hosted
+reconciliation is disabled (modal is not a dependency); the function
+signature is preserved for compatibility with catalog.py.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import UTC, datetime
 from pathlib import Path
 
-from gpd.mcp.discovery.models import MCPStatus, ToolEntry
+from gpd.mcp.discovery.models import ToolEntry
 
 logger = logging.getLogger(__name__)
 
@@ -56,68 +55,22 @@ def _resolve_deployment_status_path(project_root: Path | None) -> Path | None:
     return resolved_root / "infra" / "mcp" / "deployment_status.json"
 
 
-def _check_modal_live(name: str, app_name: str) -> tuple[str, bool]:
-    """Check if an MCP is actually deployed on Modal via Cls.from_name().
-
-    Returns (name, True) if the class reference can be created,
-    (name, False) otherwise.
-    """
-    try:
-        import modal
-        import modal.exception
-
-        class_name = name.replace("_", " ").title().replace(" ", "") + "Service"
-        modal.Cls.from_name(app_name, class_name)
-        return (name, True)
-    except Exception as exc:
-        # modal.exception.NotFoundError or any other error means not available
-        logger.debug("Modal live check failed for %s: %s", name, exc)
-        return (name, False)
-
-
 def reconcile_modal(
     tools: list[ToolEntry],
     app_name: str = "",
     max_workers: int = 5,
 ) -> list[ToolEntry]:
-    """Reconcile Modal tools against actual deployment status.
+    """No-op: Modal reconciliation is disabled (modal is not a dependency).
 
-    Two-stage validation:
-    1. Fast hint from deployment_status.json "passed" list
-    2. Parallel live checks via modal.Cls.from_name() for every modal tool
-
-    Only checks tools with source="modal". Non-modal tools are left unchanged.
+    Returns the tools list unchanged.
 
     Args:
-        tools: List of ToolEntry objects to reconcile (mutated in-place).
-        app_name: Hosted deployment name to check against.
-        max_workers: Maximum parallel live-check threads.
+        tools: List of ToolEntry objects (returned as-is).
+        app_name: Ignored (kept for API compatibility).
+        max_workers: Ignored (kept for API compatibility).
 
     Returns:
-        The same list of tools with updated status fields.
+        The same list of tools, unmodified.
     """
-    passed_set = check_deployment_status()
-    modal_tools = [tool for tool in tools if tool.source == "modal"]
-    if not modal_tools or not app_name:
-        return tools
-
-    results: dict[str, bool] = {}
-    ordered_modal_tools = sorted(modal_tools, key=lambda tool: tool.name not in passed_set)
-    worker_count = max(1, min(max_workers, len(ordered_modal_tools)))
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {executor.submit(_check_modal_live, tool.name, app_name): tool.name for tool in ordered_modal_tools}
-        for future in as_completed(futures):
-            name, deployed = future.result()
-            results[name] = deployed
-
-    for tool in modal_tools:
-        if results.get(tool.name, False):
-            tool.status = MCPStatus.available
-        elif tool.name in passed_set:
-            tool.status = MCPStatus.stale
-        else:
-            tool.status = MCPStatus.unavailable
-        tool.last_checked = datetime.now(tz=UTC).isoformat()
-        tool.staleness_seconds = 0.0
-
+    logger.debug("reconcile_modal called but Modal is not a dependency; returning tools unchanged")
     return tools

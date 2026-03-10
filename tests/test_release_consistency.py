@@ -72,10 +72,10 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     repo_root = _repo_root()
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    assert "Physical Superintelligence (PSI)" in readme
+    assert "Physical Superintelligence" in readme
     assert "GSD" in readme
     assert "get-shit-done-cc" in readme
-    assert "[Physical Superintelligence (PSI)](https://www.psi.inc)" in readme
+    assert "[Physical Superintelligence](https://github.com/physicalsuperintelligence)" in readme
 
 
 def test_public_release_surfaces_share_copilot_positioning() -> None:

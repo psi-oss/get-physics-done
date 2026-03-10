@@ -63,7 +63,7 @@ class PaperConfig(BaseModel):
     bib_file: str = "references"
     journal: str = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
-    attribution_footer: str = "Generated with Get Physics Done (PSI)"
+    attribution_footer: str = "Generated with Get Physics Done"
 
 
 class PaperOutput(BaseModel):

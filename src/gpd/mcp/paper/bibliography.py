@@ -237,8 +237,8 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
     """Enrich a citation source with arXiv metadata if available.
 
     If source has arxiv_id but missing title/authors/year, look up via
-    ArxivSearcher and fill in missing fields. Returns updated source.
-    If ArxivSearcher is unavailable or lookup fails, returns source unchanged.
+    the ``arxiv`` Python package and fill in missing fields.  Returns
+    updated source.  If the lookup fails, returns source unchanged.
     """
     if not source.arxiv_id:
         return source
@@ -247,19 +247,20 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
         return source  # Already complete
 
     try:
-        from artifact_editor_engine.lvp.literature.arxiv_search import ArxivSearcher
+        import arxiv
 
-        searcher = ArxivSearcher()
-        papers = searcher._search_arxiv(f"id:{source.arxiv_id}", field_filter=None)
-        if not papers:
+        search = arxiv.Search(id_list=[source.arxiv_id], max_results=1)
+        client = arxiv.Client(delay_seconds=0.0, num_retries=1)
+        results = list(client.results(search))
+        if not results:
             return source
 
-        paper = papers[0]
+        paper = results[0]
         updated = source.model_copy(
             update={
                 "title": source.title or paper.title,
-                "authors": source.authors or paper.authors,
-                "year": source.year or (paper.published[:4] if paper.published else ""),
+                "authors": source.authors or [a.name for a in paper.authors],
+                "year": source.year or (str(paper.published.year) if paper.published else ""),
             }
         )
         return updated

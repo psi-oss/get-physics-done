@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import urllib.error
-from dataclasses import dataclass, field
 from unittest.mock import MagicMock, patch
 
 from gpd.mcp.paper.bibliography import (
@@ -101,56 +100,45 @@ class TestADSGracefulDegradation:
 
 
 class TestArxivEnrichment:
-    def test_enrich_from_arxiv_no_searcher(self, monkeypatch):
-        """When ArxivSearcher import fails, source is returned unchanged."""
+    def test_enrich_from_arxiv_no_package(self, monkeypatch):
+        """When arxiv package import fails, source is returned unchanged."""
         source = CitationSource(
             source_type="paper",
             title="",
             arxiv_id="2301.12345",
         )
-        with patch.dict("sys.modules", {"artifact_editor_engine.lvp.literature.arxiv_search": None}):
+        with patch.dict("sys.modules", {"arxiv": None}):
             result = enrich_from_arxiv(source)
             assert result.title == ""
 
     def test_enrich_from_arxiv_fills_missing(self, monkeypatch):
-        """When ArxivSearcher returns data, missing fields are filled."""
+        """When arxiv package returns data, missing fields are filled."""
+        from datetime import datetime
 
-        @dataclass
-        class MockPaper:
-            arxiv_id: str = "2301.12345"
-            title: str = "Mock Title"
-            authors: list[str] = field(default_factory=lambda: ["A. Mock"])
-            abstract: str = ""
-            categories: list[str] = field(default_factory=list)
-            published: str = "2023-01-15"
-            updated: str = ""
-            pdf_url: str = ""
-            html_url: str = ""
+        mock_author = MagicMock()
+        mock_author.name = "A. Mock"
 
-        mock_searcher = MagicMock()
-        mock_searcher._search_arxiv.return_value = [MockPaper()]
+        mock_result = MagicMock()
+        mock_result.title = "Mock Title"
+        mock_result.authors = [mock_author]
+        mock_result.published = datetime(2023, 1, 15)
 
-        with patch(
-            "gpd.mcp.paper.bibliography.enrich_from_arxiv",
-            wraps=enrich_from_arxiv,
+        mock_client = MagicMock()
+        mock_client.results.return_value = [mock_result]
+
+        with (
+            patch("arxiv.Search"),
+            patch("arxiv.Client", return_value=mock_client),
         ):
-            # Patch the import inside enrich_from_arxiv
-            mock_module = MagicMock()
-            mock_module.ArxivSearcher.return_value = mock_searcher
-
-            with patch.dict(
-                "sys.modules",
-                {"artifact_editor_engine.lvp.literature.arxiv_search": mock_module},
-            ):
-                source = CitationSource(
-                    source_type="paper",
-                    title="",
-                    arxiv_id="2301.12345",
-                )
-                result = enrich_from_arxiv(source)
-                assert result.title == "Mock Title"
-                assert result.authors == ["A. Mock"]
-                assert result.year == "2023"
+            source = CitationSource(
+                source_type="paper",
+                title="",
+                arxiv_id="2301.12345",
+            )
+            result = enrich_from_arxiv(source)
+            assert result.title == "Mock Title"
+            assert result.authors == ["A. Mock"]
+            assert result.year == "2023"
 
 
 # ---- Integration tests ----

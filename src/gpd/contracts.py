@@ -1,7 +1,8 @@
-"""GPD contracts — types for convention locks and configuration.
+"""GPD contracts -- shared data types for convention locks and configuration.
 
-These types were originally in a shared contracts package but are inlined here so GPD
-works standalone without external platform packages.
+Defines the core Pydantic models used across GPD for physics convention
+locking (metric signature, Fourier convention, units, etc.) and
+top-level project configuration.
 """
 
 from __future__ import annotations

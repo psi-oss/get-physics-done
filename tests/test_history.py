@@ -249,10 +249,9 @@ class TestValidateResume:
 
     def test_session_with_missing_mcp_tools_warns(self) -> None:
         session = _make_session()
-        session.mcp_tools_used.extend(["openfoam", "lammps"])
+        session.mcp_tools_used.extend(["nonexistent-tool", "gpd-state"])
 
-        with patch("gpd.utils.mcp_registry.get_available_mcps", return_value={"lammps": {"description": "ok"}}):
-            warnings = validate_resume(session)
+        warnings = validate_resume(session)
 
         assert len(warnings) == 1
-        assert "openfoam" in warnings[0]
+        assert "nonexistent-tool" in warnings[0]

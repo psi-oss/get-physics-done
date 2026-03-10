@@ -1,7 +1,7 @@
-"""LaTeX utilities — auto-fix, fence stripping, Unicode sanitization.
+"""LaTeX utilities -- auto-fix, fence stripping, Unicode sanitization.
 
-Inlined from ``latex.autofix`` and ``pipeline.latex_utils``
-so GPD can process LaTeX standalone.
+Provides rule-based auto-fix for common LaTeX compilation errors,
+Unicode-to-LaTeX command conversion, and markdown fence stripping.
 """
 
 from __future__ import annotations
@@ -167,7 +167,7 @@ def try_autofix(tex_content: str, log: str) -> AutoFixResult:
 
 
 # =============================================================================
-# Unicode sanitization (from pipeline.latex_utils)
+# Unicode sanitization
 # =============================================================================
 
 _UNICODE_TO_LATEX: dict[str, str] = {

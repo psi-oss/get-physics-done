@@ -1,7 +1,7 @@
 """Project root resolution.
 
-Inlined from ``_paths._find_project_root`` so GPD
-can locate project roots standalone.
+Walks up from CWD or a given start path to find the GPD project root
+by looking for layout markers (pyproject.toml, .git, src/gpd, etc.).
 """
 
 from __future__ import annotations

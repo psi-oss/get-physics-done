@@ -90,6 +90,12 @@ def replace_placeholders(content: str, path_prefix: str) -> str:
     Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, and ``~/.claude/``
     references with *path_prefix*-based paths.
 
+    The source spec files always use ``~/.claude/`` as a canonical placeholder
+    for the runtime config directory, regardless of the target runtime.  This
+    function rewrites that placeholder to *path_prefix*, which is the
+    runtime-specific config path (e.g. ``~/.gemini/``, ``~/.codex/``,
+    ``~/.config/opencode/``, or ``~/.claude/`` itself for Claude Code).
+
     Used by all adapters during install to rewrite .md file references.
     """
     content = content.replace("{GPD_INSTALL_DIR}", path_prefix + "get-physics-done")

@@ -104,102 +104,34 @@ class TestCheckDeploymentStatus:
 
 
 class TestReconcileModal:
-    def test_marks_tools_in_passed_set_as_available(self) -> None:
+    """reconcile_modal is a no-op (Modal is not a dependency).
+
+    These tests verify that it returns tools unchanged.
+    """
+
+    def test_returns_tools_unchanged(self) -> None:
         tools = [
             ToolEntry(name="openfoam", description="CFD", source="modal"),
             ToolEntry(name="su2", description="CFD", source="modal"),
         ]
-        with (
-            patch(
-                "gpd.mcp.discovery.reconciler.check_deployment_status",
-                return_value={"openfoam", "su2"},
-            ),
-            patch(
-                "gpd.mcp.discovery.reconciler._check_modal_live",
-                side_effect=[("openfoam", True), ("su2", True)],
-            ),
-        ):
-            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
+        result = reconcile_modal(tools, app_name="physics-suite", max_workers=1)
+        assert result is tools
+        # Status stays at default (unknown) since reconciliation is a no-op
+        assert tools[0].status == MCPStatus.unknown
+        assert tools[1].status == MCPStatus.unknown
 
-        assert tools[0].status == MCPStatus.available
-        assert tools[1].status == MCPStatus.available
-
-    def test_marks_passed_but_not_live_tools_as_stale(self) -> None:
-        tools = [
-            ToolEntry(name="openfoam", description="CFD", source="modal"),
-        ]
-        with (
-            patch(
-                "gpd.mcp.discovery.reconciler.check_deployment_status",
-                return_value={"openfoam"},
-            ),
-            patch(
-                "gpd.mcp.discovery.reconciler._check_modal_live",
-                return_value=("openfoam", False),
-            ),
-        ):
-            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
-
-        assert tools[0].status == MCPStatus.stale
-
-    def test_marks_tools_not_in_passed_as_unavailable(self) -> None:
-        tools = [
-            ToolEntry(name="missing_tool", description="Gone", source="modal"),
-        ]
-        with (
-            patch(
-                "gpd.mcp.discovery.reconciler.check_deployment_status",
-                return_value=set(),
-            ),
-            patch(
-                "gpd.mcp.discovery.reconciler._check_modal_live",
-                return_value=("missing_tool", False),
-            ),
-        ):
-            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
-
-        assert tools[0].status == MCPStatus.unavailable
-
-    def test_skips_non_modal_tools(self) -> None:
+    def test_preserves_non_modal_tools(self) -> None:
         tools = [
             ToolEntry(name="sympy", description="Math", source="local", status=MCPStatus.available),
             ToolEntry(name="openfoam", description="CFD", source="modal"),
         ]
-        with (
-            patch(
-                "gpd.mcp.discovery.reconciler.check_deployment_status",
-                return_value={"openfoam"},
-            ),
-            patch(
-                "gpd.mcp.discovery.reconciler._check_modal_live",
-                return_value=("openfoam", True),
-            ),
-        ):
-            reconcile_modal(tools, app_name="physics-suite")
-
+        result = reconcile_modal(tools, app_name="physics-suite")
+        assert result is tools
         # Local tool status unchanged
         assert tools[0].status == MCPStatus.available
         assert tools[0].source == "local"
-        # Modal tool reconciled
-        assert tools[1].status == MCPStatus.available
-
-    def test_live_check_marks_as_available(self) -> None:
-        tools = [
-            ToolEntry(name="new_tool", description="New", source="modal"),
-        ]
-        with (
-            patch(
-                "gpd.mcp.discovery.reconciler.check_deployment_status",
-                return_value=set(),
-            ),
-            patch(
-                "gpd.mcp.discovery.reconciler._check_modal_live",
-                return_value=("new_tool", True),
-            ),
-        ):
-            reconcile_modal(tools, app_name="physics-suite", max_workers=1)
-
-        assert tools[0].status == MCPStatus.available
+        # Modal tool status unchanged (no-op)
+        assert tools[1].status == MCPStatus.unknown
 
 
 class TestToolCatalogExternalSource:

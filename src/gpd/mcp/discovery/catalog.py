@@ -13,7 +13,6 @@ import threading
 
 from gpd.mcp.discovery.models import (
     OVERVIEW_PREVIEW_MAX_CHARS,
-    CostProfile,
     MCPSourcesConfig,
     MCPStatus,
     SourceConfig,
@@ -98,63 +97,12 @@ class ToolCatalog:
         return catalog
 
     def _load_modal_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
-        """Load tools from optional hosted registry metadata."""
-        entries: dict[str, ToolEntry] = {}
+        """Load tools from optional hosted registry metadata.
 
-        from gpd.utils.mcp_registry import get_available_mcps, get_skills_summary
-
-        mcps = get_available_mcps()
-        skills = get_skills_summary()
-
-        gpu_domains = {
-            "cfd",
-            "molecular-dynamics",
-            "particle-physics",
-            "cosmology",
-            "quantum-chemistry",
-            "materials-science",
-            "fluid-dynamics",
-            "astrophysics",
-            "nuclear-physics",
-            "plasma-physics",
-        }
-
-        for name, info in mcps.items():
-            skill_info = skills.get(name, {})
-            domains = skill_info.get("domains", [])
-            overview = skill_info.get("overview", "")
-            description = info.get("description", f"{name} MCP")
-            raw_tools = info.get("tools", [])
-            tool_list = [{"name": t.get("name", ""), "desc": t.get("desc", "")} for t in raw_tools]
-
-            source = info.get("source", "modal")
-            categories = categorize_tool(name, domains)
-
-            # Populate cost profile from domain heuristic
-            uses_gpu = bool(set(domains) & gpu_domains)
-            gpu_type = "A100-80GB" if uses_gpu else "CPU"
-            est_seconds = 300.0 if uses_gpu else 30.0
-            rate = MODAL_RATES_USD_PER_SECOND.get(gpu_type, MODAL_RATES_USD_PER_SECOND["CPU"])
-            cost_per_call = est_seconds * rate * 1.25 * 3.0  # regional * non-preemptible
-
-            entries[name] = ToolEntry(
-                name=name,
-                description=description,
-                source=source,
-                status=MCPStatus.unknown,
-                categories=categories,
-                domains=domains,
-                tools=tool_list,
-                overview=overview[:OVERVIEW_PREVIEW_MAX_CHARS] if overview else "",
-                cost_profile=CostProfile(
-                    gpu_type=gpu_type,
-                    estimated_seconds=est_seconds,
-                    cost_per_call_usd=cost_per_call,
-                ),
-                deployment_name=source_config.app_name,
-            )
-
-        return entries
+        Returns an empty dict since Modal hosting is not currently active.
+        The simulators registry only populates when SIMULATORS_DIR is set.
+        """
+        return {}
 
     def _load_external_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load tools from external services YAML."""

@@ -298,22 +298,17 @@ def validate_resume(session: SessionState) -> list[str]:
     """
     warnings: list[str] = []
 
-    # Check whether previously used MCP tools are still visible to the registry.
+    # Check whether previously used MCP tools are still visible.
     if session.mcp_tools_used:
-        try:
-            from gpd.utils.mcp_registry import get_available_mcps
+        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-            available_mcps = set(get_available_mcps())
-            missing_mcps = sorted(set(session.mcp_tools_used) - available_mcps)
-            if missing_mcps:
-                preview = ", ".join(missing_mcps[:5])
-                if len(missing_mcps) > 5:
-                    preview += f" (+{len(missing_mcps) - 5} more)"
-                warnings.append(f"MCP tools used previously are not currently available: {preview}")
-        except Exception:
-            warnings.append(
-                f"MCP registry not available; {len(session.mcp_tools_used)} referenced MCP tools cannot be verified"
-            )
+        available = GPD_MCP_SERVER_KEYS
+        missing_mcps = sorted(set(session.mcp_tools_used) - available)
+        if missing_mcps:
+            preview = ", ".join(missing_mcps[:5])
+            if len(missing_mcps) > 5:
+                preview += f" (+{len(missing_mcps) - 5} more)"
+            warnings.append(f"MCP tools used previously are not currently available: {preview}")
 
     # Note previous errors
     if session.error_messages:

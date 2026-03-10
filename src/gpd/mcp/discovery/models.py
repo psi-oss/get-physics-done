@@ -105,73 +105,61 @@ PHYSICS_CATEGORIES: list[PhysicsCategory] = [
         name="cfd",
         display_name="Computational Fluid Dynamics",
         domain_keywords=["computational fluid dynamics", "cfd", "turbulence", "flow", "aerodynamics", "multiphase"],
-        preferred_mcps=["openfoam", "su2", "dedalus", "palabos", "walberla", "basilisk"],
     ),
     PhysicsCategory(
         name="nbody",
         display_name="N-body / Astrophysics",
         domain_keywords=["n-body", "orbital", "gravitational", "cosmological", "galaxy", "sph"],
-        preferred_mcps=["rebound", "gadget_4", "ramses", "phantom", "castro", "amrvac"],
     ),
     PhysicsCategory(
         name="fem",
         display_name="Finite Element Methods",
         domain_keywords=["finite element", "structural", "fea", "stress", "earthquake"],
-        preferred_mcps=["calculix", "fenics", "deal_ii", "code_aster", "opensees", "febio"],
     ),
     PhysicsCategory(
         name="quantum",
         display_name="Quantum / Chemistry",
         domain_keywords=["quantum", "dft", "many-body", "ab initio", "molecular orbital"],
-        preferred_mcps=["qutip", "psi4", "nwchem", "cp2k", "octopus", "yambo"],
     ),
     PhysicsCategory(
         name="md",
         display_name="Molecular Dynamics",
         domain_keywords=["molecular dynamics", "biomolecular", "polymer", "lennard-jones"],
-        preferred_mcps=["lammps", "gromacs", "hoomd", "plumed"],
     ),
     PhysicsCategory(
         name="climate",
         display_name="Climate / Ocean / Atmosphere",
         domain_keywords=["weather", "climate", "ocean", "atmosphere", "circulation"],
-        preferred_mcps=["wrf", "openifs", "cesm", "mpas", "roms", "mitgcm"],
     ),
     PhysicsCategory(
         name="multiphysics",
         display_name="Multi-physics / Rigid Body",
         domain_keywords=["multi-physics", "coupled", "fsi", "rigid body", "robotics"],
-        preferred_mcps=["precice", "chrono", "omniverse", "mujoco"],
     ),
     PhysicsCategory(
         name="bio",
         display_name="Bio / Medical Physics",
         domain_keywords=["biomechanics", "drug discovery", "radiation therapy"],
-        preferred_mcps=["febio", "autodock_vina", "matrad"],
     ),
     PhysicsCategory(
         name="geophysics",
         display_name="Geophysics",
         domain_keywords=["seismic", "ice sheet", "geochemistry", "crustal"],
-        preferred_mcps=["specfem3d", "sw4", "pism", "pylith", "phreeqc"],
     ),
     PhysicsCategory(
         name="em_plasma",
         display_name="Electromagnetic / Plasma",
         domain_keywords=["plasma", "laser", "particle-in-cell", "pic", "spin dynamics", "electromagnetic"],
-        preferred_mcps=["smilei", "osiris", "hipace", "vampire", "geant4"],
     ),
     PhysicsCategory(
         name="databases",
         display_name="Databases / Catalogs",
         domain_keywords=["astronomical database", "protein database", "catalog", "archive"],
-        preferred_mcps=["mast", "ned", "simbad", "vizier", "uniprot_rest_api"],
     ),
     PhysicsCategory(
         name="utility",
         display_name="Utility Tools",
         domain_keywords=["cad", "meshing", "circuit"],
-        preferred_mcps=["freecad", "gmsh", "qucs"],
     ),
 ]
 """Full physics category taxonomy for domain-based tool routing."""

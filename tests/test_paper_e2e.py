@@ -66,7 +66,7 @@ class TestBuildPaper:
         assert (tmp_path / "paper.tex").exists()
         tex_content = (tmp_path / "paper.tex").read_text()
         assert r"\documentclass" in tex_content
-        assert "Generated with Get Physics Done (PSI)" in tex_content
+        assert "Generated with Get Physics Done" in tex_content
         assert (tmp_path / "references.bib").exists()
         bib_content = (tmp_path / "references.bib").read_text()
         assert len(bib_content) > 0
