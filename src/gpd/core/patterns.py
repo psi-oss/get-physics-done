@@ -59,6 +59,7 @@ __all__ = [
     "PatternSearchResult",
     "PatternSeedResult",
     "PatternSeverity",
+    "patterns_root",
     "VALID_CATEGORIES",
     "VALID_DOMAINS",
     "VALID_SEVERITIES",
@@ -212,7 +213,7 @@ class PatternSeedResult(BaseModel):
 # ─── Path Resolution ─────────────────────────────────────────────────────────
 
 
-def _patterns_root(specs_root: Path | None = None) -> Path:
+def patterns_root(specs_root: Path | None = None) -> Path:
     """Resolve the patterns library root directory.
 
     Precedence: ``GPD_PATTERNS_ROOT`` env > ``GPD_DATA_DIR`` env >
@@ -320,7 +321,7 @@ def ensure_library(root: Path | None = None) -> Path:
     Returns the patterns root path. Idempotent.
     """
     if root is None:
-        root = _patterns_root()
+        root = patterns_root()
     if _load_index(root) is not None:
         return root
 
@@ -435,7 +436,7 @@ def pattern_list(
     root: Path | None = None,
 ) -> PatternListResult:
     """List patterns with optional filters, sorted by severity then confidence."""
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         return PatternListResult(library_exists=False)
@@ -471,7 +472,7 @@ def pattern_promote(pattern_id: str, *, root: Path | None = None) -> PatternProm
     Raises:
         ValueError: If pattern not found or library not initialized.
     """
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         raise PatternError("Pattern library not initialized. Call pattern_init() first.")
@@ -522,7 +523,7 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     if not query or not query.strip():
         raise PatternError("Search query required")
 
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         return PatternSearchResult(query=query, library_exists=False)

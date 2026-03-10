@@ -23,6 +23,7 @@ from gpd.core.config import (
     load_config as _load_config_structured,
 )
 from gpd.core.constants import (
+    AGENT_ID_FILENAME,
     CONFIG_FILENAME,
     PHASES_DIR_NAME,
     PLANNING_DIR_NAME,
@@ -659,7 +660,7 @@ def init_resume(cwd: Path) -> dict:
 
     # Check for interrupted agent
     interrupted_agent_id = None
-    agent_id_file = cwd / PLANNING_DIR_NAME / "current-agent-id.txt"
+    agent_id_file = cwd / PLANNING_DIR_NAME / AGENT_ID_FILENAME
     try:
         interrupted_agent_id = agent_id_file.read_text(encoding="utf-8").strip() or None
     except (FileNotFoundError, OSError):

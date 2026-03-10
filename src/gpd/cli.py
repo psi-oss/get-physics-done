@@ -1003,6 +1003,8 @@ def query_assumptions(
     from gpd.core.query import query_assumptions
 
     text = " ".join(assumption) if assumption else ""
+    if not text.strip():
+        _error("Usage: gpd query assumptions <search-term>")
     _output(query_assumptions(_get_cwd(), text))
 
 
@@ -1035,12 +1037,12 @@ app.add_typer(pattern_app, name="pattern")
 def _resolve_patterns_root() -> Path:
     """Resolve pattern library root respecting GPD_PATTERNS_ROOT env var.
 
-    Uses the same resolution order as gpd.core.patterns._patterns_root:
+    Uses the same resolution order as gpd.core.patterns.patterns_root:
     GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > ~/.gpd/learned-patterns.
     """
-    from gpd.core.patterns import _patterns_root
+    from gpd.core.patterns import patterns_root
 
-    return _patterns_root(specs_root=_get_cwd())
+    return patterns_root(specs_root=_get_cwd())
 
 
 @pattern_app.command("init")
@@ -1549,10 +1551,23 @@ def config_ensure_section() -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     defaults = GPDProjectConfig()
     config_dict = {
-        "model_profile": defaults.model_profile.value,
+        "autonomy": defaults.autonomy.value,
+        "research_mode": defaults.research_mode.value,
         "commit_docs": defaults.commit_docs,
         "search_gitignored": defaults.search_gitignored,
-        "branching_strategy": defaults.branching_strategy.value,
+        "parallelization": defaults.parallelization,
+        "model_profile": defaults.model_profile.value,
+        "brave_search": defaults.brave_search,
+        "workflow": {
+            "research": defaults.research,
+            "plan_checker": defaults.plan_checker,
+            "verifier": defaults.verifier,
+        },
+        "git": {
+            "branching_strategy": defaults.branching_strategy.value,
+            "phase_branch_template": defaults.phase_branch_template,
+            "milestone_branch_template": defaults.milestone_branch_template,
+        },
     }
     atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
     _output({"created": True, "path": str(config_path)})
@@ -1990,7 +2005,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
     if results:
         first_runtime = results[0][0]
         adapter = get_adapter(first_runtime)
-        console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]")
+        console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]\n")
 
 
 @app.command("install")

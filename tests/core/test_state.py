@@ -227,11 +227,21 @@ def test_ensure_state_schema_partial():
     assert "decisions" in result
 
 
-def test_ensure_state_schema_legacy_project_key():
-    legacy = {"project": {"core_question": "Why?", "current_focus": "Testing"}}
+def test_ensure_state_schema_drops_removed_legacy_keys():
+    legacy = {
+        "project": {"core_question": "Why?", "current_focus": "Testing"},
+        "metrics": [{"label": "Phase 1 P1", "duration": "12m"}],
+        "session": {"last_session": "2026-03-10"},
+        "position": {"progress": "[█████░░░░░] 50%"},
+    }
     result = ensure_state_schema(legacy)
-    assert result["project_reference"]["core_research_question"] == "Why?"
-    assert result["project_reference"]["current_focus"] == "Testing"
+    assert result["project_reference"]["core_research_question"] is None
+    assert result["project_reference"]["current_focus"] is None
+    assert result["performance_metrics"]["rows"] == []
+    assert result["session"]["last_date"] is None
+    assert result["position"]["progress_percent"] == 0
+    assert "project" not in result
+    assert "metrics" not in result
 
 
 def test_ensure_state_schema_empty_dict():
@@ -386,8 +396,14 @@ def test_parse_state_to_json_structure():
     result = parse_state_to_json(MINIMAL_STATE_MD)
     assert result["_version"] == 1
     assert "_synced_at" in result
+    assert result["project_reference"]["core_research_question"] == "How does X work?"
     assert result["position"]["current_phase"] == "3"
     assert result["position"]["status"] == "Executing"
+    assert result["session"]["last_date"] is not None
+    assert "last_session" not in result["session"]
+    assert result["performance_metrics"]["rows"][0]["label"] == "Phase 1 P1"
+    assert "project" not in result
+    assert "metrics" not in result
     assert len(result["decisions"]) == 1
     assert len(result["blockers"]) == 1
 

@@ -333,8 +333,8 @@ None yet.
 
 ```json
 {
-  "mode": "yolo",
-  "depth": "standard",
+  "autonomy": "yolo",
+  "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "review",
@@ -342,8 +342,7 @@ None yet.
     "research": true,
     "plan_checker": true,
     "verifier": true
-  },
-  "initialized_with": "minimal"
+  }
 }
 ```
 
@@ -725,15 +724,15 @@ Use ask_user:
 - header: "Workflow Setup"
 - question: "How would you like to configure the project?"
 - options:
-  - "Use recommended defaults (Recommended)" — YOLO mode, standard depth, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
-  - "Customize settings" — Choose mode, depth, agents, and model profile individually
+  - "Use recommended defaults (Recommended)" — YOLO autonomy, balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
+  - "Customize settings" — Choose autonomy, research mode, agents, and model profile individually
 
 **If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
 
 ```json
 {
-  "mode": "yolo",
-  "depth": "standard",
+  "autonomy": "yolo",
+  "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "review",
@@ -741,15 +740,14 @@ Use ask_user:
     "research": true,
     "plan_checker": true,
     "verifier": true
-  },
-  "initialized_with": "quick-setup"
+  }
 }
 ```
 
 Display confirmation:
 
 ```
-Config: YOLO mode | Standard depth | Parallel | All agents | Review profile
+Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile
 (Change anytime with /gpd:settings)
 ```
 
@@ -764,22 +762,25 @@ Skip to "Commit config.json" below.
 ```
 questions: [
   {
-    header: "Mode",
-    question: "How do you want to work?",
+    header: "Autonomy",
+    question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "YOLO (Recommended)", description: "Auto-approve, just execute" },
-      { label: "Interactive", description: "Confirm at each step" }
+      { label: "Guided (Recommended)", description: "GPD handles routine work and pauses on major decisions" },
+      { label: "YOLO", description: "Maximum speed. Auto-approve and keep going unless something breaks" },
+      { label: "Autonomous", description: "Mostly self-directed, with fewer hard stops than guided mode" },
+      { label: "Supervised", description: "Confirm each major step before proceeding" }
     ]
   },
   {
-    header: "Depth",
-    question: "How thorough should planning be?",
+    header: "Research Mode",
+    question: "What research strategy should GPD use?",
     multiSelect: false,
     options: [
-      { label: "Quick", description: "Fast exploration (3-5 phases, 1-3 plans each)" },
-      { label: "Standard", description: "Balanced rigor and speed (5-8 phases, 3-5 plans each)" },
-      { label: "Comprehensive", description: "Thorough investigation (8-12 phases, 5-10 plans each)" }
+      { label: "Balanced (Recommended)", description: "Standard breadth and rigor for most projects" },
+      { label: "Explore", description: "Broader literature search and more alternative approaches" },
+      { label: "Exploit", description: "Focused execution with minimal branching" },
+      { label: "Adaptive", description: "Start broad, then narrow once the best path is clear" }
     ]
   },
   {
@@ -851,7 +852,9 @@ questions: [
     options: [
       { label: "Review (Recommended)", description: "Balanced cost/quality — tier-1 for critical agents, tier-2 for others" },
       { label: "Deep Theory", description: "Maximum capability — tier-1 for most agents — higher cost, deeper analysis" },
-      { label: "Exploratory", description: "Fast iteration — tier-2/tier-3 where possible — fastest, lowest cost" }
+      { label: "Numerical", description: "Prioritize computation, convergence, and implementation-heavy work" },
+      { label: "Exploratory", description: "Fast iteration — tier-2/tier-3 where possible — fastest, lowest cost" },
+      { label: "Paper Writing", description: "Bias model selection toward manuscript drafting and polishing" }
     ]
   }
 ]
@@ -861,11 +864,11 @@ Create `.gpd/config.json` with all settings:
 
 ```json
 {
-  "mode": "yolo|interactive",
-  "depth": "quick|standard|comprehensive",
+  "autonomy": "supervised|guided|autonomous|yolo",
+  "research_mode": "explore|balanced|exploit|adaptive",
   "parallelization": true|false,
   "commit_docs": true|false,
-  "model_profile": "deep-theory|review|exploratory",
+  "model_profile": "deep-theory|numerical|exploratory|review|paper-writing",
   "workflow": {
     "research": true|false,
     "plan_checker": true|false,
@@ -1672,7 +1675,7 @@ Present completion with next steps:
 - [ ] Existing work detection completed
 - [ ] Deep questioning completed (threads followed, not rushed)
 - [ ] PROJECT.md captures full research context — **committed**
-- [ ] config.json has workflow mode, depth, parallelization — **committed**
+- [ ] config.json has autonomy, research_mode, and parallelization settings — **committed**
 - [ ] Literature survey completed (if selected) — 4 parallel agents spawned — **committed**
 - [ ] Research requirements gathered (from survey or conversation)
 - [ ] User scoped each category (current/future/out of scope)

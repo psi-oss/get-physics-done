@@ -72,13 +72,18 @@ def _create_bib_key(source: CitationSource, existing_keys: set[str]) -> str:
     if base_key not in existing_keys:
         return base_key
 
-    # Deduplicate with a/b/c suffix
+    # Deduplicate with a/b/c suffix, then numeric suffixes for 27+
     for suffix in "abcdefghijklmnopqrstuvwxyz":
         candidate = f"{base_key}{suffix}"
         if candidate not in existing_keys:
             return candidate
 
-    return f"{base_key}_extra"
+    n = 27
+    while True:
+        candidate = f"{base_key}_{n}"
+        if candidate not in existing_keys:
+            return candidate
+        n += 1
 
 
 _SOURCE_TYPE_TO_BIBTEX = {
@@ -213,29 +218,6 @@ def enrich_with_ads(bibcodes: list[str]) -> dict[str, str]:
     except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
         logger.debug("ADS API request failed; skipping enrichment", exc_info=True)
         return {}
-
-
-def search_ads_by_title(title: str) -> list[dict]:
-    """Search ADS by title to find bibcode and metadata.
-
-    Returns list of result dicts. Gracefully returns [] on failure.
-    """
-    token = _get_ads_token()
-    if not token:
-        return []
-
-    try:
-        query = urllib.parse.quote(f'title:"{title}"')
-        url = f"{ADS_API_URL}/search/query?q={query}&fl=bibcode,title,author,doi,year,pub&rows=3"
-        headers = {"Authorization": f"Bearer {token}"}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-        return result.get("response", {}).get("docs", [])
-
-    except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
-        logger.debug("ADS search failed; returning empty", exc_info=True)
-        return []
 
 
 # ---- arXiv metadata to BibTeX ----

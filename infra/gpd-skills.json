@@ -3,9 +3,19 @@
   "description": "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, and indexing GPD workflow skills for agent prompt injection.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "gpd.mcp.servers.skills_server"],
+  "args": [
+    "-m",
+    "gpd.mcp.servers.skills_server"
+  ],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-skills",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   },
   "capabilities": [
     "list_skills",

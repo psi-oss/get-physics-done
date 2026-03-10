@@ -27,6 +27,7 @@ from gpd.core.constants import (
     PROJECT_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
+    STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_BUDGET,
     STATE_LINES_TARGET,
     ENV_GPD_DEBUG,
@@ -471,14 +472,10 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 # ─── STATE.md Field Helpers ────────────────────────────────────────────────────
 
 
-def _escape_regex(s: str) -> str:
-    """Escape special regex characters in a string."""
-    return re.escape(s)
-
 
 def state_extract_field(content: str, field_name: str) -> str | None:
     """Extract a **Field:** value from STATE.md content."""
-    escaped = _escape_regex(field_name)
+    escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*\s*(.+)", re.IGNORECASE)
     match = pattern.search(content)
     return match.group(1).strip() if match else None
@@ -489,7 +486,7 @@ def state_replace_field(content: str, field_name: str, new_value: str) -> str:
 
     Returns the updated content if the field was found, or original content unchanged.
     """
-    escaped = _escape_regex(field_name)
+    escaped = re.escape(field_name)
     pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
     if not pattern.search(content):
         if os.environ.get(ENV_GPD_DEBUG):
@@ -508,7 +505,7 @@ def state_replace_field(content: str, field_name: str, new_value: str) -> str:
 
 def state_has_field(content: str, field_name: str) -> bool:
     """Check if a **Field:** exists in STATE.md content."""
-    escaped = _escape_regex(field_name)
+    escaped = re.escape(field_name)
     return bool(re.search(rf"\*\*{escaped}:\*\*", content, re.IGNORECASE))
 
 
@@ -519,17 +516,9 @@ def _unescape_pipe(v: str) -> str:
     return v.replace("\\|", "|")
 
 
-def _extract_field(content: str, field_name: str) -> str | None:
-    """Extract a **Field:** value from content (internal parser helper)."""
-    escaped = _escape_regex(field_name)
-    pattern = re.compile(rf"\*\*{escaped}:\*\*\s*(.+)", re.IGNORECASE)
-    match = pattern.search(content)
-    return match.group(1).strip() if match else None
-
-
 def _extract_bullets(content: str, section_name: str) -> list[str]:
     """Extract bullet list items from a ## Section."""
-    escaped = _escape_regex(section_name)
+    escaped = re.escape(section_name)
     pattern = re.compile(rf"##\s*{escaped}\s*\n([\s\S]*?)(?=\n##|$)", re.IGNORECASE)
     match = pattern.search(content)
     if not match:
@@ -544,23 +533,22 @@ def parse_state_md(content: str) -> dict:
     This is the canonical parser — used by parse_state_to_json, migrate, and snapshot.
     """
     # Position fields
-    current_phase_raw = _extract_field(content, "Current Phase")
-    total_phases_raw = _extract_field(content, "Total Phases")
-    total_plans_raw = _extract_field(content, "Total Plans in Phase")
-    progress_raw = _extract_field(content, "Progress")
+    current_phase_raw = state_extract_field(content, "Current Phase")
+    total_phases_raw = state_extract_field(content, "Total Phases")
+    total_plans_raw = state_extract_field(content, "Total Plans in Phase")
+    progress_raw = state_extract_field(content, "Progress")
 
     position = {
         "current_phase": current_phase_raw,
-        "current_phase_name": _extract_field(content, "Current Phase Name"),
+        "current_phase_name": state_extract_field(content, "Current Phase Name"),
         "total_phases": safe_parse_int(total_phases_raw, None) if total_phases_raw else None,
-        "current_plan": _extract_field(content, "Current Plan"),
+        "current_plan": state_extract_field(content, "Current Plan"),
         "total_plans_in_phase": safe_parse_int(total_plans_raw, None) if total_plans_raw else None,
-        "status": _extract_field(content, "Status"),
-        "last_activity": _extract_field(content, "Last Activity"),
-        "last_activity_desc": _extract_field(content, "Last Activity Description"),
-        "progress_raw": progress_raw,
+        "status": state_extract_field(content, "Status"),
+        "last_activity": state_extract_field(content, "Last Activity"),
+        "last_activity_desc": state_extract_field(content, "Last Activity Description"),
         "progress_percent": None,
-        "paused_at": _extract_field(content, "Paused At"),
+        "paused_at": state_extract_field(content, "Paused At"),
     }
     if progress_raw:
         m = re.search(r"(\d+)%", progress_raw)
@@ -569,8 +557,8 @@ def parse_state_md(content: str) -> dict:
 
     # Project fields
     project = {
-        "core_question": _extract_field(content, "Core research question"),
-        "current_focus": _extract_field(content, "Current focus"),
+        "core_question": state_extract_field(content, "Core research question"),
+        "current_focus": state_extract_field(content, "Current focus"),
         "project_md_updated": None,
     }
     see_match = re.search(r"See:.*PROJECT\.md\s*\(updated\s+([^)]+)\)", content, re.IGNORECASE)
@@ -650,15 +638,15 @@ def parse_state_md(content: str) -> dict:
         if rf:
             session["resume_file"] = rf.group(1).strip()
     if not session["last_date"]:
-        ls = _extract_field(content, "Last session") or _extract_field(content, "Last Date")
+        ls = state_extract_field(content, "Last session") or state_extract_field(content, "Last Date")
         if ls:
             session["last_date"] = ls
     if not session["stopped_at"]:
-        sa = _extract_field(content, "Stopped At") or _extract_field(content, "Stopped at")
+        sa = state_extract_field(content, "Stopped At") or state_extract_field(content, "Stopped at")
         if sa:
             session["stopped_at"] = sa
     if not session["resume_file"]:
-        rf = _extract_field(content, "Resume File") or _extract_field(content, "Resume file")
+        rf = state_extract_field(content, "Resume File") or state_extract_field(content, "Resume file")
         if rf:
             session["resume_file"] = rf
 
@@ -723,14 +711,12 @@ def parse_state_to_json(content: str) -> dict:
         "stopped_at": stopped_at,
         "resume_file": resume_file,
     }
-    if last_date:
-        session["last_session"] = last_date
 
     return {
         "_version": 1,
         "_synced_at": datetime.now(tz=UTC).isoformat(),
-        "project": {
-            "core_question": _strip_placeholder(parsed["project"]["core_question"]),
+        "project_reference": {
+            "core_research_question": _strip_placeholder(parsed["project"]["core_question"]),
             "current_focus": _strip_placeholder(parsed["project"]["current_focus"]),
             "project_md_updated": parsed["project"]["project_md_updated"],
         },
@@ -749,7 +735,7 @@ def parse_state_to_json(content: str) -> dict:
         "session": session,
         "decisions": parsed["decisions"],
         "blockers": parsed["blockers"],
-        "metrics": parsed["metrics"],
+        "performance_metrics": {"rows": parsed["metrics"]},
         "active_calculations": parsed["active_calculations"],
         "intermediate_results": parsed["intermediate_results"],
         "open_questions": parsed["open_questions"],
@@ -759,38 +745,18 @@ def parse_state_to_json(content: str) -> dict:
 # ─── Schema Enforcement ───────────────────────────────────────────────────────
 
 
-def _normalize_legacy_keys(raw: dict) -> dict:
-    """Map legacy state keys to current schema before Pydantic validation."""
-    if "project" in raw and "project_reference" not in raw:
-        project = raw.pop("project")
-        raw["project_reference"] = {
-            "project_md_updated": project.get("project_md_updated") if isinstance(project, dict) else None,
-            "core_research_question": (project.get("core_research_question") or project.get("core_question"))
-            if isinstance(project, dict)
-            else None,
-            "current_focus": project.get("current_focus") if isinstance(project, dict) else None,
-        }
+def _drop_removed_legacy_keys(raw: dict) -> dict:
+    """Drop removed state keys before Pydantic validation."""
+    raw.pop("project", None)
+    raw.pop("metrics", None)
 
     session = raw.get("session")
-    if isinstance(session, dict) and "last_session" in session and "last_date" not in session:
-        session["last_date"] = session.get("last_session")
+    if isinstance(session, dict):
+        session.pop("last_session", None)
 
     position = raw.get("position")
     if isinstance(position, dict):
-        progress_percent = position.get("progress_percent")
-        if progress_percent is None and "progress" in position:
-            progress = position.get("progress")
-            if isinstance(progress, str):
-                match = re.search(r"(\d+)%", progress)
-                if match:
-                    position["progress_percent"] = int(match.group(1))
-            elif isinstance(progress, (int, float)):
-                position["progress_percent"] = int(progress)
         position.pop("progress", None)
-
-    if "metrics" in raw and "performance_metrics" not in raw:
-        metrics = raw.pop("metrics")
-        raw["performance_metrics"] = {"rows": metrics if isinstance(metrics, list) else []}
 
     return raw
 
@@ -798,9 +764,9 @@ def _normalize_legacy_keys(raw: dict) -> dict:
 def ensure_state_schema(raw: dict | None) -> dict:
     """Merge a (possibly incomplete) state dict with defaults so every field exists.
 
-    Uses Pydantic model_validate to populate missing fields from ResearchState defaults
-    and map legacy keys. Type-mismatched fields (e.g. string where list expected) are
-    dropped so Pydantic fills them with defaults.
+    Uses Pydantic model_validate to populate missing fields from ResearchState defaults.
+    Type-mismatched fields (e.g. string where list expected) are dropped so Pydantic
+    fills them with defaults. Removed legacy keys are discarded rather than migrated.
 
     If validation still fails after top-level type fixup (e.g. wrong types inside nested
     objects), the offending top-level keys are progressively removed until validation
@@ -811,7 +777,7 @@ def ensure_state_schema(raw: dict | None) -> dict:
     if not raw or not isinstance(raw, dict):
         return default_state_dict()
 
-    normalized = _normalize_legacy_keys(dict(raw))  # shallow copy to avoid mutating input
+    normalized = _drop_removed_legacy_keys(dict(raw))  # shallow copy to avoid mutating input
 
     # Drop fields with wrong types to let Pydantic fill defaults (backward compat).
     defaults = default_state_dict()
@@ -1152,27 +1118,28 @@ def _recover_intent(cwd: Path) -> None:
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
 
-    if json_tmp_exists and md_tmp_exists:
-        # Both temp files ready — complete the interrupted write
-        os.rename(json_tmp, json_path)
-        os.rename(md_tmp, md_path)
-    else:
-        # Partial — rollback by cleaning up temp files
-        if json_tmp_exists:
-            try:
-                json_tmp.unlink()
-            except OSError:
-                pass
-        if md_tmp_exists:
-            try:
-                md_tmp.unlink()
-            except OSError:
-                pass
+    with file_lock(json_path):
+        if json_tmp_exists and md_tmp_exists:
+            # Both temp files ready — complete the interrupted write
+            os.rename(json_tmp, json_path)
+            os.rename(md_tmp, md_path)
+        else:
+            # Partial — rollback by cleaning up temp files
+            if json_tmp_exists:
+                try:
+                    json_tmp.unlink()
+                except OSError:
+                    pass
+            if md_tmp_exists:
+                try:
+                    md_tmp.unlink()
+                except OSError:
+                    pass
 
-    try:
-        intent_file.unlink(missing_ok=True)
-    except OSError:
-        pass
+        try:
+            intent_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def sync_state_json_core(cwd: Path, md_content: str) -> dict:
@@ -1191,7 +1158,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         pass
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("state.json is corrupt, attempting backup restore: %s", e)
-        bak_path = json_path.with_suffix(".json.bak")
+        bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
         try:
             existing = json.loads(bak_path.read_text(encoding="utf-8"))
             logger.info("Restored from state.json.bak")
@@ -1204,17 +1171,9 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
         merged["_version"] = parsed["_version"]
         merged["_synced_at"] = parsed["_synced_at"]
 
-        # Merge project -> project_reference
-        if parsed.get("project"):
-            if "project_reference" not in merged:
-                merged["project_reference"] = {
-                    "project_md_updated": None,
-                    "core_research_question": None,
-                    "current_focus": None,
-                }
-            merged["project_reference"]["project_md_updated"] = parsed["project"].get("project_md_updated")
-            merged["project_reference"]["core_research_question"] = parsed["project"].get("core_question")
-            merged["project_reference"]["current_focus"] = parsed["project"].get("current_focus")
+        # Merge project reference
+        if parsed.get("project_reference"):
+            merged["project_reference"] = {**(merged.get("project_reference") or {}), **parsed["project_reference"]}
 
         # Merge position
         if parsed.get("position"):
@@ -1231,8 +1190,8 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
             merged["blockers"] = parsed["blockers"]
 
         # Metrics
-        if parsed.get("metrics") is not None:
-            merged["performance_metrics"] = {"rows": parsed["metrics"]}
+        if parsed.get("performance_metrics") is not None:
+            merged["performance_metrics"] = parsed["performance_metrics"]
 
         # Bullet sections are fully represented in markdown, so markdown wins.
         for field in ("active_calculations", "intermediate_results", "open_questions"):
@@ -1247,7 +1206,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     atomic_write(json_path, json_content)
     # Create backup
     try:
-        atomic_write(json_path.with_suffix(".json.bak"), json_content + "\n")
+        atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_content + "\n")
     except OSError:
         if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("sync_state_json backup write failed")
@@ -1269,7 +1228,7 @@ def load_state_json(cwd: Path) -> dict | None:
     Returns the state dict, or None if no state exists.
     """
     json_path = _state_json_path(cwd)
-    bak_path = json_path.with_suffix(".json.bak")
+    bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
 
     # Recover from interrupted writes
     _recover_intent(cwd)
@@ -1286,7 +1245,8 @@ def load_state_json(cwd: Path) -> dict | None:
         try:
             bak_raw = bak_path.read_text(encoding="utf-8")
             restored = ensure_state_schema(json.loads(bak_raw))
-            atomic_write(json_path, bak_raw)
+            with file_lock(json_path):
+                atomic_write(json_path, bak_raw)
             return restored
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             if os.environ.get(ENV_GPD_DEBUG):
@@ -1296,7 +1256,8 @@ def load_state_json(cwd: Path) -> dict | None:
     md_path = _state_md_path(cwd)
     try:
         content = md_path.read_text(encoding="utf-8")
-        return ensure_state_schema(sync_state_json_core(cwd, content))
+        with file_lock(json_path):
+            return ensure_state_schema(sync_state_json_core(cwd, content))
     except (FileNotFoundError, OSError):
         if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("STATE.md fallback failed")
@@ -1337,7 +1298,7 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 
         # Backup
         try:
-            atomic_write(json_path.with_suffix(".json.bak"), json.dumps(state_obj, indent=2) + "\n")
+            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json.dumps(state_obj, indent=2) + "\n")
         except OSError:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("Failed to write state.json backup")
@@ -1403,11 +1364,11 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     if not section:
         return StateGetResult(content=content)
 
-    # Normalize snake_case → Title Case (e.g. "current_phase" → "Current Phase")
+    # Normalize snake_case → space-separated (e.g. "current_phase" → "current phase")
     section_norm = section.replace("_", " ")
 
     # Try **field:** value
-    field_escaped = _escape_regex(section_norm)
+    field_escaped = re.escape(section_norm)
     field_match = re.search(rf"\*\*{field_escaped}:\*\*\s*(.*)", content, re.IGNORECASE)
     if field_match:
         return StateGetResult(value=field_match.group(1).strip(), section_name=section)
@@ -1492,7 +1453,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                         failed.append(field)
                         continue
 
-            escaped = _escape_regex(field_norm)
+            escaped = re.escape(field_norm)
             pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
             if pattern.search(content):
                 safe_val = str(value)
@@ -1855,12 +1816,6 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
         try:
             state_obj = json.loads(json_path.read_text(encoding="utf-8"))
             pos = state_obj.get("position") or {}
-            progress_pct = pos.get("progress_percent")
-            if progress_pct is None:
-                progress_str = pos.get("progress")
-                if progress_str:
-                    m = re.search(r"(\d+)%", str(progress_str))
-                    progress_pct = int(m.group(1)) if m else None
             cp = pos.get("current_phase")
             return StateSnapshotResult(
                 current_phase=phase_normalize(str(cp)) if cp is not None else None,
@@ -1869,7 +1824,7 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
                 current_plan=str(pos["current_plan"]) if pos.get("current_plan") is not None else None,
                 total_plans_in_phase=pos.get("total_plans_in_phase"),
                 status=pos.get("status"),
-                progress_percent=progress_pct,
+                progress_percent=pos.get("progress_percent"),
                 last_activity=pos.get("last_activity"),
                 last_activity_desc=pos.get("last_activity_desc"),
                 decisions=state_obj.get("decisions"),

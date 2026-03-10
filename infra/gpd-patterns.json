@@ -10,6 +10,13 @@
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-patterns",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
+  },
   "capabilities": [
     "lookup_pattern",
     "add_pattern",

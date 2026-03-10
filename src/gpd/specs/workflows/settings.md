@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_check, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .gpd/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
+Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .gpd/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
 </purpose>
 
 <required_reading>
@@ -37,7 +37,7 @@ Parse current values (default to `true` / first option if not present):
 - `workflow.verifier` -- spawn verifier during execute-phase
 - `workflow.verify_between_waves` -- inter-wave verification gates (default: `"auto"`)
 - `parallelization` -- execute wave plans in parallel (default: `true`)
-- `model_profile` -- which research mode profile (default: `review`)
+- `model_profile` -- which agent model profile to use (default: `review`)
 - `git.branching_strategy` -- branching approach (default: `"none"`)
 - `physics.unit_system` -- unit convention (default: `"natural"`)
 - `physics.metric_signature` -- spacetime metric (default: `"mostly_minus"`)

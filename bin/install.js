@@ -574,14 +574,14 @@ async function selectRuntimes(args) {
   if (choice === "5" || choice === "all" || choice === "all runtimes") {
     return [...ALL_RUNTIMES];
   }
-  if (choice === "4" || choice === "codex") {
+  if (choice === "4" || choice === "opencode") {
+    return ["opencode"];
+  }
+  if (choice === "3" || choice === "codex") {
     return ["codex"];
   }
-  if (choice === "3" || choice === "gemini" || choice === "gemini cli") {
+  if (choice === "2" || choice === "gemini" || choice === "gemini cli") {
     return ["gemini"];
-  }
-  if (choice === "2" || choice === "opencode") {
-    return ["opencode"];
   }
   if (choice === "1" || choice === "claude" || choice === "claude code" || choice === "claude-code") {
     return ["claude-code"];

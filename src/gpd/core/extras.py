@@ -136,7 +136,7 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         return "invalid"
 
     # Pattern: "low OP x OP high" — double-bounded range
-    m = re.search(r"([0-9.eE+-]+)\s*([<>]=?)\s*\w+\s*([<>]=?)\s*([0-9.eE+-]+)", range_str)
+    m = re.search(r"([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*([<>]=?)\s*\w+\s*([<>]=?)\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)", range_str)
     if m:
         n1 = _parse_float(m.group(1))
         op1 = m.group(2)

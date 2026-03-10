@@ -64,8 +64,8 @@ def project_dir(tmp_path: Path) -> Path:
         provides:
           - effective-hamiltonian
         requires:
-          - what: bare-hamiltonian
-            from: phase-01-plan-01
+          - provides: bare-hamiltonian
+            phase: phase-01-plan-01
         affects:
           - energy-spectrum
         key-decisions:
@@ -88,8 +88,8 @@ def project_dir(tmp_path: Path) -> Path:
           - scattering-amplitude
         dependency-graph:
           requires:
-            - what: effective-hamiltonian
-              from: phase-02-plan-01
+            - provides: effective-hamiltonian
+              phase: phase-02-plan-01
         ---
         # Phase 03 Summary
 
@@ -134,8 +134,8 @@ class TestResolveField:
         assert resolve_field(fm, "provides") == ["a", "b"]
 
     def test_nested_in_dependency_graph(self) -> None:
-        fm = {"dependency-graph": {"requires": [{"what": "x"}]}}
-        assert resolve_field(fm, "requires") == [{"what": "x"}]
+        fm = {"dependency-graph": {"requires": [{"phase": "01", "provides": "x"}]}}
+        assert resolve_field(fm, "requires") == [{"phase": "01", "provides": "x"}]
 
     def test_prefers_dependency_graph(self) -> None:
         fm = {"requires": ["top"], "dependency-graph": {"requires": ["nested"]}}
@@ -156,17 +156,12 @@ class TestExtractRequiresValues:
         assert extract_requires_values(["a", "b"]) == ["a", "b"]
 
     def test_objects(self) -> None:
-        values = extract_requires_values([{"what": "x", "from": "y"}])
+        values = extract_requires_values([{"provides": "x", "phase": "y"}])
         assert "x" in values
         assert "y" in values
 
-    def test_legacy_objects(self) -> None:
-        values = extract_requires_values([{"provides": "z", "phase": "01"}])
-        assert "z" in values
-        assert "01" in values
-
     def test_mixed(self) -> None:
-        values = extract_requires_values(["a", {"what": "b"}])
+        values = extract_requires_values(["a", {"provides": "b"}])
         assert "a" in values
         assert "b" in values
 

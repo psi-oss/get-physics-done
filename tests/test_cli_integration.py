@@ -15,6 +15,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.state import default_state_dict, generate_state_markdown
 
 runner = CliRunner()
 
@@ -30,32 +31,24 @@ def gpd_project(tmp_path: Path) -> Path:
     planning = tmp_path / ".gpd"
     planning.mkdir()
 
-    state = {
-        "convention_lock": {
+    state = default_state_dict()
+    state["position"].update(
+        {
+            "current_phase": "01",
+            "current_phase_name": "Test Phase",
+            "total_phases": 2,
+            "status": "Executing",
+        }
+    )
+    state["convention_lock"].update(
+        {
             "metric_signature": "(-,+,+,+)",
             "coordinate_system": "Cartesian",
             "custom_conventions": {"my_custom": "value"},
-        },
-        "phases": [
-            {"number": "1", "name": "test-phase", "status": "completed"},
-            {"number": "2", "name": "phase-two", "status": "planned"},
-        ],
-        "current_phase": "1",
-        "current_plan": None,
-        "decisions": [],
-        "blockers": [],
-        "sessions": [],
-        "metrics": [],
-        "results": [],
-        "approximations": [],
-        "uncertainties": [],
-        "open_questions": [],
-        "calculations": [],
-    }
-    (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text(
-        "# State\n\n## Current Phase\n1\n\n## Decisions\n\n## Blockers\n"
+        }
     )
+    (planning / "state.json").write_text(json.dumps(state, indent=2))
+    (planning / "STATE.md").write_text(generate_state_markdown(state))
     (planning / "PROJECT.md").write_text(
         "# Test Project\n\n## Core Research Question\nWhat is physics?\n"
     )
@@ -70,7 +63,20 @@ def gpd_project(tmp_path: Path) -> Path:
         "# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n"
     )
     (planning / "config.json").write_text(
-        json.dumps({"mode": "yolo", "depth": "standard"})
+        json.dumps(
+            {
+                "autonomy": "yolo",
+                "research_mode": "balanced",
+                "parallelization": True,
+                "commit_docs": True,
+                "model_profile": "review",
+                "workflow": {
+                    "research": True,
+                    "plan_checker": True,
+                    "verifier": True,
+                },
+            }
+        )
     )
 
     # Phase directories
@@ -372,7 +378,7 @@ class TestValidateReturn:
 
 class TestConfigCommands:
     def test_config_get_existing_key(self) -> None:
-        result = _invoke("--raw", "config", "get", "mode")
+        result = _invoke("--raw", "config", "get", "autonomy")
         parsed = json.loads(result.output)
         assert parsed["found"] is True
         assert parsed["value"] == "yolo"
@@ -429,7 +435,14 @@ class TestConfigCommands:
         result = _invoke("--raw", "config", "ensure-section")
         parsed = json.loads(result.output)
         assert parsed["created"] is True
-        assert (gpd_project / ".gpd" / "config.json").exists()
+        config_path = gpd_project / ".gpd" / "config.json"
+        assert config_path.exists()
+        config = json.loads(config_path.read_text())
+        assert config["autonomy"] == "guided"
+        assert config["research_mode"] == "balanced"
+        assert config["parallelization"] is True
+        assert config["workflow"]["plan_checker"] is True
+        assert config["git"]["branching_strategy"] == "none"
 
     def test_config_help(self) -> None:
         result = _invoke("config", "--help")

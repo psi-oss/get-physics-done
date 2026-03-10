@@ -10,7 +10,7 @@ import pytest
 from gpd.core.errors import PatternError
 from gpd.core.patterns import (
     _BOOTSTRAP_PATTERNS,
-    _patterns_root,
+    patterns_root,
     CONFIDENCE_LEVELS,
     VALID_CATEGORIES,
     VALID_DOMAINS,
@@ -64,14 +64,14 @@ class TestPatternsRootResolution:
         monkeypatch.setenv("GPD_PATTERNS_ROOT", str(explicit))
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
 
-        assert _patterns_root() == explicit
+        assert patterns_root() == explicit
 
     def test_uses_data_dir_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         data_dir = tmp_path / "data"
         monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
         monkeypatch.setenv("GPD_DATA_DIR", str(data_dir))
 
-        assert _patterns_root() == data_dir / "learned-patterns"
+        assert patterns_root() == data_dir / "learned-patterns"
 
     def test_defaults_to_home_gpd_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         fake_home = tmp_path / "home"
@@ -80,7 +80,7 @@ class TestPatternsRootResolution:
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
         monkeypatch.setattr(Path, "home", lambda: fake_home)
 
-        assert _patterns_root(specs_root=tmp_path / "project") == fake_home / ".gpd" / "learned-patterns"
+        assert patterns_root(specs_root=tmp_path / "project") == fake_home / ".gpd" / "learned-patterns"
 
 
 # ─── pattern_init / ensure_library ───────────────────────────────────────────

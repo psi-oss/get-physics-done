@@ -91,7 +91,7 @@ One command takes you from research idea to ready-for-investigation:
 Creates all `.gpd/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
-- `config.json` — workflow mode (interactive/yolo)
+- `config.json` — workflow settings (`autonomy`, `research_mode`, agent toggles)
 - `research/` — literature survey (if selected)
 - `REQUIREMENTS.md` — scoped research requirements with REQ-IDs
 - `ROADMAP.md` — phases mapped to requirements
@@ -598,7 +598,7 @@ Visualize dependency graph across phases and identify gaps.
 
 Usage: `/gpd:graph`
 
-> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
+![1773117521686](image/help/1773117521686.png)![1773117527461](image/help/1773117527461.png)> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
 
 **`/gpd:export [--format html|latex|zip|all]`**
 Export research results to HTML, LaTeX, or ZIP package.

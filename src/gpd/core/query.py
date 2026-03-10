@@ -157,14 +157,14 @@ def resolve_field(fm: dict, field_name: str) -> list:
 def extract_requires_values(requires_arr: list) -> list[str]:
     """Extract the searchable values from a requires array.
 
-    Handles string items, object items with what/from/provides/phase keys, and mixed.
+    Handles string items, object items with phase/provides keys, and mixed.
     """
     values: list[str] = []
     for item in requires_arr:
         if isinstance(item, str):
             values.append(item)
         elif isinstance(item, dict):
-            for key in ("what", "from", "provides", "phase"):
+            for key in ("provides", "phase"):
                 if key in item and item[key]:
                     values.append(str(item[key]))
     return values
@@ -327,9 +327,12 @@ def query(
         if provides:
             for p in fm_provides:
                 display = p if isinstance(p, str) else json.dumps(p)
-                search_vals = (
-                    [p] if isinstance(p, str) else [v for v in [p.get("name"), p.get("what"), p.get("provides")] if v]
-                )
+                if isinstance(p, str):
+                    search_vals = [p]
+                elif isinstance(p, dict):
+                    search_vals = [v for v in [p.get("name"), p.get("provides")] if v]
+                else:
+                    search_vals = [str(p)]
                 if _any_match(provides, search_vals):
                     matches.append(
                         QueryMatch(
@@ -346,11 +349,12 @@ def query(
         if requires:
             for r in fm_requires:
                 display = r if isinstance(r, str) else json.dumps(r)
-                search_vals = (
-                    [r]
-                    if isinstance(r, str)
-                    else [v for v in [r.get("what"), r.get("from"), r.get("provides"), r.get("phase")] if v]
-                )
+                if isinstance(r, str):
+                    search_vals = [r]
+                elif isinstance(r, dict):
+                    search_vals = [v for v in [r.get("provides"), r.get("phase")] if v]
+                else:
+                    search_vals = [str(r)]
                 if _any_match(requires, search_vals):
                     matches.append(
                         QueryMatch(
@@ -367,9 +371,12 @@ def query(
         if affects:
             for a in fm_affects:
                 display = a if isinstance(a, str) else json.dumps(a)
-                search_vals = (
-                    [a] if isinstance(a, str) else [v for v in [a.get("name"), a.get("what"), a.get("affects")] if v]
-                )
+                if isinstance(a, str):
+                    search_vals = [a]
+                elif isinstance(a, dict):
+                    search_vals = [v for v in [a.get("name"), a.get("affects")] if v]
+                else:
+                    search_vals = [str(a)]
                 if _any_match(affects, search_vals):
                     matches.append(
                         QueryMatch(
@@ -441,9 +448,7 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
 
         # Check if this summary provides the identifier
         for p in fm_provides:
-            search_vals = (
-                [p] if isinstance(p, str) else [v for v in [p.get("name"), p.get("what"), p.get("provides")] if v]
-            )
+            search_vals = [p] if isinstance(p, str) else [v for v in [p.get("name"), p.get("provides")] if v]
             for sv in search_vals:
                 if term_matches(identifier, sv):
                     # Prefer exact match

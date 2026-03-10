@@ -284,7 +284,11 @@ def write_settings(settings_path: str | Path, settings: dict[str, object]) -> No
         tmp_path.write_text(content, encoding="utf-8")
     except PermissionError as exc:
         raise PermissionError(f"Cannot write settings file: {p} — check directory permissions") from exc
-    tmp_path.rename(p)
+    try:
+        tmp_path.rename(p)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -836,6 +840,8 @@ def write_manifest(
                         files[f"skills/{entry.name}/SKILL.md"] = file_hash(skill_md)
 
     manifest["files"] = files
+    if codex_skills_dir:
+        manifest["codex_skills_dir"] = str(codex_skills_dir)
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
@@ -945,7 +951,7 @@ def validate_package_integrity(gpd_root: Path) -> None:
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
                 f"Package integrity check failed: missing {required}/. "
-                "Try reinstalling: pip install --force-reinstall get-physics-done"
+                "Try reinstalling: npx -y github:physicalsuperintelligence/get-physics-done"
             )
 
 

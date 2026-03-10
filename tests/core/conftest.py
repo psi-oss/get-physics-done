@@ -46,7 +46,7 @@ def planning_dir(tmp_path: Path) -> Path:
     (planning / "PROJECT.md").write_text("# Project\n\nTest project.\n")
 
     # Optional files
-    (planning / "config.json").write_text(json.dumps({"model_profile": "balanced"}, indent=2))
+    (planning / "config.json").write_text(json.dumps({"model_profile": "review"}, indent=2))
 
     # Required directories
     (planning / "phases").mkdir()

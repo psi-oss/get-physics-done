@@ -75,7 +75,8 @@
       "args": [
         "-m",
         "arxiv_mcp_server"
-      ]
+      ],
+      "env": {}
     }
   }
 }

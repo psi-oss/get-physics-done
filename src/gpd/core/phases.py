@@ -1726,7 +1726,6 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
     roadmap_path = _roadmap_path(cwd)
     state_path = _state_path(cwd)
-    _phases_dir(cwd)
     unpadded = phase_unpad(phase_num)
     today = date.today().isoformat()
 

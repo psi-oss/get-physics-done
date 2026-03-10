@@ -10,7 +10,7 @@ Covers:
   - frontmatter.py: validate_frontmatter unknown schema
   - config.py: load_config error handling (missing, malformed, bad values)
   - health.py: check_* functions that catch broad exceptions
-  - utils.py: safe_parse_json / safe_parse_yaml / safe_read_file
+  - utils.py: safe_read_file
   - json_utils.py: json_get / json_keys / json_list with bad input
 """
 
@@ -47,7 +47,7 @@ from gpd.core.state import (
     save_state_json,
     sync_state_json,
 )
-from gpd.core.utils import safe_parse_json, safe_parse_yaml, safe_read_file
+from gpd.core.utils import safe_read_file
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -261,8 +261,8 @@ class TestEnsureStateSchema:
         result = ensure_state_schema({"_custom_key": "preserved", "position": "invalid"})
         assert result.get("_custom_key") == "preserved"
 
-    def test_legacy_project_key_migration(self) -> None:
-        """Old 'project' key maps to 'project_reference'."""
+    def test_removed_legacy_project_key_is_dropped(self) -> None:
+        """Removed top-level legacy keys are discarded during schema cleanup."""
         result = ensure_state_schema({
             "project": {
                 "core_question": "How does X work?",
@@ -270,8 +270,9 @@ class TestEnsureStateSchema:
             }
         })
         pr = result["project_reference"]
-        assert pr["core_research_question"] == "How does X work?"
-        assert pr["current_focus"] == "Testing"
+        assert pr["core_research_question"] is None
+        assert pr["current_focus"] is None
+        assert "project" not in result
 
     def test_non_dict_returns_defaults(self) -> None:
         """A non-dict input (e.g. list) returns defaults."""
@@ -641,28 +642,7 @@ class TestHealthCheckGracefulDegradation:
 
 
 class TestSafeParseFunctions:
-    """safe_parse_json, safe_parse_yaml, safe_read_file never raise."""
-
-    def test_safe_parse_json_valid(self) -> None:
-        assert safe_parse_json('{"a": 1}') == {"a": 1}
-
-    def test_safe_parse_json_invalid(self) -> None:
-        assert safe_parse_json("NOT JSON") is None
-
-    def test_safe_parse_json_non_dict(self) -> None:
-        """Returns None for valid JSON that's not a dict."""
-        assert safe_parse_json("[1, 2]") is None
-        assert safe_parse_json('"just a string"') is None
-
-    def test_safe_parse_yaml_valid(self) -> None:
-        assert safe_parse_yaml("key: value\n") == {"key": "value"}
-
-    def test_safe_parse_yaml_invalid(self) -> None:
-        assert safe_parse_yaml(": : : bad\n") is None
-
-    def test_safe_parse_yaml_non_dict(self) -> None:
-        """Returns None for valid YAML that's not a dict."""
-        assert safe_parse_yaml("- item1\n- item2\n") is None
+    """safe_read_file never raises."""
 
     def test_safe_read_file_missing(self, tmp_path: Path) -> None:
         assert safe_read_file(tmp_path / "nonexistent.txt") is None

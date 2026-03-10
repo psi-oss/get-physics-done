@@ -233,6 +233,7 @@ def copy_flattened_commands(
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix)
             content = convert_claude_to_opencode_frontmatter(content)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
             dest_path.write_text(content, encoding="utf-8")
             count += 1
@@ -414,6 +415,7 @@ def _copy_dir_contents(src_dir: Path, target_dir: Path, path_prefix: str) -> Non
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix)
             content = convert_claude_to_opencode_frontmatter(content)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
             dest_path.write_text(content, encoding="utf-8")
         else:
             shutil.copy2(entry, dest_path)

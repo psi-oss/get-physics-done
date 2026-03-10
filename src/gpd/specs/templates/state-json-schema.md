@@ -55,8 +55,6 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | `core_research_question` | `string \| null` | `/gpd:new-project` |
 | `current_focus` | `string \| null` | Phase transitions, `gpd state update` |
 
-**Legacy note:** `parse_state_to_json` emits `project` key; `sync_state_json` maps this to `project_reference`.
-
 ### `position`
 
 ```json

@@ -10,7 +10,6 @@ from PIL import Image
 from gpd.mcp.paper.figures import (
     check_figure_resolution,
     detect_format,
-    generate_figure_latex,
     get_dpi_for_journal,
     get_figure_width,
     normalize_figure,
@@ -141,36 +140,6 @@ class TestResolutionCheck:
         assert "single-column" in single_msg
         assert double_passes is False
         assert "double-column" in double_msg
-
-
-# ---- LaTeX generation ----
-
-
-class TestLatexGeneration:
-    def test_generate_figure_latex_single(self):
-        fig = FigureRef(path=Path("figures/fig01.pdf"), caption="Velocity field.", label="velocity")
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\begin{figure}" in latex
-        assert r"\includegraphics" in latex
-        assert r"\caption{Velocity field.}" in latex
-        assert r"\label{fig:velocity}" in latex
-        assert r"\end{figure}" in latex
-
-    def test_generate_figure_latex_double(self):
-        fig = FigureRef(
-            path=Path("figures/fig02.pdf"),
-            caption="Wide figure.",
-            label="wide",
-            double_column=True,
-        )
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\begin{figure*}" in latex
-        assert r"\end{figure*}" in latex
-
-    def test_generate_figure_latex_caption_escaped(self):
-        fig = FigureRef(path=Path("fig.pdf"), caption="Value of $\\alpha$ vs time.", label="alpha")
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\caption{Value of $\alpha$ vs time.}" in latex
 
 
 # ---- Batch processing ----

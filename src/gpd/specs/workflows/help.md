@@ -108,7 +108,7 @@ One command takes you from research idea to ready-for-investigation:
 Creates all `.gpd/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
-- `config.json` — workflow mode (interactive/yolo)
+- `config.json` — workflow settings (`autonomy`, `research_mode`, agent toggles)
 - `research/` — literature survey (if selected)
 - `REQUIREMENTS.md` — scoped research requirements with REQ-IDs
 - `ROADMAP.md` — phases mapped to requirements

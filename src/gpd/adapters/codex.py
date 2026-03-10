@@ -412,10 +412,7 @@ class CodexAdapter(RuntimeAdapter):
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
-        manifest = write_manifest(target_dir, version, codex_skills_dir=str(self._skills_dir))
-        manifest[_MANIFEST_CODEX_SKILLS_DIR_KEY] = str(self._skills_dir)
-        manifest_path = target_dir / MANIFEST_NAME
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        write_manifest(target_dir, version, codex_skills_dir=str(self._skills_dir))
 
     def uninstall(
         self,

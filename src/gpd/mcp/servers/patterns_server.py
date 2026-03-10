@@ -22,7 +22,7 @@ from gpd.core.patterns import (
     VALID_CATEGORIES,
     VALID_DOMAINS,
     VALID_SEVERITIES,
-    _patterns_root,
+    patterns_root,
     pattern_add,
     pattern_list,
     pattern_promote,
@@ -37,7 +37,7 @@ mcp = FastMCP("gpd-patterns")
 
 # Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
 # env vars are not set. Falls back to the global ~/.gpd data directory.
-_DEFAULT_PATTERNS_ROOT: Path = _patterns_root()
+_DEFAULT_PATTERNS_ROOT: Path = patterns_root()
 
 
 @mcp.tool()

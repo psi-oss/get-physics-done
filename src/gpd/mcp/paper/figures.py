@@ -155,21 +155,6 @@ def check_figure_resolution(path: Path, journal: str, double_column: bool = Fals
         return True, f"cannot check resolution: {exc}"
 
 
-# ---- LaTeX figure snippet generation ----
-
-
-def generate_figure_latex(fig: FigureRef, journal: str) -> str:
-    """Generate a LaTeX figure block for a FigureRef."""
-    env = "figure*" if fig.double_column else "figure"
-    return (
-        f"\\begin{{{env}}}\n"
-        f"\\includegraphics[width={fig.width}]{{{fig.path}}}\n"
-        f"\\caption{{{fig.caption}}}\n"
-        f"\\label{{fig:{fig.label}}}\n"
-        f"\\end{{{env}}}"
-    )
-
-
 # ---- Batch processing ----
 
 

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "AGENT_DEFAULT_TIERS",
+    "ConfigError",
     "DEFAULT_COST_PER_MILLION",
     "MODEL_PROFILES",
     "AutonomyMode",
@@ -393,19 +394,6 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
 def _coalesce(value: object, default: object) -> object:
     """Return value if not None, else default."""
     return value if value is not None else default
-
-
-def _resolve_plan_checker(parsed: dict) -> bool:
-    """Resolve plan_checker with backward compat for workflow.plan_check."""
-    val = _get_nested(parsed, "plan_checker", section="workflow", field="plan_checker")
-    if val is not None:
-        return bool(val)
-    # backward compat: old configs used workflow.plan_check
-    if "workflow" in parsed and isinstance(parsed["workflow"], dict):
-        old_val = parsed["workflow"].get("plan_check")
-        if old_val is not None:
-            return bool(old_val)
-    return _CONFIG_DEFAULTS.plan_checker
 
 
 def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:

@@ -757,7 +757,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 7. Package importability
+        # 6. Package importability
         import_issues: list[str] = []
         for module in ("gpd.core.utils", "gpd.core.config", "gpd.core.state", "gpd.core.conventions"):
             try:

@@ -110,23 +110,26 @@ class TestLoadConfig:
         assert config["research"] is False
         assert config["plan_checker"] is False
 
-    def test_parallelization_object(self, tmp_path: Path) -> None:
+    def test_parallelization_bool(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"parallelization": {"enabled": False}})
+        _create_config(tmp_path, {"parallelization": False})
         config = load_config(tmp_path)
         assert config["parallelization"] is False
 
-    def test_backward_compat_mode_yolo(self, tmp_path: Path) -> None:
+    def test_removed_mode_key_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"mode": "yolo"})
-        config = load_config(tmp_path)
-        assert config["autonomy"] == "yolo"
+        with pytest.raises(ValueError, match="`mode` was removed; use `autonomy`"):
+            load_config(tmp_path)
 
-    def test_backward_compat_mode_interactive(self, tmp_path: Path) -> None:
+    def test_removed_parallelization_object_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"mode": "interactive"})
-        config = load_config(tmp_path)
-        assert config["autonomy"] == "supervised"
+        _create_config(tmp_path, {"parallelization": {"enabled": False}})
+        with pytest.raises(
+            ValueError,
+            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+        ):
+            load_config(tmp_path)
 
     def test_malformed_config_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

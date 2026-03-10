@@ -187,6 +187,29 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
     assert str(target) not in result.output
 
 
+def test_install_summary_leaves_blank_line_after_help_hint(tmp_path: Path):
+    """Install output should leave a blank line after the help hint."""
+    target = tmp_path / ".claude"
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.help_command = "/gpd:help"
+        del mock_adapter.finish_install
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
+
+    assert result.exit_code == 0
+    assert "Run /gpd:help to see available commands.\n\n" in result.output
+
+
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 

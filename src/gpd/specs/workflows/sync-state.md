@@ -112,7 +112,7 @@ Extract from state.json:
 - `project_reference.current_focus`
 - `decisions[]`
 - `blockers[]`
-- `session.last_session`, `session.stopped_at`
+- `session.last_date`, `session.stopped_at`
 - `convention_lock` (JSON-only field)
 - `intermediate_results` (JSON-only field)
 - `approximations` (JSON-only field)
@@ -130,7 +130,7 @@ For each shared field, check if values match:
 | current_plan | {md_value} | {json_value} | {YES/NO} |
 | status | {md_value} | {json_value} | {YES/NO} |
 | last_activity | {md_value} | {json_value} | {YES/NO} |
-| core_question | {md_value} | {json_value} | {YES/NO} |
+| core_research_question | {md_value} | {json_value} | {YES/NO} |
 | current_focus | {md_value} | {json_value} | {YES/NO} |
 | decision_count | {md_count} | {json_count} | {YES/NO} |
 | blocker_count | {md_count} | {json_count} | {YES/NO} |

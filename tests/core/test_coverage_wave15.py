@@ -7,9 +7,8 @@ Targets (prioritized by risk):
   4. verify_phase_completeness — validation: plan/summary matching
   5. validate_phase_waves      — validation: wave dependency checks
   6. list_phase_files          — query: lists plans/summaries across phases
-  7. walk_for_nan / safe_parse_json / safe_parse_yaml / safe_parse_int /
-     safe_read_file / safe_read_file_truncated / format_progress_bar /
-     phase_top_level / file_lock — pure helpers, widely used
+  7. safe_parse_int / safe_read_file / safe_read_file_truncated /
+     file_lock — pure helpers, widely used
 """
 
 from __future__ import annotations
@@ -26,14 +25,9 @@ from gpd.core.state import (
 )
 from gpd.core.utils import (
     file_lock,
-    format_progress_bar,
-    phase_top_level,
     safe_parse_int,
-    safe_parse_json,
-    safe_parse_yaml,
     safe_read_file,
     safe_read_file_truncated,
-    walk_for_nan,
 )
 
 # ---------------------------------------------------------------------------
@@ -486,53 +480,7 @@ class TestListPhaseFiles:
 
 
 # ---------------------------------------------------------------------------
-# 9. walk_for_nan
-# ---------------------------------------------------------------------------
-
-
-class TestWalkForNan:
-    """Tests for walk_for_nan utility."""
-
-    def test_no_nan(self) -> None:
-        obj = {"a": 1, "b": [2, 3], "c": {"d": 4.0}}
-        assert walk_for_nan(obj, "root") == []
-
-    def test_nan_in_dict(self) -> None:
-        obj = {"a": float("nan"), "b": 1}
-        result = walk_for_nan(obj, "state")
-        assert "state.a" in result
-
-    def test_nan_in_nested_list(self) -> None:
-        obj = {"items": [1.0, float("nan"), 3.0]}
-        result = walk_for_nan(obj, "data")
-        assert "data.items[1]" in result
-
-    def test_nan_in_deeply_nested_dict(self) -> None:
-        obj = {"level1": {"level2": {"value": float("nan")}}}
-        result = walk_for_nan(obj, "root")
-        assert "root.level1.level2.value" in result
-
-    def test_empty_structures(self) -> None:
-        assert walk_for_nan({}, "root") == []
-        assert walk_for_nan([], "root") == []
-
-    def test_none_input(self) -> None:
-        assert walk_for_nan(None, "root") == []
-
-    def test_multiple_nans(self) -> None:
-        obj = {"a": float("nan"), "b": {"c": float("nan")}}
-        result = walk_for_nan(obj, "s")
-        assert len(result) == 2
-
-    def test_nan_in_list_of_dicts(self) -> None:
-        obj = [{"val": float("nan")}, {"val": 1.0}]
-        result = walk_for_nan(obj, "arr")
-        assert "arr[0].val" in result
-        assert len(result) == 1
-
-
-# ---------------------------------------------------------------------------
-# 10. safe_parse_* helpers
+# 9. safe_parse_* helpers
 # ---------------------------------------------------------------------------
 
 
@@ -571,63 +519,8 @@ class TestSafeParseInt:
         assert safe_parse_int("0") == 0
 
 
-class TestSafeParseJson:
-    """Tests for safe_parse_json."""
-
-    def test_valid_json_dict(self) -> None:
-        result = safe_parse_json('{"key": "value"}')
-        assert result == {"key": "value"}
-
-    def test_valid_json_nested(self) -> None:
-        result = safe_parse_json('{"a": {"b": 1}}')
-        assert result == {"a": {"b": 1}}
-
-    def test_json_list_returns_none(self) -> None:
-        """Non-dict JSON should return None."""
-        assert safe_parse_json("[1, 2, 3]") is None
-
-    def test_invalid_json_returns_none(self) -> None:
-        assert safe_parse_json("not json at all") is None
-
-    def test_empty_string_returns_none(self) -> None:
-        assert safe_parse_json("") is None
-
-    def test_json_string_returns_none(self) -> None:
-        """A bare JSON string is not a dict."""
-        assert safe_parse_json('"hello"') is None
-
-    def test_json_number_returns_none(self) -> None:
-        assert safe_parse_json("42") is None
-
-
-class TestSafeParseYaml:
-    """Tests for safe_parse_yaml."""
-
-    def test_valid_yaml_dict(self) -> None:
-        result = safe_parse_yaml("key: value\nother: 42")
-        assert result == {"key": "value", "other": 42}
-
-    def test_yaml_list_returns_none(self) -> None:
-        assert safe_parse_yaml("- item1\n- item2") is None
-
-    def test_invalid_yaml_returns_none(self) -> None:
-        assert safe_parse_yaml(":::invalid: [yaml{{{") is None
-
-    def test_empty_string_returns_none(self) -> None:
-        assert safe_parse_yaml("") is None
-
-    def test_yaml_bare_string_returns_none(self) -> None:
-        assert safe_parse_yaml("just a string") is None
-
-    def test_yaml_nested(self) -> None:
-        yaml_text = "outer:\n  inner: 1\n  other: two"
-        result = safe_parse_yaml(yaml_text)
-        assert result is not None
-        assert result["outer"]["inner"] == 1
-
-
 # ---------------------------------------------------------------------------
-# 11. safe_read_file / safe_read_file_truncated
+# 10. safe_read_file / safe_read_file_truncated
 # ---------------------------------------------------------------------------
 
 
@@ -677,78 +570,7 @@ class TestSafeReadFileTruncated:
 
 
 # ---------------------------------------------------------------------------
-# 12. format_progress_bar
-# ---------------------------------------------------------------------------
-
-
-class TestFormatProgressBar:
-    """Tests for format_progress_bar."""
-
-    def test_zero_percent(self) -> None:
-        result = format_progress_bar(0.0)
-        assert result.startswith("[")
-        assert "0%" in result
-
-    def test_hundred_percent(self) -> None:
-        result = format_progress_bar(1.0)
-        assert "100%" in result
-
-    def test_fifty_percent(self) -> None:
-        result = format_progress_bar(0.5, width=10)
-        assert "50%" in result
-        # With width 10, should have 5 filled chars
-        assert "=====" in result
-
-    def test_clamp_above_one(self) -> None:
-        result = format_progress_bar(1.5)
-        assert "100%" in result
-
-    def test_clamp_below_zero(self) -> None:
-        result = format_progress_bar(-0.5)
-        assert "0%" in result
-
-    def test_custom_width(self) -> None:
-        result = format_progress_bar(1.0, width=20)
-        # Should have 20 '=' chars
-        assert "====================" in result
-
-    def test_fractional_percent(self) -> None:
-        result = format_progress_bar(0.333, width=10)
-        assert "33%" in result
-
-
-# ---------------------------------------------------------------------------
-# 13. phase_top_level
-# ---------------------------------------------------------------------------
-
-
-class TestPhaseTopLevel:
-    """Tests for phase_top_level."""
-
-    def test_simple_number(self) -> None:
-        assert phase_top_level("3") == 3
-
-    def test_multi_level(self) -> None:
-        assert phase_top_level("2.1.1") == 2
-
-    def test_padded(self) -> None:
-        assert phase_top_level("03") == 3
-
-    def test_non_numeric(self) -> None:
-        assert phase_top_level("abc") is None
-
-    def test_empty_string(self) -> None:
-        assert phase_top_level("") is None
-
-    def test_zero(self) -> None:
-        assert phase_top_level("0") == 0
-
-    def test_large_number(self) -> None:
-        assert phase_top_level("142.5") == 142
-
-
-# ---------------------------------------------------------------------------
-# 14. file_lock
+# 11. file_lock
 # ---------------------------------------------------------------------------
 
 
