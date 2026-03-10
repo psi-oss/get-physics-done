@@ -14,6 +14,7 @@ from gpd import registry
 from gpd.registry import (
     AgentDef,
     CommandDef,
+    SkillDef,
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
@@ -510,6 +511,78 @@ class TestCommandMergeBehavior:
         assert result["my-skill"].name == "my-skill"  # Overwritten to canonical dir name
 
 
+# ─── Canonical skill derivation ──────────────────────────────────────────────
+
+
+class TestSkillDiscovery:
+    """Tests for canonical skills derived from primary commands and agents."""
+
+    def test_skills_use_primary_commands_and_agents_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "help.md").write_text(
+            "---\nname: gpd:help\ndescription: primary help\n---\nPrimary help body.",
+            encoding="utf-8",
+        )
+
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-debugger.md").write_text(
+            "---\nname: gpd-debugger\ndescription: primary debugger\n---\nPrimary debugger prompt.",
+            encoding="utf-8",
+        )
+
+        specs_skills_dir = tmp_path / "specs" / "skills"
+        specs_skills_dir.mkdir(parents=True)
+        stale_help = specs_skills_dir / "gpd-help"
+        stale_help.mkdir()
+        (stale_help / "SKILL.md").write_text(
+            "---\nname: gpd-help\ndescription: stale help\n---\nStale help body.",
+            encoding="utf-8",
+        )
+
+        specs_agents_dir = tmp_path / "specs" / "agents"
+        specs_agents_dir.mkdir(parents=True)
+        (specs_agents_dir / "gpd-debugger.md").write_text(
+            "---\nname: gpd-debugger\ndescription: stale debugger\n---\nStale debugger prompt.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", specs_skills_dir)
+        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", specs_agents_dir)
+
+        skills = registry._discover_skills(registry._discover_commands(), registry._discover_agents())
+
+        assert set(skills) == {"gpd-debugger", "gpd-help"}
+        assert skills["gpd-help"].source_kind == "command"
+        assert skills["gpd-help"].content == "Primary help body."
+        assert skills["gpd-debugger"].source_kind == "agent"
+        assert skills["gpd-debugger"].content == "Primary debugger prompt."
+
+    def test_duplicate_skill_names_across_command_and_agent_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "foo.md").write_text("---\nname: gpd:foo\n---\nCommand body.", encoding="utf-8")
+
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-foo.md").write_text("---\nname: gpd-foo\n---\nAgent prompt.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", tmp_path / "nonexistent-skills")
+        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent-agents")
+
+        with pytest.raises(ValueError, match="Duplicate skill name 'gpd-foo'"):
+            registry._discover_skills(registry._discover_commands(), registry._discover_agents())
+
+
 # ─── Non-.md files ignored ───────────────────────────────────────────────────
 
 
@@ -607,12 +680,15 @@ class TestRegistryCache:
         cache = _RegistryCache()
         cache.agents()
         cache.commands()
+        cache.skills()
         assert cache._agents is not None
         assert cache._commands is not None
+        assert cache._skills is not None
 
         cache.invalidate()
         assert cache._agents is None
         assert cache._commands is None
+        assert cache._skills is None
 
     def test_invalidate_forces_re_discovery(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
@@ -658,6 +734,16 @@ class TestPublicAPI:
         with pytest.raises(KeyError, match="Command not found: nonexistent"):
             registry.get_command("nonexistent")
 
+    def test_get_skill_not_found_raises_key_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(registry, "COMMANDS_DIR", tmp_path / "nonexistent")
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent")
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", tmp_path / "nonexistent")
+        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent")
+        registry.invalidate_cache()
+
+        with pytest.raises(KeyError, match="Skill not found: nonexistent"):
+            registry.get_skill("nonexistent")
+
     def test_list_agents_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -684,6 +770,24 @@ class TestPublicAPI:
 
         names = registry.list_commands()
         assert names == ["apple", "zebra"]
+
+    def test_list_skills_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "plan-phase.md").write_text("---\nname: gpd:plan-phase\n---\nPlan.", encoding="utf-8")
+
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-debugger.md").write_text("---\nname: gpd-debugger\n---\nDebug.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", tmp_path / "nonexistent-skills")
+        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        names = registry.list_skills()
+        assert names == ["gpd-debugger", "gpd-plan-phase"]
 
     def test_get_agent_returns_correct_def(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
@@ -718,6 +822,27 @@ class TestPublicAPI:
         assert cmd.name == "gpd:test-cmd"  # Frontmatter name preserved
         assert cmd.description == "Tested"
 
+    def test_get_skill_returns_correct_def(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\nname: gpd:execute-phase\ndescription: Execute\n---\nExecute body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        monkeypatch.setattr(registry, "SPECS_SKILLS_DIR", tmp_path / "nonexistent-skills")
+        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent-specs-agents")
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("execute-phase")
+        assert isinstance(skill, SkillDef)
+        assert skill.name == "gpd-execute-phase"
+        assert skill.registry_name == "execute-phase"
+        assert skill.source_kind == "command"
+        assert skill.content == "Execute body."
+
     def test_invalidate_cache_module_level(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -738,7 +863,7 @@ class TestPublicAPI:
 
 
 class TestDataclasses:
-    """Tests for AgentDef and CommandDef dataclass properties."""
+    """Tests for AgentDef, CommandDef, and SkillDef dataclass properties."""
 
     def test_agent_def_frozen(self) -> None:
         agent = AgentDef(name="a", description="d", system_prompt="s", tools=[], color="", path="/p", source="agents")
@@ -777,3 +902,29 @@ class TestDataclasses:
         )
         with pytest.raises((AttributeError, TypeError)):
             cmd.new_attr = "nope"  # type: ignore[misc]
+
+    def test_skill_def_frozen(self) -> None:
+        skill = SkillDef(
+            name="gpd-test",
+            description="d",
+            content="body",
+            category="other",
+            path="/p",
+            source_kind="command",
+            registry_name="test",
+        )
+        with pytest.raises(AttributeError):
+            skill.name = "gpd-other"  # type: ignore[misc]
+
+    def test_skill_def_slots(self) -> None:
+        skill = SkillDef(
+            name="gpd-test",
+            description="d",
+            content="body",
+            category="other",
+            path="/p",
+            source_kind="command",
+            registry_name="test",
+        )
+        with pytest.raises((AttributeError, TypeError)):
+            skill.new_attr = "nope"  # type: ignore[misc]

@@ -483,11 +483,15 @@ class TestSkillsServer:
 
     @pytest.fixture(autouse=True)
     def _mock_skill_registry(self, tmp_path):
-        """Create fake commands/spec skills and patch the shared registry paths."""
+        """Create fake commands/agents and stale legacy mirrors for MCP tests."""
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
         specs_skills_dir = tmp_path / "skills"
         specs_skills_dir.mkdir()
+        specs_agents_dir = tmp_path / "specs-agents"
+        specs_agents_dir.mkdir()
 
         (commands_dir / "execute-phase.md").write_text(
             "---\n"
@@ -511,10 +515,19 @@ class TestSkillsServer:
         (commands_dir / "help.md").write_text(
             "---\n"
             "name: gpd:help\n"
-            "description: Show available commands.\n"
+            "description: Show available GPD commands and usage guide.\n"
             "---\n"
             "\n"
             "Canonical help command.\n",
+            encoding="utf-8",
+        )
+        (agents_dir / "gpd-debugger.md").write_text(
+            "---\n"
+            "name: gpd-debugger\n"
+            "description: Canonical debugger agent.\n"
+            "---\n"
+            "\n"
+            "Primary debugger agent.\n",
             encoding="utf-8",
         )
 
@@ -535,20 +548,20 @@ class TestSkillsServer:
         (debugger / "SKILL.md").write_text(
             "---\n"
             "name: gpd-debugger\n"
-            "description: Debugger fallback skill.\n"
+            "description: Stale debugger skill.\n"
             "---\n"
             "\n"
-            "Spec-only debugger skill.\n",
+            "Stale debugger skill.\n",
             encoding="utf-8",
         )
-
-        (commands_dir / "help.md").write_text(
+        stale_debugger_agent = specs_agents_dir / "gpd-debugger.md"
+        stale_debugger_agent.write_text(
             "---\n"
-            "name: gpd:help\n"
-            "description: Show available GPD commands and usage guide.\n"
+            "name: gpd-debugger\n"
+            "description: Stale debugger agent.\n"
             "---\n"
             "\n"
-            "Canonical help command.\n",
+            "Stale debugger agent.\n",
             encoding="utf-8",
         )
 
@@ -561,7 +574,9 @@ class TestSkillsServer:
 
         with (
             patch("gpd.registry.COMMANDS_DIR", commands_dir),
+            patch("gpd.registry.AGENTS_DIR", agents_dir),
             patch("gpd.registry.SPECS_SKILLS_DIR", specs_skills_dir),
+            patch("gpd.registry.SPECS_AGENTS_DIR", specs_agents_dir),
         ):
             from gpd.registry import invalidate_cache
 
@@ -602,6 +617,15 @@ class TestSkillsServer:
         assert "Stale execute spec" not in result["content"]
         assert result["file_count"] == 1
 
+    def test_get_skill_agent_uses_primary_agent_content(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-debugger")
+        assert result["name"] == "gpd-debugger"
+        assert "Primary debugger agent" in result["content"]
+        assert "Stale debugger skill" not in result["content"]
+        assert "Stale debugger agent" not in result["content"]
+
     def test_get_skill_resolves_install_and_agents_placeholders(self):
         from gpd.mcp.servers.skills_server import get_skill
         from gpd.registry import AGENTS_DIR, SPECS_DIR
@@ -637,6 +661,29 @@ class TestSkillsServer:
 
         result = route_skill("zzz yyy xxx")
         assert result["suggestion"] == "gpd-help"
+        assert result["confidence"] <= 0.1
+
+    def test_route_skill_no_match_without_help_falls_back_to_first_skill(self):
+        from gpd.mcp.servers.skills_server import route_skill
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-debugger",
+                    description="Debugger",
+                    content="Primary debugger agent.",
+                    category="debugging",
+                    path="/tmp/gpd-debugger.md",
+                    source_kind="agent",
+                    registry_name="gpd-debugger",
+                )
+            ],
+        ):
+            result = route_skill("zzz yyy xxx")
+
+        assert result["suggestion"] == "gpd-debugger"
         assert result["confidence"] <= 0.1
 
     def test_get_skill_index(self):
