@@ -354,6 +354,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 
 | Protocol | File | When to Use |
 |---|---|---|
+| Algebraic QFT | `protocols/algebraic-qft.md` | Haag-Kastler nets, modular theory, DHR sectors, factor types, split and duality properties |
 | Group Theory | `protocols/group-theory.md` | Representations, Clebsch-Gordan coefficients, character tables, selection rules |
 | Topological Methods | `protocols/topological-methods.md` | Berry phase, Chern numbers, topological invariants, edge states, bulk-boundary |
 | Green's Functions | `protocols/green-functions.md` | Retarded/advanced/Matsubara propagators, spectral functions, Dyson equation, analytic continuation |
@@ -373,6 +374,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Nuclear / Particle Physics | `verification-domain-nuclear-particle.md` | Magic numbers, shell model, parton sum rules, CKM unitarity |
 | Astrophysics | `verification-domain-astrophysics.md` | Eddington luminosity, stellar structure, Jeans mass, opacity |
 | Mathematical Physics | `verification-domain-mathematical-physics.md` | Analyticity, spectral theory, asymptotics, distribution theory |
+| Algebraic QFT | `verification-domain-algebraic-qft.md` | Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors, split and duality checks |
 | String Field Theory | `verification-domain-string-field-theory.md` | BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence |
 | Quantum Information | `verification-domain-quantum-info.md` | CPTP maps, entanglement measures, information bounds, channel capacity |
 | Soft Matter / Biophysics | `verification-domain-soft-matter.md` | Equilibration, scaling laws, force fields, finite-size analysis |

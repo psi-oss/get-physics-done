@@ -115,6 +115,7 @@ def _infer_domain(name: str, load_when: list[str]) -> str:
         "random-matrix-theory",
     }
     mathematical = {
+        "algebraic-qft",
         "group-theory",
         "topological-methods",
         "green-functions",

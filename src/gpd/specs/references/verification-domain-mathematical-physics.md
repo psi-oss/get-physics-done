@@ -26,6 +26,7 @@ Operator theory, spectral analysis, conformal bootstrap, index theorems, topolog
 - `verification-quick-reference.md` — compact checklist (default entry point)
 - `verification-core.md` — dimensional analysis, limiting cases, conservation laws
 - `verification-domain-qft.md` — QFT (for anomalies, Ward identities, renormalization)
+- `verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, and factor-type verification
 - `verification-domain-condmat.md` — condensed matter (for topological phases, spectral functions)
 - `protocols/conformal-bootstrap.md` — crossing equations, conformal blocks, SDPB, extremal functionals
 

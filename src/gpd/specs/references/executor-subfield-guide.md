@@ -18,6 +18,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 | Nuclear & Particle Physics | `subfields/nuclear-particle.md` | `verification-domain-nuclear-particle.md` |
 | Astrophysics | `subfields/astrophysics.md` | `verification-domain-astrophysics.md` |
 | Mathematical Physics | `subfields/mathematical-physics.md` | `verification-domain-mathematical-physics.md` |
+| Algebraic QFT | `subfields/algebraic-qft.md` | `verification-domain-algebraic-qft.md` |
 | String Field Theory | `subfields/string-field-theory.md` | `verification-domain-string-field-theory.md` |
 | Quantum Information | `subfields/quantum-info.md` | `verification-domain-quantum-info.md` |
 | Fluid Dynamics & Plasma | `subfields/fluid-plasma.md` | `verification-domain-fluid-plasma.md` |
@@ -79,6 +80,13 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Conformal bootstrap routing:** For crossing equations, OPE truncations, semidefinite programming, extremal functionals, or rigorous CFT bounds, load `protocols/conformal-bootstrap.md` immediately. Do not treat bootstrap work as generic QFT numerics.
 - **Sector bookkeeping:** In mixed-correlator or global-symmetry bootstrap problems, write the representation content of each OPE channel before interpreting a bound. Misplacing the stress tensor, conserved current, or singlet/traceless sectors invalidates the result.
 - **Numerical rigor:** Record derivative order `Lambda`, spin truncation, block normalization, and solver precision. A claimed island, kink, or bound is not usable until stability under these controls is checked.
+
+## Algebraic Quantum Field Theory
+
+- **Net first:** State the spacetime, region class, and whether the object is a Haag-Kastler C*-net, a von Neumann net in a chosen representation, or a locally covariant functor before using AQFT vocabulary.
+- **Representation discipline:** Any modular, superselection, or type-classification claim must name the state and GNS representation. Do not move between vacuum, thermal, and charged sectors implicitly.
+- **Modular caution:** Tomita-Takesaki data are not automatically physical time evolution. If modular flow is identified with boosts, KMS time, or geometric motion, state the theorem and hypotheses explicitly.
+- **Factor-type rigor:** Do not call an algebra type `III` because "continuum QFT is infinitely entangled." Check factor status, trace properties, and the relevant modular-spectrum or literature theorem instead.
 
 ## String Field Theory
 

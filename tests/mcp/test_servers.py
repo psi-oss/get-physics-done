@@ -115,6 +115,14 @@ class TestConventionsServer:
         assert "natural_units" in result["defaults"]
         assert result["defaults"]["natural_units"] == "natural"
 
+    def test_subfield_defaults_algebraic_qft(self):
+        from gpd.mcp.servers.conventions_server import subfield_defaults
+
+        result = subfield_defaults("algebraic_qft")
+        assert result["found"] is True
+        assert result["defaults"]["natural_units"] == "natural"
+        assert result["defaults"]["state_normalization"] == "relativistic"
+
     def test_subfield_defaults_string_field_theory(self):
         from gpd.mcp.servers.conventions_server import subfield_defaults
 
@@ -1147,6 +1155,7 @@ Not a checkpoint.
         from gpd.mcp.servers.protocols_server import _infer_domain
 
         assert _infer_domain("perturbation-theory", []) == "core_derivation"
+        assert _infer_domain("algebraic-qft", []) == "mathematical_methods"
         assert _infer_domain("string-field-theory", []) == "core_derivation"
         assert _infer_domain("monte-carlo", []) == "computational_methods"
         assert _infer_domain("group-theory", []) == "mathematical_methods"

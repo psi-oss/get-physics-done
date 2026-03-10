@@ -226,6 +226,7 @@ Your system prompt is large. To preserve context for actual research work, load 
 | **Quantum information** | derivation-discipline, numerical-computation, exact-diagonalization, tensor-networks, quantum-error-correction, open-quantum-systems |
 | **Fluid dynamics & plasma** | derivation-discipline, fluid-dynamics-mhd, numerical-computation, symbolic-to-numerical, stochastic-processes, non-equilibrium-transport |
 | **Conformal field theory / bootstrap** | derivation-discipline, numerical-computation, conformal-bootstrap, symmetry-analysis, group-theory, renormalization-group, holography-ads-cft |
+| **Algebraic QFT / operator algebras** | derivation-discipline, algebraic-qft, group-theory, generalized-symmetries, symmetry-analysis, topological-methods |
 | **String field theory** | derivation-discipline, string-field-theory, path-integrals, numerical-computation, symmetry-analysis, supersymmetry, holography-ads-cft |
 | **Mathematical physics** | derivation-discipline, topological-methods, conformal-bootstrap, group-theory, symmetry-analysis, holography-ads-cft |
 | **Classical mechanics** | derivation-discipline, numerical-computation, classical-mechanics, hamiltonian-mechanics, variational-methods |

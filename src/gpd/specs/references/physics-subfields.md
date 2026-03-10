@@ -32,6 +32,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | Quantum Information | references/subfields/quantum-info.md | Circuits, error correction, entanglement, tensor networks, variational algorithms |
 | Fluid & Plasma | references/subfields/fluid-plasma.md | Navier-Stokes, MHD, turbulence, kinetic theory, spectral methods |
 | Mathematical Physics | references/subfields/mathematical-physics.md | Rigorous proofs, functional analysis, representation theory, integrable systems, CFT, topological defects |
+| Algebraic QFT | references/subfields/algebraic-qft.md | Haag-Kastler nets, modular theory, von Neumann factor types, DHR sectors |
 | String Field Theory | references/subfields/string-field-theory.md | Open/closed superstrings, BRST, BV, tachyon condensation, `A_infinity` / `L_infinity` |
 | Classical Mechanics | references/subfields/classical-mechanics.md | Lagrangian/Hamiltonian dynamics, nonlinear dynamics, chaos, celestial mechanics |
 | Soft Matter & Biophysics | references/subfields/soft-matter-biophysics.md | Polymer physics, membrane dynamics, active matter, colloids, self-assembly, biomolecular simulation |
@@ -53,6 +54,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Black hole information, Page curve, replica wormholes, holography | Quantum Gravity | GR for geometry; QFT for matter entanglement and EFT control |
 | Worldsheet CFT, D-branes, compactification, moduli stabilization, swampland | String Theory | QFT for low-energy EFT; Mathematical Physics for modular/CFT structure; Quantum Gravity for holography or black-hole applications; String Field Theory for off-shell control or tachyon condensation |
 | Higher-form symmetries, non-invertible defects, center symmetry, anomalies | QFT | Mathematical Physics for categorical/topological structure; Condensed Matter for topological-order applications |
+| Haag-Kastler nets, modular theory, local algebras, von Neumann factor types | Algebraic QFT | Mathematical Physics for operator-algebra rigor; QFT for model input; Quantum Gravity for semiclassical/holographic entanglement questions |
 | Superfields, BPS bounds, localization, Seiberg-Witten, superconformal index | QFT | Mathematical Physics for representation theory; GR for supergravity or holography |
 | Quantum circuits, entanglement, error correction     | Quantum Information   | AMO for physical implementations                               |
 | Laser-atom interaction, cold atoms, scattering       | AMO                   | Quantum Information for entanglement aspects                   |

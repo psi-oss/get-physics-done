@@ -13,7 +13,7 @@ context_cost: large
 
 Ward identities, unitarity, causality, positivity, crossing symmetry, and subfield-specific checks for quantum field theory and particle physics.
 
-> **Note:** For GR/cosmology, see `verification-domain-gr-cosmology.md`. For mathematical physics, see `verification-domain-mathematical-physics.md`. For string field theory, see `verification-domain-string-field-theory.md`. For nuclear/particle, see `verification-domain-nuclear-particle.md`.
+> **Note:** For GR/cosmology, see `verification-domain-gr-cosmology.md`. For mathematical physics, see `verification-domain-mathematical-physics.md`. For algebraic QFT and operator algebras, see `verification-domain-algebraic-qft.md`. For string field theory, see `verification-domain-string-field-theory.md`. For nuclear/particle, see `verification-domain-nuclear-particle.md`.
 
 **Load when:** Working on QFT calculations, scattering amplitudes, renormalization, general relativity, or mathematical physics.
 

@@ -447,6 +447,16 @@ class TestProtocolsServerIntegration:
         names = [p["name"] for p in result["protocols"]]
         assert "perturbation-theory" in names
 
+    def test_route_protocol_finds_algebraic_qft(self):
+        from gpd.mcp.servers.protocols_server import route_protocol
+
+        result = route_protocol("Haag-Kastler net modular theory type III local algebras")
+
+        assert isinstance(result, dict)
+        assert result["match_count"] >= 1
+        names = [p["name"] for p in result["protocols"]]
+        assert "algebraic-qft" in names
+
     def test_route_protocol_finds_string_field_theory(self):
         from gpd.mcp.servers.protocols_server import route_protocol
 

@@ -67,6 +67,7 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
+- `algebraic-qft.md` -- Haag-Kastler nets, modular theory, von Neumann factor types, DHR sectors
 - `conformal-bootstrap.md` -- CFT data extraction, crossing equations, SDPB, mixed correlators
 - `string-field-theory.md` -- Off-shell string interactions, BRST/BV structure, level truncation, benchmark observables
 - `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
@@ -238,6 +239,7 @@ Which categories depend on others?
 
 **Domain-specific phase templates:** For projects in well-defined subfields, consult the project-type template for domain-specific phase structures, mode adjustments (explore/exploit), common pitfalls, and verification patterns:
 - `{GPD_INSTALL_DIR}/templates/project-types/qft-calculation.md` -- QFT: Feynman rules, regularization, renormalization, cross sections
+- `{GPD_INSTALL_DIR}/templates/project-types/algebraic-qft.md` -- AQFT: Haag-Kastler nets, GNS data, modular theory, factor types, DHR sectors
 - `{GPD_INSTALL_DIR}/templates/project-types/conformal-bootstrap.md` -- CFT: crossing equations, conformal blocks, SDPB, spectrum extraction
 - `{GPD_INSTALL_DIR}/templates/project-types/string-field-theory.md` -- SFT: BRST/cohomology, homotopy algebra, gauge fixing, level truncation, tachyon or amplitude benchmarks
 - `{GPD_INSTALL_DIR}/templates/project-types/stat-mech-simulation.md` -- Stat mech: algorithm design, equilibration, production, finite-size scaling

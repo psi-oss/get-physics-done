@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/group-theory.md`, `protocols/topological-methods.md`, `protocols/symmetry-analysis.md`, `protocols/generalized-symmetries.md`, `protocols/string-field-theory.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `protocols/random-matrix-theory.md` (spectral statistics, universality classes), `protocols/resummation.md` (Borel summation, asymptotic analysis), `protocols/large-n-expansion.md` (saddle-point methods, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/algebraic-qft.md`, `protocols/group-theory.md`, `protocols/topological-methods.md`, `protocols/symmetry-analysis.md`, `protocols/generalized-symmetries.md`, `protocols/string-field-theory.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/bethe-ansatz.md` (integrable systems, Yang-Baxter equation), `protocols/random-matrix-theory.md` (spectral statistics, universality classes), `protocols/resummation.md` (Borel summation, asymptotic analysis), `protocols/large-n-expansion.md` (saddle-point methods, matrix models).
 
 **Rigorous Proofs in Physics:**
 
@@ -78,6 +78,13 @@ context_cost: medium
 - Worldsheet BRST cohomology controls the admissible state space
 - BPZ cyclicity and symplectic structures replace ordinary local field-theory intuition
 - Background shifts are encoded algebraically through shifted products and differential operators
+
+**Algebraic QFT and Operator Algebras:**
+
+- Haag-Kastler nets organize local observables by spacetime region rather than by pointlike fields
+- Tomita-Takesaki theory, modular automorphisms, and modular conjugations encode intrinsic operator-algebraic dynamics
+- Von Neumann factor types matter physically: local relativistic algebras are typically type `III`, so naive tensor-factor and density-matrix intuition fails
+- DHR sectors, conformal nets, and subfactor inclusions provide rigorous charge and extension data in low-dimensional or highly structured theories
 
 ## Key Tools and Software
 
@@ -153,6 +160,7 @@ context_cost: medium
 | **Topological phases classification** | Cobordism conjecture, beyond group cohomology for SPT phases | Good — algebraic topology + physics |
 | **Generalized symmetries and defects** | How do higher-form, higher-group, and non-invertible structures reorganize anomaly, duality, and defect data? | Gaiotto, Cordova, Schafer-Nameki, Bhardwaj | Good — category/topology heavy; concrete physical realization should be stated explicitly |
 | **Conformal bootstrap (rigorous)** | Rigorous bounds on CFT data, optimal transport methods | Excellent — optimization + analysis |
+| **AQFT and operator algebras** | Which modular, local-net, and factor-type structures are universal in relativistic QFT and curved spacetime? | Excellent — theorem-heavy and structurally constrained |
 | **String field theory and homotopy algebra** | How should BV, `A_infinity`, and `L_infinity` structures encode consistent open/closed superstring interactions? | Excellent — algebraic plus computational |
 | **Integrable systems** | Exact solutions for Yang-Baxter, Bethe ansatz for new models | Excellent — algebraic + computational |
 | **Quantum groups and categories** | Tensor categories for anyons, modular functors, TQFT | Good — algebraic structures |
@@ -172,7 +180,7 @@ What type of mathematical physics?
 ├── Formal methods
 │   ├── Perturbative? → Asymptotic analysis, Borel summation, resurgence
 │   ├── Non-perturbative? → Instanton calculus, saddle-point methods
-│   └── Algebraic? → Operator algebras, vertex algebras, BRST cohomology, string field theory
+│   └── Algebraic? → Operator algebras, AQFT, vertex algebras, BRST cohomology, string field theory
 └── Computational
     ├── Symbolic? → Computer algebra (Mathematica, SageMath, GAP)
     ├── Numerical verification? → High-precision arithmetic (mpmath, FLINT)

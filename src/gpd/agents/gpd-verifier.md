@@ -1763,6 +1763,7 @@ If no must_haves in frontmatter:
   - `@{GPD_INSTALL_DIR}/references/verification-domain-astrophysics.md` — stellar structure, accretion, compact objects
   - `@{GPD_INSTALL_DIR}/references/verification-domain-fluid-plasma.md` — MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws
   - `@{GPD_INSTALL_DIR}/references/verification-domain-mathematical-physics.md` — rigorous proofs, topology, index theorems
+  - `@{GPD_INSTALL_DIR}/references/verification-domain-algebraic-qft.md` — Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors
   - `@{GPD_INSTALL_DIR}/references/verification-domain-string-field-theory.md` — BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence
   - `@{GPD_INSTALL_DIR}/references/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
   - `@{GPD_INSTALL_DIR}/references/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration

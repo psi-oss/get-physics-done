@@ -153,6 +153,19 @@ When establishing conventions for a project, use the subfield (from PROJECT.md `
 | Summation | Einstein convention for repeated indices | State explicitly; identify which indices are summed |
 | Boundary conditions | Dirichlet, Neumann, or Robin — state regularity | Specify data regularity (H^{1/2}, L², etc.) |
 
+**Algebraic Quantum Field Theory**
+
+| Category | Default | Rationale |
+|----------|---------|-----------|
+| Units | Natural: `c = ħ = 1` | Standard relativistic-QFT normalization |
+| Metric signature | `(+,−,−,−)` unless another convention is stated explicitly | Matches mainstream AQFT/QFT operator-algebra literature |
+| Fourier convention | Physics: `e^{−ikx}` forward, `dk/(2π)` measure | Standard for operator-valued distributions when transforms are needed |
+| State normalization | Relativistic | Keeps compatibility with vacuum and spectral-condition statements |
+| Algebraic level | Start with a Haag-Kastler C*-net and specify the von Neumann completion in a chosen GNS representation | Factor type and modular theory are representation-dependent |
+| Reference state | Vacuum GNS representation unless thermal or charged sectors are the object of study | Prevents drifting between incompatible representations |
+| Region class | Double cones for local observables; wedges only when modular-flow arguments require them | Distinguishes local and modular benchmark settings |
+| Type language | State explicitly: factor, type `I/II/III`, `III_lambda`, hyperfinite/injective status | Prevents slogan-level "type III" claims |
+
 **String Field Theory**
 
 | Category | Default | Rationale |
