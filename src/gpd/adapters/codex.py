@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shlex
 import shutil
@@ -274,12 +275,17 @@ class CodexAdapter(RuntimeAdapter):
         return ".codex"
 
     @property
-    def help_command(self) -> str:
-        return "$gpd-help"
+    def activation_env_vars(self) -> tuple[str, ...]:
+        return ("CODEX_SESSION", "CODEX_CLI")
 
-    @property
-    def global_config_dir(self) -> Path:
-        return get_codex_global_dir()
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
+        env = os.environ.get("CODEX_CONFIG_DIR")
+        if env:
+            return Path(env).expanduser()
+        return (home or Path.home()) / ".codex"
+
+    def format_command(self, action: str) -> str:
+        return f"$gpd-{action}"
 
     def install(
         self,

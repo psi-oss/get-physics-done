@@ -38,10 +38,16 @@ def get_adapter(runtime: str) -> RuntimeAdapter:
     return _REGISTRY[runtime]()
 
 
+def iter_adapters() -> list[RuntimeAdapter]:
+    """Return adapter instances in registry order."""
+    _ensure_loaded()
+    return [adapter_cls() for adapter_cls in _REGISTRY.values()]
+
+
 def list_runtimes() -> list[str]:
     """Return all supported runtime names."""
     _ensure_loaded()
     return sorted(_REGISTRY.keys())
 
 
-__all__ = ["RuntimeAdapter", "get_adapter", "list_runtimes"]
+__all__ = ["RuntimeAdapter", "get_adapter", "iter_adapters", "list_runtimes"]

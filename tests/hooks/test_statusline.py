@@ -224,6 +224,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
         ):
             result = _check_update()
             assert "/gpd:update" in result
@@ -267,6 +268,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
         ):
             result = _check_update()
 

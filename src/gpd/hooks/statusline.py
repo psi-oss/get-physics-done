@@ -139,7 +139,15 @@ def _check_update() -> str:
     """Check GPD update cache files for available updates."""
     cache = _latest_update_cache()
     if cache and cache.get("update_available"):
-        return "\x1b[33m\u2b06 /gpd:update\x1b[0m \u2502 "
+        from gpd.adapters import get_adapter
+        from gpd.hooks.runtime_detect import detect_active_runtime
+
+        runtime = detect_active_runtime()
+        try:
+            command = get_adapter(runtime).format_command("update")
+        except KeyError:
+            command = "/gpd:update"
+        return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
     return ""
 
 

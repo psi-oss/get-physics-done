@@ -300,15 +300,14 @@ class GeminiAdapter(RuntimeAdapter):
         return ".gemini"
 
     @property
-    def help_command(self) -> str:
-        return "/gpd:help"
+    def activation_env_vars(self) -> tuple[str, ...]:
+        return ("GEMINI_CLI",)
 
-    @property
-    def global_config_dir(self) -> Path:
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
         env = os.environ.get("GEMINI_CONFIG_DIR")
         if env:
             return Path(env).expanduser()
-        return Path.home() / ".gemini"
+        return (home or Path.home()) / ".gemini"
 
     def install(
         self,
@@ -335,8 +334,7 @@ class GeminiAdapter(RuntimeAdapter):
         settings = result.get("settings")
         statusline_command = result.get("statuslineCommand")
         if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
-            self.finish_install(settings_path, settings, statusline_command, True)
-            result["settingsWritten"] = True
+            self.finalize_install(result)
             self._verify(target_dir)
 
         return result
@@ -432,6 +430,29 @@ class GeminiAdapter(RuntimeAdapter):
             should_install_statusline,
             force_statusline=force_statusline,
         )
+
+    def finalize_install(
+        self,
+        install_result: dict[str, object],
+        *,
+        force_statusline: bool = False,
+    ) -> None:
+        """Persist Gemini settings when install produced an in-memory config."""
+        if install_result.get("settingsWritten"):
+            return
+
+        settings_path = install_result.get("settingsPath")
+        settings = install_result.get("settings")
+        statusline_command = install_result.get("statuslineCommand")
+        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            self.finish_install(
+                settings_path,
+                settings,
+                statusline_command,
+                True,
+                force_statusline=force_statusline,
+            )
+            install_result["settingsWritten"] = True
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from a Gemini CLI .gemini/ directory.

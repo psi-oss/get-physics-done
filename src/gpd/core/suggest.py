@@ -183,7 +183,13 @@ def _load_config(cwd: Path) -> dict[str, object]:
 
 def _format_command(action: str) -> str:
     """Format a GPD command name."""
-    return f"/gpd:{action}"
+    try:
+        from gpd.adapters import get_adapter
+        from gpd.hooks.runtime_detect import detect_active_runtime
+
+        return get_adapter(detect_active_runtime()).format_command(action)
+    except Exception:
+        return f"/gpd:{action}"
 
 
 def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:

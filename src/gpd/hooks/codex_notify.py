@@ -40,7 +40,8 @@ def _trigger_update_check(cwd: str) -> None:
 
 def _check_and_notify_update() -> None:
     """Read update cache and emit a notification to stderr if update available."""
-    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files, update_command_for_runtime
+    from gpd.adapters import get_adapter
+    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files
 
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0
@@ -66,7 +67,10 @@ def _check_and_notify_update() -> None:
         installed = latest_cache.get("installed", "?")
         latest = latest_cache.get("latest", "?")
         runtime = detect_active_runtime()
-        cmd = update_command_for_runtime(runtime)
+        try:
+            cmd = get_adapter(runtime).update_command
+        except KeyError:
+            cmd = "npx -y github:physicalsuperintelligence/get-physics-done"
         sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 

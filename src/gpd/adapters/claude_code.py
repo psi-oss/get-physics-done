@@ -17,6 +17,7 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     replace_placeholders,
     verify_installed,
+    write_settings,
 )
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
@@ -40,15 +41,18 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         return ".claude"
 
     @property
-    def help_command(self) -> str:
-        return "/gpd:help"
+    def activation_env_vars(self) -> tuple[str, ...]:
+        return ("CLAUDE_CODE_SESSION", "CLAUDE_CODE")
 
     @property
-    def global_config_dir(self) -> Path:
+    def install_flag(self) -> str:
+        return "--claude"
+
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
         env = os.environ.get("CLAUDE_CONFIG_DIR")
         if env:
             return Path(env).expanduser()
-        return Path.home() / ".claude"
+        return (home or Path.home()) / ".claude"
 
     # --- Template method hooks ---
 
@@ -56,7 +60,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         commands_dest = target_dir / "commands" / "gpd"
         (target_dir / "commands").mkdir(parents=True, exist_ok=True)
-        copy_with_path_replacement(commands_src, commands_dest, path_prefix, "claude")
+        copy_with_path_replacement(commands_src, commands_dest, path_prefix, self.runtime_name)
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd")
         else:
@@ -152,9 +156,76 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             force_statusline=force_statusline,
         )
 
+    def finalize_install(
+        self,
+        install_result: dict[str, object],
+        *,
+        force_statusline: bool = False,
+    ) -> None:
+        """Persist settings.json-backed configuration after install."""
+        settings_path = install_result.get("settingsPath")
+        settings = install_result.get("settings")
+        statusline_command = install_result.get("statuslineCommand")
+        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            self.finish_install(
+                settings_path,
+                settings,
+                statusline_command,
+                True,
+                force_statusline=force_statusline,
+            )
+
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from Claude Code config and clean the matching MCP config."""
         result = super().uninstall(target_dir)
+
+        settings_path = target_dir / "settings.json"
+        if settings_path.exists():
+            settings = read_settings(settings_path)
+            modified = False
+
+            status_line = settings.get("statusLine")
+            if isinstance(status_line, dict):
+                cmd = status_line.get("command", "")
+                if isinstance(cmd, str) and "statusline.py" in cmd:
+                    del settings["statusLine"]
+                    modified = True
+
+            hooks = settings.get("hooks")
+            if isinstance(hooks, dict):
+                session_start = hooks.get("SessionStart")
+                if isinstance(session_start, list):
+                    before = len(session_start)
+                    session_start[:] = [entry for entry in session_start if not _entry_has_gpd_hook(entry)]
+                    if len(session_start) < before:
+                        modified = True
+                    if not session_start:
+                        del hooks["SessionStart"]
+                    if not hooks:
+                        del settings["hooks"]
+
+            if modified:
+                write_settings(settings_path, settings)
+
+        import json as _json
+
+        mcp_config_path = target_dir.parent / ".mcp.json"
+        if mcp_config_path.exists():
+            try:
+                mcp_config = _json.loads(mcp_config_path.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                mcp_config = None
+            if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
+                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in GPD_MCP_SERVER_KEYS]
+                if removed_keys:
+                    for key in removed_keys:
+                        del mcp_config["mcpServers"][key]
+                    if not mcp_config["mcpServers"]:
+                        del mcp_config["mcpServers"]
+                    mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
+                    result["removed"].append(f"MCP servers from {mcp_config_path.name}")
 
         try:
             is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
@@ -214,6 +285,21 @@ def _copy_agents_native(agents_src: Path, agents_dest: Path, path_prefix: str) -
         new_agent_names.add(agent_md.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
+
+
+def _entry_has_gpd_hook(entry: object) -> bool:
+    """Check if a settings.json hook entry points at GPD-managed hooks."""
+    if not isinstance(entry, dict):
+        return False
+    entry_hooks = entry.get("hooks")
+    if not isinstance(entry_hooks, list):
+        return False
+    return any(
+        isinstance(hook, dict)
+        and isinstance(hook.get("command"), str)
+        and ("check_update.py" in hook["command"] or "statusline.py" in hook["command"])
+        for hook in entry_hooks
+    )
 
 
 __all__ = ["ClaudeCodeAdapter"]

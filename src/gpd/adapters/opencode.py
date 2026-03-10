@@ -471,7 +471,7 @@ def copy_with_path_replacement(src_dir: Path, dest_dir: Path, path_prefix: str) 
 # ---------------------------------------------------------------------------
 
 
-def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict[str, int]:
+def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
     """Uninstall GPD from an OpenCode config directory.
 
     Removes GPD-specific files/directories, preserves user content.
@@ -520,7 +520,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 counts["hooks"] += 1
 
     # 5. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
-    oc_config_dir_mcp = config_dir or get_opencode_global_dir()
+    oc_config_dir_mcp = config_dir
     oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
     if oc_config_path_mcp.exists():
         try:
@@ -539,7 +539,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
 
     # 6. Clean up permissions from opencode.json
-    oc_config_dir = config_dir or get_opencode_global_dir()
+    oc_config_dir = config_dir
     oc_config_path = oc_config_dir / "opencode.json"
     if oc_config_path.exists():
         try:
@@ -634,13 +634,28 @@ class OpenCodeAdapter(RuntimeAdapter):
         return ".opencode"
 
     @property
-    def help_command(self) -> str:
-        return "/gpd-help"
+    def activation_env_vars(self) -> tuple[str, ...]:
+        return ("OPENCODE_SESSION",)
 
-    @property
-    def global_config_dir(self) -> Path:
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
         """OpenCode uses XDG Base Directory spec with env var precedence."""
-        return get_opencode_global_dir()
+        env_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+        if env_dir:
+            return Path(env_dir).expanduser()
+
+        env_cfg = os.environ.get("OPENCODE_CONFIG")
+        if env_cfg:
+            return Path(env_cfg).expanduser().parent
+
+        xdg_home = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_home:
+            return Path(xdg_home).expanduser() / "opencode"
+
+        resolved_home = home or Path.home()
+        return resolved_home / ".config" / "opencode"
+
+    def format_command(self, action: str) -> str:
+        return f"/gpd-{action}"
 
     # --- Template method hooks ---
 

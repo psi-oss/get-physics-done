@@ -173,7 +173,7 @@ def route_skill(task_description: str) -> dict:
             "confidence": 0.1,
             "alternatives": [name for name in ("gpd-progress", "gpd-discover") if name in available_names],
             "task_description": task_description,
-            "note": "No strong match found — try /gpd:help for available commands",
+            "note": "No strong match found — try your runtime's GPD help command for available commands",
         }
 
 

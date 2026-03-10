@@ -13,6 +13,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+from gpd.adapters import iter_adapters
 from gpd.core.config import (
     GPDProjectConfig,
     resolve_agent_tier,
@@ -67,16 +68,14 @@ logger = logging.getLogger(__name__)
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
+_RUNTIME_CONFIG_DIRS = frozenset(adapter.local_config_dir_name for adapter in iter_adapters())
 
 # Directories to skip when scanning for research files.
 _IGNORE_DIRS = frozenset(
     {
         ".git",
         PLANNING_DIR_NAME,
-        ".claude",
-        ".codex",
-        ".gemini",
-        ".opencode",
+        *_RUNTIME_CONFIG_DIRS,
         ".config",
         ".venv",
         ".tox",
@@ -275,10 +274,11 @@ def _try_get_milestone_info(cwd: Path) -> dict:
 
 
 def _detect_platform() -> str:
-    """Detect the AI agent platform (claude, codex, gemini, etc.)."""
+    """Detect the active AI runtime, if any."""
     try:
-        from gpd.hooks.runtime_detect import detect_active_runtime, runtime_to_adapter_name
-        return runtime_to_adapter_name(detect_active_runtime())
+        from gpd.hooks.runtime_detect import detect_active_runtime
+
+        return detect_active_runtime()
     except Exception:
         return "unknown"
 

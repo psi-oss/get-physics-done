@@ -131,8 +131,6 @@ def test_install_all_success_exits_0(tmp_path: Path):
     ):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Test"
-        mock_adapter.finish_install = None  # no finish_install
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["install", "claude-code", "--local"])
@@ -153,7 +151,6 @@ def test_install_banner_uses_display_names(tmp_path: Path):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Claude Code"
         mock_adapter.help_command = "/gpd:help"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
@@ -177,7 +174,6 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Claude Code"
         mock_adapter.help_command = "/gpd:help"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
@@ -201,7 +197,6 @@ def test_install_summary_leaves_blank_line_after_help_hint(tmp_path: Path):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Claude Code"
         mock_adapter.help_command = "/gpd:help"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
@@ -270,7 +265,6 @@ def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
     ):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Test"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         # CliRunner provides input='1\n1\n' to simulate interactive choices
@@ -294,7 +288,6 @@ def test_install_raw_outputs_json(tmp_path: Path):
     ):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Claude Code"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["--raw", "install", "claude-code", "--local"])
@@ -324,7 +317,6 @@ def test_install_raw_includes_failures(tmp_path: Path):
     ):
         mock_adapter = MagicMock()
         mock_adapter.display_name = "Test"
-        del mock_adapter.finish_install
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, ["--raw", "install", "--all", "--local"])
@@ -386,6 +378,9 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
             captured_calls.append({"is_global": is_global, "explicit_target": explicit_target})
             return {"runtime": "claude-code", "commands": 0, "agents": 0}
 
+        def finalize_install(self, install_result, *, force_statusline=False):
+            return None
+
     with (
         patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
         patch("gpd.cli._get_cwd", return_value=tmp_path),
@@ -433,6 +428,9 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
                 }
             )
             return {"runtime": "claude-code", "commands": 0, "agents": 0}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            return None
 
     with patch("gpd.adapters.get_adapter", return_value=SpyAdapter()):
         _install_single_runtime("claude-code", is_global=False, target_dir_override=str(target))

@@ -21,7 +21,6 @@ from gpd.hooks.runtime_detect import (
     get_cache_dirs,
     get_gpd_install_dirs,
     get_todo_dirs,
-    update_command_for_runtime,
 )
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
@@ -238,34 +237,3 @@ class TestGPDInstallDirs:
         assert tmp_path / "codex-custom" / "get-physics-done" in dirs
         assert tmp_path / "gemini-custom" / "get-physics-done" in dirs
         assert tmp_path / "opencode-custom" / "get-physics-done" in dirs
-
-
-# ─── update_command_for_runtime ────────────────────────────────────────────
-
-
-class TestUpdateCommand:
-    """Tests for update_command_for_runtime."""
-
-    def test_unknown_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y github:physicalsuperintelligence/get-physics-done"
-
-    def test_claude_runtime(self) -> None:
-        assert (
-            update_command_for_runtime(RUNTIME_CLAUDE)
-            == "npx -y github:physicalsuperintelligence/get-physics-done --claude"
-        )
-
-    def test_codex_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CODEX) == "npx -y github:physicalsuperintelligence/get-physics-done --codex"
-
-    def test_gemini_runtime(self) -> None:
-        assert (
-            update_command_for_runtime(RUNTIME_GEMINI)
-            == "npx -y github:physicalsuperintelligence/get-physics-done --gemini"
-        )
-
-    def test_opencode_runtime(self) -> None:
-        assert (
-            update_command_for_runtime(RUNTIME_OPENCODE)
-            == "npx -y github:physicalsuperintelligence/get-physics-done --opencode"
-        )

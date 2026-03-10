@@ -2809,22 +2809,7 @@ def install(
                 result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
-
-                # Handle finish_install for adapters that support it (e.g. statusline setup)
-                if (
-                    hasattr(adapter, "finish_install")
-                    and "settingsPath" in result
-                    and "settings" in result
-                    and not result.get("settingsWritten")
-                ):
-                    should_install_statusline = True
-                    adapter.finish_install(
-                        result["settingsPath"],
-                        result["settings"],
-                        result.get("statuslineCommand", ""),
-                        should_install_statusline,
-                        force_statusline=force_statusline,
-                    )
+                adapter.finalize_install(result, force_statusline=force_statusline)
             except Exception as exc:
                 failures.append((rt, str(exc)))
                 progress.update(task, description=f"[red]✗[/] {adapter.display_name}: {exc}")

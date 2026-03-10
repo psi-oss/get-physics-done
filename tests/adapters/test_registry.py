@@ -47,6 +47,18 @@ class TestRegistry:
         b = get_adapter("claude-code")
         assert a is not b
 
+    @pytest.mark.parametrize(
+        ("runtime", "expected"),
+        [
+            ("claude-code", "npx -y github:physicalsuperintelligence/get-physics-done --claude"),
+            ("codex", "npx -y github:physicalsuperintelligence/get-physics-done --codex"),
+            ("gemini", "npx -y github:physicalsuperintelligence/get-physics-done --gemini"),
+            ("opencode", "npx -y github:physicalsuperintelligence/get-physics-done --opencode"),
+        ],
+    )
+    def test_update_command_is_adapter_owned(self, runtime: str, expected: str) -> None:
+        assert get_adapter(runtime).update_command == expected
+
 
 class TestToolNames:
     """Tests for tool_names canonical/translate functions."""

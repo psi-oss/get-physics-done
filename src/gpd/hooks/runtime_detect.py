@@ -1,100 +1,32 @@
 """Runtime detection for GPD hooks.
 
-Detects which AI agent (Claude Code, Codex, Gemini CLI, OpenCode)
-is active based on environment variables and directory existence.
-Provides shared constants for runtime directory paths.
+Adapter metadata is the source of truth for runtime names, command syntax,
+env-var activation signals, and config-directory layout.
 """
+
+from __future__ import annotations
 
 import os
 from pathlib import Path
 
+from gpd.adapters import get_adapter, iter_adapters
+from gpd.adapters.install_utils import expand_tilde
 from gpd.core.constants import PLANNING_DIR_NAME
 
-# Runtime identifiers
-RUNTIME_CLAUDE = "claude"
+RUNTIME_CLAUDE = "claude-code"
 RUNTIME_CODEX = "codex"
 RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
 RUNTIME_UNKNOWN = "unknown"
 
-# Map runtime → CLI install name
-RUNTIME_CLI_NAMES: dict[str, str] = {
-    RUNTIME_CLAUDE: "claude-code",
-    RUNTIME_CODEX: "codex",
-    RUNTIME_GEMINI: "gemini",
-    RUNTIME_OPENCODE: "opencode",
-}
-
-# Map runtime → home-relative config directory name
-RUNTIME_DIR_NAMES: dict[str, str] = {
-    RUNTIME_CLAUDE: ".claude",
-    RUNTIME_CODEX: ".codex",
-    RUNTIME_GEMINI: ".gemini",
-    RUNTIME_OPENCODE: ".config/opencode",
-}
-
-# Map runtime → cwd-relative config directory name for local installs
-LOCAL_RUNTIME_DIR_NAMES: dict[str, str] = {
-    RUNTIME_CLAUDE: ".claude",
-    RUNTIME_CODEX: ".codex",
-    RUNTIME_GEMINI: ".gemini",
-    RUNTIME_OPENCODE: ".opencode",
-}
-
-# Environment variables that indicate a specific runtime is active
-_RUNTIME_ENV_SIGNALS: list[tuple[str, str]] = [
-    ("CLAUDE_CODE_SESSION", RUNTIME_CLAUDE),
-    ("CLAUDE_CODE", RUNTIME_CLAUDE),
-    ("CODEX_SESSION", RUNTIME_CODEX),
-    ("CODEX_CLI", RUNTIME_CODEX),
-    ("GEMINI_CLI", RUNTIME_GEMINI),
-    ("OPENCODE_SESSION", RUNTIME_OPENCODE),
-]
-
-# All runtimes in priority order (used for fallback scanning)
-ALL_RUNTIMES = [RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE]
+ALL_RUNTIMES = [adapter.runtime_name for adapter in iter_adapters()]
 
 
-def _expand_tilde(raw_path: str | None) -> str | None:
-    """Expand leading ~ in environment-provided config paths."""
-    if not raw_path:
-        return raw_path
-    if raw_path == "~":
-        return str(Path.home())
-    if raw_path.startswith("~/"):
-        return str(Path.home() / raw_path[2:])
-    return raw_path
-
-
-def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
-    """Resolve the global config directory for *runtime* with env overrides."""
-    resolved_home = home or Path.home()
-
-    if runtime == RUNTIME_OPENCODE:
-        explicit_dir = os.environ.get("OPENCODE_CONFIG_DIR")
-        if explicit_dir:
-            return Path(_expand_tilde(explicit_dir) or explicit_dir)
-
-        explicit_config = os.environ.get("OPENCODE_CONFIG")
-        if explicit_config:
-            expanded = _expand_tilde(explicit_config) or explicit_config
-            return Path(expanded).parent
-
-        xdg_home = os.environ.get("XDG_CONFIG_HOME")
-        if xdg_home:
-            return Path(_expand_tilde(xdg_home) or xdg_home) / "opencode"
-
-    env_var = {
-        RUNTIME_CLAUDE: "CLAUDE_CONFIG_DIR",
-        RUNTIME_CODEX: "CODEX_CONFIG_DIR",
-        RUNTIME_GEMINI: "GEMINI_CONFIG_DIR",
-    }.get(runtime)
-    if env_var:
-        explicit_dir = os.environ.get(env_var)
-        if explicit_dir:
-            return Path(_expand_tilde(explicit_dir) or explicit_dir)
-
-    return resolved_home / RUNTIME_DIR_NAMES.get(runtime, RUNTIME_DIR_NAMES[RUNTIME_CLAUDE])
+def _adapter(runtime: str):
+    try:
+        return get_adapter(runtime)
+    except KeyError:
+        return None
 
 
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
@@ -104,47 +36,40 @@ def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     return [preferred_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != preferred_runtime]
 
 
+def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
+    """Resolve the global config directory for *runtime* with env overrides."""
+    adapter = _adapter(runtime)
+    if adapter is None:
+        raise KeyError(runtime)
+    return adapter.resolve_global_config_dir(home=home)
+
+
 def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
     """Return the workspace-local config directory for a runtime."""
-    return (cwd or Path.cwd()) / LOCAL_RUNTIME_DIR_NAMES[runtime]
+    adapter = _adapter(runtime)
+    if adapter is None:
+        raise KeyError(runtime)
+    return adapter.resolve_local_config_dir(cwd)
 
 
 def detect_active_runtime() -> str:
-    """Detect which AI agent is currently active.
+    """Detect which AI agent runtime is currently active."""
+    for adapter in iter_adapters():
+        for env_var in adapter.activation_env_vars:
+            if os.environ.get(env_var):
+                return adapter.runtime_name
 
-    Checks environment variables first, then falls back to directory existence.
-    Returns one of: "claude", "codex", "gemini", "opencode", "unknown".
-    """
-    # 1. Check environment variables (most reliable signal)
-    for env_var, runtime in _RUNTIME_ENV_SIGNALS:
-        if os.environ.get(env_var):
-            return runtime
-
-    # 2. Fall back to checking workspace-local runtime dirs
     cwd = Path.cwd()
     for runtime in ALL_RUNTIMES:
-        runtime_dir = _local_runtime_dir(runtime, cwd)
-        if runtime_dir.is_dir():
+        if _local_runtime_dir(runtime, cwd).is_dir():
             return runtime
 
-    # 3. Fall back to checking which home runtime directories exist
     home = Path.home()
     for runtime in ALL_RUNTIMES:
-        runtime_dir = _global_runtime_dir(runtime, home=home)
-        if runtime_dir.is_dir():
+        if _global_runtime_dir(runtime, home=home).is_dir():
             return runtime
 
     return RUNTIME_UNKNOWN
-
-
-def runtime_to_adapter_name(runtime: str) -> str:
-    """Translate a detection result to the adapter registry name.
-
-    detect_active_runtime() returns short names like ``"claude"`` while
-    the adapter registry uses CLI names like ``"claude-code"``.  This helper
-    bridges the two using :data:`RUNTIME_CLI_NAMES`.
-    """
-    return RUNTIME_CLI_NAMES.get(runtime, runtime)
 
 
 def _unique_paths(paths: list[Path]) -> list[Path]:
@@ -160,15 +85,11 @@ def _unique_paths(paths: list[Path]) -> list[Path]:
 
 
 def all_runtime_dirs(*, include_local: bool = False) -> list[Path]:
-    """Return config directories for all known runtimes.
-
-    When ``include_local`` is true, include workspace-local runtime configs
-    before the home-directory configs.
-    """
+    """Return config directories for all known runtimes."""
     dirs: list[Path] = []
     if include_local:
         cwd = Path.cwd()
-        dirs.extend(cwd / LOCAL_RUNTIME_DIR_NAMES[runtime] for runtime in ALL_RUNTIMES)
+        dirs.extend(_local_runtime_dir(runtime, cwd) for runtime in ALL_RUNTIMES)
 
     home = Path.home()
     dirs.extend(_global_runtime_dir(runtime, home=home) for runtime in ALL_RUNTIMES)
@@ -202,11 +123,7 @@ def get_update_cache_files() -> list[Path]:
 
 
 def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
-    """Return GPD installation directories for all known runtimes.
-
-    When ``prefer_active`` is true, check the active runtime's local/global
-    install locations before scanning other runtimes.
-    """
+    """Return GPD installation directories for all known runtimes."""
     if not prefer_active:
         return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
 
@@ -219,16 +136,18 @@ def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
     return _unique_paths(dirs)
 
 
-def update_command_for_runtime(runtime: str) -> str:
-    """Return the public bootstrap command to update a given runtime install."""
-    install_flag_map = {
-        RUNTIME_CLAUDE: "--claude",
-        RUNTIME_CODEX: "--codex",
-        RUNTIME_GEMINI: "--gemini",
-        RUNTIME_OPENCODE: "--opencode",
-    }
-    install_flag = install_flag_map.get(runtime)
-    base = "npx -y github:physicalsuperintelligence/get-physics-done"
-    if install_flag is None:
-        return base
-    return f"{base} {install_flag}"
+__all__ = [
+    "ALL_RUNTIMES",
+    "RUNTIME_CLAUDE",
+    "RUNTIME_CODEX",
+    "RUNTIME_GEMINI",
+    "RUNTIME_OPENCODE",
+    "RUNTIME_UNKNOWN",
+    "all_runtime_dirs",
+    "detect_active_runtime",
+    "expand_tilde",
+    "get_cache_dirs",
+    "get_gpd_install_dirs",
+    "get_todo_dirs",
+    "get_update_cache_files",
+]

@@ -36,26 +36,18 @@ const RUNTIMES = {
   "claude-code": {
     name: "Claude Code",
     configDirName: ".claude",
-    helpCommand: "/gpd:help",
-    startCommand: "/gpd:new-project",
   },
   "opencode": {
     name: "OpenCode",
     configDirName: ".opencode",
-    helpCommand: "/gpd-help",
-    startCommand: "/gpd-new-project",
   },
   "gemini": {
     name: "Gemini CLI",
     configDirName: ".gemini",
-    helpCommand: "/gpd:help",
-    startCommand: "/gpd:new-project",
   },
   "codex": {
     name: "Codex",
     configDirName: ".codex",
-    helpCommand: "$gpd-help",
-    startCommand: "$gpd-new-project",
   },
 };
 
@@ -496,6 +488,21 @@ function formatRuntimeList(runtimes) {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
+function runtimeCommandPrefix(runtime) {
+  if (runtime === "codex") {
+    return "$gpd-";
+  }
+  if (runtime === "opencode") {
+    return "/gpd-";
+  }
+  return "/gpd:";
+}
+
+function formatRuntimeCommand(runtime, action) {
+  const prefix = runtimeCommandPrefix(runtime);
+  return prefix.endsWith(":") ? `${prefix}${action}` : `${prefix}${action}`;
+}
+
 function printBanner() {
   console.log("");
   console.log(`${cyan} ██████╗ ██████╗ ██████╗`);
@@ -682,13 +689,13 @@ function printCompletionSummary(runtimes, scope) {
 
   if (runtimes.length === 1) {
     const runtime = runtimes[0];
-    console.log(`  Start a new project:  ${RUNTIMES[runtime].startCommand}`);
-    console.log(`  Show commands:        ${RUNTIMES[runtime].helpCommand}`);
+    console.log(`  Start a new project:  ${formatRuntimeCommand(runtime, "new-project")}`);
+    console.log(`  Show commands:        ${formatRuntimeCommand(runtime, "help")}`);
   } else {
     const width = Math.max(...runtimes.map((runtime) => RUNTIMES[runtime].name.length));
     console.log("  Start a new project:");
     for (const runtime of runtimes) {
-      console.log(`  ${RUNTIMES[runtime].name.padEnd(width)}  ${RUNTIMES[runtime].startCommand}`);
+      console.log(`  ${RUNTIMES[runtime].name.padEnd(width)}  ${formatRuntimeCommand(runtime, "new-project")}`);
     }
   }
   console.log("");

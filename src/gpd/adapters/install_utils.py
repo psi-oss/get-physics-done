@@ -401,18 +401,17 @@ def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str
     references, placeholders, and lightweight formatting need the same
     runtime-specific adaptation as primary prompts.
     """
-    runtime_key = "claude-code" if runtime == "claude" else runtime
     content = replace_placeholders(content, path_prefix)
 
-    if runtime_key == "codex":
+    if runtime == "codex":
         content = content.replace("/gpd:", "$gpd-")
-    elif runtime_key == "opencode":
+    elif runtime == "opencode":
         content = content.replace("/gpd:", "/gpd-")
 
-    if runtime_key in ("gemini", "codex", "opencode"):
+    if runtime in ("gemini", "codex", "opencode"):
         content = strip_sub_tags(content)
 
-    return convert_tool_references_in_body(content, reference_translation_map(runtime_key))
+    return convert_tool_references_in_body(content, reference_translation_map(runtime))
 
 
 def expand_at_includes(
@@ -569,7 +568,7 @@ def copy_with_path_replacement(
 
     Examples::
 
-        >>> copy_with_path_replacement("src/", "dest/", "/custom/", "claude")
+        >>> copy_with_path_replacement("src/", "dest/", "/custom/", "claude-code")
         # Copies src/ → dest/ with ~/.claude/ replaced by /custom/ in .md files
 
     Raises:

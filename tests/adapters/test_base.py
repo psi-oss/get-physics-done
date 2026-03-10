@@ -146,8 +146,23 @@ class TestAdapterConformance:
     @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_has_required_methods(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
+        assert callable(adapter.finalize_install)
+        assert callable(adapter.format_command)
         assert callable(adapter.install)
         assert callable(adapter.uninstall)
+
+    @pytest.mark.parametrize(
+        ("runtime", "expected"),
+        [
+            ("claude-code", "/gpd:help"),
+            ("gemini", "/gpd:help"),
+            ("codex", "$gpd-help"),
+            ("opencode", "/gpd-help"),
+        ],
+    )
+    def test_help_command_uses_runtime_formatter(self, runtime: str, expected: str) -> None:
+        adapter = get_adapter(runtime)
+        assert adapter.help_command == expected
 
     @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_config_dir_name_starts_with_dot(self, runtime: str) -> None:

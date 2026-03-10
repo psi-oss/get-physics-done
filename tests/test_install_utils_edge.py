@@ -466,7 +466,7 @@ class TestCopyWithPathReplacement:
     def test_basic_copy(self, tmp_path: Path) -> None:
         src = self._make_src(tmp_path)
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "claude")
+        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
 
         assert dest.exists()
         md_content = (dest / "readme.md").read_text(encoding="utf-8")
@@ -534,7 +534,7 @@ class TestCopyWithPathReplacement:
         dest.mkdir()
         (dest / "old_file.txt").write_text("old", encoding="utf-8")
 
-        copy_with_path_replacement(src, dest, "/custom/", "claude")
+        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
 
         assert not (dest / "old_file.txt").exists()
         assert (dest / "readme.md").exists()
@@ -552,7 +552,7 @@ class TestCopyWithPathReplacement:
             side_effect=OSError("disk full"),
         ):
             with pytest.raises(OSError, match="disk full"):
-                copy_with_path_replacement(src, dest, "/custom/", "claude")
+                copy_with_path_replacement(src, dest, "/custom/", "claude-code")
 
         # Original dest should be intact
         assert (dest / "important.txt").exists()
@@ -562,7 +562,7 @@ class TestCopyWithPathReplacement:
         """After successful copy, no .tmp or .old dirs should remain."""
         src = self._make_src(tmp_path)
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/custom/", "claude")
+        copy_with_path_replacement(src, dest, "/custom/", "claude-code")
 
         pid = os.getpid()
         assert not (tmp_path / f"dest.tmp.{pid}").exists()
@@ -577,7 +577,7 @@ class TestCopyWithPathReplacement:
         (src / "top.md").write_text("top level", encoding="utf-8")
 
         dest = tmp_path / "dest"
-        copy_with_path_replacement(src, dest, "/x/", "claude")
+        copy_with_path_replacement(src, dest, "/x/", "claude-code")
 
         assert (dest / "top.md").exists()
         assert (dest / "sub" / "deep" / "nested.md").exists()
@@ -604,7 +604,7 @@ class TestCopyWithPathReplacement:
 
         with patch.object(Path, "rename", patched_rename):
             with pytest.raises(OSError, match="rename failed"):
-                copy_with_path_replacement(src, dest, "/custom/", "claude")
+                copy_with_path_replacement(src, dest, "/custom/", "claude-code")
 
         # dest should be restored (old_dir renamed back)
         assert dest.exists()

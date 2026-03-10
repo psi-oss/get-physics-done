@@ -13,8 +13,6 @@ from gpd.adapters.install_utils import (
     copy_hook_scripts,
     install_gpd_content,
     pre_install_cleanup,
-    read_settings,
-    write_settings,
     validate_package_integrity,
     write_manifest,
     write_version_file,
@@ -54,9 +52,24 @@ class RuntimeAdapter(abc.ABC):
         """Name of the runtime's config directory (e.g. ``'.claude'``)."""
 
     @property
-    @abc.abstractmethod
     def help_command(self) -> str:
-        """Runtime-specific help command (e.g. ``'/gpd:help'``)."""
+        """Runtime-specific help command."""
+        return self.format_command("help")
+
+    @property
+    def activation_env_vars(self) -> tuple[str, ...]:
+        """Environment variables that signal this runtime is active."""
+        return ()
+
+    @property
+    def local_config_dir_name(self) -> str:
+        """Workspace-local config directory name for this runtime."""
+        return self.config_dir_name
+
+    @property
+    def install_flag(self) -> str:
+        """Bootstrap installer flag for this runtime."""
+        return f"--{self.runtime_name}"
 
     @property
     def global_config_dir(self) -> Path:
@@ -65,7 +78,25 @@ class RuntimeAdapter(abc.ABC):
         Default: ``~/.<config_dir_name>``. Override for runtimes with
         environment variable precedence chains (XDG, etc.).
         """
-        return Path.home() / self.config_dir_name
+        return self.resolve_global_config_dir()
+
+    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
+        """Resolve the runtime's global config dir."""
+        return (home or Path.home()) / self.config_dir_name
+
+    def resolve_local_config_dir(self, cwd: Path | None = None) -> Path:
+        """Resolve the runtime's local config dir."""
+        return Path(cwd or os.getcwd()) / self.local_config_dir_name
+
+    def format_command(self, action: str) -> str:
+        """Format a runtime-native GPD command."""
+        return f"/gpd:{action}"
+
+    @property
+    def update_command(self) -> str:
+        """Public bootstrap command that updates this runtime install."""
+        base = "npx -y github:physicalsuperintelligence/get-physics-done"
+        return f"{base} {self.install_flag}".strip()
 
     # ---------------------------------------------------------------------------
     # Template method: install pipeline
@@ -202,6 +233,18 @@ class RuntimeAdapter(abc.ABC):
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""
 
+    def finalize_install(
+        self,
+        install_result: dict[str, object],
+        *,
+        force_statusline: bool = False,
+    ) -> None:
+        """Apply any runtime-specific post-install finalization."""
+
+    def _cleanup_runtime_config(self, target_dir: Path) -> list[str]:
+        """Remove runtime-managed config entries outside shared GPD files."""
+        return []
+
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from the target runtime configuration directory.
 
@@ -251,69 +294,7 @@ class RuntimeAdapter(abc.ABC):
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
 
-            # Clean up MCP servers from .mcp.json (project-level MCP config)
-            import json as _json
-
-            for mcp_json_path in (target_dir.parent / ".mcp.json",):
-                if mcp_json_path.exists():
-                    try:
-                        mcp_data = _json.loads(mcp_json_path.read_text(encoding="utf-8"))
-                    except (ValueError, OSError):
-                        mcp_data = None
-                    if isinstance(mcp_data, dict) and isinstance(mcp_data.get("mcpServers"), dict):
-                        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                        gpd_mcp = [k for k in mcp_data["mcpServers"] if k in GPD_MCP_SERVER_KEYS]
-                        for k in gpd_mcp:
-                            del mcp_data["mcpServers"][k]
-                        if gpd_mcp:
-                            if not mcp_data["mcpServers"]:
-                                del mcp_data["mcpServers"]
-                            tmp = mcp_json_path.with_suffix(".tmp")
-                            tmp.write_text(_json.dumps(mcp_data, indent=2) + "\n", encoding="utf-8")
-                            tmp.rename(mcp_json_path)
-                            removed.append(f"MCP servers from {mcp_json_path.name}")
-
-            # Clean up settings.json GPD hooks and statusline
-            settings_path = target_dir / "settings.json"
-            if settings_path.exists():
-                settings = read_settings(settings_path)
-                if settings:
-                    settings_modified = False
-                    # Remove GPD statusline
-                    sl = settings.get("statusLine")
-                    if isinstance(sl, dict):
-                        cmd = sl.get("command", "")
-                        if isinstance(cmd, str) and "statusline.py" in cmd:
-                            del settings["statusLine"]
-                            settings_modified = True
-                    # Remove GPD hooks from SessionStart
-                    hooks_cfg = settings.get("hooks")
-                    if isinstance(hooks_cfg, dict):
-                        ss = hooks_cfg.get("SessionStart")
-                        if isinstance(ss, list):
-                            before = len(ss)
-                            settings["hooks"]["SessionStart"] = [
-                                entry for entry in ss
-                                if not (
-                                    isinstance(entry, dict)
-                                    and isinstance(entry.get("hooks"), list)
-                                    and any(
-                                        isinstance(h, dict)
-                                        and isinstance(h.get("command"), str)
-                                        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
-                                        for h in entry["hooks"]
-                                    )
-                                )
-                            ]
-                            if len(settings["hooks"]["SessionStart"]) < before:
-                                settings_modified = True
-                            if not settings["hooks"]["SessionStart"]:
-                                del settings["hooks"]["SessionStart"]
-                            if not settings["hooks"]:
-                                del settings["hooks"]
-                    if settings_modified:
-                        write_settings(settings_path, settings)
+            removed.extend(self._cleanup_runtime_config(target_dir))
 
             # Remove file manifest
             manifest = target_dir / "gpd-file-manifest.json"
@@ -340,8 +321,8 @@ class RuntimeAdapter(abc.ABC):
             cwd: Working directory for local installs. Defaults to os.getcwd().
         """
         if is_global:
-            return self.global_config_dir
-        return Path(cwd or os.getcwd()) / self.config_dir_name
+            return self.resolve_global_config_dir()
+        return self.resolve_local_config_dir(cwd)
 
 
 __all__ = ["RuntimeAdapter"]
