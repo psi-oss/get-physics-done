@@ -269,6 +269,7 @@ def approximation_add(
 
     Raises ValueError if name is empty or a duplicate (case-insensitive) exists.
     """
+    name = name.strip()
     if not name:
         raise ExtrasError("name required for approximation-add")
 
@@ -350,6 +351,7 @@ def uncertainty_add(
 
     Raises ValueError if quantity is empty.
     """
+    quantity = quantity.strip()
     if not quantity:
         raise ExtrasError("quantity required for uncertainty-add")
 
@@ -388,6 +390,7 @@ def question_add(state: dict, text: str) -> str:
     Raises ValueError if text is empty.
     Returns the added question text.
     """
+    text = text.strip()
     if not text:
         raise ExtrasError("text required for question-add")
 
@@ -451,6 +454,7 @@ def calculation_add(state: dict, text: str) -> str:
     Raises ValueError if text is empty.
     Returns the added calculation text.
     """
+    text = text.strip()
     if not text:
         raise ExtrasError("text required for calculation-add")
 

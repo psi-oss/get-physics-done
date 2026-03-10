@@ -123,7 +123,7 @@ _BOGUS_VALUES = frozenset({"", "null", "undefined", "none"})
 #   % ASSERT_CONVENTION: key=value, key=value         (LaTeX)
 #   # ASSERT_CONVENTION: key=value, key=value         (Python)
 _ASSERT_LINE_RE = re.compile(
-    r"^\s*(?:<!--|[%#])\s*ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$",
+    r"^\s*(?:<!--|[%#])\s*ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?\s*$",
     re.MULTILINE,
 )
 _KV_PAIR_RE = re.compile(r"^(\w+)\s*=\s*(.+)$")

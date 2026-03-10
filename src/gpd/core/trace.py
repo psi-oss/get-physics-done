@@ -313,7 +313,10 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     )
     _append_line(trace_file, stop_line)
 
-    _active_trace_path(cwd).unlink(missing_ok=True)
+    try:
+        _active_trace_path(cwd).unlink(missing_ok=True)
+    except OSError:
+        pass
 
     with gpd_span("trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
         logger.info("trace_stopped", extra={"phase": active.phase, "plan": active.plan, "counts": counts})

@@ -291,6 +291,9 @@ async def build_paper(
         bib_content = await asyncio.to_thread(bib_path.read_text, encoding="utf-8")
 
     # 3. Render .tex
+    bib_stem = config.bib_file.removesuffix(".bib")
+    if bib_stem != config.bib_file:
+        config = config.model_copy(update={"bib_file": bib_stem})
     tex_content = render_paper(config)
     tex_path = output_dir / "paper.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")

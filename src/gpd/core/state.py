@@ -1109,7 +1109,10 @@ def _recover_intent_locked(cwd: Path) -> None:
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
-    md_valid = md_tmp_exists and md_tmp.stat().st_size > 0
+    try:
+        md_valid = md_tmp_exists and md_tmp.stat().st_size > 0
+    except OSError:
+        md_valid = False
 
     if json_tmp_exists and md_tmp_exists and json_valid and md_valid:
         # Both temp files ready and valid — complete the interrupted write

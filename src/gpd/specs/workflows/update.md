@@ -13,8 +13,8 @@ Detect whether GPD is installed locally or globally by checking both locations:
 
 ```bash
 # Check local first (takes priority)
-if [ -f "./{RUNTIME_CONFIG_DIR}/get-physics-done/VERSION" ]; then
-  cat "./{RUNTIME_CONFIG_DIR}/get-physics-done/VERSION"
+if [ -f ~/.claude/get-physics-done/VERSION ]; then
+  cat ~/.claude/get-physics-done/VERSION
   echo "LOCAL"
 elif [ -f {GPD_INSTALL_DIR}/VERSION ]; then
   cat {GPD_INSTALL_DIR}/VERSION

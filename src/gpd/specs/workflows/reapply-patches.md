@@ -12,10 +12,10 @@ Check for local patches directory:
 
 ```bash
 # Global install
-PATCHES_DIR="${HOME}/{RUNTIME_CONFIG_DIR}/gpd-local-patches"
+PATCHES_DIR="~/.claude/gpd-local-patches"
 # Local install fallback
 if [ ! -d "$PATCHES_DIR" ]; then
-  PATCHES_DIR="./{RUNTIME_CONFIG_DIR}/gpd-local-patches"
+  PATCHES_DIR="./.claude/gpd-local-patches"
 fi
 ```
 

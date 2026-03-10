@@ -240,7 +240,7 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
         if r.get("id"):
             by_id[r["id"]] = r
 
-    direct_dep_ids = result.get("depends_on", [])
+    direct_dep_ids = list(dict.fromkeys(result.get("depends_on", [])))
 
     # Direct dependencies
     direct_deps: list[IntermediateResult | MissingDep] = []
@@ -331,9 +331,10 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
             updates["verified"] = bool(raw)
 
     updated_fields: list[str] = []
+    pending: dict[str, object] = {}
     for field in RESULT_FIELDS:
         if field in updates:
-            state["intermediate_results"][idx][field] = updates[field]
+            pending[field] = updates[field]
             updated_fields.append(field)
 
     if not updated_fields:
@@ -341,5 +342,13 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
             f"No recognized fields in the update. Got keys: {sorted(updates.keys())}. "
             f"Valid fields: {sorted(RESULT_FIELDS)}"
         )
+
+    # Validate before mutating state
+    trial = dict(state["intermediate_results"][idx])
+    trial.update(pending)
+    IntermediateResult(**trial)
+
+    # Commit to state only after validation succeeds
+    state["intermediate_results"][idx].update(pending)
 
     return updated_fields, IntermediateResult(**state["intermediate_results"][idx])

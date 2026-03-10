@@ -156,13 +156,14 @@ def convert_claude_to_opencode_frontmatter(content: str) -> str:
 
         # Convert color names to hex for OpenCode
         if trimmed.startswith("color:"):
-            color_value = trimmed[6:].strip().lower()
+            color_raw = trimmed[6:].strip()
+            color_value = color_raw.lower()
             hex_color = _COLOR_NAME_TO_HEX.get(color_value)
             if hex_color:
                 new_lines.append(f'color: "{hex_color}"')
             elif color_value.startswith("#"):
                 if _HEX_COLOR_RE.match(color_value):
-                    new_lines.append(line)
+                    new_lines.append(f'color: "{color_raw}"')
                 # Skip invalid hex colors
             # Skip unknown color names
             continue

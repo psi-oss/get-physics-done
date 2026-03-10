@@ -614,7 +614,7 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
                 fixes.append("Regenerated state.json from STATE.md")
                 state_check.issues = [i for i in state_check.issues if "state.json not found" not in i]
                 state_check.status = CheckStatus.WARN if state_check.warnings else CheckStatus.OK
-            except OSError as e:
+            except Exception as e:
                 fixes.append(f"Failed to regenerate state.json: {e}")
 
     # Fix 2: Create config.json if missing or malformed

@@ -335,12 +335,12 @@ def convention_check(lock: dict) -> dict:
         units = parsed.natural_units
 
         if metric and fourier:
-            if "Euclidean" in (metric or "") and fourier == "QFT":
+            if "euclidean" in (metric or "").lower() and fourier == "QFT":
                 issues.append(
                     "Euclidean metric with QFT Fourier convention may cause sign issues. Check Wick rotation conventions."
                 )
 
-        if units == "SI" and metric and "(+,-,-,-)" in (metric or ""):
+        if units == "SI" and metric and ("(+,-,-,-)" in (metric or "") or "mostly-plus" in (metric or "").lower()):
             issues.append(
                 "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
             )

@@ -192,7 +192,7 @@ def _validate_transition(current_status: str, new_status: str) -> None:
 
 def _extract_state_field(state_content: str, field_name: str) -> str | None:
     """Extract a `**Field:** value from STATE.md content."""
-    match = re.search(rf"\*\*{re.escape(field_name)}:\*\*\s*(.+)", state_content)
+    match = re.search(rf"\*\*{re.escape(field_name)}:\*\*\s*(.+)", state_content, re.IGNORECASE)
     if not match:
         return None
     value = match.group(1).strip()
@@ -1254,7 +1254,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
                 updated_roadmap = roadmap_analyze(cwd)
                 total_phases = updated_roadmap.phase_count
                 state_content = re.sub(
-                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    r"(\*\*Total Phases:\*\*\s*)(?:\d+|[—\-]+)",
                     rf"\g<1>{total_phases}",
                     state_content,
                 )
@@ -1362,7 +1362,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                 updated_roadmap = roadmap_analyze(cwd)
                 total_phases = updated_roadmap.phase_count
                 state_content = re.sub(
-                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    r"(\*\*Total Phases:\*\*\s*)(?:\d+|[—\-]+)",
                     rf"\g<1>{total_phases}",
                     state_content,
                 )
@@ -1515,7 +1515,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                     total_phases = updated_roadmap.phase_count
 
                     state_content = re.sub(
-                        r"(\*\*Total Phases:\*\*\s*)\d+",
+                        r"(\*\*Total Phases:\*\*\s*)(?:\d+|[—\-]+)",
                         rf"\g<1>{total_phases}",
                         state_content,
                     )

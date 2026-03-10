@@ -76,6 +76,7 @@ _NAN_PATTERN = re.compile(
         | -?inf          # inf / -inf
         | -?Inf
         | -?INF
+        | -?[Ii]nfinity   # Infinity / -Infinity / -infinity
         | \.nan           # YAML .nan
         | -?\.inf         # YAML .inf / -.inf
     )

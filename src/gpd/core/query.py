@@ -449,7 +449,12 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
 
         # Check if this summary provides the identifier
         for p in fm_provides:
-            search_vals = [p] if isinstance(p, str) else [v for v in [p.get("name"), p.get("provides")] if v]
+            if isinstance(p, str):
+                search_vals = [p]
+            elif isinstance(p, dict):
+                search_vals = [v for v in [p.get("name"), p.get("provides")] if v]
+            else:
+                search_vals = [str(p)]
             for sv in search_vals:
                 if term_matches(identifier, sv):
                     # Prefer exact match

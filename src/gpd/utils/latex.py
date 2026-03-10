@@ -69,7 +69,7 @@ def _fix_unescaped_underscores(tex: str) -> str:
                 r"|includegraphics|input|include|bibliography|bibliographystyle"
                 r"|hyperref|nameref|pageref"
                 r"|citep|citet|citealp|citeauthor|citeyear"
-                r"|parencite|textcite)\{[^}]*\})",
+                r"|parencite|textcite)(?:\[[^\]]*\])*\{[^}]*\})",
                 lambda m: m.group(0).replace("_", "\x00"),
                 content,
             )
@@ -388,13 +388,7 @@ def sanitize_latex(latex: str) -> str:
 def clean_latex_fences(raw: str) -> str:
     """Strip markdown code fences from LLM output."""
     latex = raw.strip()
-    if "```latex" in latex or "```tex" in latex or "```LaTeX" in latex:
-        # Strip any of the fence+tag variants
-        for tag in ("```latex", "```tex", "```LaTeX"):
-            if tag in latex:
-                latex = latex.split(tag, 1)[1].split("```", 1)[0].strip()
-                break
-    elif "```" in latex:
+    if "```" in latex:
         # Extract content from ALL fenced blocks (handles multiple blocks)
         parts = latex.split("```")
         # parts[0] is before first fence, parts[1] is first block content,

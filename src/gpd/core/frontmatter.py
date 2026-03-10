@@ -23,7 +23,7 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import safe_read_file
+from gpd.core.utils import safe_parse_int, safe_read_file
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -750,6 +750,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
         if not isinstance(artifact, dict):
             continue
         art_path = artifact.get("path")
+        art_path = str(art_path) if art_path else None
         if not art_path:
             continue
 
@@ -761,11 +762,11 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
             file_content = safe_read_file(art_full) or ""
             line_count = len(file_content.splitlines()) if file_content else 0
 
-            min_lines = artifact.get("min_lines")
+            min_lines = safe_parse_int(artifact.get("min_lines"), 0)
             if min_lines and line_count < min_lines:
                 check.issues.append(f"Only {line_count} lines, need {min_lines}")
 
-            contains = artifact.get("contains")
+            contains = str(artifact.get("contains", "")) if artifact.get("contains") is not None else None
             if contains and contains not in file_content:
                 check.issues.append(f"Missing pattern: {contains}")
 
@@ -774,7 +775,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
                 if not isinstance(expected_results, list):
                     expected_results = [expected_results]
                 for res in expected_results:
-                    if res not in file_content:
+                    if str(res) not in file_content:
                         check.issues.append(f"Missing result: {res}")
 
             check.passed = len(check.issues) == 0
