@@ -712,6 +712,7 @@ name = "get-physics-done"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "arxiv-mcp-server" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
@@ -730,9 +731,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-arxiv = [
-    { name = "arxiv-mcp-server" },
-]
 claude-subagents = [
     { name = "claude-agent-sdk" },
 ]
@@ -749,7 +747,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arxiv-mcp-server", marker = "extra == 'arxiv'", specifier = ">=0.1.0" },
+    { name = "arxiv-mcp-server", specifier = ">=0.1.0" },
     { name = "claude-agent-sdk", marker = "extra == 'claude-subagents'", specifier = ">=0.1.19" },
     { name = "fastapi", specifier = ">=0.100" },
     { name = "httpx", specifier = ">=0.27" },
@@ -769,7 +767,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.21.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.20" },
 ]
-provides-extras = ["claude-subagents", "scientific", "arxiv"]
+provides-extras = ["claude-subagents", "scientific"]
 
 [package.metadata.requires-dev]
 dev = [
