@@ -182,7 +182,6 @@ REQUIRED_SPECS_SUBDIRS: tuple[str, ...] = (
     SPECS_REFERENCES_DIR,
     SPECS_TEMPLATES_DIR,
     SPECS_WORKFLOWS_DIR,
-    PATTERNS_DIR_NAME,
 )
 """Subdirectories expected in the specs/ bundle root."""
 

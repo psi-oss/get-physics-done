@@ -24,9 +24,6 @@ from gpd.core.constants import (
     MIN_PYTHON_MAJOR,
     MIN_PYTHON_MINOR,
     OPTIONAL_PLANNING_FILES,
-    PATTERNS_BY_DOMAIN_DIR,
-    PATTERNS_DIR_NAME,
-    PATTERNS_INDEX_FILENAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     RECOMMENDED_PYTHON_VERSION,
@@ -701,42 +698,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 2. Learned-pattern library bundle
-        patterns_dir = sd / PATTERNS_DIR_NAME
-        pattern_index = patterns_dir / PATTERNS_INDEX_FILENAME
-        patterns_by_domain = patterns_dir / PATTERNS_BY_DOMAIN_DIR
-        pattern_issues: list[str] = []
-        pattern_warnings: list[str] = []
-        if not patterns_dir.is_dir():
-            pattern_issues.append(f"Pattern library directory not found: {patterns_dir}")
-        if not pattern_index.is_file():
-            pattern_issues.append(f"Pattern library index not found: {pattern_index}")
-        if not patterns_by_domain.is_dir():
-            pattern_issues.append(f"Pattern-by-domain directory not found: {patterns_by_domain}")
-        pattern_file_count = sum(1 for _ in patterns_by_domain.rglob("*.md")) if patterns_by_domain.is_dir() else 0
-        if not pattern_issues and pattern_file_count == 0:
-            pattern_warnings.append("No learned pattern markdown files found")
-        checks.append(
-            HealthCheck(
-                status=(
-                    CheckStatus.FAIL
-                    if pattern_issues
-                    else CheckStatus.WARN
-                    if pattern_warnings
-                    else CheckStatus.OK
-                ),
-                label="Pattern Library",
-                details={
-                    "patterns_dir": str(patterns_dir),
-                    "pattern_index": str(pattern_index),
-                    "pattern_file_count": pattern_file_count,
-                },
-                issues=pattern_issues,
-                warnings=pattern_warnings,
-            )
-        )
-
-        # 3. Key reference files
+        # 2. Key reference files
         key_refs = [
             "references/shared-protocols.md",
             "references/verification-core.md",
@@ -752,7 +714,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 4. Workflow files
+        # 3. Workflow files
         workflows_dir = sd / "workflows"
         workflow_count = len([f for f in workflows_dir.iterdir() if f.suffix == ".md"]) if workflows_dir.is_dir() else 0
         checks.append(
@@ -764,7 +726,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 5. Template files
+        # 4. Template files
         templates_dir = sd / "templates"
         template_count = sum(1 for _ in templates_dir.rglob("*.md")) if templates_dir.is_dir() else 0
         checks.append(
@@ -776,7 +738,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 6. Python version
+        # 5. Python version
         py_issues: list[str] = []
         py_warnings: list[str] = []
         if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):

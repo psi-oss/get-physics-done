@@ -13,22 +13,22 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from gpd.core.constants import PATTERNS_DIR_NAME
 from gpd.core.observability import gpd_span
 from gpd.core.patterns import (
     VALID_CATEGORIES,
     VALID_DOMAINS,
     VALID_SEVERITIES,
+    _patterns_root,
     pattern_add,
     pattern_list,
     pattern_promote,
     pattern_search,
     pattern_seed,
 )
-from gpd.specs import SPECS_DIR
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-patterns")
@@ -36,8 +36,8 @@ logger = logging.getLogger("gpd-patterns")
 mcp = FastMCP("gpd-patterns")
 
 # Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
-# env vars are not set.  Falls back to the bundled specs directory.
-_DEFAULT_PATTERNS_ROOT = SPECS_DIR / PATTERNS_DIR_NAME
+# env vars are not set. Falls back to the global ~/.gpd data directory.
+_DEFAULT_PATTERNS_ROOT: Path = _patterns_root()
 
 
 @mcp.tool()

@@ -106,7 +106,7 @@ The paper-writer's style, detail level, and structural choices change with resea
 
 | Behavior | Supervised | Guided | Autonomous | YOLO |
 |---|---|---|---|---|
-| **Section drafting** | Write one section at a time. Present to user for review before next section. | Write full first draft. Present for review. Iterate on feedback. | Write, self-review (via referee agent), revise, present polished draft. | Complete paper autonomously. Present only when ready for submission. |
+| **Section drafting** | Draft one section at a time. Present to user for review before next section. | Draft a full first draft. Present for review. Iterate on feedback. | Draft, self-review (via referee agent), revise, present polished draft. | Complete paper autonomously. Present only when ready for submission. |
 | **Notation decisions** | Ask user for notation preferences before writing. | Use project conventions. Flag any notation choices not covered by convention lock. | Make notation choices following conventions. Resolve ambiguities by consistency with the most-cited reference. | Make all notation choices. |
 | **Abstract writing** | Draft abstract, present for user editing. Abstract is the most user-visible text. | Draft abstract and suggest 2-3 alternatives with different emphasis. | Write abstract optimized for search visibility and citation. | Write and finalize abstract. |
 

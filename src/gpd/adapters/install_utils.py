@@ -27,7 +27,7 @@ MAX_INCLUDE_EXPANSION_DEPTH = 10
 
 # Subdirectories of specs/ that make up the installed get-physics-done/ content.
 # Shared by all adapters.
-GPD_CONTENT_DIRS = ("references", "templates", "workflows", "learned-patterns")
+GPD_CONTENT_DIRS = ("references", "templates", "workflows")
 
 # Hook script filenames by purpose.
 HOOK_SCRIPTS: dict[str, str] = {

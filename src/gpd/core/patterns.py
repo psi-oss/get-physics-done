@@ -38,6 +38,7 @@ from gpd.core.constants import (
     PATTERNS_BY_DOMAIN_DIR,
     PATTERNS_DIR_NAME,
     PATTERNS_INDEX_FILENAME,
+    PLANNING_DIR_NAME,
     SEED_PATTERN_INITIAL_OCCURRENCES,
 )
 from gpd.core.errors import PatternError
@@ -227,7 +228,8 @@ class PatternSeedResult(BaseModel):
 def _patterns_root(specs_root: Path | None = None) -> Path:
     """Resolve the patterns library root directory.
 
-    Precedence: ``GPD_PATTERNS_ROOT`` env > ``GPD_DATA_DIR`` env > *specs_root*/learned-patterns.
+    Precedence: ``GPD_PATTERNS_ROOT`` env > ``GPD_DATA_DIR`` env >
+    ``~/.gpd/learned-patterns``.
     """
     explicit = os.environ.get(ENV_PATTERNS_ROOT, "").strip()
     if explicit:
@@ -237,12 +239,7 @@ def _patterns_root(specs_root: Path | None = None) -> Path:
     if data_dir:
         return Path(data_dir) / PATTERNS_DIR_NAME
 
-    if specs_root is None:
-        raise PatternError(
-            "specs_root is required when GPD_PATTERNS_ROOT and GPD_DATA_DIR are not set. "
-            "Pass specs_root explicitly or set the GPD_PATTERNS_ROOT environment variable."
-        )
-    return specs_root / PATTERNS_DIR_NAME
+    return Path.home() / PLANNING_DIR_NAME / PATTERNS_DIR_NAME
 
 
 # ─── Index I/O ───────────────────────────────────────────────────────────────

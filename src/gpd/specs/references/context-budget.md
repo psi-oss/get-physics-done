@@ -252,7 +252,7 @@ A typical one-loop QFT calculation (setup + regularization + renormalization + l
 | Step | Token Cost | Cumulative |
 |------|-----------|------------|
 | Read STATE.md + PLAN.md + conventions | ~2k | 2k |
-| Read/set up Lagrangian, Feynman rules | ~3k | 5k |
+| Review and set up Lagrangian, Feynman rules | ~3k | 5k |
 | Compute one-loop diagram(s) + dim reg | ~8-12k | 13-17k |
 | Renormalization + counterterms | ~5-8k | 18-25k |
 | Limiting case checks (2-3 limits) | ~5-7k | 23-32k |

@@ -7,15 +7,15 @@ How the global pattern library works -- a persistent knowledge base of physics e
 
 A sign error caused by metric signature confusion in one QFT project is the same sign error in every QFT project. A convergence failure from naive lattice discretization in one condensed matter calculation will recur in the next. The cross-project pattern library captures these lessons so they are available before the error is made, not after.
 
-The library lives outside any single project at `learned-patterns/`, making it available to every GPD session regardless of which repository is active.
+The library lives outside any single project at the resolved global pattern-library root: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/.gpd/learned-patterns`.
 </core_principle>
 
 <location>
 
 ## Storage Location
 
-```
-learned-patterns/
+```text
+~/.gpd/learned-patterns/
   patterns-by-domain/
     qft/
     condensed-matter/
@@ -33,7 +33,7 @@ learned-patterns/
   index.json
 ```
 
-**Why the global install directory:** This directory persists across all projects and sessions. Project-local `.gpd/INSIGHTS.md` captures project-specific lessons; the global library captures cross-project patterns.
+**Why the global `.gpd` directory:** This directory persists across all projects and sessions. Project-local `.gpd/INSIGHTS.md` captures project-specific lessons; the global library captures cross-project patterns.
 
 **Each pattern file** follows the `learned-pattern.md` template (see `templates/learned-pattern.md`). Filenames use the format `{category}-{short-slug}.md` (e.g., `sign-error-metric-signature.md`, `factor-error-fourier-convention.md`).
 
@@ -71,7 +71,7 @@ The index provides fast lookup without reading every pattern file. Agents filter
 | Field              | Purpose                                               |
 | ------------------ | ----------------------------------------------------- |
 | `id`               | Unique identifier: `{domain}-{category}-{slug}`       |
-| `file`             | Relative path from `learned-patterns/` root           |
+| `file`             | Relative path from the pattern-library root           |
 | `domain`           | Physics domain (matches subdirectory)                 |
 | `category`         | Error category from the template                      |
 | `severity`         | critical / high / medium / low                        |
@@ -203,7 +203,7 @@ Each agent integrates with the pattern library at specific points in its workflo
 ### Common pattern: reading the index
 
 ```
-1. Read learned-patterns/index.json
+1. Read `<pattern-library-root>/index.json`
 2. Parse the patterns array
 3. Filter: pattern.domain matches current project domain (from PROJECT.md)
 4. Sort by severity (critical first), then confidence, then occurrence_count
@@ -250,7 +250,7 @@ The global pattern library and project-local `.gpd/INSIGHTS.md` serve complement
 | Aspect     | INSIGHTS.md                           | Global Pattern Library                            |
 | ---------- | ------------------------------------- | ------------------------------------------------- |
 | Scope      | Single project                        | All projects                                      |
-| Location   | `.gpd/INSIGHTS.md`               | `learned-patterns/`    |
+| Location   | `.gpd/INSIGHTS.md`               | `~/.gpd/learned-patterns/` |
 | Content    | Project-specific findings and lessons | Generalized error patterns and prevention methods |
 | Lifetime   | Lives with the project                | Persists indefinitely                             |
 | Written by | Debugger, executor                    | Debugger, verifier                                |
@@ -268,7 +268,7 @@ When the pattern library does not yet exist (first GPD session on a machine):
 
 1. Agents that attempt to read `index.json` and find it missing should create the directory structure:
    ```
-   mkdir -p learned-patterns/patterns-by-domain/{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical,soft-matter,quantum-info}
+   mkdir -p ~/.gpd/learned-patterns/patterns-by-domain/{qft,condensed-matter,stat-mech,gr,amo,nuclear,classical,fluid,plasma,astro,mathematical,soft-matter,quantum-info}
    ```
 2. Create an empty `index.json`:
    ```json

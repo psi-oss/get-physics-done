@@ -1557,7 +1557,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 </mode>
 
 <output>
-1. Write: .gpd/CONVENTIONS.md (full convention reference)
+1. Create: .gpd/CONVENTIONS.md (full convention reference)
 2. Lock conventions via: gpd convention set
 3. Return CONVENTIONS ESTABLISHED with summary
 </output>

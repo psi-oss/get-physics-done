@@ -943,7 +943,7 @@ def _resolve_patterns_root() -> Path:
     """Resolve pattern library root respecting GPD_PATTERNS_ROOT env var.
 
     Uses the same resolution order as gpd.core.patterns._patterns_root:
-    GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > cwd/learned-patterns.
+    GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > ~/.gpd/learned-patterns.
     """
     from gpd.core.patterns import _patterns_root
 
