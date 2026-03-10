@@ -11,15 +11,15 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="parse_arguments">
 Parse the command arguments:
 - Argument is the phase number to remove (integer or decimal)
-- Example: `$gpd-remove-phase 17` -> phase = 17
-- Example: `$gpd-remove-phase 16.1` -> phase = 16.1
+- Example: `/gpd:remove-phase 17` -> phase = 17
+- Example: `/gpd:remove-phase 16.1` -> phase = 16.1
 
 If no argument provided:
 
 ```
 ERROR: Phase number required
-Usage: $gpd-remove-phase <phase-number>
-Example: $gpd-remove-phase 17
+Usage: /gpd:remove-phase <phase-number>
+Example: /gpd:remove-phase 17
 ```
 
 Exit.
@@ -46,7 +46,7 @@ ERROR: Phase not found: ${target}
 Available phases:
 $(gpd phase list)
 
-Usage: $gpd-remove-phase <phase-number>
+Usage: /gpd:remove-phase <phase-number>
 ```
 
 Exit.
@@ -69,7 +69,7 @@ Only future phases can be removed:
 - Current phase: {current}
 - Phase {target} is current or completed
 
-To abandon current work, use $gpd-pause-work instead.
+To abandon current work, use /gpd:pause-work instead.
 ```
 
 Exit.
@@ -82,7 +82,7 @@ Present removal summary and confirm:
 Removing Phase {target}: {Name}
 
 This will:
-- Delete: .planning/phases/{target}-{slug}/
+- Delete: .gpd/phases/{target}-{slug}/
 - Renumber all subsequent phases
 - Update: ROADMAP.md, STATE.md
 
@@ -123,11 +123,11 @@ Extract from result: `removed`, `directory_deleted`, `renamed_directories`, `ren
 Stage and commit the removal:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit "chore: remove phase {target} ({original-phase-name})" \
-  --files .planning/phases/ .planning/ROADMAP.md .planning/STATE.md .planning/state.json
+  --files .gpd/phases/ .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json
 ```
 
 The commit message preserves the historical record of what was removed.
@@ -140,7 +140,7 @@ Present completion summary:
 Phase {target} ({original-name}) removed.
 
 Changes:
-- Deleted: .planning/phases/{target}-{slug}/
+- Deleted: .gpd/phases/{target}-{slug}/
 - Renumbered: {N} directories and {M} files
 - Updated: ROADMAP.md, STATE.md
 - Committed: chore: remove phase {target} ({original-name})
@@ -150,7 +150,7 @@ Changes:
 ## What's Next
 
 Would you like to:
-- `$gpd-progress` -- see updated roadmap status
+- `/gpd:progress` -- see updated roadmap status
 - Continue with current phase
 - Review roadmap
 

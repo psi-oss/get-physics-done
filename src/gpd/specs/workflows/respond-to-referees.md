@@ -1,7 +1,7 @@
 <purpose>
 Structure a point-by-point response to referee reports and revise the manuscript accordingly. Handles the full revision pipeline: parsing referee comments, drafting responses, spawning revision agents for manuscript changes, tracking new calculations, and producing a response letter. Integrates with the GPD research workflow for any new calculations requested by referees.
 
-Called from $gpd-respond-to-referees command. Section revisions are performed by gpd-paper-writer agents.
+Called from /gpd:respond-to-referees command. Section revisions are performed by gpd-paper-writer agents.
 </purpose>
 
 <core_principle>
@@ -49,7 +49,7 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ERROR: No project found.
 
 Responding to referees requires a project with a completed manuscript.
-Run $gpd-new-project first.
+Run /gpd:new-project first.
 ```
 
 Exit.
@@ -70,7 +70,7 @@ done
 ```
 No paper directory found. Searched: paper/, manuscript/, draft/
 
-Run $gpd-write-paper first to generate a manuscript from research results.
+Run /gpd:write-paper first to generate a manuscript from research results.
 ```
 
 Exit.
@@ -90,7 +90,7 @@ If the check fails, resolve convention mismatches before proceeding. New calcula
 **Check for existing referee response file:**
 
 ```bash
-ls .planning/paper/REFEREE_RESPONSE*.md 2>/dev/null
+ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ```
 
 If found, load as continuation context (user may be resuming an interrupted session).
@@ -103,7 +103,7 @@ Ask the user to provide referee reports via one of:
 
 1. **Paste directly** -- user pastes report text into the conversation
 2. **File path** -- user provides a path to the report file(s)
-3. **Existing file** -- check `.planning/paper/referee-report-*.md` or `paper/referee-reports/`
+3. **Existing file** -- check `.gpd/paper/referee-report-*.md` or `paper/referee-reports/`
 
 **Parse each referee's comments into structured items:**
 
@@ -152,7 +152,7 @@ Read the template:
 cat {GPD_INSTALL_DIR}/templates/paper/referee-response.md
 ```
 
-Create `.planning/paper/REFEREE_RESPONSE.md` using the template structure, populated with:
+Create `.gpd/paper/REFEREE_RESPONSE.md` using the template structure, populated with:
 
 - Paper metadata (journal, manuscript ID, dates)
 - Decision summary from editor
@@ -163,18 +163,18 @@ Create `.planning/paper/REFEREE_RESPONSE.md` using the template structure, popul
 For second-round responses, create `REFEREE_RESPONSE_R2.md` instead.
 
 ```bash
-mkdir -p .planning/paper
+mkdir -p .gpd/paper
 ```
 
 Commit the initial response file:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/paper/REFEREE_RESPONSE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: create referee response structure" \
-  --files .planning/paper/REFEREE_RESPONSE.md
+  --files .gpd/paper/REFEREE_RESPONSE.md
 ```
 
 </step>
@@ -210,7 +210,7 @@ Present triage:
 |-------|-------|--------|
 | A: Response-only | {N} | Draft responses (no manuscript change) |
 | B: Manuscript revision | {N} | Spawn paper-writer agents for section edits |
-| C: New calculations | {N} | Create research phases via $gpd-add-phase |
+| C: New calculations | {N} | Create research phases via /gpd:add-phase |
 
 Group C items require research work before the response can be completed.
 Address these first? (Y/n)
@@ -233,8 +233,8 @@ For each new calculation:
 
 | ID | Requested By | Description | Suggested Phase |
 |----|-------------|-------------|-----------------|
-| NC-1 | Referee 1, Comment 3 | Extend to next-to-leading order | $gpd-insert-phase {N}.1 |
-| NC-2 | Referee 2, Comment 5 | Compare with Monte Carlo results | $gpd-add-phase |
+| NC-1 | Referee 1, Comment 3 | Extend to next-to-leading order | /gpd:insert-phase {N}.1 |
+| NC-2 | Referee 2, Comment 5 | Compare with Monte Carlo results | /gpd:add-phase |
 
 Create these phases now? The referee response will be incomplete until
 new calculations are done.
@@ -252,7 +252,7 @@ If user chooses option 1:
 gpd phase add "Referee revision: {description}"
 ```
 
-The user should run `$gpd-plan-phase` and `$gpd-execute-phase` for each new phase, then return to `$gpd-respond-to-referees` to continue.
+The user should run `/gpd:plan-phase` and `/gpd:execute-phase` for each new phase, then return to `/gpd:respond-to-referees` to continue.
 
 </step>
 
@@ -281,10 +281,10 @@ Group revision items by affected section to minimize agent spawns. For each affe
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-paper-writer",
   model="{writer_model}",
@@ -358,7 +358,7 @@ Read the completed REFEREE_RESPONSE.md (all comments should have status "Respons
 
 ```
 {N} new calculations are still pending. The response letter will note these as
-"work in progress." Complete them with $gpd-execute-phase before resubmission.
+"work in progress." Complete them with /gpd:execute-phase before resubmission.
 ```
 
 Write `paper/response-letter.tex` (or `.md` depending on journal requirements):
@@ -424,12 +424,12 @@ raised. Below we provide point-by-point responses.
 **Commit all revision artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: referee response and manuscript revisions" \
-  --files .planning/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
+  --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
 ```
 
 **Present completion summary:**
@@ -452,7 +452,7 @@ gpd commit \
 
 ### Files
 
-- Response tracking: .planning/paper/REFEREE_RESPONSE.md
+- Response tracking: .gpd/paper/REFEREE_RESPONSE.md
 - Response letter: paper/response-letter.tex
 - Revised manuscript: {paper_dir}/*.tex
 
@@ -463,15 +463,15 @@ gpd commit \
 {If all complete:}
 1. Review response letter: `cat paper/response-letter.tex`
 2. Build revised manuscript: `cd paper && make`
-3. `$gpd-arxiv-submission` — repackage for resubmission
+3. `/gpd:arxiv-submission` — repackage for resubmission
 4. Submit revised manuscript + response letter to journal
 
 {If new calculations pending:}
 1. Execute pending calculations:
-   $gpd-plan-phase {N}
-   $gpd-execute-phase {N}
+   /gpd:plan-phase {N}
+   /gpd:execute-phase {N}
 2. Return here to incorporate results:
-   $gpd-respond-to-referees (will detect existing REFEREE_RESPONSE.md)
+   /gpd:respond-to-referees (will detect existing REFEREE_RESPONSE.md)
 
 ---
 ```

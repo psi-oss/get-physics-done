@@ -13,7 +13,7 @@ Find current phase directory from most recently modified files:
 
 ```bash
 # Find most recent phase directory with work
-ls -lt .planning/phases/*/*PLAN.md 2>/dev/null | head -1 | sed 's|.*phases/||' | sed 's|/.*||'
+ls -lt .gpd/phases/*/*PLAN.md 2>/dev/null | head -1 | sed 's|.*phases/||' | sed 's|/.*||'
 ```
 
 If no active phase detected, ask user which phase they're pausing work on.
@@ -39,7 +39,7 @@ Ask user for clarifications if needed via conversational questions.
 </step>
 
 <step name="extract_persistent_state">
-**Extract and append persistent derivation state to `.planning/DERIVATION-STATE.md`:**
+**Extract and append persistent derivation state to `.gpd/DERIVATION-STATE.md`:**
 
 Before writing the ephemeral CONTINUE-HERE file, extract all equations, conventions,
 and results from the current session and append them to the cumulative derivation
@@ -53,16 +53,16 @@ that prevents lossy compression across context resets.
    - Every intermediate result added to state.json (with result IDs)
    - Every approximation invoked (name, validity regime, how checked)
 
-2. **Append to `.planning/DERIVATION-STATE.md`** (create if it doesn't exist):
+2. **Append to `.gpd/DERIVATION-STATE.md`** (create if it doesn't exist):
 
 ```bash
 # Get timestamp and phase context
 timestamp=$(gpd timestamp full --raw)
-phase_dir=$(ls -dt .planning/phases/*/ 2>/dev/null | head -1 | sed 's|/$||' | xargs basename)
+phase_dir=$(ls -dt .gpd/phases/*/ 2>/dev/null | head -1 | sed 's|/$||' | xargs basename)
 
 # Create file with header if it doesn't exist
-if [ ! -f .planning/DERIVATION-STATE.md ]; then
-  cat > .planning/DERIVATION-STATE.md << 'HEADER'
+if [ ! -f .gpd/DERIVATION-STATE.md ]; then
+  cat > .gpd/DERIVATION-STATE.md << 'HEADER'
 # Derivation State (Cumulative)
 
 This file is append-only. Each session appends its equations, conventions,
@@ -73,7 +73,7 @@ HEADER
 fi
 
 # Append this session's persistent state
-cat >> .planning/DERIVATION-STATE.md << EOF
+cat >> .gpd/DERIVATION-STATE.md << EOF
 
 ---
 
@@ -111,26 +111,26 @@ EOF
 
    ```bash
    # Count session blocks
-   SESSION_COUNT=$(grep -c "^## Session:" .planning/DERIVATION-STATE.md 2>/dev/null || echo 0)
+   SESSION_COUNT=$(grep -c "^## Session:" .gpd/DERIVATION-STATE.md 2>/dev/null || echo 0)
 
    if [ "$SESSION_COUNT" -gt 5 ]; then
      echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
 
      # Atomic read-modify-write: write to .tmp, validate, then replace
-     TMP_FILE=".planning/DERIVATION-STATE.md.tmp.$$"
+     TMP_FILE=".gpd/DERIVATION-STATE.md.tmp.$$"
      trap "rm -f '$TMP_FILE'" EXIT
 
      # Keep only the 5 most recent session blocks
-     KEEP_FROM=$(grep -n "^## Session:" .planning/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
-     HEADER_END=$(grep -n "^## Session:" .planning/DERIVATION-STATE.md | head -1 | cut -d: -f1)
+     KEEP_FROM=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
+     HEADER_END=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | head -1 | cut -d: -f1)
      HEADER_END=$((HEADER_END - 1))
      {
-       head -n "$HEADER_END" .planning/DERIVATION-STATE.md
+       head -n "$HEADER_END" .gpd/DERIVATION-STATE.md
        echo ""
        echo "> Older session entries archived in git history."
-       echo "> Use \`git log -p -- .planning/DERIVATION-STATE.md\` to recover."
+       echo "> Use \`git log -p -- .gpd/DERIVATION-STATE.md\` to recover."
        echo ""
-       tail -n +"$KEEP_FROM" .planning/DERIVATION-STATE.md
+       tail -n +"$KEEP_FROM" .gpd/DERIVATION-STATE.md
      } > "$TMP_FILE"
 
      # Validate the tmp file before replacing
@@ -143,7 +143,7 @@ EOF
        rm -f "$TMP_FILE"
      else
        # Atomic replace: cp to preserve original on failure, then rm tmp
-       cp "$TMP_FILE" .planning/DERIVATION-STATE.md && \
+       cp "$TMP_FILE" .gpd/DERIVATION-STATE.md && \
          rm -f "$TMP_FILE" || \
          echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
      fi
@@ -156,16 +156,16 @@ EOF
 6. **Commit the updated file:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/DERIVATION-STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/DERIVATION-STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "wip: append derivation state from session" --files .planning/DERIVATION-STATE.md
+gpd commit "wip: append derivation state from session" --files .gpd/DERIVATION-STATE.md
 ```
 
 </step>
 
 <step name="write">
-**Write handoff to `.planning/phases/{phase_slug}/.continue-here.md`** (where `{phase_slug}` is the detected phase directory name from the `detect` step, e.g., `03-dispersion`):
+**Write handoff to `.gpd/phases/{phase_slug}/.continue-here.md`** (where `{phase_slug}` is the detected phase directory name from the `detect` step, e.g., `03-dispersion`):
 
 ```markdown
 ---
@@ -258,7 +258,7 @@ timestamp=$(gpd timestamp full --raw)
 # Record session continuity so resume-work knows where we stopped
 gpd state record-session \
   --stopped-at "Paused at task [X]/[Y] in phase [{phase_slug}]" \
-  --resume-file ".planning/phases/[{phase_slug}]/.continue-here.md"
+  --resume-file ".gpd/phases/[{phase_slug}]/.continue-here.md"
 if [ $? -ne 0 ]; then echo "WARNING: state record-session failed — resume info may be lost"; fi
 
 # Set status to Paused so resume-work detects it
@@ -270,17 +270,17 @@ if [ $? -ne 0 ]; then echo "WARNING: state patch failed — status not marked as
 
 <step name="commit">
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/phases/*/.continue-here.md .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/phases/*/.continue-here.md .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "wip: [phase-name] paused at task [X]/[Y]" --files .planning/phases/*/.continue-here.md .planning/STATE.md .planning/state.json
+gpd commit "wip: [phase-name] paused at task [X]/[Y]" --files .gpd/phases/*/.continue-here.md .gpd/STATE.md .gpd/state.json
 ```
 
 </step>
 
 <step name="confirm">
 ```
-Handoff created: .planning/phases/[{phase_slug}]/.continue-here.md
+Handoff created: .gpd/phases/[{phase_slug}]/.continue-here.md
 
 Current state:
 
@@ -290,7 +290,7 @@ Current state:
 - Derivation state: [brief summary of where the calculation stands]
 - Committed as WIP
 
-To resume: $gpd-resume-work
+To resume: /gpd:resume-work
 
 ```
 </step>
@@ -298,7 +298,7 @@ To resume: $gpd-resume-work
 </process>
 
 <success_criteria>
-- [ ] Persistent derivation state appended to `.planning/DERIVATION-STATE.md` (equations, conventions, results, approximations from this session)
+- [ ] Persistent derivation state appended to `.gpd/DERIVATION-STATE.md` (equations, conventions, results, approximations from this session)
 - [ ] DERIVATION-STATE.md committed separately before writing CONTINUE-HERE
 - [ ] .continue-here.md created in correct phase directory
 - [ ] All sections filled with specific content, especially derivation_state, parameter_values, intermediate_results, and approximations_active

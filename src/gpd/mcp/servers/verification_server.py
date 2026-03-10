@@ -18,7 +18,6 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
-from gpd.core.errors import ValidationError as SpecValidationError
 from gpd.core.observability import gpd_span
 from gpd.core.verification_checks import VERIFICATION_CHECKS
 
@@ -27,16 +26,6 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(le
 logger = logging.getLogger("gpd-verification")
 
 mcp = FastMCP("gpd-verification")
-
-# Profile-dependent check sets
-CHECK_PROFILES: dict[str, list[str]] = {
-    "deep-theory": list(VERIFICATION_CHECKS.keys()),
-    "numerical": list(VERIFICATION_CHECKS.keys()),
-    "review": list(VERIFICATION_CHECKS.keys()),
-    "paper-writing": list(VERIFICATION_CHECKS.keys()),
-    "exploratory": ["5.1", "5.2", "5.3", "5.6", "5.7", "5.8", "5.10"],
-    "quick": ["5.1", "5.3", "5.10"],
-}
 
 # ─── Domain Checklists ────────────────────────────────────────────────────────
 
@@ -114,7 +103,7 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
     ],
 }
 
-# ─── Error Class Catalog (101 classes) ────────────────────────────────────────
+# ─── Error Class Catalog (104 classes) ────────────────────────────────────────
 
 # Map error class IDs to detection checks. From verification-gap-analysis.md.
 ERROR_CLASS_COVERAGE: dict[int, dict[str, object]] = {
@@ -186,48 +175,52 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
         domain: Physics domain for domain-specific guidance
         artifact_content: The content to verify (derivation, code, etc.)
     """
-    with gpd_span("mcp.verification.run_check", check_type=check_id, domain=domain):
-        check_meta = VERIFICATION_CHECKS.get(check_id)
-        if check_meta is None:
-            raise SpecValidationError(f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECKS.keys())}")
+    try:
+        with gpd_span("mcp.verification.run_check", check_type=check_id, domain=domain):
+            check_meta = VERIFICATION_CHECKS.get(check_id)
+            if check_meta is None:
+                return {"error": f"Unknown check_id: {check_id}. Valid: {list(VERIFICATION_CHECKS.keys())}"}
 
-        # Get domain-specific guidance
-        domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
-        relevant_domain_checks = [c for c in domain_checks if check_id in c.get("check_ids", "")]
+            # Get domain-specific guidance
+            domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
+            relevant_domain_checks = [c for c in domain_checks if check_id in c.get("check_ids", "").split(",")]
 
-        # Scan artifact for obvious issues
-        issues: list[str] = []
+            # Scan artifact for obvious issues
+            issues: list[str] = []
 
-        if check_id == "5.1":
-            # Dimensional analysis: look for common pitfalls
-            if "hbar" not in artifact_content and "\\hbar" not in artifact_content:
-                if any(kw in artifact_content.lower() for kw in ["quantum", "planck", "commutator"]):
-                    issues.append("Quantum context detected but no hbar found -- check natural unit conventions")
-            if re.search(r"exp\s*\([^)]*\[", artifact_content):
-                issues.append("Possible dimensionful argument to exponential")
+            if check_id == "5.1":
+                # Dimensional analysis: look for common pitfalls
+                if "hbar" not in artifact_content and "\\hbar" not in artifact_content:
+                    if any(kw in artifact_content.lower() for kw in ["quantum", "planck", "commutator"]):
+                        issues.append("Quantum context detected but no hbar found -- check natural unit conventions")
+                if re.search(r"exp\s*\([^)]*\[", artifact_content):
+                    issues.append("Possible dimensionful argument to exponential")
 
-        elif check_id == "5.3":
-            # Limiting cases: check if any limits are discussed
-            limit_keywords = ["limit", "->", "\\to", "limiting", "reduces to", "special case"]
-            has_limits = any(kw in artifact_content.lower() for kw in limit_keywords)
-            if not has_limits:
-                issues.append("No limiting case analysis found in artifact")
+            elif check_id == "5.3":
+                # Limiting cases: check if any limits are discussed
+                limit_keywords = ["limit", "->", "\\to", "limiting", "reduces to", "special case"]
+                has_limits = any(kw in artifact_content.lower() for kw in limit_keywords)
+                if not has_limits:
+                    issues.append("No limiting case analysis found in artifact")
 
-        return {
-            "check_id": check_id,
-            "check_name": check_meta["name"],
-            "tier": check_meta["tier"],
-            "description": check_meta["description"],
-            "catches": check_meta["catches"],
-            "domain": domain,
-            "domain_specific_checks": relevant_domain_checks,
-            "automated_issues": issues,
-            "artifact_length": len(artifact_content),
-            "guidance": (
-                f"Run check {check_id} ({check_meta['name']}) for domain '{domain}'. "
-                f"This check catches: {check_meta['catches']}."
-            ),
-        }
+            return {
+                "check_id": check_id,
+                "check_name": check_meta["name"],
+                "tier": check_meta["tier"],
+                "description": check_meta["description"],
+                "catches": check_meta["catches"],
+                "domain": domain,
+                "domain_specific_checks": relevant_domain_checks,
+                "automated_issues": issues,
+                "artifact_length": len(artifact_content),
+                "guidance": (
+                    f"Run check {check_id} ({check_meta['name']}) for domain '{domain}'. "
+                    f"This check catches: {check_meta['catches']}."
+                ),
+            }
+    except Exception as exc:
+        logger.warning("run_check failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -237,27 +230,31 @@ def get_checklist(domain: str) -> dict:
     Provides the complete list of checks recommended for a physics domain,
     including which universal checks (5.1-5.14) each maps to.
     """
-    with gpd_span("mcp.verification.checklist", domain=domain):
-        checklist = DOMAIN_CHECKLISTS.get(domain)
-        if checklist is None:
+    try:
+        with gpd_span("mcp.verification.checklist", domain=domain):
+            checklist = DOMAIN_CHECKLISTS.get(domain)
+            if checklist is None:
+                return {
+                    "found": False,
+                    "domain": domain,
+                    "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
+                    "message": f"No checklist for domain '{domain}'.",
+                }
+
+            # Also include the universal checks
+            universal = [{"check_id": k, **v} for k, v in VERIFICATION_CHECKS.items()]
+
             return {
-                "found": False,
+                "found": True,
                 "domain": domain,
-                "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
-                "message": f"No checklist for domain '{domain}'.",
+                "domain_checks": checklist,
+                "domain_check_count": len(checklist),
+                "universal_checks": universal,
+                "universal_check_count": len(universal),
             }
-
-        # Also include the universal checks
-        universal = [{"check_id": k, **v} for k, v in VERIFICATION_CHECKS.items()]
-
-        return {
-            "found": True,
-            "domain": domain,
-            "domain_checks": checklist,
-            "domain_check_count": len(checklist),
-            "universal_checks": universal,
-            "universal_check_count": len(universal),
-        }
+    except Exception as exc:
+        logger.warning("get_checklist failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -269,8 +266,12 @@ def dimensional_check(expressions: list[str]) -> dict:
 
     Example: "[M][L]^2[T]^-2 = [M][L]^2[T]^-2" (energy = energy)
     """
-    with gpd_span("mcp.verification.dimensional_check"):
-        return _dimensional_check_inner(expressions)
+    try:
+        with gpd_span("mcp.verification.dimensional_check"):
+            return _dimensional_check_inner(expressions)
+    except Exception as exc:
+        logger.warning("dimensional_check failed: %s", exc)
+        return {"error": str(exc)}
 
 
 def _dimensional_check_inner(expressions: list[str]) -> dict:
@@ -294,14 +295,22 @@ def _dimensional_check_inner(expressions: list[str]) -> dict:
         lhs_dims = _parse_dimensions(lhs_str)
         rhs_dims = _parse_dimensions(rhs_str)
 
+        no_annotations = all(v == 0 for v in lhs_dims.values()) and all(
+            v == 0 for v in rhs_dims.values()
+        )
         match = _dims_equal(lhs_dims, rhs_dims)
         result: dict[str, object] = {
             "expression": expr,
-            "valid": match,
+            "valid": match and not no_annotations,
+            "no_dimensions_found": no_annotations,
             "lhs_dimensions": {k: v for k, v in lhs_dims.items() if v != 0},
             "rhs_dimensions": {k: v for k, v in rhs_dims.items() if v != 0},
         }
-        if not match:
+        if no_annotations:
+            result["note"] = (
+                "No dimension annotations found — cannot verify"
+            )
+        elif not match:
             mismatches = {}
             for dim in set(lhs_dims.keys()) | set(rhs_dims.keys()):
                 lv = lhs_dims.get(dim, 0)
@@ -333,8 +342,12 @@ def limiting_case_check(expression: str, limits: dict[str, str]) -> dict:
                 E.g., {"hbar -> 0": "classical Hamilton-Jacobi",
                        "c -> infinity": "non-relativistic Schrodinger"}
     """
-    with gpd_span("mcp.verification.limiting_case"):
-        return _limiting_case_inner(expression, limits)
+    try:
+        with gpd_span("mcp.verification.limiting_case"):
+            return _limiting_case_inner(expression, limits)
+    except Exception as exc:
+        logger.warning("limiting_case_check failed: %s", exc)
+        return {"error": str(exc)}
 
 
 def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
@@ -405,8 +418,12 @@ def symmetry_check(expression: str, symmetries: list[str]) -> dict:
         symmetries: List of symmetries to verify. E.g.,
                     ["Lorentz invariance", "gauge invariance", "parity"]
     """
-    with gpd_span("mcp.verification.symmetry_check"):
-        return _symmetry_check_inner(expression, symmetries)
+    try:
+        with gpd_span("mcp.verification.symmetry_check"):
+            return _symmetry_check_inner(expression, symmetries)
+    except Exception as exc:
+        logger.warning("symmetry_check failed: %s", exc)
+        return {"error": str(exc)}
 
 
 def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
@@ -469,8 +486,12 @@ def get_verification_coverage(error_class_ids: list[int], active_checks: list[st
         error_class_ids: List of error class IDs to check coverage for
         active_checks: List of active check IDs (e.g., ["5.1", "5.2", "5.3"])
     """
-    with gpd_span("mcp.verification.coverage"):
-        return _coverage_inner(error_class_ids, active_checks)
+    try:
+        with gpd_span("mcp.verification.coverage"):
+            return _coverage_inner(error_class_ids, active_checks)
+    except Exception as exc:
+        logger.warning("get_verification_coverage failed: %s", exc)
+        return {"error": str(exc)}
 
 
 def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dict:
@@ -530,8 +551,15 @@ def _coverage_inner(error_class_ids: list[int], active_checks: list[str]) -> dic
         "recommendation": (
             "Full coverage"
             if len(uncovered) == 0 and len(partial) == 0
-            else f"{len(uncovered)} error classes have no active detection. "
-            f"Consider enabling checks: {sorted({c for u in uncovered for c in u.get('missing_checks', [])})}"
+            else (
+                f"{len(partial)} error classes have partial coverage. "
+                f"Consider enabling checks: {sorted({c for p in partial for c in p.get('missing_checks', [])})}"
+            )
+            if len(uncovered) == 0
+            else (
+                f"{len(uncovered)} error classes have no active detection. "
+                f"Consider enabling checks: {sorted({c for u in uncovered for c in u.get('missing_checks', [])} | {c for p in partial for c in p.get('missing_checks', [])})}"
+            )
         ),
     }
 

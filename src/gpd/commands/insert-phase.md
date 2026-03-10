@@ -3,9 +3,9 @@ name: gpd:insert-phase
 description: Insert urgent research work as decimal phase (e.g., 72.1) between existing phases
 argument-hint: '<after-phase> "<description>"'
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+  - file_read
+  - file_write
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -32,8 +32,8 @@ Purpose: Handle urgent research tasks discovered during execution without renumb
 <context>
 Arguments: $ARGUMENTS (format: <after-phase-number> <description>)
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>

@@ -15,6 +15,8 @@ import shlex
 import sys
 from pathlib import Path
 
+from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -34,34 +36,6 @@ HOOK_SCRIPTS: dict[str, str] = {
     "codex_notify": "codex_notify.py",
     "runtime_detect": "runtime_detect.py",
 }
-
-# Legacy GPD hook basenames from older installs. Stored without extension so
-# cleanup can remove stale files regardless of their historical suffix.
-LEGACY_HOOK_BASENAMES = {
-    "gpd-statusline",
-    "gpd-check-update",
-    "gpd-codex-notify",
-    "statusline",
-    "gpd-intel-index",
-    "gpd-intel-session",
-    "gpd-intel-prune",
-}
-
-# Orphaned files from previous GPD versions (relative to config dir)
-_ORPHANED_FILES = [
-    "hooks/gpd-notify.sh",  # Removed in v1.6.x
-]
-
-# Orphaned hook command patterns to remove from settings
-_ORPHANED_HOOK_PATTERNS = [
-    "gpd-notify.sh",  # Removed in v1.6.x
-    "gpd-statusline",
-    "gpd-check-update",
-    "gpd-codex-notify",
-    "gpd-intel-index",
-    "gpd-intel-session",
-    "gpd-intel-prune",
-]
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -282,7 +256,11 @@ def write_settings(settings_path: str | Path, settings: dict[str, object]) -> No
         tmp_path.write_text(content, encoding="utf-8")
     except PermissionError as exc:
         raise PermissionError(f"Cannot write settings file: {p} — check directory permissions") from exc
-    tmp_path.rename(p)
+    try:
+        tmp_path.rename(p)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -367,57 +345,74 @@ def strip_sub_tags(content: str) -> str:
 
 
 def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None]) -> str:
-    """Replace Claude Code tool-name references in body text using *tool_map*.
+    """Replace tool-name references in body text using *tool_map*.
 
     Targets contextual patterns: backtick-quoted names, "the X tool" phrases,
     "Use X to" / "using X" phrases.  Avoids replacing common English words
-    (Read, Write, Edit) in prose.
+    (for example ``Read`` or ``shell``) when they are not clearly tool references.
     """
-    # Globally safe to replace everywhere (unique names)
-    safe_global = [
-        "WebSearch",
-        "WebFetch",
-        "TodoWrite",
-        "AskUserQuestion",
-        "SlashCommand",
-        "NotebookEdit",
-        "ToolSearch",
-    ]
-    for claude_name in safe_global:
-        target = tool_map.get(claude_name)
-        if target:
-            content = re.sub(r"\b" + claude_name + r"\b", target, content)
-
-    # Context-sensitive replacements (common English words)
-    contextual = ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "Agent"]
-    for claude_name in contextual:
-        target = tool_map.get(claude_name)
-        if not target:
+    for source_name, target in sorted(tool_map.items(), key=lambda item: len(item[0]), reverse=True):
+        if not target or source_name == target:
             continue
+
+        escaped = re.escape(source_name)
+        if source_name not in CONTEXTUAL_TOOL_REFERENCE_NAMES:
+            content = re.sub(r"\b" + escaped + r"\b", target, content)
+            continue
+
         # Backtick-quoted
-        content = content.replace(f"`{claude_name}`", f"`{target}`")
+        content = content.replace(f"`{source_name}`", f"`{target}`")
         # "the X tool"
         content = re.sub(
-            r"\b(the\s+)" + claude_name + r"(\s+tool)",
+            r"\b(the\s+)" + escaped + r"(\s+tool)",
             r"\g<1>" + target + r"\2",
             content,
             flags=re.IGNORECASE,
         )
         # "X tool" after punctuation/start-of-line
         content = re.sub(
-            r"(^|[.,:;!?\-\s])" + claude_name + r"(\s+tool\b)",
+            r"(^|[.,:;!?\-\s])" + escaped + r"(\s+tool\b)",
             r"\1" + target + r"\2",
             content,
             flags=re.MULTILINE,
         )
         # "Use X" / "using X" / "via X"
         content = re.sub(
-            r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + claude_name + r"\b",
+            r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + escaped + r"\b",
             r"\1" + target,
+            content,
+        )
+        # Function-style invocation, e.g. Task(...) or shell(...)
+        content = re.sub(
+            r"\b" + escaped + r"(?=\s*\()",
+            target,
             content,
         )
 
     return content
+
+
+def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str) -> str:
+    """Translate shared markdown content from canonical source form to *runtime*.
+
+    This is used for markdown copied into installed shared content directories
+    such as ``get-physics-done/workflows/`` and ``references/``. Those files are
+    read directly by installed commands and agents, so command syntax, tool
+    references, placeholders, and lightweight formatting need the same
+    runtime-specific adaptation as primary prompts.
+    """
+    runtime_key = "claude-code" if runtime == "claude" else runtime
+    content = replace_placeholders(content, path_prefix)
+
+    if runtime_key == "codex":
+        content = content.replace("/gpd:", "$gpd-")
+    elif runtime_key == "opencode":
+        content = content.replace("/gpd:", "/gpd-")
+
+    if runtime_key in ("gemini", "codex", "opencode"):
+        content = strip_sub_tags(content)
+
+    return convert_tool_references_in_body(content, reference_translation_map(runtime_key))
 
 
 def expand_at_includes(
@@ -444,8 +439,8 @@ def expand_at_includes(
 
         >>> expand_at_includes("no includes here", "/src", "~/.claude/")
         'no includes here'
-        >>> expand_at_includes("@.planning/notes.md", "/src", "~/.claude/")
-        '@.planning/notes.md'
+        >>> expand_at_includes("@.gpd/notes.md", "/src", "~/.claude/")
+        '@.gpd/notes.md'
     """
     if depth > MAX_INCLUDE_EXPANSION_DEPTH:
         return content
@@ -486,8 +481,8 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        # .planning/ relative paths — project-specific, skip
-        if include_path.startswith(".planning/"):
+        # .gpd/ relative paths — project-specific, skip
+        if include_path.startswith(".gpd/"):
             result.append(line)
             continue
 
@@ -628,7 +623,7 @@ def _copy_dir_contents(
     path_prefix: str,
     runtime: str,
 ) -> None:
-    """Recursively copy directory contents with path replacement in .md files.
+    """Recursively copy directory contents with runtime translation in .md files.
 
     Symlinks are skipped to avoid cycles and broken links.
     """
@@ -643,70 +638,13 @@ def _copy_dir_contents(
             _copy_dir_contents(entry, dest, path_prefix, runtime)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix)
-
-            if runtime == "codex":
-                content = content.replace("/gpd:", "$gpd-")
-
-            if runtime == "gemini":
-                content = strip_sub_tags(content)
-
+            content = _translate_markdown_for_runtime(content, path_prefix, runtime)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
             import shutil
 
             shutil.copy2(str(entry), str(dest))
-
-
-# ---------------------------------------------------------------------------
-# Cleanup helpers
-# ---------------------------------------------------------------------------
-
-
-def cleanup_orphaned_files(config_dir: str | Path) -> list[str]:
-    """Remove orphaned files from previous GPD versions.
-
-    Returns a list of relative paths that were removed.
-    """
-    config_dir = Path(config_dir)
-    removed: list[str] = []
-
-    for rel_path in _ORPHANED_FILES:
-        full_path = config_dir / rel_path
-        if full_path.exists():
-            full_path.unlink()
-            removed.append(rel_path)
-
-    return removed
-
-
-def cleanup_orphaned_hooks(settings: dict[str, object]) -> dict[str, object]:
-    """Remove orphaned hook registrations from *settings*.
-
-    Mutates and returns *settings* with orphaned GPD hooks removed.
-    """
-    hooks = settings.get("hooks")
-    if isinstance(hooks, dict):
-        for event_type, hook_entries in list(hooks.items()):
-            if not isinstance(hook_entries, list):
-                continue
-            filtered = []
-            for entry in hook_entries:
-                entry_hooks = entry.get("hooks") if isinstance(entry, dict) else None
-                if isinstance(entry_hooks, list):
-                    has_orphaned = False
-                    for h in entry_hooks:
-                        cmd = h.get("command", "") if isinstance(h, dict) else ""
-                        if any(pattern in cmd for pattern in _ORPHANED_HOOK_PATTERNS):
-                            has_orphaned = True
-                            break
-                    if has_orphaned:
-                        continue
-                filtered.append(entry)
-            hooks[event_type] = filtered
-
-    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -824,6 +762,8 @@ def write_manifest(
                         files[f"skills/{entry.name}/SKILL.md"] = file_hash(skill_md)
 
     manifest["files"] = files
+    if codex_skills_dir:
+        manifest["codex_skills_dir"] = str(codex_skills_dir)
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
@@ -890,24 +830,6 @@ def save_local_patches(
     return modified
 
 
-def report_local_patches(config_dir: str | Path) -> list[str]:
-    """Read and return the list of backed-up patches from a previous upgrade.
-
-    Returns the list of relative paths that were backed up, or ``[]`` if none.
-    """
-    patches_dir = Path(config_dir) / PATCHES_DIR_NAME
-    meta_path = patches_dir / "backup-meta.json"
-    if not meta_path.exists():
-        return []
-
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-
-    return meta.get("files", [])
-
-
 # ---------------------------------------------------------------------------
 # Verification helpers
 # ---------------------------------------------------------------------------
@@ -951,16 +873,16 @@ def validate_package_integrity(gpd_root: Path) -> None:
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
                 f"Package integrity check failed: missing {required}/. "
-                "Try reinstalling: pip install --force-reinstall get-physics-done"
+                "Try reinstalling: npx -y github:physicalsuperintelligence/get-physics-done"
             )
 
 
-def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bool) -> str:
+def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bool, explicit_target: bool = False) -> str:
     """Compute the path prefix for placeholder replacement.
 
     Global installs use absolute path; local installs use ``./.<config_dir>/``.
     """
-    if is_global:
+    if is_global or explicit_target:
         return str(target_dir).replace("\\", "/") + "/"
     return f"./{config_dir_name}/"
 
@@ -970,7 +892,7 @@ def pre_install_cleanup(
     *,
     codex_skills_dir: str | None = None,
 ) -> None:
-    """Common pre-install cleanup: remove stale patches, save local patches, clean orphans."""
+    """Common pre-install cleanup: remove stale patches and current install files."""
     import shutil as _shutil
 
     patches_dir = target_dir / PATCHES_DIR_NAME
@@ -978,7 +900,6 @@ def pre_install_cleanup(
         _shutil.rmtree(patches_dir)
 
     save_local_patches(target_dir, codex_skills_dir=codex_skills_dir)
-    cleanup_orphaned_files(target_dir)
 
     gpd_dir = target_dir / "get-physics-done"
     if gpd_dir.exists():
@@ -989,9 +910,6 @@ def pre_install_cleanup(
         for hook_name in HOOK_SCRIPTS.values():
             hook_path = hooks_dir / hook_name
             if hook_path.exists():
-                hook_path.unlink()
-        for hook_path in hooks_dir.iterdir():
-            if hook_path.is_file() and hook_path.stem in LEGACY_HOOK_BASENAMES:
                 hook_path.unlink()
 
 
@@ -1115,7 +1033,7 @@ def ensure_update_hook(settings: dict[str, object], update_check_command: str) -
             if not isinstance(h, dict):
                 continue
             cmd = h.get("command", "")
-            if isinstance(cmd, str) and ("gpd-check-update" in cmd or "check_update" in cmd):
+            if isinstance(cmd, str) and "check_update.py" in cmd:
                 return
 
     session_start.append({"hooks": [{"type": "command", "command": update_check_command}]})
@@ -1140,8 +1058,7 @@ def finish_install(
 
         if (
             isinstance(existing_cmd, str)
-            and "gpd-statusline" not in existing_cmd
-            and "statusline" not in existing_cmd
+            and "statusline.py" not in existing_cmd
             and not force_statusline
         ):
             _install_logger.warning("Skipping statusline (already configured by another tool)")
@@ -1159,13 +1076,14 @@ def build_hook_command(
     is_global: bool,
     config_dir_name: str,
     interpreter: str | None = None,
+    explicit_target: bool = False,
 ) -> str:
     """Build the shell command string for a hook script.
 
     Shared by Claude Code and Gemini adapters.
     """
     command_interpreter = interpreter or _hook_python_interpreter()
-    if is_global:
+    if is_global or explicit_target:
         hooks_path = str(target_dir / "hooks" / hook_filename).replace("\\", "/")
         return f"{shlex.quote(command_interpreter)} {shlex.quote(hooks_path)}"
     return f"{shlex.quote(command_interpreter)} {shlex.quote(f'{config_dir_name}/hooks/{hook_filename}')}"

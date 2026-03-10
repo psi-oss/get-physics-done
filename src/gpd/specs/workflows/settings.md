@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_check, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .planning/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
+Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .gpd/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
 </purpose>
 
 <required_reading>
@@ -20,12 +20,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Creates `.planning/config.json` with defaults if missing and loads current config values.
+Creates `.gpd/config.json` with defaults if missing and loads current config values.
 </step>
 
 <step name="read_current">
 ```bash
-cat .planning/config.json
+cat .gpd/config.json
 ```
 
 Parse current values (default to `true` / first option if not present):
@@ -37,7 +37,7 @@ Parse current values (default to `true` / first option if not present):
 - `workflow.verifier` -- spawn verifier during execute-phase
 - `workflow.verify_between_waves` -- inter-wave verification gates (default: `"auto"`)
 - `parallelization` -- execute wave plans in parallel (default: `true`)
-- `model_profile` -- which research mode profile (default: `review`)
+- `model_profile` -- which agent model profile to use (default: `review`)
 - `git.branching_strategy` -- branching approach (default: `"none"`)
 - `physics.unit_system` -- unit convention (default: `"natural"`)
 - `physics.metric_signature` -- spacetime metric (default: `"mostly_minus"`)
@@ -48,12 +48,12 @@ Parse current values (default to `true` / first option if not present):
 
 <step name="present_settings">
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion with current values pre-selected:
+Use ask_user with current values pre-selected:
 
 ```
-AskUserQuestion([
+ask_user([
   {
     question: "How much autonomy should the AI have?",
     header: "Autonomy",
@@ -144,7 +144,7 @@ AskUserQuestion([
       { label: "Mathematica", description: "Symbolic computation, exact results" },
       { label: "Julia", description: "High-performance numerical computing" },
       { label: "C/C++", description: "Performance-critical simulations" },
-      { label: "Fortran", description: "Legacy HPC codes, LAPACK-heavy work" },
+      { label: "Fortran", description: "Fortran-based HPC codes, LAPACK-heavy work" },
       { label: "MATLAB", description: "Matrix computations, signal processing" },
       { label: "SymPy", description: "Python symbolic math" },
       { label: "Maple", description: "Computer algebra, differential equations" },
@@ -195,7 +195,7 @@ AskUserQuestion([
     header: "Parallel",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Plans in the same wave run concurrently via parallel Task() calls" },
+      { label: "Yes (Recommended)", description: "Plans in the same wave run concurrently via parallel task() calls" },
       { label: "No", description: "Plans execute sequentially within each wave" }
     ]
   },
@@ -243,7 +243,7 @@ Merge new settings into existing config.json:
 }
 ```
 
-Write updated config to `.planning/config.json`.
+Write updated config to `.gpd/config.json`.
 </step>
 
 <step name="confirm">
@@ -269,13 +269,13 @@ Display:
 | Parallelization      | {On/Off} |
 | Git Branching        | {None/Per Phase/Per Milestone} |
 
-These settings apply to future $gpd-plan-phase and $gpd-execute-phase runs.
+These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 
 Quick commands:
-- $gpd-set-profile <profile> -- switch research profile
-- $gpd-plan-phase --research -- force research
-- $gpd-plan-phase --skip-research -- skip research
-- $gpd-plan-phase --skip-verify -- skip plan check
+- /gpd:set-profile <profile> -- switch research profile
+- /gpd:plan-phase --research -- force research
+- /gpd:plan-phase --skip-research -- skip research
+- /gpd:plan-phase --skip-verify -- skip plan check
 ```
 
 </step>

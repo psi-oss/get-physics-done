@@ -4,7 +4,7 @@ template_version: 1
 
 # Verification Report Template
 
-Template for `.planning/phases/XX-name/{phase}-VERIFICATION.md` -- physics verification of research phase results.
+Template for `.gpd/phases/XX-name/{phase}-VERIFICATION.md` -- physics verification of research phase results.
 
 ---
 
@@ -369,7 +369,7 @@ score: N/M checks verified
 
 | Debug File                                                                | Status                    | Root Cause                           | Lesson                              |
 | ------------------------------------------------------------------------- | ------------------------- | ------------------------------------ | ----------------------------------- |
-| {.planning/debug/[slug].md where frontmatter `phase:` matches this phase} | {status from frontmatter} | {Resolution.root_cause or "pending"} | {Resolution.lessons_learned or "—"} |
+| {.gpd/debug/[slug].md where frontmatter `phase:` matches this phase} | {status from frontmatter} | {Resolution.root_cause or "pending"} | {Resolution.lessons_learned or "—"} |
 
 {If no debug files match this phase: "No debug sessions recorded for this phase."}
 

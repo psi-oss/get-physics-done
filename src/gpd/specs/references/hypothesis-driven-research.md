@@ -54,8 +54,8 @@ Output: [Validated result with verified limiting behavior]
 </objective>
 
 <context>
-@.planning/PROJECT.md
-@.planning/ROADMAP.md
+@.gpd/PROJECT.md
+@.gpd/ROADMAP.md
 @relevant/derivations/files.py
 </context>
 

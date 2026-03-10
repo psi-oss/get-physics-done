@@ -37,6 +37,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_UNKNOWN
 
@@ -90,6 +91,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_CODEX
 
@@ -114,6 +116,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_OPENCODE
 
@@ -225,16 +228,25 @@ class TestUpdateCommand:
     """Tests for update_command_for_runtime."""
 
     def test_unknown_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "gpd install"
+        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y github:physicalsuperintelligence/get-physics-done"
 
     def test_claude_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CLAUDE) == "gpd install claude-code"
+        assert (
+            update_command_for_runtime(RUNTIME_CLAUDE)
+            == "npx -y github:physicalsuperintelligence/get-physics-done --claude"
+        )
 
     def test_codex_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_CODEX) == "gpd install codex"
+        assert update_command_for_runtime(RUNTIME_CODEX) == "npx -y github:physicalsuperintelligence/get-physics-done --codex"
 
     def test_gemini_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_GEMINI) == "gpd install gemini"
+        assert (
+            update_command_for_runtime(RUNTIME_GEMINI)
+            == "npx -y github:physicalsuperintelligence/get-physics-done --gemini"
+        )
 
     def test_opencode_runtime(self) -> None:
-        assert update_command_for_runtime(RUNTIME_OPENCODE) == "gpd install opencode"
+        assert (
+            update_command_for_runtime(RUNTIME_OPENCODE)
+            == "npx -y github:physicalsuperintelligence/get-physics-done --opencode"
+        )

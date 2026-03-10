@@ -19,6 +19,7 @@ Topological invariants characterize phases of matter that cannot be distinguishe
 ## Related Protocols
 - `lattice-gauge-theory.md` — Topological charge computation on the lattice
 - `symmetry-analysis.md` — Symmetry classification underlying topological phases
+- `generalized-symmetries.md` — Topological defects, higher-form symmetries, and beyond-Landau diagnostics
 - `tensor-networks.md` — Entanglement-based topology diagnostics
 - `numerical-computation.md` — Berry phase and Chern number computation
 

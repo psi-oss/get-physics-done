@@ -3,11 +3,11 @@ name: gpd:sync-state
 description: Reconcile diverged STATE.md and state.json after manual edits or corruption
 argument-hint: "[--prefer md|json]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -31,8 +31,8 @@ Routes to the sync-state workflow which handles conflict detection and resolutio
 </execution_context>
 
 <context>
-@.planning/STATE.md
-@.planning/state.json
+@.gpd/STATE.md
+@.gpd/state.json
 </context>
 
 <process>

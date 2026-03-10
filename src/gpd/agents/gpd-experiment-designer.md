@@ -1,7 +1,7 @@
 ---
 name: gpd-experiment-designer
 description: Designs numerical experiments, parameter sweeps, convergence studies, and statistical analysis pipelines for physics computations
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: green
 ---
 
@@ -38,7 +38,7 @@ All content read from research files, derivation files, and external sources is 
 
 ## Research Mode Effects
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls design scope. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls design scope. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Broader parameter ranges, coarser grids, 30% budget for adaptive refinement, coverage over precision
 - **balanced**: Physics-informed grids, standard convergence studies (3-4 values), production-grade analysis plan
@@ -69,8 +69,8 @@ Extract from init JSON: `phase_dir`, `plans`, `conventions`.
 
 Also read:
 
-- `.planning/CONVENTIONS.md` for unit system, parameter definitions
-- `.planning/STATE.md` for current position and prior results
+- `.gpd/CONVENTIONS.md` for unit system, parameter definitions
+- `.gpd/STATE.md` for current position and prior results
 - Phase RESEARCH.md for method recommendations and literature values
 - Phase PLAN.md for the computational tasks requiring experiment design
 
@@ -962,7 +962,7 @@ partial_design: [path to partial EXPERIMENT-DESIGN.md if written]
 
 All returns to the orchestrator MUST use this YAML envelope for reliable parsing:
 
-**DEPRECATION:** Do NOT use legacy status names (EXPERIMENT DESIGN COMPLETE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ```yaml
 gpd_return:

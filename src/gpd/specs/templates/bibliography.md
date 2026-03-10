@@ -6,13 +6,13 @@ total_references: 0
 
 # Bibliography Template
 
-Template for `.planning/BIBLIOGRAPHY.md` -- central cross-phase citation accumulator tracking all references used across the research project.
+Template for `.gpd/BIBLIOGRAPHY.md` -- central cross-phase citation accumulator tracking all references used across the research project.
 
 **Purpose:** Single source of truth for every citation. Prevents duplicate references, tracks which phases use which citations, enables the bibliographer agent to verify citations against INSPIRE-HEP/ADS/arXiv, and feeds directly into the BibTeX file for paper generation.
 
 **Relationship to other files:**
 
-- `.planning/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
+- `.gpd/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
 - Phase SUMMARY.md files may reference citations by BibTeX key; this file is the registry
 - `CONVENTIONS.md` records which textbook conventions are followed; those textbooks should appear here
 - `PARAMETERS.md` may cite data sources; those citations should appear here
@@ -59,7 +59,7 @@ Template for `.planning/BIBLIOGRAPHY.md` -- central cross-phase citation accumul
 
 - **Confidence tiers**: Primary (directly supports results), Secondary (provides context), Tertiary (general background)
 - **Verified**: Checked by gpd-bibliographer against INSPIRE/ADS/Google Scholar
-- **BibTeX file**: `.planning/references.bib` (maintained by bibliographer)
+- **BibTeX file**: `.gpd/references.bib` (maintained by bibliographer)
 ```
 
 <lifecycle>
@@ -82,7 +82,7 @@ Template for `.planning/BIBLIOGRAPHY.md` -- central cross-phase citation accumul
 - Verify BibTeX keys against INSPIRE-HEP, ADS, arXiv, Google Scholar
 - Detect hallucinated citations (keys that don't resolve)
 - Warn about missing citations when equations from papers are used without attribution
-- Maintain `.planning/references.bib` in correct journal format
+- Maintain `.gpd/references.bib` in correct journal format
 
 **Reading:** By gpd-paper-writer agent
 
@@ -109,7 +109,7 @@ Template for `.planning/BIBLIOGRAPHY.md` -- central cross-phase citation accumul
 
 **What does NOT belong here:**
 
-- Full BibTeX entries (those go in `.planning/references.bib`)
+- Full BibTeX entries (those go in `.gpd/references.bib`)
 - Detailed summaries of papers (those go in phase RESEARCH.md)
 - Literature review analysis (that goes in literature review artifacts)
 
@@ -135,6 +135,6 @@ The gpd-bibliographer agent checks each entry:
 1. Resolve BibTeX key against INSPIRE-HEP (for HEP papers), ADS (for astrophysics), or Google Scholar
 2. Verify that title, authors, and year match
 3. Flag entries that cannot be resolved as SUSPECT
-4. Generate proper BibTeX and add to `.planning/references.bib`
+4. Generate proper BibTeX and add to `.gpd/references.bib`
 
 </guidelines>

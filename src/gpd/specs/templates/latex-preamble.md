@@ -6,7 +6,7 @@ template_version: 1
 
 # LaTeX Preamble Template
 
-Template for `.planning/analysis/LATEX_PREAMBLE.md` - standard LaTeX preamble and macros for the research project.
+Template for `.gpd/analysis/LATEX_PREAMBLE.md` - standard LaTeX preamble and macros for the research project.
 
 **Purpose:** Define consistent LaTeX macros for all equations, figures, and writeups across phases. Ensures notation consistency between derivation code, summary documents, and the final manuscript.
 

@@ -3,10 +3,10 @@ name: gpd:graph
 description: Visualize dependency graph across phases and identify gaps
 argument-hint: ""
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -28,7 +28,7 @@ Use this for:
 </execution_context>
 
 <context>
-@.planning/ROADMAP.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>
@@ -44,7 +44,7 @@ Construct a directed graph: edges from providers to consumers.
 
 ## Step 3: Generate Graph Visualization
 
-There is not yet a supported standalone `gpd dependency-graph` helper. Build the graph directly from `ROADMAP.md` plus SUMMARY frontmatter, then present it in the format that best fits the user's request:
+Build the graph directly from `ROADMAP.md` plus SUMMARY frontmatter, then present it in the format that best fits the user's request:
 
 - ASCII for quick terminal inspection
 - Mermaid for markdown embedding
@@ -63,7 +63,7 @@ Display the graph, gap analysis, and critical path. Highlight any cycles or unsa
 
 ## Step 6: Optionally Write
 
-Offer to write the graph and analysis to `.planning/DEPENDENCY-GRAPH.md`.
+Offer to write the graph and analysis to `.gpd/DEPENDENCY-GRAPH.md`.
 </process>
 
 <success_criteria>
@@ -73,5 +73,5 @@ Offer to write the graph and analysis to `.planning/DEPENDENCY-GRAPH.md`.
 - [ ] Graph visualization generated (ASCII, Mermaid, or DOT)
 - [ ] Dependency validation run (cycles, gaps, unsatisfied requirements)
 - [ ] Results presented clearly with any issues highlighted
-- [ ] Optional write to .planning/DEPENDENCY-GRAPH.md offered
+- [ ] Optional write to .gpd/DEPENDENCY-GRAPH.md offered
       </success_criteria>

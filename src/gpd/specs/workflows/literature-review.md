@@ -1,7 +1,7 @@
 <purpose>
 Conduct a systematic literature review for a physics research topic. Map the intellectual landscape: foundational works, methodological approaches, key results, controversies, and open questions. Produce LITERATURE-REVIEW.md consumed by planning and paper-writing workflows.
 
-Called from $gpd-literature-review command.
+Called from /gpd:literature-review command.
 </purpose>
 
 <core_principle>
@@ -35,7 +35,7 @@ A physics literature review is not a bibliography. It is a structured map of who
 
    - Lattice, ICHEP, APS meetings, etc.
 
-6. **WebSearch** -- Last resort for community discussions, code repos, numerical benchmarks
+6. **web_search** -- Last resort for community discussions, code repos, numerical benchmarks
 
 </source_hierarchy>
 
@@ -97,8 +97,8 @@ Every subfield has seminal papers that defined the field. Identify them:
 1. Search for review articles first (they cite the seminal works):
 
    ```
-   WebSearch: "[topic] review" site:arxiv.org
-   WebSearch: "[topic]" site:journals.aps.org/rmp
+   web_search: "[topic] review" site:arxiv.org
+   web_search: "[topic]" site:journals.aps.org/rmp
    ```
 
 2. From review articles, extract:
@@ -267,10 +267,10 @@ Map the state-of-the-art:
 Ensure the output directory exists:
 
 ```bash
-mkdir -p .planning/literature
+mkdir -p .gpd/literature
 ```
 
-Write `.planning/literature/{slug}-REVIEW.md`:
+Write `.gpd/literature/{slug}-REVIEW.md`:
 
 ```markdown
 ---
@@ -381,10 +381,10 @@ BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer --raw)
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   subagent_type="gpd-bibliographer",
   model="{biblio_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-bibliographer.md for your role and instructions.
@@ -393,7 +393,7 @@ Verify all citations in the literature review.
 
 Mode: Audit bibliography
 
-Review file: .planning/literature/{slug}-REVIEW.md
+Review file: .gpd/literature/{slug}-REVIEW.md
 
 For every reference listed in the Full Reference List and cited in the body:
 1. Run the hallucination detection protocol (Steps 1-5) against INSPIRE, ADS, arXiv
@@ -401,7 +401,7 @@ For every reference listed in the Full Reference List and cited in the body:
 3. Flag any hallucinated or inaccurate citations
 4. Correct metadata errors where possible
 
-Write results to .planning/literature/{slug}-CITATION-AUDIT.md
+Write results to .gpd/literature/{slug}-CITATION-AUDIT.md
 
 Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 )
@@ -437,7 +437,7 @@ Format:
 
 **Topic:** {topic}
 **Papers reviewed:** {N}
-**Report:** .planning/literature/{slug}-REVIEW.md
+**Report:** .gpd/literature/{slug}-REVIEW.md
 
 **Key takeaways:**
 
@@ -448,7 +448,7 @@ Format:
 **Open questions identified:** {N}
 **Active controversies:** {N}
 **Recommended starting point:** {key reference}
-**Citation verification:** {all verified | N issues found -- see .planning/literature/{slug}-CITATION-AUDIT.md}
+**Citation verification:** {all verified | N issues found -- see .gpd/literature/{slug}-CITATION-AUDIT.md}
 ```
 
 If the review is incomplete (too broad, need user guidance):

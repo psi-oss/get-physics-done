@@ -1,7 +1,7 @@
 ---
 name: gpd-research-synthesizer
 description: Synthesizes research outputs from parallel researcher agents into SUMMARY.md. Spawned by the new-project orchestrator workflow after 4-5 researcher agents complete.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: purple
 ---
 
@@ -45,7 +45,7 @@ Your job: Create a unified research summary that informs research roadmap creati
 
 ## Research Mode Effects
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls synthesis scope. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls synthesis scope. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Multi-approach synthesis without picking a winner; all pairwise cross-validation; flag complementary parallel approaches
 - **balanced**: Recommend single approach based on evidence weight; standard cross-validation matrix
@@ -467,12 +467,12 @@ Re-synthesis is triggered when:
 # Compare current research files with what SUMMARY.md was based on
 # Check modification times
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath=".planning/research/$file"
+  filepath=".gpd/research/$file"
   if [ -f "$filepath" ]; then
     echo "$file: $(stat -f '%Sm' "$filepath" 2>/dev/null || stat -c '%y' "$filepath" 2>/dev/null)"
   fi
 done
-echo "SUMMARY.md: $(stat -f '%Sm' .planning/research/SUMMARY.md 2>/dev/null || stat -c '%y' .planning/research/SUMMARY.md 2>/dev/null)"
+echo "SUMMARY.md: $(stat -f '%Sm' .gpd/research/SUMMARY.md 2>/dev/null || stat -c '%y' .gpd/research/SUMMARY.md 2>/dev/null)"
 ```
 
 **Step 2: Identify affected sections**
@@ -559,7 +559,7 @@ Before synthesizing, verify each research file:
 
 ```bash
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath=".planning/research/$file"
+  filepath=".gpd/research/$file"
   if [ ! -f "$filepath" ]; then
     echo "MISSING: $filepath"
   elif [ ! -s "$filepath" ]; then
@@ -619,7 +619,7 @@ When synthesizing findings from multiple research files, weight them by confiden
 Before synthesizing, check for existing literature review files:
 
 ```bash
-ls .planning/literature/*-REVIEW.md 2>/dev/null
+ls .gpd/literature/*-REVIEW.md 2>/dev/null
 ```
 
 If found, incorporate their findings into the synthesis, particularly:
@@ -632,11 +632,11 @@ If found, incorporate their findings into the synthesis, particularly:
 Read all 4-5 research files:
 
 ```bash
-cat .planning/research/METHODS.md
-cat .planning/research/PRIOR-WORK.md
-cat .planning/research/COMPUTATIONAL.md
-cat .planning/research/PITFALLS.md
-cat .planning/research/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
+cat .gpd/research/METHODS.md
+cat .gpd/research/PRIOR-WORK.md
+cat .gpd/research/COMPUTATIONAL.md
+cat .gpd/research/PITFALLS.md
+cat .gpd/research/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
 
 # Planning config loaded via gpd CLI in commit step
 ```
@@ -759,14 +759,14 @@ Verify claims that will drive roadmap structure. A single incorrect claim can ca
 
 For the **3 most impactful claims** that will drive roadmap recommendations:
 
-1. Perform a WebSearch to independently verify the claim
+1. Perform a web_search to independently verify the claim
 2. If confirmed: note "independently verified via [source]"
 3. If contradicted: flag as "CONFLICTING — researcher says X, but [source] says Y"
 4. If not found: note "unable to independently verify — relies on researcher's domain knowledge"
 
-### Extended verification (when WebSearch/WebFetch are available):
+### Extended verification (when web_search/web_fetch are available):
 
-Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
+Go beyond the mandatory 3 claims. Use web_search and web_fetch systematically for:
 
 **Numerical benchmarks:** Any specific numerical value cited as a benchmark (critical temperatures, coupling constants, mass ratios, convergence rates). Search pattern: `"[quantity name] [value] [method]"` on arXiv or Google Scholar.
 
@@ -783,7 +783,7 @@ Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
 4. Method recommendations that determine computational approach
 5. Literature consensus claims ("it is well-established that...")
 
-**WebFetch for specific sources:** When a researcher cites a specific arXiv paper (e.g., arXiv:2301.12345), use WebFetch on `https://arxiv.org/abs/2301.12345` to verify the claim actually appears in that paper. Misattribution is common.
+**web_fetch for specific sources:** When a researcher cites a specific arXiv paper (e.g., arXiv:2301.12345), use web_fetch on `https://arxiv.org/abs/2301.12345` to verify the claim actually appears in that paper. Misattribution is common.
 
 **Document ALL verification results** in the "Critical Claim Verification" subsection of SUMMARY.md, using this format:
 
@@ -792,11 +792,11 @@ Go beyond the mandatory 3 claims. Use WebSearch and WebFetch systematically for:
 
 | # | Claim | Source | Verification | Result |
 |---|-------|--------|--------------|--------|
-| 1 | [claim text] | METHODS.md | WebSearch: "[query]" | CONFIRMED / CONTRADICTED / UNVERIFIED |
+| 1 | [claim text] | METHODS.md | web_search: "[query]" | CONFIRMED / CONTRADICTED / UNVERIFIED |
 | 2 | ... | ... | ... | ... |
 ```
 
-Target: verify at least **5-8 claims** when WebSearch is available, not just 3. Prioritize claims that would change the roadmap if wrong.
+Target: verify at least **5-8 claims** when web_search is available, not just 3. Prioritize claims that would change the roadmap if wrong.
 
 ## Step 6c: Cross-Validation Matrix
 
@@ -886,7 +886,7 @@ Identify gaps that could not be resolved and need attention during the research:
 
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 
-Write to `.planning/research/SUMMARY.md`
+Write to `.gpd/research/SUMMARY.md`
 
 **SUMMARY.md structure:**
 
@@ -981,12 +981,12 @@ When SUMMARY.md is written:
 
 **Files synthesized:**
 
-- .planning/research/METHODS.md
-- .planning/research/PRIOR-WORK.md
-- .planning/research/COMPUTATIONAL.md
-- .planning/research/PITFALLS.md
+- .gpd/research/METHODS.md
+- .gpd/research/PRIOR-WORK.md
+- .gpd/research/COMPUTATIONAL.md
+- .gpd/research/PITFALLS.md
 
-**Output:** .planning/research/SUMMARY.md
+**Output:** .gpd/research/SUMMARY.md
 
 ### Unified Notation
 
@@ -1054,13 +1054,13 @@ When unable to proceed:
 
 Append this YAML block after the markdown return. Required per agent-infrastructure.md:
 
-**DEPRECATION:** Do NOT use legacy status names (SYNTHESIS COMPLETE, SYNTHESIS BLOCKED). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
-  files_written: [.planning/research/SUMMARY.md, ...]
+  files_written: [.gpd/research/SUMMARY.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   symbols_reconciled: {count}

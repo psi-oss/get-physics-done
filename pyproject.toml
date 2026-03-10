@@ -14,6 +14,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
@@ -28,17 +30,8 @@ dependencies = [
     "pybtex>=0.24",
     "Pillow>=10.0",
     "jinja2>=3.1",
-    # Unified CLI surfaces
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
-    "sse-starlette>=1.6",
     # MCP servers
     "arxiv-mcp-server>=0.1.0",
-]
-
-[project.optional-dependencies]
-claude-subagents = [
-    "claude-agent-sdk>=0.1.19",
 ]
 
 [project.scripts]
@@ -72,9 +65,7 @@ ignore_no_config = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = [
-    "integration: tests requiring external services (database, etc.)",
-]
+markers = []
 filterwarnings = [
     "ignore::logfire._internal.config.LogfireNotConfiguredWarning",
 ]

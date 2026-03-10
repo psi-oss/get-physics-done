@@ -1,0 +1,82 @@
+{
+  "mcpServers": {
+    "gpd-conventions": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.conventions_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-errors": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.errors_mcp"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-patterns": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.patterns_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-protocols": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.protocols_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-skills": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.skills_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-state": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.state_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-verification": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.verification_server"
+      ],
+      "env": {
+        "LOG_LEVEL": "WARNING"
+      }
+    },
+    "gpd-arxiv": {
+      "command": "/Users/sergio/.gpd/venv/bin/python",
+      "args": [
+        "-m",
+        "arxiv_mcp_server"
+      ],
+      "env": {}
+    }
+  }
+}

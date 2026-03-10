@@ -12,20 +12,32 @@ import sys
 import time
 from pathlib import Path
 
+from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
+
+try:
+    from packaging.version import InvalidVersion, Version
+except ModuleNotFoundError:
+    try:
+        from pip._vendor.packaging.version import InvalidVersion, Version
+    except ModuleNotFoundError:
+        InvalidVersion = ValueError
+        Version = None
+
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
+PYPI_PACKAGE_NAME = "get-physics-done"
 
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
 def _version_files() -> list[Path]:
-    """Return VERSION file candidates: project-local first, then global, across runtimes."""
+    """Return VERSION file candidates, preferring the active runtime's install first."""
     from gpd.hooks.runtime_detect import get_gpd_install_dirs
 
-    return [d / "VERSION" for d in get_gpd_install_dirs()]
+    return [d / "VERSION" for d in get_gpd_install_dirs(prefer_active=True)]
 
 
 def _read_installed_version() -> str:
@@ -49,19 +61,31 @@ def _read_installed_version() -> str:
 
 
 def _is_older_than(a: str, b: str) -> bool:
-    """Return True if semver string *a* is strictly older than *b*."""
+    """Return True if version *a* is strictly older than *b*."""
+    normalized_a = a.strip().lstrip("v")
+    normalized_b = b.strip().lstrip("v")
 
-    def parts(v: str) -> list[int]:
-        segs = v.split(".")
-        return [int(s) for s in segs[:3]] + [0] * (3 - len(segs))
+    if Version is not None:
+        try:
+            return Version(normalized_a) < Version(normalized_b)
+        except InvalidVersion as exc:
+            _debug(f"Version parsing failed for {a!r} vs {b!r}: {exc}")
 
-    pa, pb = parts(a), parts(b)
-    for va, vb in zip(pa, pb, strict=False):
-        if va < vb:
-            return True
-        if va > vb:
-            return False
-    return False
+    def parts(v: str) -> tuple[int, int, int]:
+        numeric_parts: list[int] = []
+        for segment in v.split("."):
+            digits = []
+            for ch in segment:
+                if not ch.isdigit():
+                    break
+                digits.append(ch)
+            numeric_parts.append(int("".join(digits)) if digits else 0)
+            if len(numeric_parts) == 3:
+                break
+        numeric_parts.extend([0] * (3 - len(numeric_parts)))
+        return (numeric_parts[0], numeric_parts[1], numeric_parts[2])
+
+    return parts(normalized_a) < parts(normalized_b)
 
 
 def _do_check(cache_file: Path) -> None:
@@ -72,7 +96,7 @@ def _do_check(cache_file: Path) -> None:
     try:
         import urllib.request
 
-        with urllib.request.urlopen("https://pypi.org/pypi/gpd/json", timeout=10) as resp:
+        with urllib.request.urlopen(f"https://pypi.org/pypi/{PYPI_PACKAGE_NAME}/json", timeout=10) as resp:
             data = json.loads(resp.read())
             latest = data["info"]["version"]
     except Exception as exc:
@@ -94,21 +118,24 @@ def _do_check(cache_file: Path) -> None:
 
 def main() -> None:
     """Entry point: throttle-check for updates, spawn background worker if needed."""
-    home = Path.home()
-    cache_dir = home / ".gpd" / "cache"
-    cache_file = cache_dir / "gpd-update-check.json"
+    from gpd.hooks.runtime_detect import get_update_cache_files
 
-    # Throttle: skip if checked recently
-    if cache_file.exists():
+    cache_candidates = get_update_cache_files()
+    cache_file = cache_candidates[0] if cache_candidates else (Path.home() / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
+
+    # Throttle: skip if any candidate cache was checked recently.
+    for candidate in cache_candidates:
+        if not candidate.exists():
+            continue
         try:
-            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            cache = json.loads(candidate.read_text(encoding="utf-8"))
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)
                 if 0 <= age < UPDATE_CHECK_TTL_SECONDS:
                     return
         except Exception as exc:
-            _debug(f"Failed to read update cache: {exc}")
+            _debug(f"Failed to read update cache {candidate}: {exc}")
 
     # Spawn background child to do the actual check
     try:

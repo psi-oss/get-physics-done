@@ -4,7 +4,7 @@ template_version: 1
 
 # Learned Pattern Template
 
-Template for `learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
+Template for `~/.gpd/learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 
@@ -18,11 +18,11 @@ For how patterns are managed, read, and written, see `@{GPD_INSTALL_DIR}/referen
 ---
 domain:
   [
-    qft | condensed-matter | stat-mech | gr | amo | nuclear | classical | fluid | plasma | astro | mathematical,
+    qft | condensed-matter | stat-mech | gr | amo | nuclear | classical | fluid | plasma | astro | mathematical | soft-matter | quantum-info,
   ]
 category:
   [
-    sign-error | factor-error | convention-pitfall | convergence-issue | approximation-failure | numerical-instability | conceptual-error,
+    sign-error | factor-error | convention-pitfall | convergence-issue | approximation-failure | numerical-instability | conceptual-error | dimensional-error,
   ]
 severity: [critical | high | medium | low]
 confidence: [single_observation | confirmed | systematic]
@@ -52,8 +52,8 @@ occurrence_count: N
 
 | Field              | Values                                                                                                                          | Notes                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `domain`           | qft, condensed-matter, stat-mech, gr, amo, nuclear, classical, fluid, plasma, astro                                             | Must match a subdirectory in `patterns-by-domain/`   |
-| `category`         | sign-error, factor-error, convention-pitfall, convergence-issue, approximation-failure, numerical-instability, conceptual-error | Classifies the type of error for filtering           |
+| `domain`           | qft, condensed-matter, stat-mech, gr, amo, nuclear, classical, fluid, plasma, astro, mathematical, soft-matter, quantum-info     | Must match a subdirectory in `patterns-by-domain/`   |
+| `category`         | sign-error, factor-error, convention-pitfall, convergence-issue, approximation-failure, numerical-instability, conceptual-error, dimensional-error | Classifies the type of error for filtering           |
 | `severity`         | critical, high, medium, low                                                                                                     | How much damage this error causes if undetected      |
 | `confidence`       | single_observation, confirmed, systematic                                                                                       | How well-established the pattern is across projects  |
 | `first_seen`       | ISO date                                                                                                                        | When the pattern was first recorded                  |

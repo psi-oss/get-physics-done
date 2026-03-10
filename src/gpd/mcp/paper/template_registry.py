@@ -69,20 +69,24 @@ def render_paper(config: PaperConfig) -> str:
     and applies LaTeX sanitization to the output.
     """
     template = load_template(config.journal)
+    sections = [section.model_copy(update={"content": clean_latex_fences(section.content)}) for section in config.sections]
+    appendix_sections = [
+        section.model_copy(update={"content": clean_latex_fences(section.content)})
+        for section in config.appendix_sections
+    ]
     rendered = template.render(
         title=config.title,
         authors=config.authors,
-        abstract=config.abstract,
-        sections=config.sections,
+        abstract=clean_latex_fences(config.abstract),
+        sections=sections,
         figures=config.figures,
-        acknowledgments=config.acknowledgments,
+        acknowledgments=clean_latex_fences(config.acknowledgments) if config.acknowledgments else None,
         bib_file=config.bib_file,
-        appendix_sections=config.appendix_sections,
-        attribution_footer=config.attribution_footer,
+        appendix_sections=appendix_sections,
+        attribution_footer=clean_latex_fences(config.attribution_footer),
     )
 
     # Apply LaTeX sanitization as a safety net
-    rendered = clean_latex_fences(rendered)
     rendered = sanitize_latex(rendered)
 
     return rendered

@@ -1,4 +1,4 @@
-"""Unified GPD CLI — entry point for core workflow, sessions, and MCP tooling.
+"""Unified GPD CLI — entry point for core workflow and MCP tooling.
 
 Delegates to ``gpd.core.*`` modules for all command implementations.
 
@@ -25,8 +25,6 @@ from rich.table import Table
 
 import gpd
 from gpd.core.errors import GPDError
-from gpd.mcp.cli import session_app
-from gpd.mcp.viewer.cli import viewer_app
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
@@ -89,14 +87,102 @@ def _pretty_print(d: dict) -> None:
 def _error(msg: str) -> NoReturn:
     """Print error and exit — JSON when --raw, rich text otherwise."""
     if _raw:
-        console.print_json(json.dumps({"error": str(msg)}))
+        err_console.print_json(json.dumps({"error": str(msg)}))
     else:
-        console.print(f"[bold red]Error:[/] {msg}", highlight=False)
+        err_console.print(f"[bold red]Error:[/] {msg}", highlight=False)
     raise typer.Exit(code=1)
 
 
 def _get_cwd() -> Path:
     return _cwd.resolve()
+
+
+def _format_display_path(target: str | Path | None) -> str:
+    """Format a path for concise, user-facing CLI output."""
+    if target is None:
+        return ""
+
+    raw_target = str(target)
+    if not raw_target:
+        return ""
+
+    target_path = Path(raw_target).expanduser()
+    if not target_path.is_absolute():
+        target_path = _get_cwd() / target_path
+
+    resolved_target = target_path.resolve(strict=False)
+    resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
+    resolved_home = Path.home().expanduser().resolve(strict=False)
+
+    try:
+        relative_to_cwd = resolved_target.relative_to(resolved_cwd)
+    except ValueError:
+        pass
+    else:
+        relative_text = relative_to_cwd.as_posix()
+        return "." if relative_text in ("", ".") else f"./{relative_text}"
+
+    try:
+        relative_to_home = resolved_target.relative_to(resolved_home)
+    except ValueError:
+        return resolved_target.as_posix()
+
+    relative_text = relative_to_home.as_posix()
+    return "~" if relative_text in ("", ".") else f"~/{relative_text}"
+
+
+def _format_runtime_list(runtime_names: list[str]) -> str:
+    """Render runtime identifiers as human-friendly names."""
+    from gpd.adapters import get_adapter
+
+    display_names = [get_adapter(runtime_name).display_name for runtime_name in runtime_names]
+    if not display_names:
+        return "no runtimes"
+    if len(display_names) == 1:
+        return display_names[0]
+    if len(display_names) == 2:
+        return f"{display_names[0]} and {display_names[1]}"
+    return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
+
+
+def _print_version(*, ctx: typer.Context | None = None) -> None:
+    """Emit the CLI version using the active raw/non-raw output contract."""
+    value = f"gpd {gpd.__version__}"
+    raw_requested = False
+    if ctx is not None:
+        meta_raw = ctx.meta.get("raw_requested")
+        if isinstance(meta_raw, bool):
+            raw_requested = meta_raw
+    if not raw_requested:
+        raw_requested = _raw
+    if raw_requested:
+        console.print_json(json.dumps({"result": value}))
+    else:
+        console.print(value)
+
+
+def _raw_option_callback(ctx: typer.Context, _: typer.CallbackParam, value: bool) -> bool:
+    """Capture --raw early enough for the eager --version option."""
+    global _raw  # noqa: PLW0603
+    ctx.meta["raw_requested"] = value
+    _raw = value
+    return value
+
+
+def _version_option_callback(ctx: typer.Context, _: typer.CallbackParam, value: bool) -> bool:
+    """Handle --version before Typer requires a subcommand."""
+    if value:
+        _print_version(ctx=ctx)
+        raise typer.Exit()
+    return value
+
+
+def _json_cli_output(data: object) -> None:
+    """Emit literal JSON for the lightweight JSON subcommands."""
+    if _raw:
+        console.print_json(json.dumps(data, default=str))
+    else:
+        console.print(data, highlight=False)
 
 
 # ─── App setup ──────────────────────────────────────────────────────────────
@@ -105,13 +191,16 @@ class _GPDTyper(typer.Typer):
     """Typer subclass that catches GPDError and prints a user-friendly message."""
 
     def __call__(self, *args: object, **kwargs: object) -> object:
+        global _raw, _cwd  # noqa: PLW0603
+        _raw = False
+        _cwd = Path(".")
         try:
             return super().__call__(*args, **kwargs)
         except GPDError as exc:
             if _raw:
-                console.print_json(json.dumps({"error": str(exc)}))
+                err_console.print_json(json.dumps({"error": str(exc)}))
             else:
-                console.print(f"[bold red]Error:[/] {exc}", highlight=False)
+                err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
 
 
@@ -122,22 +211,24 @@ app = _GPDTyper(
     add_completion=True,
 )
 
-app.add_typer(session_app, name="session", help="Interactive research session with MCP orchestration")
-app.add_typer(viewer_app, name="view", help="Frame viewer for MCP simulation outputs")
-
-
-def _version_callback(value: bool) -> None:
-    if value:
-        console.print(f"gpd {gpd.__version__}")
-        raise typer.Exit()
-
 
 @app.callback()
 def main(
-    raw: bool = typer.Option(False, "--raw", help="Output raw JSON for programmatic consumption"),
+    raw: bool = typer.Option(
+        False,
+        "--raw",
+        help="Output raw JSON for programmatic consumption",
+        callback=_raw_option_callback,
+        is_eager=True,
+    ),
     cwd: str = typer.Option(".", "--cwd", help="Working directory (default: current)"),
     version: bool = typer.Option(
-        False, "--version", "-v", help="Show version", callback=_version_callback, is_eager=True
+        False,
+        "--version",
+        "-v",
+        help="Show version",
+        callback=_version_option_callback,
+        is_eager=True,
     ),
 ) -> None:
     """GPD — Get Physics Done."""
@@ -524,12 +615,37 @@ def convention_set(
     force: bool = typer.Option(False, "--force", help="Overwrite existing convention"),
 ) -> None:
     """Set a convention in the convention lock."""
-    from gpd.core.conventions import convention_set
+    import json as _json
 
-    lock = _load_lock()
-    result = convention_set(lock, key, value, force=force)
-    if result.updated:
-        _save_lock(lock)
+    from gpd.contracts import ConventionLock
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.conventions import convention_set
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    # Perform the entire read-modify-write under a single file lock to avoid
+    # the TOCTOU race that existed when _load_lock() ran before _save_lock().
+    with file_lock(state_path):
+        try:
+            raw = _json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raw = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+
+        lock_data = raw.get("convention_lock", {})
+        if not isinstance(lock_data, dict):
+            lock_data = {}
+        lock = ConventionLock(**lock_data)
+
+        result = convention_set(lock, key, value, force=force)
+        if result.updated:
+            raw["convention_lock"] = lock.model_dump(exclude_none=True)
+            save_state_json_locked(cwd, raw)
+
     _output(result)
 
 
@@ -779,7 +895,10 @@ def frontmatter_get(
     from gpd.core.frontmatter import extract_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     meta, _ = extract_frontmatter(fm_content)
     if field:
         _output(meta.get(field))
@@ -797,7 +916,10 @@ def frontmatter_set(
     from gpd.core.frontmatter import splice_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     updated = splice_frontmatter(fm_content, {field: value})
     file_path.write_text(updated, encoding="utf-8")
     _output({"updated": field, "value": value})
@@ -811,9 +933,15 @@ def frontmatter_merge(
     """Merge JSON data into frontmatter."""
     from gpd.core.frontmatter import deep_merge_frontmatter
 
-    merge_data = json.loads(data)
+    try:
+        merge_data = json.loads(data)
+    except json.JSONDecodeError as e:
+        _error(f"Malformed JSON in --data: {e}")
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     updated = deep_merge_frontmatter(fm_content, merge_data)
     file_path.write_text(updated, encoding="utf-8")
     _output({"merged": True, "file": file})
@@ -828,7 +956,10 @@ def frontmatter_validate(
     from gpd.core.frontmatter import validate_frontmatter
 
     file_path = _get_cwd() / file
-    fm_content = file_path.read_text(encoding="utf-8")
+    try:
+        fm_content = file_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        _error(f"File not found: {file}")
     _output(validate_frontmatter(fm_content, schema))
 
 
@@ -912,6 +1043,8 @@ def query_assumptions(
     from gpd.core.query import query_assumptions
 
     text = " ".join(assumption) if assumption else ""
+    if not text.strip():
+        _error("Usage: gpd query assumptions <search-term>")
     _output(query_assumptions(_get_cwd(), text))
 
 
@@ -944,12 +1077,12 @@ app.add_typer(pattern_app, name="pattern")
 def _resolve_patterns_root() -> Path:
     """Resolve pattern library root respecting GPD_PATTERNS_ROOT env var.
 
-    Uses the same resolution order as gpd.core.patterns._patterns_root:
-    GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > cwd/learned-patterns.
+    Uses the same resolution order as gpd.core.patterns.patterns_root:
+    GPD_PATTERNS_ROOT env > GPD_DATA_DIR env > ~/.gpd/learned-patterns.
     """
-    from gpd.core.patterns import _patterns_root
+    from gpd.core.patterns import patterns_root
 
-    return _patterns_root(specs_root=_get_cwd())
+    return patterns_root(specs_root=_get_cwd())
 
 
 @pattern_app.command("init")
@@ -1011,6 +1144,17 @@ def pattern_search(
     from gpd.core.patterns import pattern_search
 
     _output(pattern_search(" ".join(query), root=_resolve_patterns_root()))
+
+
+@pattern_app.command("promote")
+def pattern_promote(
+    pattern_id: str = typer.Argument(..., help="Pattern ID to promote"),
+) -> None:
+    """Promote a pattern's confidence level (single_observation -> confirmed -> systematic)."""
+    from gpd.core.patterns import pattern_promote
+
+    _output(pattern_promote(pattern_id, root=_resolve_patterns_root()))
+
 
 
 @pattern_app.command("seed")
@@ -1447,10 +1591,23 @@ def config_ensure_section() -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     defaults = GPDProjectConfig()
     config_dict = {
-        "model_profile": defaults.model_profile.value,
+        "autonomy": defaults.autonomy.value,
+        "research_mode": defaults.research_mode.value,
         "commit_docs": defaults.commit_docs,
         "search_gitignored": defaults.search_gitignored,
-        "branching_strategy": defaults.branching_strategy.value,
+        "parallelization": defaults.parallelization,
+        "model_profile": defaults.model_profile.value,
+        "brave_search": defaults.brave_search,
+        "workflow": {
+            "research": defaults.research,
+            "plan_checker": defaults.plan_checker,
+            "verifier": defaults.verifier,
+        },
+        "git": {
+            "branching_strategy": defaults.branching_strategy.value,
+            "phase_branch_template": defaults.phase_branch_template,
+            "milestone_branch_template": defaults.milestone_branch_template,
+        },
     }
     atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
     _output({"created": True, "path": str(config_path)})
@@ -1473,91 +1630,6 @@ def validate_consistency() -> None:
     _output(report)
     if report.overall == "fail":
         raise typer.Exit(code=1)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# template — Template selection and filling
-# ═══════════════════════════════════════════════════════════════════════════
-
-template_app = typer.Typer(help="Plan and document templates")
-app.add_typer(template_app, name="template")
-
-
-@template_app.command("select")
-def template_select(
-    plan_path: str = typer.Argument(..., help="Path to plan file"),
-) -> None:
-    """Select appropriate template for a plan."""
-    from gpd.core.frontmatter import select_template
-
-    _output(select_template(_get_cwd(), Path(plan_path)))
-
-
-@template_app.command("fill")
-def template_fill(
-    template_type: str = typer.Argument(..., help="Template type"),
-    phase: str = typer.Option(..., "--phase", help="Phase number"),
-    plan: str | None = typer.Option(None, "--plan", help="Plan name"),
-    name: str | None = typer.Option(None, "--name", help="Document name"),
-    plan_type: str = typer.Option("execute", "--type", help="Plan type (execute/research)"),
-    wave: str = typer.Option("1", "--wave", help="Wave number"),
-    fields: str | None = typer.Option(None, "--fields", help="JSON fields"),
-) -> None:
-    """Fill a template with provided fields."""
-    from gpd.core.frontmatter import TemplateFillOptions, fill_template
-
-    parsed_fields = {}
-    if fields:
-        try:
-            parsed_fields = json.loads(fields)
-        except json.JSONDecodeError as exc:
-            raise typer.BadParameter(f"--fields must be valid JSON: {exc}") from exc
-    try:
-        wave_int = int(wave)
-    except ValueError:
-        raise typer.BadParameter(f"--wave must be an integer, got {wave!r}") from None
-    options = TemplateFillOptions(
-        phase=phase,
-        name=name,
-        plan=plan,
-        plan_type=plan_type,
-        wave=wave_int,
-        fields=parsed_fields or None,
-    )
-    _output(fill_template(_get_cwd(), template_type, options))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# dependency-graph — Visual dependency graph
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("dependency-graph")
-def dependency_graph(
-    fmt: str | None = typer.Option(None, "--format", help="Output format (mermaid, dot, json)"),
-    phase: str | None = typer.Option(None, "--phase", help="Filter to phase"),
-    validate: bool = typer.Option(False, "--validate", help="Validate graph integrity"),
-) -> None:
-    """Generate a dependency graph across phases."""
-    console.print("[yellow]dependency-graph is not yet implemented[/]")
-    raise typer.Exit(code=1)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# scaffold — File and directory scaffolding
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("scaffold")
-def scaffold(
-    scaffold_type: str = typer.Argument(..., help="Type: context, validation, verification, phase-dir"),
-    phase: str | None = typer.Option(None, "--phase", help="Phase number"),
-    name: str | None = typer.Option(None, "--name", help="Name for the scaffold"),
-) -> None:
-    """Create scaffold files (context, validation, verification) or phase directories."""
-    from gpd.core.commands import cmd_scaffold
-
-    _output(cmd_scaffold(_get_cwd(), scaffold_type, phase=phase, name=name))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1587,21 +1659,6 @@ def summary_extract(
     from gpd.core.commands import cmd_summary_extract
 
     _output(cmd_summary_extract(_get_cwd(), summary_path, fields=field))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# todo-complete — Move todo from pending to done
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("todo-complete")
-def todo_complete(
-    filename: str = typer.Argument(..., help="Todo filename in .planning/todos/pending/"),
-) -> None:
-    """Mark a todo as completed (move from pending/ to done/)."""
-    from gpd.core.commands import cmd_todo_complete
-
-    _output(cmd_todo_complete(_get_cwd(), filename))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1726,9 +1783,8 @@ def json_get_cmd(
     try:
         result = json_get(stdin_text, key, default=default)
     except ValueError as exc:
-        err_console.print(f"[red]error:[/red] {exc}")
-        raise typer.Exit(code=1) from None
-    console.print(result, highlight=False)
+        _error(str(exc))
+    _json_cli_output(result)
 
 
 @json_app.command("keys")
@@ -1743,7 +1799,7 @@ def json_keys_cmd(
     stdin_text = sys.stdin.read()
     result = json_keys(stdin_text, key)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("list")
@@ -1758,7 +1814,7 @@ def json_list_cmd(
     stdin_text = sys.stdin.read()
     result = json_list(stdin_text, key)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("pluck")
@@ -1774,7 +1830,7 @@ def json_pluck_cmd(
     stdin_text = sys.stdin.read()
     result = json_pluck(stdin_text, key, field)
     if result:
-        console.print(result, highlight=False)
+        _json_cli_output(result)
 
 
 @json_app.command("set")
@@ -1811,7 +1867,7 @@ def json_sum_lengths_cmd(
 
     stdin_text = sys.stdin.read()
     result = json_sum_lengths(stdin_text, keys)
-    console.print(result, highlight=False)
+    _json_cli_output(result)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1826,11 +1882,11 @@ def commit(
 ) -> None:
     """Stage planning files and create a git commit.
 
-    If --files is not specified, stages all .planning/ changes.
+    If --files is not specified, stages all .gpd/ changes.
 
     Examples::
 
-        gpd commit "docs: update roadmap" --files .planning/ROADMAP.md
+        gpd commit "docs: update roadmap" --files .gpd/ROADMAP.md
         gpd commit "wip: phase 3 progress"
     """
     from gpd.core.git_ops import cmd_commit
@@ -1851,7 +1907,7 @@ def pre_commit_check(
 
     Examples::
 
-        gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md
+        gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md
     """
     from gpd.core.git_ops import cmd_pre_commit_check
 
@@ -1869,7 +1925,7 @@ def pre_commit_check(
 @app.command("version")
 def version_cmd() -> None:
     """Show GPD version."""
-    console.print(f"gpd {gpd.__version__}")
+    _print_version()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1942,6 +1998,8 @@ def _install_single_runtime(
     target_dir_override: str | None = None,
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
+    import inspect
+
     from gpd.adapters import get_adapter
 
     adapter = get_adapter(runtime_name)
@@ -1952,7 +2010,12 @@ def _install_single_runtime(
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
 
-    return adapter.install(gpd_root, dest, is_global=is_global)
+    install_kwargs: dict[str, object] = {"is_global": is_global}
+    install_params = inspect.signature(adapter.install).parameters
+    if "explicit_target" in install_params:
+        install_kwargs["explicit_target"] = target_dir_override is not None
+
+    return adapter.install(gpd_root, dest, **install_kwargs)
 
 
 def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None:
@@ -1967,7 +2030,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 
     for runtime_name, result in results:
         adapter = get_adapter(runtime_name)
-        target = str(result.get("target", ""))
+        target = _format_display_path(result.get("target"))
         agents = result.get("agents", 0)
         commands = result.get("commands", 0)
         table.add_row(
@@ -1982,7 +2045,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
     if results:
         first_runtime = results[0][0]
         adapter = get_adapter(first_runtime)
-        console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]")
+        console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]\n")
 
 
 @app.command("install")
@@ -2050,7 +2113,7 @@ def install(
 
     location_label = "global" if is_global else "local"
     if not _raw:
-        console.print(f"\n[bold]Installing GPD ({location_label}) for: {', '.join(selected)}[/]\n")
+        console.print(f"\n[bold]Installing GPD ({location_label}) for: {_format_runtime_list(selected)}[/]\n")
 
     # Install each runtime with progress
     results: list[tuple[str, dict[str, object]]] = []
@@ -2154,7 +2217,7 @@ def uninstall(
 
     if not target_dir:
         location_label = "global" if is_global else "local"
-        runtime_names = ", ".join(selected)
+        runtime_names = _format_runtime_list(selected)
         if not Confirm.ask(f"Remove GPD from {runtime_names} ({location_label})?", default=False):
             console.print("[dim]Cancelled.[/]")
             raise typer.Exit()
@@ -2165,7 +2228,7 @@ def uninstall(
         target = Path(target_dir) if target_dir else adapter.resolve_target_dir(is_global, _get_cwd())
         if not target.is_dir():
             if not _raw:
-                console.print(f"  [yellow]⊘[/] {adapter.display_name} — not installed at {target}")
+                console.print(f"  [yellow]⊘[/] {adapter.display_name} — not installed at {_format_display_path(target)}")
             continue
         result = adapter.uninstall(target)
         removed_items = result.get("removed", [])

@@ -12,7 +12,7 @@ Last updated: 2026-02-24
 
 **Caveat:** STATE.md and state.json can drift out of sync when one is updated without the other. The state module writes both, but manual edits to STATE.md (common during debugging) leave state.json stale.
 
-**Status:** Improved. The `gpd state validate` command now performs 11 cross-checks between STATE.md and state.json including: field sync (phase, plan, total counts), NaN detection, schema completeness, status vocabulary validation, phase ID format, phase range bounds, result ID uniqueness, and dependency validity. A state-json-schema template documents the full schema. The `$gpd-sync-state` command provides reconciliation when drift is detected. However, the dual-write architecture itself remains — full resolution would require making STATE.md a generated read-only view of state.json.
+**Status:** Improved. The `gpd state validate` command now performs 11 cross-checks between STATE.md and state.json including: field sync (phase, plan, total counts), NaN detection, schema completeness, status vocabulary validation, phase ID format, phase range bounds, result ID uniqueness, and dependency validity. A state-json-schema template documents the full schema. The `/gpd:sync-state` command provides reconciliation when drift is detected. However, the dual-write architecture itself remains — full resolution would require making STATE.md a generated read-only view of state.json.
 
 **Workaround:** Run `gpd state validate` to detect drift. After manually editing STATE.md, delete `state.json` so it regenerates on the next `gpd state` command (the fallback parser in `load_state_json` reconstructs it from STATE.md). When reading state, prefer `gpd state load` which reads from the canonical source.
 
@@ -29,7 +29,7 @@ Last updated: 2026-02-24
 - **Agent convention loading:** All 16 equation-handling agents reference "agent-infrastructure.md Convention Loading Protocol" (7 core agents `@`-include it, 9 others reference it on demand)
 - **Context pressure monitoring:** All 17 agents have context pressure thresholds (per-agent RED calibration: 60-75%)
 
-**Remaining:** No automated pre-commit hook that validates convention consistency. The gpd-consistency-checker agent verifies cross-phase consistency but only runs on demand (via `$gpd-validate-conventions` or end-of-phase verification).
+**Remaining:** No automated pre-commit hook that validates convention consistency. The gpd-consistency-checker agent verifies cross-phase consistency but only runs on demand (via `/gpd:validate-conventions` or end-of-phase verification).
 
 ### 4. Context Window Compression Artifacts
 
@@ -43,7 +43,7 @@ Last updated: 2026-02-24
 
 **Status:** Mitigated (platform issue — cannot fully fix). All 17 agents now include context pressure self-measurement with recall-based tests (convention recall, equation recall). The 4-level context pressure protocol (GREEN/YELLOW/ORANGE/RED) is enforced in agent-infrastructure.md with specific thresholds and actions. Context budget guidelines in context-budget.md provide per-workflow token budgets and segmentation strategies.
 
-**Workaround:** Persist critical derivation state to files (DERIVATION-STATE.md, state.json) rather than relying on in-context message history. The pause-work workflow handles session continuity. Use `$gpd-pause-work` proactively when context exceeds 60%. The `context_pressure` field in `gpd_return` envelopes signals the orchestrator to spawn continuation agents.
+**Workaround:** Persist critical derivation state to files (DERIVATION-STATE.md, state.json) rather than relying on in-context message history. The pause-work workflow handles session continuity. Use `/gpd:pause-work` proactively when context exceeds 60%. The `context_pressure` field in `gpd_return` envelopes signals the orchestrator to spawn continuation agents.
 
 ### 5. Git Tag Accumulation from Failed Plans
 
@@ -67,17 +67,17 @@ done
 git tag -d gpd-checkpoint/old-tag-name
 ```
 
-### 14. Concurrent Agent File Edit Conflicts
+### 14. Concurrent Agent `file_edit` Conflicts
 
-**Bug:** When multiple agents (spawned via Task tool in parallel) edit the same files, later writes silently overwrite earlier changes. There is no file locking across subagents.
+**Bug:** When multiple agents (spawned via task tool in parallel) edit the same files, later writes silently overwrite earlier changes. There is no file locking across subagents.
 
 **Symptoms:**
 - Agent A edits section X of a shared file, agent B edits section Y
-- If agent B uses full-file Write (not targeted Edit), agent A's changes are lost
+- If agent B uses full-file file_write (not targeted file_edit), agent A's changes are lost
 - No error is raised — the last writer wins silently
 - Past sessions experienced multiple instances of lost edits on shared files (agent-infrastructure.md and core module files)
 
-**Workaround:** Use targeted `Edit` (string replacement) instead of full-file `Write` whenever possible. Read the file immediately before writing to capture recent teammate changes. Orchestrators should avoid assigning overlapping file edits to parallel agents.
+**Workaround:** Use targeted `file_edit` (string replacement) instead of full-file `file_write` whenever possible. Read the file immediately before writing to capture recent teammate changes. Orchestrators should avoid assigning overlapping file edits to parallel agents.
 
 ### 18. Reference Files — Content Duplicated Inline and as Extracted Files
 
@@ -112,7 +112,7 @@ git tag -d gpd-checkpoint/old-tag-name
 
 ### 1. classifyHandoffIfNeeded False Failure
 
-**Bug:** When a subagent spawned via `Task()` completes all its work, the runtime sometimes reports it as "failed" with the error `classifyHandoffIfNeeded is not defined`. This is a runtime bug in the completion handler that fires AFTER all tool calls have already finished successfully.
+**Bug:** When a subagent spawned via `task()` completes all its work, the runtime sometimes reports it as "failed" with the error `classifyHandoffIfNeeded is not defined`. This is a runtime bug in the completion handler that fires AFTER all tool calls have already finished successfully.
 
 **Symptoms:**
 - Agent appears to have failed
@@ -134,9 +134,9 @@ Before treating a subagent result as a failure, run these spot-checks:
 | All pass | Treat as **successful** — the error is cosmetic |
 | Any fail | Treat as **real failure** — route to failure handling |
 
-### 2. @-Reference Behavior in Task() Prompts
+### 2. @-Reference Behavior in task() Prompts
 
-**Bug:** `@` references (e.g., `@{GPD_INSTALL_DIR}/workflows/execute-plan.md`) inside `Task()` prompt strings do NOT load files for subagents. The `@` syntax only works in the main conversation context, not across Task() boundaries.
+**Bug:** `@` references (e.g., `@{GPD_INSTALL_DIR}/workflows/execute-plan.md`) inside `task()` prompt strings do NOT load files for subagents. The `@` syntax only works in the main conversation context, not across task() boundaries.
 
 **Symptoms:**
 - Subagent does not have access to referenced file contents
@@ -149,19 +149,19 @@ Instead of `@` references, instruct the subagent to read files explicitly:
 
 ```
 # WRONG — subagent won't see the file contents
-Task(prompt="
+task(prompt="
   @{GPD_INSTALL_DIR}/workflows/execute-plan.md
   Execute the plan...
 ")
 
 # CORRECT — subagent reads the file itself
-Task(prompt="
+task(prompt="
   First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
   <files_to_read>
-  Read these files at execution start using the Read tool:
+  Read these files at execution start using the file_read tool:
   - Plan: {phase_dir}/{plan_file}
-  - State: .planning/STATE.md
+  - State: .gpd/STATE.md
   </files_to_read>
 
   Execute the plan...
@@ -176,4 +176,4 @@ For small files, load the content before spawning and embed it in the prompt:
 CONTENT=$(cat {GPD_INSTALL_DIR}/references/checkpoints.md)
 ```
 
-Then include `${CONTENT}` directly in the Task() prompt string. This is used by plan-phase.md (step 7) which loads all file contents via `--include` and passes them inline.
+Then include `${CONTENT}` directly in the task() prompt string. This is used by plan-phase.md (step 7) which loads all file contents via `--include` and passes them inline.

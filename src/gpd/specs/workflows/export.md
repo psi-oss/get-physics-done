@@ -11,11 +11,11 @@ Read all files referenced by the invoking prompt's execution_context before star
 <step name="load_context">
 **Load project context:**
 
-Read:
+file_read:
 
-- `.planning/PROJECT.md` -- project title, description, conventions
-- `.planning/ROADMAP.md` -- phase structure and status
-- `.planning/STATE.md` -- current position
+- `.gpd/PROJECT.md` -- project title, description, conventions
+- `.gpd/ROADMAP.md` -- phase structure and status
+- `.gpd/STATE.md` -- current position
 
 ```bash
 ROADMAP=$(gpd roadmap analyze)
@@ -37,7 +37,7 @@ Extract: `project_title`, `milestone`, completed phases list, total phase count.
 No completed phases found. Nothing to export.
 
 Complete at least one phase before exporting:
-  $gpd-execute-phase <phase-number>
+  /gpd:execute-phase <phase-number>
 ```
 
 Exit.
@@ -106,7 +106,7 @@ Export format:
 **Create export directory:**
 
 ```bash
-mkdir -p .planning/exports
+mkdir -p .gpd/exports
 ```
 
 </step>
@@ -114,7 +114,7 @@ mkdir -p .planning/exports
 <step name="generate_html">
 **If format is `html` or `all`:**
 
-Write `.planning/exports/results.html`:
+Write `.gpd/exports/results.html`:
 
 Structure:
 
@@ -180,7 +180,7 @@ Structure:
   </head>
   <body>
     <h1>{project_title}</h1>
-    <p><em>Generated: {YYYY-MM-DD} | Milestone: {milestone_name}</em></p>
+    <p><em>Generated with Get Physics Done (PSI) | {YYYY-MM-DD} | Milestone: {milestone_name}</em></p>
 
     <h2>Summary</h2>
     <p>{project description from PROJECT.md}</p>
@@ -212,7 +212,7 @@ Structure:
 <step name="generate_latex">
 **If format is `latex` or `all`:**
 
-Write `.planning/exports/results.tex`:
+Write `.gpd/exports/results.tex`:
 
 Structure:
 
@@ -266,10 +266,14 @@ Structure:
 \section{Phase {N}: {Name} -- Derivation Details}
 {Detailed derivation content from SUMMARY.md}
 
+\begin{center}
+{\footnotesize\textit{Generated with Get Physics Done (PSI)}}
+\end{center}
+
 \end{document}
 ```
 
-Also write `.planning/exports/results.bib` if any citations found in SUMMARY files.
+Also write `.gpd/exports/results.bib` if any citations found in SUMMARY files.
 </step>
 
 <step name="generate_zip">
@@ -283,7 +287,7 @@ Collect all exportable files:
 4. PROJECT.md and ROADMAP.md
 5. VERIFICATION.md files
 
-Write `.planning/exports/README.md`:
+Write `.gpd/exports/README.md`:
 
 ```markdown
 # {project_title} -- Reproducibility Package
@@ -307,29 +311,29 @@ Write `.planning/exports/README.md`:
 ## Generated
 
 Date: {YYYY-MM-DD}
-Tool: GPD (Get Physics Done)
+Attribution: Generated with Get Physics Done (PSI)
 ```
 
 Copy collected files into the exports directory structure:
 
 ```bash
-mkdir -p .planning/exports/scripts .planning/exports/data .planning/exports/summaries
+mkdir -p .gpd/exports/scripts .gpd/exports/data .gpd/exports/summaries
 # Copy scripts, data, SUMMARYs from phase directories into exports/
-cp .planning/PROJECT.md .planning/exports/PROJECT.md 2>/dev/null
-cp .planning/ROADMAP.md .planning/exports/ROADMAP.md 2>/dev/null
+cp .gpd/PROJECT.md .gpd/exports/PROJECT.md 2>/dev/null
+cp .gpd/ROADMAP.md .gpd/exports/ROADMAP.md 2>/dev/null
 # Copy phase scripts/data/summaries into their respective subdirectories
 ```
 
 Create the ZIP:
 
 ```bash
-cd .planning/exports && zip -r results.zip README.md scripts/ data/ summaries/ PROJECT.md ROADMAP.md 2>/dev/null
+cd .gpd/exports && zip -r results.zip README.md scripts/ data/ summaries/ PROJECT.md ROADMAP.md 2>/dev/null
 ```
 
 If no zip utility available, create a tar.gz instead:
 
 ```bash
-cd .planning/exports && tar -czf results.tar.gz README.md scripts/ data/ summaries/ PROJECT.md ROADMAP.md 2>/dev/null
+cd .gpd/exports && tar -czf results.tar.gz README.md scripts/ data/ summaries/ PROJECT.md ROADMAP.md 2>/dev/null
 ```
 
 </step>
@@ -348,10 +352,10 @@ cd .planning/exports && tar -czf results.tar.gz README.md scripts/ data/ summari
 
 | File | Size | Format |
 |------|------|--------|
-| .planning/exports/results.html | {size} | HTML + MathJax |
-| .planning/exports/results.tex | {size} | LaTeX |
-| .planning/exports/results.bib | {size} | BibTeX |
-| .planning/exports/results.zip | {size} | ZIP package |
+| .gpd/exports/results.html | {size} | HTML + MathJax |
+| .gpd/exports/results.tex | {size} | LaTeX |
+| .gpd/exports/results.bib | {size} | BibTeX |
+| .gpd/exports/results.zip | {size} | ZIP package |
 
 ### Notes
 
@@ -362,8 +366,8 @@ cd .planning/exports && tar -czf results.tar.gz README.md scripts/ data/ summari
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-write-paper` -- draft a full paper from research results
-- `$gpd-progress` -- check research progress
+- `/gpd:write-paper` -- draft a full paper from research results
+- `/gpd:progress` -- check research progress
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -377,12 +381,12 @@ Commit the HTML and LaTeX exports. Do NOT commit ZIP/tar.gz archives (binary art
 
 ```bash
 # Only commit text-format exports
-PRE_CHECK=$(gpd pre-commit-check --files .planning/exports/results.html .planning/exports/results.tex .planning/exports/results.bib 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/exports/results.html .gpd/exports/results.tex .gpd/exports/results.bib 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: export research results" \
-  --files .planning/exports/results.html .planning/exports/results.tex .planning/exports/results.bib
+  --files .gpd/exports/results.html .gpd/exports/results.tex .gpd/exports/results.bib
 ```
 
 The `commit` CLI respects `commit_docs` from config internally — if disabled, the commit is automatically skipped.
@@ -409,7 +413,7 @@ Export is complete when:
 - [ ] Only completed phases with SUMMARYs included
 - [ ] Key results and equations extracted and formatted
 - [ ] Export generated in requested format(s)
-- [ ] Files written to .planning/exports/
+- [ ] Files written to .gpd/exports/
 - [ ] File locations and sizes reported to user
 - [ ] Format-specific instructions provided
 - [ ] Text exports committed (if commit_docs enabled)

@@ -4,7 +4,7 @@ template_version: 1
 
 # Research Template
 
-Template for `.planning/phases/XX-name/{phase}-RESEARCH.md` - comprehensive literature and methods research before planning a physics research phase.
+Template for `.gpd/phases/XX-name/{phase}-RESEARCH.md` - comprehensive literature and methods research before planning a physics research phase.
 
 **Purpose:** Document what the agent needs to know to execute a research phase well - not just "which method" but "how do experts approach this problem, what's known, what's open, and what notation conventions exist."
 
@@ -29,7 +29,7 @@ Template for `.planning/phases/XX-name/{phase}-RESEARCH.md` - comprehensive lite
 
 ## User Constraints (from CONTEXT.md)
 
-**CRITICAL:** If CONTEXT.md exists from $gpd-discuss-phase, copy locked decisions here verbatim. These MUST be honored by the planner.
+**CRITICAL:** If CONTEXT.md exists from /gpd:discuss-phase, copy locked decisions here verbatim. These MUST be honored by the planner.
 
 ### Locked Decisions
 
@@ -523,6 +523,6 @@ Key finding: The ramp region is where physics lives - it emerges from the connec
 
 **After creation:**
 
-- File lives in phase directory: `.planning/phases/XX-name/{phase}-RESEARCH.md`
+- File lives in phase directory: `.gpd/phases/XX-name/{phase}-RESEARCH.md`
 - Referenced during planning workflow
 - plan-phase loads it automatically when present

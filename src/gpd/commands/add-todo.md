@@ -3,10 +3,10 @@ name: gpd:add-todo
 description: Capture idea or task as todo from current research conversation context
 argument-hint: "[optional description]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -40,7 +40,7 @@ Typical physics research todos include:
   </objective>
 
 <execution_context>
-@.planning/STATE.md
+@.gpd/STATE.md
 @{GPD_INSTALL_DIR}/workflows/add-todo.md
 </execution_context>
 

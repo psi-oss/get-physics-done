@@ -86,12 +86,14 @@ def _infer_domain_from_id(error_id: int) -> str:
         return "core"
     if 26 <= error_id <= 51:
         return "field_theory"
-    if 52 <= error_id <= 81:
+    if 52 <= error_id <= 71:
         return "extended"
+    if 72 <= error_id <= 81:
+        return "deep_domain"
     if 82 <= error_id <= 101:
         return "cross_domain"
     if 102 <= error_id <= 104:
-        return "deep_domain"
+        return "newly_identified"
     return "unknown"
 
 
@@ -309,16 +311,20 @@ def get_error_class(error_id: int) -> dict[str, object]:
     Args:
         error_id: Numeric error class ID (1-104).
     """
-    with gpd_span("mcp.errors.get", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
-            return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
-                "total_classes": store.count,
-            }
-        return dict(error)
+    try:
+        with gpd_span("mcp.errors.get", error_class_id=error_id):
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                    "total_classes": store.count,
+                }
+            return dict(error)
+    except Exception as exc:
+        logger.warning("get_error_class failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -332,14 +338,18 @@ def check_error_classes(computation_desc: str) -> dict[str, object]:
         computation_desc: Description of the computation (e.g., "perturbative QCD
                          vacuum polarization at one loop with dimensional regularization").
     """
-    with gpd_span("mcp.errors.check"):
-        store = _get_store()
-        matches = store.check_relevant(computation_desc)
-        return {
-            "query": computation_desc,
-            "match_count": len(matches),
-            "error_classes": matches[:15],  # Top 15 matches
-        }
+    try:
+        with gpd_span("mcp.errors.check"):
+            store = _get_store()
+            matches = store.check_relevant(computation_desc)
+            return {
+                "query": computation_desc,
+                "match_count": len(matches),
+                "error_classes": matches[:15],  # Top 15 matches
+            }
+    except Exception as exc:
+        logger.warning("check_error_classes failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -351,20 +361,24 @@ def get_detection_strategy(error_id: int) -> dict[str, object]:
     Args:
         error_id: Numeric error class ID (1-104).
     """
-    with gpd_span("mcp.errors.detection_strategy", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
+    try:
+        with gpd_span("mcp.errors.detection_strategy", error_class_id=error_id):
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                }
             return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
+                "id": error["id"],
+                "name": error["name"],
+                "detection_strategy": error["detection_strategy"],
+                "example": error["example"],
             }
-        return {
-            "id": error["id"],
-            "name": error["name"],
-            "detection_strategy": error["detection_strategy"],
-            "example": error["example"],
-        }
+    except Exception as exc:
+        logger.warning("get_detection_strategy failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -378,31 +392,35 @@ def get_traceability(error_id: int) -> dict[str, object]:
     Args:
         error_id: Numeric error class ID (1-104).
     """
-    with gpd_span("mcp.errors.traceability", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
-            return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
-            }
+    try:
+        with gpd_span("mcp.errors.traceability", error_class_id=error_id):
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                }
 
-        traceability = store.get_traceability(error_id)
-        if traceability is None:
+            traceability = store.get_traceability(error_id)
+            if traceability is None:
+                return {
+                    "id": error_id,
+                    "name": error["name"],
+                    "traceability": {},
+                    "note": "No traceability data available for this error class",
+                }
+
             return {
                 "id": error_id,
                 "name": error["name"],
-                "traceability": {},
-                "note": "No traceability data available for this error class",
+                "verification_checks": traceability,
+                "covered_by": [col for col, val in traceability.items() if val],
+                "coverage_count": len([v for v in traceability.values() if v]),
             }
-
-        return {
-            "id": error_id,
-            "name": error["name"],
-            "verification_checks": traceability,
-            "covered_by": [col for col, val in traceability.items() if val],
-            "coverage_count": len([v for v in traceability.values() if v]),
-        }
+    except Exception as exc:
+        logger.warning("get_traceability failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -411,18 +429,23 @@ def list_error_classes(domain: str | None = None) -> dict[str, object]:
 
     Args:
         domain: Optional domain filter. Available domains:
-                "core" (#1-25), "field_theory" (#26-51), "extended" (#52-81),
-                "cross_domain" (#82-101), "deep_domain" (#102-104).
+                "core" (#1-25), "field_theory" (#26-51), "extended" (#52-71),
+                "deep_domain" (#72-81), "cross_domain" (#82-101),
+                "newly_identified" (#102-104).
     """
-    with gpd_span("mcp.errors.list", domain=domain or "all"):
-        store = _get_store()
-        errors = store.list_all(domain)
-        return {
-            "count": len(errors),
-            "error_classes": errors,
-            "available_domains": store.domains,
-            "total_classes": store.count,
-        }
+    try:
+        with gpd_span("mcp.errors.list", domain=domain or "all"):
+            store = _get_store()
+            errors = store.list_all(domain)
+            return {
+                "count": len(errors),
+                "error_classes": errors,
+                "available_domains": store.domains,
+                "total_classes": store.count,
+            }
+    except Exception as exc:
+        logger.warning("list_error_classes failed: %s", exc)
+        return {"error": str(exc)}
 
 
 # ---------------------------------------------------------------------------

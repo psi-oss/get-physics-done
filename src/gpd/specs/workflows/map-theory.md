@@ -1,9 +1,9 @@
 <purpose>
-Orchestrate parallel theory-mapper agents to analyze a physics research project and produce structured documents in .planning/research-map/
+Orchestrate parallel theory-mapper agents to analyze a physics research project and produce structured documents in .gpd/research-map/
 
 Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator only receives confirmation + line counts, then writes a summary.
 
-Output: .planning/research-map/ folder with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
+Output: .gpd/research-map/ folder with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
 </purpose>
 
 <philosophy>
@@ -39,7 +39,7 @@ A physics research project typically contains:
 Load research mapping context:
 
 ```bash
-# Theory-specific initialization; generic folder exploration belongs to `map-content`.
+# Theory-specific initialization.
 INIT=$(gpd init map-theory)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
@@ -62,18 +62,18 @@ RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced
 </step>
 
 <step name="check_existing">
-Check if .planning/research-map/ already exists using `has_maps` from init context.
+Check if .gpd/research-map/ already exists using `has_maps` from init context.
 
 If `research_map_dir_exists` is true:
 
 ```bash
-ls -la .planning/research-map/
+ls -la .gpd/research-map/
 ```
 
 **If exists:**
 
 ```
-.planning/research-map/ already exists with these documents:
+.gpd/research-map/ already exists with these documents:
 [List files found]
 
 What's next?
@@ -84,7 +84,7 @@ What's next?
 
 Wait for user response.
 
-If "Refresh": Delete .planning/research-map/, continue to create_structure
+If "Refresh": Delete .gpd/research-map/, continue to create_structure
 If "Update": Ask which documents to update, continue to spawn_agents (filtered)
 If "Skip": Exit workflow
 
@@ -93,10 +93,10 @@ Continue to create_structure.
 </step>
 
 <step name="create_structure">
-Create .planning/research-map/ directory:
+Create .gpd/research-map/ directory:
 
 ```bash
-mkdir -p .planning/research-map
+mkdir -p .gpd/research-map
 ```
 
 **Expected output files:**
@@ -115,17 +115,17 @@ Continue to spawn_agents.
 <step name="spawn_agents">
 Spawn 4 parallel gpd-theory-mapper agents.
 
-Use Task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
+Use task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **CRITICAL:** Use the dedicated `gpd-theory-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 
 **Agent 1: Theory Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -143,7 +143,7 @@ Focus: theory
 
 Analyze this research project for theoretical content and literature foundations.
 
-Write these documents to .planning/research-map/:
+Write these documents to .gpd/research-map/:
 - FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
 - REFERENCES.md - Papers cited, textbooks used, key results relied upon, BibTeX entries found, open questions from literature, experimental data sources, collaboration context
 
@@ -152,7 +152,7 @@ Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings,
 
 **Agent 2: Computation Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -170,7 +170,7 @@ Focus: computation
 
 Analyze this research project for computational methods, solvers, and project structure.
 
-Write these documents to .planning/research-map/:
+Write these documents to .gpd/research-map/:
 - ARCHITECTURE.md - Computational pipeline, solver choices (ODE/PDE/linear algebra), algorithm design, parallelization strategy, key libraries used (NumPy, SciPy, PETSc, etc.), MCP simulation servers, data flow from input to output, performance bottlenecks
 - STRUCTURE.md - Directory layout, file organization (code vs data vs docs vs notebooks), naming conventions, input/output formats (HDF5, CSV, JSON), dependency graph between scripts, build system, job submission scripts
 
@@ -179,7 +179,7 @@ Explore thoroughly: read Python/Julia/C++/Fortran files, Jupyter notebooks, Make
 
 **Agent 3: Methodology Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -197,7 +197,7 @@ Focus: methodology
 
 Analyze this research project for notation conventions, unit systems, and validation practices.
 
-Write these documents to .planning/research-map/:
+Write these documents to .gpd/research-map/:
 - CONVENTIONS.md - Notation system, sign conventions (metric signature, Fourier transforms), unit system (natural/SI/CGS), index placement conventions (Einstein summation), coordinate labeling, variable naming in code vs equations, coupling constant definitions, Wick rotation conventions
 - VALIDATION.md - Known limits checked (analytic benchmarks, exact solutions), convergence tests performed, consistency checks (conservation laws, sum rules, Ward identities), comparison with published results, test suite structure, regression tests, error analysis methodology
 
@@ -206,7 +206,7 @@ Explore thoroughly: read LaTeX preambles for notation macros, code variable nami
 
 **Agent 4: Status Focus**
 
-Task tool parameters:
+task tool parameters:
 
 ```
 subagent_type="gpd-theory-mapper"
@@ -224,7 +224,7 @@ Focus: status
 
 Analyze this research project for open questions, known issues, and areas of concern.
 
-Write this document to .planning/research-map/:
+Write this document to .gpd/research-map/:
 - CONCERNS.md - Known issues (unresolved divergences, numerical instabilities, sign ambiguities), theoretical gaps (missing diagrams, uncontrolled approximations, gauge artifacts), TODO items found in code and notes, fragile areas (code that breaks easily, calculations sensitive to parameter choices), missing validation (untested regimes, unchecked limits), computational bottlenecks, stale or abandoned branches of investigation
 
 Explore thoroughly: search for TODO/FIXME/HACK/XXX comments, read issue trackers, check for commented-out code, look for notebooks with error outputs. Write document directly using template. Return confirmation only.
@@ -247,8 +247,8 @@ Read each agent's output file to collect confirmations.
 
 **Focus:** {focus}
 **Documents written:**
-- `.planning/research-map/{DOC1}.md` ({N} lines)
-- `.planning/research-map/{DOC2}.md` ({N} lines)
+- `.gpd/research-map/{DOC1}.md` ({N} lines)
+- `.gpd/research-map/{DOC2}.md` ({N} lines)
 
 Ready for orchestrator summary.
 ```
@@ -264,8 +264,8 @@ Continue to verify_output.
 Verify all documents created successfully:
 
 ```bash
-ls -la .planning/research-map/
-wc -l .planning/research-map/*.md
+ls -la .gpd/research-map/
+wc -l .gpd/research-map/*.md
 ```
 
 **Verification checklist:**
@@ -285,7 +285,7 @@ Run secret pattern detection:
 
 ```bash
 # Check for common API key patterns in generated docs
-grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' .planning/research-map/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
+grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' .gpd/research-map/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
 ```
 
 **If SECRETS_FOUND=true:**
@@ -317,10 +317,10 @@ Continue to commit_research_map.
 Commit the research map:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/research-map/*.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/research-map/*.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: map existing research project" --files .planning/research-map/*.md
+gpd commit "docs: map existing research project" --files .gpd/research-map/*.md
 ```
 
 Continue to offer_next.
@@ -332,7 +332,7 @@ Present completion summary and next steps.
 **Get line counts:**
 
 ```bash
-wc -l .planning/research-map/*.md
+wc -l .gpd/research-map/*.md
 ```
 
 **Output format:**
@@ -340,7 +340,7 @@ wc -l .planning/research-map/*.md
 ```
 Research project mapping complete.
 
-Created .planning/research-map/:
+Created .gpd/research-map/:
 - FORMALISM.md ([N] lines) - Theoretical framework, key equations, symmetries
 - REFERENCES.md ([N] lines) - Literature foundations, cited papers, experimental data
 - ARCHITECTURE.md ([N] lines) - Computational pipeline, solvers, algorithms
@@ -356,15 +356,15 @@ Created .planning/research-map/:
 
 **Initialize project** -- use research map context for planning
 
-`$gpd-new-project`
+`/gpd:new-project`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- Re-run mapping: `$gpd-map-theory`
-- Review specific file: `cat .planning/research-map/FORMALISM.md`
+- Re-run mapping: `/gpd:map-theory`
+- Review specific file: `cat .gpd/research-map/FORMALISM.md`
 - Edit any document before proceeding
 
 ---
@@ -377,7 +377,7 @@ End workflow.
 
 <success_criteria>
 
-- .planning/research-map/ directory created
+- .gpd/research-map/ directory created
 - 4 parallel gpd-theory-mapper agents spawned with run_in_background=true
 - Agents write documents directly (orchestrator doesn't receive document contents)
 - Read agent output files to collect confirmations

@@ -3,11 +3,11 @@ name: gpd:new-project
 description: Initialize a new physics research project with deep context gathering and PROJECT.md
 argument-hint: "[--auto] [--minimal [@file.md]]"
 allowed-tools:
-  - Read
-  - Bash
-  - Write
-  - Task
-  - AskUserQuestion
+  - file_read
+  - shell
+  - file_write
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -16,7 +16,7 @@ allowed-tools:
 <context>
 **Flags:**
 - `--auto` — Automatic mode. After config questions, runs research → requirements → roadmap without further interaction. Expects research proposal document via @ reference.
-- `--minimal` — Skip deep questioning, literature survey, requirements elaboration, and roadmapper agent. Creates all `.planning/` artifacts from a single description or input file with sensible defaults. Use for fast bootstrapping when you know your research plan.
+- `--minimal` — Skip deep questioning, literature survey, requirements elaboration, and roadmapper agent. Creates all `.gpd/` artifacts from a single description or input file with sensible defaults. Use for fast bootstrapping when you know your research plan.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phases, and key parameters from the file.
 </context>
 
@@ -25,12 +25,12 @@ Initialize a new physics research project through unified flow: questioning → 
 
 **Creates:**
 
-- `.planning/PROJECT.md` — research project context
-- `.planning/config.json` — workflow preferences
-- `.planning/research/` — domain and literature research (optional)
-- `.planning/REQUIREMENTS.md` — scoped research requirements
-- `.planning/ROADMAP.md` — phase structure
-- `.planning/STATE.md` — project memory
+- `.gpd/PROJECT.md` — research project context
+- `.gpd/config.json` — workflow preferences
+- `.gpd/research/` — domain and literature research (optional)
+- `.gpd/REQUIREMENTS.md` — scoped research requirements
+- `.gpd/ROADMAP.md` — phase structure
+- `.gpd/STATE.md` — project memory
 
 **After this command:** Run `/gpd:plan-phase 1` to start execution.
 </objective>
@@ -44,7 +44,7 @@ Initialize a new physics research project through unified flow: questioning → 
 </execution_context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/new-project.md — this contains the complete step-by-step instructions (1693 lines) for initializing a research project. Do NOT improvise. Follow the workflow file exactly.
 
 Also read these reference files:
@@ -69,25 +69,25 @@ Check `$ARGUMENTS` for flags:
 
 <output>
 
-- `.planning/PROJECT.md`
-- `.planning/config.json`
-- `.planning/research/` (if research selected)
+- `.gpd/PROJECT.md`
+- `.gpd/config.json`
+- `.gpd/research/` (if research selected)
   - `PRIOR-WORK.md`
   - `METHODS.md`
   - `COMPUTATIONAL.md`
   - `PITFALLS.md`
   - `SUMMARY.md`
-- `.planning/REQUIREMENTS.md`
-- `.planning/ROADMAP.md`
-- `.planning/STATE.md`
-- `.planning/CONVENTIONS.md` (established by gpd-notation-coordinator)
+- `.gpd/REQUIREMENTS.md`
+- `.gpd/ROADMAP.md`
+- `.gpd/STATE.md`
+- `.gpd/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
 
 <success_criteria>
 
 **Full mode success criteria:**
-- [ ] .planning/ directory created and git repo initialized
+- [ ] .gpd/ directory created and git repo initialized
 - [ ] Deep questioning completed (research context fully captured)
 - [ ] PROJECT.md created with full context -- committed
 - [ ] config.json created with workflow settings -- committed
@@ -101,7 +101,7 @@ Check `$ARGUMENTS` for flags:
 
 **Minimal mode success criteria (if `--minimal`):**
 
-- [ ] .planning/ directory created
+- [ ] .gpd/ directory created
 - [ ] Git repo initialized
 - [ ] PROJECT.md created from single description or input file → **committed**
 - [ ] ROADMAP.md created with phases derived from input → **committed**

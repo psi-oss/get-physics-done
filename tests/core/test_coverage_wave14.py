@@ -35,8 +35,8 @@ def _bootstrap_project(
     current_phase: str = "03",
     status: str = "Executing",
 ) -> Path:
-    """Create a minimal .planning/ project with STATE.md + state.json."""
-    planning = tmp_path / ".planning"
+    """Create a minimal .gpd/ project with STATE.md + state.json."""
+    planning = tmp_path / ".gpd"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -193,7 +193,7 @@ class TestStateAddDecision:
         assert result.added is True
         assert "Better stability" in (result.decision or "")
         # Verify it's in the STATE.md
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "Choose RK4 integrator" in md
         assert "Better stability" in md
 
@@ -215,7 +215,7 @@ class TestStateAddDecision:
         assert result.added is False
 
     def test_add_decision_no_state_file(self, tmp_path: Path) -> None:
-        # No .planning directory at all
+        # No .gpd directory at all
         result = state_add_decision(tmp_path, summary="Something")
         assert result.added is False
         assert "not found" in (result.error or "").lower()
@@ -224,7 +224,7 @@ class TestStateAddDecision:
         cwd = _bootstrap_project(tmp_path)
         state_add_decision(cwd, summary="Decision A", phase="1")
         state_add_decision(cwd, summary="Decision B", phase="2")
-        md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "Decision A" in md
         assert "Decision B" in md
 
@@ -232,11 +232,11 @@ class TestStateAddDecision:
         """Adding a decision should remove the 'None yet.' placeholder."""
         cwd = _bootstrap_project(tmp_path)
         # Default state has "None yet." in decisions section
-        md_before = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md_before = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         assert "None yet." in md_before
 
         state_add_decision(cwd, summary="First decision", phase="1")
-        md_after = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+        md_after = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
         # The placeholder should be gone from the decisions section
         # (it might still exist in other sections)
         decisions_start = md_after.find("### Decisions")
@@ -259,7 +259,7 @@ class TestSyncStateJson:
 
     def test_sync_creates_state_json_from_md(self, tmp_path: Path) -> None:
         """sync_state_json should create state.json when it doesn't exist."""
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = default_state_dict()
         state["position"]["current_phase"] = "01"
@@ -277,7 +277,7 @@ class TestSyncStateJson:
     def test_sync_merges_into_existing_json(self, tmp_path: Path) -> None:
         """sync should preserve JSON-only fields when merging from MD."""
         cwd = _bootstrap_project(tmp_path)
-        planning = cwd / ".planning"
+        planning = cwd / ".gpd"
         json_path = planning / "state.json"
 
         # Add a custom JSON-only field
@@ -291,7 +291,7 @@ class TestSyncStateJson:
 
     def test_sync_core_writes_backup(self, tmp_path: Path) -> None:
         cwd = _bootstrap_project(tmp_path)
-        planning = cwd / ".planning"
+        planning = cwd / ".gpd"
         md_content = (planning / "STATE.md").read_text(encoding="utf-8")
         sync_state_json_core(cwd, md_content)
         bak_path = planning / "state.json.bak"
@@ -300,7 +300,7 @@ class TestSyncStateJson:
     def test_sync_recovers_from_corrupt_json(self, tmp_path: Path) -> None:
         """If state.json is corrupt, sync should still work (fresh parse)."""
         cwd = _bootstrap_project(tmp_path)
-        planning = cwd / ".planning"
+        planning = cwd / ".gpd"
 
         # Corrupt state.json
         (planning / "state.json").write_text("NOT VALID JSON {{{", encoding="utf-8")
@@ -319,7 +319,7 @@ class TestSyncStateJson:
     def test_sync_recovers_from_corrupt_json_with_backup(self, tmp_path: Path) -> None:
         """If state.json is corrupt but backup exists, use backup as base."""
         cwd = _bootstrap_project(tmp_path)
-        planning = cwd / ".planning"
+        planning = cwd / ".gpd"
 
         # Create valid backup
         valid_state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
@@ -336,7 +336,7 @@ class TestSyncStateJson:
     def test_sync_updates_position_from_md(self, tmp_path: Path) -> None:
         """Position fields parsed from MD should update state.json."""
         cwd = _bootstrap_project(tmp_path, status="Planning")
-        planning = cwd / ".planning"
+        planning = cwd / ".gpd"
         md_content = (planning / "STATE.md").read_text(encoding="utf-8")
         result = sync_state_json(cwd, md_content)
         pos = result.get("position", {})
@@ -392,7 +392,7 @@ def _make_large_state_md(
     if extra_lines > 0:
         md += "\n" + "\n".join(f"<!-- padding line {i} -->" for i in range(extra_lines))
 
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -425,13 +425,13 @@ class TestStateCompact:
         result = state_compact(cwd)
 
         if result.compacted:
-            archive_path = cwd / ".planning" / "STATE-ARCHIVE.md"
+            archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
             assert archive_path.exists()
             archive_content = archive_path.read_text(encoding="utf-8")
             assert "Old decision" in archive_content
 
             # Current phase decision should still be in STATE.md
-            md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+            md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
             assert "Current phase decision" in md
         else:
             # If nothing_to_archive because keep_phase_min logic didn't fire,
@@ -446,14 +446,14 @@ class TestStateCompact:
         result = state_compact(cwd)
 
         if result.compacted:
-            archive_path = cwd / ".planning" / "STATE-ARCHIVE.md"
+            archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
             assert archive_path.exists()
             archive_content = archive_path.read_text(encoding="utf-8")
             # Either decisions or resolved blockers were archived
             assert "Old decision" in archive_content or "Resolved" in archive_content
 
             # Active blocker should still be in STATE.md
-            md = (cwd / ".planning" / "STATE.md").read_text(encoding="utf-8")
+            md = (cwd / ".gpd" / "STATE.md").read_text(encoding="utf-8")
             assert "Active blocker still open" in md
         else:
             assert result.reason in ("within_budget", "nothing_to_archive")
@@ -461,7 +461,7 @@ class TestStateCompact:
     def test_compact_appends_to_existing_archive(self, tmp_path: Path) -> None:
         """If STATE-ARCHIVE.md already exists, compact should append."""
         cwd = _make_large_state_md(tmp_path, n_old_decisions=50, extra_lines=80)
-        archive_path = cwd / ".planning" / "STATE-ARCHIVE.md"
+        archive_path = cwd / ".gpd" / "STATE-ARCHIVE.md"
         archive_path.write_text("# STATE Archive\n\nPrevious entries.\n\n", encoding="utf-8")
 
         result = state_compact(cwd)
@@ -474,7 +474,7 @@ class TestStateCompact:
         cwd = _make_large_state_md(tmp_path, n_old_decisions=50, extra_lines=80)
         state_compact(cwd)
 
-        json_path = cwd / ".planning" / "state.json"
+        json_path = cwd / ".gpd" / "state.json"
         stored = json.loads(json_path.read_text(encoding="utf-8"))
         assert isinstance(stored, dict)
         # state.json should be valid regardless of whether compaction happened

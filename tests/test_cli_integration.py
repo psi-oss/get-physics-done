@@ -15,6 +15,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.state import default_state_dict, generate_state_markdown
 
 runner = CliRunner()
 
@@ -27,35 +28,27 @@ runner = CliRunner()
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
 
-    state = {
-        "convention_lock": {
+    state = default_state_dict()
+    state["position"].update(
+        {
+            "current_phase": "01",
+            "current_phase_name": "Test Phase",
+            "total_phases": 2,
+            "status": "Executing",
+        }
+    )
+    state["convention_lock"].update(
+        {
             "metric_signature": "(-,+,+,+)",
             "coordinate_system": "Cartesian",
             "custom_conventions": {"my_custom": "value"},
-        },
-        "phases": [
-            {"number": "1", "name": "test-phase", "status": "completed"},
-            {"number": "2", "name": "phase-two", "status": "planned"},
-        ],
-        "current_phase": "1",
-        "current_plan": None,
-        "decisions": [],
-        "blockers": [],
-        "sessions": [],
-        "metrics": [],
-        "results": [],
-        "approximations": [],
-        "uncertainties": [],
-        "open_questions": [],
-        "calculations": [],
-    }
-    (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text(
-        "# State\n\n## Current Phase\n1\n\n## Decisions\n\n## Blockers\n"
+        }
     )
+    (planning / "state.json").write_text(json.dumps(state, indent=2))
+    (planning / "STATE.md").write_text(generate_state_markdown(state))
     (planning / "PROJECT.md").write_text(
         "# Test Project\n\n## Core Research Question\nWhat is physics?\n"
     )
@@ -70,7 +63,20 @@ def gpd_project(tmp_path: Path) -> Path:
         "# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n"
     )
     (planning / "config.json").write_text(
-        json.dumps({"mode": "yolo", "depth": "standard"})
+        json.dumps(
+            {
+                "autonomy": "yolo",
+                "research_mode": "balanced",
+                "parallelization": True,
+                "commit_docs": True,
+                "model_profile": "review",
+                "workflow": {
+                    "research": True,
+                    "plan_checker": True,
+                    "verifier": True,
+                },
+            }
+        )
     )
 
     # Phase directories
@@ -176,11 +182,11 @@ class TestSlug:
 
 class TestVerifyPath:
     def test_verify_existing_file(self, gpd_project: Path) -> None:
-        result = _invoke("verify-path", ".planning/state.json")
+        result = _invoke("verify-path", ".gpd/state.json")
         assert "file" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_existing_directory(self) -> None:
-        result = _invoke("verify-path", ".planning")
+        result = _invoke("verify-path", ".gpd")
         assert "directory" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_nonexistent_path(self) -> None:
@@ -189,7 +195,7 @@ class TestVerifyPath:
         assert "False" in result.output or "false" in result.output
 
     def test_verify_path_raw(self, gpd_project: Path) -> None:
-        result = _invoke("--raw", "verify-path", ".planning/state.json")
+        result = _invoke("--raw", "verify-path", ".gpd/state.json")
         parsed = json.loads(result.output)
         assert parsed["exists"] is True
         assert parsed["type"] == "file"
@@ -262,8 +268,7 @@ class TestRegressionCheck:
 
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
-        gpd_project / ".planning" / "phases" / "01-test-phase"
-        p2 = gpd_project / ".planning" / "phases" / "02-phase-two"
+        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention
         (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
@@ -366,25 +371,13 @@ class TestValidateReturn:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 7. dependency-graph
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestDependencyGraph:
-    def test_dependency_graph_not_implemented(self) -> None:
-        """dependency-graph currently raises BadParameter (not implemented)."""
-        result = runner.invoke(app, ["dependency-graph"], catch_exceptions=False)
-        assert result.exit_code != 0
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 8. config subcommands
+# 7. config subcommands
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestConfigCommands:
     def test_config_get_existing_key(self) -> None:
-        result = _invoke("--raw", "config", "get", "mode")
+        result = _invoke("--raw", "config", "get", "autonomy")
         parsed = json.loads(result.output)
         assert parsed["found"] is True
         assert parsed["value"] == "yolo"
@@ -396,7 +389,7 @@ class TestConfigCommands:
 
     def test_config_get_nested_key(self, gpd_project: Path) -> None:
         """Test dot-path access for nested keys."""
-        config_path = gpd_project / ".planning" / "config.json"
+        config_path = gpd_project / ".gpd" / "config.json"
         config_path.write_text(json.dumps({"nested": {"key": "value"}}))
         result = _invoke("--raw", "config", "get", "nested.key")
         parsed = json.loads(result.output)
@@ -410,14 +403,14 @@ class TestConfigCommands:
 
         # Verify it persisted
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["new_key"] == "new_value"
 
     def test_config_set_nested_key(self, gpd_project: Path) -> None:
         _invoke("config", "set", "section.subsection", "deep_value")
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["section"]["subsection"] == "deep_value"
 
@@ -425,7 +418,7 @@ class TestConfigCommands:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""
         _invoke("config", "set", "count", "42")
         config = json.loads(
-            (gpd_project / ".planning" / "config.json").read_text()
+            (gpd_project / ".gpd" / "config.json").read_text()
         )
         assert config["count"] == 42
 
@@ -437,11 +430,18 @@ class TestConfigCommands:
 
     def test_config_ensure_section_creates(self, gpd_project: Path) -> None:
         """ensure-section without config.json should create defaults."""
-        (gpd_project / ".planning" / "config.json").unlink()
+        (gpd_project / ".gpd" / "config.json").unlink()
         result = _invoke("--raw", "config", "ensure-section")
         parsed = json.loads(result.output)
         assert parsed["created"] is True
-        assert (gpd_project / ".planning" / "config.json").exists()
+        config_path = gpd_project / ".gpd" / "config.json"
+        assert config_path.exists()
+        config = json.loads(config_path.read_text())
+        assert config["autonomy"] == "guided"
+        assert config["research_mode"] == "balanced"
+        assert config["parallelization"] is True
+        assert config["workflow"]["plan_checker"] is True
+        assert config["git"]["branching_strategy"] == "none"
 
     def test_config_help(self) -> None:
         result = _invoke("config", "--help")
@@ -450,76 +450,7 @@ class TestConfigCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 9. template subcommands
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestTemplateCommands:
-    def test_template_select(self, gpd_project: Path) -> None:
-        """select should classify a plan file as minimal/standard/complex."""
-        plan_path = ".planning/phases/01-test-phase/01-PLAN.md"
-        result = _invoke("--raw", "template", "select", plan_path)
-        parsed = json.loads(result.output)
-        assert "template_type" in parsed
-        assert parsed["template_type"] in ("minimal", "standard", "complex")
-
-    def test_template_fill_summary(self) -> None:
-        """fill summary should create a SUMMARY template in the phase dir."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "summary",
-            "--phase",
-            "1",
-            "--plan",
-            "01",
-            "--name",
-            "Test Phase",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_fill_plan(self) -> None:
-        """fill plan should create a PLAN template."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "plan",
-            "--phase",
-            "1",
-            "--plan",
-            "02",
-            "--name",
-            "Second Plan",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_fill_verification(self) -> None:
-        """fill verification should create a VERIFICATION template."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "verification",
-            "--phase",
-            "1",
-            "--name",
-            "Test Phase",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_help(self) -> None:
-        result = _invoke("template", "--help")
-        assert "select" in result.output
-        assert "fill" in result.output
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 10. json subcommands
+# 8. json subcommands
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -643,30 +574,15 @@ class TestJsonCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Extra coverage: scaffold, summary-extract, resolve-model
+# Extra coverage: summary-extract, resolve-model
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestScaffoldCommand:
-    def test_scaffold_context(self) -> None:
-        result = _invoke("--raw", "scaffold", "context", "--phase", "1")
-        parsed = json.loads(result.output)
-        assert parsed["created"] is True
-
-    def test_scaffold_phase_dir(self) -> None:
-        result = _invoke(
-            "--raw", "scaffold", "phase-dir", "--phase", "3", "--name", "New Phase"
-        )
-        parsed = json.loads(result.output)
-        assert parsed["created"] is True
-
 
 class TestSummaryExtractCommand:
     def test_summary_extract(self) -> None:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".planning/phases/01-test-phase/01-SUMMARY.md",
+            ".gpd/phases/01-test-phase/01-SUMMARY.md",
         )
         parsed = json.loads(result.output)
         assert parsed["one_liner"] == "Set up project"
@@ -676,7 +592,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".planning/phases/01-test-phase/01-SUMMARY.md",
+            ".gpd/phases/01-test-phase/01-SUMMARY.md",
             "--field",
             "one_liner",
         )

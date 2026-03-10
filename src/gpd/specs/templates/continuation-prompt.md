@@ -39,14 +39,14 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 </resume_instructions>
 
 <files_to_read>
-Read these files at execution start using the Read tool:
+Read these files at execution start using the file_read tool:
 - Workflow: get-physics-done/workflows/execute-plan.md
 - Summary template: get-physics-done/templates/summary.md
 - Checkpoints ref: get-physics-done/references/checkpoints.md
 - Validation ref: get-physics-done/references/verification-core.md
 - Plan: {phase_dir}/{plan_file}
-- State: .planning/STATE.md
-- Config: .planning/config.json (if exists)
+- State: .gpd/STATE.md
+- Config: .gpd/config.json (if exists)
 </files_to_read>
 
 <verification_before_continuing>
@@ -84,7 +84,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 | `{checkpoint_type}`       | From checkpoint return              | `human-verify`                                                            |
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
-| `{phase_dir}`             | Phase directory path                | `.planning/phases/03-phase-diagram`                                       |
+| `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |
 | `{phase}`                 | Phase prefix                        | `03`                                                                      |
 | `{plan}`                  | Plan prefix                         | `03`                                                                      |
@@ -106,7 +106,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 **From execute-phase.md checkpoint_handling step:**
 
 ```python
-Task(
+task(
   subagent_type="gpd-executor",
   model="{executor_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.\n\n" + filled_template,
@@ -114,7 +114,7 @@ Task(
 )
 ```
 
-<!-- Task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
+<!-- task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
 
 **Why fresh agent, not resume:** Resume relies on internal serialization that can break with parallel tool calls. Fresh agents with explicit prior state are more reliable and produce consistent results across platforms.
 

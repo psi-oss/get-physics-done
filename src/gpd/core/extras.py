@@ -51,6 +51,8 @@ class Approximation(BaseModel):
 class ApproximationCheckResult(BaseModel):
     """Result of checking all approximations against their validity ranges."""
 
+    model_config = ConfigDict(frozen=True)
+
     valid: list[Approximation] = Field(default_factory=list)
     marginal: list[Approximation] = Field(default_factory=list)
     invalid: list[Approximation] = Field(default_factory=list)
@@ -91,15 +93,19 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         return None
 
     # Pattern: "x << bound" — much less than
+    # NOTE: the single-bound < / > patterns checked later would also match
+    # "<<" / ">>" strings via re.search, but they are unreachable because
+    # the << / >> branches are tested first and return early.
     m = re.search(r"<<\s*([0-9.eE+-]+)", range_str)
     if m:
         bound = _parse_float(m.group(1))
         if bound is None:
             return None
         if bound < 0:
-            if val < 0.1 * bound:
+            # For negative bound, "much less than" means much more negative
+            if val < bound * 10:  # e.g., val < -50 for bound=-5
                 return "valid"
-            if val < 0.5 * bound:
+            if val < bound * 2:  # e.g., val < -10 for bound=-5
                 return "marginal"
             return "invalid"
         if bound == 0:
@@ -127,6 +133,19 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
             if abs(val) > 1:
                 return "marginal"
             return "invalid"
+        if bound < 0:
+            # For negative bound, "much greater than" means the value is far
+            # above the bound.  Use the *distance* from the bound (val - bound)
+            # scaled by |bound| to judge how much greater the value is.
+            distance = val - bound  # positive when val > bound
+            scale = abs(bound)
+            if distance > 10 * scale:
+                return "valid"
+            if distance > 2 * scale:
+                return "marginal"
+            if distance > 0:
+                return "marginal"
+            return "invalid"
         if abs(val) > 10 * abs(bound):
             return "valid"
         if abs(val) > 2 * abs(bound):
@@ -134,7 +153,7 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         return "invalid"
 
     # Pattern: "low OP x OP high" — double-bounded range
-    m = re.search(r"([0-9.eE+-]+)\s*([<>]=?)\s*\w+\s*([<>]=?)\s*([0-9.eE+-]+)", range_str)
+    m = re.search(r"([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*([<>]=?)\s*\w+\s*([<>]=?)\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)", range_str)
     if m:
         n1 = _parse_float(m.group(1))
         op1 = m.group(2)
@@ -276,7 +295,10 @@ def approximation_check(state: dict) -> ApproximationCheckResult:
 
     Categorizes each approximation as valid, marginal, invalid, or unchecked.
     """
-    result = ApproximationCheckResult()
+    valid: list[Approximation] = []
+    marginal: list[Approximation] = []
+    invalid: list[Approximation] = []
+    unchecked: list[Approximation] = []
 
     for approx_dict in state.get("approximations", []):
         approx = Approximation(**approx_dict)
@@ -284,20 +306,22 @@ def approximation_check(state: dict) -> ApproximationCheckResult:
         range_str = approx.validity_range
 
         if val is None or not range_str:
-            result.unchecked.append(approx)
+            unchecked.append(approx)
             continue
 
-        check = check_approximation_validity(val, range_str)
-        if check is None:
-            result.unchecked.append(approx)
-        elif check == "valid":
-            result.valid.append(approx)
-        elif check == "marginal":
-            result.marginal.append(approx)
+        status = check_approximation_validity(val, range_str)
+        if status is None:
+            unchecked.append(approx)
+        elif status == "valid":
+            valid.append(approx)
+        elif status == "marginal":
+            marginal.append(approx)
         else:
-            result.invalid.append(approx)
+            invalid.append(approx)
 
-    return result
+    return ApproximationCheckResult(
+        valid=valid, marginal=marginal, invalid=invalid, unchecked=unchecked
+    )
 
 
 # ─── Uncertainty Commands ────────────────────────────────────────────────────────

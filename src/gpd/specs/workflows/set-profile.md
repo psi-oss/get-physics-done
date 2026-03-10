@@ -32,7 +32,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-This creates `.planning/config.json` with defaults if missing and loads current config.
+This creates `.gpd/config.json` with defaults if missing and loads current config.
 </step>
 
 <step name="update_config">
@@ -46,7 +46,7 @@ Update `model_profile` field:
 }
 ```
 
-Write updated config back to `.planning/config.json`.
+Write updated config back to `.gpd/config.json`.
 </step>
 
 <step name="confirm">
@@ -168,7 +168,7 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 | review         | enabled                        |
 | paper-writing  | disabled                       |
 
-Override with `$gpd-settings` or by editing `.planning/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
+Override with `/gpd:settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
 
 For full agent tier assignments across all 17 agents, see `references/model-profiles.md`.
 For detailed behavioral effect descriptions per agent per profile, see the "Behavioral Effects" section in `references/model-profiles.md`.

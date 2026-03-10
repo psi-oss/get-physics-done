@@ -8,9 +8,9 @@ Mark a completed research stage (v1.0, v1.1, v2.0) as done. Creates historical r
 
 1. templates/milestone.md
 2. templates/milestone-archive.md
-3. `.planning/ROADMAP.md`
-4. `.planning/REQUIREMENTS.md`
-5. `.planning/PROJECT.md`
+3. `.gpd/ROADMAP.md`
+4. `.gpd/REQUIREMENTS.md`
+5. `.gpd/PROJECT.md`
 
 </required_reading>
 
@@ -18,8 +18,8 @@ Mark a completed research stage (v1.0, v1.1, v2.0) as done. Creates historical r
 
 When a research milestone completes:
 
-1. Extract full milestone details to `.planning/milestones/v[X.Y]-ROADMAP.md`
-2. Archive requirements to `.planning/milestones/v[X.Y]-REQUIREMENTS.md`
+1. Extract full milestone details to `.gpd/milestones/v[X.Y]-ROADMAP.md`
+2. Archive requirements to `.gpd/milestones/v[X.Y]-REQUIREMENTS.md`
 3. Update ROADMAP.md -- replace milestone details with one-line summary
 4. Delete REQUIREMENTS.md (fresh one for next research stage)
 5. Perform full PROJECT.md evolution review
@@ -66,7 +66,7 @@ Total: {phase_count} phases, {total_plans} plans, all complete
 <config-check>
 
 ```bash
-if [ -f .planning/config.json ]; then cat .planning/config.json; else echo "WARNING: config.json not found — using defaults"; fi
+if [ -f .gpd/config.json ]; then cat .gpd/config.json; else echo "WARNING: config.json not found — using defaults"; fi
 ```
 
 </config-check>
@@ -132,7 +132,7 @@ Extract one-liners from SUMMARY.md files using summary-extract:
 
 ```bash
 # For each phase in milestone, extract one-liner
-for summary in .planning/phases/*-*/*-SUMMARY.md; do
+for summary in .gpd/phases/*-*/*-SUMMARY.md; do
   gpd summary-extract "$summary" --field one_liner | gpd json get .one_liner --default ""
 done
 ```
@@ -165,7 +165,7 @@ Full PROJECT.md evolution review at milestone completion.
 Read all phase summaries:
 
 ```bash
-cat .planning/phases/*-*/*-SUMMARY.md
+cat .gpd/phases/*-*/*-SUMMARY.md
 ```
 
 **Full review checklist:**
@@ -310,12 +310,12 @@ Minor discrepancy with Georges et al. (1996) at high T -- likely finite bath-siz
 
 <step name="generate_research_digest">
 
-Generate a structured research digest that serves as the primary handoff artifact between milestone completion and paper writing. This digest lives at `.planning/milestones/v[X.Y]/RESEARCH-DIGEST.md` and captures the full research story in a form optimized for downstream consumption by the paper-writing workflow.
+Generate a structured research digest that serves as the primary handoff artifact between milestone completion and paper writing. This digest lives at `.gpd/milestones/v[X.Y]/RESEARCH-DIGEST.md` and captures the full research story in a form optimized for downstream consumption by the paper-writing workflow.
 
 **Step 0 -- Ensure digest directory exists:**
 
 ```bash
-mkdir -p .planning/milestones/v[X.Y]
+mkdir -p .gpd/milestones/v[X.Y]
 ```
 
 **Step 1 -- Run history-digest for foundation data:**
@@ -330,24 +330,24 @@ This returns per-phase summaries with one-liners, provides/requires, and depende
 
 ```bash
 # All SUMMARY.md files from this milestone's phases
-cat .planning/phases/*-*/*-SUMMARY.md
+cat .gpd/phases/*-*/*-SUMMARY.md
 
 # Research state
-cat .planning/state.json
+cat .gpd/state.json
 
 # Convention catalog (full reference)
-cat .planning/CONVENTIONS.md
+cat .gpd/CONVENTIONS.md
 
 # Convention lock (machine-readable, from state.json)
 gpd convention list --raw
 
 # Original objectives
-cat .planning/REQUIREMENTS.md
+cat .gpd/REQUIREMENTS.md
 ```
 
 **Step 3 -- Compose RESEARCH-DIGEST.md:**
 
-Create `.planning/milestones/v[X.Y]/RESEARCH-DIGEST.md` with the following structure:
+Create `.gpd/milestones/v[X.Y]/RESEARCH-DIGEST.md` with the following structure:
 
 ```markdown
 # Research Digest: v[X.Y] [Milestone Name]
@@ -460,7 +460,7 @@ ARCHIVE=$(gpd milestone complete "v[X.Y]" --name "[Milestone Name]")
 
 The CLI handles:
 
-- Creating `.planning/milestones/` directory
+- Creating `.gpd/milestones/` directory
 - Archiving ROADMAP.md to `milestones/v[X.Y]-ROADMAP.md`
 - Archiving REQUIREMENTS.md to `milestones/v[X.Y]-REQUIREMENTS.md` with archive header
 - Moving audit file to milestones if it exists
@@ -469,9 +469,9 @@ The CLI handles:
 
 Extract from result: `version`, `date`, `phases`, `plans`, `tasks`, `accomplishments`, `archived`.
 
-Verify: `Milestone archived to .planning/milestones/`
+Verify: `Milestone archived to .gpd/milestones/`
 
-**Note:** Phase directories (`.planning/phases/`) are NOT deleted -- they accumulate across milestones as raw research history. Phase numbering continues (v1.0 phases 1-4, v1.1 phases 5-8, etc.).
+**Note:** Phase directories (`.gpd/phases/`) are NOT deleted -- they accumulate across milestones as raw research history. Phase numbering continues (v1.0 phases 1-4, v1.1 phases 5-8, etc.).
 
 
 </step>
@@ -483,7 +483,7 @@ Review project-local insights accumulated during this milestone and promote conf
 **Step 1 — Check for project insights:**
 
 ```bash
-ls .planning/INSIGHTS.md 2>/dev/null
+ls .gpd/INSIGHTS.md 2>/dev/null
 ```
 
 If no INSIGHTS.md exists, skip this step.
@@ -497,7 +497,7 @@ gpd pattern list --raw 2>/dev/null
 
 **Step 3 — Review insights for promotion candidates:**
 
-Read `.planning/INSIGHTS.md` and identify entries that:
+Read `.gpd/INSIGHTS.md` and identify entries that:
 - Were confirmed across 2+ phases (high confidence)
 - Describe repeatable error patterns, not one-off issues
 - Have clear detection and prevention strategies
@@ -563,11 +563,11 @@ ROADMAP.md is kept and reorganized (above). REQUIREMENTS.md is deleted -- a fres
 
 ```bash
 # Verify archive exists before deleting original
-if [ -f ".planning/milestones/v${VERSION}-REQUIREMENTS.md" ]; then
+if [ -f ".gpd/milestones/v${VERSION}-REQUIREMENTS.md" ]; then
   # Use git rm so the deletion is staged for commit (not just a filesystem rm)
-  git rm .planning/REQUIREMENTS.md 2>/dev/null || rm .planning/REQUIREMENTS.md
+  git rm .gpd/REQUIREMENTS.md 2>/dev/null || rm .gpd/REQUIREMENTS.md
 else
-  echo "ERROR: Archive not found at .planning/milestones/v${VERSION}-REQUIREMENTS.md. Refusing to delete original."
+  echo "ERROR: Archive not found at .gpd/milestones/v${VERSION}-REQUIREMENTS.md. Refusing to delete original."
   exit 1
 fi
 ```
@@ -575,12 +575,12 @@ fi
 Commit the reorganized roadmap and milestone archive:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/milestones/ .planning/ROADMAP.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/milestones/ .gpd/ROADMAP.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "chore(milestone-v${VERSION}): reorganize roadmap and retire requirements" \
-  --files .planning/milestones/ .planning/ROADMAP.md
+  --files .gpd/milestones/ .gpd/ROADMAP.md
 ```
 
 </step>
@@ -594,7 +594,7 @@ Most STATE.md updates were handled by `milestone complete`, but verify and updat
 ```markdown
 ## Project Reference
 
-See: .planning/PROJECT.md (updated [today])
+See: .gpd/PROJECT.md (updated [today])
 
 **Core research question:** [Current core question from PROJECT.md]
 **Current focus:** [Next milestone or "Planning next research stage"]
@@ -656,9 +656,9 @@ Options:
 3. **Keep branches** -- Leave for manual handling
 ```
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-AskUserQuestion with options: Squash merge (Recommended), Merge with history, Delete without merging, Keep branches.
+ask_user with options: Squash merge (Recommended), Merge with history, Delete without merging, Keep branches.
 
 **Squash merge:**
 
@@ -732,7 +732,7 @@ Key findings:
 - [Finding 2]
 - [Finding 3]
 
-See .planning/MILESTONES.md for full details."
+See .gpd/MILESTONES.md for full details."
 ```
 
 Confirm: "Tagged: v[X.Y]"
@@ -749,15 +749,15 @@ git push origin v[X.Y]
 
 <step name="git_commit_milestone">
 
-Commit milestone completion. Only include files that exist (MILESTONE-AUDIT.md is optional — only present if `$gpd-audit-milestone` was run beforehand).
+Commit milestone completion. Only include files that exist (MILESTONE-AUDIT.md is optional — only present if `/gpd:audit-milestone` was run beforehand).
 
 Build the file list, conditionally including MILESTONE-AUDIT.md if it exists:
 
 ```bash
-COMMIT_FILES=".planning/milestones/v[X.Y]-ROADMAP.md .planning/milestones/v[X.Y]-REQUIREMENTS.md .planning/milestones/v[X.Y]/RESEARCH-DIGEST.md .planning/MILESTONES.md .planning/PROJECT.md .planning/STATE.md"
+COMMIT_FILES=".gpd/milestones/v[X.Y]-ROADMAP.md .gpd/milestones/v[X.Y]-REQUIREMENTS.md .gpd/milestones/v[X.Y]/RESEARCH-DIGEST.md .gpd/MILESTONES.md .gpd/PROJECT.md .gpd/STATE.md"
 
-if [ -f ".planning/milestones/v[X.Y]-MILESTONE-AUDIT.md" ]; then
-  COMMIT_FILES="$COMMIT_FILES .planning/milestones/v[X.Y]-MILESTONE-AUDIT.md"
+if [ -f ".gpd/milestones/v[X.Y]-MILESTONE-AUDIT.md" ]; then
+  COMMIT_FILES="$COMMIT_FILES .gpd/milestones/v[X.Y]-MILESTONE-AUDIT.md"
 fi
 
 PRE_CHECK=$(gpd pre-commit-check --files $COMMIT_FILES 2>&1) || true
@@ -784,7 +784,7 @@ Archived:
 - milestones/v[X.Y]-REQUIREMENTS.md
 - milestones/v[X.Y]/RESEARCH-DIGEST.md
 
-Summary: .planning/MILESTONES.md
+Summary: .gpd/MILESTONES.md
 Tag: v[X.Y]
 
 ---
@@ -793,7 +793,7 @@ Tag: v[X.Y]
 
 **Start Next Research Stage** -- new questions -> literature review -> requirements -> roadmap
 
-`$gpd-new-milestone`
+`/gpd:new-milestone`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -843,6 +843,6 @@ Milestone completion is successful when:
 - [ ] Pattern promotion reviewed (INSIGHTS.md checked, candidates offered for `pattern add`)
 - [ ] Git tag created (v[X.Y])
 - [ ] Milestone commit made (includes archive files and deletion)
-- [ ] Researcher knows next step ($gpd-new-milestone)
+- [ ] Researcher knows next step (/gpd:new-milestone)
 
 </success_criteria>

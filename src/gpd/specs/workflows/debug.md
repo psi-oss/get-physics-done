@@ -24,15 +24,15 @@ Detection: If `$ARGUMENTS` contains `--batch` or if `gaps_from_verification` con
 </mode_detection>
 
 <paths>
-DEBUG_DIR=.planning/debug
+DEBUG_DIR=.gpd/debug
 
 Ensure the debug directory exists before writing:
 
 ```bash
-mkdir -p .planning/debug
+mkdir -p .gpd/debug
 ```
 
-Debug files use the `.planning/debug/` path (hidden directory with leading dot).
+Debug files use the `.gpd/debug/` path (hidden directory with leading dot).
 </paths>
 
 <quick_triage>
@@ -148,10 +148,10 @@ For each gap, fill the debug subagent prompt template (see `{GPD_INSTALL_DIR}/te
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\n" + filled_investigation_subagent_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",
@@ -267,7 +267,7 @@ For each gap in the Gaps section, add artifacts and missing fields:
     - "Add energy conservation monitoring per timestep"
     - "Verify energy drift < 1e-10 over 10^6 steps"
   physics_impact: "Energy drift causes systematic heating, affecting all thermodynamic averages"
-  debug_session: .planning/debug/energy-not-conserved.md
+  debug_session: .gpd/debug/energy-not-conserved.md
 ```
 
 Update status in frontmatter to "diagnosed".
@@ -325,7 +325,7 @@ Agents only diagnose -- plan-phase --gaps handles fixes (no fix application).
 **Agent times out:**
 
 - Check DEBUG-{slug}.md for partial progress
-- Can resume with $gpd-debug
+- Can resume with /gpd:debug
 
 **All agents fail:**
 

@@ -40,7 +40,7 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ERROR: No active milestone found.
 
 A milestone audit requires a project with phases.
-Run $gpd-new-project first, then complete phases before auditing.
+Run /gpd:new-project first, then complete phases before auditing.
 ```
 
 Exit.
@@ -68,8 +68,8 @@ gpd phase list
 For each phase directory, read the VERIFICATION.md:
 
 ```bash
-cat .planning/phases/01-*/*-VERIFICATION.md
-cat .planning/phases/02-*/*-VERIFICATION.md
+cat .gpd/phases/01-*/*-VERIFICATION.md
+cat .gpd/phases/02-*/*-VERIFICATION.md
 # etc.
 ```
 
@@ -89,10 +89,10 @@ With phase context collected:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
 Check cross-phase physics consistency and end-to-end research coherence.
@@ -114,7 +114,7 @@ Verify:
 )
 ```
 
-**If the consistency checker agent fails to spawn or returns an error:** Proceed without cross-phase consistency checks. Note in the audit report that consistency verification was skipped. The phase-level checks (step 2) still provide individual phase validation. The user should run `$gpd-validate-conventions` separately after the audit.
+**If the consistency checker agent fails to spawn or returns an error:** Proceed without cross-phase consistency checks. Note in the audit report that consistency verification was skipped. The phase-level checks (step 2) still provide individual phase validation. The user should run `/gpd:validate-conventions` separately after the audit.
 
 ## 4. Collect Results
 
@@ -133,7 +133,7 @@ For each requirement in REQUIREMENTS.md mapped to this milestone:
 
 ## 6. Aggregate into v{version}-MILESTONE-AUDIT.md
 
-Create `.planning/v{version}-MILESTONE-AUDIT.md` with:
+Create `.gpd/v{version}-MILESTONE-AUDIT.md` with:
 
 ```yaml
 ---
@@ -171,7 +171,7 @@ Plus full markdown report with tables for requirements, phases, consistency, ope
 
 ## 7. Optional: Mock Peer Review
 
-If enabled in config (`referee_review: true` in `.planning/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps.
+If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps.
 
 **Check config or ask user:**
 
@@ -179,7 +179,7 @@ If enabled in config (`referee_review: true` in `.planning/config.json`) or if t
 REFEREE_ENABLED=$(python3 -c "
 import json, pathlib
 try:
-    c = json.loads(pathlib.Path('.planning/config.json').read_text())
+    c = json.loads(pathlib.Path('.gpd/config.json').read_text())
     v = c.get('referee_review')
     print('unset' if v is None else str(v).lower())
 except Exception:
@@ -201,10 +201,10 @@ REFEREE_MODEL=$(gpd resolve-model gpd-referee --raw)
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   subagent_type="gpd-referee",
   model="{referee_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
@@ -216,11 +216,11 @@ Milestone: {milestone_version} -- {milestone_name}
 
 Files to read:
 - ROADMAP.md (research goals and phase structure)
-- All SUMMARY.md files from completed phases in .planning/phases/
+- All SUMMARY.md files from completed phases in .gpd/phases/
 - STATE.md (conventions, notation, parameters)
 - All VERIFICATION.md files from completed phases
 - Any manuscript .tex files (if they exist)
-- .planning/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
+- .gpd/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
 
 Evaluate across all 10 dimensions:
 1. Correctness -- dimensional analysis, limiting cases, sign conventions
@@ -234,13 +234,13 @@ Evaluate across all 10 dimensions:
 9. Presentation quality -- organization, figures
 10. Publishability -- overall assessment
 
-Write report to .planning/REFEREE-REPORT.md
+Write report to .gpd/REFEREE-REPORT.md
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )
 ```
 
-**If the referee agent fails to spawn or returns an error:** Proceed without mock peer review — note in the audit report that peer review was skipped. The audit is still valid based on consistency checks and phase-level verification. The user should run `$gpd-verify-work` separately after the audit.
+**If the referee agent fails to spawn or returns an error:** Proceed without mock peer review — note in the audit report that peer review was skipped. The audit is still valid based on consistency checks and phase-level verification. The user should run `/gpd:verify-work` separately after the audit.
 
 **After referee report:**
 
@@ -252,7 +252,7 @@ Read the report and include a summary in the presented results:
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Major issues:** {N}
 **Minor issues:** {N}
-**Report:** .planning/REFEREE-REPORT.md
+**Report:** .gpd/REFEREE-REPORT.md
 
 {2-3 sentence summary of key findings}
 ```
@@ -275,7 +275,7 @@ Output this markdown directly (not as a code block). Route based on status:
 ## Milestone {version} -- Audit Passed
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 All requirements covered. Cross-phase consistency verified. Research is complete and coherent.
 
@@ -285,7 +285,7 @@ All requirements covered. Cross-phase consistency verified. Research is complete
 
 **Complete milestone** -- archive and tag
 
-$gpd-complete-milestone {version}
+/gpd:complete-milestone {version}
 
 <sub>/clear first -> fresh context window</sub>
 
@@ -298,7 +298,7 @@ $gpd-complete-milestone {version}
 ## Milestone {version} -- Gaps Found
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 ### Unsatisfied Requirements
 
@@ -325,7 +325,7 @@ $gpd-complete-milestone {version}
 
 **Plan gap closure** -- create phases to complete research
 
-$gpd-plan-milestone-gaps
+/gpd:plan-milestone-gaps
 
 <sub>/clear first -> fresh context window</sub>
 
@@ -333,8 +333,8 @@ $gpd-plan-milestone-gaps
 
 **Also available:**
 
-- cat .planning/v{version}-MILESTONE-AUDIT.md -- see full report
-- $gpd-complete-milestone {version} -- proceed anyway (accept open questions)
+- cat .gpd/v{version}-MILESTONE-AUDIT.md -- see full report
+- /gpd:complete-milestone {version} -- proceed anyway (accept open questions)
 
 ---
 
@@ -345,7 +345,7 @@ $gpd-plan-milestone-gaps
 ## Milestone {version} -- Open Questions Review
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .planning/v{version}-MILESTONE-AUDIT.md
+**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
 
 All requirements met. No critical blockers. Accumulated open questions need review.
 
@@ -365,11 +365,11 @@ All requirements met. No critical blockers. Accumulated open questions need revi
 
 **A. Complete milestone** -- accept open questions, track in research log
 
-$gpd-complete-milestone {version}
+/gpd:complete-milestone {version}
 
 **B. Plan additional analysis** -- address open questions before completing
 
-$gpd-plan-milestone-gaps
+/gpd:plan-milestone-gaps
 
 <sub>/clear first -> fresh context window</sub>
 

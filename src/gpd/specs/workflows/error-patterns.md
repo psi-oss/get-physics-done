@@ -1,5 +1,5 @@
 <purpose>
-Display accumulated physics error patterns from `.planning/ERROR-PATTERNS.md`. Optionally filter by category. Error patterns are recorded by the debugger after confirming root causes, capturing project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
+Display accumulated physics error patterns from `.gpd/ERROR-PATTERNS.md`. Optionally filter by category. Error patterns are recorded by the debugger after confirming root causes, capturing project-specific failure modes so that verifiers, planners, and executors can proactively check for recurrence.
 </purpose>
 
 <required_reading>
@@ -12,7 +12,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 Check if the error patterns file exists:
 
 ```bash
-test -f .planning/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
+test -f .gpd/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 
 **If MISSING:**
@@ -20,19 +20,19 @@ test -f .planning/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 No error patterns recorded yet.
 
-Error patterns are captured by $gpd-debug when root causes are confirmed.
+Error patterns are captured by /gpd:debug when root causes are confirmed.
 They help the verifier and planner proactively check for recurring issues.
 
 ---
 
-Start a debugging session with $gpd-debug to begin building the pattern database.
+Start a debugging session with /gpd:debug to begin building the pattern database.
 ```
 
 Exit.
 </step>
 
 <step name="read_patterns">
-Read `.planning/ERROR-PATTERNS.md`.
+Read `.gpd/ERROR-PATTERNS.md`.
 
 Parse the patterns table. Each row contains:
 
@@ -62,7 +62,7 @@ Unknown category: "{input}"
 
 Available categories: sign, factor, convention, numerical, approximation, boundary, gauge, combinatorial
 
-Usage: $gpd-error-patterns [category]
+Usage: /gpd:error-patterns [category]
 ```
 
 Exit.
@@ -84,7 +84,7 @@ Filter the patterns table to show only rows matching the category.
 
 ---
 
-Showing {N} of {total} patterns. Run `$gpd-error-patterns` to see all.
+Showing {N} of {total} patterns. Run `/gpd:error-patterns` to see all.
 ```
 
 </step>
@@ -114,7 +114,7 @@ Showing {N} of {total} patterns. Run `$gpd-error-patterns` to see all.
 
 ---
 
-{total} patterns recorded. Filter by category: `$gpd-error-patterns sign`
+{total} patterns recorded. Filter by category: `/gpd:error-patterns sign`
 ```
 
 </step>
@@ -126,9 +126,9 @@ Present available actions:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-error-patterns <category>` -- filter by category
-- `$gpd-debug` -- start a debugging session (records new patterns)
-- `$gpd-verify-work` -- run verification (checks against known patterns)
+- `/gpd:error-patterns <category>` -- filter by category
+- `/gpd:debug` -- start a debugging session (records new patterns)
+- `/gpd:verify-work` -- run verification (checks against known patterns)
 - `gpd pattern search "<keyword>"` -- search global cross-project pattern library
 - `gpd pattern list` -- list all global patterns (from all projects)
 

@@ -1,10 +1,14 @@
 # Get Physics Done (GPD)
 
+### Built by physicists, for physicists
+
 [![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
 
-Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence), released as a community contribution. Built by physicists, for physicists, GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
+Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+If GPD is useful in your work, please star the repo and share it with other physicists who might benefit from it.
 
 ## Inspiration
 
@@ -15,32 +19,47 @@ GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github
 Bootstrap prerequisites:
 
 - Node.js with `npm`/`npx`
-- Python 3.11+ with `pip`
+- Python 3.11+ with the standard `venv` module
 - Network access to GitHub and PyPI
 
 Install GPD with `npx`:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done
+npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI with the unified terminal CLI surface (`gpd session` and `gpd view`), and then runs the runtime installer.
+The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the matching `get-physics-done` Python release there, and then runs the runtime installer.
 
-If you want to skip the prompts, pass the runtime and scope directly:
+If you want to skip the prompts, pass the runtime selection and scope directly:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done --claude --global
+npx -y github:physicalsuperintelligence/get-physics-done --claude --global
+```
+
+To install every supported runtime in one pass:
+
+```bash
+npx -y github:physicalsuperintelligence/get-physics-done --all --global
 ```
 
 For a project-local install instead of a global one:
 
 ```bash
-npx github:physicalsuperintelligence/get-physics-done --codex --local
+npx -y github:physicalsuperintelligence/get-physics-done --codex --local
 ```
+
+To refresh an existing managed environment, you can either reinstall the matching release or upgrade directly from the latest GitHub `main` source:
+
+```bash
+npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local
+npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local
+```
+
+`--reinstall` force-reinstalls the matching Python package into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
 
 ## Supported Runtimes
 
-GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag:
+GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
 
 | Runtime | `npx` flag | Help command | Start command |
 |---------|------------|--------------|---------------|
@@ -50,6 +69,8 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
 Runtime syntax differs slightly, but the workflow is the same across all four.
+
+After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
 
 ## What GPD Does
 
@@ -66,7 +87,7 @@ GPD also locks conventions for up to 18 physics fields across a project so notat
 
 ## How Work Is Structured
 
-GPD's main workflow in `.planning/` is organized like this:
+GPD's main workflow in `.gpd/` is organized like this:
 
 ```text
 Project
@@ -121,31 +142,17 @@ These commands run inside your installed AI runtime after GPD has been installed
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
 
-## Terminal CLI
-
-The same `gpd` install also includes the session launcher and frame viewer. Use the unified CLI from your shell:
-
-```bash
-gpd session
-gpd session --history
-gpd view
-```
-
-`gpd session` launches an interactive Claude Code-backed session from your shell with MCP orchestration and the standard GPD command surface available inside it. `gpd view` remains available as a regular CLI subcommand you can run directly from the terminal.
-
 ## Requirements
 
 - Node.js with `npm`/`npx`
-- Python 3.11+ with `pip` (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
+- Python 3.11+ with the standard `venv` module (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
 - Network access to GitHub and PyPI for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 
 ## Known Limitations
 
-- The integrated terminal `gpd session` launcher currently supports Claude Code only.
-- On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
-- `gpd view` remains available from the terminal on any install.
+- On Codex, GPD enables experimental multi-agent support automatically during install, but subagent activity is currently surfaced in the CLI only.
 
 ## Citation
 
@@ -154,7 +161,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 The same file provides the machine-readable CFF metadata used by GitHub's repository citation UI.
 
 ```bibtex
-@software{hernandez_cuenca_2026_gpd,
+@software{physical_superintelligence_2026_gpd,
   author = {Hernandez-Cuenca, Sergio},
   title = {Get Physics Done (GPD)},
   version = {0.1.0},

@@ -18,6 +18,7 @@ from gpd.hooks.check_update import (
     _read_installed_version,
     main,
 )
+from gpd.hooks.runtime_detect import RUNTIME_CODEX
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -50,6 +51,15 @@ class TestIsOlderThan:
         # "0.0.0" vs any real version
         assert _is_older_than("0.0.0", "0.1.0") is True
 
+    def test_pep440_dev_release_is_older_than_final(self) -> None:
+        assert _is_older_than("1.2.3.dev4", "1.2.3") is True
+
+    def test_pep440_rc_is_older_than_final(self) -> None:
+        assert _is_older_than("2.0.0rc1", "2.0.0") is True
+
+    def test_pep440_post_release_is_not_older_than_base_release(self) -> None:
+        assert _is_older_than("1.2.3.post1", "1.2.3") is False
+
 
 # ─── _read_installed_version ───────────────────────────────────────────────
 
@@ -81,6 +91,29 @@ class TestReadInstalledVersion:
             patch("gpd.hooks.check_update._version_files", return_value=[]),
         ):
             assert _read_installed_version() == "0.0.0"
+
+    def test_pep440_dev_metadata_version_is_retained(self) -> None:
+        """Real PEP 440 dev releases are valid installed versions, not fallback sentinels."""
+        with patch("gpd.version.__version__", "1.2.3.dev4"):
+            assert _read_installed_version() == "1.2.3.dev4"
+
+    def test_version_file_fallback_prefers_active_runtime(self, tmp_path: Path) -> None:
+        """Fallback VERSION scan checks the active runtime's install before unrelated runtimes."""
+        home = tmp_path / "home"
+        claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
+        codex_version = home / ".codex" / "get-physics-done" / "VERSION"
+        claude_version.parent.mkdir(parents=True)
+        codex_version.parent.mkdir(parents=True)
+        claude_version.write_text("1.0.0\n")
+        codex_version.write_text("2.0.0\n")
+
+        with (
+            patch("gpd.version.__version__", "0.0.0-dev"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_installed_version() == "2.0.0"
 
 
 # ─── _do_check — PyPI unreachable ─────────────────────────────────────────
@@ -117,13 +150,14 @@ class TestDoCheck:
 
         with (
             patch("gpd.hooks.check_update._read_installed_version", return_value="1.0.0"),
-            patch("urllib.request.urlopen", return_value=mock_resp),
+            patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen,
         ):
             _do_check(cache_file)
 
         cache = json.loads(cache_file.read_text())
         assert cache["update_available"] is True
         assert cache["latest"] == "2.0.0"
+        assert mock_urlopen.call_args.args[0] == "https://pypi.org/pypi/get-physics-done/json"
 
     def test_pypi_returns_same_version(self, tmp_path: Path) -> None:
         """When PyPI returns same version, update_available=False."""
@@ -185,6 +219,7 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -201,6 +236,7 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": stale_time, "update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -211,6 +247,7 @@ class TestMainThrottle:
     def test_no_cache_file_spawns_check(self, tmp_path: Path) -> None:
         """If no cache file exists, main() spawns background check."""
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -222,9 +259,11 @@ class TestMainThrottle:
         """If cache file is corrupt JSON, main() spawns background check."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text("not json!")
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text("not json!")
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -235,6 +274,7 @@ class TestMainThrottle:
     def test_popen_failure_no_crash(self, tmp_path: Path) -> None:
         """If Popen fails (e.g., no Python executable), no crash."""
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen", side_effect=OSError("exec failed")),
         ):
@@ -244,9 +284,11 @@ class TestMainThrottle:
         """Cache JSON without 'checked' field → spawns check."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text(json.dumps({"update_available": False}))
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps({"update_available": False}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -258,12 +300,34 @@ class TestMainThrottle:
         """Cache with non-numeric 'checked' → isinstance check fails → spawns."""
         cache_dir = tmp_path / ".gpd" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "gpd-update-check.json").write_text(json.dumps({"checked": "not-a-number"}))
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps({"checked": "not-a-number"}))
 
         with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
             main()
 
         mock_popen.assert_called_once()
+
+    def test_fresh_local_runtime_cache_suppresses_spawn(self, tmp_path: Path) -> None:
+        """Any fresh runtime cache should satisfy throttle, not just the home .gpd cache."""
+        home = tmp_path / "home"
+        local_cache = tmp_path / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_not_called()

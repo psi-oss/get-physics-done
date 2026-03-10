@@ -21,12 +21,12 @@ fi
 
 Extract from init JSON: `commit_docs`, `date`, `timestamp`, `todo_count`, `todos`, `pending_dir`, `todos_dir_exists`, `project_exists`.
 
-**Note:** `add-todo` works even without a project (creates `.planning/todos/` standalone). No project_exists gate needed — todos can be created independently.
+**Note:** `add-todo` works even without a project (creates `.gpd/todos/` standalone). No project_exists gate needed — todos can be created independently.
 
 Ensure directories exist:
 
 ```bash
-mkdir -p .planning/todos/pending .planning/todos/done
+mkdir -p .gpd/todos/pending .gpd/todos/done
 ```
 
 Note existing areas from the todos array for consistency in infer_area step.
@@ -34,7 +34,7 @@ Note existing areas from the todos array for consistency in infer_area step.
 
 <step name="extract_content">
 **With arguments:** Use as the title/focus.
-- `$gpd-add-todo Check unitarity of S-matrix at two loops` -> title = "Check unitarity of S-matrix at two loops"
+- `/gpd:add-todo Check unitarity of S-matrix at two loops` -> title = "Check unitarity of S-matrix at two loops"
 
 **Without arguments:** Analyze recent conversation to extract:
 
@@ -61,7 +61,7 @@ Infer area from file paths and content:
 | `data/*`, `results/*`, `plots/*`       | `data-analysis` |
 | `tests/*`, `validation/*`              | `validation`    |
 | `notebooks/*`                          | `notebooks`     |
-| `.planning/*`                          | `planning`      |
+| `.gpd/*`                          | `planning`      |
 | `scripts/*`, `tools/*`                 | `tooling`       |
 | Equation/formalism discussion          | `formalism`     |
 | Symmetry/consistency checks            | `consistency`   |
@@ -73,7 +73,7 @@ Use existing area from step 2 if similar match exists.
 <step name="check_duplicates">
 ```bash
 # Search for key words from title in existing todos
-grep -l -i "[key words from title]" .planning/todos/pending/*.md 2>/dev/null
+grep -l -i "[key words from title]" .gpd/todos/pending/*.md 2>/dev/null
 ```
 
 If potential duplicate found:
@@ -81,9 +81,9 @@ If potential duplicate found:
 1. Read the existing todo
 2. Compare scope
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-If overlapping, use AskUserQuestion:
+If overlapping, use ask_user:
 
 - header: "Duplicate?"
 - question: "Similar todo exists: [title]. What would you like to do?"
@@ -102,7 +102,7 @@ Generate slug for the title:
 slug=$(gpd slug "$title" --raw)
 ```
 
-Write to `.planning/todos/pending/${date}-${slug}.md`:
+Write to `.gpd/todos/pending/${date}-${slug}.md`:
 
 ```markdown
 ---
@@ -125,7 +125,7 @@ files:
 </step>
 
 <step name="update_state">
-If `.planning/STATE.md` exists:
+If `.gpd/STATE.md` exists:
 
 1. Use `todo_count` from init context (or re-run `init todos` if count changed)
 2. Update "### Pending Todos" under "## Accumulated Context"
@@ -136,10 +136,10 @@ If `.planning/STATE.md` exists:
 Commit the todo and any updated state:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/todos/pending/[filename] .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/todos/pending/[filename] .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: capture todo - [title]" --files .planning/todos/pending/[filename] .planning/STATE.md
+gpd commit "docs: capture todo - [title]" --files .gpd/todos/pending/[filename] .gpd/STATE.md
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.
@@ -149,7 +149,7 @@ Confirm: "Committed: docs: capture todo - [title]"
 
 <step name="confirm">
 ```
-Todo saved: .planning/todos/pending/[filename]
+Todo saved: .gpd/todos/pending/[filename]
 
 [title]
 Area: [area]
@@ -161,7 +161,7 @@ Would you like to:
 
 1. Continue with current work
 2. Add another todo
-3. View all todos ($gpd-check-todos)
+3. View all todos (/gpd:check-todos)
 
 ```
 </step>

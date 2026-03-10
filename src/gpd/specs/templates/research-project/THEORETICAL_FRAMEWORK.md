@@ -11,7 +11,7 @@ template_version: 1
 
 # Theoretical Framework Research Template
 
-Template for `.planning/research/THEORETICAL_FRAMEWORK.md` - theoretical structure and framework for the research domain.
+Template for `.gpd/research/THEORETICAL_FRAMEWORK.md` - theoretical structure and framework for the research domain.
 
 <template>
 

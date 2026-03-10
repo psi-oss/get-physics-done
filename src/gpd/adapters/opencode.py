@@ -22,10 +22,10 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
-    LEGACY_HOOK_BASENAMES,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
     compute_path_prefix,
+    convert_tool_references_in_body,
     file_hash,
     generate_manifest,
     get_global_dir,
@@ -33,7 +33,7 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     replace_placeholders,
 )
-from gpd.adapters.tool_names import OPENCODE, canonical
+from gpd.adapters.tool_names import OPENCODE, canonical, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +41,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-# Claude Code tool name → OpenCode tool name (special mappings)
-_CLAUDE_TO_OPENCODE: dict[str, str] = {
-    "AskUserQuestion": "question",
-    "Bash": "shell",
-    "Edit": "edit_file",
-    "Read": "read_file",
-    "SlashCommand": "skill",
-    "TodoWrite": "todowrite",
-    "WebFetch": "webfetch",
-    "WebSearch": "websearch",
-    "Write": "write_file",
-}
+_TOOL_REFERENCE_MAP = reference_translation_map("opencode")
 
 # Color name → hex for OpenCode compatibility
 _COLOR_NAME_TO_HEX: dict[str, str] = {
@@ -97,18 +86,13 @@ def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def convert_tool_name(claude_tool: str) -> str:
-    """Convert a Claude Code tool name to OpenCode format.
+def convert_tool_name(tool_name: str) -> str:
+    """Convert a canonical GPD tool name or runtime alias to OpenCode format.
 
-    - Applies special mappings (AskUserQuestion → question, etc.)
-    - MCP tools (mcp__*) keep their format
-    - Default: convert to lowercase
+    OpenCode keeps MCP tools as-is, so this never returns ``None``.
     """
-    if claude_tool in _CLAUDE_TO_OPENCODE:
-        return _CLAUDE_TO_OPENCODE[claude_tool]
-    if claude_tool.startswith("mcp__"):
-        return claude_tool
-    return claude_tool.lower()
+    mapped = translate_for_runtime(tool_name, "opencode")
+    return mapped if mapped is not None else tool_name
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +101,10 @@ def convert_tool_name(claude_tool: str) -> str:
 
 
 def convert_claude_to_opencode_frontmatter(content: str) -> str:
-    """Convert Claude Code frontmatter to OpenCode format.
+    """Convert canonical GPD frontmatter to OpenCode format.
 
     Transformations:
-    - Replace tool name references in content (AskUserQuestion→question, etc.)
+    - Replace tool name references in content
     - Replace /gpd: with /gpd- (flat command structure)
     - Replace ~/.claude with ~/.config/opencode
     - Parse YAML frontmatter:
@@ -129,9 +113,7 @@ def convert_claude_to_opencode_frontmatter(content: str) -> str:
       - Convert allowed-tools: YAML array to tools: object with {tool: true}
     """
     converted = content
-    converted = re.sub(r"\bAskUserQuestion\b", "question", converted)
-    converted = re.sub(r"\bSlashCommand\b", "skill", converted)
-    converted = re.sub(r"\bTodoWrite\b", "todowrite", converted)
+    converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = converted.replace("/gpd:", "/gpd-")
     converted = re.sub(r"~/\.claude\b", "~/.config/opencode", converted)
 
@@ -164,6 +146,8 @@ def convert_claude_to_opencode_frontmatter(content: str) -> str:
             if tools_value:
                 tools = [t.strip() for t in tools_value.split(",") if t.strip()]
                 allowed_tools.extend(tools)
+            else:
+                in_allowed_tools = True
             continue
 
         # Remove name: field — OpenCode uses filename for command name
@@ -302,6 +286,21 @@ def copy_agents_as_agent_files(
 # ---------------------------------------------------------------------------
 
 
+def _opencode_managed_permission_key(config_dir: Path) -> str:
+    """Return the exact permission key managed by GPD for *config_dir*."""
+    actual_config_dir = config_dir.expanduser()
+    default_config_dir = (Path.home() / ".config" / "opencode").expanduser()
+    try:
+        is_default_config_dir = actual_config_dir.resolve() == default_config_dir.resolve()
+    except OSError:
+        is_default_config_dir = actual_config_dir == default_config_dir
+
+    if is_default_config_dir:
+        return "~/.config/opencode/get-physics-done/*"
+
+    return f"{actual_config_dir.as_posix()}/get-physics-done/*"
+
+
 def configure_opencode_permissions(config_dir: Path) -> bool:
     """Configure OpenCode permissions to allow reading GPD reference docs.
 
@@ -316,19 +315,17 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     # Read existing config or create empty object
     config: dict = {}
     if config_path.exists():
-        raw = config_path.read_text(encoding="utf-8")
-        config = parse_jsonc(raw)
+        try:
+            raw = config_path.read_text(encoding="utf-8")
+            config = parse_jsonc(raw)
+        except (json.JSONDecodeError, ValueError):
+            config = {}
 
     # Ensure permission structure exists
     if "permission" not in config or not isinstance(config["permission"], dict):
         config["permission"] = {}
 
-    # Build the GPD path using the actual config directory
-    default_config_dir = Path.home() / ".config" / "opencode"
-    if config_dir == default_config_dir:
-        gpd_path = "~/.config/opencode/get-physics-done/*"
-    else:
-        gpd_path = f"{str(config_dir).replace(os.sep, '/')}/get-physics-done/*"
+    gpd_path = _opencode_managed_permission_key(config_dir)
 
     modified = False
 
@@ -515,68 +512,11 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         for hook_path in hooks_dir.iterdir():
             if not hook_path.is_file():
                 continue
-            if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
+            if hook_path.name in HOOK_SCRIPTS.values():
                 hook_path.unlink()
                 counts["hooks"] += 1
 
-    # 5. Clean up settings.json (remove GPD hooks and statusline)
-    settings_path = target_dir / "settings.json"
-    if settings_path.exists():
-        try:
-            settings = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            settings = None
-        if not isinstance(settings, dict):
-            settings = None
-
-        if settings is not None:
-            settings_modified = False
-
-            # Remove GPD statusline
-            if (
-                isinstance(settings.get("statusLine"), dict)
-                and isinstance(settings["statusLine"].get("command"), str)
-                and (
-                    "gpd-statusline" in settings["statusLine"]["command"]
-                    or "statusline.py" in settings["statusLine"]["command"]
-                )
-            ):
-                del settings["statusLine"]
-                settings_modified = True
-
-            # Remove GPD hooks from SessionStart
-            if isinstance(settings.get("hooks"), dict) and isinstance(settings["hooks"].get("SessionStart"), list):
-                before = len(settings["hooks"]["SessionStart"])
-                settings["hooks"]["SessionStart"] = [
-                    entry
-                    for entry in settings["hooks"]["SessionStart"]
-                    if not (
-                        isinstance(entry.get("hooks"), list)
-                        and any(
-                            isinstance(h.get("command"), str)
-                            and (
-                                "gpd-check-update" in h["command"]
-                                or "check_update" in h["command"]
-                                or "gpd-statusline" in h["command"]
-                                or "statusline.py" in h["command"]
-                            )
-                            for h in entry["hooks"]
-                        )
-                    )
-                ]
-                if len(settings["hooks"]["SessionStart"]) < before:
-                    settings_modified = True
-                if not settings["hooks"]["SessionStart"]:
-                    del settings["hooks"]["SessionStart"]
-                if not settings["hooks"]:
-                    del settings["hooks"]
-
-            if settings_modified:
-                tmp_path = settings_path.with_suffix(".tmp")
-                tmp_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-                tmp_path.rename(settings_path)
-
-    # 6. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
+    # 5. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
     oc_config_dir_mcp = config_dir or get_opencode_global_dir()
     oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
     if oc_config_path_mcp.exists():
@@ -595,7 +535,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                     del oc_mcp["mcp"]
                 oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
 
-    # 7. Clean up permissions from opencode.json
+    # 6. Clean up permissions from opencode.json
     oc_config_dir = config_dir or get_opencode_global_dir()
     oc_config_path = oc_config_dir / "opencode.json"
     if oc_config_path.exists():
@@ -608,12 +548,12 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
         modified = False
 
         if oc_config is not None and isinstance(oc_config.get("permission"), dict):
+            managed_key = _opencode_managed_permission_key(oc_config_dir)
             for perm_type in ("read", "external_directory"):
                 perm_dict = oc_config["permission"].get(perm_type)
                 if isinstance(perm_dict, dict):
-                    keys_to_remove = [k for k in perm_dict if "get-physics-done" in k]
-                    for k in keys_to_remove:
-                        del perm_dict[k]
+                    if managed_key in perm_dict:
+                        del perm_dict[managed_key]
                         modified = True
                     if not perm_dict:
                         del oc_config["permission"][perm_type]
@@ -751,7 +691,12 @@ class OpenCodeAdapter(RuntimeAdapter):
     # --- Template method hooks ---
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
-        return compute_path_prefix(target_dir, self.config_dir_name, is_global=is_global)
+        return compute_path_prefix(
+            target_dir,
+            self.config_dir_name,
+            is_global=is_global,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
@@ -763,10 +708,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         specs_dir = gpd_root / "specs"
         skill_dest = target_dir / "get-physics-done"
         skill_dest.mkdir(parents=True, exist_ok=True)
-        for subdir_name in ("references", "templates", "workflows"):
-            src_subdir = specs_dir / subdir_name
-            if src_subdir.is_dir():
-                copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
+        try:
+            for subdir_name in ("references", "templates", "workflows"):
+                src_subdir = specs_dir / subdir_name
+                if src_subdir.is_dir():
+                    copy_with_path_replacement(src_subdir, skill_dest / subdir_name, path_prefix)
+        except Exception as exc:
+            failures.append(f"get-physics-done: {exc}")
         self._gpd_files_count = sum(1 for _ in skill_dest.rglob("*") if _.is_file())
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -780,7 +728,10 @@ class OpenCodeAdapter(RuntimeAdapter):
         skill_dest = target_dir / "get-physics-done"
         skill_dest.mkdir(parents=True, exist_ok=True)
         version_dest = skill_dest / "VERSION"
-        version_dest.write_text(version, encoding="utf-8")
+        try:
+            version_dest.write_text(version, encoding="utf-8")
+        except Exception as exc:
+            failures.append(f"VERSION: {exc}")
 
     def _install_hooks(self, gpd_root: Path, target_dir: Path, failures: list[str]) -> None:
         hooks_src = gpd_root / "hooks"
@@ -788,10 +739,13 @@ class OpenCodeAdapter(RuntimeAdapter):
         if hooks_src.exists():
             hooks_dest = target_dir / "hooks"
             hooks_dest.mkdir(parents=True, exist_ok=True)
-            for entry in hooks_src.iterdir():
-                if entry.is_file() and not entry.name.startswith("__"):
-                    shutil.copy2(entry, hooks_dest / entry.name)
-                    self._hooks_count += 1
+            try:
+                for entry in hooks_src.iterdir():
+                    if entry.is_file() and not entry.name.startswith("__"):
+                        shutil.copy2(entry, hooks_dest / entry.name)
+                        self._hooks_count += 1
+            except Exception as exc:
+                failures.append(f"hooks: {exc}")
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         configure_opencode_permissions(target_dir)

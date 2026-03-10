@@ -18,9 +18,12 @@ from gpd.core.constants import (
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
+    RESEARCH_SUFFIX,
     ROADMAP_FILENAME,
     STANDALONE_PLAN,
+    STANDALONE_RESEARCH,
     STANDALONE_SUMMARY,
+    STANDALONE_VERIFICATION,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
     VERIFICATION_SUFFIX,
@@ -43,21 +46,22 @@ __all__ = [
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-# Research/verification suffixes not yet in core.constants — keep local.
-RESEARCH_SUFFIX = "-RESEARCH.md"
-STANDALONE_RESEARCH = "RESEARCH.md"
-STANDALONE_VERIFICATION = "VERIFICATION.md"
-
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
 
 # Paper search paths relative to cwd
 PAPER_PATHS = ("paper/main.tex", "manuscript/main.tex", "draft/main.tex")
 
-# Config defaults matching load_config()
-_CONFIG_DEFAULTS: dict[str, object] = {
-    "autonomy": "guided",
-    "research_mode": "balanced",
-}
+# Config defaults derived from the canonical GPDProjectConfig model in config.py.
+# Importing from the source of truth avoids maintaining a separate copy.
+def _build_config_defaults() -> dict[str, object]:
+    from gpd.core.config import GPDProjectConfig
+    _defaults = GPDProjectConfig()
+    return {
+        "autonomy": str(_defaults.autonomy.value),
+        "research_mode": str(_defaults.research_mode.value),
+    }
+
+_CONFIG_DEFAULTS: dict[str, object] = _build_config_defaults()
 
 
 # ─── Data Models ──────────────────────────────────────────────────────────────
@@ -177,8 +181,8 @@ def _load_config(cwd: Path) -> dict[str, object]:
     """Load project config.json with defaults. Returns flat dict with autonomy & research_mode.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical loader)
-    which handles backward compatibility for the legacy ``mode`` field and
-    nested config sections.  Falls back to built-in defaults on any error so
+    which validates the current config schema and nested config sections.
+    Falls back to built-in defaults on any error so
     that suggest never crashes due to a bad config file.
     """
     try:
@@ -189,7 +193,7 @@ def _load_config(cwd: Path) -> dict[str, object]:
             "autonomy": str(cfg.autonomy.value),
             "research_mode": str(cfg.research_mode.value),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("suggest: canonical config load failed, using defaults", exc_info=True)
         return dict(_CONFIG_DEFAULTS)
 
@@ -245,7 +249,7 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
                 status=status,
                 plan_count=plan_count,
                 summary_count=summary_count,
-                incomplete_count=plan_count - summary_count,
+                incomplete_count=max(0, plan_count - summary_count),
                 has_research=has_research,
                 has_verification=has_verification,
             )
@@ -286,7 +290,7 @@ def _item_text(item: object, fallback_keys: tuple[str, ...] = ("text",)) -> str:
 
 
 def _count_pending_todos(cwd: Path) -> int:
-    """Count .md files in .planning/todos/pending/."""
+    """Count .md files in .gpd/todos/pending/."""
     pending_dir = _planning_dir(cwd) / "todos" / "pending"
     if not pending_dir.is_dir():
         return 0
@@ -586,7 +590,9 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     if state:
         convention_lock = state.get("convention_lock")
         if isinstance(convention_lock, dict):
-            missing = [k for k in CORE_CONVENTIONS if not convention_lock.get(k)]
+            from gpd.core.conventions import is_bogus_value
+
+            missing = [k for k in CORE_CONVENTIONS if not convention_lock.get(k) or is_bogus_value(convention_lock.get(k))]
             if missing:
                 ctx_kwargs["missing_conventions"] = tuple(missing)
                 suggestions.append(
@@ -724,8 +730,8 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         from gpd.core.state import load_state_json
 
         return load_state_json(cwd)
-    except ImportError:
-        pass
+    except Exception:  # noqa: BLE001
+        logger.debug("suggest: state load failed", exc_info=True)
 
     # Fallback: direct JSON read
     state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
@@ -735,5 +741,5 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         if isinstance(parsed, dict):
             return parsed
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
+        logger.debug("suggest: state load failed", exc_info=True)
     return None

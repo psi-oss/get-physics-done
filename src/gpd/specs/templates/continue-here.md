@@ -6,7 +6,7 @@ template_version: 1
 
 # Continue-Here Template
 
-Copy and fill this structure for `.planning/phases/XX-name/.continue-here.md`:
+Copy and fill this structure for `.gpd/phases/XX-name/.continue-here.md`:
 
 ```yaml
 ---
@@ -97,11 +97,11 @@ Start with: [specific action - e.g., "evaluate the matrix element <n|V|m> for n,
 
 <persistent_state>
 
-## Persistent Derivation State (appended to .planning/DERIVATION-STATE.md on pause)
+## Persistent Derivation State (appended to .gpd/DERIVATION-STATE.md on pause)
 
 This section captures derivation content that must survive across ALL sessions.
 Unlike the rest of this file, this section is NOT ephemeral -- the pause-work
-workflow extracts it and appends it to `.planning/DERIVATION-STATE.md` before
+workflow extracts it and appends it to `.gpd/DERIVATION-STATE.md` before
 this file is deleted on resume. That file is append-only and cumulative.
 
 ### Equations Established This Session
@@ -153,6 +153,6 @@ Required YAML frontmatter:
 - The `<next_action>` should be actionable without reading anything else
 - The `<intermediate_results>` section is critical for physics - unlike software, you can't just "run the code" to recover state
 - This file gets DELETED after resume - it's not permanent storage
-- The `<persistent_state>` section is the exception: its content is appended to `.planning/DERIVATION-STATE.md` BEFORE this file is deleted, so equations/conventions/results accumulate permanently across all sessions
+- The `<persistent_state>` section is the exception: its content is appended to `.gpd/DERIVATION-STATE.md` BEFORE this file is deleted, so equations/conventions/results accumulate permanently across all sessions
 - Fill `<persistent_state>` carefully -- it is the antidote to lossy compression across context resets
 </guidelines>

@@ -36,11 +36,11 @@ When STATE.md appears out of sync with disk reality (e.g., a plan was completed 
 
 ```bash
 # Get STATE.md's claimed position
-STATE_PHASE=$(grep "Phase:" .planning/STATE.md | head -1 | grep -oE '[0-9]+')
-STATE_PLAN=$(grep "Plan:" .planning/STATE.md | head -1 | grep -oE '[0-9]+')
+STATE_PHASE=$(grep "Phase:" .gpd/STATE.md | head -1 | grep -oE '[0-9]+')
+STATE_PLAN=$(grep "Plan:" .gpd/STATE.md | head -1 | grep -oE '[0-9]+')
 
 # Count actual disk state
-for phase_dir in .planning/phases/*/; do
+for phase_dir in .gpd/phases/*/; do
   PLAN_COUNT=$(ls "$phase_dir"*-PLAN.md 2>/dev/null | wc -l)
   SUMMARY_COUNT=$(ls "$phase_dir"*-SUMMARY.md 2>/dev/null | wc -l)
   echo "$(basename $phase_dir): ${SUMMARY_COUNT}/${PLAN_COUNT} plans complete"
@@ -85,23 +85,23 @@ Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `pha
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
-If `project_exists` is false (no `.planning/` directory):
+If `project_exists` is false (no `.gpd/` directory):
 
 ```
 No planning structure found.
 
-Run $gpd-new-project to start a new research project.
+Run /gpd:new-project to start a new research project.
 ```
 
 Exit.
 
-If missing STATE.md: suggest `$gpd-new-project`.
+If missing STATE.md: suggest `/gpd:new-project`.
 
 **If ROADMAP.md missing but PROJECT.md exists:**
 
 This means a milestone was completed and archived. Go to **Route F** (between milestones).
 
-If missing both ROADMAP.md and PROJECT.md: suggest `$gpd-new-project`.
+If missing both ROADMAP.md and PROJECT.md: suggest `/gpd:new-project`.
 </step>
 
 <step name="load">
@@ -153,7 +153,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 - Use phase-level `has_context` and `has_literature` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending items: use `init todos` or `list-todos`
-- Check for active debug sessions: `ls .planning/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
+- Check for active debug sessions: `ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
 - Check state compaction health: `gpd state compact 2>&1` — if output contains `"warn": true`, STATE.md is growing large. Note this for the report.
   </step>
 
@@ -194,10 +194,10 @@ CONTEXT: [present if has_context | - if not]
 - [any blockers or concerns from STATE.md — e.g., "Series diverges for g > 2, need resummation"]
 
 ## Pending Items
-- [count] pending — $gpd-check-todos to review
+- [count] pending — /gpd:check-todos to review
 
 ## Active Derivation Sessions
-- [count] active — $gpd-debug to continue
+- [count] active — /gpd:debug to continue
 (Only show this section if count > 0)
 
 ## What's Next
@@ -207,7 +207,7 @@ CONTEXT: [present if has_context | - if not]
 If STATE.md exceeds 1500 lines, append after the report:
 
 ```
-STATE.md is large (N lines). Consider running `$gpd-compact-state` to archive historical entries.
+STATE.md is large (N lines). Consider running `/gpd:compact-state` to archive historical entries.
 ```
 
 If the compaction health check reported `"warn": true`, append:
@@ -239,9 +239,9 @@ If health reports any issues (non-empty `issues` array), append a summary:
 List files in the current phase directory:
 
 ```bash
-ls -1 .planning/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
-ls -1 .planning/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
 ```
 
 State: "This phase has {X} plans, {Y} summaries."
@@ -252,7 +252,7 @@ Check for VERIFICATION.md files with gaps or review requirements. This includes 
 
 ```bash
 # Check for validation with gaps or review requirements
-grep -l -E "status: (gaps_found|diagnosed|human_needed|expert_needed)" .planning/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
+grep -l -E "status: (gaps_found|diagnosed|human_needed|expert_needed)" .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
 ```
 
 Track:
@@ -266,7 +266,7 @@ If `validation_with_gaps > 0`, check whether gap-closure plans already exist but
 ```bash
 # Check for gap_closure plans without matching SUMMARYs
 GAP_PLANS_UNEXECUTED=0
-for plan in .planning/phases/[current-phase-dir]/*-PLAN.md; do
+for plan in .gpd/phases/[current-phase-dir]/*-PLAN.md; do
   if grep -q "gap_closure: true" "$plan" 2>/dev/null; then
     SUMMARY="${plan%-PLAN.md}-SUMMARY.md"
     if [ ! -f "$SUMMARY" ]; then
@@ -300,7 +300,7 @@ Read its `<objective>` section.
 
 **{phase}-{plan}: [Plan Name]** — [objective summary from PLAN.md]
 
-`$gpd-execute-phase {phase}`
+`/gpd:execute-phase {phase}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -323,7 +323,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>Context gathered, ready to plan</sub>
 
-`$gpd-plan-phase {phase-number}`
+`/gpd:plan-phase {phase-number}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -339,15 +339,15 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 
-`$gpd-discuss-phase {phase}` — gather context and clarify approach
+`/gpd:discuss-phase {phase}` — gather context and clarify approach
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-plan-phase {phase}` — skip discussion, plan directly
-- `$gpd-list-phase-assumptions {phase}` — see what the agent assumes about the approach
+- `/gpd:plan-phase {phase}` — skip discussion, plan directly
+- `/gpd:list-phase-assumptions {phase}` — see what the agent assumes about the approach
 
 ---
 ```
@@ -367,15 +367,15 @@ VERIFICATION.md exists with gaps (diagnosed issues like failing limiting cases o
 
 Examples: [e.g., "Dimension mismatch in eq. 14", "Wrong sign in g -> 0 limit"]
 
-`$gpd-plan-phase {phase} --gaps`
+`/gpd:plan-phase {phase} --gaps`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-execute-phase {phase}` — execute phase plans
-- `$gpd-verify-work {phase}` — run more validation checks
+- `/gpd:execute-phase {phase}` — execute phase plans
+- `/gpd:verify-work {phase}` — run more validation checks
 
 ---
 ```
@@ -384,7 +384,7 @@ Examples: [e.g., "Dimension mismatch in eq. 14", "Wrong sign in g -> 0 limit"]
 
 **Route E2: Gap-closure plans exist but are unexecuted**
 
-Gap-closure plans were created by `$gpd-plan-phase --gaps` but have not been executed yet. Suggest executing them instead of re-planning.
+Gap-closure plans were created by `/gpd:plan-phase --gaps` but have not been executed yet. Suggest executing them instead of re-planning.
 
 ```
 ---
@@ -393,15 +393,15 @@ Gap-closure plans were created by `$gpd-plan-phase --gaps` but have not been exe
 
 **{GAP_PLANS_UNEXECUTED} gap-closure plan(s)** exist but have not been executed.
 
-`$gpd-execute-phase {phase} --gaps-only`
+`/gpd:execute-phase {phase} --gaps-only`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-plan-phase {phase} --gaps` — re-plan gap fixes (if current plans are stale)
-- `$gpd-verify-work {phase}` — re-run validation checks
+- `/gpd:plan-phase {phase} --gaps` — re-plan gap fixes (if current plans are stale)
+- `/gpd:verify-work {phase}` — re-run validation checks
 
 ---
 ```
@@ -441,15 +441,15 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 **Phase {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
-`$gpd-discuss-phase {Z+1}` — gather context and clarify approach
+`/gpd:discuss-phase {Z+1}` — gather context and clarify approach
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-plan-phase {Z+1}` — skip discussion, plan directly
-- `$gpd-verify-work {Z}` — validate results before continuing
+- `/gpd:plan-phase {Z+1}` — skip discussion, plan directly
+- `/gpd:verify-work {Z}` — validate results before continuing
 
 ---
 ```
@@ -469,14 +469,14 @@ All {N} phases finished!
 
 **Complete Milestone** — archive results and prepare for next
 
-`$gpd-complete-milestone`
+`/gpd:complete-milestone`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- `$gpd-verify-work` — validate all results before completing milestone
+- `/gpd:verify-work` — validate all results before completing milestone
 
 ---
 ```
@@ -500,7 +500,7 @@ Ready to plan the next research direction.
 
 **Start Next Milestone** — questioning -> literature survey -> objectives -> roadmap
 
-`$gpd-new-milestone`
+`/gpd:new-milestone`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -512,11 +512,11 @@ Ready to plan the next research direction.
 <step name="edge_cases">
 **Handle edge cases:**
 
-- Phase complete but next phase not planned -> offer `$gpd-plan-phase [next]`
+- Phase complete but next phase not planned -> offer `/gpd:plan-phase [next]`
 - All work complete -> offer milestone completion
 - Blockers present -> highlight before offering to continue
-- Handoff file exists -> mention it, offer `$gpd-resume-work`
-- Derivation session active -> mention it, offer `$gpd-debug` to continue
+- Handoff file exists -> mention it, offer `/gpd:resume-work`
+- Derivation session active -> mention it, offer `/gpd:debug` to continue
   </step>
 
 </process>
@@ -526,7 +526,7 @@ Ready to plan the next research direction.
 - [ ] Rich context provided (recent work, key results, decisions, issues)
 - [ ] Current position clear with visual progress
 - [ ] What's next clearly explained
-- [ ] Smart routing: $gpd-execute-phase if plans exist, $gpd-plan-phase if not
+- [ ] Smart routing: /gpd:execute-phase if plans exist, /gpd:plan-phase if not
 - [ ] User confirms before any action
 - [ ] Seamless handoff to appropriate gpd command
 

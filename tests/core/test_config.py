@@ -59,8 +59,8 @@ class TestEnums:
 
 
 class TestModelProfiles:
-    def test_all_18_agents_present(self):
-        assert len(MODEL_PROFILES) == 18
+    def test_all_17_agents_present(self):
+        assert len(MODEL_PROFILES) == 17
 
     def test_all_agents_have_5_profiles(self):
         profiles = {"deep-theory", "numerical", "exploratory", "review", "paper-writing"}
@@ -106,14 +106,14 @@ class TestLoadConfig:
         assert cfg == GPDProjectConfig()
 
     def test_empty_object(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text("{}")
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text("{}")
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.REVIEW
 
     def test_custom_values(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "model_profile": "deep-theory",
@@ -130,8 +130,8 @@ class TestLoadConfig:
         assert cfg.commit_docs is False
 
     def test_nested_section_fallback(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "planning": {"commit_docs": False, "search_gitignored": True},
@@ -147,76 +147,42 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
-    def test_backward_compat_mode_yolo(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
-            json.dumps(
-                {
-                    "mode": "yolo",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.YOLO
+    def test_removed_mode_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
+        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+            load_config(tmp_path)
 
-    def test_backward_compat_mode_interactive(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
-            json.dumps(
-                {
-                    "mode": "interactive",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.SUPERVISED
+    def test_removed_depth_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"depth": "standard"}))
+        with pytest.raises(ConfigError, match="`depth` was removed; use `research_mode` and `model_profile`"):
+            load_config(tmp_path)
 
-    def test_autonomy_overrides_mode(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
-            json.dumps(
-                {
-                    "autonomy": "guided",
-                    "mode": "yolo",
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.autonomy == AutonomyMode.GUIDED
+    def test_parallelization_must_be_bool(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"parallelization": {"enabled": False}}))
+        with pytest.raises(
+            ConfigError,
+            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+        ):
+            load_config(tmp_path)
 
-    def test_parallelization_object(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
-            json.dumps(
-                {
-                    "parallelization": {"enabled": False},
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.parallelization is False
-
-    def test_plan_checker_backward_compat(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
-            json.dumps(
-                {
-                    "workflow": {"plan_check": False},
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.plan_checker is False
+    def test_plan_checker_requires_current_key(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"workflow": {"plan_check": False}}))
+        with pytest.raises(ConfigError, match="`workflow.plan_check` was removed; use `workflow.plan_checker`"):
+            load_config(tmp_path)
 
     def test_malformed_json_raises(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text("{bad json")
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text("{bad json")
         with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
     def test_model_map_override(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "model_map": {"tier-1": "o3", "tier-2": "gpt-4.1"},
@@ -227,8 +193,8 @@ class TestLoadConfig:
         assert cfg.model_map == {"tier-1": "o3", "tier-2": "gpt-4.1"}
 
     def test_cost_per_million_override(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "cost_per_million": {
@@ -273,8 +239,8 @@ class TestResolveModel:
         assert model == "tier-1"
 
     def test_with_model_map(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "model_map": {"tier-1": "opus"},
@@ -296,8 +262,8 @@ class TestGetCostPerMillion:
         assert costs["tier-1"].output == 75.0
 
     def test_project_override(self, tmp_path: Path):
-        (tmp_path / ".planning").mkdir()
-        (tmp_path / ".planning" / "config.json").write_text(
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
                     "cost_per_million": {

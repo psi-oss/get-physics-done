@@ -13,7 +13,7 @@ context_cost: large
 
 Ward identities, unitarity, causality, positivity, crossing symmetry, and subfield-specific checks for quantum field theory and particle physics.
 
-> **Note:** For GR/cosmology, see `verification-domain-gr-cosmology.md`. For mathematical physics, see `verification-domain-mathematical-physics.md`. For nuclear/particle, see `verification-domain-nuclear-particle.md`.
+> **Note:** For GR/cosmology, see `verification-domain-gr-cosmology.md`. For mathematical physics, see `verification-domain-mathematical-physics.md`. For algebraic QFT and operator algebras, see `verification-domain-algebraic-qft.md`. For string field theory, see `verification-domain-string-field-theory.md`. For nuclear/particle, see `verification-domain-nuclear-particle.md`.
 
 **Load when:** Working on QFT calculations, scattering amplitudes, renormalization, general relativity, or mathematical physics.
 
@@ -73,6 +73,85 @@ def verify_ward_identity(vertex, propagator_inv, momentum_transfer):
 ```
 
 </ward_identities>
+
+<soft_asymptotic_symmetries>
+
+## Soft Limits and Asymptotic Symmetry Checks
+
+Large gauge symmetries and BMS-type symmetries control the infrared structure of scattering with massless gauge bosons or gravitons. A soft theorem should not be treated as an isolated amplitude identity; it should match a boundary charge and a flux/conservation statement.
+
+```
+Leading soft structure:
+  soft theorem  <->  Ward identity of asymptotic charge
+
+Operational split:
+  Q_total = Q_hard + Q_soft
+
+Verification:
+1. Take the soft limit of the amplitude and verify factorization onto the universal soft factor.
+2. Check that the corresponding charge acts correctly on the hard external states.
+3. State the boundary conditions at null infinity or the infrared regulator used.
+4. If memory or asymptotic charges are invoked, verify the same convention for the radiative field is used throughout.
+```
+
+</soft_asymptotic_symmetries>
+
+<generalized_symmetry_checks>
+
+## Generalized Symmetry and Defect Checks
+
+Generalized symmetries are encoded by topological defects acting on extended operators. The claim "this theory has a `p`-form symmetry" is incomplete unless the charged operator, background field, and breaking mechanism are all specified.
+
+```
+For a claimed p-form symmetry in d dimensions:
+  charged operator dimension  = p
+  symmetry generator          = codimension-(p+1) topological defect
+  background gauge field      = (p+1)-form
+
+Core logic:
+  genuine charged operator + topological defect + consistent background coupling
+  -> well-defined generalized symmetry statement
+```
+
+**Verification:**
+
+```
+1. Identify the charged extended operator explicitly (Wilson line, 't Hooft line, surface defect, etc.).
+2. Check whether the operator is genuine or can end on dynamical matter. If it can end, the symmetry is broken or absent.
+3. Verify the symmetry defect is topological away from charged insertions.
+4. For invertible p>0 symmetries, verify the symmetry action/fusion is abelian.
+5. If center symmetry or confinement is discussed, verify the matter content does or does not screen the relevant Wilson lines.
+6. If gauging or anomaly matching is invoked, write the correct background-field degree and the inflow/anomaly term explicitly.
+7. If higher-group or non-invertible language is used, state the mixed background transformation or the defect fusion rule explicitly.
+```
+
+</generalized_symmetry_checks>
+
+<supersymmetry_bps_localization>
+
+## Supersymmetry, BPS, and Localization Checks
+
+Supersymmetric results are often protected rather than generic. A valid SUSY calculation must say whether it relies on algebraic shortening, an index, localization, duality, or a direct component computation.
+
+```
+For a claimed SUSY/protected result:
+  choose the supercharge(s) Q
+  state the regime: rigid SUSY or supergravity
+  state the object: BPS mass, index, localized partition function, duality map, or ordinary correlator
+```
+
+**Verification:**
+
+```
+1. State the dimension, amount of SUSY, and whether the setup is rigid SUSY or local SUSY/supergravity.
+2. If a BPS statement is made, derive the bound from the superalgebra and include the relevant central charge or R-charge combination.
+3. If an index is used, verify it is a protected quantity and do not equate it with a raw degeneracy count without extra control.
+4. If localization is used, state Q, Q^2, the fixed locus, one-loop determinants, contour prescription, and zero-mode treatment.
+5. If Seiberg duality or another SUSY duality is invoked, match global symmetries, 't Hooft anomalies, moduli spaces, operator maps, and protected observables.
+6. If supergravity is involved, verify Killing-spinor/BPS equations or the correct supergravity potential instead of importing rigid-SUSY vacuum formulas.
+```
+
+</supersymmetry_bps_localization>
 
 <unitarity_causality_positivity>
 

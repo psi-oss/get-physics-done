@@ -6,7 +6,7 @@ template_version: 1
 
 # Recovery Plan Template
 
-Template for `.planning/phases/XX-name/{phase}-{plan}-RECOVERY.md` - structured recovery after a plan execution failure.
+Template for `.gpd/phases/XX-name/{phase}-{plan}-RECOVERY.md` - structured recovery after a plan execution failure.
 
 ---
 
@@ -121,7 +121,7 @@ git revert {hashK+1}..{bad_hash}
 
 ### Replan (if fundamental issue)
 
-Run `$gpd-revise-phase` to create a replacement plan that:
+Run `/gpd:revise-phase` to create a replacement plan that:
 
 - [ ] Avoids the failed approach: [what to change]
 - [ ] Incorporates diagnostic findings: [what we learned]

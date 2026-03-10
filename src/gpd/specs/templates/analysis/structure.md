@@ -7,7 +7,7 @@ template_version: 1
 
 # Structure Template
 
-Template for `.planning/analysis/STRUCTURE.md` - captures the physical organization of the research project.
+Template for `.gpd/analysis/STRUCTURE.md` - captures the physical organization of the research project.
 
 **Purpose:** Document where things physically live in the project. Answers "where do I find the derivation of X?", "where is the code for Y?", "where is the data for Z?"
 

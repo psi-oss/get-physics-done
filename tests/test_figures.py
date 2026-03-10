@@ -10,7 +10,6 @@ from PIL import Image
 from gpd.mcp.paper.figures import (
     check_figure_resolution,
     detect_format,
-    generate_figure_latex,
     get_dpi_for_journal,
     get_figure_width,
     normalize_figure,
@@ -57,6 +56,17 @@ class TestNormalization:
         result = normalize_figure(src, out)
         assert result.exists()
         assert result.suffix == ".png"
+
+    def test_normalize_passthrough_same_file_is_noop(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        src = out / "fig.png"
+        Image.new("RGB", (10, 10), color="purple").save(src)
+
+        result = normalize_figure(src, out)
+
+        assert result == src
+        assert result.exists()
 
     def test_normalize_svg_no_converter(self, tmp_path, monkeypatch):
         src = tmp_path / "input" / "fig.svg"
@@ -119,35 +129,17 @@ class TestResolutionCheck:
         passes, msg = check_figure_resolution(png, "prl")
         assert passes is False
 
+    def test_check_resolution_double_column_uses_double_width(self, tmp_path):
+        png = tmp_path / "wide-ish.png"
+        Image.new("RGB", (2500, 50)).save(png)
 
-# ---- LaTeX generation ----
+        single_passes, single_msg = check_figure_resolution(png, "prl")
+        double_passes, double_msg = check_figure_resolution(png, "prl", double_column=True)
 
-
-class TestLatexGeneration:
-    def test_generate_figure_latex_single(self):
-        fig = FigureRef(path=Path("figures/fig01.pdf"), caption="Velocity field.", label="velocity")
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\begin{figure}" in latex
-        assert r"\includegraphics" in latex
-        assert r"\caption{Velocity field.}" in latex
-        assert r"\label{fig:velocity}" in latex
-        assert r"\end{figure}" in latex
-
-    def test_generate_figure_latex_double(self):
-        fig = FigureRef(
-            path=Path("figures/fig02.pdf"),
-            caption="Wide figure.",
-            label="wide",
-            double_column=True,
-        )
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\begin{figure*}" in latex
-        assert r"\end{figure*}" in latex
-
-    def test_generate_figure_latex_caption_escaped(self):
-        fig = FigureRef(path=Path("fig.pdf"), caption="Value of $\\alpha$ vs time.", label="alpha")
-        latex = generate_figure_latex(fig, "prl")
-        assert r"\caption{Value of $\alpha$ vs time.}" in latex
+        assert single_passes is True
+        assert "single-column" in single_msg
+        assert double_passes is False
+        assert "double-column" in double_msg
 
 
 # ---- Batch processing ----
@@ -172,3 +164,19 @@ class TestPrepare:
         for fig in result:
             assert fig.path.exists()
             assert fig.path.parent == out
+
+    def test_prepare_figures_warns_for_underresolved_double_column(self, tmp_path, caplog):
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+        src = input_dir / "wide-ish.png"
+        Image.new("RGB", (2500, 100), color="green").save(src)
+
+        figures = [
+            FigureRef(path=src, caption="Wide Fig", label="wide", double_column=True),
+        ]
+
+        with caplog.at_level("WARNING"):
+            result = prepare_figures(figures, tmp_path / "output", "prl")
+
+        assert len(result) == 1
+        assert any("double-column width" in message for message in caplog.messages)

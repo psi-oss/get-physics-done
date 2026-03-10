@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-from gpd.core.constants import PLANNING_DIR_NAME, STATE_JSON_FILENAME
+from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
 
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
@@ -38,12 +38,17 @@ def _context_bar(remaining_pct: float) -> str:
 
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
+def _mapping(value: object) -> dict[str, object]:
+    """Return *value* when it is a dict, otherwise an empty mapping."""
+    return value if isinstance(value, dict) else {}
+
+
 def _read_position(workspace_dir: str) -> str:
-    """Read research position from .planning/state.json."""
+    """Read research position from .gpd/state.json."""
     state_file = Path(workspace_dir) / PLANNING_DIR_NAME / STATE_JSON_FILENAME
     if not state_file.exists():
         return ""
@@ -52,12 +57,12 @@ def _read_position(workspace_dir: str) -> str:
         pos = state.get("position", {})
         phase = pos.get("current_phase")
         total_phases = pos.get("total_phases")
-        if not phase or not total_phases:
+        if phase is None or total_phases is None:
             return ""
         result = f"P{phase}/{total_phases}"
         plan = pos.get("current_plan")
         total_plans = pos.get("total_plans_in_phase")
-        if plan and total_plans:
+        if plan is not None and total_plans is not None:
             result += f" plan {plan}/{total_plans}"
         return result
     except Exception as exc:
@@ -80,7 +85,7 @@ def _read_current_task(session_id: str) -> str:
             continue
         try:
             for f in todos_dir.iterdir():
-                if f.name.startswith(session_id) and "-agent-" in f.name and f.suffix == ".json":
+                if f.name.startswith(f"{session_id}-agent-") and f.suffix == ".json":
                     try:
                         matches.append((f.stat().st_mtime, f))
                     except OSError as exc:
@@ -145,25 +150,40 @@ def main() -> None:
         _debug(f"Failed to parse stdin JSON: {exc}")
         return
 
-    model = (data.get("model") or {}).get("display_name", "unknown")
-    workspace_dir = (data.get("workspace") or {}).get("current_dir", os.getcwd())
-    session_id = data.get("session_id", "")
-    remaining = (data.get("context_window") or {}).get("remaining_percentage")
+    try:
+        model_value = data.get("model")
+        if isinstance(model_value, str) and model_value:
+            model = model_value
+        else:
+            model = str(_mapping(model_value).get("display_name") or "unknown")
 
-    ctx = _context_bar(remaining) if remaining is not None else ""
-    position = _read_position(workspace_dir)
-    task = _read_current_task(session_id)
-    gpd_update = _check_update()
+        workspace_value = data.get("workspace")
+        if isinstance(workspace_value, str) and workspace_value:
+            workspace_dir = workspace_value
+        else:
+            workspace_dir = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
 
-    dirname = Path(workspace_dir).name
-    pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""
+        session_value = data.get("session_id")
+        session_id = session_value if isinstance(session_value, str) else ""
+        remaining = _mapping(data.get("context_window")).get("remaining_percentage")
 
-    if task:
-        sys.stdout.write(
-            f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[1m{task}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}"
-        )
-    else:
-        sys.stdout.write(f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}")
+        ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) else ""
+        position = _read_position(workspace_dir)
+        task = _read_current_task(session_id)
+        gpd_update = _check_update()
+
+        dirname = Path(workspace_dir).name
+        pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""
+
+        if task:
+            sys.stdout.write(
+                f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[1m{task}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}"
+            )
+        else:
+            sys.stdout.write(f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}")
+    except Exception as exc:
+        _debug(f"Statusline render failed: {exc}")
+        sys.stdout.write("\x1b[2mGPD\x1b[0m")
 
 
 if __name__ == "__main__":

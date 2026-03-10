@@ -86,48 +86,48 @@ class TestReadPosition:
         assert _read_position(str(tmp_path)) == ""
 
     def test_valid_state_with_phase_only(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 3, "total_phases": 10}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P3/10"
 
     def test_valid_state_with_phase_and_plan(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 2, "total_phases": 5, "current_plan": 1, "total_plans_in_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P2/5 plan 1/3"
 
     def test_empty_position_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_phase_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"total_phases": 5}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_total_phases_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"position": {"current_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_corrupt_json_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text("not valid json{{{")
         assert _read_position(str(tmp_path)) == ""
 
     def test_no_position_key_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({"other": "data"}))
         assert _read_position(str(tmp_path)) == ""
@@ -187,6 +187,21 @@ class TestReadCurrentTask:
     def test_nonexistent_todo_dirs(self) -> None:
         with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[Path("/nonexistent/todos")]):
             assert _read_current_task("session-123") == ""
+
+    def test_session_prefix_collision_uses_exact_session_match(self, tmp_path: Path) -> None:
+        todo_dir = tmp_path / "todos"
+        todo_dir.mkdir()
+        (todo_dir / "session-12-agent-b.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Wrong task"}]),
+            encoding="utf-8",
+        )
+        (todo_dir / "session-1-agent-a.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Correct task"}]),
+            encoding="utf-8",
+        )
+
+        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+            assert _read_current_task("session-1") == "Correct task"
 
 
 # ─── _check_update edge cases ──────────────────────────────────────────────
@@ -321,6 +336,17 @@ class TestMain:
         """context_window=None → 'or {}' fallback, remaining is None → no bar."""
         output = self._run_main({"context_window": None})
         assert "%" not in output
+
+    def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
+        output = self._run_main(
+            {
+                "model": "gpt-5",
+                "workspace": "/tmp/research-project",
+                "context_window": "not-a-mapping",
+            }
+        )
+        assert "gpt-5" in output
+        assert "research-project" in output
 
     def test_invalid_json_stdin_no_crash(self) -> None:
         """Invalid JSON on stdin → main() returns silently, no crash."""

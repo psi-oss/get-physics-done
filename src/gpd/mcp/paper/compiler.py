@@ -13,7 +13,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.mcp.paper.bibliography import BibliographyData, write_bib_file
+from pybtex.database import BibliographyData
+
+from gpd.mcp.paper.bibliography import write_bib_file
 from gpd.mcp.paper.figures import prepare_figures
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
@@ -138,11 +140,15 @@ async def _compile_with_latexmk(tex_path: Path, output_dir: Path, compiler: str)
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
 
         pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if pdf_path.exists():
+        if process.returncode == 0 and pdf_path.exists():
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
-        return CompilationResult(success=False, error="latexmk failed", log=log_content[-5000:])
+        if process.returncode != 0:
+            error = f"latexmk exited with code {process.returncode}"
+        else:
+            error = "latexmk finished without producing a PDF"
+        return CompilationResult(success=False, error=error, log=log_content[-5000:])
 
     except TimeoutError:
         return CompilationResult(success=False, error="Compilation timed out after 120 seconds")
@@ -168,38 +174,63 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
 
     cwd = str(tex_path.parent)
     base_cmd = [compiler_path, "-interaction=nonstopmode", f"-output-directory={output_dir}", str(tex_path)]
+    combined_log_parts: list[str] = []
+    compile_errors: list[str] = []
+
+    def record_result(step: str, returncode: int, log: str) -> None:
+        combined_log_parts.append(log)
+        if returncode != 0:
+            compile_errors.append(f"{step} exited with code {returncode}")
 
     try:
         # Pass 1: pdflatex
-        await run_cmd(base_cmd, cwd)
+        returncode, log = await run_cmd(base_cmd, cwd)
+        record_result("pdflatex pass 1", returncode, log)
 
         # bibtex
         aux_path = output_dir / f"{tex_path.stem}.aux"
         bibtex = shutil.which("bibtex")
         if bibtex and aux_path.exists():
-            await run_cmd([bibtex, str(aux_path)], cwd)
+            returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
+            record_result("bibtex", returncode, log)
 
         # Pass 2 & 3: pdflatex
-        await run_cmd(base_cmd, cwd)
         returncode, log = await run_cmd(base_cmd, cwd)
+        record_result("pdflatex pass 2", returncode, log)
+        returncode, log = await run_cmd(base_cmd, cwd)
+        record_result("pdflatex pass 3", returncode, log)
 
         pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if pdf_path.exists():
+        if not compile_errors and pdf_path.exists():
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
         from gpd.utils.latex import try_autofix
 
+        combined_log = "".join(combined_log_parts)
         tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
-        fix_result = try_autofix(tex_content, log)
+        fix_result = try_autofix(tex_content, combined_log)
         if fix_result.was_modified and fix_result.fixed_content:
             await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
             logger.info("Applied autofix: %s", fix_result.fixes_applied)
-            await run_cmd(base_cmd, cwd)
-            if pdf_path.exists():
+
+            combined_log_parts = []
+            compile_errors = []
+
+            returncode, log = await run_cmd(base_cmd, cwd)
+            record_result("pdflatex autofix pass 1", returncode, log)
+            if bibtex and aux_path.exists():
+                returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
+                record_result("bibtex autofix", returncode, log)
+            returncode, log = await run_cmd(base_cmd, cwd)
+            record_result("pdflatex autofix pass 2", returncode, log)
+            returncode, log = await run_cmd(base_cmd, cwd)
+            record_result("pdflatex autofix pass 3", returncode, log)
+            if not compile_errors and pdf_path.exists():
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
-        return CompilationResult(success=False, error="Compilation failed", log=log[-5000:])
+        error = compile_errors[0] if compile_errors else "Compilation failed"
+        return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:
         return CompilationResult(success=False, error="Compilation timed out")

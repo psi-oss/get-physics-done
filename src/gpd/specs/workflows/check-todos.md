@@ -26,14 +26,14 @@ If `todo_count` is 0:
 ```
 No pending todos.
 
-Todos are captured during work sessions with $gpd-add-todo.
+Todos are captured during work sessions with /gpd:add-todo.
 
 ---
 
 Would you like to:
 
-1. Continue with current phase ($gpd-progress)
-2. Add a todo now ($gpd-add-todo)
+1. Continue with current phase (/gpd:progress)
+2. Add a todo now (/gpd:add-todo)
 ```
 
 Exit.
@@ -41,10 +41,10 @@ Exit.
 
 <step name="parse_filter">
 Check for area filter in arguments:
-- `$gpd-check-todos` -> show all
-- `$gpd-check-todos analytical` -> filter to area:analytical only
-- `$gpd-check-todos numerical` -> filter to area:numerical only
-- `$gpd-check-todos formalism` -> filter to area:formalism only
+- `/gpd:check-todos` -> show all
+- `/gpd:check-todos analytical` -> filter to area:analytical only
+- `/gpd:check-todos numerical` -> filter to area:numerical only
+- `/gpd:check-todos formalism` -> filter to area:formalism only
 </step>
 
 <step name="list_todos">
@@ -62,7 +62,7 @@ Pending Todos:
 ---
 
 Reply with a number to view details, or:
-- `$gpd-check-todos [area]` to filter by area
+- `/gpd:check-todos [area]` to filter by area
 - `q` to exit
 ```
 
@@ -99,7 +99,7 @@ If `files` field has entries, read and briefly summarize each.
 <step name="check_roadmap">
 Check for roadmap (can use init progress or directly check file existence):
 
-If `.planning/ROADMAP.md` exists:
+If `.gpd/ROADMAP.md` exists:
 
 1. Check if todo's area matches an upcoming phase
 2. Check if todo's files overlap with a phase's scope
@@ -109,9 +109,9 @@ If `.planning/ROADMAP.md` exists:
 <step name="offer_actions">
 **If todo maps to a roadmap phase:**
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Action"
 - question: "This todo relates to Phase [N]: [name]. What would you like to do?"
@@ -123,13 +123,13 @@ Use AskUserQuestion:
 
 **If no roadmap match:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Action"
 - question: "What would you like to do with this todo?"
 - options:
   - "Work on it now" -- move to done, start working
-  - "Create a phase" -- $gpd-add-phase with this scope
+  - "Create a phase" -- /gpd:add-phase with this scope
   - "Brainstorm approach" -- think through before deciding
   - "Put it back" -- return to list
     </step>
@@ -137,7 +137,7 @@ Use AskUserQuestion:
 <step name="execute_action">
 **Work on it now:**
 ```bash
-mv ".planning/todos/pending/[filename]" ".planning/todos/done/"
+mv ".gpd/todos/pending/[filename]" ".gpd/todos/done/"
 ```
 Update STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
 
@@ -145,11 +145,11 @@ Update STATE.md todo count. Present problem/solution context. Begin work or ask 
 Note todo reference in phase planning notes. Keep in pending. Return to list or exit.
 
 **Create a phase:**
-Display: `$gpd-add-phase [description from todo]`
+Display: `/gpd:add-phase [description from todo]`
 Keep in pending. User runs command in fresh context.
 
 **Brainstorm approach:**
-Keep in pending. Start discussion about problem and approaches. **Maximum 4 brainstorm iterations.** After 4 rounds, summarize approaches discussed and suggest creating a concrete plan (e.g., via `$gpd-add-phase` or `$gpd-plan-phase`).
+Keep in pending. Start discussion about problem and approaches. **Maximum 4 brainstorm iterations.** After 4 rounds, summarize approaches discussed and suggest creating a concrete plan (e.g., via `/gpd:add-phase` or `/gpd:plan-phase`).
 
 **Put it back:**
 Return to list_todos step.
@@ -165,12 +165,12 @@ Re-run `init todos` to get updated count, then update STATE.md "### Pending Todo
 If todo was moved to done/, commit the change:
 
 ```bash
-git rm --cached .planning/todos/pending/[filename] 2>/dev/null || true
+git rm --cached .gpd/todos/pending/[filename] 2>/dev/null || true
 
-PRE_CHECK=$(gpd pre-commit-check --files .planning/todos/done/[filename] .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/todos/done/[filename] .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start work on todo - [title]" --files .planning/todos/done/[filename] .planning/STATE.md
+gpd commit "docs: start work on todo - [title]" --files .gpd/todos/done/[filename] .gpd/STATE.md
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.

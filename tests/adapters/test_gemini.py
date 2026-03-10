@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("search_files") == "search_file_content"
         assert adapter.translate_tool_name("web_search") == "google_web_search"
 
-    def test_legacy_alias(self, adapter: GeminiAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: GeminiAdapter) -> None:
         assert adapter.translate_tool_name("Read") == "read_file"
         assert adapter.translate_tool_name("Bash") == "run_shell_command"
 
@@ -59,8 +60,8 @@ class TestConvertGeminiToolName:
     def test_mcp_excluded(self) -> None:
         assert _convert_gemini_tool_name("mcp__physics") is None
 
-    def test_unknown_lowercased(self) -> None:
-        assert _convert_gemini_tool_name("CustomTool") == "customtool"
+    def test_unknown_passthrough(self) -> None:
+        assert _convert_gemini_tool_name("CustomTool") == "CustomTool"
 
 
 class TestConvertFrontmatterToGemini:
@@ -279,6 +280,29 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .gemini/hooks/check_update.py" in cmds
 
+    def test_install_with_explicit_target_uses_absolute_hook_paths(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "custom-gemini"
+        target.mkdir()
+
+        result = adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["statusLine"]["command"] == f"{sys.executable or 'python3'} {(target / 'hooks' / 'statusline.py')}"
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
+        assert f"{sys.executable or 'python3'} {(target / 'hooks' / 'check_update.py')}" in cmds
+
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()
@@ -334,6 +358,27 @@ class TestUninstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert "statusLine" not in settings
         assert settings.get("experimental", {}).get("enableAgents") is not True
+
+    def test_uninstall_removes_gpd_mcp_servers(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        settings["mcpServers"]["custom-server"] = {"command": "node", "args": ["custom.js"]}
+        (target / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert "mcpServers" in cleaned
+        assert cleaned["mcpServers"] == {"custom-server": {"command": "node", "args": ["custom.js"]}}
 
     def test_uninstall_on_empty_dir(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"

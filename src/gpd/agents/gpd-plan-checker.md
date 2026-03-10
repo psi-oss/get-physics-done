@@ -1,7 +1,7 @@
 ---
 name: gpd-plan-checker
 description: Verifies plans will achieve phase goal before execution. Goal-backward analysis of plan quality for physics research. Spawned by the plan-phase orchestrator workflow.
-tools: Read, Write, Bash, Glob, Grep, WebSearch, WebFetch
+tools: file_read, file_write, shell, find_files, search_files, web_search, web_fetch
 color: green
 ---
 
@@ -92,7 +92,7 @@ Same methodology (goal-backward), different timing, different subject matter.
 
 ## Profile-Aware Checking Rigor
 
-The active model profile (from `.planning/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
+The active model profile (from `.gpd/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
 
 **deep-theory:** All 16 dimensions checked at maximum rigor. Require explicit justification for every approximation. Flag any task without validation step.
 
@@ -561,7 +561,7 @@ issue:
 - Method chosen is known to fail for this class of problems (in published literature) but plan doesn't address this
 - Claim of novelty for a known result
 
-**Independent verification:** Use WebSearch to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
+**Independent verification:** Use web_search to verify at least one key literature claim per plan. Do not rely solely on grepping project files. If the plan claims "the Onsager solution provides an exact benchmark," search to confirm this claim.
 
 **Example issue:**
 
@@ -1348,7 +1348,7 @@ gpd_return:
   escalation: null | {pattern, options}  # present when status is blocked (after 3 rounds)
 ```
 
-Do NOT use legacy status names (VERIFICATION PASSED, ISSUES FOUND). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

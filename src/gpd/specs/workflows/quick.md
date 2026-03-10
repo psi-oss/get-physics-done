@@ -1,5 +1,5 @@
 <purpose>
-Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
+Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks tasks in `.gpd/quick/`, and updates STATE.md's "Quick Tasks Completed" table. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
 </purpose>
 
 <required_reading>
@@ -12,9 +12,9 @@ Read all files referenced by the invoking prompt's execution_context before star
 Prompt user interactively for the task description:
 
 ```
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-AskUserQuestion(
+ask_user(
   header: "Quick Task",
   question: "What do you want to do? Examples:
   - Quick derivation of the equation of motion from the Lagrangian
@@ -49,15 +49,15 @@ Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `n
 - `autonomy=guided` (default): Execute without pausing (quick tasks are inherently lightweight).
 - `autonomy=autonomous/yolo`: Execute and commit without pausing.
 
-**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.planning/`. Run `$gpd-new-project` first.
+**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `/gpd:new-project` first.
 
-Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.planning/` to exist for directory structure.
+Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.gpd/` to exist for directory structure.
 
 ---
 
 **Step 3: Create task directory**
 
-Use `task_dir` from init JSON (`.planning/quick/${next_num}-${slug}`):
+Use `task_dir` from init JSON (`.gpd/quick/${next_num}-${slug}`):
 
 ```bash
 QUICK_DIR="${task_dir}"
@@ -77,10 +77,10 @@ Directory: ${QUICK_DIR}
 
 Spawn gpd-planner with quick mode context:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.
 
 <planning_context>
@@ -90,7 +90,7 @@ Task(
 **Description:** ${DESCRIPTION}
 
 **Project State:**
-Read the file at .planning/STATE.md
+Read the file at .gpd/STATE.md
 
 </planning_context>
 
@@ -130,16 +130,16 @@ Spawn gpd-executor with plan reference:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
 Execute quick task ${next_num}.
 
 Plan: Read the file at ${QUICK_DIR}/${next_num}-PLAN.md
-Project state: Read the file at .planning/STATE.md
+Project state: Read the file at .gpd/STATE.md
 
 <constraints>
 - Execute all tasks in the plan
@@ -186,9 +186,9 @@ gpd state add-decision --phase "quick-${next_num}" --summary "Quick task ${next_
 gpd state update "Last Activity" "${date}"
 ```
 
-**6c. Append quick task table row (Edit + sync):**
+**6c. Append quick task table row (file_edit + sync):**
 
-If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using Edit tool after the `### Blockers/Concerns` section:
+If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using file_edit tool after the `### Blockers/Concerns` section:
 
 ```markdown
 ### Quick Tasks Completed
@@ -197,19 +197,19 @@ If the "Quick Tasks Completed" table section in STATE.md does not exist, create 
 | --- | ----------- | ---- | ------ | --------- |
 ```
 
-Append new row to the table using Edit tool:
+Append new row to the table using file_edit tool:
 
 ```markdown
 | ${next_num} | ${DESCRIPTION} | ${date} | ${commit_hash} | [${next_num}-${slug}](./quick/${next_num}-${slug}/) |
 ```
 
-**6d. Force state.json re-sync after the Edit:**
+**6d. Force state.json re-sync after the file_edit:**
 
 ```bash
 gpd state load
 ```
 
-This ensures the table content added via Edit is synced to state.json. Do NOT skip this step — direct Edit of STATE.md without `state load` causes STATE.md/state.json divergence.
+This ensures the table content added via file_edit is synced to state.json. Do NOT skip this step — direct file_edit of STATE.md without `state load` causes STATE.md/state.json divergence.
 
 ---
 
@@ -218,10 +218,10 @@ This ensures the table content added via Edit is synced to state.json. Do NOT sk
 Stage and commit quick task artifacts:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .planning/STATE.md
+gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md
 ```
 
 Get final commit hash:
@@ -244,18 +244,18 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: $gpd-quick
+Ready for next task: /gpd:quick
 ```
 
 </process>
 
 <success_criteria>
 
-- [ ] `.planning/` directory exists
+- [ ] `.gpd/` directory exists
 - [ ] User provides task description
 - [ ] Slug generated (lowercase, hyphens, max 40 chars)
 - [ ] Next number calculated (001, 002, 003...)
-- [ ] Directory created at `.planning/quick/NNN-slug/`
+- [ ] Directory created at `.gpd/quick/NNN-slug/`
 - [ ] `${next_num}-PLAN.md` created by planner
 - [ ] `${next_num}-SUMMARY.md` created by executor
 - [ ] STATE.md updated with quick task row

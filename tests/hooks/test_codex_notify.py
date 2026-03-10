@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from gpd.hooks.codex_notify import _check_and_notify_update
+from gpd.hooks.codex_notify import _check_and_notify_update, main
 from gpd.hooks.runtime_detect import RUNTIME_CLAUDE
 
 
@@ -46,4 +46,16 @@ def test_notify_uses_latest_local_cache_and_valid_install_command(tmp_path: Path
     output = stderr.getvalue()
     assert "Update available: v1.2.3" in output
     assert "v1.3.0" in output
-    assert "Run: gpd install claude-code" in output
+    assert "Run: npx -y github:physicalsuperintelligence/get-physics-done --claude" in output
+
+
+def test_main_accepts_string_workspace_payload() -> None:
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": "/tmp/project"}))),
+        patch("gpd.hooks.codex_notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.codex_notify._check_and_notify_update") as mock_notify,
+    ):
+        main()
+
+    mock_trigger.assert_called_once_with("/tmp/project")
+    mock_notify.assert_called_once()

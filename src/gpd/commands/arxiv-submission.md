@@ -5,13 +5,13 @@ argument-hint: "[paper directory path]"
 requires:
   files: ["paper/*.tex"]
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -32,7 +32,7 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 <context>
 Paper directory: $ARGUMENTS (optional, defaults to `paper/` or `manuscript/`)
 
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

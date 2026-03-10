@@ -8,12 +8,16 @@ from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.tool_names import (
     CLAUDE_CODE,
+    CANONICAL_TOOL_NAMES,
+    CONTEXTUAL_TOOL_REFERENCE_NAMES,
     CODEX,
     GEMINI,
     OPENCODE,
     RUNTIME_TABLES,
     canonical,
+    reference_translation_map,
     translate,
+    translate_for_runtime,
     translate_list,
 )
 
@@ -53,7 +57,7 @@ class TestToolNames:
             assert canonical(name) == name
 
     @pytest.mark.parametrize(
-        ("legacy", "expected"),
+        ("runtime_alias", "expected"),
         [
             ("Read", "file_read"),
             ("read_file", "file_read"),
@@ -72,8 +76,8 @@ class TestToolNames:
             ("skill", "slash_command"),
         ],
     )
-    def test_canonical_legacy_aliases(self, legacy: str, expected: str) -> None:
-        assert canonical(legacy) == expected
+    def test_canonical_runtime_aliases(self, runtime_alias: str, expected: str) -> None:
+        assert canonical(runtime_alias) == expected
 
     def test_canonical_unknown_passthrough(self) -> None:
         assert canonical("custom_tool") == "custom_tool"
@@ -96,7 +100,7 @@ class TestToolNames:
     def test_translate_canonical_to_runtime(self, canon: str, runtime: str, expected: str) -> None:
         assert translate(canon, runtime) == expected
 
-    def test_translate_legacy_name_auto_canonicalized(self) -> None:
+    def test_translate_runtime_alias_auto_canonicalized(self) -> None:
         assert translate("Read", "codex") == "read_file"
         assert translate("Bash", "gemini") == "run_shell_command"
 
@@ -117,6 +121,26 @@ class TestToolNames:
 
     def test_translate_list_empty(self) -> None:
         assert translate_list([], "claude-code") == []
+
+    def test_translate_for_runtime_drops_auto_discovered_tools(self) -> None:
+        assert translate_for_runtime("task", "codex") is None
+        assert translate_for_runtime("Task", "gemini") is None
+
+    def test_translate_for_runtime_handles_mcp_policy(self) -> None:
+        assert translate_for_runtime("mcp__physics", "gemini") is None
+        assert translate_for_runtime("mcp__physics", "codex") == "mcp__physics"
+
+    def test_reference_translation_map_uses_only_canonical_source_names(self) -> None:
+        mapping = reference_translation_map("opencode")
+        assert mapping["ask_user"] == "question"
+        assert "AskUserQuestion" not in mapping
+        assert "read_file" not in mapping  # identical names are omitted
+
+    def test_contextual_reference_names_cover_common_english_tools(self) -> None:
+        assert {"Read", "Write", "Edit", "shell", "task", "agent"} <= CONTEXTUAL_TOOL_REFERENCE_NAMES
+
+    def test_canonical_tool_names_match_runtime_table_keys(self) -> None:
+        assert set(CANONICAL_TOOL_NAMES) == set(CLAUDE_CODE)
 
     def test_all_runtime_tables_present(self) -> None:
         assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode"}

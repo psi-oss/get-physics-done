@@ -20,15 +20,18 @@ Symmetry determines what is possible, what is forbidden, and what is exactly zer
 - `topological-methods.md` — Topological invariants often follow from symmetry classification
 - `lattice-gauge-theory.md` — Gauge symmetries on the lattice
 - `effective-field-theory.md` — Symmetry-constrained operator bases
+- `asymptotic-symmetries.md` — Boundary symmetries, large gauge transformations, BMS charges, and soft theorems
+- `generalized-symmetries.md` — Higher-form, higher-group, and non-invertible symmetry structures
 
 ## Step 1: Identifying Symmetries from the Lagrangian/Hamiltonian
 
 1. **List all transformations that leave the action (or Hamiltonian) invariant.** For each candidate transformation, verify invariance explicitly — do not assume. Check:
-   - **Continuous symmetries:** Spatial translations, rotations, Lorentz boosts, internal rotations (U(1), SU(N), etc.), scale transformations, conformal transformations.
+   - **Continuous symmetries:** Spatial translations, rotations, Lorentz boosts, internal rotations (U(1), SU(N), etc.), scale transformations, conformal transformations, and when appropriate asymptotic/boundary symmetries such as BMS or large gauge transformations.
    - **Discrete symmetries:** Parity P (spatial inversion), time reversal T, charge conjugation C, lattice translations, point group operations, particle exchange.
    - **Gauge symmetries:** Local transformations that leave the action invariant. These are redundancies in the description, not physical symmetries — but they constrain the physical Hilbert space and observables.
 2. **Distinguish global from local (gauge) symmetries.** Global symmetries have physical consequences (conserved charges via Noether's theorem, selection rules). Gauge symmetries constrain the Hilbert space (Gauss's law, physical state conditions). Spontaneous breaking of global symmetries produces Goldstone bosons; "spontaneous breaking" of gauge symmetries is the Higgs mechanism (no true Goldstone boson — the would-be Goldstone is eaten).
 3. **Check if the symmetry is exact or approximate.** Small explicit breaking terms (quark masses break chiral symmetry, gravity breaks global symmetries) may be present. Quantify the breaking: is the breaking parameter small enough that the symmetry is a useful organizing principle?
+4. **Do not stop at the local action if generalized symmetry is suspected.** Higher-form and non-invertible symmetries are often diagnosed by topological defects and extended operators rather than by varying the local Lagrangian alone.
 
 ## Step 2: Representation Theory
 

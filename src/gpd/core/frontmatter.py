@@ -1,10 +1,9 @@
-"""Frontmatter parsing, schema validation, verification suite, and template operations.
+"""Frontmatter parsing, schema validation, and verification helpers.
 
 Core operations:
   extract_frontmatter / reconstruct_frontmatter / splice_frontmatter — YAML CRUD
   validate_frontmatter — schema enforcement for plan/summary/verification files
-  verify_* — verification suite (summary, plan structure, phase, references, commits, artifacts, key links)
-  select_template / fill_template — template generation for phase artifacts
+  verify_* — verification suite (summary, plan structure, phase, references, commits, artifacts)
 """
 
 from __future__ import annotations
@@ -18,18 +17,13 @@ from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
     PLAN_SUFFIX,
-    PLANNING_DIR_NAME,
-    PROJECT_FILENAME,
-    ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
-    STATE_MD_FILENAME,
     SUMMARY_SUFFIX,
-    VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import atomic_write, generate_slug, phase_normalize, safe_read_file
+from gpd.core.utils import safe_read_file
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -59,8 +53,6 @@ __all__ = [
     "CommitVerification",
     "ArtifactCheck",
     "ArtifactVerification",
-    "KeyLinkCheck",
-    "KeyLinkVerification",
     # Verification implementations
     "verify_summary",
     "verify_plan_structure",
@@ -68,13 +60,6 @@ __all__ = [
     "verify_references",
     "verify_commits",
     "verify_artifacts",
-    "verify_key_links",
-    # Template operations
-    "TemplateSelection",
-    "TemplateResult",
-    "TemplateFillOptions",
-    "select_template",
-    "fill_template",
 ]
 
 # ---------------------------------------------------------------------------
@@ -363,35 +348,6 @@ class ArtifactVerification(BaseModel):
     artifacts: list[ArtifactCheck] = Field(default_factory=list)
 
 
-class KeyLinkCheck(BaseModel):
-    from_path: str
-    to_path: str | None = None
-    via: str = ""
-    verified: bool = False
-    detail: str = ""
-
-
-class KeyLinkVerification(BaseModel):
-    all_verified: bool
-    verified_count: int = 0
-    total: int = 0
-    links: list[KeyLinkCheck] = Field(default_factory=list)
-
-
-class TemplateSelection(BaseModel):
-    template: str
-    template_type: str
-    task_count: int = 0
-    file_count: int = 0
-    has_decisions: bool = False
-
-
-class TemplateResult(BaseModel):
-    created: bool
-    path: str
-    template_type: str
-
-
 # ---------------------------------------------------------------------------
 # Internal helpers (file/git)
 # ---------------------------------------------------------------------------
@@ -410,11 +366,6 @@ def _exec_git(cwd: Path, args: list[str]) -> tuple[int, str]:
         return result.returncode, result.stdout.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return 1, ""
-
-
-def _write_file_atomic(path: Path, content: str) -> None:
-    """Write content to file atomically. Delegates to utils.atomic_write."""
-    atomic_write(path, content)
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +407,14 @@ def verify_summary(
             errors=["SUMMARY.md not found"],
         )
 
-    content = full_path.read_text(encoding="utf-8")
+    try:
+        content = full_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        return SummaryVerification(
+            passed=False,
+            summary_exists=True,
+            errors=[f"Cannot read file (invalid UTF-8): {exc}"],
+        )
     try:
         extract_frontmatter(content)
     except FrontmatterParseError as exc:
@@ -768,7 +726,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
     artifacts_list = parse_must_haves_block(content, "artifacts")
     if not artifacts_list:
         return ArtifactVerification(
-            all_passed=False,
+            all_passed=True,
             artifacts=[],
             total=0,
         )
@@ -799,7 +757,7 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
 
         if exists:
             file_content = safe_read_file(art_full) or ""
-            line_count = file_content.count("\n") + 1
+            line_count = file_content.count("\n") if file_content else 0
 
             min_lines = artifact.get("min_lines")
             if min_lines and line_count < min_lines:
@@ -832,349 +790,3 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
     )
 
 
-# Regex safety: reject patterns with nested quantifiers
-_UNSAFE_REGEX_RE = re.compile(r"([+*?}])\s*[+*?{]")
-_MAX_PATTERN_LEN = 200
-
-
-@instrument_gpd_function("frontmatter.verify_links")
-def verify_key_links(cwd: Path, plan_file_path: Path) -> KeyLinkVerification:
-    """Verify key links declared in ``must_haves.key_links`` of a plan file."""
-    full_path = plan_file_path if plan_file_path.is_absolute() else cwd / plan_file_path
-    content = safe_read_file(full_path)
-    if content is None:
-        return KeyLinkVerification(
-            all_verified=False,
-            links=[KeyLinkCheck(from_path=str(plan_file_path), detail="Plan file not found")],
-            total=1,
-        )
-
-    key_links = parse_must_haves_block(content, "key_links")
-    if not key_links:
-        return KeyLinkVerification(all_verified=False, total=0)
-
-    results: list[KeyLinkCheck] = []
-    for link in key_links:
-        if isinstance(link, str):
-            exists = (cwd / link).exists()
-            results.append(
-                KeyLinkCheck(
-                    from_path=link,
-                    verified=exists,
-                    detail="File exists" if exists else "File not found",
-                )
-            )
-            continue
-
-        if not isinstance(link, dict):
-            continue
-
-        check = KeyLinkCheck(
-            from_path=link.get("from", ""),
-            to_path=link.get("to"),
-            via=link.get("via", ""),
-        )
-
-        if not check.from_path or not check.to_path:
-            check.detail = "Malformed key_link: missing from or to field"
-            results.append(check)
-            continue
-
-        source_content = safe_read_file(cwd / check.from_path)
-        if source_content is None:
-            check.detail = "Source file not found"
-        elif "pattern" in link:
-            pattern = link["pattern"]
-            # Reject unsafe regex
-            if _UNSAFE_REGEX_RE.search(pattern) or len(pattern) > _MAX_PATTERN_LEN:
-                check.detail = f"Unsafe regex pattern rejected: {pattern[:50]}"
-                results.append(check)
-                continue
-            try:
-                regex = re.compile(pattern)
-            except re.error:
-                check.detail = f"Invalid regex pattern: {pattern}"
-                results.append(check)
-                continue
-
-            if regex.search(source_content):
-                check.verified = True
-                check.detail = "Pattern found in source"
-            else:
-                target_content = safe_read_file(cwd / check.to_path)
-                if target_content and regex.search(target_content):
-                    check.verified = True
-                    check.detail = "Pattern found in target"
-                else:
-                    check.detail = f'Pattern "{pattern}" not found in source or target'
-        else:
-            # No pattern — check source references target
-            if check.to_path in source_content:
-                check.verified = True
-                check.detail = "Target referenced in source"
-            else:
-                check.detail = "Target not referenced in source"
-
-        results.append(check)
-
-    verified_count = sum(1 for r in results if r.verified)
-    return KeyLinkVerification(
-        all_verified=verified_count == len(results) and len(results) > 0,
-        verified_count=verified_count,
-        total=len(results),
-        links=results,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Template operations
-# ---------------------------------------------------------------------------
-
-_FILE_MENTION_RE = re.compile(r"`([^`]+\.[a-zA-Z][a-zA-Z0-9]*)`")
-_TASK_HEADING_RE = re.compile(r"###\s*Task\s*\d+")
-_DECISION_RE = re.compile(r"decision", re.IGNORECASE)
-
-
-@instrument_gpd_function("frontmatter.select_template")
-def select_template(cwd: Path, plan_path: Path) -> TemplateSelection:
-    """Analyse a plan file and recommend a template type: minimal, standard, or complex."""
-    full_path = plan_path if plan_path.is_absolute() else cwd / plan_path
-    content = safe_read_file(full_path)
-    if content is None:
-        raise FrontmatterValidationError(f"Plan file not found: {plan_path}")
-
-    task_count = len(_TASK_HEADING_RE.findall(content))
-    has_decisions = bool(_DECISION_RE.search(content))
-
-    file_mentions: set[str] = set()
-    for m in _FILE_MENTION_RE.finditer(content):
-        fp = m.group(1)
-        if "/" in fp and not fp.startswith("http"):
-            file_mentions.add(fp)
-    file_count = len(file_mentions)
-
-    if task_count <= 2 and file_count <= 3 and not has_decisions:
-        ttype = "minimal"
-    elif has_decisions or file_count > 6 or task_count > 5:
-        ttype = "complex"
-    else:
-        ttype = "standard"
-
-    return TemplateSelection(
-        template="templates/summary.md",
-        template_type=ttype,
-        task_count=task_count,
-        file_count=file_count,
-        has_decisions=has_decisions,
-    )
-
-
-class TemplateFillOptions(BaseModel):
-    """Options for ``fill_template``."""
-
-    phase: str
-    name: str | None = None
-    plan: str | None = None
-    plan_type: str = "execute"
-    wave: int | None = None
-    fields: dict | None = None
-
-
-def _normalize_phase_name(phase: str) -> str:
-    """Pad a phase number to 2 digits using canonical phase_normalize.
-
-    '3' -> '03', '72.1' -> '72.1', '003' -> '03'.
-    """
-    return phase_normalize(phase)
-
-
-def _generate_slug(name: str) -> str:
-    """Generate a URL-safe slug from a name.
-
-    Delegates to utils.generate_slug with a non-None fallback.
-    """
-    return generate_slug(name) or name.lower().strip()
-
-
-@instrument_gpd_function("frontmatter.fill_template")
-def fill_template(
-    cwd: Path,
-    template_type: str,
-    options: TemplateFillOptions,
-) -> TemplateResult:
-    """Generate a pre-filled template file (summary, plan, or verification) in the phase directory.
-
-    Uses lazy import of ``find_phase`` from ``gpd.core.phases``.
-    """
-    from gpd.core.phases import find_phase
-
-    phase_info = find_phase(cwd, options.phase)
-    if phase_info is None:
-        raise FrontmatterValidationError(f"Phase not found: {options.phase}")
-
-    padded = _normalize_phase_name(options.phase)
-
-    from datetime import date
-
-    today = date.today().isoformat()
-    phase_name = options.name or phase_info.phase_name or "Unnamed"
-    phase_slug = phase_info.phase_slug or _generate_slug(phase_name)
-    phase_id = f"{padded}-{phase_slug}"
-    plan_num = (options.plan or "01").zfill(2)
-    fields = options.fields or {}
-
-    if template_type == "summary":
-        frontmatter = {
-            "phase": phase_id,
-            "plan": plan_num,
-            "depth": "standard",
-            "one-liner": "[Substantive one-liner describing outcome]",
-            "subsystem": "[primary category]",
-            "tags": [],
-            "requires": [],
-            "provides": [],
-            "affects": [],
-            "methods": {"added": [], "patterns": []},
-            "key-files": {"created": [], "modified": []},
-            "key-decisions": [],
-            "patterns-established": [],
-            "duration": "[X]min",
-            "completed": today,
-            **fields,
-        }
-        body = "\n".join(
-            [
-                f"# Phase {options.phase}: {phase_name} Summary",
-                "",
-                "**[Substantive one-liner describing outcome]**",
-                "",
-                "## Performance",
-                "- **Duration:** [time]",
-                "- **Tasks:** [count completed]",
-                "- **Files modified:** [count]",
-                "",
-                "## Accomplishments",
-                "- [Key outcome 1]",
-                "- [Key outcome 2]",
-                "",
-                "## Task Commits",
-                "1. **Task 1: [task name]** - `hash`",
-                "",
-                "## Files Created/Modified",
-                "- `path/to/calculation.py` - What it does",
-                "",
-                "## Decisions & Deviations",
-                '[Key decisions or "None - followed plan as specified"]',
-                "",
-                "## Next Phase Readiness",
-                "[What's ready for next phase]",
-            ]
-        )
-        file_name = f"{padded}-{plan_num}{SUMMARY_SUFFIX}"
-
-    elif template_type == "plan":
-        wave_val = options.wave if options.wave is not None else 1
-        frontmatter = {
-            "phase": phase_id,
-            "plan": plan_num,
-            "type": options.plan_type,
-            "wave": wave_val,
-            "depends_on": [],
-            "files_modified": [],
-            "autonomous": True,
-            "user_setup": [],
-            "must_haves": {
-                "truths": [],
-                "artifacts": [],
-                "key_links": [],
-                "uncertainties": [],
-            },
-            **fields,
-        }
-        body = "\n".join(
-            [
-                f"# Phase {options.phase} Plan {plan_num}: [Title]",
-                "",
-                "## Objective",
-                "- **What:** [What this plan builds]",
-                "- **Why:** [Why it matters for the phase goal]",
-                "- **Output:** [Concrete deliverable]",
-                "",
-                "## Context",
-                f"@{PLANNING_DIR_NAME}/{PROJECT_FILENAME}",
-                f"@{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}",
-                f"@{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}",
-                "",
-                "## Tasks",
-                "",
-                '<task type="code">',
-                "  <name>[Task name]</name>",
-                "  <files>[file paths]</files>",
-                "  <action>[What to do]</action>",
-                "  <verify>[How to verify]</verify>",
-                "  <done>[Definition of done]</done>",
-                "</task>",
-                "",
-                "## Verification",
-                "[How to verify this plan achieved its objective]",
-                "",
-                "## Success Criteria",
-                "- [ ] [Criterion 1]",
-                "- [ ] [Criterion 2]",
-            ]
-        )
-        file_name = f"{padded}-{plan_num}{PLAN_SUFFIX}"
-
-    elif template_type == "verification":
-        frontmatter = {
-            "phase": phase_id,
-            "verified": today,
-            "status": "pending",
-            "score": "0/0 must-haves verified",
-            **fields,
-        }
-        body = "\n".join(
-            [
-                f"# Phase {options.phase}: {phase_name} — Verification",
-                "",
-                "## Observable Truths",
-                "| # | Truth | Status | Evidence |",
-                "|---|-------|--------|----------|",
-                "| 1 | [Truth] | pending | |",
-                "",
-                "## Required Artifacts",
-                "| Artifact | Expected | Status | Details |",
-                "|----------|----------|--------|---------|",
-                "| [path] | [what] | pending | |",
-                "",
-                "## Key Link Verification",
-                "| From | To | Via | Status | Details |",
-                "|------|----|----|--------|---------|",
-                "| [source] | [target] | [connection] | pending | |",
-                "",
-                "## Requirements Coverage",
-                "| Requirement | Status | Blocking Issue |",
-                "|-------------|--------|----------------|",
-                "| [req] | pending | |",
-                "",
-                "## Result",
-                "[Pending verification]",
-            ]
-        )
-        file_name = f"{padded}{VERIFICATION_SUFFIX}"
-
-    else:
-        raise FrontmatterValidationError(
-            f"Unknown template type: {template_type}. Available: summary, plan, verification"
-        )
-
-    full_content = reconstruct_frontmatter(frontmatter, body) + "\n"
-    phase_dir = cwd / phase_info.directory
-    out_path = phase_dir / file_name
-
-    if out_path.exists():
-        raise FrontmatterValidationError(f"File already exists: {out_path.relative_to(cwd)}")
-
-    _write_file_atomic(out_path, full_content)
-    rel_path = str(out_path.relative_to(cwd))
-    return TemplateResult(created=True, path=rel_path, template_type=template_type)

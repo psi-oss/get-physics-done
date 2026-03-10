@@ -7,7 +7,7 @@ template_version: 1
 
 # Computational Approaches Research Template
 
-Template for `.planning/research/COMPUTATIONAL.md` -- survey of computational tools, numerical methods, and simulation approaches.
+Template for `.gpd/research/COMPUTATIONAL.md` -- survey of computational tools, numerical methods, and simulation approaches.
 
 ---
 

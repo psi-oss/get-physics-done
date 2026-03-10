@@ -4,7 +4,7 @@ template_version: 1
 
 # Roadmap Template
 
-Template for `.planning/ROADMAP.md`.
+Template for `.gpd/ROADMAP.md`.
 
 ## Initial Roadmap (First Paper / New Project)
 

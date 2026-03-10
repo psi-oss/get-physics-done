@@ -19,7 +19,7 @@ from gpd.core.suggest import (
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
     (planning / "phases").mkdir()
     (planning / "PROJECT.md").write_text("# My Project\n")
@@ -28,12 +28,12 @@ def _setup_project(tmp_path: Path) -> Path:
 
 def _create_roadmap(tmp_path: Path, content: str = "# Roadmap\n## Phase 1\n") -> None:
     """Write ROADMAP.md."""
-    (tmp_path / ".planning" / "ROADMAP.md").write_text(content)
+    (tmp_path / ".gpd" / "ROADMAP.md").write_text(content)
 
 
 def _create_state(tmp_path: Path, state: dict[str, object]) -> None:
     """Write state.json."""
-    (tmp_path / ".planning" / "state.json").write_text(json.dumps(state))
+    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state))
 
 
 def _create_phase(
@@ -46,7 +46,7 @@ def _create_phase(
     verification: bool = False,
 ) -> Path:
     """Create a phase directory with specified artifacts."""
-    phase_dir = tmp_path / ".planning" / "phases" / name
+    phase_dir = tmp_path / ".gpd" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     for i in range(1, plans + 1):
         (phase_dir / f"{i:02d}-PLAN.md").write_text(f"Plan {i}\n")
@@ -61,7 +61,7 @@ def _create_phase(
 
 def _create_todos(tmp_path: Path, count: int) -> None:
     """Create pending todo files."""
-    pending = tmp_path / ".planning" / "todos" / "pending"
+    pending = tmp_path / ".gpd" / "todos" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     for i in range(count):
         (pending / f"todo-{i}.md").write_text(f"Todo {i}\n")
@@ -307,7 +307,7 @@ def test_referee_report_suggests_response(tmp_path: Path) -> None:
     _create_roadmap(root)
     (root / "paper").mkdir()
     (root / "paper" / "main.tex").write_text("\\documentclass{article}\n")
-    paper_dir = root / ".planning" / "paper"
+    paper_dir = root / ".gpd" / "paper"
     paper_dir.mkdir()
     (paper_dir / "REFEREE-REPORT-1.md").write_text("Major revision needed.\n")
     result = suggest_next(root)
@@ -364,7 +364,7 @@ def test_explore_mode_boosts_discussion(tmp_path: Path) -> None:
     """Explore mode should lower priority (boost) discuss-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"research_mode": "explore"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "explore"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")  # pending
     result = suggest_next(root)
@@ -377,7 +377,7 @@ def test_exploit_mode_boosts_execution(tmp_path: Path) -> None:
     """Exploit mode should lower priority (boost) execute-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"research_mode": "exploit"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "exploit"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -389,7 +389,7 @@ def test_supervised_mode_penalizes_execution(tmp_path: Path) -> None:
     """Supervised autonomy mode should increase execution priority (penalize)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -401,7 +401,7 @@ def test_autonomous_mode_boosts_execution(tmp_path: Path) -> None:
     """Autonomous mode should lower execution priority (boost)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"autonomy": "autonomous"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "autonomous"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -463,7 +463,7 @@ def test_adaptive_mode_early_progress(tmp_path: Path) -> None:
     """Adaptive mode with low progress should boost discussion."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
     _create_state(root, {"position": {"progress_percent": 20}})
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")
@@ -477,7 +477,7 @@ def test_adaptive_mode_late_progress(tmp_path: Path) -> None:
     """Adaptive mode with high progress should boost execution/verification."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".planning" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
     _create_state(root, {"position": {"progress_percent": 80}})
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)

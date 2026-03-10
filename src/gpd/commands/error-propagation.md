@@ -3,14 +3,14 @@ name: gpd:error-propagation
 description: Track how uncertainties propagate through multi-step calculations across phases
 argument-hint: "[--target quantity] [--phase-range start:end]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -31,8 +31,8 @@ Systematic uncertainty propagation through a derivation chain. Traces how input 
 <context>
 Target: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -207,8 +207,8 @@ total_fractional_error: {value}
 ```
 
 Save to:
-- Phase target: `.planning/phases/XX-name/ERROR-BUDGET.md`
-- Project-wide: `.planning/analysis/error-budget-{target}.md`
+- Phase target: `.gpd/phases/XX-name/ERROR-BUDGET.md`
+- Project-wide: `.gpd/analysis/error-budget-{target}.md`
 
 </process>
 

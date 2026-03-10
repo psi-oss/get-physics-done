@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from functools import cmp_to_key
 from pathlib import Path
 
@@ -19,19 +19,19 @@ from gpd.core.constants import (
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     REQUIRED_RETURN_FIELDS,
+    STANDALONE_PLAN,
+    STANDALONE_SUMMARY,
     SUMMARY_SUFFIX,
     VALID_RETURN_STATUSES,
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, splice_frontmatter
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import (
-    atomic_write,
     compare_phase_numbers,
     generate_slug,
     is_phase_complete,
-    phase_normalize,
     safe_read_file,
 )
 
@@ -43,19 +43,15 @@ __all__ = [
     "PhaseDigest",
     "RegressionCheckResult",
     "RegressionIssue",
-    "ScaffoldResult",
     "SummaryDecision",
     "SummaryExtractResult",
-    "TodoCompleteResult",
     "ValidateReturnResult",
     "VerifyPathResult",
     "cmd_current_timestamp",
     "cmd_generate_slug",
     "cmd_history_digest",
     "cmd_regression_check",
-    "cmd_scaffold",
     "cmd_summary_extract",
-    "cmd_todo_complete",
     "cmd_validate_return",
     "cmd_verify_path_exists",
 ]
@@ -76,19 +72,6 @@ class GenerateSlugResult(BaseModel):
 class VerifyPathResult(BaseModel):
     exists: bool
     type: str | None = None
-
-
-class TodoCompleteResult(BaseModel):
-    completed: bool
-    file: str
-    date: str
-
-
-class ScaffoldResult(BaseModel):
-    created: bool
-    path: str | None = None
-    directory: str | None = None
-    reason: str | None = None
 
 
 class SummaryDecision(BaseModel):
@@ -222,152 +205,12 @@ def cmd_verify_path_exists(cwd: Path, target_path: str) -> VerifyPathResult:
     return VerifyPathResult(exists=True, type=path_type)
 
 
-@instrument_gpd_function("commands.todo_complete")
-def cmd_todo_complete(cwd: Path, filename: str) -> TodoCompleteResult:
-    """Move a todo from pending/ to done/, adding a completion timestamp.
-
-    Uses atomic write + rename to prevent duplication on crash.
-
-    Raises:
-        ValidationError: If *filename* is empty or the todo is not found.
-        FrontmatterParseError: If the todo has malformed YAML frontmatter.
-    """
-    if not filename:
-        raise ValidationError("filename required for todo complete")
-
-    pending_dir = cwd / PLANNING_DIR_NAME / "todos" / "pending"
-    done_dir = cwd / PLANNING_DIR_NAME / "todos" / "done"
-    source_path = pending_dir / filename
-
-    if not source_path.exists():
-        raise ValidationError(f"Todo not found: {filename}")
-
-    done_dir.mkdir(parents=True, exist_ok=True)
-
-    content = source_path.read_text(encoding="utf-8")
-    today = date.today().isoformat()
-
-    meta, _body = extract_frontmatter(content)
-    meta["completed"] = today
-    content = splice_frontmatter(content, meta)
-
-    dest_path = done_dir / filename
-    atomic_write(dest_path, content)
-
-    source_path.unlink(missing_ok=True)
-
-    return TodoCompleteResult(completed=True, file=filename, date=today)
-
-
-def _find_phase_dir(cwd: Path, phase: str) -> Path | None:
-    """Locate a phase directory by number. Returns the absolute path or None."""
-    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
-    if not phases_dir.is_dir():
-        return None
-
-    padded = phase_normalize(phase)
-
-    for entry in sorted(phases_dir.iterdir()):
-        if not entry.is_dir():
-            continue
-        m = re.match(r"^(\d+(?:\.\d+)*)", entry.name)
-        if m and phase_normalize(m.group(1)) == padded:
-            return entry
-    return None
-
-
 def _phase_name_from_dir(dir_name: str) -> str:
     """Extract a human-readable name from a phase directory name like '03-core-work'."""
     parts = dir_name.split("-", 1)
     if len(parts) > 1:
         return parts[1].replace("-", " ")
     return "Unknown"
-
-
-@instrument_gpd_function("commands.scaffold")
-def cmd_scaffold(
-    cwd: Path,
-    scaffold_type: str,
-    *,
-    phase: str | None = None,
-    name: str | None = None,
-) -> ScaffoldResult:
-    """Create a scaffold file (context, validation, verification) or phase directory.
-
-    Scaffold types:
-        context      — CONTEXT.md in the phase directory
-        validation   — VALIDATION.md in the phase directory
-        verification — VERIFICATION.md in the phase directory
-        phase-dir    — Create a new phase directory under .planning/phases/
-
-    Raises:
-        ValidationError: If required args are missing or type is unknown.
-    """
-    padded = phase_normalize(phase) if phase else "00"
-    today = date.today().isoformat()
-    scaffold_type = scaffold_type.strip().lower()
-
-    if scaffold_type == "phase-dir":
-        if not phase or not name:
-            raise ValidationError("phase and name required for phase-dir scaffold")
-        slug = generate_slug(name) or name.lower().strip()
-        dir_name = f"{padded}-{slug}"
-        phases_parent = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
-        phases_parent.mkdir(parents=True, exist_ok=True)
-        dir_path = phases_parent / dir_name
-        dir_path.mkdir(parents=True, exist_ok=True)
-        return ScaffoldResult(
-            created=True,
-            directory=f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{dir_name}",
-            path=str(dir_path),
-        )
-
-    # For non-phase-dir types, require a phase that exists on disk
-    phase_dir = _find_phase_dir(cwd, phase) if phase else None
-    if phase_dir is None:
-        if phase:
-            raise ValidationError(f"Phase {phase} directory not found")
-        raise ValidationError(f'--phase is required for scaffold type "{scaffold_type}"')
-
-    phase_name = name or _phase_name_from_dir(phase_dir.name) or "Unnamed"
-
-    if scaffold_type == "context":
-        file_path = phase_dir / f"{padded}-CONTEXT.md"
-        content = (
-            f'---\nphase: "{padded}"\nname: "{phase_name}"\ncreated: {today}\n---\n\n'
-            f"# Phase {phase}: {phase_name} \u2014 Context\n\n"
-            f"## Decisions\n\n_Decisions will be captured during /gpd:discuss-phase {phase}_\n\n"
-            "## Discretion Areas\n\n_Areas where the executor can use judgment_\n\n"
-            "## Deferred Ideas\n\n_Ideas to consider later_\n"
-        )
-    elif scaffold_type == "validation":
-        file_path = phase_dir / f"{padded}-VALIDATION.md"
-        content = (
-            f'---\nphase: "{padded}"\nname: "{phase_name}"\ncreated: {today}\nstatus: pending\n---\n\n'
-            f"# Phase {phase}: {phase_name} \u2014 Physics Validation\n\n"
-            "## Test Results\n\n| # | Test | Status | Notes |\n|---|------|--------|-------|\n\n"
-            "## Summary\n\n_Pending validation_\n"
-        )
-    elif scaffold_type == "verification":
-        file_path = phase_dir / f"{padded}-VERIFICATION.md"
-        content = (
-            f'---\nphase: "{padded}"\nname: "{phase_name}"\ncreated: {today}\nstatus: pending\n---\n\n'
-            f"# Phase {phase}: {phase_name} \u2014 Verification\n\n"
-            "## Goal-Backward Verification\n\n**Phase Goal:** [From ROADMAP.md]\n\n"
-            "## Checks\n\n| # | Requirement | Status | Evidence |\n|---|------------|--------|----------|\n\n"
-            "## Result\n\n_Pending verification_\n"
-        )
-    else:
-        raise ValidationError(
-            f"Unknown scaffold type: {scaffold_type}. Available: context, validation, verification, phase-dir"
-        )
-
-    if file_path.exists():
-        return ScaffoldResult(created=False, path=str(file_path), reason="already_exists")
-
-    atomic_write(file_path, content)
-    rel_path = str(file_path.relative_to(cwd))
-    return ScaffoldResult(created=True, path=rel_path)
 
 
 def _parse_decisions(decisions_list: object) -> list[SummaryDecision]:
@@ -489,7 +332,7 @@ def _merge_list_or_string(target_set: set[str], value: object) -> None:
 def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     """Build a digest of project history from phase SUMMARY files.
 
-    Scans .planning/phases/*/SUMMARY.md for frontmatter fields:
+    Scans .gpd/phases/*/SUMMARY.md for frontmatter fields:
     dependency-graph.provides, dependency-graph.affects, patterns-established,
     key-decisions, and methods.added.
     """
@@ -509,7 +352,7 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     for dir_path in phase_dirs:
         dir_name = dir_path.name
         summaries = [
-            f for f in dir_path.iterdir() if f.is_file() and (f.name.endswith("-SUMMARY.md") or f.name == "SUMMARY.md")
+            f for f in dir_path.iterdir() if f.is_file() and (f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY)
         ]
 
         for summary_file in summaries:
@@ -603,8 +446,8 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
     completed_dirs: list[Path] = []
     for d in all_dirs:
         files = [f.name for f in d.iterdir() if f.is_file()]
-        plans = [f for f in files if f.endswith(PLAN_SUFFIX) or f == "PLAN.md"]
-        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX) or f == "SUMMARY.md"]
+        plans = [f for f in files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
+        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
         if is_phase_complete(len(plans), len(summaries)):
             completed_dirs.append(d)
 
@@ -618,7 +461,7 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
     conventions_by_symbol: dict[str, list[dict[str, str]]] = {}
     for d in completed_dirs:
         summaries = [
-            f for f in d.iterdir() if f.is_file() and (f.name.endswith("-SUMMARY.md") or f.name == "SUMMARY.md")
+            f for f in d.iterdir() if f.is_file() and (f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY)
         ]
         for summary_file in summaries:
             content = safe_read_file(summary_file)

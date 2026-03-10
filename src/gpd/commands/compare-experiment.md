@@ -3,17 +3,17 @@ name: gpd:compare-experiment
 description: Systematically compare theoretical predictions with experimental or observational data
 argument-hint: "[prediction or dataset to compare]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - WebSearch
-  - WebFetch
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - web_search
+  - web_fetch
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -40,8 +40,8 @@ Interpretation:
 Load theoretical predictions:
 
 ```bash
-cat .planning/research-map/ARCHITECTURE.md 2>/dev/null | grep -A 20 "Predictions"
-ls .planning/phases/*/results/ 2>/dev/null
+cat .gpd/research-map/ARCHITECTURE.md 2>/dev/null | grep -A 20 "Predictions"
+ls .gpd/phases/*/results/ 2>/dev/null
 find . -name "*.json" -o -name "*.csv" -o -name "*.dat" | grep -i "result\|predict" | head -10
 ```
 
@@ -55,7 +55,7 @@ find . -name "*.json" -o -name "*.csv" -o -name "*.dat" | grep -i "result\|predi
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".planning" ]; then
+if [ ! -d ".gpd" ]; then
   echo "Error: No GPD project found. Run /gpd:new-project first."
   exit 1
 fi

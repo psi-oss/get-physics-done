@@ -3,9 +3,9 @@ name: gpd:set-profile
 description: Switch research profile for GPD agents (deep-theory/numerical/exploratory/review/paper-writing)
 argument-hint: <profile>
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+  - file_read
+  - file_write
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

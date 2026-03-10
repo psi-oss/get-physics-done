@@ -21,13 +21,20 @@ Useful checks:
 
 ```bash
 uv run pytest tests/test_release_consistency.py -v
-uv run pytest tests/core/test_cli.py tests/test_cli.py -v
+uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
+uv run pytest tests/core/test_cli.py -v
 uv run pytest tests/ -v
 ```
 
+Cross-runtime release checks:
+
+- `tests/adapters/test_registry.py` and `tests/adapters/test_install_roundtrip.py` cover install-time translation across Claude Code, Gemini CLI, Codex, and OpenCode.
+- `tests/core/test_cli.py` covers the public `gpd` CLI surface.
+- `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
+
 ## Release-Facing Guardrails
 
-- Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`.
+- Public install docs should use `npx -y github:physicalsuperintelligence/get-physics-done`.
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.

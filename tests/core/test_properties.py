@@ -10,12 +10,11 @@ import random
 import re
 import string
 
-import yaml
 
 from gpd.core.frontmatter import extract_frontmatter, reconstruct_frontmatter
 from gpd.core.results import _auto_generate_id
 from gpd.core.state import ensure_state_schema, generate_state_markdown
-from gpd.core.utils import generate_slug, phase_normalize, phase_unpad, safe_parse_int, safe_parse_yaml
+from gpd.core.utils import generate_slug, phase_normalize, phase_unpad, safe_parse_int
 
 # ---------------------------------------------------------------------------
 # Helpers for random generation
@@ -281,35 +280,6 @@ def test_safe_parse_int_edge_cases():
     assert safe_parse_int("abc", default=None) is None
     assert safe_parse_int("", default=-1) == -1
     assert safe_parse_int(42) == 42
-
-
-# ---------------------------------------------------------------------------
-# 8. safe_parse_yaml(yaml.dump(d)) == d roundtrip for simple dicts
-# ---------------------------------------------------------------------------
-
-
-def test_safe_parse_yaml_roundtrip():
-    """safe_parse_yaml(yaml.dump(d)) == d for simple dicts."""
-    for _ in range(50):
-        d = _random_simple_dict()
-        dumped = yaml.dump(d, default_flow_style=False)
-        parsed = safe_parse_yaml(dumped)
-        assert parsed is not None, f"safe_parse_yaml returned None for {dumped!r}"
-        assert parsed == d, f"Roundtrip mismatch: {parsed!r} != {d!r}"
-
-
-def test_safe_parse_yaml_returns_none_for_non_dict():
-    """safe_parse_yaml returns None for non-dict YAML."""
-    assert safe_parse_yaml("- item1\n- item2") is None  # list
-    assert safe_parse_yaml("just a string") is None  # scalar
-    assert safe_parse_yaml("42") is None  # number
-    assert safe_parse_yaml("") is None  # empty (None result)
-
-
-def test_safe_parse_yaml_returns_none_for_invalid():
-    """safe_parse_yaml returns None for malformed YAML."""
-    assert safe_parse_yaml("{{{{bad yaml:::::") is None
-    assert safe_parse_yaml("key: [unclosed") is None
 
 
 # ---------------------------------------------------------------------------

@@ -157,7 +157,7 @@ When a phase consumes results from a prior phase, uncertainties must be tracked 
 2. **Propagate uncertainties.** Use standard error propagation (quadrature for independent errors, linear for correlated errors) through every calculation step that uses imported quantities.
 3. **Document propagation.** In the phase SUMMARY, include a section listing: (a) imported quantities with their uncertainties, (b) how uncertainties entered the current calculation, (c) the resulting uncertainty on this phase's outputs.
 4. **Flag amplification.** If uncertainty is amplified (e.g., exponentiation, division by small numbers, chaotic sensitivity), flag this explicitly as a potential validity concern.
-5. **Use `$gpd-error-propagation`** for systematic tracking across multi-phase calculations.
+5. **Use `/gpd:error-propagation`** for systematic tracking across multi-phase calculations.
 
 **Why this matters:** Without explicit tracking, error bars on final results are underestimated. A 5% uncertainty in Phase 2 can become 50% by Phase 6 through amplification, but if never tracked, the final result appears precise.
 
@@ -266,12 +266,12 @@ Query pattern: `"[topic]" review` on arXiv or Google Scholar, sort by citations.
 
 ### Tier 4: Community Resources
 
-- WebSearch for code repositories (GitHub, GitLab)
+- web_search for code repositories (GitHub, GitLab)
 - Stack Exchange (Physics, MathOverflow) for conceptual clarifications
 - Conference proceedings for very recent results
 - Thesis repositories for detailed expositions
 
-**Priority order:** Textbooks/Reviews > Peer-Reviewed Papers > Cited arXiv Preprints > Official Tool Docs > Verified WebSearch > Unverified Sources
+**Priority order:** Textbooks/Reviews > Peer-Reviewed Papers > Cited arXiv Preprints > Official Tool Docs > Verified web_search > Unverified Sources
 
 ### Confidence Levels
 
@@ -316,8 +316,11 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Classical Mechanics | `protocols/classical-mechanics.md` | Lagrangian/Newtonian mechanics — constraints, conserved quantities, oscillations |
 | Hamiltonian Mechanics | `protocols/hamiltonian-mechanics.md` | Canonical transformations, Poisson brackets, Hamilton-Jacobi, action-angle variables |
 | Scattering Theory | `protocols/scattering-theory.md` | Cross sections, phase shifts, S-matrix, partial waves, optical theorem |
-| Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, superfields, soft breaking, MSSM, superspace |
+| Phenomenology | `protocols/phenomenology.md` | Likelihoods, global fits, EFT validity, recasting, correlated uncertainties, public reinterpretation |
+| Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, BPS bounds, localization, Seiberg-Witten/duality, soft breaking, supergravity caveats |
+| String Field Theory | `protocols/string-field-theory.md` | BRST string fields, star product, BV, `A_infinity` / `L_infinity`, tachyon condensation |
 | Cosmological Perturbation Theory | `protocols/cosmological-perturbation-theory.md` | Inflation, scalar/tensor perturbations, gauge choices, power spectra |
+| de Sitter Space | `protocols/de-sitter-space.md` | Positive cosmological constant, cosmological horizons, dS/CFT, static patch holography |
 | Holography / AdS-CFT | `protocols/holography-ads-cft.md` | AdS/CFT dictionary, holographic renormalization, entanglement entropy |
 | Quantum Error Correction | `protocols/quantum-error-correction.md` | Stabilizer codes, surface codes, fault tolerance, threshold theorems |
 | Resummation | `protocols/resummation.md` | Borel summation, Pade approximants, conformal mapping, optimized perturbation theory |
@@ -332,6 +335,8 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Lattice Gauge Theory | `protocols/lattice-gauge-theory.md` | Lattice QCD/QFT — fermion discretization, topology, continuum extrapolation |
 | Tensor Networks | `protocols/tensor-networks.md` | MPS/DMRG/PEPS — bond dimension convergence, entanglement, time evolution |
 | Symmetry Analysis | `protocols/symmetry-analysis.md` | Symmetry identification, representations, selection rules, SSB, anomalies |
+| Asymptotic Symmetries | `protocols/asymptotic-symmetries.md` | Bondi gauge, null infinity, large gauge transformations, BMS charges, soft/memory checks |
+| Generalized Symmetries | `protocols/generalized-symmetries.md` | Higher-form symmetries, center symmetry, higher-group structure, non-invertible defects, anomaly checks |
 | Non-Equilibrium Transport | `protocols/non-equilibrium-transport.md` | Kubo formulas, Keldysh formalism, Boltzmann equation, Mori-Zwanzig |
 | Finite-Temperature Field Theory | `protocols/finite-temperature-field-theory.md` | Matsubara frequencies, Schwinger-Keldysh, HTL resummation, IR problems |
 | Conformal Bootstrap | `protocols/conformal-bootstrap.md` | Crossing symmetry, OPE, unitarity bounds, SDPB, extremal functionals |
@@ -349,6 +354,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 
 | Protocol | File | When to Use |
 |---|---|---|
+| Algebraic QFT | `protocols/algebraic-qft.md` | Haag-Kastler nets, modular theory, DHR sectors, factor types, split and duality properties |
 | Group Theory | `protocols/group-theory.md` | Representations, Clebsch-Gordan coefficients, character tables, selection rules |
 | Topological Methods | `protocols/topological-methods.md` | Berry phase, Chern numbers, topological invariants, edge states, bulk-boundary |
 | Green's Functions | `protocols/green-functions.md` | Retarded/advanced/Matsubara propagators, spectral functions, Dyson equation, analytic continuation |
@@ -368,6 +374,8 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Nuclear / Particle Physics | `verification-domain-nuclear-particle.md` | Magic numbers, shell model, parton sum rules, CKM unitarity |
 | Astrophysics | `verification-domain-astrophysics.md` | Eddington luminosity, stellar structure, Jeans mass, opacity |
 | Mathematical Physics | `verification-domain-mathematical-physics.md` | Analyticity, spectral theory, asymptotics, distribution theory |
+| Algebraic QFT | `verification-domain-algebraic-qft.md` | Haag-Kastler nets, modular theory, type `I/II/III`, DHR sectors, split and duality checks |
+| String Field Theory | `verification-domain-string-field-theory.md` | BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence |
 | Quantum Information | `verification-domain-quantum-info.md` | CPTP maps, entanglement measures, information bounds, channel capacity |
 | Soft Matter / Biophysics | `verification-domain-soft-matter.md` | Equilibration, scaling laws, force fields, finite-size analysis |
 
@@ -406,8 +414,8 @@ Both researcher agents follow the same methodology, differing only in scope (pro
 | Aspect | gpd-project-researcher | gpd-phase-researcher |
 |--------|----------------------|---------------------|
 | Scope | Entire project domain | Single phase domain |
-| Trigger | $gpd-new-project | $gpd-plan-phase or $gpd-research-phase |
-| Output | .planning/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
+| Trigger | /gpd:new-project | /gpd:plan-phase or /gpd:research-phase |
+| Output | .gpd/research/ (5 files) | ${phase_dir}/{phase}-RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 | Commits | No (orchestrator commits) | No (orchestrator commits) |
 
@@ -428,7 +436,7 @@ Before submitting research output, both researchers verify:
 ### Tool Strategy and Confidence Levels
 
 See `references/researcher-shared.md` for:
-- Tool priority (arXiv > WebFetch > WebSearch > project search)
+- Tool priority (arXiv > web_fetch > web_search > project search)
 - arXiv search strategy
 - Textbook and reference strategy
 - Computational tool documentation approach

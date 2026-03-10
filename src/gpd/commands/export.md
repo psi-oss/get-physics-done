@@ -3,11 +3,11 @@ name: gpd:export
 description: Export research results to HTML, LaTeX, or ZIP package
 argument-hint: "[--format html|latex|zip|all]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - file_write
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -33,9 +33,9 @@ Use this when sharing results with collaborators, preparing for publication, or 
 <context>
 Format: $ARGUMENTS (optional -- if not provided, ask user)
 
-@.planning/PROJECT.md
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/PROJECT.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -55,7 +55,7 @@ Route to appropriate generator (html, latex, zip, or all).
 
 ## Step 4: Write Output
 
-Write files to `.planning/exports/`.
+Write files to `.gpd/exports/`.
 
 ## Step 5: Report
 
@@ -68,6 +68,6 @@ Display file locations, sizes, and instructions for each format.
 - [ ] Format determined (from args or user choice)
 - [ ] Export generated in requested format(s)
 - [ ] Key results and equations included
-- [ ] Files written to .planning/exports/
+- [ ] Files written to .gpd/exports/
 - [ ] File locations reported to user
       </success_criteria>

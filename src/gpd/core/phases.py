@@ -19,12 +19,22 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
+    CONTEXT_SUFFIX,
+    MILESTONES_DIR_NAME,
+    MILESTONES_FILENAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
+    REQUIREMENTS_FILENAME,
+    RESEARCH_SUFFIX,
+    STANDALONE_CONTEXT,
     STANDALONE_PLAN,
+    STANDALONE_RESEARCH,
     STANDALONE_SUMMARY,
+    STANDALONE_VALIDATION,
+    STANDALONE_VERIFICATION,
     SUMMARY_SUFFIX,
+    VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
     ProjectLayout,
 )
@@ -171,6 +181,15 @@ def _sync_state_json(cwd: Path, state_content: str) -> None:
     sync_state_json(cwd, state_content)
 
 
+def _validate_transition(current_status: str, new_status: str) -> None:
+    """Validate a state transition, raising PhaseValidationError if invalid."""
+    from gpd.core.state import validate_state_transition
+
+    error = validate_state_transition(current_status, new_status)
+    if error is not None:
+        raise PhaseValidationError(error)
+
+
 def _extract_state_field(state_content: str, field_name: str) -> str | None:
     """Extract a `**Field:** value from STATE.md content."""
     match = re.search(rf"\*\*{re.escape(field_name)}:\*\*\s*(.+)", state_content)
@@ -187,7 +206,7 @@ class PhaseInfo(BaseModel):
     """Information about a discovered phase directory."""
 
     found: bool
-    directory: str  # Relative path: .planning/phases/XX-name
+    directory: str  # Relative path: .gpd/phases/XX-name
     phase_number: str
     phase_name: str | None
     phase_slug: str | None
@@ -443,7 +462,7 @@ def _sorted_phases(dirs: list[str]) -> list[str]:
 
 
 def _planning_path(cwd: Path) -> Path:
-    return ProjectLayout(cwd).planning
+    return ProjectLayout(cwd).gpd
 
 
 def _phases_dir(cwd: Path) -> Path:
@@ -546,10 +565,10 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
         plans = sorted(f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
         summaries = sorted(f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
-        has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
-        has_context = any(f.endswith("-CONTEXT.md") or f == "CONTEXT.md" for f in phase_files)
-        has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == "VERIFICATION.md" for f in phase_files)
-        has_validation = any(f.endswith("-VALIDATION.md") or f == "VALIDATION.md" for f in phase_files)
+        has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
+        has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
+        has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == STANDALONE_VERIFICATION for f in phase_files)
+        has_validation = any(f.endswith(VALIDATION_SUFFIX) or f == STANDALONE_VALIDATION for f in phase_files)
 
         # Determine incomplete plans (plans without matching summaries)
         completed_plan_ids = {_strip_suffix(_strip_suffix(s, SUMMARY_SUFFIX), STANDALONE_SUMMARY) for s in summaries}
@@ -661,7 +680,7 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
             return RoadmapPhaseResult(found=False, error="ROADMAP.md not found")
 
         escaped_phase = re.escape(str(phase_num))
-        phase_pattern = re.compile(rf"###\s*Phase\s+{escaped_phase}:\s*([^\n]+)", re.IGNORECASE)
+        phase_pattern = re.compile(rf"#{{2,4}}\s*Phase\s+{escaped_phase}:\s*([^\n]+)", re.IGNORECASE)
         header_match = phase_pattern.search(content)
 
         if not header_match:
@@ -671,7 +690,7 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
         header_index = header_match.start()
 
         rest_of_content = content[header_index:]
-        next_header = re.search(r"\n###\s+Phase\s+\d", rest_of_content, re.IGNORECASE)
+        next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest_of_content, re.IGNORECASE)
         section_end = header_index + next_header.start() if next_header else len(content)
         section = content[header_index:section_end].strip()
 
@@ -965,7 +984,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             phase_dir_names = [d.name for d in phases_dir.iterdir() if d.is_dir()]
 
         # Extract all phase headings
-        phase_pattern = re.compile(r"###\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
+        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*)\s*:\s*([^\n]+)", re.IGNORECASE)
         phases: list[RoadmapPhase] = []
 
         for match in phase_pattern.finditer(content):
@@ -975,7 +994,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             # Extract section text
             section_start = match.start()
             rest = content[section_start:]
-            next_header = re.search(r"\n###\s+Phase\s+\d", rest, re.IGNORECASE)
+            next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest, re.IGNORECASE)
             section_end = section_start + next_header.start() if next_header else len(content)
             section = content[section_start:section_end]
 
@@ -1002,8 +1021,8 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
                 phase_files = [f.name for f in (phases_dir / dir_match_name).iterdir() if f.is_file()]
                 plan_count = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
                 summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
-                has_context = any(f.endswith("-CONTEXT.md") or f == "CONTEXT.md" for f in phase_files)
-                has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
+                has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
+                has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
 
                 if is_phase_complete(plan_count, summary_count):
                     disk_status = "complete"
@@ -1193,7 +1212,7 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             content = roadmap_path.read_text(encoding="utf-8")
 
             max_phase = 0
-            for m in re.finditer(r"###\s*Phase\s+(\d+)(?:\.\d+)?:", content, re.IGNORECASE):
+            for m in re.finditer(r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?:", content, re.IGNORECASE):
                 num = int(m.group(1))
                 if num > max_phase:
                     max_phase = num
@@ -1221,6 +1240,30 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
                 updated = content + phase_entry
 
             atomic_write(roadmap_path, updated)
+
+        # Update total_phases in STATE.md to stay in sync with ROADMAP
+        state_path = _state_path(cwd)
+        if state_path.exists():
+            with file_lock(state_path):
+                state_content = state_path.read_text(encoding="utf-8")
+                updated_roadmap = roadmap_analyze(cwd)
+                total_phases = updated_roadmap.phase_count
+                state_content = re.sub(
+                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    rf"\g<1>{total_phases}",
+                    state_content,
+                )
+                state_content = re.sub(
+                    r"(\bof\s+)\d+(\s*(?:\(|phases?))",
+                    rf"\g<1>{total_phases}\2",
+                    state_content,
+                    flags=re.IGNORECASE,
+                )
+                atomic_write(state_path, state_content)
+                try:
+                    _sync_state_json(cwd, state_content)
+                except Exception:
+                    logger.warning("phase_add: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseAddResult(
             phase_number=new_phase_num,
@@ -1261,7 +1304,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             content = roadmap_path.read_text(encoding="utf-8")
 
             escaped = re.escape(after_phase)
-            if not re.search(rf"###\s*Phase\s+{escaped}:", content, re.IGNORECASE):
+            if not re.search(rf"#{{2,4}}\s*Phase\s+{escaped}:", content, re.IGNORECASE):
                 raise PhaseValidationError(f"Phase {after_phase} not found in ROADMAP.md")
 
             normalized_base = phase_normalize(after_phase)
@@ -1290,14 +1333,14 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
                 f"- [ ] TBD (run plan-phase {decimal_phase} to break down)\n"
             )
 
-            header_pattern = re.compile(rf"(###\s*Phase\s+{escaped}:[^\n]*\n)", re.IGNORECASE)
+            header_pattern = re.compile(rf"(#{{2,4}}\s*Phase\s+{escaped}:[^\n]*\n)", re.IGNORECASE)
             header_match = header_pattern.search(content)
             if not header_match:
                 raise PhaseValidationError(f"Could not find Phase {after_phase} header")
 
             header_idx = content.index(header_match.group(0))
             after_header = content[header_idx + len(header_match.group(0)) :]
-            next_phase_match = re.search(r"\n###\s+Phase\s+\d", after_header, re.IGNORECASE)
+            next_phase_match = re.search(r"\n#{2,4}\s+Phase\s+\d", after_header, re.IGNORECASE)
 
             if next_phase_match:
                 insert_idx = header_idx + len(header_match.group(0)) + next_phase_match.start()
@@ -1309,6 +1352,30 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
 
             updated = content[:insert_idx] + phase_entry + content[insert_idx:]
             atomic_write(roadmap_path, updated)
+
+        # Update total_phases in STATE.md to stay in sync with ROADMAP
+        state_path = _state_path(cwd)
+        if state_path.exists():
+            with file_lock(state_path):
+                state_content = state_path.read_text(encoding="utf-8")
+                updated_roadmap = roadmap_analyze(cwd)
+                total_phases = updated_roadmap.phase_count
+                state_content = re.sub(
+                    r"(\*\*Total Phases:\*\*\s*)\d+",
+                    rf"\g<1>{total_phases}",
+                    state_content,
+                )
+                state_content = re.sub(
+                    r"(\bof\s+)\d+(\s*(?:\(|phases?))",
+                    rf"\g<1>{total_phases}\2",
+                    state_content,
+                    flags=re.IGNORECASE,
+                )
+                atomic_write(state_path, state_content)
+                try:
+                    _sync_state_json(cwd, state_content)
+                except Exception:
+                    logger.warning("phase_insert: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseInsertResult(
             phase_number=decimal_phase,
@@ -1376,7 +1443,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
 
             # Remove phase section
             section_pattern = re.compile(
-                rf"\n?###\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n###\s+Phase\s+\d|$)",
+                rf"\n?#{{2,4}}\s*Phase\s+{target_escaped}\s*:[\s\S]*?(?=\n#{{2,4}}\s+Phase\s+\d|$)",
                 re.IGNORECASE,
             )
             roadmap_content = section_pattern.sub("", roadmap_content)
@@ -1399,7 +1466,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             if not is_decimal:
                 removed_int = int(normalized)
                 roadmap_content = re.sub(
-                    r"(###\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
+                    r"(#{2,4}\s*Phase\s+)(\d+(?:\.\d+)*)(\s*:)",
                     lambda m: f"{m.group(1)}{_decrement_phase_reference(m.group(2), removed_int)}{m.group(3)}",
                     roadmap_content,
                     flags=re.IGNORECASE,
@@ -1511,7 +1578,10 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
                     )
 
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("phase_remove: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseRemoveResult(
             removed=target_phase,
@@ -1707,7 +1777,6 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
     roadmap_path = _roadmap_path(cwd)
     state_path = _state_path(cwd)
-    _phases_dir(cwd)
     unpadded = phase_unpad(phase_num)
     today = date.today().isoformat()
 
@@ -1751,7 +1820,7 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                     flags=re.IGNORECASE,
                 )
                 roadmap_content = re.sub(
-                    rf"(###\s*Phase\s+{roadmap_escaped}[\s\S]*?\*\*Plans:\*\*\s*)[^\n]+",
+                    rf"(#{{2,4}}\s*Phase\s+{roadmap_escaped}[\s\S]*?\*\*Plans:\*\*\s*)[^\n]+",
                     rf"\g<1>{summary_count}/{plan_count} plans complete",
                     roadmap_content,
                     flags=re.IGNORECASE,
@@ -1769,6 +1838,10 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
             if state_path.exists():
                 with file_lock(state_path):
                     state_content = state_path.read_text(encoding="utf-8")
+
+                    new_status = "Milestone complete" if is_last_phase else "Ready to plan"
+                    current_status = _extract_state_field(state_content, "Status") or ""
+                    _validate_transition(current_status, new_status)
 
                     state_content = re.sub(
                         r"(\*\*Current Phase:\*\*\s*).*",
@@ -1828,7 +1901,10 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                     )
 
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("phase_complete: failed to sync state.json after STATE.md update", exc_info=True)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,
@@ -1861,10 +1937,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
         raise PhaseValidationError("version required for milestone complete (e.g., v1.0)")
 
     roadmap_path = _roadmap_path(cwd)
-    req_path = _planning_path(cwd) / "REQUIREMENTS.md"
+    req_path = _planning_path(cwd) / REQUIREMENTS_FILENAME
     state_path = _state_path(cwd)
-    milestones_path = _planning_path(cwd) / "MILESTONES.md"
-    archive_dir = _planning_path(cwd) / "milestones"
+    milestones_path = _planning_path(cwd) / MILESTONES_FILENAME
+    archive_dir = _planning_path(cwd) / MILESTONES_DIR_NAME
     phases_dir = _phases_dir(cwd)
     today = date.today().isoformat()
     milestone_name = name or version
@@ -1967,9 +2043,11 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             if state_path.exists():
                 with file_lock(state_path):
                     state_content = state_path.read_text(encoding="utf-8")
+                    current_status = _extract_state_field(state_content, "Status") or ""
+                    _validate_transition(current_status, "Milestone complete")
                     state_content = re.sub(
                         r"(\*\*Status:\*\*\s*).*",
-                        rf"\g<1>{version} milestone complete",
+                        r"\g<1>Milestone complete",
                         state_content,
                     )
                     state_content = re.sub(
@@ -1983,7 +2061,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         state_content,
                     )
                     atomic_write(state_path, state_content)
-                    _sync_state_json(cwd, state_content)
+                    try:
+                        _sync_state_json(cwd, state_content)
+                    except Exception:
+                        logger.warning("milestone_complete: failed to sync state.json after STATE.md update", exc_info=True)
 
         return MilestoneCompleteResult(
             version=version,

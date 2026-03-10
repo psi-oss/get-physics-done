@@ -3,14 +3,14 @@ name: gpd:discover
 description: Run discovery phase to investigate methods, literature, and approaches before planning
 argument-hint: "<phase> [--depth verify|standard|deep]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
-  - WebSearch
-  - WebFetch
+  - file_read
+  - shell
+  - search_files
+  - find_files
+  - web_search
+  - web_fetch
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -42,8 +42,8 @@ Produces RESEARCH.md (with `depth: quick`) that informs subsequent planning via 
 <context>
 Phase: $ARGUMENTS (required - phase number, optionally with --depth flag)
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>
@@ -71,7 +71,7 @@ Follow the discover workflow for the determined depth level.
 ## Step 3: Commit (if Level 2-3 produced RESEARCH.md)
 
 ```bash
-gpd commit "discover(${phase_number}): ${depth} discovery for ${phase_name}" --files ".planning/phases/${padded_phase}-${phase_slug}/RESEARCH.md"
+gpd commit "discover(${phase_number}): ${depth} discovery for ${phase_name}" --files ".gpd/phases/${padded_phase}-${phase_slug}/RESEARCH.md"
 ```
 
 ## Step 4: Present Results and Next Steps

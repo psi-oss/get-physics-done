@@ -3,16 +3,16 @@ name: gpd:verify-work
 description: Verify research results through physics consistency checks
 argument-hint: "[phase] [--dimensional] [--limits] [--convergence] [--regression] [--all]"
 requires:
-  files: [".planning/ROADMAP.md"]
+  files: [".gpd/ROADMAP.md"]
   state: "phase_executed"
 allowed-tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
-  - Edit
-  - Write
-  - Task
+  - file_read
+  - shell
+  - find_files
+  - search_files
+  - file_edit
+  - file_write
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -38,12 +38,12 @@ Phase: $ARGUMENTS (optional)
 - If provided: Verify specific phase (e.g., "4")
 - If not provided: Check for active sessions or prompt for phase
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/verify-work.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

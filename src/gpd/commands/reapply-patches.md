@@ -2,13 +2,13 @@
 name: gpd:reapply-patches
 description: Reapply local modifications after a GPD update
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

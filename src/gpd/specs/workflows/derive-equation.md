@@ -427,10 +427,10 @@ Save to:
 - **Standalone (no phase):**
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
-Write to `.planning/analysis/derivation-{slug}.md`.
+Write to `.gpd/analysis/derivation-{slug}.md`.
 </step>
 
 </process>

@@ -7,6 +7,7 @@ be fully ported yet and have their own test suites.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -31,14 +32,24 @@ def test_version_subcommand():
     assert "gpd" in result.output
 
 
+def test_raw_version_option_outputs_json():
+    result = runner.invoke(app, ["--raw", "--version"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["result"].startswith("gpd ")
+
+
+def test_raw_version_subcommand_outputs_json():
+    result = runner.invoke(app, ["--raw", "version"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["result"].startswith("gpd ")
+
+
 def test_help():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
-    assert "session" in result.output
-    assert "view" in result.output
 
 
 def test_state_help():
@@ -57,20 +68,16 @@ def test_phase_help():
     assert "complete" in result.output
 
 
-def test_session_help():
-    import re
-
+def test_session_command_is_not_exposed():
     result = runner.invoke(app, ["session", "--help"])
-    assert result.exit_code == 0
-    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-    assert "--resume" in plain
-    assert "reindex" in plain
+    assert result.exit_code != 0
+    assert "No such command 'session'" in result.output
 
 
-def test_view_help():
+def test_view_command_is_not_exposed():
     result = runner.invoke(app, ["view", "--help"])
-    assert result.exit_code == 0
-    assert "push" in result.output
+    assert result.exit_code != 0
+    assert "No such command 'view'" in result.output
 
 
 # ─── state subcommands ──────────────────────────────────────────────────────
@@ -196,6 +203,18 @@ def test_raw_json_output(mock_load):
     result = runner.invoke(app, ["--raw", "state", "load"])
     assert result.exit_code == 0
     assert "current_phase" in result.output
+
+
+def test_raw_json_get_outputs_literal_json_value():
+    result = runner.invoke(app, ["--raw", "json", "get", ".x"], input='{"x": 1}\n')
+    assert result.exit_code == 0
+    assert json.loads(result.output) == "1"
+
+
+def test_raw_json_get_error_outputs_json():
+    result = runner.invoke(app, ["--raw", "json", "get", ".x"], input="not json\n")
+    assert result.exit_code == 1
+    assert "Invalid JSON input" in json.loads(result.output)["error"]
 
 
 # ─── convention subcommands ─────────────────────────────────────────────────
@@ -372,16 +391,6 @@ def test_history_digest_subcommand(mock_digest):
     result = runner.invoke(app, ["history-digest"])
     assert result.exit_code == 0
     mock_digest.assert_called_once()
-
-
-@patch("gpd.core.commands.cmd_scaffold")
-def test_scaffold_subcommand(mock_scaffold):
-    mock_result = MagicMock()
-    mock_result.model_dump.return_value = {"created": True, "path": "test"}
-    mock_scaffold.return_value = mock_result
-    result = runner.invoke(app, ["scaffold", "phase-dir", "--phase", "1", "--name", "Setup"])
-    assert result.exit_code == 0
-    mock_scaffold.assert_called_once()
 
 
 @patch("gpd.core.commands.cmd_regression_check")

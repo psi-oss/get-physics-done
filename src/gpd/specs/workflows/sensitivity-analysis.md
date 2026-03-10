@@ -1,7 +1,7 @@
 <purpose>
 Determine which input parameters most strongly affect output quantities. Compute partial derivatives, condition numbers, and rank parameters by sensitivity. Identifies which measurements or calculations would most improve final results.
 
-Called from $gpd-sensitivity-analysis command. Used to prioritize effort: if parameter A contributes 90% of the uncertainty while parameter B contributes 1%, improving the precision of A has 90x the impact of improving B.
+Called from /gpd:sensitivity-analysis command. Used to prioritize effort: if parameter A contributes 90% of the uncertainty while parameter B contributes 1%, improving the precision of A has 90x the impact of improving B.
 </purpose>
 
 <core_principle>
@@ -35,7 +35,7 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelizat
 Read STATE.md for project conventions, unit system, and active approximations.
 Extract `convention_lock` for unit conventions and parameter definitions.
 Extract `intermediate_results` for previously computed parameter values and their uncertainties.
-If `.planning/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
+If `.gpd/analysis/PARAMETERS.md` exists, use it as the parameter registry (see `{GPD_INSTALL_DIR}/templates/parameter-table.md` for the template).
 If no project context exists (standalone usage), proceed with explicit parameter declarations required from user.
 
 **Convention verification** (if project exists):
@@ -52,7 +52,7 @@ fi
 **If no phase specified:** Create an analysis-specific directory:
 
 ```bash
-ANALYSIS_DIR=".planning/analysis"
+ANALYSIS_DIR=".gpd/analysis"
 mkdir -p "$ANALYSIS_DIR"
 ```
 
@@ -89,7 +89,7 @@ Identify all input parameters that f depends on:
 3. **Approximation controls:** expansion orders, truncation levels, regime boundaries
 4. **Measured inputs:** experimental values used in the calculation
 
-Read from `.planning/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd CLI init progress --include state,config`.
+Read from `.gpd/STATE.md` to identify active approximations and their controlling parameters. Where structured data is needed, load via `gpd CLI init progress --include state,config`.
 
 ```markdown
 ## Parameters
@@ -357,7 +357,7 @@ for i in range(len(ranked)):
 <step name="approximation_sensitivity">
 **Step 5: Analyze Approximation Sensitivity**
 
-For each active approximation in the project (read from `.planning/STATE.md`; load structured data via `gpd CLI init progress --include state,config` if needed):
+For each active approximation in the project (read from `.gpd/STATE.md`; load structured data via `gpd CLI init progress --include state,config` if needed):
 
 ### 5a. Identify controlling parameters
 
@@ -517,7 +517,7 @@ status: completed
 Save to:
 
 - If phase-scoped: `${phase_dir}/SENSITIVITY-REPORT.md`
-- If standalone: `.planning/analysis/sensitivity-{slug}.md`
+- If standalone: `.gpd/analysis/sensitivity-{slug}.md`
 
 ### 6b. Update state
 
@@ -551,15 +551,15 @@ Record the sensitivity ranking and dominant source in STATE.md as a research art
 **Commit all sensitivity analysis artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${REPORT_PATH}" .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${REPORT_PATH}" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "data(phase-${phase_number}): sensitivity analysis - ${TARGET_QUANTITY}" \
-  --files "${REPORT_PATH}" .planning/STATE.md
+  --files "${REPORT_PATH}" .gpd/STATE.md
 ```
 
-Where `${REPORT_PATH}` is `${phase_dir}/SENSITIVITY-REPORT.md` or `.planning/analysis/sensitivity-{slug}.md` depending on scope.
+Where `${REPORT_PATH}` is `${phase_dir}/SENSITIVITY-REPORT.md` or `.gpd/analysis/sensitivity-{slug}.md` depending on scope.
 
 **Present final results:**
 
@@ -583,16 +583,16 @@ Top 3 parameters account for {cumul_pct}% of total uncertainty
 ### Output Files
 
 - `${REPORT_PATH}` -- full sensitivity report
-- `.planning/STATE.md` -- updated with uncertainty estimates
+- `.gpd/STATE.md` -- updated with uncertainty estimates
 
 ---
 
 ## Next Steps
 
 - **Reduce uncertainty:** Improve precision of {dominant parameter} for greatest impact
-- **Error propagation:** `$gpd-error-propagation` -- trace full error budget through derivation chain
-- **Parameter sweep:** `$gpd-parameter-sweep` -- map out behavior across parameter range
-- **Convergence:** `$gpd-numerical-convergence` -- verify numerical error bars at key points
+- **Error propagation:** `/gpd:error-propagation` -- trace full error budget through derivation chain
+- **Parameter sweep:** `/gpd:parameter-sweep` -- map out behavior across parameter range
+- **Convergence:** `/gpd:numerical-convergence` -- verify numerical error bars at key points
 
 ---
 ```

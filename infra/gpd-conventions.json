@@ -3,9 +3,19 @@
   "description": "GPD convention lock management. Tools for querying, setting, validating, and comparing physics conventions across research phases.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "gpd.mcp.servers.conventions_server"],
+  "args": [
+    "-m",
+    "gpd.mcp.servers.conventions_server"
+  ],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-conventions",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   },
   "capabilities": [
     "convention_lock_status",
@@ -17,11 +27,13 @@
   ],
   "registry_prefix": "gpd_conventions",
   "prerequisites": [
-    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done"
+    "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done"
   ],
   "health_check": {
     "tool": "subfield_defaults",
-    "input": {"domain": "qft"},
+    "input": {
+      "domain": "qft"
+    },
     "expect": "contains metric_signature"
   }
 }

@@ -3,10 +3,10 @@ name: gpd:check-todos
 description: List pending research todos and select one to work on
 argument-hint: "[area filter]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -33,8 +33,8 @@ Area filters can target research domains such as:
   </objective>
 
 <execution_context>
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 @{GPD_INSTALL_DIR}/workflows/check-todos.md
 </execution_context>
 

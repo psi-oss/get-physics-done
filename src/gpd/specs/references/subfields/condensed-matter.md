@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/tensor-networks.md`, `protocols/monte-carlo.md`, `protocols/density-functional-theory.md`, `protocols/exact-diagonalization.md`, `protocols/many-body-perturbation-theory.md`, `protocols/non-equilibrium-transport.md`, `protocols/analytic-continuation.md`, `protocols/numerical-computation.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/bethe-ansatz.md` (integrable 1D models), `protocols/random-matrix-theory.md` (spectral statistics, quantum chaos), `protocols/large-n-expansion.md` (1/N methods for O(N) and SU(N) models), `protocols/kinetic-theory.md` (Boltzmann transport).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/tensor-networks.md`, `protocols/monte-carlo.md`, `protocols/density-functional-theory.md`, `protocols/exact-diagonalization.md`, `protocols/many-body-perturbation-theory.md`, `protocols/non-equilibrium-transport.md`, `protocols/analytic-continuation.md`, `protocols/numerical-computation.md`, `protocols/green-functions.md`, `protocols/generalized-symmetries.md`, `protocols/wkb-semiclassical.md`, `protocols/bethe-ansatz.md` (integrable 1D models), `protocols/random-matrix-theory.md` (spectral statistics, quantum chaos), `protocols/large-n-expansion.md` (1/N methods for O(N) and SU(N) models), `protocols/kinetic-theory.md` (Boltzmann transport).
 
 **Band Theory and Electronic Structure:**
 
@@ -160,6 +160,7 @@ context_cost: medium
 | Frontier | Key question | Active groups | GPD suitability |
 |----------|-------------|---------------|-----------------|
 | **Topological phases beyond TI/TSC** | Higher-order topology, fragile topology, non-Hermitian topology | Bernevig, Vishwanath, Hasan | Good — band structure + symmetry analysis |
+| **Generalized / non-invertible symmetries** | How do defect algebras and higher-form or non-invertible symmetries diagnose topological order and beyond-Landau phases? | McGreevy, Senthil, Gaiotto, Thorngren | Good — strongest when paired with lattice, tensor-network, or exactly solvable diagnostics |
 | **Moiré materials** | Flat bands, correlated insulators, unconventional SC in twisted bilayer graphene, TMDs | Mak, Shan, Young, Efetov | Moderate — requires large-scale numerics |
 | **Quantum spin liquids** | Experimental confirmation, entanglement signatures, spinon Fermi surfaces | Savary, Balents, Broholm | Good — DMRG, VMC, parton mean-field |
 | **Non-equilibrium many-body** | MBL fate in thermodynamic limit, prethermal phases, Floquet engineering | Abanin, Altman, Nandkishore | Good — TEBD/TDVP for dynamics |

@@ -3,15 +3,15 @@ name: gpd:literature-review
 description: Structured literature review for a physics research topic with citation network analysis and open question identification
 argument-hint: "[topic or research question]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - WebSearch
-  - WebFetch
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - shell
+  - search_files
+  - find_files
+  - task
+  - web_search
+  - web_fetch
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -37,7 +37,7 @@ Topic: $ARGUMENTS
 Check for existing reviews:
 
 ```bash
-ls .planning/literature/*.md 2>/dev/null | head -10
+ls .gpd/literature/*.md 2>/dev/null | head -10
 ```
 
 </context>
@@ -58,7 +58,7 @@ REVIEWER_MODEL=$(gpd resolve-model gpd-literature-reviewer --raw)
 
 ## 1. Scope the Review
 
-Use AskUserQuestion to establish scope:
+Use ask_user to establish scope:
 
 1. **Topic and focus** -- What specific physics question or subfield? (e.g., "topological insulators in 2D", not just "condensed matter")
 2. **Depth** -- Quick survey (key papers only, ~10 refs) | Standard review (~30 refs) | Comprehensive survey (~50+ refs)
@@ -70,7 +70,7 @@ After all gathered, confirm scope and proceed.
 ## 2. Check Existing Reviews
 
 ```bash
-ls .planning/literature/*.md 2>/dev/null
+ls .gpd/literature/*.md 2>/dev/null
 ```
 
 **If exists for same topic:** Offer: 1) Update with recent papers, 2) View existing, 3) Start fresh.
@@ -145,7 +145,7 @@ A physics literature review follows a structured protocol:
    </source_hierarchy>
 
 <output>
-Write to: .planning/literature/{slug}-REVIEW.md
+Write to: .gpd/literature/{slug}-REVIEW.md
 
 Structure:
 
@@ -164,7 +164,7 @@ Structure:
 ```
 
 ```
-Task(
+task(
   prompt=filled_prompt,
   subagent_type="gpd-literature-reviewer",
   model="{reviewer_model}",
@@ -204,7 +204,7 @@ Task(
   - "Manual search" -- provide specific papers to include
   - "Accept partial" -- use what was found
 
-## 5. Spawn Continuation Agent (After Checkpoint)
+## 5. Spawn Continuation agent (After Checkpoint)
 
 ```markdown
 <objective>
@@ -212,7 +212,7 @@ Continue literature review: {topic}. Prior state in review file.
 </objective>
 
 <prior_state>
-Review file: @.planning/literature/{slug}-REVIEW.md
+Review file: @.gpd/literature/{slug}-REVIEW.md
 </prior_state>
 
 <checkpoint_response>
@@ -222,7 +222,7 @@ Review file: @.planning/literature/{slug}-REVIEW.md
 ```
 
 ```
-Task(
+task(
   prompt=continuation_prompt,
   subagent_type="gpd-literature-reviewer",
   model="{reviewer_model}",

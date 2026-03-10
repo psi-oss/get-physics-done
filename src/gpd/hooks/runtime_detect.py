@@ -8,6 +8,8 @@ Provides shared constants for runtime directory paths.
 import os
 from pathlib import Path
 
+from gpd.core.constants import PLANNING_DIR_NAME
+
 # Runtime identifiers
 RUNTIME_CLAUDE = "claude"
 RUNTIME_CODEX = "codex"
@@ -28,7 +30,7 @@ RUNTIME_DIR_NAMES: dict[str, str] = {
     RUNTIME_CLAUDE: ".claude",
     RUNTIME_CODEX: ".codex",
     RUNTIME_GEMINI: ".gemini",
-    RUNTIME_OPENCODE: os.path.join(".config", "opencode"),
+    RUNTIME_OPENCODE: ".config/opencode",
 }
 
 # Map runtime → cwd-relative config directory name for local installs
@@ -53,6 +55,18 @@ _RUNTIME_ENV_SIGNALS: list[tuple[str, str]] = [
 ALL_RUNTIMES = [RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE]
 
 
+def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
+    """Return runtimes in default order, optionally promoting one runtime to the front."""
+    if preferred_runtime not in ALL_RUNTIMES:
+        return list(ALL_RUNTIMES)
+    return [preferred_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != preferred_runtime]
+
+
+def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
+    """Return the workspace-local config directory for a runtime."""
+    return (cwd or Path.cwd()) / LOCAL_RUNTIME_DIR_NAMES[runtime]
+
+
 def detect_active_runtime() -> str:
     """Detect which AI agent is currently active.
 
@@ -64,7 +78,14 @@ def detect_active_runtime() -> str:
         if os.environ.get(env_var):
             return runtime
 
-    # 2. Fall back to checking which runtime directories exist
+    # 2. Fall back to checking workspace-local runtime dirs
+    cwd = Path.cwd()
+    for runtime in ALL_RUNTIMES:
+        runtime_dir = _local_runtime_dir(runtime, cwd)
+        if runtime_dir.is_dir():
+            return runtime
+
+    # 3. Fall back to checking which home runtime directories exist
     home = Path.home()
     for runtime in ALL_RUNTIMES:
         runtime_dir = home / RUNTIME_DIR_NAMES[runtime]
@@ -72,6 +93,16 @@ def detect_active_runtime() -> str:
             return runtime
 
     return RUNTIME_UNKNOWN
+
+
+def runtime_to_adapter_name(runtime: str) -> str:
+    """Translate a detection result to the adapter registry name.
+
+    detect_active_runtime() returns short names like ``"claude"`` while
+    the adapter registry uses CLI names like ``"claude-code"``.  This helper
+    bridges the two using :data:`RUNTIME_CLI_NAMES`.
+    """
+    return RUNTIME_CLI_NAMES.get(runtime, runtime)
 
 
 def runtime_dir(runtime: str) -> Path:
@@ -119,19 +150,48 @@ def get_cache_dirs() -> list[Path]:
 
 def get_update_cache_files() -> list[Path]:
     """Return all candidate update-cache files in priority scan order."""
-    return [Path.home() / ".gpd" / "cache" / "gpd-update-check.json"] + [
-        d / "gpd-update-check.json" for d in get_cache_dirs()
-    ]
+    preferred_runtime = detect_active_runtime()
+    paths: list[Path] = []
+    cwd = Path.cwd()
+    home = Path.home()
+
+    if preferred_runtime in ALL_RUNTIMES:
+        paths.append(_local_runtime_dir(preferred_runtime, cwd) / "cache" / "gpd-update-check.json")
+        paths.append((home / RUNTIME_DIR_NAMES[preferred_runtime]) / "cache" / "gpd-update-check.json")
+
+    paths.append(home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
+    paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs())
+    return _unique_paths(paths)
 
 
-def get_gpd_install_dirs() -> list[Path]:
-    """Return GPD installation directories for all known runtimes (both local and global)."""
-    return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
+def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
+    """Return GPD installation directories for all known runtimes.
+
+    When ``prefer_active`` is true, check the active runtime's local/global
+    install locations before scanning other runtimes.
+    """
+    if not prefer_active:
+        return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
+
+    dirs: list[Path] = []
+    cwd = Path.cwd()
+    home = Path.home()
+    for runtime in _prioritized_runtimes(detect_active_runtime()):
+        dirs.append(_local_runtime_dir(runtime, cwd) / "get-physics-done")
+        dirs.append(home / RUNTIME_DIR_NAMES[runtime] / "get-physics-done")
+    return _unique_paths(dirs)
 
 
 def update_command_for_runtime(runtime: str) -> str:
-    """Return the appropriate gpd install command for a given runtime."""
-    cli_runtime = RUNTIME_CLI_NAMES.get(runtime)
-    if cli_runtime is None:
-        return "gpd install"
-    return f"gpd install {cli_runtime}"
+    """Return the public bootstrap command to update a given runtime install."""
+    install_flag_map = {
+        RUNTIME_CLAUDE: "--claude",
+        RUNTIME_CODEX: "--codex",
+        RUNTIME_GEMINI: "--gemini",
+        RUNTIME_OPENCODE: "--opencode",
+    }
+    install_flag = install_flag_map.get(runtime)
+    base = "npx -y github:physicalsuperintelligence/get-physics-done"
+    if install_flag is None:
+        return base
+    return f"{base} {install_flag}"

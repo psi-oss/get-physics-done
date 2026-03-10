@@ -17,7 +17,6 @@ pattern_add      — add a new pattern
 pattern_list     — list with optional filters
 pattern_search   — keyword search
 pattern_promote  — promote confidence level
-pattern_update   — increment occurrence + update fields
 pattern_seed     — initialize with canonical physics patterns
 """
 
@@ -38,6 +37,7 @@ from gpd.core.constants import (
     PATTERNS_BY_DOMAIN_DIR,
     PATTERNS_DIR_NAME,
     PATTERNS_INDEX_FILENAME,
+    PLANNING_DIR_NAME,
     SEED_PATTERN_INITIAL_OCCURRENCES,
 )
 from gpd.core.errors import PatternError
@@ -59,7 +59,7 @@ __all__ = [
     "PatternSearchResult",
     "PatternSeedResult",
     "PatternSeverity",
-    "PatternUpdateResult",
+    "patterns_root",
     "VALID_CATEGORIES",
     "VALID_DOMAINS",
     "VALID_SEVERITIES",
@@ -70,7 +70,6 @@ __all__ = [
     "pattern_promote",
     "pattern_search",
     "pattern_seed",
-    "pattern_update",
 ]
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -202,16 +201,6 @@ class PatternSearchResult(BaseModel):
     library_exists: bool = True
 
 
-class PatternUpdateResult(BaseModel):
-    """Returned by :func:`pattern_update`."""
-
-    updated: bool = True
-    id: str
-    occurrence_count: int
-    last_seen: str
-    fields_updated: list[str] = Field(default_factory=list)
-
-
 class PatternSeedResult(BaseModel):
     """Returned by :func:`pattern_seed`."""
 
@@ -224,11 +213,15 @@ class PatternSeedResult(BaseModel):
 # ─── Path Resolution ─────────────────────────────────────────────────────────
 
 
-def _patterns_root(specs_root: Path | None = None) -> Path:
+def patterns_root(specs_root: Path | None = None) -> Path:
     """Resolve the patterns library root directory.
 
-    Precedence: ``GPD_PATTERNS_ROOT`` env > ``GPD_DATA_DIR`` env > *specs_root*/learned-patterns.
+    Precedence: *specs_root* argument > ``GPD_PATTERNS_ROOT`` env >
+    ``GPD_DATA_DIR`` env > ``~/.gpd/learned-patterns``.
     """
+    if specs_root is not None:
+        return specs_root / PATTERNS_DIR_NAME
+
     explicit = os.environ.get(ENV_PATTERNS_ROOT, "").strip()
     if explicit:
         return Path(explicit) if Path(explicit).is_absolute() else Path.cwd() / explicit
@@ -237,12 +230,7 @@ def _patterns_root(specs_root: Path | None = None) -> Path:
     if data_dir:
         return Path(data_dir) / PATTERNS_DIR_NAME
 
-    if specs_root is None:
-        raise PatternError(
-            "specs_root is required when GPD_PATTERNS_ROOT and GPD_DATA_DIR are not set. "
-            "Pass specs_root explicitly or set the GPD_PATTERNS_ROOT environment variable."
-        )
-    return specs_root / PATTERNS_DIR_NAME
+    return Path.home() / PLANNING_DIR_NAME / PATTERNS_DIR_NAME
 
 
 # ─── Index I/O ───────────────────────────────────────────────────────────────
@@ -336,7 +324,7 @@ def ensure_library(root: Path | None = None) -> Path:
     Returns the patterns root path. Idempotent.
     """
     if root is None:
-        root = _patterns_root()
+        root = patterns_root()
     if _load_index(root) is not None:
         return root
 
@@ -436,7 +424,7 @@ def pattern_add(
     )
     _save_index(lib_root, index)
 
-    with gpd_span("gpd.patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
+    with gpd_span("patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
         logger.info("pattern_added", extra={"id": pattern_id, "domain": domain, "severity": severity})
 
     return PatternAddResult(id=pattern_id, file=rel_path, severity=severity)
@@ -451,7 +439,7 @@ def pattern_list(
     root: Path | None = None,
 ) -> PatternListResult:
     """List patterns with optional filters, sorted by severity then confidence."""
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         return PatternListResult(library_exists=False)
@@ -472,7 +460,7 @@ def pattern_list(
         )
     )
 
-    with gpd_span("gpd.patterns.list", **{"gpd.count": len(patterns)}):
+    with gpd_span("patterns.list", **{"gpd.count": len(patterns)}):
         pass
 
     return PatternListResult(patterns=patterns, count=len(patterns))
@@ -487,7 +475,7 @@ def pattern_promote(pattern_id: str, *, root: Path | None = None) -> PatternProm
     Raises:
         ValueError: If pattern not found or library not initialized.
     """
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         raise PatternError("Pattern library not initialized. Call pattern_init() first.")
@@ -516,7 +504,7 @@ def pattern_promote(pattern_id: str, *, root: Path | None = None) -> PatternProm
     _update_pattern_frontmatter(lib_root, entry)
     _save_index(lib_root, index)
 
-    with gpd_span("gpd.patterns.promote", **{"gpd.pattern_id": pattern_id, "gpd.to": next_level}):
+    with gpd_span("patterns.promote", **{"gpd.pattern_id": pattern_id, "gpd.to": next_level}):
         logger.info("pattern_promoted", extra={"id": pattern_id, "from": current, "to": next_level})
 
     return PatternPromoteResult(
@@ -538,7 +526,7 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     if not query or not query.strip():
         raise PatternError("Search query required")
 
-    lib_root = root or _patterns_root()
+    lib_root = root or patterns_root()
     index = _load_index(lib_root)
     if index is None:
         return PatternSearchResult(query=query, library_exists=False)
@@ -562,106 +550,10 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     scored.sort(key=lambda x: -x[0])
     matches = [p for _, p in scored]
 
-    with gpd_span("gpd.patterns.search", **{"gpd.query": query, "gpd.matches": len(matches)}):
+    with gpd_span("patterns.search", **{"gpd.query": query, "gpd.matches": len(matches)}):
         pass
 
     return PatternSearchResult(matches=matches, count=len(matches), query=query)
-
-
-@instrument_gpd_function("patterns.update")
-def pattern_update(
-    pattern_id: str,
-    *,
-    title: str | None = None,
-    severity: str | None = None,
-    description: str | None = None,
-    detection: str | None = None,
-    prevention: str | None = None,
-    example: str | None = None,
-    test_value: str | None = None,
-    root: Path | None = None,
-) -> PatternUpdateResult:
-    """Increment occurrence count, update last_seen, and optionally update fields.
-
-    Raises:
-        ValueError: If pattern not found or library not initialized.
-    """
-    if not pattern_id:
-        raise PatternError("pattern_id required")
-
-    lib_root = root or _patterns_root()
-    index = _load_index(lib_root)
-    if index is None:
-        raise PatternError("Pattern library not initialized. Call pattern_init() first.")
-
-    entry = next((p for p in index.patterns if p.id == pattern_id), None)
-    if entry is None:
-        raise PatternError(f"Pattern {pattern_id!r} not found")
-
-    today = _today_iso()
-    entry.last_seen = today
-    entry.occurrence_count += 1
-    updated_fields: list[str] = []
-
-    if title is not None:
-        entry.title = title
-        updated_fields.append("title")
-    if severity is not None:
-        if severity not in VALID_SEVERITIES:
-            raise PatternError(f"Invalid severity {severity!r}. Valid: {', '.join(VALID_SEVERITIES)}")
-        entry.severity = severity
-        updated_fields.append("severity")
-
-    # Update pattern file
-    full_path = lib_root / entry.file
-    try:
-        content = full_path.read_text(encoding="utf-8")
-        content = re.sub(r"^last_seen:\s*\S+", f"last_seen: {today}", content, flags=re.MULTILINE)
-        content = re.sub(
-            r"^occurrence_count:\s*\d+",
-            f"occurrence_count: {entry.occurrence_count}",
-            content,
-            flags=re.MULTILINE,
-        )
-        if severity:
-            content = re.sub(r"^severity:\s*\S+", f"severity: {severity}", content, flags=re.MULTILINE)
-
-        body_fields = {
-            "What goes wrong:": description,
-            "How to detect:": detection,
-            "How to prevent:": prevention,
-            "Example:": example,
-            "Test value:": test_value,
-        }
-        for label, value in body_fields.items():
-            if value is not None:
-                escaped = re.escape(label)
-                content = re.sub(
-                    rf"(\*\*{escaped}\*\*\s*).+",
-                    rf"\g<1>{value}",
-                    content,
-                    flags=re.MULTILINE,
-                )
-                updated_fields.append(label.rstrip(":").lower().replace(" ", "_"))
-
-        if title is not None:
-            content = re.sub(r"^(## Pattern: ).+$", rf"\g<1>{title}", content, flags=re.MULTILINE)
-
-        atomic_write(full_path, content)
-    except FileNotFoundError:
-        pass
-
-    _save_index(lib_root, index)
-
-    with gpd_span("gpd.patterns.update", **{"gpd.pattern_id": pattern_id}):
-        pass
-
-    return PatternUpdateResult(
-        id=pattern_id,
-        occurrence_count=entry.occurrence_count,
-        last_seen=today,
-        fields_updated=updated_fields,
-    )
 
 
 def _update_pattern_frontmatter(root: Path, entry: PatternEntry) -> None:
@@ -890,7 +782,7 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
 
     _save_index(lib_root, index)
 
-    with gpd_span("gpd.patterns.seed", **{"gpd.added": added, "gpd.skipped": skipped}):
+    with gpd_span("patterns.seed", **{"gpd.added": added, "gpd.skipped": skipped}):
         logger.info("patterns_seeded", extra={"added": added, "skipped": skipped, "total": len(index.patterns)})
 
     return PatternSeedResult(added=added, skipped=skipped, total=len(index.patterns))

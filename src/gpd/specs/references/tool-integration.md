@@ -71,7 +71,7 @@ Julia is the right choice when:
 ## Fortran / C / C++
 
 - Performance-critical numerical routines
-- Code that interfaces with legacy physics libraries (LAPACK, BLAS, FFTW)
+- Code that interfaces with established physics libraries (LAPACK, BLAS, FFTW)
 - MPI parallelization for large-scale simulations
 
 ### When to use Fortran/C/C++

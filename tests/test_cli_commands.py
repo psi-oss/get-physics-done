@@ -19,6 +19,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.state import default_state_dict, generate_state_markdown
 
 runner = CliRunner()
 
@@ -26,28 +27,27 @@ runner = CliRunner()
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
 
-    state = {
-        "convention_lock": {
+    state = default_state_dict()
+    state["position"].update(
+        {
+            "current_phase": "01",
+            "current_phase_name": "Test Phase",
+            "total_phases": 2,
+            "status": "Planning",
+        }
+    )
+    state["convention_lock"].update(
+        {
             "metric_signature": "(-,+,+,+)",
             "coordinate_system": "Cartesian",
             "custom_conventions": {"my_custom": "value"},
-        },
-        "phases": [
-            {"number": "1", "name": "test-phase", "status": "planned"},
-            {"number": "2", "name": "phase-two", "status": "planned"},
-        ],
-        "current_phase": "1",
-        "current_plan": None,
-        "decisions": [],
-        "blockers": [],
-        "sessions": [],
-        "metrics": [],
-    }
+        }
+    )
     (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text("# State\n\n## Current Phase\n1\n\n## Decisions\n\n## Blockers\n")
+    (planning / "STATE.md").write_text(generate_state_markdown(state))
     (planning / "PROJECT.md").write_text("# Test Project\n\n## Core Research Question\nWhat is physics?\n")
     (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- [ ] **REQ-01**: Do the thing\n")
     (planning / "ROADMAP.md").write_text(
@@ -55,7 +55,22 @@ def gpd_project(tmp_path: Path) -> Path:
         "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n"
     )
     (planning / "CONVENTIONS.md").write_text("# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n")
-    (planning / "config.json").write_text(json.dumps({"mode": "yolo", "depth": "standard"}))
+    (planning / "config.json").write_text(
+        json.dumps(
+            {
+                "autonomy": "yolo",
+                "research_mode": "balanced",
+                "parallelization": True,
+                "commit_docs": True,
+                "model_profile": "review",
+                "workflow": {
+                    "research": True,
+                    "plan_checker": True,
+                    "verifier": True,
+                },
+            }
+        )
+    )
 
     # Phase directories
     p1 = planning / "phases" / "01-test-phase"
@@ -100,16 +115,16 @@ class TestConventionCommands:
         _invoke("convention", "set", "metric_signature", "(+,-,-,-)", "--force")
 
     def test_check_empty_state(self, gpd_project: Path) -> None:
-        (gpd_project / ".planning" / "state.json").write_text("{}")
+        (gpd_project / ".gpd" / "state.json").write_text("{}")
         _invoke("convention", "check")
 
     def test_check_no_state_file(self, gpd_project: Path) -> None:
-        (gpd_project / ".planning" / "state.json").unlink()
+        (gpd_project / ".gpd" / "state.json").unlink()
         _invoke("convention", "check")
 
     def test_set_persists(self, gpd_project: Path) -> None:
         _invoke("convention", "set", "fourier_convention", "physics")
-        state = json.loads((gpd_project / ".planning" / "state.json").read_text())
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
         assert state["convention_lock"]["fourier_convention"] == "physics"
 
 

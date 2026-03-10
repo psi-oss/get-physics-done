@@ -3,6 +3,7 @@ message: "If GPD contributes to published research, please cite it using the met
 title: "Get Physics Done (GPD)"
 type: software
 version: 0.1.0
+date-released: '2026-03-15'
 license: Apache-2.0
 abstract: "An open-source AI copilot for physics research that structures, executes, verifies, and documents research workflows across multiple AI runtimes."
 authors:

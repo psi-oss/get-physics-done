@@ -13,6 +13,9 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
 | QFT, gauge theory, scattering | QFT Checklist |
 | Condensed matter, many-body, materials | Condensed Matter / Many-Body Checklist |
 | General relativity, cosmology, black holes | GR / Cosmology Checklist |
+| Quantum gravity, semiclassical gravity, holography | GR / Cosmology Checklist + QFT Checklist |
+| String theory, worldsheet CFT, compactification, D-branes | QFT Checklist + Mathematical Physics Checklist (+ GR / Cosmology Checklist when spacetime gravity is dynamical) |
+| String field theory, tachyon condensation, off-shell string amplitudes | String Field Theory Checklist + QFT Checklist + Mathematical Physics Checklist (+ GR / Cosmology Checklist when spacetime gravity is dynamical) |
 | Quantum mechanics, atomic physics, AMO | QM / Atomic Physics Checklist |
 | Statistical mechanics, thermodynamics, phase transitions | Statistical Mechanics / Thermodynamics Checklist |
 | Nuclear physics, particle physics, collider | Nuclear / Particle Physics Checklist |
@@ -439,6 +442,28 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
 [] Biological relevance checks
   - COMPUTE: Verify binding energies are in biologically relevant range (1-20 k_B*T)
   - COMPUTE: For protein folding: verify contact map and secondary structure match known PDB data
+```
+
+---
+
+## String Field Theory Checklist
+
+```
+[] BRST and quantum numbers
+  - COMPUTE: Verify Q_B^2 = 0 in the chosen background and Hilbert space
+  - COMPUTE: Check ghost number and picture number for every field, vertex, and gauge parameter; for closed strings verify b_0^-, L_0^- constraints
+
+[] Algebraic consistency
+  - COMPUTE: Verify BPZ cyclicity and, as applicable, associativity or A_infinity / L_infinity identities for the products actually used
+  - COMPUTE: If working around a shifted background, re-derive the shifted BRST operator and shifted products
+
+[] Gauge fixing and truncation
+  - COMPUTE: Check the stated gauge choice (Siegel, Schnabl, WZW-like partial gauge, etc.) is admissible in the sector studied
+  - COMPUTE: Compare key observables across multiple truncation levels and verify convergence or stabilization before drawing physical conclusions
+
+[] Canonical benchmarks
+  - COMPUTE: For tachyon-vacuum claims, verify the vacuum energy approaches minus the unstable D-brane tension in the stated normalization
+  - COMPUTE: For physical-background or marginal-deformation claims, verify Ellwood invariants, boundary-state data, or worldsheet factorization/amplitude matching
 ```
 
 ---

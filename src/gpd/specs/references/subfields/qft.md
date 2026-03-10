@@ -15,7 +15,7 @@ context_cost: medium
 
 ## Core Methods
 
-**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
+**Detailed protocols:** For step-by-step calculation protocols, see `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/path-integrals.md`, `protocols/effective-field-theory.md`, `protocols/lattice-gauge-theory.md`, `protocols/analytic-continuation.md`, `protocols/finite-temperature-field-theory.md`, `protocols/supersymmetry.md`, `protocols/algebraic-qft.md`, `protocols/string-field-theory.md`, `protocols/conformal-bootstrap.md`, `protocols/holography-ads-cft.md`, `protocols/asymptotic-symmetries.md`, `protocols/generalized-symmetries.md`, `protocols/green-functions.md`, `protocols/wkb-semiclassical.md`, `protocols/resummation.md` (Borel summation, Pade, divergent series), `protocols/large-n-expansion.md` ('t Hooft limit, planar diagrams, matrix models).
 
 **Feynman Diagrams and Perturbation Theory:**
 
@@ -49,6 +49,27 @@ context_cost: medium
 - Gauge fixing: Lorenz gauge (covariant), Coulomb gauge (physical), axial gauge (ghost-free), background field gauge (preserves gauge invariance of effective action)
 - Faddeev-Popov ghosts: Required in covariant gauges for non-Abelian theories; contribute to loops
 
+**Generalized Symmetries and Defects:**
+
+- A `p`-form symmetry acts on `p`-dimensional operators and couples to a `(p+1)`-form background field
+- Center symmetry in pure gauge theory acts on Wilson lines and is explicitly broken by dynamical fundamental matter
+- Higher-group symmetry requires mixed transformation laws for ordinary and higher-form background fields
+- Non-invertible symmetry requires topological defects with non-group-like fusion; duality language alone is not enough
+
+**Algebraic Quantum Field Theory:**
+
+- Haag-Kastler nets encode local observables region by region and make locality, covariance, and additivity primary structural data
+- Modular theory links operator-algebraic structure to vacuum and thermal properties; Bisognano-Wichmann is a standard benchmark rather than a generic identity
+- Local relativistic algebras are typically hyperfinite type `III_1`, which is why ordinary finite-subsystem density-matrix intuition fails in continuum QFT
+- DHR sectors and conformal nets give rigorous charge and extension data when the structural question is more important than perturbative amplitudes
+
+**Supersymmetric Field Theory:**
+
+- 4d `N=1`: holomorphy, superpotential non-renormalization, anomaly constraints, and controlled soft breaking
+- 4d `N=2`: Coulomb/Higgs branches, Seiberg-Witten geometry, BPS spectra, and localization-compatible observables
+- 4d `N=4`: exact conformality, S-duality, integrability, and AdS/CFT benchmark structure
+- Protected quantities include the Witten index, superconformal index, localized partition functions, and BPS Wilson or defect observables
+
 **Effective Field Theories (EFTs):**
 
 - Organize physics by energy scale: integrate out heavy degrees of freedom
@@ -71,6 +92,13 @@ context_cost: medium
 - Saddle-point/stationary phase approximation for semiclassical limit
 - Instantons: classical solutions in Euclidean space; tunneling, vacuum structure, theta parameter
 - Schwinger-Dyson equations: exact functional relations between Green's functions
+
+**String Field Theory:**
+
+- Off-shell formulation of string interactions with BRST gauge structure
+- Open bosonic cubic SFT, Berkovits WZW-like superstring SFT, and modern `A_infinity` / `L_infinity` formulations
+- Benchmark problems: tachyon condensation, marginal deformations, shifted backgrounds, and open/closed couplings
+- Verification requires ghost/picture bookkeeping, BPZ cyclicity, and control of level truncation
 
 ## Key Tools and Software
 
@@ -148,8 +176,13 @@ context_cost: medium
 | Frontier | Key question | Active groups | GPD suitability |
 |----------|-------------|---------------|-----------------|
 | **Amplitudes bootstrap** | Can on-shell methods (BCFW, generalized unitarity) replace Feynman diagrams at high loops? | Arkani-Hamed, Dixon, Bern, Zvi group | Excellent — symbolic algebra intensive |
+| **Asymptotic symmetries / celestial amplitudes** | How are infrared soft theorems, large gauge symmetries, and celestial currents encoded in scattering observables? | Strominger, Pasterski, Donnay, Raclariu, Pate | Good — symmetry constraints are strong; full celestial dictionary is still developing |
+| **Generalized symmetries / defects** | How do higher-form, higher-group, and non-invertible symmetries constrain phases, anomalies, and operator algebras in QFT? | Komargodski, Cordova, Iqbal, Schafer-Nameki, Gaiotto | Good — strong on defect/anomaly logic; categorical classification is still moving fast |
+| **Supersymmetric QFT / protected sectors** | How far can localization, indices, dualities, and superconformal constraints determine strongly coupled dynamics? | Pestun, Rastelli, Razamat, Tachikawa, Komargodski | Excellent — protected observables are highly constrained; unprotected quantities still need explicit control |
 | **Asymptotic safety** | Does gravity have a UV fixed point? Compute critical exponents of the gravitational RG | Reuter, Percacci, Eichhorn groups | Good — functional RG, truncation systematics |
 | **Conformal bootstrap** | Determine CFT data (dimensions, OPE coefficients) non-perturbatively | Simmons-Duffin, Poland, Rychkov | Excellent — algebraic + numerical optimization |
+| **Algebraic QFT / operator algebras** | Which local-net, modular, and superselection structures are universal in relativistic QFT and curved spacetime? | Buchholz, Fewster, Longo, Naaijkens, Verch | Good — structural control is strong; concrete model construction is still hard |
+| **String field theory** | Can off-shell string interactions and background shifts be controlled in a formulation that remains computationally practical? | Sen, Zwiebach, Erler, Schnabl, Maccaferri | Good — algebraic and gauge-structure heavy; truncation control is essential |
 | **Precision Higgs/EW** | NNLO and N3LO corrections for LHC processes | CERN theory, Mistlberger, Czakon | Good — multi-loop integrals, IBP reduction |
 | **Non-perturbative QCD** | Lattice determination of hadron spectrum, form factors, PDFs at physical quark masses | BMW, RBC-UKQCD, MILC, ETM | Moderate — requires lattice infrastructure |
 | **EFT for gravitational waves** | Post-Minkowskian expansion for binary inspiral: quantum field theory methods for classical gravity | Bern, Cheung, Porto, Buonanno | Excellent — Feynman diagrams + classical limit |
@@ -165,6 +198,8 @@ Is there a small expansion parameter?
 ├── NO (strong coupling)
 │   ├── Lattice feasible? → Lattice QFT (Monte Carlo)
 │   ├── Large N? → 1/N expansion, holography
+│   ├── Local-observable / modular / type-III question? → Algebraic QFT
+│   ├── Stringy off-shell background problem? → String field theory
 │   ├── Conformal? → Bootstrap methods
 │   └── Topological? → Exact results (instantons, anomalies, index theorems)
 └── MIXED (perturbative + non-perturbative)

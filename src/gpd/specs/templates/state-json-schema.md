@@ -1,11 +1,11 @@
 ---
 template_version: 1
-purpose: Canonical schema for .planning/state.json — the machine-readable research state sidecar
+purpose: Canonical schema for .gpd/state.json — the machine-readable research state sidecar
 ---
 
 # state.json Schema
 
-Canonical schema for `.planning/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Canonical schema for `.gpd/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
 
 Source of truth: `default_state_dict()` in `gpd.core.state`.
 
@@ -27,7 +27,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `approximations` | `ApproximationObject[]` | `[]` | Active approximations with validity | **Authoritative** (JSON-only, from `approximation add`) |
 | `convention_lock` | `ConventionLock` | see below | Locked physics conventions | **Authoritative** (JSON-only, from `convention set`) |
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
-| `pending_todos` | `string[]` | `[]` | Ideas captured via $gpd-add-todo | Synced from todos/ |
+| `pending_todos` | `string[]` | `[]` | Ideas captured via /gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `session` | `SessionObject` | see below | Session continuity for resumption | Synced from STATE.md |
 
@@ -52,10 +52,8 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | Field | Type | Written By |
 |-------|------|-----------|
 | `project_md_updated` | `string \| null` | Workflows (after updating PROJECT.md) |
-| `core_research_question` | `string \| null` | `$gpd-new-project` |
+| `core_research_question` | `string \| null` | `/gpd:new-project` |
 | `current_focus` | `string \| null` | Phase transitions, `gpd state update` |
-
-**Legacy note:** `parse_state_to_json` emits `project` key; `sync_state_json` maps this to `project_reference`.
 
 ### `position`
 
@@ -85,7 +83,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | `last_activity` | `string \| null` | Most state-modifying commands | Session display |
 | `last_activity_desc` | `string \| null` | Executor, workflows | Session display |
 | `progress_percent` | `integer` | `gpd state update-progress` | Progress display |
-| `paused_at` | `string \| null` | `$gpd-pause-work`, `$gpd-resume-work` | Resume workflow |
+| `paused_at` | `string \| null` | `/gpd:pause-work`, `/gpd:resume-work` | Resume workflow |
 
 **Valid `status` values:**
 
@@ -170,7 +168,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 **Written by:** `gpd result add`
 **Read by:** gpd-executor (downstream phases), gpd-verifier, gpd-paper-writer
 
-**Note:** Legacy entries from STATE.md migration may be plain strings instead of objects. Code handles both formats.
+**Note:** Markdown-derived entries in this section may be plain strings instead of structured objects. Code handles both formats.
 
 ### `DecisionObject`
 
@@ -251,11 +249,11 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 {
   "last_date": "2026-02-15T14:30:00.000Z",
   "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": ".planning/phases/03/.continue-here"
+  "resume_file": ".gpd/phases/03/.continue-here"
 }
 ```
 
-**Written by:** `gpd state record-session`, `$gpd-pause-work`
+**Written by:** `gpd state record-session`, `/gpd:pause-work`
 
 ---
 

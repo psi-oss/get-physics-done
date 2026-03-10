@@ -1,6 +1,6 @@
 """GPD Protocols MCP server — exposes physics computation protocols via MCP tools.
 
-Loads 47 protocol files from specs/references/protocols/, parses YAML frontmatter
+Loads protocol files from specs/references/protocols/, parses YAML frontmatter
 and markdown body, and serves them via FastMCP tools.
 
 Entry point: python -m gpd.mcp.servers.protocols_server
@@ -36,7 +36,7 @@ _HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
 
 def _extract_sections(body: str) -> list[dict[str, str | int]]:
     """Extract H2/H3 sections from markdown body."""
-    sections: list[dict[str, str]] = []
+    sections: list[dict[str, str | int]] = []
     matches = list(_HEADING_RE.finditer(body))
     for i, match in enumerate(matches):
         level = len(match.group(1))
@@ -71,7 +71,7 @@ def _extract_steps_and_checkpoints(body: str) -> tuple[list[str], list[str]]:
     return steps, checkpoints
 
 
-def _infer_domain(name: str, load_when: list[str]) -> str:
+def _infer_domain(name: str, _load_when: list[str]) -> str:
     """Infer a domain category from the protocol name and load_when keywords."""
     # Domain mapping based on shared-protocols.md categories
     core_derivation = {
@@ -88,6 +88,7 @@ def _infer_domain(name: str, load_when: list[str]) -> str:
         "hamiltonian-mechanics",
         "scattering-theory",
         "supersymmetry",
+        "string-field-theory",
         "cosmological-perturbation-theory",
         "holography-ads-cft",
         "quantum-error-correction",
@@ -114,6 +115,7 @@ def _infer_domain(name: str, load_when: list[str]) -> str:
         "random-matrix-theory",
     }
     mathematical = {
+        "algebraic-qft",
         "group-theory",
         "topological-methods",
         "green-functions",
@@ -304,23 +306,27 @@ def get_protocol(name: str) -> dict[str, object]:
         name: Protocol name (e.g., "perturbation-theory", "renormalization-group").
               Use the stem of the .md filename without extension.
     """
-    with gpd_span("mcp.protocols.get", protocol_name=name):
-        store = _get_store()
-        protocol = store.get(name)
-        if protocol is None:
-            available = [str(p["name"]) for p in store.list_all()]
-            return {"error": f"Protocol '{name}' not found", "available": available}
-        return {
-            "name": protocol["name"],
-            "title": protocol["title"],
-            "domain": protocol["domain"],
-            "tier": protocol["tier"],
-            "context_cost": protocol["context_cost"],
-            "load_when": protocol["load_when"],
-            "steps": protocol["steps"],
-            "checkpoints": protocol["checkpoints"],
-            "content": protocol["body"],
-        }
+    try:
+        with gpd_span("mcp.protocols.get", protocol_name=name):
+            store = _get_store()
+            protocol = store.get(name)
+            if protocol is None:
+                available = [str(p["name"]) for p in store.list_all()]
+                return {"error": f"Protocol '{name}' not found", "available": available}
+            return {
+                "name": protocol["name"],
+                "title": protocol["title"],
+                "domain": protocol["domain"],
+                "tier": protocol["tier"],
+                "context_cost": protocol["context_cost"],
+                "load_when": protocol["load_when"],
+                "steps": protocol["steps"],
+                "checkpoints": protocol["checkpoints"],
+                "content": protocol["body"],
+            }
+    except Exception as exc:
+        logger.warning("get_protocol failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -333,14 +339,18 @@ def list_protocols(domain: str | None = None) -> dict[str, object]:
                 "numerical_translation", "gr_cosmology", "fluid_plasma",
                 "quantum_info", "condensed_matter", "general".
     """
-    with gpd_span("mcp.protocols.list", domain=domain or "all"):
-        store = _get_store()
-        protocols = store.list_all(domain)
-        return {
-            "count": len(protocols),
-            "protocols": protocols,
-            "available_domains": store.domains,
-        }
+    try:
+        with gpd_span("mcp.protocols.list", domain=domain or "all"):
+            store = _get_store()
+            protocols = store.list_all(domain)
+            return {
+                "count": len(protocols),
+                "protocols": protocols,
+                "available_domains": store.domains,
+            }
+    except Exception as exc:
+        logger.warning("list_protocols failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -354,14 +364,18 @@ def route_protocol(computation_type: str) -> dict[str, object]:
         computation_type: Description of the computation (e.g., "perturbative QCD
                          calculation of vacuum polarization at one loop").
     """
-    with gpd_span("mcp.protocols.route"):
-        store = _get_store()
-        matches = store.route(computation_type)
-        return {
-            "query": computation_type,
-            "match_count": len(matches),
-            "protocols": matches[:10],  # Top 10 matches
-        }
+    try:
+        with gpd_span("mcp.protocols.route"):
+            store = _get_store()
+            matches = store.route(computation_type)
+            return {
+                "query": computation_type,
+                "match_count": len(matches),
+                "protocols": matches[:10],  # Top 10 matches
+            }
+    except Exception as exc:
+        logger.warning("route_protocol failed: %s", exc)
+        return {"error": str(exc)}
 
 
 @mcp.tool()
@@ -374,18 +388,22 @@ def get_protocol_checkpoints(name: str) -> dict[str, object]:
     Args:
         name: Protocol name (e.g., "perturbation-theory").
     """
-    with gpd_span("mcp.protocols.checkpoints", protocol_name=name):
-        store = _get_store()
-        protocol = store.get(name)
-        if protocol is None:
-            available = [str(p["name"]) for p in store.list_all()]
-            return {"error": f"Protocol '{name}' not found", "available": available}
-        return {
-            "name": protocol["name"],
-            "title": protocol["title"],
-            "checkpoints": protocol["checkpoints"],
-            "checkpoint_count": len(protocol["checkpoints"]),
-        }
+    try:
+        with gpd_span("mcp.protocols.checkpoints", protocol_name=name):
+            store = _get_store()
+            protocol = store.get(name)
+            if protocol is None:
+                available = [str(p["name"]) for p in store.list_all()]
+                return {"error": f"Protocol '{name}' not found", "available": available}
+            return {
+                "name": protocol["name"],
+                "title": protocol["title"],
+                "checkpoints": protocol["checkpoints"],
+                "checkpoint_count": len(protocol["checkpoints"]),
+            }
+    except Exception as exc:
+        logger.warning("get_protocol_checkpoints failed: %s", exc)
+        return {"error": str(exc)}
 
 
 # ---------------------------------------------------------------------------

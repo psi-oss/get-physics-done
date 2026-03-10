@@ -24,7 +24,7 @@ Last audited: 2026-02-23 (deep audit, cross-referenced against actual workflow/a
 | L3 | **Pre-commit check** | At commit time | ASSERT_CONVENTION vs lock validation, NaN detection in state.json, SUMMARY/PLAN frontmatter completeness | Now used in 37/59 workflows (bug #23 fixed). Advisory (`|| true`), not blocking |
 | L4 | **Inter-wave gates** | Between waves | Convention consistency + dimensional spot-check on wave SUMMARY.md equations | **Only runs between waves within execute-phase**; does NOT run limiting cases, symmetry, or conservation checks |
 | L5 | **Verifier 15-check** | Post-execution | Full verification: 5.1-5.15 (dimensional, spot-check, limiting cases, cross-check, symmetry, conservation, math consistency, convergence, literature, plausibility, statistics, thermodynamic, spectral, anomalies/topology) | **Profile-dependent**: exploratory runs 7-check floor (5.1,5.2,5.3,5.6,5.7,5.8,5.10); quick mode runs 5.1/5.3/5.10; Tier 4 (5.13-5.15) skipped under context pressure but promoted if computation type requires them |
-| L5b | **Researcher validation** | Post-execution | Interactive verify-work with computational evidence; researcher confirms/denies each check | Only runs when user invokes `$gpd-verify-work`; human-dependent |
+| L5b | **Researcher validation** | Post-execution | Interactive verify-work with computational evidence; researcher confirms/denies each check | Only runs when user invokes `/gpd:verify-work`; human-dependent |
 | L6 | **Cross-phase consistency** | Post-phase | Convention drift, provides/requires chains, sign/factor spot-checks, approximation validity | Only checks quantities crossing phase boundaries; within-phase errors invisible |
 
 ---

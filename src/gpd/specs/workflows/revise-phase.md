@@ -13,11 +13,11 @@ Parse the command arguments:
 - First argument: phase number to revise (integer or decimal)
 - Remaining arguments (in quotes): reason for revision
 
-Example: `$gpd-revise-phase 3 "Sign error in vertex correction propagated to all subsequent phases"`
+Example: `/gpd:revise-phase 3 "Sign error in vertex correction propagated to all subsequent phases"`
 -> phase = 3
 -> reason = "Sign error in vertex correction propagated to all subsequent phases"
 
-Example: `$gpd-revise-phase 5.1 "Regularization scheme breaks gauge invariance"`
+Example: `/gpd:revise-phase 5.1 "Regularization scheme breaks gauge invariance"`
 -> phase = 5.1
 -> reason = "Regularization scheme breaks gauge invariance"
 
@@ -25,8 +25,8 @@ If arguments missing or malformed:
 
 ```
 ERROR: Phase number and reason required
-Usage: $gpd-revise-phase <phase-number> "<reason for revision>"
-Example: $gpd-revise-phase 3 "Sign error in vertex correction"
+Usage: /gpd:revise-phase <phase-number> "<reason for revision>"
+Example: /gpd:revise-phase 3 "Sign error in vertex correction"
 ```
 
 Exit.
@@ -53,15 +53,15 @@ ERROR: Phase not found: ${target_phase}
 Available phases:
 $(gpd phase list)
 
-Usage: $gpd-revise-phase <phase-number> "<reason>"
+Usage: /gpd:revise-phase <phase-number> "<reason>"
 ```
 
 Exit.
 
 Also read:
 
-- `.planning/ROADMAP.md` -- full roadmap structure
-- `.planning/STATE.md` -- current position and accumulated context
+- `.gpd/ROADMAP.md` -- full roadmap structure
+- `.gpd/STATE.md` -- current position and accumulated context
 - All artifacts in the target phase directory:
 
 ```bash
@@ -83,8 +83,8 @@ If the target phase is a future unstarted phase:
 ERROR: Cannot revise Phase {target} -- it has not been completed yet.
 
 Phase {target} is a future phase. Options:
-- $gpd-remove-phase {target} -- remove it entirely
-- $gpd-plan-phase {target} -- plan it differently from scratch
+- /gpd:remove-phase {target} -- remove it entirely
+- /gpd:plan-phase {target} -- plan it differently from scratch
 
 Revision applies to completed phases where results need reworking.
 ```
@@ -133,7 +133,7 @@ Read ROADMAP.md to find all phases that come after the target phase. For each su
 # Search for references to the target phase in downstream phases
 ```
 
-Use Grep to search `.planning/phases/` for references to the target phase number, its results, or its key outputs.
+Use search_files to search `.gpd/phases/` for references to the target phase number, its results, or its key outputs.
 
 Build an impact assessment:
 
@@ -179,7 +179,7 @@ Mark the original phase as superseded in ROADMAP.md.
 
 **Add a SUPERSEDED.md file to the original phase directory:**
 
-Write `.planning/phases/{target_dir}/SUPERSEDED.md`:
+Write `.gpd/phases/{target_dir}/SUPERSEDED.md`:
 
 ```markdown
 # Phase {target}: SUPERSEDED
@@ -212,7 +212,7 @@ The replacement phase number is `{target}.1` (or `{target}.2`, `{target}.3`, etc
 
 ```bash
 # Check for existing decimal phases under this integer
-ls -d .planning/phases/${target_integer}.* 2>/dev/null
+ls -d .gpd/phases/${target_integer}.* 2>/dev/null
 ```
 
 Use the next available decimal.
@@ -233,7 +233,7 @@ The CLI handles directory creation and ROADMAP.md insertion.
 
 **Pre-populate CONTEXT.md in the replacement phase:**
 
-Write `.planning/phases/{replacement_dir}/CONTEXT.md`:
+Write `.gpd/phases/{replacement_dir}/CONTEXT.md`:
 
 ```markdown
 # Phase {replacement_number}: Context
@@ -268,9 +268,9 @@ This phase supersedes Phase {target} ({original_name}).
 
 ### Reference
 
-- Original phase: `.planning/phases/{target_dir}/`
-- Original summary: `.planning/phases/{target_dir}/{target}-01-SUMMARY.md` (etc.)
-- Supersession record: `.planning/phases/{target_dir}/SUPERSEDED.md`
+- Original phase: `.gpd/phases/{target_dir}/`
+- Original summary: `.gpd/phases/{target_dir}/{target}-01-SUMMARY.md` (etc.)
+- Supersession record: `.gpd/phases/{target_dir}/SUPERSEDED.md`
 ```
 
 </step>
@@ -284,7 +284,7 @@ Find all downstream phases that depend on the superseded phase and update their 
 # Find phases that reference the superseded phase
 ```
 
-Use Grep to search `.planning/phases/` and `.planning/ROADMAP.md` for:
+Use search_files to search `.gpd/phases/` and `.gpd/ROADMAP.md` for:
 
 - "Phase {target}" references
 - "Depends on.\*{target}" patterns
@@ -307,7 +307,7 @@ If a completed downstream phase heavily depends on invalidated results from the 
 ```
 WARNING: Phase {X} ({name}) may also need revision.
 It depends on {specific_result} from Phase {target}, which is being invalidated.
-Consider: $gpd-revise-phase {X} "{cascading_reason}"
+Consider: /gpd:revise-phase {X} "{cascading_reason}"
 ```
 
 </step>
@@ -333,7 +333,7 @@ gpd state add-blocker --text "Phase ${target} results under revision -- supersed
 gpd state update "Last Activity" "$(date +%Y-%m-%d)"
 ```
 
-4. Update ROADMAP.md progress table if one exists -- the superseded phase should show status "Superseded" rather than "Complete". Use the Edit tool for this ROADMAP.md change (not STATE.md).
+4. Update ROADMAP.md progress table if one exists -- the superseded phase should show status "Superseded" rather than "Complete". Use the file_edit tool for this ROADMAP.md change (not STATE.md).
 
 Do NOT edit STATE.md directly — always use gpd state commands to maintain state.json sync.
 </step>
@@ -342,10 +342,10 @@ Do NOT edit STATE.md directly — always use gpd state commands to maintain stat
 Stage and commit all changes:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(phase-${target_padded}): supersede and replace — ${reason}" --files .planning/
+gpd commit "docs(phase-${target_padded}): supersede and replace — ${reason}" --files .gpd/
 ```
 </step>
 
@@ -379,12 +379,12 @@ Present completion summary and next steps:
 ## Next Steps
 
 **Plan the replacement phase now?**
-`$gpd-plan-phase {replacement_number}`
+`/gpd:plan-phase {replacement_number}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
 **Review affected downstream phases first?**
-{List $gpd-show-phase commands for affected phases}
+{List /gpd:show-phase commands for affected phases}
 
 ---
 ```
@@ -396,7 +396,7 @@ Present completion summary and next steps:
 <anti_patterns>
 
 - Don't delete the original phase directory or any of its artifacts -- they are historical record
-- Don't mark future/unstarted phases as superseded -- use $gpd-remove-phase instead
+- Don't mark future/unstarted phases as superseded -- use /gpd:remove-phase instead
 - Don't silently skip downstream dependency updates -- always check and update references
 - Don't create the replacement without pre-populating CONTEXT.md -- the whole point is to carry forward learnings
 - Don't use `python` for gpd invocations -- always use `gpd`

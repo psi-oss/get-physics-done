@@ -5,14 +5,14 @@ argument-hint: "[path to referee report or paste inline]"
 requires:
   files: ["paper/*.tex"]
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -37,14 +37,14 @@ Responding to referees is collaborative improvement: every comment, even an inco
 <context>
 Referee report source: $ARGUMENTS (file path or "paste" for inline input)
 
-@.planning/STATE.md
-@.planning/paper/REFEREE_RESPONSE.md
+@.gpd/STATE.md
+@.gpd/paper/REFEREE_RESPONSE.md
 
 Check for existing paper and prior response files:
 
 ```bash
 ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
-ls .planning/paper/REFEREE_RESPONSE*.md 2>/dev/null
+ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ```
 
 </context>

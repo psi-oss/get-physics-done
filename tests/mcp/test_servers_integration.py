@@ -78,7 +78,7 @@ _STATE_MD = """\
 
 ## Project Reference
 
-See: .planning/PROJECT.md
+See: .gpd/PROJECT.md
 
 **Core research question:** One-loop vacuum polarization in QED
 **Current focus:** Compute photon self-energy at NLO
@@ -133,7 +133,7 @@ def gpd_project(tmp_path: Path) -> Path:
 
     Layout::
         <tmp>/
-          .planning/
+          .gpd/
             STATE.md
             state.json
             phases/
@@ -143,7 +143,7 @@ def gpd_project(tmp_path: Path) -> Path:
                 plan-03.md
                 summary-01.md
     """
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
 
     # Write state files
@@ -179,7 +179,7 @@ class TestConventionsServerIntegration:
         assert result["type"] == "standard"
 
         # Verify the value persisted in state.json
-        state = json.loads((gpd_project / ".planning" / "state.json").read_text())
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
         assert state["convention_lock"]["regularization_scheme"] == "dim-reg"
 
     def test_convention_set_already_set_rejects_overwrite(self, gpd_project: Path):
@@ -214,15 +214,15 @@ class TestConventionsServerIntegration:
 class TestStateServerIntegration:
     """Integration tests for state_server tools with real STATE.md / state.json."""
 
-    def test_get_state_returns_full_markdown(self, gpd_project: Path):
+    def test_get_state_returns_structured_data(self, gpd_project: Path):
         from gpd.mcp.servers.state_server import get_state
 
         result = get_state(str(gpd_project))
 
         assert isinstance(result, dict)
-        assert result["content"] is not None
-        assert "Research State" in result["content"]
-        assert "One-loop vacuum polarization" in result["content"]
+        # Should return structured state, not raw markdown
+        assert "position" in result
+        assert "decisions" in result or "blockers" in result
 
     def test_advance_plan_increments(self, gpd_project: Path):
         from gpd.mcp.servers.state_server import advance_plan
@@ -235,7 +235,7 @@ class TestStateServerIntegration:
         assert result.get("new_plan") == 2 or result.get("current_plan") == 2
 
         # Verify STATE.md was updated
-        md = (gpd_project / ".planning" / "STATE.md").read_text()
+        md = (gpd_project / ".gpd" / "STATE.md").read_text()
         assert "**Current Plan:** 2" in md
 
     def test_validate_state_on_realistic_project(self, gpd_project: Path):
@@ -447,6 +447,26 @@ class TestProtocolsServerIntegration:
         names = [p["name"] for p in result["protocols"]]
         assert "perturbation-theory" in names
 
+    def test_route_protocol_finds_algebraic_qft(self):
+        from gpd.mcp.servers.protocols_server import route_protocol
+
+        result = route_protocol("Haag-Kastler net modular theory type III local algebras")
+
+        assert isinstance(result, dict)
+        assert result["match_count"] >= 1
+        names = [p["name"] for p in result["protocols"]]
+        assert "algebraic-qft" in names
+
+    def test_route_protocol_finds_string_field_theory(self):
+        from gpd.mcp.servers.protocols_server import route_protocol
+
+        result = route_protocol("open superstring field theory tachyon condensation")
+
+        assert isinstance(result, dict)
+        assert result["match_count"] >= 1
+        names = [p["name"] for p in result["protocols"]]
+        assert "string-field-theory" in names
+
 
 # ===========================================================================
 # 6. Patterns Server
@@ -569,22 +589,15 @@ class TestSkillsServerIntegration:
     def test_get_skill_real_skill(self):
         from gpd.mcp.servers.skills_server import get_skill
 
-        result = get_skill("gpd-debug")
+        result = get_skill("gpd-debugger")
 
         assert isinstance(result, dict)
-        # If gpd-debug exists, check its structure
-        if "error" not in result:
-            assert result["name"] == "gpd-debug"
-            assert result["file_count"] >= 1
-            assert len(result["content"]) > 0
-        else:
-            # Fall back to gpd-debugger if gpd-debug doesn't exist
-            result = get_skill("gpd-debugger")
-            assert "error" not in result
-            assert result["name"] == "gpd-debugger"
-            assert result["file_count"] >= 1
+        assert "error" not in result, f"gpd-debugger skill not found: {result}"
+        assert result["name"] == "gpd-debugger"
+        assert result["file_count"] >= 1
+        assert len(result["content"]) > 0
 
-    def test_get_skill_prefers_canonical_command_over_legacy_spec(self):
+    def test_get_skill_uses_canonical_command_content(self):
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-help")

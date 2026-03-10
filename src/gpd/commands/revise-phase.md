@@ -3,13 +3,13 @@ name: gpd:revise-phase
 description: Supersede a completed phase and create a replacement for iterative revision
 argument-hint: '<phase-number> <reason for revision>'
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -36,8 +36,8 @@ Output: Original phase marked as superseded, replacement phase created with inhe
 <context>
 Arguments: $ARGUMENTS (format: <phase-number> "<reason for revision>")
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>

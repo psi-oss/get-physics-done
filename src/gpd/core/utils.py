@@ -1,12 +1,11 @@
 """Shared utility functions for GPD.
 
-Layer 1 code: stdlib + pathlib + json + re only.
+Layer 1 code: stdlib + pathlib + re only.
 """
 
 from __future__ import annotations
 
 import fcntl
-import json
 import os
 import re
 import tempfile
@@ -21,19 +20,14 @@ __all__ = [
     "atomic_write",
     "compare_phase_numbers",
     "file_lock",
-    "format_progress_bar",
     "generate_slug",
     "is_phase_complete",
     "phase_normalize",
     "phase_sort_key",
-    "phase_top_level",
     "phase_unpad",
     "safe_parse_int",
-    "safe_parse_json",
-    "safe_parse_yaml",
     "safe_read_file",
     "safe_read_file_truncated",
-    "walk_for_nan",
 ]
 
 # ─── Phase Utilities ────────────────────────────────────────────────────────────
@@ -45,10 +39,11 @@ def phase_normalize(name: str) -> str:
     Sub-levels are NOT padded: "3.1.2" -> "03.1.2", "12" -> "12".
     Non-numeric prefixes are returned as-is.
     """
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
+    match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
-    parts = match.group(1).split(".")
+    numeric, suffix = match.group(1), match.group(2)
+    parts = numeric.split(".")
     normalized = []
     for i, part in enumerate(parts):
         try:
@@ -56,7 +51,7 @@ def phase_normalize(name: str) -> str:
             normalized.append(str(v).zfill(2) if i == 0 else str(v))
         except ValueError:
             normalized.append(part)
-    return ".".join(normalized)
+    return ".".join(normalized) + suffix
 
 
 def phase_unpad(name: str) -> str:
@@ -65,28 +60,18 @@ def phase_unpad(name: str) -> str:
     Returns the "display" form: "08.1.1" -> "8.1.1".
     Preserves all decimal levels.
     """
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
+    match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
-    parts = match.group(1).split(".")
+    numeric, suffix = match.group(1), match.group(2)
+    parts = numeric.split(".")
     unpadded = []
     for part in parts:
         try:
             unpadded.append(str(int(part)))
         except ValueError:
             unpadded.append(part)
-    return ".".join(unpadded)
-
-
-def phase_top_level(phase: str) -> int | None:
-    """Extract the top-level phase number from a phase string.
-
-    "2.1.1" -> 2, "abc" -> None.
-    """
-    match = re.match(r"^(\d+)", phase)
-    if not match:
-        return None
-    return int(match.group(1))
+    return ".".join(unpadded) + suffix
 
 
 def compare_phase_numbers(a: str, b: str) -> int:
@@ -143,20 +128,6 @@ def generate_slug(text: str) -> str | None:
     return slug.strip("-") or None
 
 
-def format_progress_bar(percent: float, width: int = 40) -> str:
-    """Render a text progress bar.
-
-    format_progress_bar(0.75) -> "[==============================          ] 75%"
-    """
-    clamped = max(0.0, min(1.0, percent))
-    filled = int(clamped * width)
-    bar = "=" * filled + " " * (width - filled)
-    return f"[{bar}] {int(clamped * 100)}%"
-
-
-# ─── Safe Parsing ───────────────────────────────────────────────────────────────
-
-
 def safe_parse_int(value: object, default: int | None = 0) -> int | None:
     """Parse an integer safely, returning *default* if invalid.
 
@@ -171,70 +142,20 @@ def safe_parse_int(value: object, default: int | None = 0) -> int | None:
         return default
 
 
-def safe_parse_json(text: str) -> dict | None:
-    """Parse JSON text, returning None on failure."""
-    try:
-        result = json.loads(text)
-        if isinstance(result, dict):
-            return result
-        return None
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
-def safe_parse_yaml(text: str) -> dict | None:
-    """Parse YAML frontmatter text, returning None on failure.
-
-    Expects the content between --- delimiters (without the delimiters).
-    Returns None for non-dict results or YAML parse errors.
-    """
-    import yaml
-
-    try:
-        result = yaml.safe_load(text)
-        if isinstance(result, dict):
-            return result
-        return None
-    except yaml.YAMLError:
-        return None
-
-
-# ─── NaN / Integrity Checking ──────────────────────────────────────────────────
-
-
-def walk_for_nan(obj: object, prefix: str) -> list[str]:
-    """Walk an object tree and collect paths to any float('nan') values.
-
-    Returns dot-notation paths like "state.position.phase".
-    """
-    found: list[str] = []
-    _walk_nan(obj, prefix, found)
-    return found
-
-
-def _walk_nan(obj: object, prefix: str, found: list[str]) -> None:
-    if obj is None or not isinstance(obj, (dict, list)):
-        return
-    if isinstance(obj, list):
-        for i, v in enumerate(obj):
-            path = f"{prefix}[{i}]"
-            if isinstance(v, float) and v != v:  # NaN check
-                found.append(path)
-            elif isinstance(v, (dict, list)):
-                _walk_nan(v, path, found)
-    else:
-        for k, v in obj.items():
-            path = f"{prefix}.{k}"
-            if isinstance(v, float) and v != v:  # NaN check
-                found.append(path)
-            elif isinstance(v, (dict, list)):
-                _walk_nan(v, path, found)
-
 
 # ─── File Helpers ───────────────────────────────────────────────────────────────
 
+
+def _max_include_chars_from_env() -> int:
+    """Return a valid include limit from the environment or the default."""
+    parsed = safe_parse_int(os.environ.get(ENV_MAX_INCLUDE_CHARS), DEFAULT_MAX_INCLUDE_CHARS)
+    if parsed is None or parsed <= 0:
+        return DEFAULT_MAX_INCLUDE_CHARS
+    return parsed
+
+
 # Maximum characters to include when reading files for context
-MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_INCLUDE_CHARS)))
+MAX_INCLUDE_CHARS = _max_include_chars_from_env()
 
 
 def safe_read_file(path: Path) -> str | None:
@@ -250,7 +171,7 @@ def safe_read_file_truncated(path: Path, max_chars: int | None = None) -> str | 
     content = safe_read_file(path)
     if content is None:
         return None
-    limit = max_chars or MAX_INCLUDE_CHARS
+    limit = max_chars if max_chars is not None else MAX_INCLUDE_CHARS
     if len(content) <= limit:
         return content
     return content[:limit] + f"\n\n...truncated ({len(content)} chars total, showing first {limit})."

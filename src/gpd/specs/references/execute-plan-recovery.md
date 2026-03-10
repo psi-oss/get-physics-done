@@ -89,7 +89,7 @@ Rollback complete. Repository restored to pre-plan state.
 Checkpoint tag preserved: ${CHECKPOINT_TAG}
 
 Next steps:
-- $gpd-execute-phase {phase} -- retry (will detect no prior commits)
+- /gpd:execute-phase {phase} -- retry (will detect no prior commits)
 - Review plan for issues before retrying
 ```
 
@@ -100,7 +100,7 @@ Next steps:
 1. **Create recovery document:**
 
 ```bash
-RECOVERY_FILE=".planning/phases/${PHASE_DIR}/RECOVERY-${PLAN}.md"
+RECOVERY_FILE=".gpd/phases/${PHASE_DIR}/RECOVERY-${PLAN}.md"
 ```
 
 Write `RECOVERY-{PLAN}.md` with:
@@ -159,7 +159,7 @@ gpd state record-session \
 ```bash
 gpd commit \
   "docs(${PHASE}-${PLAN}): document plan failure and recovery options" \
-  --files "${RECOVERY_FILE}" .planning/STATE.md
+  --files "${RECOVERY_FILE}" .gpd/STATE.md
 ```
 
 **Keep the checkpoint tag** -- needed if user later decides to rollback.
@@ -173,6 +173,6 @@ Recovery: ${RECOVERY_FILE}
 Checkpoint: ${CHECKPOINT_TAG} (for future rollback if needed)
 
 Next steps:
-- $gpd-execute-phase {phase} -- will detect partial completion, offer resume
+- /gpd:execute-phase {phase} -- will detect partial completion, offer resume
 - Review ${RECOVERY_FILE} for recovery options
 ```

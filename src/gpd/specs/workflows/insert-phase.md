@@ -15,7 +15,7 @@ Parse the command arguments:
 - First argument: integer phase number to insert after
 - Remaining arguments: phase description
 
-Example: `$gpd-insert-phase 72 Regularize UV divergence in self-energy`
+Example: `/gpd:insert-phase 72 Regularize UV divergence in self-energy`
 -> after = 72
 -> description = "Regularize UV divergence in self-energy"
 
@@ -23,8 +23,8 @@ If arguments missing:
 
 ```
 ERROR: Both phase number and description required
-Usage: $gpd-insert-phase <after> <description>
-Example: $gpd-insert-phase 72 Regularize UV divergence in self-energy
+Usage: /gpd:insert-phase <after> <description>
+Example: /gpd:insert-phase 72 Regularize UV divergence in self-energy
 ```
 
 Exit.
@@ -46,7 +46,7 @@ fi
 Check `roadmap_exists` from init JSON. If false:
 
 ```
-ERROR: No roadmap found (.planning/ROADMAP.md)
+ERROR: No roadmap found (.gpd/ROADMAP.md)
 ```
 
 Exit.
@@ -68,7 +68,7 @@ The CLI handles:
 - Verifying target phase exists in ROADMAP.md
 - Calculating next decimal phase number (checking existing decimals on disk)
 - Generating slug from description
-- Creating the phase directory (`.planning/phases/{N.M}-{slug}/`)
+- Creating the phase directory (`.gpd/phases/{N.M}-{slug}/`)
 - Inserting the phase entry into ROADMAP.md after the target phase with (INSERTED) marker
 
 Extract from result: `phase_number`, `after_phase`, `name`, `slug`, `directory`.
@@ -98,12 +98,12 @@ Present completion summary:
 ```
 Phase {decimal_phase} inserted after Phase {after_phase}:
 - Description: {description}
-- Directory: .planning/phases/{decimal-phase}-{slug}/
+- Directory: .gpd/phases/{decimal-phase}-{slug}/
 - Status: Not planned yet
 - Marker: (INSERTED) - indicates urgent work
 
-Roadmap updated: .planning/ROADMAP.md
-Project state updated: .planning/STATE.md
+Roadmap updated: .gpd/ROADMAP.md
+Project state updated: .gpd/STATE.md
 
 ---
 
@@ -111,7 +111,7 @@ Project state updated: .planning/STATE.md
 
 **Phase {decimal_phase}: {description}** -- urgent insertion
 
-`$gpd-plan-phase {decimal_phase}`
+`/gpd:plan-phase {decimal_phase}`
 
 <sub>`/clear` first -> fresh context window</sub>
 
@@ -130,11 +130,11 @@ Project state updated: .planning/STATE.md
 
 <anti_patterns>
 
-- Don't use this for planned work at end of milestone (use $gpd-add-phase)
+- Don't use this for planned work at end of milestone (use /gpd:add-phase)
 - Don't insert before Phase 1 (decimal 0.1 makes no sense)
 - Don't renumber existing phases
 - Don't modify the target phase content
-- Don't create plans yet (that's $gpd-plan-phase)
+- Don't create plans yet (that's /gpd:plan-phase)
 - Don't commit changes (user decides when to commit)
 
 </anti_patterns>

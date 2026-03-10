@@ -37,7 +37,7 @@ PROGRESS=$(gpd init progress --include state,roadmap,config)
 gpd roadmap analyze
 ```
 
-Parse `project_exists` and `state_exists` from PROGRESS JSON. **If `project_exists` is false:** Error — "No project found. Run $gpd-new-project first." Exit.
+Parse `project_exists` and `state_exists` from PROGRESS JSON. **If `project_exists` is false:** Error — "No project found. Run /gpd:new-project first." Exit.
 
 Determine scope:
 
@@ -51,7 +51,7 @@ Determine scope:
 For projects with many phases (10+), reading all VERIFICATION.md files at once can blow the context window. Process phases in batches to stay within limits.
 
 ```bash
-PHASE_COUNT=$(find .planning/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+PHASE_COUNT=$(find .gpd/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 echo "Found $PHASE_COUNT VERIFICATION.md files"
 ```
 
@@ -92,7 +92,7 @@ If running in single-phase scope, skip batching entirely.
 **Find all VERIFICATION.md files:**
 
 ```bash
-find .planning/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | sort
+find .gpd/phases -name "*-VERIFICATION.md" -type f 2>/dev/null | sort
 ```
 
 For each file, read frontmatter to check status:
@@ -112,9 +112,9 @@ Build verification inventory:
 ```
 | Phase | VERIFICATION.md Path | Status | Verified Truths Count |
 |-------|---------------------|--------|----------------------|
-| 01-setup | .planning/phases/01-setup/01-VERIFICATION.md | passed | 5 |
-| 02-derivation | .planning/phases/02-derivation/02-VERIFICATION.md | passed | 7 |
-| 03-numerics | .planning/phases/03-numerics/03-VERIFICATION.md | gaps_found | 4 |
+| 01-setup | .gpd/phases/01-setup/01-VERIFICATION.md | passed | 5 |
+| 02-derivation | .gpd/phases/02-derivation/02-VERIFICATION.md | passed | 7 |
+| 03-numerics | .gpd/phases/03-numerics/03-VERIFICATION.md | gaps_found | 4 |
 ```
 
 **If batching is active:** Only load the current batch's files. Update the running tally after processing each batch.
@@ -124,7 +124,7 @@ If no VERIFICATION.md files found:
 ```
 No completed verifications found. Nothing to regression-check.
 
-Run $gpd-verify-work <phase> to verify a completed phase first.
+Run /gpd:verify-work <phase> to verify a completed phase first.
 ```
 
 Exit.
@@ -164,7 +164,7 @@ truths = [
     number: 1,
     truth: "Hamiltonian dimensions are [Energy]",
     evidence: "dimensional_check.md",
-    verification_file: ".planning/phases/01-setup/01-VERIFICATION.md",
+    verification_file: ".gpd/phases/01-setup/01-VERIFICATION.md",
     category: "dimensional"
   },
   {
@@ -172,7 +172,7 @@ truths = [
     number: 1,
     truth: "Dispersion relation is correct in all limiting cases",
     evidence: "derivation.tex + limits_check.py",
-    verification_file: ".planning/phases/02-derivation/02-VERIFICATION.md",
+    verification_file: ".gpd/phases/02-derivation/02-VERIFICATION.md",
     category: "limiting_case"
   },
   ...
@@ -257,7 +257,7 @@ For each truth with category `dimensional`:
 
 4. Check for convention changes since verification:
    ```bash
-   grep -l "Convention Change\|unit system\|natural units\|hbar\s*=" .planning/phases/*/SUMMARY.md 2>/dev/null
+   grep -l "Convention Change\|unit system\|natural units\|hbar\s*=" .gpd/phases/*/SUMMARY.md 2>/dev/null
    ```
 
 **Status assignment:**
@@ -302,7 +302,7 @@ This is the most important regression check -- later phases can silently break e
    For each verified truth, check that symbols used in the truth statement still mean the same thing:
 
    ```bash
-   grep -n "$SYMBOL" .planning/phases/*/SUMMARY.md 2>/dev/null
+   grep -n "$SYMBOL" .gpd/phases/*/SUMMARY.md 2>/dev/null
    ```
 
    Flag if a symbol was redefined in a later phase.
@@ -390,13 +390,13 @@ A regression in phase N may affect phases N+1, N+2, ... if they consume results 
 
 ```bash
 # Check which later phases reference this phase's results
-grep -rl "phase.*${PHASE_NUM}\|${PHASE_NAME}" .planning/phases/*/SUMMARY.md 2>/dev/null
+grep -rl "phase.*${PHASE_NUM}\|${PHASE_NAME}" .gpd/phases/*/SUMMARY.md 2>/dev/null
 ```
 
 </step>
 
 <step name="generate_report">
-**Generate `.planning/REGRESSION-REPORT.md`:**
+**Generate `.gpd/REGRESSION-REPORT.md`:**
 
 ```markdown
 ---
@@ -472,7 +472,7 @@ status: clean | regressions_found
 
 1. **Phase {X}: {fix description}** -- fixes {N} CRITICAL regressions, unblocks phases {Y, Z}
 2. **Phase {Y}: {fix description}** -- fixes {M} MAJOR regressions after phase X is fixed
-3. **Re-run `$gpd-regression-check`** -- confirm all regressions resolved
+3. **Re-run `/gpd:regression-check`** -- confirm all regressions resolved
 
 ## Detailed Regression Analysis
 
@@ -499,18 +499,18 @@ _Scope: {all | phase N}_
 Write the report:
 
 ```bash
-mkdir -p .planning
+mkdir -p .gpd
 ```
 
-Write to `.planning/REGRESSION-REPORT.md`.
+Write to `.gpd/REGRESSION-REPORT.md`.
 
 Commit:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ".planning/REGRESSION-REPORT.md" 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ".gpd/REGRESSION-REPORT.md" 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "verify: regression check - {V}/{M} truths hold, {K} regressions" --files ".planning/REGRESSION-REPORT.md"
+gpd commit "verify: regression check - {V}/{M} truths hold, {K} regressions" --files ".gpd/REGRESSION-REPORT.md"
 ```
 
 </step>
@@ -528,7 +528,7 @@ gpd commit "verify: regression check - {V}/{M} truths hold, {K} regressions" --f
 Re-verified {M} truths across {N} phases.
 All previously verified results still hold.
 
-Report: .planning/REGRESSION-REPORT.md
+Report: .gpd/REGRESSION-REPORT.md
 ```
 
 **If regressions found:**
@@ -550,7 +550,7 @@ Re-verified {M} truths across {N} phases.
 **CRITICAL: Phase {X} -- {truth}**
   {what changed} -> affects phases {downstream}
 
-Report: .planning/REGRESSION-REPORT.md
+Report: .gpd/REGRESSION-REPORT.md
 
 ---------------------------------------------------------------
 
@@ -558,13 +558,13 @@ Report: .planning/REGRESSION-REPORT.md
 
 {If CRITICAL regressions:}
 1. Fix critical regressions first (see report for fix order)
-2. `$gpd-verify-work {affected_phase}` -- re-verify affected phases
-3. `$gpd-regression-check` -- confirm all regressions resolved
+2. `/gpd:verify-work {affected_phase}` -- re-verify affected phases
+3. `/gpd:regression-check` -- confirm all regressions resolved
 
 {If only MAJOR/MINOR:}
 1. Review regressions in report
-2. `$gpd-verify-work {affected_phase}` -- re-verify flagged phases
-3. `$gpd-regression-check` -- confirm clean
+2. `/gpd:verify-work {affected_phase}` -- re-verify flagged phases
+3. `/gpd:regression-check` -- confirm clean
 
 ---------------------------------------------------------------
 ```

@@ -24,12 +24,12 @@ Check if `--auto` flag is present in $ARGUMENTS.
   - Roadmap approval: Auto-approve
 
 **Document requirement:**
-Auto mode requires a research document via @ reference (e.g., `$gpd-new-project --auto @proposal.md`). If no document provided, error:
+Auto mode requires a research document via @ reference (e.g., `/gpd:new-project --auto @proposal.md`). If no document provided, error:
 
 ```
 Error: --auto requires a research document via @ reference.
 
-Usage: $gpd-new-project --auto @your-proposal.md
+Usage: /gpd:new-project --auto @your-proposal.md
 
 The document should describe the physics problem you want to investigate.
 ```
@@ -44,7 +44,7 @@ Check if `--minimal` flag is present in $ARGUMENTS.
 
 **If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the SAME directory structure and file set as the full path -- just with less content in each file. This ensures all downstream workflows (`$gpd-plan-phase`, `$gpd-execute-phase`, etc.) work identically.
+Minimal mode creates the SAME directory structure and file set as the full path -- just with less content in each file. This ensures all downstream workflows (`/gpd:plan-phase`, `/gpd:execute-phase`, etc.) work identically.
 
 **Two variants:**
 
@@ -59,7 +59,7 @@ Minimal mode creates the SAME directory structure and file set as the full path 
 
 #### M1. Gather Research Context
 
-**If `--minimal` with file** (`$gpd-new-project --minimal @plan.md`):
+**If `--minimal` with file** (`/gpd:new-project --minimal @plan.md`):
 
 Parse the input markdown for:
 
@@ -88,9 +88,9 @@ Example structure:
   3. Extract critical exponent and compare with known results
 ```
 
-**If `--minimal` without file** (`$gpd-new-project --minimal`):
+**If `--minimal` without file** (`/gpd:new-project --minimal`):
 
-Ask ONE question inline (freeform, NOT AskUserQuestion):
+Ask ONE question inline (freeform, NOT ask_user):
 
 "Describe your research project: what's the physics question, and what are the main phases of investigation?"
 
@@ -103,7 +103,7 @@ Wait for response. From the single response, extract:
 
 #### M2. Create PROJECT.md
 
-Populate `.planning/PROJECT.md` using the template from `templates/project.md`.
+Populate `.gpd/PROJECT.md` using the template from `templates/project.md`.
 
 Fill in what was extracted. For sections without enough information, use sensible placeholder text that signals incompleteness:
 
@@ -201,7 +201,7 @@ For each phase, create one or more requirements using the standard format:
 
 ## Out of Scope
 
-(To be refined — use $gpd-settings or edit REQUIREMENTS.md directly)
+(To be refined — use /gpd:settings or edit REQUIREMENTS.md directly)
 
 ## Traceability
 
@@ -214,7 +214,7 @@ For each phase, create one or more requirements using the standard format:
 
 #### M4. Create ROADMAP.md
 
-Create `.planning/ROADMAP.md` directly from the phase descriptions (no roadmapper agent).
+Create `.gpd/ROADMAP.md` directly from the phase descriptions (no roadmapper agent).
 
 Use the standard roadmap template structure:
 
@@ -246,7 +246,7 @@ Use the standard roadmap template structure:
 
 Plans:
 
-- [ ] 01-01: [TBD — created during $gpd-plan-phase]
+- [ ] 01-01: [TBD — created during /gpd:plan-phase]
 
 [... repeat for each phase ...]
 
@@ -268,7 +268,7 @@ Plans:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated [today's date])
+See: .gpd/PROJECT.md (updated [today's date])
 
 **Core research question:** [From PROJECT.md]
 **Current focus:** Phase 1 — [Phase 1 name]
@@ -333,8 +333,8 @@ None yet.
 
 ```json
 {
-  "mode": "yolo",
-  "depth": "standard",
+  "autonomy": "yolo",
+  "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "review",
@@ -342,8 +342,7 @@ None yet.
     "research": true,
     "plan_checker": true,
     "verifier": true
-  },
-  "initialized_with": "minimal"
+  }
 }
 ```
 
@@ -352,12 +351,12 @@ None yet.
 Create the directory structure and commit everything in a single commit:
 
 ```bash
-mkdir -p .planning
+mkdir -p .gpd
 
-PRE_CHECK=$(gpd pre-commit-check --files .planning/PROJECT.md .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/STATE.md .planning/config.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/config.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project (minimal)" --files .planning/PROJECT.md .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/STATE.md .planning/config.json
+gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/config.json
 ```
 
 #### M7. Done — Offer Next Step
@@ -371,16 +370,16 @@ gpd commit "docs: initialize research project (minimal)" --files .planning/PROJE
 
 | Artifact     | Location                    |
 |--------------|-----------------------------|
-| Project      | `.planning/PROJECT.md`      |
-| Config       | `.planning/config.json`     |
-| Requirements | `.planning/REQUIREMENTS.md` |
-| Roadmap      | `.planning/ROADMAP.md`      |
-| State        | `.planning/STATE.md`        |
+| Project      | `.gpd/PROJECT.md`      |
+| Config       | `.gpd/config.json`     |
+| Requirements | `.gpd/REQUIREMENTS.md` |
+| Roadmap      | `.gpd/ROADMAP.md`      |
+| State        | `.gpd/STATE.md`        |
 
 **[N] phases** | **[N] requirements** | Ready to investigate
 
 Note: Initialized with --minimal. Literature survey and deep scoping
-were skipped. Use $gpd-settings to adjust workflow preferences.
+were skipped. Use /gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
@@ -389,20 +388,20 @@ were skipped. Use $gpd-settings to adjust workflow preferences.
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 ```
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Next Step"
 - question: "Plan phase 1 now?"
 - options:
-  - "Plan phase 1" — Run $gpd-plan-phase 1
+  - "Plan phase 1" — Run /gpd:plan-phase 1
   - "Review artifacts first" — I want to check the generated files
   - "Done for now" — I'll continue later
 
-**If "Plan phase 1":** Tell the user to run `$gpd-plan-phase 1` (and suggest `/clear` first for a fresh context window).
+**If "Plan phase 1":** Tell the user to run `/gpd:plan-phase 1` (and suggest `/clear` first for a fresh context window).
 
 **If "Review artifacts first":** List the files and let the user inspect them. Suggest edits if needed, then re-offer planning.
 
-**If "Done for now":** Exit. Remind them to use `$gpd-resume-work` or `$gpd-plan-phase 1` when ready.
+**If "Done for now":** Exit. Remind them to use `/gpd:resume-work` or `/gpd:plan-phase 1` when ready.
 
 ---
 
@@ -435,7 +434,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start with exploit-depth survey, expand to explore if initial results reveal unexpected complexity.
 
-**If `project_exists` is true:** Error — project already initialized. Use `$gpd-progress`.
+**If `project_exists` is true:** Error — project already initialized. Use `/gpd:progress`.
 
 **If `has_git` is false:** Initialize git:
 
@@ -446,11 +445,11 @@ git init
 **Check for previous initialization attempt:**
 
 ```bash
-if [ -f .planning/init-progress.json ]; then
+if [ -f .gpd/init-progress.json ]; then
   # Guard against corrupted JSON (e.g., from interrupted write)
   PREV_STEP=""
   PREV_DESC=""
-  INIT_PROGRESS_RAW=$(cat .planning/init-progress.json 2>/dev/null || echo "")
+  INIT_PROGRESS_RAW=$(cat .gpd/init-progress.json 2>/dev/null || echo "")
   if [ -n "$INIT_PROGRESS_RAW" ]; then
     PREV_STEP=$(echo "$INIT_PROGRESS_RAW" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('step',''))" 2>/dev/null)
     PREV_DESC=$(echo "$INIT_PROGRESS_RAW" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('description',''))" 2>/dev/null)
@@ -459,7 +458,7 @@ if [ -f .planning/init-progress.json ]; then
   # If JSON was corrupted (empty step), treat as fresh start
   if [ -z "$PREV_STEP" ]; then
     echo "WARNING: init-progress.json exists but is corrupted or empty. Starting fresh."
-    rm -f .planning/init-progress.json
+    rm -f .gpd/init-progress.json
   fi
 fi
 ```
@@ -489,20 +488,20 @@ If start fresh: delete `init-progress.json` and proceed normally.
 
 **If `needs_theory_map` is true** (from init — existing research artifacts detected but no work map):
 
-> **Platform note:** If `AskUserQuestion` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Existing Research"
 - question: "I detected existing research artifacts in this directory. Would you like to map the existing work first?"
 - options:
-  - "Map existing work first" — Run $gpd-map-theory to understand current research state (Recommended)
+  - "Map existing work first" — Run /gpd:map-theory to understand current research state (Recommended)
   - "Skip mapping" — Proceed with fresh project initialization
 
 **If "Map existing work first":**
 
 ```
-Run `$gpd-map-theory` first, then return to `$gpd-new-project`
+Run `/gpd:map-theory` first, then return to `/gpd:new-project`
 ```
 
 Exit command.
@@ -523,7 +522,7 @@ Exit command.
 
 **Open the conversation:**
 
-Ask inline (freeform, NOT AskUserQuestion):
+Ask inline (freeform, NOT ask_user):
 
 "What physics problem do you want to investigate?"
 
@@ -531,7 +530,7 @@ Wait for their response. This gives you the context needed to ask intelligent fo
 
 **Follow the thread:**
 
-Based on what they said, ask follow-up questions that dig into their response. Use AskUserQuestion with options that probe what they mentioned — interpretations, clarifications, concrete examples.
+Based on what they said, ask follow-up questions that dig into their response. Use ask_user with options that probe what they mentioned — interpretations, clarifications, concrete examples.
 
 Keep following threads. Each answer opens new threads to explore. Ask about:
 
@@ -570,7 +569,7 @@ Context to gather:
 
 **Decision gate:**
 
-When you could write a clear PROJECT.md, use AskUserQuestion:
+When you could write a clear PROJECT.md, use ask_user:
 
 - header: "Ready?"
 - question: "I think I understand the research direction. Ready to create PROJECT.md?"
@@ -586,7 +585,7 @@ If "Keep exploring" — ask what they want to add, or identify gaps and probe na
 
 **If auto mode:** Synthesize from provided document. No "Ready?" gate was shown — proceed directly to commit.
 
-Synthesize all context into `.planning/PROJECT.md` using the template from `templates/project.md`.
+Synthesize all context into `.gpd/PROJECT.md` using the template from `templates/project.md`.
 
 **For fresh research projects:**
 
@@ -615,7 +614,7 @@ Initialize research questions as hypotheses:
 
 Infer answered questions from existing work:
 
-1. Read `.planning/research-map/ARCHITECTURE.md` and `FORMALISM.md`
+1. Read `.gpd/research-map/ARCHITECTURE.md` and `FORMALISM.md`
 2. Identify what has already been established
 3. These become the initial Answered set
 
@@ -700,18 +699,18 @@ Do not compress. Capture everything gathered.
 **Commit PROJECT.md:**
 
 ```bash
-mkdir -p .planning
+mkdir -p .gpd
 
-PRE_CHECK=$(gpd pre-commit-check --files .planning/PROJECT.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project" --files .planning/PROJECT.md
+gpd commit "docs: initialize research project" --files .gpd/PROJECT.md
 ```
 
 **Checkpoint step 4:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 4, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "PROJECT.md created and committed"}
 CHECKPOINT
 ```
@@ -720,20 +719,20 @@ CHECKPOINT
 
 **Quick setup gate — offer recommended defaults before individual questions:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Workflow Setup"
 - question: "How would you like to configure the project?"
 - options:
-  - "Use recommended defaults (Recommended)" — YOLO mode, standard depth, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
-  - "Customize settings" — Choose mode, depth, agents, and model profile individually
+  - "Use recommended defaults (Recommended)" — YOLO autonomy, balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
+  - "Customize settings" — Choose autonomy, research mode, agents, and model profile individually
 
 **If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
 
 ```json
 {
-  "mode": "yolo",
-  "depth": "standard",
+  "autonomy": "yolo",
+  "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "review",
@@ -741,16 +740,15 @@ Use AskUserQuestion:
     "research": true,
     "plan_checker": true,
     "verifier": true
-  },
-  "initialized_with": "quick-setup"
+  }
 }
 ```
 
 Display confirmation:
 
 ```
-Config: YOLO mode | Standard depth | Parallel | All agents | Review profile
-(Change anytime with $gpd-settings)
+Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile
+(Change anytime with /gpd:settings)
 ```
 
 Skip to "Commit config.json" below.
@@ -764,22 +762,25 @@ Skip to "Commit config.json" below.
 ```
 questions: [
   {
-    header: "Mode",
-    question: "How do you want to work?",
+    header: "Autonomy",
+    question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "YOLO (Recommended)", description: "Auto-approve, just execute" },
-      { label: "Interactive", description: "Confirm at each step" }
+      { label: "Guided (Recommended)", description: "GPD handles routine work and pauses on major decisions" },
+      { label: "YOLO", description: "Maximum speed. Auto-approve and keep going unless something breaks" },
+      { label: "Autonomous", description: "Mostly self-directed, with fewer hard stops than guided mode" },
+      { label: "Supervised", description: "Confirm each major step before proceeding" }
     ]
   },
   {
-    header: "Depth",
-    question: "How thorough should planning be?",
+    header: "Research Mode",
+    question: "What research strategy should GPD use?",
     multiSelect: false,
     options: [
-      { label: "Quick", description: "Fast exploration (3-5 phases, 1-3 plans each)" },
-      { label: "Standard", description: "Balanced rigor and speed (5-8 phases, 3-5 plans each)" },
-      { label: "Comprehensive", description: "Thorough investigation (8-12 phases, 5-10 plans each)" }
+      { label: "Balanced (Recommended)", description: "Standard breadth and rigor for most projects" },
+      { label: "Explore", description: "Broader literature search and more alternative approaches" },
+      { label: "Exploit", description: "Focused execution with minimal branching" },
+      { label: "Adaptive", description: "Start broad, then narrow once the best path is clear" }
     ]
   },
   {
@@ -797,7 +798,7 @@ questions: [
     multiSelect: false,
     options: [
       { label: "Yes (Recommended)", description: "Planning docs tracked in version control" },
-      { label: "No", description: "Keep .planning/ local-only (add to .gitignore)" }
+      { label: "No", description: "Keep .gpd/ local-only (add to .gitignore)" }
     ]
   }
 ]
@@ -851,21 +852,23 @@ questions: [
     options: [
       { label: "Review (Recommended)", description: "Balanced cost/quality — tier-1 for critical agents, tier-2 for others" },
       { label: "Deep Theory", description: "Maximum capability — tier-1 for most agents — higher cost, deeper analysis" },
-      { label: "Exploratory", description: "Fast iteration — tier-2/tier-3 where possible — fastest, lowest cost" }
+      { label: "Numerical", description: "Prioritize computation, convergence, and implementation-heavy work" },
+      { label: "Exploratory", description: "Fast iteration — tier-2/tier-3 where possible — fastest, lowest cost" },
+      { label: "Paper Writing", description: "Bias model selection toward manuscript drafting and polishing" }
     ]
   }
 ]
 ```
 
-Create `.planning/config.json` with all settings:
+Create `.gpd/config.json` with all settings:
 
 ```json
 {
-  "mode": "yolo|interactive",
-  "depth": "quick|standard|comprehensive",
+  "autonomy": "supervised|guided|autonomous|yolo",
+  "research_mode": "explore|balanced|exploit|adaptive",
   "parallelization": true|false,
   "commit_docs": true|false,
-  "model_profile": "deep-theory|review|exploratory",
+  "model_profile": "deep-theory|numerical|exploratory|review|paper-writing",
   "workflow": {
     "research": true|false,
     "plan_checker": true|false,
@@ -877,7 +880,7 @@ Create `.planning/config.json` with all settings:
 **If commit_docs = No:**
 
 - Set `commit_docs: false` in config.json
-- Add `.planning/` to `.gitignore` (create if needed)
+- Add `.gpd/` to `.gitignore` (create if needed)
 
 **If commit_docs = Yes:**
 
@@ -886,21 +889,21 @@ Create `.planning/config.json` with all settings:
 **Commit config.json:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/config.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/config.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "chore: add project config" --files .planning/config.json
+gpd commit "chore: add project config" --files .gpd/config.json
 ```
 
 **Checkpoint step 5:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 5, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "config.json created and committed"}
 CHECKPOINT
 ```
 
-**Note:** Run `$gpd-settings` anytime to update these preferences.
+**Note:** Run `/gpd:settings` anytime to update these preferences.
 
 ## 5.5. Resolve Model Profile
 
@@ -910,7 +913,7 @@ Use models from init: `researcher_model`, `synthesizer_model`, `roadmapper_model
 
 **If auto mode:** Default to "Survey first" without asking.
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Literature Survey"
 - question: "Survey the research landscape before defining the investigation plan?"
@@ -933,7 +936,7 @@ Surveying [research domain] landscape...
 Create research directory:
 
 ```bash
-mkdir -p .planning/research
+mkdir -p .gpd/research
 ```
 
 **Determine project context:**
@@ -957,10 +960,10 @@ Spawn 4 parallel gpd-project-researcher agents with rich context:
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Known Results dimension for [research domain].
@@ -996,12 +999,12 @@ Your PRIOR-WORK.md feeds into research planning. Be precise:
 </quality_gate>
 
 <output>
-Write to: .planning/research/PRIOR-WORK.md
+Write to: .gpd/research/PRIOR-WORK.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PRIOR-WORK.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Prior work research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Methods dimension for [research domain].
@@ -1037,12 +1040,12 @@ Your METHODS.md feeds into approach selection. Categorize clearly:
 </quality_gate>
 
 <output>
-Write to: .planning/research/METHODS.md
+Write to: .gpd/research/METHODS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/METHODS.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Methods research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Computational Approaches dimension for [research domain].
@@ -1079,12 +1082,12 @@ Your COMPUTATIONAL.md informs the computational strategy. Include:
 </quality_gate>
 
 <output>
-Write to: .planning/research/COMPUTATIONAL.md
+Write to: .gpd/research/COMPUTATIONAL.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/COMPUTATIONAL.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Computational approaches research")
 
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
 <research_type>
 Literature Survey — Open Problems and Pitfalls dimension for [research domain].
@@ -1121,7 +1124,7 @@ Your PITFALLS.md prevents wasted effort. For each pitfall:
 </quality_gate>
 
 <output>
-Write to: .planning/research/PITFALLS.md
+Write to: .gpd/research/PITFALLS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PITFALLS.md
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Pitfalls research")
@@ -1132,7 +1135,7 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/PITFALLS.md
 After all 4 agents complete (or partial completion handled), spawn synthesizer to create SUMMARY.md:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
 
 <task>
 Synthesize literature survey outputs into SUMMARY.md.
@@ -1140,14 +1143,14 @@ Synthesize literature survey outputs into SUMMARY.md.
 
 <research_files>
 Read these files:
-- .planning/research/PRIOR-WORK.md
-- .planning/research/METHODS.md
-- .planning/research/COMPUTATIONAL.md
-- .planning/research/PITFALLS.md
+- .gpd/research/PRIOR-WORK.md
+- .gpd/research/METHODS.md
+- .gpd/research/COMPUTATIONAL.md
+- .gpd/research/PITFALLS.md
 </research_files>
 
 <output>
-Write to: .planning/research/SUMMARY.md
+Write to: .gpd/research/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
@@ -1169,25 +1172,25 @@ Display research complete banner and key findings:
 **Standard Methods:** [from SUMMARY.md]
 **Watch Out For:** [from SUMMARY.md]
 
-Files: `.planning/research/`
+Files: `.gpd/research/`
 ```
 
 **Commit research files:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/research/PRIOR-WORK.md .planning/research/METHODS.md .planning/research/COMPUTATIONAL.md .planning/research/PITFALLS.md .planning/research/SUMMARY.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md .gpd/research/SUMMARY.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit "docs: literature survey complete" \
-  --files .planning/research/PRIOR-WORK.md .planning/research/METHODS.md \
-  .planning/research/COMPUTATIONAL.md .planning/research/PITFALLS.md \
-  .planning/research/SUMMARY.md
+  --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md \
+  .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md \
+  .gpd/research/SUMMARY.md
 ```
 
 **Checkpoint step 6:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 6, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "Literature survey completed"}
 CHECKPOINT
 ```
@@ -1219,7 +1222,7 @@ Read PROJECT.md and extract:
 - Auto-include all essential research requirements (directly answer the core question)
 - Include requirements explicitly mentioned in provided document
 - Auto-defer tangential investigations not mentioned in document
-- Skip per-category AskUserQuestion loops
+- Skip per-category ask_user loops
 - Skip "Any additions?" question
 - Skip requirements approval gate
 - Generate REQUIREMENTS.md and commit directly
@@ -1258,7 +1261,7 @@ For each objective mentioned:
 
 **Scope each category:**
 
-For each category, use AskUserQuestion:
+For each category, use ask_user:
 
 - header: "[Category name]"
 - question: "Which [category] requirements are in scope?"
@@ -1277,7 +1280,7 @@ Track responses:
 
 **Identify gaps:**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Additions"
 - question: "Any requirements the literature survey missed? (Calculations specific to your approach)"
@@ -1291,7 +1294,7 @@ Cross-check requirements against Core Research Question from PROJECT.md. If gaps
 
 **Generate REQUIREMENTS.md:**
 
-Create `.planning/REQUIREMENTS.md` with:
+Create `.gpd/REQUIREMENTS.md` with:
 
 - Current Requirements grouped by category (checkboxes, REQ-IDs)
 - Future Requirements (deferred)
@@ -1342,16 +1345,16 @@ If "adjust": Return to scoping.
 **Commit requirements:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: define research requirements" --files .planning/REQUIREMENTS.md
+gpd commit "docs: define research requirements" --files .gpd/REQUIREMENTS.md
 ```
 
 **Checkpoint step 7:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 7, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "REQUIREMENTS.md created and committed"}
 CHECKPOINT
 ```
@@ -1371,15 +1374,15 @@ Display stage banner:
 Spawn gpd-roadmapper agent with context:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
 
 <planning_context>
 
 **Read these files before proceeding:**
-- `.planning/PROJECT.md` — Project definition and research question
-- `.planning/REQUIREMENTS.md` — Derived requirements
-- `.planning/research/SUMMARY.md` — Literature survey (if exists)
-- `.planning/config.json` — Project configuration
+- `.gpd/PROJECT.md` — Project definition and research question
+- `.gpd/REQUIREMENTS.md` — Derived requirements
+- `.gpd/research/SUMMARY.md` — Literature survey (if exists)
+- `.gpd/config.json` — Project configuration
 
 </planning_context>
 
@@ -1456,7 +1459,7 @@ Success criteria:
 
 **CRITICAL: Ask for approval before committing (interactive mode only):**
 
-Use AskUserQuestion:
+Use ask_user:
 
 - header: "Roadmap"
 - question: "Does this research roadmap structure work for you?"
@@ -1473,13 +1476,13 @@ Use AskUserQuestion:
 - Re-spawn roadmapper with revision context:
 
   ```
-  Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
+  task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
 
   <revision>
   User feedback on roadmap:
   [user's notes]
 
-  Read `.planning/ROADMAP.md` for the current roadmap.
+  Read `.gpd/ROADMAP.md` for the current roadmap.
 
   Update the roadmap based on feedback. Edit files in place.
   Return ROADMAP REVISED with changes made.
@@ -1490,23 +1493,23 @@ Use AskUserQuestion:
   **If the revision roadmapper agent fails to spawn or returns an error:** Check if ROADMAP.md was updated (compare with pre-revision content). If changes were made, proceed to present the revised roadmap. If no changes, offer: 1) Retry the revision agent, 2) Apply the user's adjustment notes manually in the main context by editing ROADMAP.md directly.
 
 - Present revised roadmap
-- Loop until user approves (**maximum 3 revision iterations** — after 3, commit the current version with user's notes recorded as open questions in ROADMAP.md, and note: "Roadmap committed after 3 revision rounds. Further adjustments via `$gpd-add-phase` or `$gpd-remove-phase`.")
+- Loop until user approves (**maximum 3 revision iterations** — after 3, commit the current version with user's notes recorded as open questions in ROADMAP.md, and note: "Roadmap committed after 3 revision rounds. Further adjustments via `/gpd:add-phase` or `/gpd:remove-phase`.")
 
-**If "Review full file":** Display raw `cat .planning/ROADMAP.md`, then re-ask.
+**If "Review full file":** Display raw `cat .gpd/ROADMAP.md`, then re-ask.
 
 **Commit roadmap (after approval or auto mode):**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: create research roadmap ([N] phases)" --files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md
+gpd commit "docs: create research roadmap ([N] phases)" --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md
 ```
 
 **Checkpoint step 8:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 8, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "ROADMAP.md created and committed"}
 CHECKPOINT
 ```
@@ -1536,7 +1539,7 @@ NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
 Spawn gpd-notation-coordinator:
 
 ```
-Task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
+task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
 
 <task>
 Establish initial conventions for this research project.
@@ -1544,10 +1547,10 @@ Establish initial conventions for this research project.
 
 <project_context>
 Read these files:
-- .planning/PROJECT.md — Project definition, physics subfield, theoretical framework
-- .planning/ROADMAP.md — Phase structure (what conventions will be needed)
-- .planning/REQUIREMENTS.md — Research requirements
-- .planning/research/SUMMARY.md — Literature survey (if exists)
+- .gpd/PROJECT.md — Project definition, physics subfield, theoretical framework
+- .gpd/ROADMAP.md — Phase structure (what conventions will be needed)
+- .gpd/REQUIREMENTS.md — Research requirements
+- .gpd/research/SUMMARY.md — Literature survey (if exists)
 </project_context>
 
 <mode>
@@ -1557,7 +1560,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 </mode>
 
 <output>
-1. Write: .planning/CONVENTIONS.md (full convention reference)
+1. Create: .gpd/CONVENTIONS.md (full convention reference)
 2. Lock conventions via: gpd convention set
 3. Return CONVENTIONS ESTABLISHED with summary
 </output>
@@ -1579,15 +1582,15 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 
    Adjust values based on what PROJECT.md specifies. If PROJECT.md doesn't specify conventions, use the subfield defaults from `{GPD_INSTALL_DIR}/references/subfield-convention-defaults.md`.
 
-3. Note that full convention establishment was skipped. The user can run `$gpd-settings` or `$gpd-validate-conventions` later to complete convention setup.
+3. Note that full convention establishment was skipped. The user can run `/gpd:settings` or `/gpd:validate-conventions` later to complete convention setup.
 
 - **`CONVENTIONS ESTABLISHED`:** Display confirmation with convention summary. Commit CONVENTIONS.md:
 
   ```bash
-  PRE_CHECK=$(gpd pre-commit-check --files .planning/CONVENTIONS.md 2>&1) || true
+  PRE_CHECK=$(gpd pre-commit-check --files .gpd/CONVENTIONS.md 2>&1) || true
   echo "$PRE_CHECK"
 
-  gpd commit "docs: establish notation conventions" --files .planning/CONVENTIONS.md
+  gpd commit "docs: establish notation conventions" --files .gpd/CONVENTIONS.md
   ```
 
 - **`CONVENTION CONFLICT`:** Display conflicts. Ask user to resolve before proceeding.
@@ -1595,7 +1598,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 **Checkpoint step 8.5:**
 
 ```bash
-cat > .planning/init-progress.json << CHECKPOINT
+cat > .gpd/init-progress.json << CHECKPOINT
 {"step": 8.5, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "Conventions established and committed"}
 CHECKPOINT
 ```
@@ -1605,7 +1608,7 @@ CHECKPOINT
 **Delete init-progress.json — initialization is complete:**
 
 ```bash
-rm -f .planning/init-progress.json
+rm -f .gpd/init-progress.json
 ```
 
 Present completion with next steps:
@@ -1619,12 +1622,12 @@ Present completion with next steps:
 
 | Artifact       | Location                    |
 |----------------|-----------------------------|
-| Project        | `.planning/PROJECT.md`      |
-| Config         | `.planning/config.json`     |
-| Literature     | `.planning/research/`       |
-| Requirements   | `.planning/REQUIREMENTS.md` |
-| Roadmap        | `.planning/ROADMAP.md`      |
-| Conventions    | `.planning/CONVENTIONS.md`  |
+| Project        | `.gpd/PROJECT.md`      |
+| Config         | `.gpd/config.json`     |
+| Literature     | `.gpd/research/`       |
+| Requirements   | `.gpd/REQUIREMENTS.md` |
+| Roadmap        | `.gpd/ROADMAP.md`      |
+| Conventions    | `.gpd/CONVENTIONS.md`  |
 
 **[N] phases** | **[X] requirements** | Ready to investigate
 
@@ -1634,14 +1637,14 @@ Present completion with next steps:
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 
-$gpd-discuss-phase 1 — gather context and clarify approach
+/gpd:discuss-phase 1 — gather context and clarify approach
 
 <sub>/clear first -> fresh context window</sub>
 
 ---
 
 **Also available:**
-- $gpd-plan-phase 1 — skip discussion, plan directly
+- /gpd:plan-phase 1 — skip discussion, plan directly
 
 ---------------------------------------------------------------
 ```
@@ -1650,29 +1653,29 @@ $gpd-discuss-phase 1 — gather context and clarify approach
 
 <output>
 
-- `.planning/PROJECT.md`
-- `.planning/config.json`
-- `.planning/research/` (if literature survey selected)
+- `.gpd/PROJECT.md`
+- `.gpd/config.json`
+- `.gpd/research/` (if literature survey selected)
   - `PRIOR-WORK.md`
   - `METHODS.md`
   - `COMPUTATIONAL.md`
   - `PITFALLS.md`
   - `SUMMARY.md`
-- `.planning/REQUIREMENTS.md`
-- `.planning/ROADMAP.md`
-- `.planning/STATE.md`
-- `.planning/CONVENTIONS.md` (established by gpd-notation-coordinator)
+- `.gpd/REQUIREMENTS.md`
+- `.gpd/ROADMAP.md`
+- `.gpd/STATE.md`
+- `.gpd/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
 
 <success_criteria>
 
-- [ ] .planning/ directory created
+- [ ] .gpd/ directory created
 - [ ] Git repo initialized
 - [ ] Existing work detection completed
 - [ ] Deep questioning completed (threads followed, not rushed)
 - [ ] PROJECT.md captures full research context — **committed**
-- [ ] config.json has workflow mode, depth, parallelization — **committed**
+- [ ] config.json has autonomy, research_mode, and parallelization settings — **committed**
 - [ ] Literature survey completed (if selected) — 4 parallel agents spawned — **committed**
 - [ ] Research requirements gathered (from survey or conversation)
 - [ ] User scoped each category (current/future/out of scope)
@@ -1686,7 +1689,7 @@ $gpd-discuss-phase 1 — gather context and clarify approach
 - [ ] gpd-notation-coordinator spawned to establish conventions
 - [ ] CONVENTIONS.md created with subfield-appropriate conventions — **committed**
 - [ ] Convention lock populated via `gpd convention set`
-- [ ] User knows next step is `$gpd-discuss-phase 1`
+- [ ] User knows next step is `/gpd:discuss-phase 1`
 
 **Atomic commits:** Each phase commits its artifacts immediately. If context is lost, artifacts persist.
 

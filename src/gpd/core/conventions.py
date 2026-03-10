@@ -126,7 +126,6 @@ _ASSERT_LINE_RE = re.compile(
     r"^\s*(?:<!--|[%#])\s*ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$",
     re.MULTILINE,
 )
-_ASSERT_PAYLOAD_RE = re.compile(r"ASSERT_CONVENTION[:\s]+(.+?)(?:\s*-->)?$")
 _KV_PAIR_RE = re.compile(r"^(\w+)\s*=\s*(.+)$")
 
 
@@ -454,15 +453,11 @@ def convention_diff_phases(
     """
     import json
 
-    from gpd.core.constants import PLANNING_DIR_NAME, STATE_JSON_FILENAME
+    from gpd.core.state import load_state_json
 
     if not phase1 or not phase2:
-        state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
-        if state_path.is_file():
-            state_data = json.loads(state_path.read_text(encoding="utf-8"))
-            lock_data = state_data.get("convention_lock", {})
-        else:
-            lock_data = {}
+        state_data = load_state_json(cwd) or {}
+        lock_data = state_data.get("convention_lock", {})
         return ConventionDiffResult(
             note=(
                 f"Two phase identifiers required for convention diff. Current convention_lock: {json.dumps(lock_data)}"
@@ -476,12 +471,8 @@ def convention_diff_phases(
     conv2_empty = not conv2 or len(conv2) == 0
 
     if conv1_empty and conv2_empty:
-        state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
-        if state_path.is_file():
-            state_data = json.loads(state_path.read_text(encoding="utf-8"))
-            lock_data = state_data.get("convention_lock", {})
-        else:
-            lock_data = {}
+        state_data = load_state_json(cwd) or {}
+        lock_data = state_data.get("convention_lock", {})
         return ConventionDiffResult(
             note=(
                 f"Could not find convention data for phases {phase1} and {phase2}. "
@@ -559,11 +550,7 @@ def parse_assert_conventions(content: str) -> list[tuple[str, str]]:
     """
     pairs: list[tuple[str, str]] = []
     for match in _ASSERT_LINE_RE.finditer(content):
-        line = match.group(0)
-        payload_match = _ASSERT_PAYLOAD_RE.search(line)
-        if not payload_match:
-            continue
-        payload = payload_match.group(1)
+        payload = match.group(1)
         # Split on commas followed by a key= pattern to avoid splitting
         # values that contain commas (e.g., metric=(-,+,+,+))
         raw_pairs = re.split(r",\s*(?=\w+=)", payload)

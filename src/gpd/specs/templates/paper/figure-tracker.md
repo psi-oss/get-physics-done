@@ -6,7 +6,7 @@ template_version: 1
 
 # Figure Tracker Template
 
-Template for `.planning/paper/FIGURE_TRACKER.md` — registry of all figures for the manuscript with source data, dependencies, and status.
+Template for `.gpd/paper/FIGURE_TRACKER.md` — registry of all figures for the manuscript with source data, dependencies, and status.
 
 ---
 

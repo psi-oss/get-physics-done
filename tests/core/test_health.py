@@ -22,6 +22,7 @@ from gpd.core.health import (
     check_project_structure,
     check_roadmap_consistency,
     check_state_validity,
+    run_doctor,
     run_health,
 )
 
@@ -81,7 +82,7 @@ class TestCheckProjectStructure:
     def test_ok_with_full_structure(self, tmp_path: Path):
         from gpd.core.constants import REQUIRED_PLANNING_DIRS, REQUIRED_PLANNING_FILES
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         for f in REQUIRED_PLANNING_FILES:
             (planning / f).write_text("stub")
@@ -98,7 +99,7 @@ class TestCheckCompaction:
         assert result.details.get("reason") == "no_state_file"
 
     def test_small_state_ok(self, tmp_path: Path):
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "STATE.md").write_text("# State\nShort content\n")
         result = check_compaction_needed(tmp_path)
@@ -111,7 +112,7 @@ class TestCheckOrphans:
         assert result.status == CheckStatus.OK
 
     def test_empty_phase_dir_warns(self, tmp_path: Path):
-        phases = tmp_path / ".planning" / "phases"
+        phases = tmp_path / ".gpd" / "phases"
         (phases / "01-intro").mkdir(parents=True)
         result = check_orphans(tmp_path)
         assert result.status == CheckStatus.WARN
@@ -125,7 +126,7 @@ class TestCheckConventionLock:
         assert any("state.json" in w for w in result.warnings)
 
     def test_no_convention_lock_key(self, tmp_path: Path):
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({"position": {}}))
         result = check_convention_lock(tmp_path)
@@ -142,7 +143,7 @@ class TestCheckConfig:
 class TestCheckGitStatus:
     def test_non_git_dir(self, tmp_path: Path):
         completed = subprocess.CompletedProcess(
-            args=["git", "status", "--porcelain", ".planning/"],
+            args=["git", "status", "--porcelain", ".gpd/"],
             returncode=128,
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories): .git",
@@ -163,7 +164,7 @@ class TestCheckRoadmapConsistency:
         assert any("not found" in i for i in result.issues)
 
     def test_roadmap_with_matching_phases(self, tmp_path: Path):
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "ROADMAP.md").write_text("## Phase 1: Intro\n## Phase 2: Method\n")
         phases = planning / "phases"
@@ -199,3 +200,33 @@ class TestRunHealth:
     def test_fix_mode(self, tmp_path: Path):
         report = run_health(tmp_path, fix=True)
         assert isinstance(report.fixes_applied, list)
+
+
+class TestRunDoctor:
+    def _make_specs_dir(self, tmp_path: Path, *, include_templates: bool = True) -> Path:
+        specs = tmp_path / "specs"
+        (specs / "references").mkdir(parents=True)
+        (specs / "workflows").mkdir()
+        if include_templates:
+            (specs / "templates").mkdir()
+
+        (specs / "references" / "shared-protocols.md").write_text("shared\n", encoding="utf-8")
+        (specs / "references" / "verification-core.md").write_text("verify\n", encoding="utf-8")
+        (specs / "references" / "llm-physics-errors.md").write_text("errors\n", encoding="utf-8")
+        (specs / "workflows" / "plan-phase.md").write_text("plan\n", encoding="utf-8")
+        if include_templates:
+            (specs / "templates" / "phase-prompt.md").write_text("template\n", encoding="utf-8")
+
+        return specs
+
+    def test_reports_specs_structure(self, tmp_path: Path):
+        report = run_doctor(specs_dir=self._make_specs_dir(tmp_path), version="0.1.0")
+        checks = {check.label: check for check in report.checks}
+
+        assert checks["Specs Structure"].status == CheckStatus.OK
+
+    def test_missing_required_specs_subdir_fails(self, tmp_path: Path):
+        report = run_doctor(specs_dir=self._make_specs_dir(tmp_path, include_templates=False), version="0.1.0")
+        checks = {check.label: check for check in report.checks}
+
+        assert checks["Specs Structure"].status == CheckStatus.FAIL

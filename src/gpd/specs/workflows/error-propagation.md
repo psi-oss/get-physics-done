@@ -1,7 +1,7 @@
 <purpose>
 Systematic uncertainty propagation through a derivation chain. Traces how input uncertainties flow through intermediate results to final quantities, identifies dominant error sources, and produces error budgets.
 
-Called from $gpd-error-propagation command. Complements $gpd-numerical-convergence (which establishes error bars on individual computations) by tracing how those errors combine through multi-step derivation chains.
+Called from /gpd:error-propagation command. Complements /gpd:numerical-convergence (which establishes error bars on individual computations) by tracing how those errors combine through multi-step derivation chains.
 
 A numerical result without error bars is not a result. But error bars on a final quantity are only meaningful if the propagation from input uncertainties through every intermediate step is tracked systematically. An error bar that ignores the dominant uncertainty source is worse than no error bar at all -- it provides false confidence.
 </purpose>
@@ -13,10 +13,10 @@ Uncertainties propagate. Every intermediate result in a derivation chain carries
 </core_principle>
 
 <required_reading>
-Read these reference and template files using the Read tool:
+Read these reference and template files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (verification checks, phase handoff format, catastrophic cancellation detection)
-- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.planning/analysis/UNCERTAINTY-BUDGET.md)
-- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.planning/analysis/PARAMETERS.md)
+- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.gpd/analysis/UNCERTAINTY-BUDGET.md)
+- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.gpd/analysis/PARAMETERS.md)
 </required_reading>
 
 <process>
@@ -50,7 +50,7 @@ Parse JSON for: `state_exists`, `project_exists`, `roadmap_exists`.
 ERROR: No project state found.
 
 Error propagation requires intermediate_results tracked in STATE.md.
-Run $gpd-new-project first, then complete phases with tracked results.
+Run /gpd:new-project first, then complete phases with tracked results.
 ```
 
 Exit.
@@ -91,7 +91,7 @@ target_quantity
 Read each phase's SUMMARY.md `provides` and `requires` sections to map the phase-level flow:
 
 ```bash
-for phase_dir in .planning/phases/*/; do
+for phase_dir in .gpd/phases/*/; do
   grep -A 10 "provides\|requires" "$phase_dir/SUMMARY.md" 2>/dev/null
 done
 ```
@@ -134,12 +134,12 @@ For each node in the dependency tree, catalog all uncertainty sources.
 
 ```bash
 # Compare modification times: state.json must not be older than STATE.md
-STATE_MD_MOD=$(stat -f %m .planning/STATE.md 2>/dev/null || stat -c %Y .planning/STATE.md 2>/dev/null || echo 0)
-STATE_JSON_MOD=$(stat -f %m .planning/state.json 2>/dev/null || stat -c %Y .planning/state.json 2>/dev/null || echo 0)
+STATE_MD_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
+STATE_JSON_MOD=$(stat -f %m .gpd/state.json 2>/dev/null || stat -c %Y .gpd/state.json 2>/dev/null || echo 0)
 
 if [ "$STATE_JSON_MOD" -lt "$STATE_MD_MOD" ]; then
   echo "WARNING: state.json is older than STATE.md — deleting state.json for regeneration"
-  rm -f .planning/state.json
+  rm -f .gpd/state.json
 fi
 ```
 
@@ -171,7 +171,7 @@ From SUMMARY.md computational results and any CONVERGENCE.md reports:
 - Discretization errors (from finite grid spacing or time step)
 - Convergence errors (from iterative solvers or Monte Carlo statistics)
 
-If $gpd-numerical-convergence has been run, read the convergence report for error estimates. If not, flag these as "numerical uncertainty not yet quantified" and recommend running convergence tests.
+If /gpd:numerical-convergence has been run, read the convergence report for error estimates. If not, flag these as "numerical uncertainty not yet quantified" and recommend running convergence tests.
 
 ### 3d. Model uncertainties
 
@@ -321,10 +321,10 @@ Record the error budget as a research artifact in STATE.md.
 ## 7. Commit
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md .planning/STATE.md
+gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md
 ```
 
 Present results:
@@ -344,9 +344,9 @@ Error budget: ${target_phase_dir}/ERROR-BUDGET.md
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-numerical-convergence` -- refine error bars on individual computations
-- `$gpd-verify-work` -- verify the full phase including error analysis
-- `$gpd-regression-check` -- check that error budgets remain valid after changes
+- `/gpd:numerical-convergence` -- refine error bars on individual computations
+- `/gpd:verify-work` -- verify the full phase including error analysis
+- `/gpd:regression-check` -- check that error budgets remain valid after changes
 
 ───────────────────────────────────────────────────────────────
 ```
@@ -360,7 +360,7 @@ Error budget: ${target_phase_dir}/ERROR-BUDGET.md
 - **Dependency tree cannot be traced:** If `depends_on` chains are missing or incomplete in state.json, fall back to reading SUMMARY.md `provides`/`requires` sections across phases. If the chain still has gaps, report the incomplete tree to the user and ask them to identify the missing links before proceeding.
 - **Numerical sensitivity diverges:** If a finite-difference derivative yields Inf or NaN, reduce the perturbation step size by 10x and retry. If it still diverges, the computation is at or near a singularity -- flag the parameter and phase, report the divergence, and exclude it from the quadrature sum (treat it as a separate critical warning in the error budget).
 - **Target quantity not found:** If the target is not present in `intermediate_results`, `propagated_uncertainties`, or any phase SUMMARY.md, report which phases were searched and prompt the user to specify the quantity's location or run the relevant computation first.
-- **State files missing:** If STATE.md or state.json does not exist, error immediately with a clear message: "No project state found. Run `$gpd-new-project` or `$gpd-execute-phase` first to establish project state before running error propagation."
+- **State files missing:** If STATE.md or state.json does not exist, error immediately with a clear message: "No project state found. Run `/gpd:new-project` or `/gpd:execute-phase` first to establish project state before running error propagation."
 
 </failure_handling>
 

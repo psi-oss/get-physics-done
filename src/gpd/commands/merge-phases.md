@@ -3,12 +3,12 @@ name: gpd:merge-phases
 description: Merge results from one phase into another
 argument-hint: "<source-phase> <target-phase>"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -35,8 +35,8 @@ Format: `<source-phase> <target-phase>` — first argument is the source phase, 
 Source phase: first argument (e.g., "2.1")
 Target phase: second argument (e.g., "2")
 
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

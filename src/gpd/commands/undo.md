@@ -2,10 +2,10 @@
 name: gpd:undo
 description: Rollback last GPD operation with safety checkpoint
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -22,7 +22,7 @@ Use this when a plan, execution, or verification produced incorrect results and 
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

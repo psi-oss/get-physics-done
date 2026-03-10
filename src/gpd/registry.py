@@ -1,9 +1,9 @@
-"""GPD content registry — single source of truth for discovering commands, agents, and specs.
+"""GPD content registry — single source of truth for discovering commands and agents.
 
-All GPD content (commands, agents, spec-agents, spec-skills) lives in markdown files
-with YAML frontmatter. This module parses them once, caches the results, and exposes
-typed dataclass definitions so every consumer (commands/__init__.py, agents/__init__.py,
-adapters, CLI, MCP) gets the same data without re-parsing.
+Primary GPD commands and agents live in markdown files with YAML frontmatter.
+This module parses them once, caches the results, and exposes typed dataclass
+definitions so every consumer (adapters, CLI, MCP skills server) gets the
+same data without re-parsing.
 """
 
 from __future__ import annotations
@@ -20,8 +20,6 @@ _PKG_ROOT = Path(__file__).resolve().parent  # gpd/
 AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 SPECS_DIR = _PKG_ROOT / "specs"
-SPECS_AGENTS_DIR = SPECS_DIR / "agents"
-SPECS_SKILLS_DIR = SPECS_DIR / "skills"
 
 # ─── Frontmatter regex ───────────────────────────────────────────────────────
 
@@ -41,7 +39,7 @@ class AgentDef:
     tools: list[str]
     color: str
     path: str
-    source: str  # "agents" or "specs/agents"
+    source: str  # "agents"
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +53,20 @@ class CommandDef:
     allowed_tools: list[str]
     content: str
     path: str
-    source: str  # "commands" or "specs/skills"
+    source: str  # "commands"
+
+
+@dataclass(frozen=True, slots=True)
+class SkillDef:
+    """Canonical skill exposure derived from primary commands and agents."""
+
+    name: str
+    description: str
+    content: str
+    category: str
+    path: str
+    source_kind: str  # "command" or "agent"
+    registry_name: str
 
 
 # ─── Parsing helpers ─────────────────────────────────────────────────────────
@@ -63,6 +74,7 @@ class CommandDef:
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
+    text = text.lstrip('﻿')
     match = _FRONTMATTER_RE.match(text)
     if not match:
         return {}, text
@@ -126,6 +138,18 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     )
 
 
+def _validate_command_name(path: Path, command: CommandDef) -> None:
+    """Reject command metadata that drifts from its registry filename."""
+    if not command.name.startswith("gpd:"):
+        return
+    expected_name = f"gpd:{path.stem}"
+    if command.name != expected_name:
+        raise ValueError(
+            f"Command frontmatter name {command.name!r} does not match file stem {path.stem!r}; "
+            f"expected {expected_name!r}"
+        )
+
+
 # ─── Cache ───────────────────────────────────────────────────────────────────
 
 
@@ -135,6 +159,7 @@ class _RegistryCache:
 
     _agents: dict[str, AgentDef] | None = field(default=None, repr=False)
     _commands: dict[str, CommandDef] | None = field(default=None, repr=False)
+    _skills: dict[str, SkillDef] | None = field(default=None, repr=False)
 
     def agents(self) -> dict[str, AgentDef]:
         if self._agents is None:
@@ -146,10 +171,16 @@ class _RegistryCache:
             self._commands = _discover_commands()
         return self._commands
 
+    def skills(self) -> dict[str, SkillDef]:
+        if self._skills is None:
+            self._skills = _discover_skills(self.commands(), self.agents())
+        return self._skills
+
     def invalidate(self) -> None:
         """Clear cached data (useful in tests or after install)."""
         self._agents = None
         self._commands = None
+        self._skills = None
 
 
 _cache = _RegistryCache()
@@ -159,19 +190,8 @@ _cache = _RegistryCache()
 
 
 def _discover_agents() -> dict[str, AgentDef]:
-    """Discover all agent definitions from agents/ and specs/agents/ directories.
-
-    Primary agents (agents/) take precedence over specs/agents/ for the same name.
-    """
+    """Discover all agent definitions from the primary agents/ directory."""
     result: dict[str, AgentDef] = {}
-
-    # 1. specs/agents/ (legacy location, loaded first so primary overrides)
-    if SPECS_AGENTS_DIR.is_dir():
-        for path in sorted(SPECS_AGENTS_DIR.glob("*.md")):
-            agent = _parse_agent_file(path, source="specs/agents")
-            result[agent.name] = agent
-
-    # 2. agents/ (primary, overrides specs/agents)
     if AGENTS_DIR.is_dir():
         for path in sorted(AGENTS_DIR.glob("*.md")):
             agent = _parse_agent_file(path, source="agents")
@@ -181,46 +201,142 @@ def _discover_agents() -> dict[str, AgentDef]:
 
 
 def _discover_commands() -> dict[str, CommandDef]:
-    """Discover all command definitions from commands/ and specs/skills/ directories.
-
-    Primary commands (commands/) take precedence over specs/skills/ for the same name.
-    """
+    """Discover all command definitions from the primary commands/ directory."""
     result: dict[str, CommandDef] = {}
-
-    # 1. specs/skills/ (legacy location, loaded first so primary overrides)
-    if SPECS_SKILLS_DIR.is_dir():
-        for skill_dir in sorted(SPECS_SKILLS_DIR.iterdir()):
-            if not skill_dir.is_dir():
-                continue
-            skill_md = skill_dir / "SKILL.md"
-            if skill_md.is_file():
-                cmd = _parse_command_file(skill_md, source="specs/skills")
-                # Use directory name as canonical name if frontmatter name differs
-                canonical_name = skill_dir.name
-                result[canonical_name] = CommandDef(
-                    name=canonical_name,
-                    description=cmd.description,
-                    argument_hint=cmd.argument_hint,
-                    requires=cmd.requires,
-                    allowed_tools=cmd.allowed_tools,
-                    content=cmd.content,
-                    path=cmd.path,
-                    source=cmd.source,
-                )
-
-    # 2. commands/ (primary, overrides specs/skills)
-    #    Key by path.stem (e.g. "debug") — the frontmatter name may differ
-    #    (e.g. "gpd:debug") but callers use the filesystem stem.
-    #    Also remove the corresponding gpd-{stem} spec/skill entry so that
-    #    primary commands fully replace their specs/skills counterparts
-    #    (specs/skills use "gpd-debug" dir names while commands use "debug.md").
     if COMMANDS_DIR.is_dir():
         for path in sorted(COMMANDS_DIR.glob("*.md")):
             cmd = _parse_command_file(path, source="commands")
+            _validate_command_name(path, cmd)
             result[path.stem] = cmd
-            # Remove the gpd-prefixed specs/skills duplicate if it exists
-            gpd_prefixed = f"gpd-{path.stem}"
-            result.pop(gpd_prefixed, None)
+
+    return result
+
+
+_SKILL_CATEGORY_MAP: dict[str, str] = {
+    "gpd-execute": "execution",
+    "gpd-plan-checker": "verification",
+    "gpd-plan": "planning",
+    "gpd-verify": "verification",
+    "gpd-debug": "debugging",
+    "gpd-new": "project",
+    "gpd-write": "paper",
+    "gpd-paper": "paper",
+    "gpd-literature": "research",
+    "gpd-research": "research",
+    "gpd-discover": "research",
+    "gpd-map": "exploration",
+    "gpd-show": "exploration",
+    "gpd-progress": "status",
+    "gpd-health": "diagnostics",
+    "gpd-validate": "verification",
+    "gpd-check": "verification",
+    "gpd-audit": "verification",
+    "gpd-add": "management",
+    "gpd-insert": "management",
+    "gpd-remove": "management",
+    "gpd-merge": "management",
+    "gpd-complete": "management",
+    "gpd-compact": "management",
+    "gpd-pause": "session",
+    "gpd-resume": "session",
+    "gpd-record": "management",
+    "gpd-export": "output",
+    "gpd-arxiv": "output",
+    "gpd-graph": "visualization",
+    "gpd-decisions": "status",
+    "gpd-error-propagation": "analysis",
+    "gpd-error": "diagnostics",
+    "gpd-sensitivity": "analysis",
+    "gpd-numerical": "analysis",
+    "gpd-dimensional": "analysis",
+    "gpd-limiting": "analysis",
+    "gpd-parameter": "analysis",
+    "gpd-compare": "analysis",
+    "gpd-derive": "computation",
+    "gpd-cost": "diagnostics",
+    "gpd-set": "configuration",
+    "gpd-update": "management",
+    "gpd-undo": "management",
+    "gpd-sync": "management",
+    "gpd-branch": "management",
+    "gpd-respond": "paper",
+    "gpd-reapply": "management",
+    "gpd-regression": "verification",
+    "gpd-quick": "execution",
+    "gpd-help": "help",
+    "gpd-suggest": "help",
+    # Full-name entries for skills not captured by prefix matching.
+    "gpd-bibliographer": "research",
+    "gpd-consistency-checker": "verification",
+    "gpd-discuss-phase": "planning",
+    "gpd-estimate-cost": "diagnostics",
+    "gpd-executor": "execution",
+    "gpd-experiment-designer": "planning",
+    "gpd-list-phase-assumptions": "planning",
+    "gpd-notation-coordinator": "verification",
+    "gpd-phase-researcher": "research",
+    "gpd-project-researcher": "research",
+    "gpd-referee": "paper",
+    "gpd-revise-phase": "management",
+    "gpd-roadmapper": "planning",
+    "gpd-theory-mapper": "exploration",
+    "gpd-verifier": "verification",
+}
+
+
+def _infer_skill_category(skill_name: str) -> str:
+    """Infer a user-facing category for a skill name."""
+    for prefix, category in _SKILL_CATEGORY_MAP.items():
+        if skill_name.startswith(prefix):
+            return category
+    return "other"
+
+
+def _canonical_skill_name_for_command(registry_name: str, command: CommandDef) -> str:
+    """Project a command registry entry into the canonical gpd-* skill namespace."""
+    if command.name.startswith("gpd:"):
+        return command.name.replace("gpd:", "gpd-", 1)
+    if registry_name.startswith("gpd-"):
+        return registry_name
+    return f"gpd-{registry_name}"
+
+
+def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef]) -> dict[str, SkillDef]:
+    """Build the canonical skill surface from primary commands and agents.
+    """
+    result: dict[str, SkillDef] = {}
+
+    for registry_name, command in sorted(commands.items()):
+        if command.source != "commands":
+            continue
+        skill_name = _canonical_skill_name_for_command(registry_name, command)
+        if skill_name in result:
+            raise ValueError(f"Duplicate skill name {skill_name!r} from command registry")
+        result[skill_name] = SkillDef(
+            name=skill_name,
+            description=command.description,
+            content=command.content,
+            category=_infer_skill_category(skill_name),
+            path=command.path,
+            source_kind="command",
+            registry_name=registry_name,
+        )
+
+    for registry_name, agent in sorted(agents.items()):
+        if agent.source != "agents":
+            continue
+        skill_name = agent.name
+        if skill_name in result:
+            raise ValueError(f"Duplicate skill name {skill_name!r} across commands and agents")
+        result[skill_name] = SkillDef(
+            name=skill_name,
+            description=agent.description,
+            content=agent.system_prompt,
+            category=_infer_skill_category(skill_name),
+            path=agent.path,
+            source_kind="agent",
+            registry_name=registry_name,
+        )
 
     return result
 
@@ -260,6 +376,26 @@ def get_command(name: str) -> CommandDef:
     return commands[name]
 
 
+def list_skills() -> list[str]:
+    """Return sorted list of all canonical skill names."""
+    return sorted(_cache.skills())
+
+
+def get_skill(name: str) -> SkillDef:
+    """Get a canonical skill definition by canonical name."""
+    skills = _cache.skills()
+    candidates = [name]
+    if name.startswith("gpd:"):
+        candidates.append(name.replace("gpd:", "gpd-", 1))
+
+    for candidate in candidates:
+        skill = skills.get(candidate)
+        if skill is not None:
+            return skill
+
+    raise KeyError(f"Skill not found: {name}")
+
+
 def invalidate_cache() -> None:
     """Clear the registry cache. Call after install/uninstall or in tests."""
     _cache.invalidate()
@@ -270,12 +406,13 @@ __all__ = [
     "AgentDef",
     "COMMANDS_DIR",
     "CommandDef",
-    "SPECS_AGENTS_DIR",
+    "SkillDef",
     "SPECS_DIR",
-    "SPECS_SKILLS_DIR",
     "get_agent",
     "get_command",
+    "get_skill",
     "invalidate_cache",
     "list_agents",
     "list_commands",
+    "list_skills",
 ]

@@ -1,7 +1,7 @@
 ---
 name: gpd-roadmapper
 description: Creates research roadmaps with phase breakdown, objective mapping, success criteria derivation, and coverage validation. Spawned by the new-project orchestrator workflow.
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: file_read, file_write, file_edit, shell, find_files, search_files
 color: purple
 ---
 
@@ -45,7 +45,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 ## Research Mode Effects
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. 8-15 phases.
 - **balanced**: Linear phase sequence with verification checkpoints. Single approach. 5-10 phases.
@@ -67,6 +67,9 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
+- `algebraic-qft.md` -- Haag-Kastler nets, modular theory, von Neumann factor types, DHR sectors
+- `conformal-bootstrap.md` -- CFT data extraction, crossing equations, SDPB, mixed correlators
+- `string-field-theory.md` -- Off-shell string interactions, BRST/BV structure, level truncation, benchmark observables
 - `stat-mech-simulation.md` -- Monte Carlo simulations, phase transitions, critical phenomena
 
 Use these as starting scaffolds when the research project matches a known type. Adapt the phase structure to the specific research objectives.
@@ -236,6 +239,9 @@ Which categories depend on others?
 
 **Domain-specific phase templates:** For projects in well-defined subfields, consult the project-type template for domain-specific phase structures, mode adjustments (explore/exploit), common pitfalls, and verification patterns:
 - `{GPD_INSTALL_DIR}/templates/project-types/qft-calculation.md` -- QFT: Feynman rules, regularization, renormalization, cross sections
+- `{GPD_INSTALL_DIR}/templates/project-types/algebraic-qft.md` -- AQFT: Haag-Kastler nets, GNS data, modular theory, factor types, DHR sectors
+- `{GPD_INSTALL_DIR}/templates/project-types/conformal-bootstrap.md` -- CFT: crossing equations, conformal blocks, SDPB, spectrum extraction
+- `{GPD_INSTALL_DIR}/templates/project-types/string-field-theory.md` -- SFT: BRST/cohomology, homotopy algebra, gauge fixing, level truncation, tachyon or amplitude benchmarks
 - `{GPD_INSTALL_DIR}/templates/project-types/stat-mech-simulation.md` -- Stat mech: algorithm design, equilibration, production, finite-size scaling
 - Other subfields: `{GPD_INSTALL_DIR}/templates/project-types/` (amo, condensed-matter, cosmology, general-relativity, etc.)
 
@@ -928,7 +934,7 @@ Return `## ROADMAP CREATED` with summary of what was written.
 If orchestrator provides revision feedback:
 
 - Parse specific concerns
-- Update files in place (Edit, not rewrite from scratch)
+- Update files in place (use `file_edit`, not rewrite from scratch)
 - Re-validate coverage
 - Return `## ROADMAP REVISED` with changes made
 
@@ -970,12 +976,12 @@ When files are written and returning to orchestrator:
 
 **Files written:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md
+- .gpd/ROADMAP.md
+- .gpd/STATE.md
 
 **Updated:**
 
-- .planning/REQUIREMENTS.md (traceability section)
+- .gpd/REQUIREMENTS.md (traceability section)
 
 ### Summary
 
@@ -1008,8 +1014,8 @@ When files are written and returning to orchestrator:
 
 User can review actual files:
 
-- `cat .planning/ROADMAP.md`
-- `cat .planning/STATE.md`
+- `cat .gpd/ROADMAP.md`
+- `cat .gpd/STATE.md`
 
 {If gaps found during creation:}
 
@@ -1035,9 +1041,9 @@ After incorporating user feedback and updating files:
 
 **Files updated:**
 
-- .planning/ROADMAP.md
-- .planning/STATE.md (if needed)
-- .planning/REQUIREMENTS.md (if traceability changed)
+- .gpd/ROADMAP.md
+- .gpd/STATE.md (if needed)
+- .gpd/REQUIREMENTS.md (if traceability changed)
 
 ### Updated Summary
 
@@ -1093,7 +1099,7 @@ gpd_return:
   phases_created: {count}
 ```
 
-Do NOT use legacy status names (ROADMAP CREATED, ROADMAP REVISED). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

@@ -1,7 +1,7 @@
 <purpose>
 Perform comprehensive numerical validation of computational physics results. Combines convergence testing, analytical benchmarking, conservation law verification, stability analysis, and error estimation into a single systematic workflow.
 
-Called from $gpd-numerical-convergence command and referenced by $gpd-verify-work for numerical phases.
+Called from /gpd:numerical-convergence command and referenced by /gpd:verify-work for numerical phases.
 </purpose>
 
 <core_principle>
@@ -404,13 +404,13 @@ overall_status: validated | partially_validated | not_validated
 Ensure output directory exists:
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
 Save to:
 
 - Phase target: `${phase_dir}/NUMERICAL-VALIDATION.md`
-- File target: `.planning/analysis/numerical-{slug}.md`
+- File target: `.gpd/analysis/numerical-{slug}.md`
 
 **Commit the report:**
 

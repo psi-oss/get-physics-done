@@ -1,13 +1,13 @@
 <purpose>
 Archive historical entries from STATE.md to reduce its size. As research projects grow, STATE.md accumulates decisions, session records, metrics, and resolved blockers from many phases. This workflow archives old entries to STATE-ARCHIVE.md, keeping STATE.md lean and under the target line budget.
 
-Triggered automatically when progress.md detects STATE.md exceeds 1500 lines, or manually via `$gpd-compact-state`.
+Triggered automatically when progress.md detects STATE.md exceeds 1500 lines, or manually via `/gpd:compact-state`.
 </purpose>
 
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - {GPD_INSTALL_DIR}/templates/state-archive.md -- Template for STATE-ARCHIVE.md (archive structure, what gets archived, archive format)
 </required_reading>
 
@@ -37,7 +37,7 @@ Exit.
 **Count current lines:**
 
 ```bash
-STATE_LINES=$(wc -l < .planning/STATE.md)
+STATE_LINES=$(wc -l < .gpd/STATE.md)
 ```
 
 Report: "STATE.md is {STATE_LINES} lines."
@@ -73,7 +73,7 @@ Parse result JSON for: `compacted` (bool), `reason`, `original_lines`, `new_line
 3. **Performance metrics:** Archives metrics from phases older than (current - 1). Keeps recent metrics.
 4. **Session records:** Keeps only the last 3 session records. Archives older ones.
 
-All archived content is appended to `.planning/STATE-ARCHIVE.md` with a dated header.
+All archived content is appended to `.gpd/STATE-ARCHIVE.md` with a dated header.
 
 **If `compacted` is false:**
 
@@ -89,15 +89,15 @@ Report and exit.
 
 ```bash
 # Check new line count
-NEW_LINES=$(wc -l < .planning/STATE.md)
+NEW_LINES=$(wc -l < .gpd/STATE.md)
 
 # Verify STATE.md still has required sections
 for SECTION in "Current Position" "Project Reference" "Accumulated Context" "Session"; do
-  grep -q "## ${SECTION}" .planning/STATE.md || echo "MISSING: ${SECTION}"
+  grep -q "## ${SECTION}" .gpd/STATE.md || echo "MISSING: ${SECTION}"
 done
 
 # Verify state.json was synced
-ls -la .planning/state.json
+ls -la .gpd/state.json
 ```
 
 **If required sections are missing:** The compaction was too aggressive. Attempt recovery:
@@ -105,7 +105,7 @@ ls -la .planning/state.json
 ```bash
 # First try: regenerate STATE.md from state.json
 # Any state-modifying command triggers dual-file write (state.json + STATE.md)
-if [ -f .planning/state.json ]; then
+if [ -f .gpd/state.json ]; then
   echo "Attempting STATE.md recovery from state.json..."
   # Touch a harmless field to trigger the dual-file write
   gpd state update "Last Activity" "$(date -u +%Y-%m-%d)"
@@ -113,7 +113,7 @@ if [ -f .planning/state.json ]; then
 else
   # Fallback: restore from git (state.json also missing or corrupt)
   echo "state.json unavailable. Falling back to git restore..."
-  git checkout -- .planning/STATE.md
+  git checkout -- .gpd/STATE.md
   RECOVERY_METHOD="restored from git"
 fi
 echo "Recovery method: ${RECOVERY_METHOD}"
@@ -128,8 +128,8 @@ Report error and recovery method used, then exit.
 **Verify STATE-ARCHIVE.md was created/updated:**
 
 ```bash
-ls -la .planning/STATE-ARCHIVE.md 2>/dev/null
-ARCHIVE_LINES=$(wc -l < .planning/STATE-ARCHIVE.md 2>/dev/null || echo 0)
+ls -la .gpd/STATE-ARCHIVE.md 2>/dev/null
+ARCHIVE_LINES=$(wc -l < .gpd/STATE-ARCHIVE.md 2>/dev/null || echo 0)
 ```
 
 Confirm archived content is recoverable.
@@ -139,12 +139,12 @@ Confirm archived content is recoverable.
 **Commit compaction results:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/STATE.md .planning/STATE-ARCHIVE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/STATE-ARCHIVE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "chore: compact STATE.md (${ORIGINAL_LINES} -> ${NEW_LINES} lines)" \
-  --files .planning/STATE.md .planning/STATE-ARCHIVE.md .planning/state.json
+  --files .gpd/STATE.md .gpd/STATE-ARCHIVE.md .gpd/state.json
 ```
 </step>
 
@@ -167,7 +167,7 @@ gpd commit \
 - {N} historical session records
 
 ### Archive location:
-.planning/STATE-ARCHIVE.md ({archive_lines} total lines)
+.gpd/STATE-ARCHIVE.md ({archive_lines} total lines)
 
 All archived content is recoverable from STATE-ARCHIVE.md or git history.
 ```
@@ -188,7 +188,7 @@ Remaining entries are all current-phase content. To further reduce:
 <failure_handling>
 
 - **STATE.md not found:** Nothing to compact. Exit with message.
-- **gpd state compact fails:** Check error output. Common causes: file lock held by another process, corrupt STATE.md parsing. Suggest: `cat .planning/STATE.md | head -5` to verify file is readable.
+- **gpd state compact fails:** Check error output. Common causes: file lock held by another process, corrupt STATE.md parsing. Suggest: `cat .gpd/STATE.md | head -5` to verify file is readable.
 - **Required sections missing after compaction:** Restore from git immediately. Report the bug.
 - **STATE-ARCHIVE.md write fails:** Check disk space and permissions. STATE.md changes are preserved regardless.
 

@@ -3,7 +3,7 @@ Verify research phase goal achievement through computational verification. Check
 
 Executed by a verification subagent spawned from execute-phase.md.
 
-Can also be invoked directly via `$gpd-verify-work` for re-verification after manual fixes. When invoked standalone, the workflow runs identically but returns results to the user instead of to the execute-phase orchestrator.
+Can also be invoked directly via `/gpd:verify-work` for re-verification after manual fixes. When invoked standalone, the workflow runs identically but returns results to the user instead of to the execute-phase orchestrator.
 </purpose>
 
 <core_principle>
@@ -23,9 +23,9 @@ Then verify each level against the actual research artifacts — **by doing phys
 
 | Verification theater (NEVER DO)               | Real verification (ALWAYS DO)                                |
 | --------------------------------------------- | ------------------------------------------------------------ |
-| Grep for "limit" to see if limits mentioned   | Take the limit yourself and compare with known result        |
-| Grep for "dimensions" to see if discussed     | Assign dimensions to each symbol and verify term consistency |
-| Grep for "convergence" to see if word appears | Run at 2+ resolutions and measure convergence rate           |
+| Use `search_files` for "limit" to see if limits are mentioned   | Take the limit yourself and compare with known result        |
+| Use `search_files` for "dimensions" to see if they are discussed | Assign dimensions to each symbol and verify term consistency |
+| Use `search_files` for "convergence" to see if the word appears | Run at 2+ resolutions and measure convergence rate           |
 | Count scipy imports as proof of computation   | Run the code with known inputs and verify output             |
 | Check if reference is cited                   | Extract the benchmark value and compare numerically          |
 
@@ -68,7 +68,7 @@ Then load phase details:
 
 ```bash
 gpd roadmap get-phase "${phase_number}"
-grep -E "^| ${phase_number}" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "^| ${phase_number}" .gpd/REQUIREMENTS.md 2>/dev/null
 ```
 
 Extract **phase goal** from ROADMAP.md (the research outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
@@ -80,8 +80,8 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 - Phase goal from ROADMAP.md
 - `must_haves` from PLAN.md frontmatter only (truths, artifacts, key_links)
 - Artifact file paths (the actual research outputs to inspect)
-- .planning/STATE.md (project conventions, active approximations, unit system)
-- .planning/config.json (project configuration)
+- .gpd/STATE.md (project conventions, active approximations, unit system)
+- .gpd/config.json (project configuration)
 
 **EXCLUDE from verification context:**
 
@@ -247,7 +247,7 @@ For each artifact, execute the applicable checks from the following protocols. E
 
 **CRITICAL**: The code templates below are SKELETONS. You MUST:
 1. Replace ALL placeholder comments with actual expressions from the phase artifacts
-2. Actually EXECUTE the resulting Python scripts via Bash
+2. Actually EXECUTE the resulting Python scripts via shell
 3. Report the numerical output — do NOT just reason about what the output would be
 4. If a script fails to run, report the failure explicitly
 
@@ -396,14 +396,14 @@ REQUIREMENTS.md uses a traceability table mapping REQ-IDs to phases. The table f
 
 ```bash
 # Match traceability table rows referencing this phase (handles "Phase 3", "Phase 3," and "Phase 3 |")
-grep -E "\|.*Phase\s*${PHASE_NUM}(\s*[,|]|\s*$)" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "\|.*Phase\s*${PHASE_NUM}(\s*[,|]|\s*$)" .gpd/REQUIREMENTS.md 2>/dev/null
 ```
 
 If the traceability table is not found, fall back to a broader search:
 
 ```bash
 # Fallback: match any row containing the phase number in a table context
-grep -E "^\|.*\b${PHASE_NUM}\b" .planning/REQUIREMENTS.md 2>/dev/null
+grep -E "^\|.*\b${PHASE_NUM}\b" .gpd/REQUIREMENTS.md 2>/dev/null
 ```
 
 For each requirement: parse description -> identify supporting truths/artifacts -> status: SATISFIED / BLOCKED / NEEDS EXPERT.
@@ -453,7 +453,7 @@ Otherwise, locate the previous phase's SUMMARY.md and read the current phase's S
 
 ```bash
 # Find previous phase summary (phase N-1)
-PREV_PHASE_DIR=$(ls -d .planning/phases/*/ | sort | grep -B1 "$phase_dir" | head -1)
+PREV_PHASE_DIR=$(ls -d .gpd/phases/*/ | sort | grep -B1 "$phase_dir" | head -1)
 PREV_SUMMARY=$(ls "$PREV_PHASE_DIR"/*-SUMMARY.md 2>/dev/null | tail -1)
 CURR_SUMMARY=$(ls "$phase_dir"/*-SUMMARY.md 2>/dev/null | tail -1)
 ```

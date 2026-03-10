@@ -24,13 +24,14 @@ from gpd.core.context import (
     init_verify_work,
     load_config,
 )
+from gpd.core.errors import ConfigError, ValidationError
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
-    planning = tmp_path / ".planning"
+    planning = tmp_path / ".gpd"
     planning.mkdir()
     (planning / "phases").mkdir()
     return tmp_path
@@ -38,14 +39,14 @@ def _setup_project(tmp_path: Path) -> Path:
 
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
     """Create a phase directory and return its path."""
-    phase_dir = tmp_path / ".planning" / "phases" / name
+    phase_dir = tmp_path / ".gpd" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     return phase_dir
 
 
 def _create_config(tmp_path: Path, config: dict) -> Path:
     """Write config.json and return its path."""
-    config_path = tmp_path / ".planning" / "config.json"
+    config_path = tmp_path / ".gpd" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(config))
     return config_path
@@ -53,7 +54,7 @@ def _create_config(tmp_path: Path, config: dict) -> Path:
 
 def _create_roadmap(tmp_path: Path, content: str) -> Path:
     """Write ROADMAP.md and return its path."""
-    roadmap = tmp_path / ".planning" / "ROADMAP.md"
+    roadmap = tmp_path / ".gpd" / "ROADMAP.md"
     roadmap.parent.mkdir(parents=True, exist_ok=True)
     roadmap.write_text(content)
     return roadmap
@@ -110,29 +111,32 @@ class TestLoadConfig:
         assert config["research"] is False
         assert config["plan_checker"] is False
 
-    def test_parallelization_object(self, tmp_path: Path) -> None:
+    def test_parallelization_bool(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"parallelization": {"enabled": False}})
+        _create_config(tmp_path, {"parallelization": False})
         config = load_config(tmp_path)
         assert config["parallelization"] is False
 
-    def test_backward_compat_mode_yolo(self, tmp_path: Path) -> None:
+    def test_removed_mode_key_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"mode": "yolo"})
-        config = load_config(tmp_path)
-        assert config["autonomy"] == "yolo"
+        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+            load_config(tmp_path)
 
-    def test_backward_compat_mode_interactive(self, tmp_path: Path) -> None:
+    def test_removed_parallelization_object_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"mode": "interactive"})
-        config = load_config(tmp_path)
-        assert config["autonomy"] == "supervised"
+        _create_config(tmp_path, {"parallelization": {"enabled": False}})
+        with pytest.raises(
+            ConfigError,
+            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+        ):
+            load_config(tmp_path)
 
     def test_malformed_config_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        config_path = tmp_path / ".planning" / "config.json"
+        config_path = tmp_path / ".gpd" / "config.json"
         config_path.write_text("not valid json {{{")
-        with pytest.raises(ValueError, match="Malformed config.json"):
+        with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
 
@@ -154,13 +158,13 @@ class TestInitExecutePhase:
         assert ctx["state_exists"] is False
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase is required"):
+        with pytest.raises(ValidationError, match="phase is required"):
             init_execute_phase(tmp_path, "")
 
     def test_includes_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
-        (tmp_path / ".planning" / "STATE.md").write_text("# State\nstuff")
+        (tmp_path / ".gpd" / "STATE.md").write_text("# State\nstuff")
 
         ctx = init_execute_phase(tmp_path, "1", includes={"state"})
         assert ctx["state_content"] == "# State\nstuff"
@@ -240,7 +244,7 @@ class TestInitQuick:
 
     def test_increments_number(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        quick_dir = tmp_path / ".planning" / "quick"
+        quick_dir = tmp_path / ".gpd" / "quick"
         quick_dir.mkdir()
         (quick_dir / "1-first-task").mkdir()
         (quick_dir / "2-second-task").mkdir()
@@ -267,7 +271,7 @@ class TestInitResume:
 
     def test_with_interrupted_agent(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".planning" / "current-agent-id.txt").write_text("agent-123\n")
+        (tmp_path / ".gpd" / "current-agent-id.txt").write_text("agent-123\n")
 
         ctx = init_resume(tmp_path)
         assert ctx["has_interrupted_agent"] is True
@@ -288,7 +292,7 @@ class TestInitVerifyWork:
         assert ctx["has_verification"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="phase is required"):
+        with pytest.raises(ValidationError, match="phase is required"):
             init_verify_work(tmp_path, "")
 
 
@@ -304,7 +308,7 @@ class TestInitTodos:
 
     def test_finds_todos(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        pending = tmp_path / ".planning" / "todos" / "pending"
+        pending = tmp_path / ".gpd" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\narea: numerical\ncreated: 2026-03-01'
@@ -317,7 +321,7 @@ class TestInitTodos:
 
     def test_area_filter(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        pending = tmp_path / ".planning" / "todos" / "pending"
+        pending = tmp_path / ".gpd" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "a.md").write_text("title: A\narea: theory")
         (pending / "b.md").write_text("title: B\narea: numerical")
@@ -366,7 +370,7 @@ class TestInitMapTheory:
 
     def test_existing_maps(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        map_dir = tmp_path / ".planning" / "research-map"
+        map_dir = tmp_path / ".gpd" / "research-map"
         map_dir.mkdir()
         (map_dir / "theory.md").write_text("# Theory Map")
 
@@ -408,7 +412,7 @@ class TestInitProgress:
 
     def test_detects_paused_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".planning" / "STATE.md").write_text(
+        (tmp_path / ".gpd" / "STATE.md").write_text(
             "# State\n**Status:** Paused\n**Stopped at:** 2026-03-01T12:00:00Z"
         )
 
@@ -417,7 +421,7 @@ class TestInitProgress:
 
     def test_includes_project(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".planning" / "PROJECT.md").write_text("# My Project")
+        (tmp_path / ".gpd" / "PROJECT.md").write_text("# My Project")
 
         ctx = init_progress(tmp_path, includes={"project"})
         assert ctx["project_content"] == "# My Project"

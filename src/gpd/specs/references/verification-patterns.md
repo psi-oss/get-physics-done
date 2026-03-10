@@ -30,6 +30,8 @@ For most verification needs, start with the quick reference:
 | `verification-domain-nuclear-particle.md` | ~12KB | Crossing symmetry, chiral power counting, parton sum rules, CKM unitarity, heavy quark symmetry | Nuclear physics, collider phenomenology, flavor physics |
 | `verification-domain-astrophysics.md` | ~10KB | Eddington luminosity, Jeans mass, hydrostatic/TOV, nuclear burning rates, GW source consistency | Stellar structure, accretion, compact objects, nucleosynthesis |
 | `verification-domain-mathematical-physics.md` | ~12KB | Self-adjointness, spectral theory, index theorems, modular invariance, anomaly cancellation, representation completeness | Rigorous proofs, topology, functional analysis, integrable systems |
+| `verification-domain-algebraic-qft.md` | ~10KB | Haag-Kastler axioms, GNS data, modular theory, type `I/II/III`, DHR sectors, split/duality checks | AQFT, operator algebras, local nets, modular localization |
+| `verification-domain-string-field-theory.md` | ~10KB | BRST nilpotency, ghost/picture counting, BPZ cyclicity, truncation convergence, tachyon benchmarks | Open/closed string field theory, tachyon condensation, off-shell string amplitudes |
 | `verification-domain-fluid-plasma.md` | ~12KB | MHD equilibrium, Alfven waves, reconnection, turbulence spectra, conservation laws, CFL, div(B), Rankine-Hugoniot | Fluid dynamics, MHD, plasma physics, turbulence |
 
 ## Typical Loading Patterns
@@ -39,6 +41,8 @@ For most verification needs, start with the quick reference:
 **Monte Carlo simulation:** `verification-numerical.md` + `verification-domain-statmech.md`
 **Response function calculation:** `verification-domain-condmat.md` + `verification-numerical.md`
 **Scattering amplitude:** `verification-core.md` + `verification-domain-qft.md`
+**Algebraic quantum field theory:** `verification-core.md` + `verification-domain-algebraic-qft.md`
+**String field theory:** `verification-core.md` + `verification-domain-string-field-theory.md`
 **MHD/fluid simulation:** `verification-numerical.md` + `verification-domain-fluid-plasma.md`
 **Paper-ready result:** All files relevant to the domain
 

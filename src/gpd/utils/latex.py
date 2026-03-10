@@ -31,10 +31,17 @@ class AutoFixResult:
 def _split_by_math_mode(tex: str) -> list[tuple[str, bool]]:
     r"""Split LaTeX content into segments, marking which are in math mode.
 
-    Handles: $...$, $$...$$, \[...\], \(...\)
+    Handles: $...$, $$...$$, \[...\], \(...\), and \begin/\end math environments.
     """
+    # Use (?<!\\)(?:\\\\)* to correctly handle sequences of escaped backslashes
+    # before a delimiter: an even number of backslashes means the delimiter is
+    # NOT escaped; an odd number means it IS escaped.
     math_pattern = re.compile(
-        r"(\$\$.*?\$\$|\$[^$]+?\$|\\\[.*?\\\]|\\\(.*?\\\))",
+        r"((?<!\\)(?:\\\\)*\$\$.*?(?<!\\)(?:\\\\)*\$\$"
+        r"|(?<!\\)(?:\\\\)*\$(?!\$)[^$\n]+?(?<!\\)(?:\\\\)*\$"
+        r"|\\\[.*?\\\]|\\\(.*?\\\)"
+        r"|\\begin\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\}.*?"
+        r"\\end\{(?:equation|align|alignat|gather|multline|flalign|eqnarray|math|displaymath)\*?\})",
         re.DOTALL,
     )
     parts: list[tuple[str, bool]] = []
@@ -56,7 +63,20 @@ def _fix_unescaped_underscores(tex: str) -> str:
         if is_math:
             result.append(content)
         else:
-            fixed = re.sub(r"(?<!\\)_", r"\\_", content)
+            # Protect underscores inside common LaTeX commands
+            protected = re.sub(
+                r"(\\(?:ref|label|cite|url|href|eqref|autoref|cref|Cref"
+                r"|includegraphics|input|include|bibliography|bibliographystyle"
+                r"|hyperref|nameref|pageref"
+                r"|citep|citet|citealp|citeauthor|citeyear"
+                r"|parencite|textcite)\{[^}]*\})",
+                lambda m: m.group(0).replace("_", "\x00"),
+                content,
+            )
+            # Escape remaining underscores
+            protected = re.sub(r"(?<!\\)_", r"\\_", protected)
+            # Restore protected underscores
+            fixed = protected.replace("\x00", "_")
             result.append(fixed)
     return "".join(result)
 
@@ -79,8 +99,8 @@ def _fix_missing_document_begin(tex: str) -> str:
     if has_documentclass and not has_begin_doc:
         preamble_patterns = [
             r"\\usepackage(?:\[[^\]]*\])?\s*\{[^}]*\}",
-            r"\\newcommand\s*\{[^}]*\}[^}]*\}",
-            r"\\renewcommand\s*\{[^}]*\}[^}]*\}",
+            r"\\newcommand\s*\{[^}]*\}(?:\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}",
+            r"\\renewcommand\s*\{[^}]*\}(?:\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}",
             r"\\author\s*\{[^}]*\}",
             r"\\title\s*\{[^}]*\}",
             r"\\date\s*\{[^}]*\}",
@@ -108,14 +128,17 @@ def _fix_missing_document_end(tex: str) -> str:
 
 
 def _fix_unbalanced_braces(tex: str) -> str:
-    open_count = tex.count("{")
-    close_count = tex.count("}")
+    # Neutralise escaped backslashes first so that \\{ is seen as
+    # <escaped-backslash> + <real brace>, not as \{ (escaped brace).
+    neutralised = tex.replace("\\\\", "\x00\x00")
+    open_count = neutralised.count("{") - neutralised.count("\\{")
+    close_count = neutralised.count("}") - neutralised.count("\\}")
     if open_count > close_count:
         missing = open_count - close_count
         tex = tex.rstrip() + ("}" * missing)
     elif close_count > open_count:
         missing = close_count - open_count
-        tex = ("{" * missing) + tex.lstrip()
+        tex = ("{" * missing) + tex
     return tex
 
 
@@ -172,93 +195,93 @@ def try_autofix(tex_content: str, log: str) -> AutoFixResult:
 
 _UNICODE_TO_LATEX: dict[str, str] = {
     # Greek lowercase
-    "\u03b1": r"\alpha",
-    "\u03b2": r"\beta",
-    "\u03b3": r"\gamma",
-    "\u03b4": r"\delta",
-    "\u03b5": r"\epsilon",
-    "\u03b6": r"\zeta",
-    "\u03b7": r"\eta",
-    "\u03b8": r"\theta",
-    "\u03b9": r"\iota",
-    "\u03ba": r"\kappa",
-    "\u03bb": r"\lambda",
-    "\u03bc": r"\mu",
-    "\u03bd": r"\nu",
-    "\u03be": r"\xi",
-    "\u03c0": r"\pi",
-    "\u03c1": r"\rho",
-    "\u03c3": r"\sigma",
-    "\u03c4": r"\tau",
-    "\u03c5": r"\upsilon",
-    "\u03c6": r"\phi",
-    "\u03c7": r"\chi",
-    "\u03c8": r"\psi",
-    "\u03c9": r"\omega",
-    "\u03f5": r"\varepsilon",
-    "\u03d1": r"\vartheta",
-    "\u03d5": r"\varphi",
+    "\u03b1": r"$\alpha$",
+    "\u03b2": r"$\beta$",
+    "\u03b3": r"$\gamma$",
+    "\u03b4": r"$\delta$",
+    "\u03b5": r"$\epsilon$",
+    "\u03b6": r"$\zeta$",
+    "\u03b7": r"$\eta$",
+    "\u03b8": r"$\theta$",
+    "\u03b9": r"$\iota$",
+    "\u03ba": r"$\kappa$",
+    "\u03bb": r"$\lambda$",
+    "\u03bc": r"$\mu$",
+    "\u03bd": r"$\nu$",
+    "\u03be": r"$\xi$",
+    "\u03c0": r"$\pi$",
+    "\u03c1": r"$\rho$",
+    "\u03c3": r"$\sigma$",
+    "\u03c4": r"$\tau$",
+    "\u03c5": r"$\upsilon$",
+    "\u03c6": r"$\phi$",
+    "\u03c7": r"$\chi$",
+    "\u03c8": r"$\psi$",
+    "\u03c9": r"$\omega$",
+    "\u03f5": r"$\varepsilon$",
+    "\u03d1": r"$\vartheta$",
+    "\u03d5": r"$\varphi$",
     # Greek uppercase
-    "\u0393": r"\Gamma",
-    "\u0394": r"\Delta",
-    "\u0398": r"\Theta",
-    "\u039b": r"\Lambda",
-    "\u039e": r"\Xi",
-    "\u03a0": r"\Pi",
-    "\u03a3": r"\Sigma",
-    "\u03a5": r"\Upsilon",
-    "\u03a6": r"\Phi",
-    "\u03a8": r"\Psi",
-    "\u03a9": r"\Omega",
+    "\u0393": r"$\Gamma$",
+    "\u0394": r"$\Delta$",
+    "\u0398": r"$\Theta$",
+    "\u039b": r"$\Lambda$",
+    "\u039e": r"$\Xi$",
+    "\u03a0": r"$\Pi$",
+    "\u03a3": r"$\Sigma$",
+    "\u03a5": r"$\Upsilon$",
+    "\u03a6": r"$\Phi$",
+    "\u03a8": r"$\Psi$",
+    "\u03a9": r"$\Omega$",
     # Math symbols
-    "\u221e": r"\infty",
-    "\u2202": r"\partial",
-    "\u2207": r"\nabla",
-    "\u222b": r"\int",
-    "\u2211": r"\sum",
-    "\u220f": r"\prod",
-    "\u221a": r"\sqrt",
-    "\u00b1": r"\pm",
-    "\u00d7": r"\times",
-    "\u00f7": r"\div",
-    "\u2264": r"\leq",
-    "\u2265": r"\geq",
-    "\u2260": r"\neq",
-    "\u2248": r"\approx",
-    "\u2261": r"\equiv",
-    "\u221d": r"\propto",
-    "\u2192": r"\rightarrow",
-    "\u2190": r"\leftarrow",
-    "\u21d2": r"\Rightarrow",
-    "\u2208": r"\in",
-    "\u2209": r"\notin",
-    "\u2282": r"\subset",
-    "\u222a": r"\cup",
-    "\u2229": r"\cap",
-    "\u2205": r"\emptyset",
-    "\u2200": r"\forall",
-    "\u2203": r"\exists",
-    "\u210f": r"\hbar",
-    "\u2113": r"\ell",
-    "\u00b0": r"^{\circ}",
-    "\u00b7": r"\cdot",
-    "\u22c5": r"\cdot",
-    "\u27e8": r"\langle",
-    "\u27e9": r"\rangle",
-    "\u222e": r"\oint",
-    "\u2223": r"\mid",
+    "\u221e": r"$\infty$",
+    "\u2202": r"$\partial$",
+    "\u2207": r"$\nabla$",
+    "\u222b": r"$\int$",
+    "\u2211": r"$\sum$",
+    "\u220f": r"$\prod$",
+    "\u221a": r"$\sqrt{}$",
+    "\u00b1": r"$\pm$",
+    "\u00d7": r"$\times$",
+    "\u00f7": r"$\div$",
+    "\u2264": r"$\leq$",
+    "\u2265": r"$\geq$",
+    "\u2260": r"$\neq$",
+    "\u2248": r"$\approx$",
+    "\u2261": r"$\equiv$",
+    "\u221d": r"$\propto$",
+    "\u2192": r"$\rightarrow$",
+    "\u2190": r"$\leftarrow$",
+    "\u21d2": r"$\Rightarrow$",
+    "\u2208": r"$\in$",
+    "\u2209": r"$\notin$",
+    "\u2282": r"$\subset$",
+    "\u222a": r"$\cup$",
+    "\u2229": r"$\cap$",
+    "\u2205": r"$\emptyset$",
+    "\u2200": r"$\forall$",
+    "\u2203": r"$\exists$",
+    "\u210f": r"$\hbar$",
+    "\u2113": r"$\ell$",
+    "\u00b0": r"$^{\circ}$",
+    "\u00b7": r"$\cdot$",
+    "\u22c5": r"$\cdot$",
+    "\u27e8": r"$\langle$",
+    "\u27e9": r"$\rangle$",
+    "\u222e": r"$\oint$",
+    "\u2223": r"$\mid$",
     # Superscripts / subscripts
-    "\u00b2": r"^{2}",
-    "\u00b3": r"^{3}",
-    "\u00b9": r"^{1}",
-    "\u2080": r"_{0}",
-    "\u2081": r"_{1}",
-    "\u2082": r"_{2}",
-    "\u2083": r"_{3}",
+    "\u00b2": r"$^{2}$",
+    "\u00b3": r"$^{3}$",
+    "\u00b9": r"$^{1}$",
+    "\u2080": r"$_{0}$",
+    "\u2081": r"$_{1}$",
+    "\u2082": r"$_{2}$",
+    "\u2083": r"$_{3}$",
     # Fractions
-    "\u00bd": r"\frac{1}{2}",
-    "\u00bc": r"\frac{1}{4}",
-    "\u00be": r"\frac{3}{4}",
+    "\u00bd": r"$\frac{1}{2}$",
+    "\u00bc": r"$\frac{1}{4}$",
+    "\u00be": r"$\frac{3}{4}$",
     # Typography
     "\u2013": "--",
     "\u2014": "---",
@@ -269,28 +292,104 @@ _UNICODE_TO_LATEX: dict[str, str] = {
 
 _EMOJI_RE = re.compile(
     "["
-    "\U0001f600-\U0001f64f\U0001f300-\U0001f5ff\U0001f680-\U0001f6ff"
-    "\U0001f1e0-\U0001f1ff\U00002702-\U000027b0\U0001f900-\U0001f9ff"
-    "\U0001fa00-\U0001fa6f\U0001fa70-\U0001faff\U00002600-\U000026ff"
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # misc symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f1e0-\U0001f1ff"  # flags
+    "\U0001f900-\U0001f9ff"  # supplemental symbols & pictographs
+    "\U0001fa00-\U0001fa6f"  # chess symbols, extended-A
+    "\U0001fa70-\U0001faff"  # symbols & pictographs extended-A
+    "\U00002600-\U000027bf"  # misc symbols, dingbats (expanded to 27bf)
+    "\U00002b50-\U00002b55"  # additional stars and circles
+    "\U0000fe00-\U0000fe0f"  # variation selectors
+    "\U0000200d"             # zero-width joiner
+    "\U000023e9-\U000023f3"  # media control symbols
+    "\U000023f8-\U000023fa"  # additional media controls
+    "\U0000231a-\U0000231b"  # watch, hourglass
+    "\U00002934-\U00002935"  # curved arrows
+    "\U000025aa-\U000025ab"  # small squares
+    "\U000025b6"             # play button
+    "\U000025c0"             # reverse button
+    "\U000025fb-\U000025fe"  # medium squares
+    "\U00002614-\U00002615"  # umbrella, hot beverage
+    "\U00002648-\U00002653"  # zodiac signs
+    "\U0001f004"             # mahjong tile
+    "\U0001f0cf"             # joker
+    "\U0001f170-\U0001f171"  # negative squared letters
+    "\U0001f17e-\U0001f17f"  # negative squared O, P
+    "\U0001f18e"             # negative squared AB
+    "\U0001f191-\U0001f19a"  # squared CL, etc.
+    "\U0001f1e6-\U0001f1ff"  # regional indicators
+    "\U0001f201-\U0001f202"  # squared katakana
+    "\U0001f21a"             # squared CJK
+    "\U0001f22f"             # squared CJK
+    "\U0001f232-\U0001f23a"  # squared CJK
+    "\U0001f250-\U0001f251"  # circled ideograph
+    "\U0001f3fb-\U0001f3ff"  # skin tone modifiers
     "]+",
     flags=re.UNICODE,
 )
 
+# Build a math-mode variant of the mapping that strips $...$ wrappers.
+# Inside math regions we need the bare command (e.g. \alpha), not $\alpha$.
+_DOLLAR_WRAP_RE = re.compile(r"^\$(.+)\$$")
+_UNICODE_TO_LATEX_MATH: dict[str, str] = {}
+for _char, _cmd in _UNICODE_TO_LATEX.items():
+    _m = _DOLLAR_WRAP_RE.match(_cmd)
+    _UNICODE_TO_LATEX_MATH[_char] = _m.group(1) if _m else _cmd
+
+
+def _apply_unicode_replacements(text: str, mapping: dict[str, str]) -> str:
+    """Replace Unicode characters in *text* using *mapping*."""
+    for char, cmd in mapping.items():
+        text = text.replace(char, cmd)
+    return text
+
 
 def sanitize_latex(latex: str) -> str:
-    """Convert Unicode chars to LaTeX commands and strip emojis."""
-    for char, cmd in _UNICODE_TO_LATEX.items():
-        latex = latex.replace(char, cmd)
-    return _EMOJI_RE.sub("", latex)
+    """Convert Unicode chars to LaTeX commands and strip emojis.
+
+    Math-mode-aware: inside existing ``$...$``, ``$$...$$``, ``\\[...\\]``,
+    ``\\(...\\)``, and ``\\begin{equation}``-style environments, Unicode
+    characters are replaced with bare LaTeX commands (no extra ``$``
+    delimiters).  Outside math mode the ``$...$``-wrapped forms are used so
+    the commands render correctly.
+    """
+    parts = _split_by_math_mode(latex)
+    result: list[str] = []
+    for segment, is_math in parts:
+        if is_math:
+            result.append(_apply_unicode_replacements(segment, _UNICODE_TO_LATEX_MATH))
+        else:
+            result.append(_apply_unicode_replacements(segment, _UNICODE_TO_LATEX))
+    return _EMOJI_RE.sub("", "".join(result))
 
 
 def clean_latex_fences(raw: str) -> str:
     """Strip markdown code fences from LLM output."""
     latex = raw.strip()
-    if "```latex" in latex:
-        latex = latex.split("```latex", 1)[1].split("```", 1)[0].strip()
+    if "```latex" in latex or "```tex" in latex or "```LaTeX" in latex:
+        # Strip any of the fence+tag variants
+        for tag in ("```latex", "```tex", "```LaTeX"):
+            if tag in latex:
+                latex = latex.split(tag, 1)[1].split("```", 1)[0].strip()
+                break
     elif "```" in latex:
+        # Extract content from ALL fenced blocks (handles multiple blocks)
         parts = latex.split("```")
-        if len(parts) >= 3:
-            latex = parts[1].strip()
+        # parts[0] is before first fence, parts[1] is first block content,
+        # parts[2] is between blocks, parts[3] is second block content, etc.
+        # Odd-indexed parts are inside fences.
+        collected: list[str] = []
+        for i in range(1, len(parts), 2):
+            content = parts[i]
+            # Strip language tag (e.g. Tex, TeX, plaintex) if present
+            first_newline = content.find('\n')
+            if first_newline > 0:
+                first_line = content[:first_newline].strip().lower()
+                if first_line in ('latex', 'tex', 'plaintex'):
+                    content = content[first_newline + 1:]
+            collected.append(content.strip())
+        if collected:
+            latex = "\n\n".join(collected)
     return latex

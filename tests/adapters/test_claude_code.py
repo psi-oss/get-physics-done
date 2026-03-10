@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("shell") == "Bash"
         assert adapter.translate_tool_name("search_files") == "Grep"
 
-    def test_legacy_alias(self, adapter: ClaudeCodeAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: ClaudeCodeAdapter) -> None:
         assert adapter.translate_tool_name("Read") == "Read"
         assert adapter.translate_tool_name("Bash") == "Bash"
 
@@ -206,6 +207,29 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .claude/hooks/check_update.py" in cmds
 
+    def test_install_with_explicit_target_uses_absolute_hook_paths(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "custom-claude"
+        target.mkdir(parents=True)
+
+        result = adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["statusLine"]["command"] == f"{sys.executable or 'python3'} {(target / 'hooks' / 'statusline.py')}"
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
+        assert f"{sys.executable or 'python3'} {(target / 'hooks' / 'check_update.py')}" in cmds
+
     def test_install_raises_on_missing_dirs(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
         bad_root = tmp_path / "empty"
         bad_root.mkdir()
@@ -253,6 +277,39 @@ class TestUninstall:
         assert not (target / "get-physics-done").exists()
         assert not (target / "gpd-file-manifest.json").exists()
         assert "removed" in result
+
+    def test_global_uninstall_removes_mcp_servers_from_claude_json(
+        self,
+        adapter: ClaudeCodeAdapter,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(target))
+
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        claude_json = tmp_path / ".claude.json"
+        claude_json.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        **build_mcp_servers_dict(python_path=sys.executable),
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = adapter.uninstall(target)
+
+        cleaned = json.loads(claude_json.read_text(encoding="utf-8"))
+        assert "custom-server" in cleaned["mcpServers"]
+        assert len(cleaned["mcpServers"]) == 1
+        assert "MCP servers from .claude.json" in result["removed"]
 
     def test_uninstall_removes_gpd_agents_only(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path

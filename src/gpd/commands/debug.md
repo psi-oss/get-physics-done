@@ -3,10 +3,10 @@ name: gpd:debug
 description: Systematic debugging of physics calculations with persistent state across context resets
 argument-hint: "[issue description]"
 allowed-tools:
-  - Read
-  - Bash
-  - Task
-  - AskUserQuestion
+  - file_read
+  - shell
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -32,7 +32,7 @@ User's issue: $ARGUMENTS
 Check for active sessions:
 
 ```bash
-ls .planning/debug/*.md 2>/dev/null | grep -v resolved | head -5
+ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | head -5
 ```
 
 </context>
@@ -64,7 +64,7 @@ If $ARGUMENTS provided OR user describes new issue:
 
 ## 2. Gather Symptoms (if new issue)
 
-Use AskUserQuestion for each. Physics-specific symptom gathering:
+Use ask_user for each. Physics-specific symptom gathering:
 
 1. **Expected result** — What should the calculation give? (analytical prediction, known limit, published value, physical intuition)
 2. **Actual result** — What do you get instead? (wrong magnitude, wrong sign, wrong functional form, divergence, nonsensical value)
@@ -143,12 +143,12 @@ Physics debugging follows a hierarchy of checks, ordered from cheapest to most e
   </common_physics_errors>
 
 <debug_file>
-Create: .planning/debug/{slug}.md
+Create: .gpd/debug/{slug}.md
 </debug_file>
 ```
 
 ```
-Task(
+task(
   prompt=filled_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",
@@ -187,7 +187,7 @@ Task(
   - "Add more context" — gather more symptoms, spawn again
   - "Simplify the problem" — suggest stripping to minimal reproducing case
 
-## 5. Spawn Continuation Agent (After Checkpoint)
+## 5. Spawn Continuation agent (After Checkpoint)
 
 When user responds to checkpoint, spawn fresh agent:
 
@@ -197,7 +197,7 @@ Continue debugging {slug}. Evidence is in the debug file.
 </objective>
 
 <prior_state>
-Debug file: @.planning/debug/{slug}.md
+Debug file: @.gpd/debug/{slug}.md
 </prior_state>
 
 <checkpoint_response>
@@ -211,7 +211,7 @@ goal: find_and_fix
 ```
 
 ```
-Task(
+task(
   prompt=continuation_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",

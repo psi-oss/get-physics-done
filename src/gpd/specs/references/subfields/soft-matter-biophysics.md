@@ -88,7 +88,7 @@ context_cost: medium
 | **ESPResSo** | Soft matter MD with electrostatics | Lattice-Boltzmann coupling; charged polymers; active particles |
 | **Moltemplate** | Molecule/topology builder for LAMMPS | Generate complex polymer architectures, mixtures |
 | **PLUMED** | Enhanced sampling plugin | Metadynamics, umbrella sampling; interfaces with GROMACS, LAMMPS, NAMD |
-| **MDAnalysis** | Trajectory analysis (Python) | Read/write many formats; RDFs, RMSD, contacts |
+| **MDAnalysis** | Trajectory analysis (Python) | Supports many formats; RDFs, RMSD, contacts |
 | **VMD** | Visualization and analysis | TCL scripting; trajectory movies; secondary structure |
 | **FreeWorm / AFEM** | Membrane shape analysis | Helfrich model solvers; axisymmetric and triangulated |
 | **polym** | Polymer field theory (SCFT) | Open-source SCFT for block copolymer phase diagrams |

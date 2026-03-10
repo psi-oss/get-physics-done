@@ -4,11 +4,11 @@ template_version: 1
 
 # Discovery Template
 
-Template for `.planning/phases/XX-name/DISCOVERY.md` - pre-planning discovery of physics landscape, methods, and known results.
+Template for `.gpd/phases/XX-name/DISCOVERY.md` - pre-planning discovery of physics landscape, methods, and known results.
 
 **Purpose:** Document what was discovered about a physics problem before planning begins. Answers: what methods exist, what is known, what tools are available, what approximations are valid, and what the recommended approach is.
 
-**Relationship to research.md:** This template produces DISCOVERY.md (pre-planning exploration). The research.md template produces RESEARCH.md (comprehensive literature survey). Discovery is lighter and more action-oriented; research is deeper and more exhaustive. For comprehensive literature surveys, use $gpd-research-phase instead.
+**Relationship to research.md:** This template produces DISCOVERY.md (pre-planning exploration). The research.md template produces RESEARCH.md (comprehensive literature survey). Discovery is lighter and more action-oriented; research is deeper and more exhaustive. For comprehensive literature surveys, use /gpd:research-phase instead.
 
 ---
 
@@ -185,7 +185,7 @@ All sections with full analysis:
 
 ## Integration with Planning
 
-- DISCOVERY.md lives in phase directory: `.planning/phases/XX-name/DISCOVERY.md`
+- DISCOVERY.md lives in phase directory: `.gpd/phases/XX-name/DISCOVERY.md`
 - Loaded by plan-phase as context when creating PLAN.md
 - Recommendation informs approach selection
 - Known results provide verification benchmarks for the plan

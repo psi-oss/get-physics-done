@@ -1,5 +1,5 @@
 <purpose>
-Create a git branch for parallel investigation of an alternative hypothesis or approach. Sets up isolated research state with hypothesis documentation, enabling side-by-side comparison later via $gpd-compare-branches. Common in physics when multiple approximation schemes, gauge choices, or derivation pathways need to be compared systematically.
+Create a git branch for parallel investigation of an alternative hypothesis or approach. Sets up isolated research state with hypothesis documentation, enabling side-by-side comparison later via /gpd:compare-branches. Common in physics when multiple approximation schemes, gauge choices, or derivation pathways need to be compared systematically.
 </purpose>
 
 <required_reading>
@@ -26,15 +26,15 @@ If no project context exists (standalone usage), proceed — branching only requ
 <step name="parse_arguments">
 Parse the hypothesis description from command arguments.
 
-Example: `$gpd-branch-hypothesis Use dimensional regularization instead of hard cutoff`
+Example: `/gpd:branch-hypothesis Use dimensional regularization instead of hard cutoff`
 -> description = "Use dimensional regularization instead of hard cutoff"
 
 If no arguments provided:
 
 ```
 ERROR: Hypothesis description required
-Usage: $gpd-branch-hypothesis <description>
-Example: $gpd-branch-hypothesis Use dimensional regularization instead of hard cutoff
+Usage: /gpd:branch-hypothesis <description>
+Example: /gpd:branch-hypothesis Use dimensional regularization instead of hard cutoff
 ```
 
 Exit.
@@ -118,10 +118,10 @@ Exit.
 Create the hypothesis documentation directory and file:
 
 ```bash
-mkdir -p .planning/hypotheses/${SLUG}
+mkdir -p .gpd/hypotheses/${SLUG}
 ```
 
-Write `.planning/hypotheses/${SLUG}/HYPOTHESIS.md`:
+Write `.gpd/hypotheses/${SLUG}/HYPOTHESIS.md`:
 
 ```markdown
 # Hypothesis: {description}
@@ -174,7 +174,7 @@ INIT=$(gpd init progress --include roadmap,state)
 
 Parse from INIT JSON: `project_exists`, `state_exists`, `current_phase` (object with `number`, `name`, `directory`), `state_content`, `roadmap_content`.
 
-**If `project_exists` is false:** Error — "No project found. Run $gpd-new-project first." Exit.
+**If `project_exists` is false:** Error — "No project found. Run /gpd:new-project first." Exit.
 
 Then find the current phase directory:
 
@@ -187,7 +187,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Use the Read tool to read `.planning/STATE.md`, `.planning/ROADMAP.md`, and any SUMMARY.md files in the phase directory. If `state_content` and `roadmap_content` were included via `--include`, use those directly instead of re-reading.
+Use the file_read tool to read `.gpd/STATE.md`, `.gpd/ROADMAP.md`, and any SUMMARY.md files in the phase directory. If `state_content` and `roadmap_content` were included via `--include`, use those directly instead of re-reading.
 
 **2. Generate draft content for each placeholder section:**
 
@@ -227,7 +227,7 @@ Replace the placeholder sections with the generated content, clearly marked as A
 
 ```
 Drafted motivation, expected outcome, and success criteria from project context.
-Review and edit: .planning/hypotheses/{slug}/HYPOTHESIS.md
+Review and edit: .gpd/hypotheses/{slug}/HYPOTHESIS.md
 
 The AI-drafted content is marked with <!-- AI-drafted --> comments.
 Edit these sections before proceeding to planning.
@@ -244,7 +244,7 @@ Fork STATE.md to include hypothesis context:
 gpd state add-decision --phase "${CURRENT_PHASE_NUM}" --summary "Created hypothesis branch: ${description}" --rationale "Investigating alternative approach on branch hypothesis/${slug}"
 ```
 
-2. Add hypothesis metadata to STATE.md via Edit tool. After the `## Current Position` section, add:
+2. Add hypothesis metadata to STATE.md via file_edit tool. After the `## Current Position` section, add:
 
 ```markdown
 ## Active Hypothesis
@@ -254,28 +254,28 @@ gpd state add-decision --phase "${CURRENT_PHASE_NUM}" --summary "Created hypothe
 **Parent:** {parent_branch}
 
 This is a hypothesis branch investigating an alternative approach.
-Compare results with parent branch via `$gpd-compare-branches`.
+Compare results with parent branch via `/gpd:compare-branches`.
 ```
 
-3. Force state.json re-sync after the Edit:
+3. Force state.json re-sync after the file_edit:
 
 ```bash
 gpd state load
 ```
 
-The `state load` ensures state.json reflects the Edit tool changes. Do NOT skip this step.
+The `state load` ensures state.json reflects the file_edit tool changes. Do NOT skip this step.
    </step>
 
 <step name="commit_setup">
 Commit the hypothesis setup.
 
-The `commit` CLI command respects `commit_docs` from `.planning/config.json` internally — if `commit_docs` is false, the commit is automatically skipped.
+The `commit` CLI command respects `commit_docs` from `.gpd/config.json` internally — if `commit_docs` is false, the commit is automatically skipped.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/hypotheses/${SLUG}/HYPOTHESIS.md .planning/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/hypotheses/${SLUG}/HYPOTHESIS.md .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: create hypothesis branch for {slug}" --files .planning/hypotheses/${SLUG}/HYPOTHESIS.md .planning/STATE.md
+gpd commit "docs: create hypothesis branch for {slug}" --files .gpd/hypotheses/${SLUG}/HYPOTHESIS.md .gpd/STATE.md
 ```
 </step>
 
@@ -290,7 +290,7 @@ Present completion summary:
 **Branch:** hypothesis/{slug}
 **Description:** {description}
 **Parent:** {parent_branch}
-**Hypothesis doc:** .planning/hypotheses/{slug}/HYPOTHESIS.md
+**Hypothesis doc:** .gpd/hypotheses/{slug}/HYPOTHESIS.md
 
 ---
 
@@ -299,13 +299,13 @@ Present completion summary:
 1. **Fill in HYPOTHESIS.md** — document motivation, expected outcome, and success criteria
 2. **Plan the phase** using the alternative approach:
 
-   $gpd-plan-phase {current_phase}
+   /gpd:plan-phase {current_phase}
 
    <sub>/clear first -> fresh context window</sub>
 
 3. **Execute and compare** when ready:
 
-   $gpd-compare-branches
+   /gpd:compare-branches
 
 ---
 
@@ -336,7 +336,7 @@ Hypothesis branch creation is complete when:
 - [ ] Description parsed and slug generated
 - [ ] Git state verified clean
 - [ ] Branch `hypothesis/{slug}` created
-- [ ] `.planning/hypotheses/{slug}/HYPOTHESIS.md` created with metadata
+- [ ] `.gpd/hypotheses/{slug}/HYPOTHESIS.md` created with metadata
 - [ ] Motivation, Expected Outcome, and Success Criteria populated from project context (AI-drafted)
 - [ ] STATE.md forked with "Active Hypothesis" section
 - [ ] Changes committed (if commit_docs enabled)

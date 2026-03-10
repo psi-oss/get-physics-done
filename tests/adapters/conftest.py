@@ -29,7 +29,7 @@ def gpd_root(tmp_path: Path) -> Path:
     cmds.mkdir(parents=True)
     (cmds / "help.md").write_text(
         "---\nname: gpd:help\ndescription: Show GPD help\n"
-        "allowed-tools:\n  - Read\n  - Bash\ncolor: cyan\n---\n"
+        "allowed-tools:\n  - file_read\n  - shell\ncolor: cyan\n---\n"
         "Help body with {GPD_INSTALL_DIR}/ref and ~/.claude/agents path.\n",
         encoding="utf-8",
     )
@@ -45,14 +45,14 @@ def gpd_root(tmp_path: Path) -> Path:
     agents.mkdir()
     (agents / "gpd-verifier.md").write_text(
         "---\nname: gpd-verifier\ndescription: Verifies physics results\n"
-        "tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch\ncolor: green\n---\n"
+        "tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch\ncolor: green\n---\n"
         "Verifier body with {GPD_INSTALL_DIR}/data.\n"
-        "Use the Read tool to check files.\n",
+        "Use the file_read tool to check files.\n",
         encoding="utf-8",
     )
     (agents / "gpd-executor.md").write_text(
         "---\nname: gpd-executor\ndescription: Executes research plans\n"
-        "allowed-tools:\n  - Read\n  - Write\n  - Edit\n  - Bash\n"
+        "allowed-tools:\n  - file_read\n  - file_write\n  - file_edit\n  - shell\n"
         "  - mcp__physics_server\ncolor: blue\n---\n"
         "Executor body.\n",
         encoding="utf-8",
@@ -68,9 +68,24 @@ def gpd_root(tmp_path: Path) -> Path:
     for subdir in ("references", "templates", "workflows"):
         d = root / "specs" / subdir
         d.mkdir(parents=True)
-        (d / f"{subdir[:3]}.md").write_text(
-            f"# {subdir.title()}\nPath: {{GPD_INSTALL_DIR}}/test\nHome: ~/.claude/test\n",
-            encoding="utf-8",
-        )
+        name = f"{subdir[:3]}.md"
+        if subdir == "references":
+            content = (
+                "# References\n"
+                "Path: {GPD_INSTALL_DIR}/test\n"
+                "Home: ~/.claude/test\n"
+                "Search with web_search and web_fetch.\n"
+            )
+        elif subdir == "workflows":
+            content = (
+                "# Workflows\n"
+                'Use ask_user([{"label": "Yes"}])\n'
+                'Launch task(prompt="Run it")\n'
+                "Run /gpd:plan-phase 1 next.\n"
+            )
+        else:
+            content = "# Templates\nPath: {GPD_INSTALL_DIR}/test\nHome: ~/.claude/test\n"
+
+        (d / name).write_text(content, encoding="utf-8")
 
     return root

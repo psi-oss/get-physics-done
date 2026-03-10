@@ -48,8 +48,8 @@ from gpd.core.state import (
 )
 from gpd.core.utils import (
     atomic_write,
-    compare_phase_numbers,
     phase_normalize,
+    phase_sort_key,
     safe_parse_int,
     safe_read_file,
 )
@@ -137,13 +137,13 @@ def check_environment() -> HealthCheck:
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
-    """Check that required .planning/ files and directories exist."""
+    """Check that required .gpd/ files and directories exist."""
     layout = ProjectLayout(cwd)
     issues: list[str] = []
     details: dict[str, object] = {}
 
     for name in REQUIRED_PLANNING_FILES:
-        full = layout.planning / name
+        full = layout.gpd / name
         if full.exists():
             details[name] = "present"
         else:
@@ -151,7 +151,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             issues.append(f"Required file missing: {PLANNING_DIR_NAME}/{name}")
 
     for name in REQUIRED_PLANNING_DIRS:
-        full = layout.planning / name
+        full = layout.gpd / name
         if full.is_dir():
             details[name] = "present"
         else:
@@ -159,7 +159,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             issues.append(f"Required directory missing: {PLANNING_DIR_NAME}/{name}/")
 
     for name in OPTIONAL_PLANNING_FILES:
-        full = layout.planning / name
+        full = layout.gpd / name
         details[name] = "present" if full.exists() else "absent"
 
     status = CheckStatus.FAIL if issues else CheckStatus.OK
@@ -293,18 +293,17 @@ def check_orphans(cwd: Path) -> HealthCheck:
 
     dirs = sorted(
         (d for d in phases_dir.iterdir() if d.is_dir()),
-        key=lambda d: compare_phase_numbers(d.name, "0"),
+        key=lambda d: phase_sort_key(d.name),
     )
 
     for phase_dir in dirs:
         files = [f.name for f in phase_dir.iterdir() if f.is_file()]
-        plans = [f for f in files if f.endswith(PLAN_SUFFIX)]
-        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX)]
+        plans = [f for f in files if layout.is_plan_file(f)]
+        summaries = [f for f in files if layout.is_summary_file(f)]
 
         # Summaries without matching plans
         for summary in summaries:
-            plan_name = summary.replace(SUMMARY_SUFFIX, PLAN_SUFFIX)
-            if plan_name not in plans:
+            if layout.strip_summary_suffix(summary) not in {layout.strip_plan_suffix(plan) for plan in plans}:
                 warnings.append(f"Orphan summary: {phase_dir.name}/{summary} (no matching plan)")
 
         # Empty phase directories
@@ -380,7 +379,8 @@ def check_config(cwd: Path) -> HealthCheck:
 
 def check_plan_frontmatter(cwd: Path) -> HealthCheck:
     """Check plan file frontmatter for 'wave' field and numbering gaps."""
-    phases_dir = ProjectLayout(cwd).phases_dir
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     warnings: list[str] = []
     details: dict[str, object] = {"plans_checked": 0, "plans_missing_wave": 0, "numbering_gaps": 0}
 
@@ -389,15 +389,17 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
 
     dirs = sorted(
         (d for d in phases_dir.iterdir() if d.is_dir()),
-        key=lambda d: compare_phase_numbers(d.name, "0"),
+        key=lambda d: phase_sort_key(d.name),
     )
 
     for phase_dir in dirs:
-        plans = sorted(f.name for f in phase_dir.iterdir() if f.is_file() and f.name.endswith(PLAN_SUFFIX))
+        plans = sorted(f.name for f in phase_dir.iterdir() if f.is_file() and layout.is_plan_file(f.name))
 
         # Plan numbering gaps
         plan_nums: list[int] = []
         for p in plans:
+            if p == "PLAN.md":
+                continue
             pm = re.search(r"-(\d{2})-PLAN\.md$", p)
             if pm:
                 plan_nums.append(int(pm.group(1)))
@@ -429,7 +431,8 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
 
 def check_latest_return(cwd: Path) -> HealthCheck:
     """Validate the gpd_return YAML block in the most recent SUMMARY file."""
-    phases_dir = ProjectLayout(cwd).phases_dir
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     warnings: list[str] = []
     issues: list[str] = []
     details: dict[str, object] = {}
@@ -441,7 +444,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
             if not phase_dir.is_dir():
                 continue
             for f in phase_dir.iterdir():
-                if f.is_file() and f.name.endswith(SUMMARY_SUFFIX):
+                if f.is_file() and layout.is_summary_file(f.name):
                     mtime = f.stat().st_mtime
                     if latest is None or mtime > latest[0]:
                         latest = (mtime, f, f"{phase_dir.name}/{f.name}")
@@ -497,7 +500,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
 
 
 def check_git_status(cwd: Path) -> HealthCheck:
-    """Check for uncommitted files in .planning/."""
+    """Check for uncommitted files in .gpd/."""
     warnings: list[str] = []
     details: dict[str, object] = {}
 
@@ -613,11 +616,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
         cwd: Project root directory.
         fix: If True, attempt auto-fixes for common issues.
     """
-    with gpd_span("gpd.health.run", **{"gpd.health.fix": fix}):
+    with gpd_span("health.run", **{"gpd.health.fix": fix}):
         checks: list[HealthCheck] = []
 
         for name, check_fn in _ALL_CHECKS:
-            with gpd_span(f"gpd.health.check.{name}"):
+            with gpd_span(f"health.check.{name}"):
                 if name == "environment":
                     checks.append(check_fn())  # type: ignore[operator]
                 else:
@@ -662,9 +665,9 @@ class DoctorReport(BaseModel):
 def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> DoctorReport:
     """Cross-runtime installation verification.
 
-    Checks that GPD is correctly installed: agent files, reference
-    files, workflow files, template files, skill directories, Python version,
-    and package importability.
+    Checks that the bundled specs content is correctly installed: references,
+    workflows, templates, learned-pattern assets, Python version, and package
+    importability.
 
     Args:
         specs_dir: Path to the specs directory. Required (no automatic discovery).
@@ -684,7 +687,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             version = None
     sd = specs_dir
 
-    with gpd_span("gpd.doctor.run"):
+    with gpd_span("doctor.run"):
         checks: list[HealthCheck] = []
 
         # 1. Specs directory structure
@@ -698,27 +701,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 2. Agent files
-        agents_dir = sd / "agents"
-        agent_count = 0
-        agent_issues: list[str] = []
-        if agents_dir.is_dir():
-            agent_files = [f for f in agents_dir.iterdir() if f.name.startswith("gpd-") and f.suffix == ".md"]
-            agent_count = len(agent_files)
-            if agent_count == 0:
-                agent_issues.append("No gpd-*.md agent files found")
-        else:
-            agent_issues.append(f"Agents directory not found: {agents_dir}")
-        checks.append(
-            HealthCheck(
-                status=CheckStatus.FAIL if agent_issues else CheckStatus.OK,
-                label="Agent Files",
-                details={"agents_dir": str(agents_dir), "agent_count": agent_count},
-                issues=agent_issues,
-            )
-        )
-
-        # 3. Key reference files
+        # 2. Key reference files
         key_refs = [
             "references/shared-protocols.md",
             "references/verification-core.md",
@@ -734,7 +717,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 4. Workflow files
+        # 3. Workflow files
         workflows_dir = sd / "workflows"
         workflow_count = len([f for f in workflows_dir.iterdir() if f.suffix == ".md"]) if workflows_dir.is_dir() else 0
         checks.append(
@@ -746,7 +729,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 5. Template files
+        # 4. Template files
         templates_dir = sd / "templates"
         template_count = sum(1 for _ in templates_dir.rglob("*.md")) if templates_dir.is_dir() else 0
         checks.append(
@@ -758,7 +741,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 6. Python version
+        # 5. Python version
         py_issues: list[str] = []
         py_warnings: list[str] = []
         if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
@@ -777,7 +760,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             )
         )
 
-        # 7. Package importability
+        # 6. Package importability
         import_issues: list[str] = []
         for module in ("gpd.core.utils", "gpd.core.config", "gpd.core.state", "gpd.core.conventions"):
             try:
@@ -790,22 +773,6 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
                 label="Package Imports",
                 details={"modules_checked": 4},
                 issues=import_issues,
-            )
-        )
-
-        # 8. Skill directories
-        skills_dir = sd / "skills"
-        skill_count = (
-            sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
-            if skills_dir.is_dir()
-            else 0
-        )
-        checks.append(
-            HealthCheck(
-                status=CheckStatus.OK if skill_count > 0 else CheckStatus.WARN,
-                label="Skill Files",
-                details={"skill_count": skill_count},
-                warnings=[] if skill_count > 0 else ["No gpd-* skill directories found"],
             )
         )
 

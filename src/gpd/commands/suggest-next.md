@@ -2,10 +2,10 @@
 name: gpd:suggest-next
 description: Suggest the most impactful next action based on current project state
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -18,8 +18,8 @@ This is the fastest way to answer "what should I do next?" without reading throu
 </objective>
 
 <context>
-@.planning/STATE.md
-@.planning/ROADMAP.md
+@.gpd/STATE.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>
@@ -90,4 +90,3 @@ Resolve before continuing:
 - [ ] Blockers highlighted if present
 - [ ] User has a clear next action
       </success_criteria>
-</output>

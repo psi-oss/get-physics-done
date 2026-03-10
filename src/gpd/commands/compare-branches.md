@@ -3,10 +3,10 @@ name: gpd:compare-branches
 description: Compare results across hypothesis branches side-by-side
 argument-hint: ""
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -25,7 +25,7 @@ Use after two or more hypothesis branches have produced results that can be mean
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>

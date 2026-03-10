@@ -10,7 +10,7 @@ Covers:
   - frontmatter.py: validate_frontmatter unknown schema
   - config.py: load_config error handling (missing, malformed, bad values)
   - health.py: check_* functions that catch broad exceptions
-  - utils.py: safe_parse_json / safe_parse_yaml / safe_read_file
+  - utils.py: safe_read_file
   - json_utils.py: json_get / json_keys / json_list with bad input
 """
 
@@ -24,7 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from gpd.core.config import ConfigError, GPDProjectConfig, load_config
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
 from gpd.core.frontmatter import (
     FrontmatterParseError,
     FrontmatterValidationError,
@@ -32,6 +32,7 @@ from gpd.core.frontmatter import (
     splice_frontmatter,
     validate_frontmatter,
 )
+from gpd.core.errors import ValidationError
 from gpd.core.health import (
     CheckStatus,
     check_config,
@@ -47,7 +48,7 @@ from gpd.core.state import (
     save_state_json,
     sync_state_json,
 )
-from gpd.core.utils import safe_parse_json, safe_parse_yaml, safe_read_file
+from gpd.core.utils import safe_read_file
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -55,14 +56,14 @@ from gpd.core.utils import safe_parse_json, safe_parse_yaml, safe_read_file
 
 
 def _make_planning(tmp_path: Path) -> Path:
-    """Create minimal .planning/ structure and return project root."""
-    planning = tmp_path / ".planning"
+    """Create minimal .gpd/ structure and return project root."""
+    planning = tmp_path / ".gpd"
     planning.mkdir(parents=True, exist_ok=True)
     return tmp_path
 
 
 def _write_state_json(cwd: Path, obj: dict) -> Path:
-    """Write state.json to .planning/ and return the path."""
+    """Write state.json to .gpd/ and return the path."""
     p = ProjectLayout(cwd).state_json
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(obj, indent=2), encoding="utf-8")
@@ -70,7 +71,7 @@ def _write_state_json(cwd: Path, obj: dict) -> Path:
 
 
 def _write_state_md(cwd: Path, content: str) -> Path:
-    """Write STATE.md to .planning/ and return the path."""
+    """Write STATE.md to .gpd/ and return the path."""
     p = ProjectLayout(cwd).state_md
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
@@ -82,7 +83,7 @@ MINIMAL_STATE_MD = """\
 
 ## Project Reference
 
-See: .planning/PROJECT.md
+See: .gpd/PROJECT.md
 
 **Core research question:** Test question
 **Current focus:** Testing recovery
@@ -122,8 +123,8 @@ See: .planning/PROJECT.md
 ## Session Continuity
 
 **Last session:** 2026-03-09
-**Stopped At:** Phase 01, Plan 01, Task 2
-**Resume File:** .planning/phases/01-test/01-test-01-PLAN.md
+**Stopped at:** Phase 01, Plan 01, Task 2
+**Resume file:** .gpd/phases/01-test/01-test-01-PLAN.md
 """
 
 
@@ -193,7 +194,7 @@ class TestLoadStateJsonFallback:
         cwd = _make_planning(tmp_path)
         layout = ProjectLayout(cwd)
         layout.state_json.write_text("BAD JSON", encoding="utf-8")
-        with patch.dict(os.environ, {"GPD_DEBUG": "1"}):
+        with patch.dict(os.environ, {ENV_GPD_DEBUG: "1"}):
             import logging
 
             with caplog.at_level(logging.DEBUG, logger="gpd.core.state"):
@@ -207,7 +208,7 @@ class TestLoadStateJsonFallback:
         layout.state_json.write_text("BAD", encoding="utf-8")
         layout.state_json.with_suffix(".json.bak").write_text("BAD BAK", encoding="utf-8")
         _write_state_md(cwd, MINIMAL_STATE_MD)
-        with patch.dict(os.environ, {"GPD_DEBUG": "1"}):
+        with patch.dict(os.environ, {ENV_GPD_DEBUG: "1"}):
             import logging
 
             with caplog.at_level(logging.DEBUG, logger="gpd.core.state"):
@@ -261,8 +262,8 @@ class TestEnsureStateSchema:
         result = ensure_state_schema({"_custom_key": "preserved", "position": "invalid"})
         assert result.get("_custom_key") == "preserved"
 
-    def test_legacy_project_key_migration(self) -> None:
-        """Old 'project' key maps to 'project_reference'."""
+    def test_removed_project_key_is_not_migrated(self) -> None:
+        """Removed top-level keys no longer populate the current schema."""
         result = ensure_state_schema({
             "project": {
                 "core_question": "How does X work?",
@@ -270,8 +271,12 @@ class TestEnsureStateSchema:
             }
         })
         pr = result["project_reference"]
-        assert pr["core_research_question"] == "How does X work?"
-        assert pr["current_focus"] == "Testing"
+        assert pr["core_research_question"] is None
+        assert pr["current_focus"] is None
+        assert result["project"] == {
+            "core_question": "How does X work?",
+            "current_focus": "Testing",
+        }
 
     def test_non_dict_returns_defaults(self) -> None:
         """A non-dict input (e.g. list) returns defaults."""
@@ -641,28 +646,7 @@ class TestHealthCheckGracefulDegradation:
 
 
 class TestSafeParseFunctions:
-    """safe_parse_json, safe_parse_yaml, safe_read_file never raise."""
-
-    def test_safe_parse_json_valid(self) -> None:
-        assert safe_parse_json('{"a": 1}') == {"a": 1}
-
-    def test_safe_parse_json_invalid(self) -> None:
-        assert safe_parse_json("NOT JSON") is None
-
-    def test_safe_parse_json_non_dict(self) -> None:
-        """Returns None for valid JSON that's not a dict."""
-        assert safe_parse_json("[1, 2]") is None
-        assert safe_parse_json('"just a string"') is None
-
-    def test_safe_parse_yaml_valid(self) -> None:
-        assert safe_parse_yaml("key: value\n") == {"key": "value"}
-
-    def test_safe_parse_yaml_invalid(self) -> None:
-        assert safe_parse_yaml(": : : bad\n") is None
-
-    def test_safe_parse_yaml_non_dict(self) -> None:
-        """Returns None for valid YAML that's not a dict."""
-        assert safe_parse_yaml("- item1\n- item2\n") is None
+    """safe_read_file never raises."""
 
     def test_safe_read_file_missing(self, tmp_path: Path) -> None:
         assert safe_read_file(tmp_path / "nonexistent.txt") is None
@@ -695,8 +679,8 @@ class TestJsonUtilsErrorHandling:
         assert json_get("NOT JSON", ".key", default="fallback") == "fallback"
 
     def test_json_get_invalid_json_no_default_raises(self) -> None:
-        """json_get with invalid JSON and no default raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid JSON"):
+        """json_get with invalid JSON and no default raises ValidationError."""
+        with pytest.raises(ValidationError, match="Invalid JSON"):
             json_get("NOT JSON", ".key")
 
     def test_json_get_missing_key_returns_empty(self) -> None:

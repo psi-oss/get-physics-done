@@ -2,8 +2,8 @@
 name: gpd:update
 description: Update GPD to latest version with changelog display
 allowed-tools:
-  - Bash
-  - AskUserQuestion
+  - shell
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->

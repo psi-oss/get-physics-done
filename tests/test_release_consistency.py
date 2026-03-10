@@ -68,6 +68,13 @@ def test_required_public_release_artifacts_exist() -> None:
     assert missing == []
 
 
+def test_public_citation_metadata_uses_launch_date() -> None:
+    repo_root = _repo_root()
+    citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
+
+    assert "date-released: '2026-03-15'" in citation
+
+
 def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     repo_root = _repo_root()
 
@@ -115,12 +122,17 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert 'require("../package.json")' in content
-    assert '["-m", "pip", "--version"]' in content
-    assert "does not have pip available" in content
+    assert '["-m", "venv", "--help"]' in content
+    assert "managed environment" in content
     assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
-    assert "==${packageVersion}" in content
+    assert 'const GITHUB_FALLBACK_BRANCH = "main"' in content
+    assert "==${version}" in content
+    assert "archive/refs/tags/v${version}.tar.gz" in content
+    assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
+    assert "git+${repoGitUrl}@v${version}" in content
+    assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in content
+    assert "function repositoryGitUrl(" in content
     assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
-    assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in content
 
 
 def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None:
@@ -130,8 +142,45 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
 
     assert "`--claude`" in readme
     assert "`--gemini`" in readme
+    assert "`--codex`" in readme
+    assert "`--opencode`" in readme
+    assert "`--all`" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --all --global" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --codex --local" in content
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --opencode --global" in content
+    assert 'args.includes("--all")' in content
     assert 'args.includes("--claude")' in content
     assert 'args.includes("--gemini")' in content
+    assert 'args.includes(`--${key}`)' in content
+    assert '"codex": {' in content
+    assert 'name: "Codex"' in content
+    assert '"opencode": {' in content
+    assert 'name: "OpenCode"' in content
+
+
+def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "`--reinstall`" in readme
+    assert "`--upgrade`" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --reinstall --claude --local" in readme
+    assert "npx -y github:physicalsuperintelligence/get-physics-done --upgrade --claude --local" in readme
+    assert "--reinstall" in content
+    assert "--upgrade" in content
+    assert "Reinstall the matching Python release in ~/.gpd/venv" in content
+    assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
+
+
+def test_export_workflow_uses_release_attribution_footer() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")
+
+    assert "<p><em>Generated with Get Physics Done (PSI)" in content
+    assert "{\\footnotesize\\textit{Generated with Get Physics Done (PSI)}}" in content
+    assert "Attribution: Generated with Get Physics Done (PSI)" in content
+    assert "Tool: GPD (Get Physics Done)" not in content
 
 
 def test_public_cli_surface_is_unified() -> None:
@@ -146,7 +195,7 @@ def test_public_cli_surface_is_unified() -> None:
 
 def test_install_docs_use_only_public_npx_flow() -> None:
     repo_root = _repo_root()
-    npx_command = "npx github:physicalsuperintelligence/get-physics-done"
+    npx_command = "npx -y github:physicalsuperintelligence/get-physics-done"
     disallowed_markers = (
         "uv tool install",
         "python3 -m pip install",
@@ -166,61 +215,46 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     for relative_path in ("README.md",):
         content = (repo_root / relative_path).read_text(encoding="utf-8")
         assert "Node.js with `npm`/`npx`" in content
-        assert "Python 3.11+ with `pip`" in content
+        assert "Python 3.11+ with the standard `venv` module" in content
         assert "GitHub and PyPI" in content
+        assert "~/.gpd/venv" in content
 
     assert not (repo_root / "docs" / "USER-GUIDE.md").exists()
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
-def test_public_docs_note_current_terminal_cli_limitations() -> None:
+def test_public_docs_keep_runtime_surface_first() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Known Limitations" in readme
-    assert "The integrated terminal `gpd session` launcher currently supports Claude Code only." in readme
-    assert "On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly." in readme
+    assert "After installing GPD, open your chosen runtime normally" in readme
+    assert "gpd session" not in readme
+    assert (
+        "On Codex, GPD enables experimental multi-agent support automatically during install, "
+        "but subagent activity is currently surfaced in the CLI only."
+    ) in readme
 
-
-def test_standard_install_includes_viewer_surface_dependencies() -> None:
+def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
-
-    for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette"):
-        assert any(item.startswith(dependency) for item in dependencies), f"Missing runtime dependency for {dependency}"
-
-    readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    assert "gpd view" in readme
-
-
-def test_claude_sdk_is_optional_for_public_install() -> None:
-    repo_root = _repo_root()
-    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    dependencies: list[str] = project["dependencies"]
-    optional = project["optional-dependencies"]
+    optional = project.get("optional-dependencies", {})
 
     assert not any(item.startswith("claude-agent-sdk") for item in dependencies)
-    assert any(item.startswith("claude-agent-sdk") for item in optional["claude-subagents"])
+    assert "claude-subagents" not in optional
+    assert not any(
+        item.startswith("claude-agent-sdk") for items in optional.values() for item in items
+    )
     assert "scientific" not in optional
 
 
-def test_public_install_excludes_removed_pipeline_agent_dependencies() -> None:
-    repo_root = _repo_root()
-    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    dependencies: list[str] = project["dependencies"]
-    readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    cli = (repo_root / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
 
-    assert not any(item.startswith("pydantic-ai-slim") for item in dependencies)
-    assert not any(item.startswith("tenacity") for item in dependencies)
-    assert "gpd pipeline" not in readme
-    assert 'name="pipeline"' not in cli
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     repo_root = _repo_root()
-    expected = "npx github:physicalsuperintelligence/get-physics-done"
+    expected = "npx -y github:physicalsuperintelligence/get-physics-done"
     stale_markers = (
         "packages/gpd",
         "uv pip install -e",
@@ -239,29 +273,11 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     content = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
     assert "uv run pytest tests/test_release_consistency.py -v" in content
-    assert "Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`." in content
+    assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
+    assert "Cross-runtime release checks:" in content
+    assert "Public install docs should use `npx -y github:physicalsuperintelligence/get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
 
-
-def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
-    repo_root = _repo_root()
-    paths = (
-        "src/gpd/mcp/launch.py",
-        "src/gpd/mcp/discovery/sources.py",
-    )
-    disallowed_markers = (
-        "fix-mcps",
-        "MCP Builder",
-        "modal token set",
-        "MODAL_ENVIRONMENT",
-        "gpd-mcp-servers",
-        "gpd-modal",
-    )
-
-    for relative_path in paths:
-        content = (repo_root / relative_path).read_text(encoding="utf-8")
-        for marker in disallowed_markers:
-            assert marker not in content, f"{relative_path} should not mention {marker!r}"
 
 
 def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path: Path) -> None:
@@ -275,7 +291,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
     with zipfile.ZipFile(wheel) as wheel_zip:
         wheel_names = set(wheel_zip.namelist())
         assert "gpd/cli.py" in wheel_names
-        assert "gpd/mcp/viewer/cli.py" in wheel_names
+        assert "gpd/mcp/viewer/cli.py" not in wheel_names
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         assert "gpd = gpd.cli:app" in entry_points
 
@@ -293,5 +309,11 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
         assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
-        assert "==${packageVersion}" in install_content
-        assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in install_content
+        assert 'const GITHUB_FALLBACK_BRANCH = "main"' in install_content
+        assert "==${version}" in install_content
+        assert '"-m", "venv"' in install_content
+        assert '".gpd"' in install_content
+        assert "archive/refs/tags/v${version}.tar.gz" in install_content
+        assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in install_content
+        assert "git+${repoGitUrl}@v${version}" in install_content
+        assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content

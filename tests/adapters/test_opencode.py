@@ -43,7 +43,7 @@ class TestTranslateToolName:
         assert adapter.translate_tool_name("ask_user") == "question"
         assert adapter.translate_tool_name("slash_command") == "skill"
 
-    def test_legacy_alias(self, adapter: OpenCodeAdapter) -> None:
+    def test_runtime_native_alias(self, adapter: OpenCodeAdapter) -> None:
         assert adapter.translate_tool_name("AskUserQuestion") == "question"
         assert adapter.translate_tool_name("SlashCommand") == "skill"
 
@@ -59,8 +59,8 @@ class TestConvertToolName:
     def test_mcp_passthrough(self) -> None:
         assert convert_tool_name("mcp__physics") == "mcp__physics"
 
-    def test_unknown_lowercased(self) -> None:
-        assert convert_tool_name("CustomTool") == "customtool"
+    def test_unknown_passthrough(self) -> None:
+        assert convert_tool_name("CustomTool") == "CustomTool"
 
 
 class TestConvertFrontmatter:
@@ -116,10 +116,10 @@ class TestConvertFrontmatter:
         result = convert_claude_to_opencode_frontmatter(content)
         assert "~/.config/opencode/agents/gpd-verifier.md" in result
 
-    def test_tool_name_conversion_in_body(self) -> None:
+    def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
         result = convert_claude_to_opencode_frontmatter(content)
-        assert "question" in result
+        assert result == content
 
     def test_inline_tools_field(self) -> None:
         content = "---\ndescription: D\ntools: Read, Write\n---\nBody"
@@ -339,6 +339,36 @@ class TestInstall:
 
 
 class TestUninstall:
+    def test_uninstall_removes_only_exact_managed_permission_keys(
+        self,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        adapter = OpenCodeAdapter()
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        config_path = target / "opencode.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        managed_key = f"{target.as_posix()}/get-physics-done/*"
+        preserved_read_key = f"{target.as_posix()}/custom-get-physics-done-archive/*"
+        preserved_external_key = f"{target.as_posix()}/nested/get-physics-done-backup/*"
+        config["permission"]["read"][preserved_read_key] = "allow"
+        config["permission"]["external_directory"][preserved_external_key] = "allow"
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(config_path.read_text(encoding="utf-8"))
+        read_permissions = cleaned.get("permission", {}).get("read", {})
+        external_permissions = cleaned.get("permission", {}).get("external_directory", {})
+        assert managed_key not in read_permissions
+        assert managed_key not in external_permissions
+        assert read_permissions[preserved_read_key] == "allow"
+        assert external_permissions[preserved_external_key] == "allow"
+
     def test_uninstall_cleans_local_opencode_json(
         self,
         gpd_root: Path,

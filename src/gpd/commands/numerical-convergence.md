@@ -3,13 +3,13 @@ name: gpd:numerical-convergence
 description: Systematic convergence testing for numerical physics computations
 argument-hint: "[phase number or file path]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -294,8 +294,8 @@ overall_status: converged | partially_converged | not_converged
 
 Save to:
 
-- Phase target: `.planning/phases/XX-name/CONVERGENCE.md`
-- File target: `.planning/analysis/convergence-{slug}.md`
+- Phase target: `.gpd/phases/XX-name/CONVERGENCE.md`
+- File target: `.gpd/analysis/convergence-{slug}.md`
 
 **For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `/gpd:verify-work`.
 

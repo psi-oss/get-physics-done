@@ -475,7 +475,7 @@ class TestVerifyArtifacts:
         f = tmp_path / "plan.md"
         f.write_text("---\ntitle: test\n---\n\nNo artifacts.\n")
         result = verify_artifacts(tmp_path, f)
-        assert result.all_passed is False
+        assert result.all_passed is True
         assert result.total == 0
 
     def test_string_artifact_exists(self, tmp_path):
@@ -526,109 +526,6 @@ class TestVerifyArtifacts:
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
-
-
-# ---------------------------------------------------------------------------
-# verify_key_links
-# ---------------------------------------------------------------------------
-
-
-class TestVerifyKeyLinks:
-    def test_plan_not_found(self, tmp_path):
-        from pathlib import Path
-
-        from gpd.core.frontmatter import verify_key_links
-
-        result = verify_key_links(tmp_path, Path("nonexistent.md"))
-        assert result.all_verified is False
-
-    def test_no_key_links(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        f = tmp_path / "plan.md"
-        f.write_text("---\ntitle: test\n---\n\nNo key links.\n")
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is False
-        assert result.total == 0
-
-    def test_string_key_link_exists(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        (tmp_path / "linked.md").write_text("# Linked")
-        f = tmp_path / "plan.md"
-        f.write_text("---\nmust_haves:\n  key_links:\n    - linked.md\n---\n\nBody.\n")
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is True
-        assert result.verified_count == 1
-
-    def test_string_key_link_missing(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        f = tmp_path / "plan.md"
-        f.write_text("---\nmust_haves:\n  key_links:\n    - missing.md\n---\n\nBody.\n")
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is False
-
-    def test_dict_link_target_referenced_in_source(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        (tmp_path / "source.py").write_text("import target_module  # see target.py\n")
-        (tmp_path / "target.py").write_text("# target\n")
-        f = tmp_path / "plan.md"
-        content = "---\nmust_haves:\n  key_links:\n    - from: source.py\n      to: target.py\n---\n\nBody.\n"
-        f.write_text(content)
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is True
-
-    def test_dict_link_with_regex_pattern(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        (tmp_path / "source.py").write_text("from target import func\n")
-        (tmp_path / "target.py").write_text("def func(): pass\n")
-        f = tmp_path / "plan.md"
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  key_links:\n"
-            "    - from: source.py\n"
-            "      to: target.py\n"
-            "      pattern: 'from target import'\n"
-            "---\n\nBody.\n"
-        )
-        f.write_text(content)
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is True
-
-    def test_unsafe_regex_rejected(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        (tmp_path / "source.py").write_text("content\n")
-        (tmp_path / "target.py").write_text("content\n")
-        f = tmp_path / "plan.md"
-        # Use a pattern with adjacent quantifiers (e.g. a++) that the safety check detects
-        content = (
-            "---\n"
-            "must_haves:\n"
-            "  key_links:\n"
-            "    - from: source.py\n"
-            "      to: target.py\n"
-            "      pattern: 'a++b'\n"
-            "---\n\nBody.\n"
-        )
-        f.write_text(content)
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is False
-        assert "Unsafe regex" in result.links[0].detail
-
-    def test_malformed_link_missing_fields(self, tmp_path):
-        from gpd.core.frontmatter import verify_key_links
-
-        f = tmp_path / "plan.md"
-        content = "---\nmust_haves:\n  key_links:\n    - from: source.py\n---\n\nBody.\n"
-        f.write_text(content)
-        result = verify_key_links(tmp_path, f)
-        assert result.all_verified is False
-        assert "Malformed" in result.links[0].detail
 
 
 # ---------------------------------------------------------------------------
@@ -735,51 +632,3 @@ class TestVerifyPlanStructure:
         assert any("checkpoint" in e.lower() for e in result.errors)
 
 
-# ---------------------------------------------------------------------------
-# select_template
-# ---------------------------------------------------------------------------
-
-
-class TestSelectTemplate:
-    def test_plan_not_found_raises(self, tmp_path):
-        from pathlib import Path
-
-        from gpd.core.frontmatter import FrontmatterValidationError, select_template
-
-        with pytest.raises(FrontmatterValidationError, match="not found"):
-            select_template(tmp_path, Path("nonexistent.md"))
-
-    def test_minimal_selection(self, tmp_path):
-        from gpd.core.frontmatter import select_template
-
-        f = tmp_path / "plan.md"
-        f.write_text("---\ntitle: test\n---\n\n### Task 1\nDo stuff.\n")
-        result = select_template(tmp_path, f)
-        assert result.template_type == "minimal"
-        assert result.task_count == 1
-
-    def test_complex_selection_many_tasks(self, tmp_path):
-        from gpd.core.frontmatter import select_template
-
-        tasks = "\n".join(f"### Task {i}\nDo stuff {i}.\n" for i in range(1, 8))
-        f = tmp_path / "plan.md"
-        f.write_text(f"---\ntitle: test\n---\n\n{tasks}")
-        result = select_template(tmp_path, f)
-        assert result.template_type == "complex"
-
-    def test_complex_selection_decisions(self, tmp_path):
-        from gpd.core.frontmatter import select_template
-
-        f = tmp_path / "plan.md"
-        f.write_text("---\ntitle: test\n---\n\nWe need to make a Decision here.\n")
-        result = select_template(tmp_path, f)
-        assert result.template_type == "complex"
-
-    def test_standard_selection(self, tmp_path):
-        from gpd.core.frontmatter import select_template
-
-        tasks = "\n".join(f"### Task {i}\nUse `src/mod{i}.py`.\n" for i in range(1, 4))
-        f = tmp_path / "plan.md"
-        f.write_text(f"---\ntitle: test\n---\n\n{tasks}")
-        result = select_template(tmp_path, f)
-        assert result.template_type == "standard"

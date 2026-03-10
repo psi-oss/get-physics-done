@@ -4,7 +4,7 @@ template_version: 1
 
 # Research Verification Template
 
-Template for `.planning/phases/XX-name/{phase}-VERIFICATION.md` -- persistent research verification session tracking.
+Template for `.gpd/phases/XX-name/{phase}-VERIFICATION.md` -- persistent research verification session tracking.
 
 A conversational walkthrough of research results, checking derivation logic, physical intuition, edge cases, and overall soundness.
 
@@ -115,7 +115,7 @@ skipped: [N]
 
 - APPEND only when issue found (YAML format)
 - After diagnosis: fill `root_cause`, `artifacts`, `missing`, `debug_session`
-- This section feeds directly into $gpd-plan-phase --gaps
+- This section feeds directly into /gpd:plan-phase --gaps
 
 </section_rules>
 
@@ -183,7 +183,7 @@ Probe how sensitive results are to assumptions and approximations.
 4. VERIFICATION.md Gaps section updated with diagnosis:
    - Each gap gets `root_cause`, `artifacts`, `missing`, `debug_session` filled
 5. status -> "diagnosed"
-6. Ready for $gpd-plan-phase --gaps with root causes
+6. Ready for /gpd:plan-phase --gaps with root causes
 
 **After diagnosis:**
 
@@ -201,14 +201,14 @@ Probe how sensitive results are to assumptions and approximations.
       issue: "J_eff = J / sqrt(N) but should be J / sqrt(N-1) for this convention"
   missing:
     - "Correct T_c calculation with proper coupling normalization"
-  debug_session: ".planning/debug/wrong-critical-temp.md"
+  debug_session: ".gpd/debug/wrong-critical-temp.md"
 ```
 
 </diagnosis_lifecycle>
 
 <lifecycle>
 
-**Creation:** When $gpd-verify-work starts new verification session
+**Creation:** When /gpd:verify-work starts new verification session
 
 - Extract checks from SUMMARY.md files and verification report
 - Organize by check category (derivation logic, intuition, limits, edges, consistency, robustness)
@@ -335,7 +335,7 @@ skipped: 0
     issue: "N_equil = 10000 is too few sweeps at low temperature"
     missing:
   - "Increase equilibration to 10^5 sweeps minimum, add autocorrelation analysis"
-    debug_session: ".planning/debug/mc-equilibration.md"
+    debug_session: ".gpd/debug/mc-equilibration.md"
 
 - truth: "Results are insensitive to equilibration time (converged)"
   status: failed
@@ -349,7 +349,7 @@ skipped: 0
     missing:
   - "Implement adaptive equilibration with autocorrelation time measurement"
   - "Add convergence diagnostic: run until autocorrelation time is measured and N_equil > 20 \* tau_auto"
-    debug_session: ".planning/debug/mc-equilibration.md"
+    debug_session: ".gpd/debug/mc-equilibration.md"
 ```
 
 </good_example>

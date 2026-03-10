@@ -3,14 +3,14 @@ name: gpd:parameter-sweep
 description: Systematic parameter sweep with parallel execution and result aggregation
 argument-hint: "[phase] [--param name --range start:end:steps] [--adaptive] [--log]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -31,8 +31,8 @@ Execute a systematic parameter sweep: vary one or more parameters across a range
 <context>
 Phase: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -94,7 +94,7 @@ Wave 3: [adaptive refinement near features found in waves 1-2]
 - Wave 1 covers the full range at coarse resolution — reveals the landscape
 - Wave 2 fills in the gaps — smooth regions need no more, interesting regions get wave 3
 - Wave 3+ adapts: refine near phase transitions, critical points, extrema, or unexpected features
-- Within each wave, all points are independent and execute in parallel via Task tool
+- Within each wave, all points are independent and execute in parallel via task tool
 
 For multi-dimensional sweeps, each wave executes a slice or random subset of the full grid.
 
@@ -191,8 +191,8 @@ Fixed: {param} = {value}, {param} = {value}
 ```
 
 Save to:
-- Phase target: `.planning/phases/XX-name/SWEEP-{slug}.md` + data files
-- Standalone: `.planning/analysis/sweep-{slug}/`
+- Phase target: `.gpd/phases/XX-name/SWEEP-{slug}.md` + data files
+- Standalone: `.gpd/analysis/sweep-{slug}/`
 
 ## 6. Common Pitfalls
 

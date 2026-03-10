@@ -24,7 +24,6 @@ On single-model platforms, all tiers resolve to null (use the platform's default
 | gpd-project-researcher   | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-research-synthesizer | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-debugger             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
-| map-content              | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-theory-mapper        | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
 | gpd-verifier             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-plan-checker         | tier-2        | tier-2      | tier-2        | tier-1   | tier-2          |
@@ -222,7 +221,7 @@ When selecting a profile, consider not just the token cost tradeoff (shown in th
 Orchestrators resolve model before spawning:
 
 ```
-1. Read .planning/config.json
+1. Read .gpd/config.json
 2. Get model_profile (default: "review")
 3. Look up agent in table above
 4. Pass model parameter to Task call
@@ -230,9 +229,9 @@ Orchestrators resolve model before spawning:
 
 ## Switching Profiles
 
-Runtime: `$gpd-set-profile <profile>`
+Runtime: `/gpd:set-profile <profile>`
 
-Per-project default: Set in `.planning/config.json`:
+Per-project default: Set in `.gpd/config.json`:
 
 ```json
 {

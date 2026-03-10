@@ -21,7 +21,7 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-consistency-checker | < 30% | 30-45% | 45-60% | > 60% | phase pair | Reads many cross-phase artifacts; needs headroom for compliance matrix |
 | gpd-debugger | < 30% | 30-50% | 50-65% | > 65% | investigation technique | Must hold hypothesis context, evidence history, and eliminated alternatives simultaneously |
 | gpd-literature-reviewer | < 35% | 35-50% | 50-60% | > 60% | review area | Each paper reviewed ~2-3%; many papers needed for thorough review |
-| gpd-phase-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | WebSearch results ~2-4% each; synthesize after 8-10 searches |
+| gpd-phase-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | web_search results ~2-4% each; synthesize after 8-10 searches |
 | gpd-project-researcher | < 35% | 35-50% | 50-65% | > 65% | research area | Same as phase-researcher; limit to 10-15 searches before synthesizing |
 | gpd-planner | < 35% | 35-50% | 50-65% | > 65% | plan file | Large plan output (~5-8% per plan); keep plans concise |
 | gpd-plan-checker | < 35% | 35-50% | 50-65% | > 65% | plan check | Each verification dimension ~2-3%; exploratory (8 dims) vs comprehensive (15 dims) |
@@ -32,7 +32,6 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-research-synthesizer | < 40% | 40-60% | 60-70% | > 70% | synthesis section | Loading 4-5 researcher outputs consumes ~20-30% before synthesis |
 | gpd-paper-writer | < 40% | 40-55% | 55-65% | > 65% | paper section | Each section ~5-10%; focus on assigned sections only |
 | gpd-roadmapper | < 40% | 40-60% | 60-75% | > 75% | phase design | Standard consumption; for 8+ phases use concise descriptions |
-| map-content | < 40% | 40-60% | 60-75% | > 75% | folder slice | Inventory broadly first, then deepen only the highest-signal artifacts |
 | gpd-theory-mapper | < 40% | 40-60% | 60-75% | > 75% | focus area document | Each focus area ~5-8%; limit exploration depth |
 | gpd-notation-coordinator | < 45% | 45-60% | 60-75% | > 75% | convention category | Produces shorter outputs; process one category at a time |
 | gpd-verifier | -- | -- | -- | ~75% | verification check | Single trigger only; no graduated levels |
@@ -45,7 +44,7 @@ Three clusters based on how aggressively agents must manage context:
 - consistency-checker, debugger, literature-reviewer, phase-researcher, project-researcher, planner, plan-checker
 
 **Standard (GREEN < 40%):** Agents with typical read/write patterns.
-- executor, referee, bibliographer, experiment-designer, research-synthesizer, paper-writer, roadmapper, map-content, theory-mapper
+- executor, referee, bibliographer, experiment-designer, research-synthesizer, paper-writer, roadmapper, theory-mapper
 
 **Lenient (GREEN 40-45%):** Agents that produce short outputs or work with focused inputs.
 - notation-coordinator
@@ -55,7 +54,7 @@ Three clusters based on how aggressively agents must manage context:
 | Activity | Estimated Cost | Notes |
 |---|---|---|
 | File read | ~2-5% | Larger files cost more |
-| WebSearch result | ~2-4% | Search results vary in length |
+| web_search result | ~2-4% | Search results vary in length |
 | Substantial output block | ~1-3% | Derivations, analyses, code |
 | Plan file produced | ~5-8% | Complex plans with task breakdowns |
 | Paper section drafted | ~5-10% | Equations and text combined |

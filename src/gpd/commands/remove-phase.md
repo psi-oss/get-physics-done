@@ -3,10 +3,10 @@ name: gpd:remove-phase
 description: Remove a future research phase from roadmap and renumber subsequent phases
 argument-hint: <phase-number>
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
+  - file_read
+  - file_write
+  - shell
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -32,8 +32,8 @@ Output: Phase deleted, all subsequent phases renumbered, gpd commit as historica
 <context>
 Phase: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>

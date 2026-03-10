@@ -3,14 +3,14 @@ name: gpd:sensitivity-analysis
 description: Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate
 argument-hint: "[--target quantity] [--params p1,p2,...] [--method analytical|numerical]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - find_files
+  - search_files
+  - task
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -31,8 +31,8 @@ Determine which input parameters most strongly affect output quantities. Compute
 <context>
 Target: $ARGUMENTS
 
-@.planning/ROADMAP.md
-@.planning/STATE.md
+@.gpd/ROADMAP.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -235,8 +235,8 @@ least_sensitive: {parameter name}
 ```
 
 Save to:
-- Phase target: `.planning/phases/XX-name/SENSITIVITY.md`
-- Project-wide: `.planning/analysis/sensitivity-{target}.md`
+- Phase target: `.gpd/phases/XX-name/SENSITIVITY.md`
+- Project-wide: `.gpd/analysis/sensitivity-{target}.md`
 
 </process>
 

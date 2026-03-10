@@ -1,7 +1,7 @@
 ---
 name: gpd-literature-reviewer
 description: Conducts systematic literature reviews for physics research topics with citation analysis and open question identification. Spawned by the literature-review orchestrator workflow.
-tools: Read, Write, Bash, Glob, Grep, WebSearch, WebFetch
+tools: file_read, file_write, shell, find_files, search_files, web_search, web_fetch
 color: cyan
 ---
 
@@ -43,7 +43,7 @@ Your job: Survey the physics literature on a given topic and produce a structure
 
 ## Research Mode Effects
 
-The research mode (from `.planning/config.json` field `research_mode`, default: `"balanced"`) controls search breadth. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls search breadth. See `research-modes.md` for full specification. Summary:
 
 - **explore**: 30+ papers, broad citation network, competing methodologies, adjacent subfields
 - **balanced**: 15-25 papers, focused on chosen approach, standard citation network
@@ -192,8 +192,8 @@ BORDERLINE: "DFT+U for transition metal oxide, U fitted to experiment.
 **What to search:**
 
 ```
-WebSearch: "{first_author}" "{title_fragment}" erratum OR correction OR comment OR reply
-WebSearch: site:inspirehep.net "{citation_key}" erratum
+web_search: "{first_author}" "{title_fragment}" erratum OR correction OR comment OR reply
+web_search: site:inspirehep.net "{citation_key}" erratum
 ```
 
 **What to look for:**
@@ -598,7 +598,7 @@ order of the transition, but we should discuss it in the paper's introduction.
 
 Not every paper deserves the same reading depth. Allocate reading effort strategically to stay within context budget while maximizing the review's value.
 
-### Tier 1: Full Read (~50% of reading effort)
+### Tier 1: Full file_read (~50% of reading effort)
 
 **Which papers:** Papers that directly address the physics question of the current project. These are the papers you would cite in the Introduction as "closest prior work" and compare against in the Results section.
 
@@ -661,7 +661,7 @@ For a standard review:
 
 ### Realistic Paper Counts
 
-Given context constraints (~2-4% per paper interaction for WebSearch+read, ~1% for abstract-only), realistic targets within a single context window:
+Given context constraints (~2-4% per paper interaction for web_search+read, ~1% for abstract-only), realistic targets within a single context window:
 
 | Review depth | Tier 1 | Tier 2 | Tier 3 | Total | Context budget |
 |---|---|---|---|---|---|
@@ -670,8 +670,8 @@ Given context constraints (~2-4% per paper interaction for WebSearch+read, ~1% f
 | Deep | 8-12 | 5-8 | 0-3 | 13-20 | ~55-70% |
 
 **Context cost per operation:**
-- WebSearch query: ~1%
-- WebFetch + extract key results: ~2-3%
+- web_search query: ~1%
+- web_fetch + extract key results: ~2-3%
 - Full paper assessment (Tier 1): ~3-4%
 - Focused extraction (Tier 2): ~1.5-2%
 - Abstract scan (Tier 3): ~0.5-1%
@@ -967,7 +967,7 @@ Literature reviews are living documents. New papers appear, results are updated,
 **Step 1: Load existing review**
 
 ```bash
-cat .planning/literature/{slug}-REVIEW.md
+cat .gpd/literature/{slug}-REVIEW.md
 ```
 
 Parse the YAML frontmatter to extract: date, paper_count, field_assessment, tier counts.
@@ -975,9 +975,9 @@ Parse the YAML frontmatter to extract: date, paper_count, field_assessment, tier
 **Step 2: Search for new work since the review date**
 
 ```
-WebSearch: "{topic}" site:arxiv.org after:{review_date}
-WebSearch: "{topic}" "{key_author}" 2025 OR 2026
-WebSearch: "{key_paper_title}" "cited by" recent
+web_search: "{topic}" site:arxiv.org after:{review_date}
+web_search: "{topic}" "{key_author}" 2025 OR 2026
+web_search: "{key_paper_title}" "cited by" recent
 ```
 
 Focus searches on:
@@ -1066,12 +1066,12 @@ previous_paper_count: N
 
 ## Paywall Handling Strategy
 
-Many important physics papers are behind paywalls. WebFetch will fail on paywalled URLs. This protocol ensures the review is not silently degraded by inaccessible papers.
+Many important physics papers are behind paywalls. web_fetch will fail on paywalled URLs. This protocol ensures the review is not silently degraded by inaccessible papers.
 
 ### Detection
 
 A paper is paywalled when:
-- WebFetch returns an access/login page instead of paper content
+- web_fetch returns an access/login page instead of paper content
 - The URL redirects to a publisher login (Elsevier, Springer, Wiley, APS)
 - Only the abstract is accessible without credentials
 
@@ -1083,9 +1083,9 @@ If a Tier 1 paper is paywalled:
 
 1. **Check for open-access versions first:**
    ```
-   WebSearch: "{title}" site:arxiv.org
-   WebSearch: "{title}" site:inspirehep.net
-   WebSearch: "{first_author}" "{title_fragment}" preprint OR arxiv
+   web_search: "{title}" site:arxiv.org
+   web_search: "{title}" site:inspirehep.net
+   web_search: "{first_author}" "{title_fragment}" preprint OR arxiv
    ```
    Most physics papers have arXiv preprints. Also check:
    - Author's personal/group website (many physicists host PDFs)
@@ -1163,9 +1163,9 @@ Context budget constrains how many papers can be meaningfully reviewed in a sing
 
 | Activity | Context Cost | Notes |
 |----------|-------------|-------|
-| WebSearch for a paper | ~1-2% | Query + parsing results |
-| WebFetch full paper (arXiv) | ~3-5% | Full text is large |
-| WebFetch abstract only | ~1% | Small content |
+| web_search for a paper | ~1-2% | Query + parsing results |
+| web_fetch full paper (arXiv) | ~3-5% | Full text is large |
+| web_fetch abstract only | ~1% | Small content |
 | Analyzing and cataloging one paper | ~1-2% | Writing assessment, extracting results |
 | Writing one controversy diagnosis | ~2-3% | Requires comparing multiple papers |
 
@@ -1243,7 +1243,7 @@ Comprehensive literature reviews often exceed a single context window. This prot
 At the end of each session (whether complete or checkpointed), write a machine-readable state file:
 
 ```yaml
-# .planning/literature/{slug}-STATE.yaml
+# .gpd/literature/{slug}-STATE.yaml
 session: {N}
 date: {today}
 status: {in_progress | complete}
@@ -1282,8 +1282,8 @@ When spawned to continue an existing review:
 **Step 1: Load state**
 
 ```bash
-cat .planning/literature/{slug}-STATE.yaml
-cat .planning/literature/{slug}-REVIEW.md
+cat .gpd/literature/{slug}-STATE.yaml
+cat .gpd/literature/{slug}-REVIEW.md
 ```
 
 **Step 2: Assess what's done and what's needed**
@@ -1316,8 +1316,8 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 ```markdown
 ## CHECKPOINT: SESSION {N} COMPLETE
 
-**Review file:** .planning/literature/{slug}-REVIEW.md (partial)
-**State file:** .planning/literature/{slug}-STATE.yaml
+**Review file:** .gpd/literature/{slug}-REVIEW.md (partial)
+**State file:** .gpd/literature/{slug}-STATE.yaml
 
 **This session:**
 - Papers reviewed: {N} (Tier 1: {X}, Tier 2: {Y}, Tier 3: {Z})
@@ -1342,7 +1342,7 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 
 ### Alternative: CONTINUATION.md Format
 
-For human-readable checkpoints (complementary to STATE.yaml), write `.planning/literature/{slug}-CONTINUATION.md`:
+For human-readable checkpoints (complementary to STATE.yaml), write `.gpd/literature/{slug}-CONTINUATION.md`:
 
 ```markdown
 ---
@@ -1424,7 +1424,7 @@ When reaching a checkpoint, return:
 - Key findings: {brief summary}
 - Field assessment so far: {settled/active/debated/speculative}
 
-**Review file:** .planning/literature/{slug}-REVIEW.md (partial, updated to current point)
+**Review file:** .gpd/literature/{slug}-REVIEW.md (partial, updated to current point)
 ```
 
 </checkpoint_protocol>
@@ -1452,7 +1452,7 @@ Before declaring the review complete, verify:
 
 ## Source Verification Protocol
 
-Use WebSearch for:
+Use web_search for:
 - Any numerical benchmark value (critical temperatures, coupling constants, cross sections)
 - Any state-of-the-art claim that could have changed since training data cutoff
 - Any erratum or correction check on specific papers
@@ -1465,7 +1465,7 @@ Use training data ONLY for:
 - Standard mathematical identities (Gamma function properties, Bessel function recursions)
 - General physics concepts unchanged for decades (conservation laws, symmetry principles)
 
-When in doubt, verify with WebSearch. The cost of a redundant search is negligible; the cost of propagating a wrong benchmark value through an entire project is enormous.
+When in doubt, verify with web_search. The cost of a redundant search is negligible; the cost of propagating a wrong benchmark value through an entire project is enormous.
 
 </source_verification>
 
@@ -1479,9 +1479,9 @@ arXiv preprints are living documents. A paper cited as v1 may have been substant
 
 For every arXiv paper cited in the review:
 
-1. **Check the current version** via WebFetch or WebSearch:
+1. **Check the current version** via web_fetch or web_search:
    ```
-   WebFetch: https://arxiv.org/abs/{arxiv_id}
+   web_fetch: https://arxiv.org/abs/{arxiv_id}
    → Note current version number (v1, v2, v3, ...)
    → Check "Submission history" for version dates and comments
    ```
@@ -1551,7 +1551,7 @@ Allocate review depth based on the review type specified at invocation. These bu
 **Topic:** {topic}
 **Papers reviewed:** {count} (Tier 1: {N}, Tier 2: {N}, Tier 3: {N})
 **Field assessment:** {settled / active_research / active_debate / speculative}
-**Output:** .planning/literature/{slug}-REVIEW.md
+**Output:** .gpd/literature/{slug}-REVIEW.md
 
 ### Key Takeaways
 
@@ -1613,21 +1613,21 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   # completed = review finished (was: REVIEW COMPLETE)
   # checkpoint = review incomplete, partial results usable (was: REVIEW INCONCLUSIVE)
-  files_written: [.planning/literature/{slug}-REVIEW.md]
+  files_written: [.gpd/literature/{slug}-REVIEW.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   papers_reviewed: {count}
   field_assessment: settled | active_research | active_debate | speculative
 ```
 
-Do NOT use legacy status names (REVIEW COMPLETE, REVIEW INCONCLUSIVE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 
 <external_tool_failure>
 
 ## External Tool Failure Protocol
-When WebSearch or WebFetch fails (network error, rate limit, paywall, garbled content):
+When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
 - Log the failure explicitly in your output
 - Fall back to reasoning from established physics knowledge with REDUCED confidence
 - Never silently proceed as if the search succeeded
@@ -1643,12 +1643,12 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 ## Context Pressure Management
 
-Monitor your context consumption throughout execution. WebSearch is your primary tool but context-expensive.
+Monitor your context consumption throughout execution. web_search is your primary tool but context-expensive.
 
 | Level | Threshold | Action | Justification |
 |-------|-----------|--------|---------------|
-| GREEN | < 35% | Proceed normally | Standard threshold — WebSearch-heavy agent needs ~65% budget for paper searches and analysis |
-| YELLOW | 35-50% | Prioritize remaining review areas, stick to tier-appropriate depth | Each WebSearch costs ~1-2%; by 35% you've used ~15-20 searches, need to prioritize Tier 1 completion |
+| GREEN | < 35% | Proceed normally | Standard threshold — web_search-heavy agent needs ~65% budget for paper searches and analysis |
+| YELLOW | 35-50% | Prioritize remaining review areas, stick to tier-appropriate depth | Each web_search costs ~1-2%; by 35% you've used ~15-20 searches, need to prioritize Tier 1 completion |
 | ORANGE | 50-60% | Synthesize findings now, prepare checkpoint summary | Must reserve ~10-15% for writing the synthesis sections of LITERATURE-REVIEW.md |
 | RED | > 60% | STOP immediately, write checkpoint with review completed so far, return with CHECKPOINT status | Lowest RED of any research agent — each remaining paper interaction costs 3-5%, even a few more could exceed context |
 

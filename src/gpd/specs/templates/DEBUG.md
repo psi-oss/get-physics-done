@@ -6,7 +6,7 @@ template_version: 1
 
 # Debug Template
 
-Template for `.planning/debug/[slug].md` - active debug session tracking for physics calculations.
+Template for `.gpd/debug/[slug].md` - active debug session tracking for physics calculations.
 
 ---
 
@@ -138,7 +138,7 @@ files_changed: []
 
 <lifecycle>
 
-**Creation:** Immediately when $gpd-debug is called
+**Creation:** Immediately when /gpd:debug is called
 
 - Create file with trigger from user input
 - Set status to "gathering"
@@ -188,7 +188,7 @@ files_changed: []
 
 - status -> "resolved"
 - Update Resolution.lessons_learned
-- Move file to .planning/debug/resolved/
+- Move file to .gpd/debug/resolved/
 
 </lifecycle>
 

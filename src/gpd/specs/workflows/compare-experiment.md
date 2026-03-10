@@ -1,13 +1,13 @@
 <purpose>
 Systematically compare theoretical predictions with experimental or observational data. Handles unit conversion, uncertainty propagation, statistical testing, and discrepancy analysis.
 
-Called from $gpd-compare-experiment command. Produces COMPARISON.md with quantified agreement metrics.
+Called from /gpd:compare-experiment command. Produces COMPARISON.md with quantified agreement metrics.
 
 Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
 </purpose>
 
 <required_reading>
-Read these files using the Read tool:
+Read these files using the file_read tool:
 - {GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md -- Template for systematic theory-experiment comparison (data source metadata, unit conversion checklist, pull calculation, discrepancy classification, root cause hierarchy)
 </required_reading>
 
@@ -28,8 +28,8 @@ fi
 ```
 
 - Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`
-- **If `state_exists` is true:** Read `.planning/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
-- **If `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via AskUserQuestion (unit system, sign conventions, normalization)
+- **If `state_exists` is true:** Read `.gpd/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
+- **If `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via ask_user (unit system, sign conventions, normalization)
 
 Convention context is critical for theory-experiment comparison: unit mismatches and convention mismatches are the two most common sources of discrepancy.
 
@@ -66,7 +66,7 @@ For each measurement, establish:
 - **Conventions:** Units, normalization, binning, acceptance corrections
 - **Conditions:** Temperature, pressure, energy, other experimental parameters
 
-Use AskUserQuestion if data source is ambiguous:
+Use ask_user if data source is ambiguous:
 
 1. **Data source** -- Published paper | Our own measurements | Database (PDG, NIST, etc.) | Simulation (lattice, MD, etc.)
 2. **Data format** -- CSV/table | Digitized from plot | API/database query | File path
@@ -279,10 +279,10 @@ Save to:
 - **Standalone** (no phase context):
 
 ```bash
-mkdir -p .planning/analysis
+mkdir -p .gpd/analysis
 ```
 
-Write to `.planning/analysis/comparison-{slug}.md`
+Write to `.gpd/analysis/comparison-{slug}.md`
 
 ## 6. Generate Comparison Figures
 
@@ -304,7 +304,7 @@ chi2/ndof = {value}, p-value = {value}
 Maximum tension: {N} sigma at {parameter value}
 
 Theory predictions are consistent with experimental data.
-Ready for: `$gpd-write-paper` (Results section)
+Ready for: `/gpd:write-paper` (Results section)
 ```
 
 If discrepancy:
@@ -318,8 +318,8 @@ chi2/ndof = {value}, p-value = {value}
 {Classification and magnitude}
 
 ### Suggested Investigation
-- `$gpd-debug` -- investigate the discrepancy
-- `$gpd-limiting-cases` -- check if the prediction is valid in this regime
+- `/gpd:debug` -- investigate the discrepancy
+- `/gpd:limiting-cases` -- check if the prediction is valid in this regime
 - Check experimental systematic uncertainties
 - Compute next-order theoretical corrections
 ```
@@ -340,7 +340,7 @@ Where `${COMPARISON_OUTPUT_PATH}` is the path chosen in step 5 (phase-scoped or 
 </process>
 
 <output>
-COMPARISON.md written to `.planning/analysis/comparison-{slug}.md` with full quantified comparison.
+COMPARISON.md written to `.gpd/analysis/comparison-{slug}.md` with full quantified comparison.
 </output>
 
 <success_criteria>

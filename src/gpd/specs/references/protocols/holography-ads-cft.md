@@ -24,7 +24,10 @@ Holographic calculations connect gravitational theories in (d+1)-dimensional ant
 - See `effective-field-theory.md` for holographic EFT and derivative expansion
 - See `renormalization-group.md` for holographic RG (radial evolution as RG flow)
 - See `conformal-bootstrap.md` for CFT data extraction and crossing symmetry
+- See `supersymmetry.md` for BPS bounds, indices, localization, and local-vs-global SUSY caveats
 - See `numerical-relativity.md` for numerical solutions of bulk equations
+
+For worldsheet derivations of the duality, D-brane constructions, or compactification input data, also load `subfields/string-theory.md`.
 
 ## Step 1: Declare Holographic Setup and Conventions
 
@@ -34,6 +37,7 @@ Before any holographic calculation, explicitly state:
 2. **Metric signature:** State (+,-,...,-) or (-,+,...,+) and the sign of the cosmological constant. In (+,-,...,-): ds^2 = (L^2/z^2)(dt^2 - dx_i^2 - dz^2) for Poincare patch, boundary at z -> 0.
 3. **Boundary CFT:** State the CFT dimension d, the central charge (or its holographic dual N^2), and the relevant operators with their conformal dimensions.
 4. **Dictionary version:** State which form of the GKPW relation is used: Z_gravity[phi_0] = <exp(integral phi_0 O)>_CFT. The boundary condition phi_0 can be the leading or subleading mode depending on the quantization (standard vs alternative).
+5. **Protected sector:** If supersymmetry is used, state the preserved supercharges, R-symmetry, and whether the observable is protected (index, localized partition function, BPS Wilson loop, short-multiplet data). Do not extrapolate non-protected weak-coupling quantities as though SUSY fixed them.
 
 ## Step 2: Holographic Dictionary Verification
 
@@ -84,6 +88,7 @@ Near the AdS boundary (z -> 0), bulk fields have divergent contributions that re
 | BF bound | m^2 L^2 >= -d^2/4 | Tachyonic instabilities |
 | Unitarity bound | Delta >= (d-2)/2 for scalars, Delta >= d-1 for conserved currents | Unphysical operators |
 | Large-N scaling | Free energy ~ N^2, correlators scale correctly | Wrong normalization |
+| Protected observable matching | Match the same preserved supercharge/BPS sector on both sides of the duality | Overextending weak-coupling SUSY control to non-protected data |
 | Conformal anomaly | Match a, c coefficients with known CFT | Wrong holographic renormalization |
 | Thermodynamics | Bekenstein-Hawking entropy matches thermal CFT | Wrong black hole solution |
 | Strong subadditivity | S_A + S_B >= S_{A union B} + S_{A intersect B} | Wrong entanglement entropy calculation |

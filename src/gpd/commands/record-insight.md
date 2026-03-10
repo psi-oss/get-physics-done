@@ -3,17 +3,17 @@ name: gpd:record-insight
 description: Record a project-specific learning or pattern to the insights ledger
 argument-hint: "[optional description]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
+  - file_read
+  - file_write
+  - file_edit
+  - shell
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Record a project-specific learning, error pattern, or insight to `.planning/INSIGHTS.md`.
+Record a project-specific learning, error pattern, or insight to `.gpd/INSIGHTS.md`.
 
 Routes to the record-insight workflow which handles:
 
@@ -37,7 +37,7 @@ Typical insights include:
 </execution_context>
 
 <context>
-@.planning/STATE.md
+@.gpd/STATE.md
 </context>
 
 <process>
@@ -45,7 +45,7 @@ Typical insights include:
 
 The workflow handles all logic including:
 
-1. Checking/creating `.planning/INSIGHTS.md`
+1. Checking/creating `.gpd/INSIGHTS.md`
 2. Duplicate detection
 3. Determining the correct section (Debugging Patterns, Verification Lessons, Consistency Issues, Execution Deviations)
 4. Appending structured table row with date, phase, category, confidence, description, prevention

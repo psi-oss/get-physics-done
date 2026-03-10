@@ -7,7 +7,7 @@ template_version: 1
 
 # Key Results Research Template
 
-Template for `.planning/research/KEY_RESULTS.md` - key results, predictions, and deliverables for the research domain.
+Template for `.gpd/research/KEY_RESULTS.md` - key results, predictions, and deliverables for the research domain.
 
 <template>
 

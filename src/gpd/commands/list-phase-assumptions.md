@@ -3,10 +3,10 @@ name: gpd:list-phase-assumptions
 description: Surface the AI's assumptions about a phase approach before planning
 argument-hint: "[phase]"
 allowed-tools:
-  - Read
-  - Bash
-  - Grep
-  - Glob
+  - file_read
+  - shell
+  - search_files
+  - find_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -71,10 +71,10 @@ Output: Conversational output only (no file creation) -- ends with "What do you 
 Phase number: $ARGUMENTS (required)
 
 **Load project state first:**
-@.planning/STATE.md
+@.gpd/STATE.md
 
 **Load roadmap:**
-@.planning/ROADMAP.md
+@.gpd/ROADMAP.md
 </context>
 
 <process>

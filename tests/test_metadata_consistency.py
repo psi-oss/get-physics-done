@@ -5,6 +5,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+from gpd import registry as content_registry
 from gpd.contracts import ConventionLock
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
@@ -59,14 +60,13 @@ def test_release_inventory_counts_match_repo_contents() -> None:
     repo_root = _repo_root()
     commands_count = len(list((repo_root / "src" / "gpd" / "commands").glob("*.md")))
     agents_count = len(list((repo_root / "src" / "gpd" / "agents").glob("*.md")))
-    spec_agents_count = len(list((repo_root / "src" / "gpd" / "specs" / "agents").glob("*.md")))
-    skills_count = len(list((repo_root / "src" / "gpd" / "specs" / "skills").glob("*/SKILL.md")))
+    content_registry.invalidate_cache()
+    skills_count = len(content_registry.list_skills())
     mcp_server_count = len([p for p in (repo_root / "src" / "gpd" / "mcp" / "servers").glob("*.py") if p.name != "__init__.py"])
     mcp_script_count = sum(1 for line in _project_script_lines(repo_root) if line.startswith('"gpd-mcp-'))
 
     assert commands_count >= 50
-    assert agents_count == spec_agents_count
-    assert skills_count >= commands_count
+    assert skills_count == commands_count + agents_count
     assert mcp_server_count == mcp_script_count
 
 
@@ -98,9 +98,7 @@ def test_mcp_server_count_matches_public_entrypoints() -> None:
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:
     agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
-    spec_agents_count = len(list((_repo_root() / "src" / "gpd" / "specs" / "agents").glob("*.md")))
     assert agents_count == 17
-    assert agents_count == spec_agents_count
     assert "specialist agents" in _read("README.md")
 
 
@@ -108,6 +106,6 @@ def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
     assert health_check_count == 11
 
-    skill = _read("src/gpd/specs/skills/gpd-health/SKILL.md")
-    assert f"({health_check_count} checks)" in skill
-    assert f"All {health_check_count} checks reported with status" in skill
+    command = _read("src/gpd/commands/health.md")
+    assert "All {total} health checks passed." in command
+    assert "All checks reported with status" in command

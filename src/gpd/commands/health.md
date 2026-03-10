@@ -3,28 +3,28 @@ name: gpd:health
 description: Run project health checks and optionally auto-fix issues
 argument-hint: "[--fix]"
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Run comprehensive project health checks and optionally auto-fix detected issues.
+Run comprehensive project health checks (11 checks) and optionally auto-fix detected issues.
 
-Checks include: state.json validity, STATE.md sync, convention lock integrity, config.json validity, orphaned phase directories, ROADMAP.md consistency, missing plan files, stale artifacts, and git status.
+Checks include: environment, project structure, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, and git status.
 
 Use `--fix` to automatically repair detected issues.
 </objective>
 
 <context>
-@.planning/STATE.md
-@.planning/state.json
-@.planning/config.json
+@.gpd/STATE.md
+@.gpd/state.json
+@.gpd/config.json
 </context>
 
 <process>
@@ -92,4 +92,3 @@ All {total} health checks passed.
 - [ ] Auto-fix applied if --fix flag present
 - [ ] Clear guidance on how to fix remaining issues
       </success_criteria>
-</output>

@@ -75,6 +75,18 @@ class TestClaudeCodeRoundtrip:
             content = md.read_text(encoding="utf-8")
             assert "{GPD_INSTALL_DIR}" not in content
 
+    def test_shared_content_tool_references_are_translated(self, installed: Path) -> None:
+        """Shared markdown content should use Claude-native tool names."""
+        workflow = (installed / "get-physics-done" / "workflows" / "wor.md").read_text(encoding="utf-8")
+        reference = (installed / "get-physics-done" / "references" / "ref.md").read_text(encoding="utf-8")
+
+        assert "AskUserQuestion([" in workflow
+        assert "ask_user(" not in workflow
+        assert "Task(" in workflow
+        assert "task(" not in workflow
+        assert "WebSearch" in reference
+        assert "web_search" not in reference
+
     def test_hooks_copied(self, installed: Path, gpd_root: Path) -> None:
         """Hook scripts are copied faithfully."""
         for hook in (gpd_root / "hooks").iterdir():
@@ -148,18 +160,18 @@ class TestGeminiRoundtrip:
     def test_agents_tool_names_converted(self, installed: Path) -> None:
         """Gemini agents use Gemini tool names (read_file, not Read)."""
         verifier = installed / "agents" / "gpd-verifier.md"
-        if verifier.exists():
-            content = verifier.read_text(encoding="utf-8")
-            # Tools should be in Gemini format
-            if "tools:" in content:
-                end = content.find("---", 3)
-                if end > 0:
-                    fm = content[3:end]
-                    # "Read" should be converted to "read_file"
-                    tools_idx = fm.find("tools:")
-                    if tools_idx >= 0:
-                        tools_section = fm[tools_idx:]
-                        assert "read_file" in tools_section or "Read" not in tools_section
+        if not verifier.exists():
+            pytest.skip("gpd-verifier.md not found in installed agents")
+        agent_content = verifier.read_text(encoding="utf-8")
+        if "tools:" not in agent_content:
+            pytest.skip("gpd-verifier.md has no tools: field")
+        end = agent_content.find("---", 3)
+        assert end > 0, "gpd-verifier.md has malformed frontmatter"
+        fm = agent_content[3:end]
+        tools_idx = fm.find("tools:")
+        assert tools_idx >= 0, "tools: not found in frontmatter"
+        tools_section = fm[tools_idx:]
+        assert "read_file" in tools_section or "Read" not in tools_section
 
     def test_gpd_content_installed(self, installed: Path) -> None:
         """get-physics-done/ content is present."""
@@ -168,14 +180,29 @@ class TestGeminiRoundtrip:
         for subdir in ("references", "templates", "workflows"):
             assert (gpd / subdir).is_dir()
 
+    def test_shared_content_tool_references_are_translated(self, installed: Path) -> None:
+        """Shared markdown content should use Gemini runtime tool names."""
+        workflow = (installed / "get-physics-done" / "workflows" / "wor.md").read_text(encoding="utf-8")
+        reference = (installed / "get-physics-done" / "references" / "ref.md").read_text(encoding="utf-8")
+
+        assert "ask_user([" in workflow
+        assert "AskUserQuestion" not in workflow
+        assert "task(" in workflow
+        assert "Task(" not in workflow
+        assert "google_web_search" in reference
+        assert "WebSearch" not in reference
+
+    @pytest.mark.skip(
+        reason="Gemini install() builds settings in-memory but finish_install() writes them; "
+        "settings.json is not on disk after install() alone"
+    )
     def test_settings_json_has_experimental(self, installed: Path) -> None:
         """settings.json enables experimental.enableAgents."""
-        # install() returns settings but doesn't always write them to disk
-        # (finish_install does that). But it does write hooks into settings.
-        # Let's check settings.json was at least initialized
-        installed / "settings.json"
-        # The install method configures settings in-memory and returns them.
-        # We verify the returned result in the install result test.
+        settings_path = installed / "settings.json"
+        assert settings_path.exists(), "settings.json not written to disk"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        experimental = settings.get("experimental", {})
+        assert experimental.get("enableAgents") is True
 
     def test_manifest_present(self, installed: Path) -> None:
         """File manifest exists and has version."""
@@ -275,6 +302,19 @@ class TestCodexRoundtrip:
         for subdir in ("references", "templates", "workflows"):
             assert (gpd / subdir).is_dir()
 
+    def test_shared_content_tool_references_are_translated(self, installed: tuple[Path, Path]) -> None:
+        """Shared markdown content should use Codex runtime tool names."""
+        target, _ = installed
+        workflow = (target / "get-physics-done" / "workflows" / "wor.md").read_text(encoding="utf-8")
+        reference = (target / "get-physics-done" / "references" / "ref.md").read_text(encoding="utf-8")
+
+        assert "ask_user([" in workflow
+        assert "AskUserQuestion" not in workflow
+        assert "task(" in workflow
+        assert "Task(" not in workflow
+        assert "web_search" in reference
+        assert "WebSearch" not in reference
+
     def test_slash_commands_converted(self, installed: tuple[Path, Path]) -> None:
         """Content replaces /gpd: with $gpd- for Codex invocation syntax."""
         target, _ = installed
@@ -289,6 +329,7 @@ class TestCodexRoundtrip:
         assert toml_path.exists()
         content = toml_path.read_text(encoding="utf-8")
         assert "notify" in content
+        assert "multi_agent = true" in content
 
     def test_manifest_tracks_skills(self, installed: tuple[Path, Path]) -> None:
         """File manifest includes skill entries."""
@@ -361,6 +402,25 @@ class TestOpenCodeRoundtrip:
         assert gpd.is_dir()
         for subdir in ("references", "templates", "workflows"):
             assert (gpd / subdir).is_dir()
+
+    def test_shared_content_tool_references_are_translated(self, installed: Path) -> None:
+        """Shared markdown content should use OpenCode runtime tool names."""
+        workflow = (installed / "get-physics-done" / "workflows" / "wor.md").read_text(encoding="utf-8")
+        reference = (installed / "get-physics-done" / "references" / "ref.md").read_text(encoding="utf-8")
+
+        assert "question([" in workflow
+        assert "AskUserQuestion" not in workflow
+        assert "ask_user(" not in workflow
+        assert "task(" in workflow
+        assert "Task(" not in workflow
+        assert "websearch" in reference
+        assert "WebSearch" not in reference
+
+    def test_shared_content_command_syntax_is_converted(self, installed: Path) -> None:
+        """OpenCode shared content should use flat /gpd- command syntax."""
+        for md in (installed / "get-physics-done").rglob("*.md"):
+            content = md.read_text(encoding="utf-8")
+            assert "/gpd:" not in content, f"{md.name} still has /gpd:"
 
     def test_version_file(self, installed: Path) -> None:
         """VERSION file present in get-physics-done/."""

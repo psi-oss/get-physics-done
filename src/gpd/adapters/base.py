@@ -9,11 +9,12 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
-    LEGACY_HOOK_BASENAMES,
     compute_path_prefix,
     copy_hook_scripts,
     install_gpd_content,
     pre_install_cleanup,
+    read_settings,
+    write_settings,
     validate_package_integrity,
     write_manifest,
     write_version_file,
@@ -96,7 +97,14 @@ class RuntimeAdapter(abc.ABC):
     # Template method: install pipeline
     # ---------------------------------------------------------------------------
 
-    def install(self, gpd_root: Path, target_dir: Path, *, is_global: bool = False) -> dict[str, object]:
+    def install(
+        self,
+        gpd_root: Path,
+        target_dir: Path,
+        *,
+        is_global: bool = False,
+        explicit_target: bool = False,
+    ) -> dict[str, object]:
         """Install GPD into the target runtime configuration directory.
 
         Template method — calls hooks in standard order.  Subclasses override
@@ -115,37 +123,48 @@ class RuntimeAdapter(abc.ABC):
         from gpd.core.observability import gpd_span
 
         with gpd_span("adapter.install", runtime=self.runtime_name, target=str(target_dir)) as span:
-            self._validate(gpd_root)
-            path_prefix = self._compute_path_prefix(target_dir, is_global)
-            self._pre_cleanup(target_dir)
+            previous_explicit_target = getattr(self, "_install_explicit_target", False)
+            self._install_explicit_target = explicit_target
+            try:
+                self._validate(gpd_root)
+                path_prefix = self._compute_path_prefix(target_dir, is_global)
+                self._pre_cleanup(target_dir)
 
-            failures: list[str] = []
-            command_count = self._install_commands(gpd_root, target_dir, path_prefix, failures)
-            self._install_content(gpd_root, target_dir, path_prefix, failures)
-            agent_count = self._install_agents(gpd_root, target_dir, path_prefix, failures)
-            self._install_version(target_dir, __version__, failures)
-            self._install_hooks(gpd_root, target_dir, failures)
+                failures: list[str] = []
+                command_count = self._install_commands(gpd_root, target_dir, path_prefix, failures)
+                self._install_content(gpd_root, target_dir, path_prefix, failures)
+                agent_count = self._install_agents(gpd_root, target_dir, path_prefix, failures)
+                self._install_version(target_dir, __version__, failures)
+                self._install_hooks(gpd_root, target_dir, failures)
 
-            if failures:
-                span.set_attribute("gpd.install_failures", ", ".join(failures))
-                raise RuntimeError(f"Installation incomplete! Failed: {', '.join(failures)}")
+                if failures:
+                    span.set_attribute("gpd.install_failures", ", ".join(failures))
+                    raise RuntimeError(f"Installation incomplete! Failed: {', '.join(failures)}")
 
-            extra = self._configure_runtime(target_dir, is_global)
-            self._write_manifest(target_dir, __version__)
-            self._verify(target_dir)
+                extra = self._configure_runtime(target_dir, is_global)
+                self._write_manifest(target_dir, __version__)
+                self._verify(target_dir)
 
-            span.set_attribute("gpd.commands_count", command_count)
-            span.set_attribute("gpd.agents_count", agent_count)
-            logger.info("Installed GPD for %s: %d commands, %d agents", self.runtime_name, command_count, agent_count)
+                span.set_attribute("gpd.commands_count", command_count)
+                span.set_attribute("gpd.agents_count", agent_count)
+                logger.info(
+                    "Installed GPD for %s: %d commands, %d agents",
+                    self.runtime_name,
+                    command_count,
+                    agent_count,
+                )
 
-            summary: dict[str, object] = {
-                "runtime": self.runtime_name,
-                "commands": command_count,
-                "agents": agent_count,
-            }
-            if extra:
-                summary.update(extra)
-            return summary
+                summary: dict[str, object] = {
+                    "runtime": self.runtime_name,
+                    "target": str(target_dir),
+                    "commands": command_count,
+                    "agents": agent_count,
+                }
+                if extra:
+                    summary.update(extra)
+                return summary
+            finally:
+                self._install_explicit_target = previous_explicit_target
 
     # ---------------------------------------------------------------------------
     # Install hooks — override in subclasses for runtime-specific behavior
@@ -157,7 +176,12 @@ class RuntimeAdapter(abc.ABC):
 
     def _compute_path_prefix(self, target_dir: Path, is_global: bool) -> str:
         """Compute path prefix for placeholder replacement."""
-        return compute_path_prefix(target_dir, self.config_dir_name, is_global=is_global)
+        return compute_path_prefix(
+            target_dir,
+            self.config_dir_name,
+            is_global=is_global,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
 
     def _pre_cleanup(self, target_dir: Path) -> None:
         """Clean up files from previous installations."""
@@ -247,7 +271,7 @@ class RuntimeAdapter(abc.ABC):
                 for hook_path in hooks_dir.iterdir():
                     if not hook_path.is_file():
                         continue
-                    if hook_path.name in HOOK_SCRIPTS.values() or hook_path.stem in LEGACY_HOOK_BASENAMES:
+                    if hook_path.name in HOOK_SCRIPTS.values():
                         hook_path.unlink()
                         hook_count += 1
                 if hook_count:
@@ -279,20 +303,14 @@ class RuntimeAdapter(abc.ABC):
             # Clean up settings.json GPD hooks and statusline
             settings_path = target_dir / "settings.json"
             if settings_path.exists():
-                try:
-                    settings = _json.loads(settings_path.read_text(encoding="utf-8"))
-                except (ValueError, OSError):
-                    settings = None
-                if isinstance(settings, dict):
+                settings = read_settings(settings_path)
+                if settings:
                     settings_modified = False
                     # Remove GPD statusline
                     sl = settings.get("statusLine")
                     if isinstance(sl, dict):
                         cmd = sl.get("command", "")
-                        if isinstance(cmd, str) and (
-                            "gpd-statusline" in cmd
-                            or "statusline.py" in cmd
-                        ):
+                        if isinstance(cmd, str) and "statusline.py" in cmd:
                             del settings["statusLine"]
                             settings_modified = True
                     # Remove GPD hooks from SessionStart
@@ -309,12 +327,7 @@ class RuntimeAdapter(abc.ABC):
                                     and any(
                                         isinstance(h, dict)
                                         and isinstance(h.get("command"), str)
-                                        and (
-                                            "gpd-check-update" in h["command"]
-                                            or "check_update" in h["command"]
-                                            or "gpd-statusline" in h["command"]
-                                            or "statusline.py" in h["command"]
-                                        )
+                                        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
                                         for h in entry["hooks"]
                                     )
                                 )
@@ -326,9 +339,7 @@ class RuntimeAdapter(abc.ABC):
                             if not settings["hooks"]:
                                 del settings["hooks"]
                     if settings_modified:
-                        tmp = settings_path.with_suffix(".tmp")
-                        tmp.write_text(_json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-                        tmp.rename(settings_path)
+                        write_settings(settings_path, settings)
 
             # Remove file manifest
             manifest = target_dir / "gpd-file-manifest.json"

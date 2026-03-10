@@ -4,7 +4,7 @@ template_version: 1
 
 # Conventions Ledger Template
 
-Template for `.planning/CONVENTIONS.md` — persistent, append-only record of all physics conventions adopted across the project lifetime.
+Template for `.gpd/CONVENTIONS.md` — persistent, append-only record of all physics conventions adopted across the project lifetime.
 
 **Purpose:** Single source of truth for every convention that could cause a cross-phase inconsistency. Read by the consistency checker to verify current-phase work against ALL accumulated conventions, not just adjacent phases.
 
@@ -34,7 +34,7 @@ Populate sections marked "Required" for your project type. Sections marked "—"
 
 **Relationship to other files:**
 
-- `research-map/CONVENTIONS.md` is an analysis snapshot produced by `$gpd-map-theory` — it documents what conventions ARE in existing work
+- `research-map/CONVENTIONS.md` is an analysis snapshot produced by `/gpd:map-theory` — it documents what conventions ARE in existing work
 - `CONVENTIONS.md` (this file) is prescriptive and persistent — it documents what conventions MUST BE followed going forward
 - `NOTATION_GLOSSARY.md` lists every symbol; CONVENTIONS.md records the choices that govern how those symbols behave (signs, factors, normalizations)
 

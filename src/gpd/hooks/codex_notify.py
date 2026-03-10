@@ -10,10 +10,17 @@ import os
 import subprocess
 import sys
 
+from gpd.core.constants import ENV_GPD_DEBUG
+
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
+
+
+def _mapping(value: object) -> dict[str, object]:
+    """Return *value* when it is a dict, otherwise an empty mapping."""
+    return value if isinstance(value, dict) else {}
 
 
 def _trigger_update_check(cwd: str) -> None:
@@ -28,7 +35,7 @@ def _trigger_update_check(cwd: str) -> None:
             start_new_session=True,
         )
     except OSError as exc:
-        _debug(f"Failed to spawn gpd-check-update: {exc}")
+        _debug(f"Failed to spawn check_update.py: {exc}")
 
 
 def _check_and_notify_update() -> None:
@@ -72,7 +79,11 @@ def main() -> None:
     if data.get("type") != "agent-turn-complete":
         return
 
-    cwd = (data.get("workspace") or {}).get("current_dir", os.getcwd())
+    workspace_value = data.get("workspace")
+    if isinstance(workspace_value, str) and workspace_value:
+        cwd = workspace_value
+    else:
+        cwd = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
     _trigger_update_check(cwd)
     _check_and_notify_update()
 

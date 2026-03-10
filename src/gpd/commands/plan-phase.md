@@ -4,15 +4,15 @@ description: Create detailed execution plan for a phase (PLAN.md) with verificat
 argument-hint: "[phase] [--research] [--skip-research] [--gaps] [--skip-verify] [--light] [--inline-discuss]"
 agent: gpd-planner
 requires:
-  files: [".planning/ROADMAP.md", ".planning/STATE.md"]
+  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - Task
-  - WebFetch
+  - file_read
+  - file_write
+  - shell
+  - find_files
+  - search_files
+  - task
+  - web_fetch
   - mcp__context7__*
 ---
 
@@ -80,7 +80,7 @@ Normalize phase input in step 2 before any directory lookups.
 - [ ] Is there a **validation strategy** for each major result (not just at the end)?
 - [ ] Are **expected limiting cases** listed with the values/behaviors they should reproduce?
 - [ ] Are tasks **small enough** that a single subagent can complete each one without context overflow?
-- [ ] If the phase involves **numerical experiments**, are parameter sweeps, convergence studies, and error budgets planned? (See `/gpd:parameter-sweep`, `/gpd:sensitivity-analysis`, `/gpd:experiment-designer` agent)
+- [ ] If the phase involves **numerical experiments**, are parameter sweeps, convergence studies, and error budgets planned? (See `/gpd:parameter-sweep`, `/gpd:sensitivity-analysis`, `gpd-experiment-designer` agent)
 - [ ] If the phase has **competing predictions or regime-dependent behavior**, is a hypothesis-driven plan structure used? (predict → derive → verify cycle; see `hypothesis-driven-research.md` reference in gpd-planner)
 
 ## Domain-Aware Planning
@@ -102,7 +102,7 @@ The planner also adapts to the **project stage**: discovery (vague idea → stru
 </inline_guidance>
 
 <process>
-**CRITICAL: First, read the full workflow file using the read tool:**
+**CRITICAL: First, read the full workflow file using the file_read tool:**
 Read the file at {GPD_INSTALL_DIR}/workflows/plan-phase.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
 
 Execute the workflow end-to-end.

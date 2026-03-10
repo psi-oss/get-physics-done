@@ -103,7 +103,7 @@ Present:
 - {additions} insertions, {deletions} deletions
 ```
 
-If the commit modified `.planning/STATE.md`, note this:
+If the commit modified `.gpd/STATE.md`, note this:
 
 ```
 ⚠ This commit modified STATE.md -- the undo will also roll back state tracking.
@@ -187,7 +187,7 @@ git revert --abort
 Commit the revert:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 git commit -m "$(cat <<'EOF'
@@ -201,17 +201,17 @@ EOF
 <step name="update_state">
 **If the reverted commit modified STATE.md:**
 
-Read `.planning/STATE.md` and check if it needs adjustment:
+Read `.gpd/STATE.md` and check if it needs adjustment:
 
-1. If the reverted commit added a phase completion marker, remove it via Edit tool
-2. If the reverted commit advanced the current phase, roll back the position via Edit tool
+1. If the reverted commit added a phase completion marker, remove it via file_edit tool
+2. If the reverted commit advanced the current phase, roll back the position via file_edit tool
 3. Record the rollback decision:
 
 ```bash
 gpd state add-decision --phase "undo" --summary "Rolled back: ${TARGET_MSG}" --rationale "User requested undo (checkpoint: ${CHECKPOINT_TAG})"
 ```
 
-4. If any direct Edit was needed (steps 1-2), force state.json re-sync:
+4. If any direct file_edit was needed (steps 1-2), force state.json re-sync:
 
 ```bash
 gpd state load
@@ -220,10 +220,10 @@ gpd state load
 5. Commit:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .planning/STATE.md .planning/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: update state after undo" --files .planning/STATE.md .planning/state.json
+gpd commit "docs: update state after undo" --files .gpd/STATE.md .gpd/state.json
 ```
 
 **If STATE.md was not affected:** Skip this step.
@@ -247,9 +247,9 @@ To reverse this undo:
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-progress` -- check current research state
-- `$gpd-undo` -- undo another commit
-- `$gpd-verify-work` -- re-verify after rollback
+- `/gpd:progress` -- check current research state
+- `/gpd:undo` -- undo another commit
+- `/gpd:verify-work` -- re-verify after rollback
 
 ───────────────────────────────────────────────────────────────
 ```

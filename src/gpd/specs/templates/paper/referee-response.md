@@ -6,7 +6,7 @@ template_version: 1
 
 # Referee Response Template
 
-Template for `.planning/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
+Template for `.gpd/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
 
 ---
 
@@ -211,7 +211,7 @@ Sincerely,
 **Integration with GPD workflow:**
 
 - New calculations requested by referees become new phases in ROADMAP.md
-- Use $gpd-add-phase or $gpd-insert-phase to add referee-requested work
+- Use /gpd:add-phase or /gpd:insert-phase to add referee-requested work
 - Verification of new calculations follows standard GPD verification workflow
 - Track new calculations in the "New Calculations Summary" table
 

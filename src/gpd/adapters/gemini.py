@@ -20,7 +20,6 @@ from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     build_hook_command,
-    cleanup_orphaned_hooks,
     convert_tool_references_in_body,
     ensure_update_hook,
     expand_at_includes,
@@ -36,51 +35,19 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.tool_names import GEMINI, canonical
+from gpd.adapters.tool_names import GEMINI, canonical, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Claude Code → Gemini tool name mapping
-# ---------------------------------------------------------------------------
-# Used for frontmatter conversion and body text tool references.
-# Maps Claude Code names (as they appear in agent/command specs) to Gemini built-in names.
-
-_CLAUDE_TO_GEMINI: dict[str, str | None] = {
-    "Agent": "agent",
-    "AskUserQuestion": "ask_user",
-    "Bash": "run_shell_command",
-    "Edit": "replace",
-    "Glob": "glob",
-    "Grep": "search_file_content",
-    "NotebookEdit": "notebook_edit",
-    "Read": "read_file",
-    "SlashCommand": "slash_command",
-    # Task is excluded — agents are auto-registered as callable tools in Gemini
-    "Task": None,
-    "TodoWrite": "write_todos",
-    "ToolSearch": "tool_search",
-    "WebFetch": "web_fetch",
-    "WebSearch": "google_web_search",
-    "Write": "write_file",
-}
+_TOOL_REFERENCE_MAP = reference_translation_map("gemini")
 
 
-def _convert_gemini_tool_name(claude_tool: str) -> str | None:
-    """Convert a Claude Code tool name to Gemini CLI format.
+def _convert_gemini_tool_name(tool_name: str) -> str | None:
+    """Convert a canonical GPD tool name or runtime alias to Gemini CLI format.
 
     Returns ``None`` if the tool should be excluded from the Gemini config
-    (MCP tools are auto-discovered at runtime, Task is auto-registered).
+    (MCP tools are auto-discovered at runtime and ``task`` is auto-registered).
     """
-    # MCP tools: exclude — auto-discovered from mcpServers config at runtime
-    if claude_tool.startswith("mcp__"):
-        return None
-    if claude_tool == "Task":
-        return None
-    if claude_tool in _CLAUDE_TO_GEMINI:
-        return _CLAUDE_TO_GEMINI[claude_tool]
-    # Default: lowercase
-    return claude_tool.lower()
+    return translate_for_runtime(tool_name, "gemini")
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +56,7 @@ def _convert_gemini_tool_name(claude_tool: str) -> str | None:
 
 
 def _convert_frontmatter_to_gemini(content: str) -> str:
-    """Convert Claude Code agent/file frontmatter to Gemini CLI format.
+    """Convert canonical GPD agent/file frontmatter to Gemini CLI format.
 
     - ``allowed-tools:`` → ``tools:`` as YAML array
     - Tool names converted to Gemini built-in names
@@ -252,7 +219,7 @@ def _copy_agents_gemini(
             content = expand_at_includes(content, str(gpd_src_root), path_prefix)
 
         content = _convert_frontmatter_to_gemini(content)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_GEMINI)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
@@ -304,6 +271,7 @@ def _copy_commands_recursive(
             content = replace_placeholders(content, path_prefix)
             content = process_attribution(content, attribution)
             content = strip_sub_tags(content)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
             toml_content = _convert_to_gemini_toml(content)
             toml_path = dest_dir / entry.with_suffix(".toml").name
             toml_path.write_text(toml_content, encoding="utf-8")
@@ -362,7 +330,7 @@ class GeminiAdapter(RuntimeAdapter):
         name = str(agent_def["name"])
         content = str(agent_def.get("content", ""))
         content = _convert_frontmatter_to_gemini(content)
-        content = convert_tool_references_in_body(content, _CLAUDE_TO_GEMINI)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
         agents_dir = target_dir / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
         out_path = agents_dir / f"{name}.md"
@@ -405,7 +373,7 @@ class GeminiAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
-        settings = cleanup_orphaned_hooks(read_settings(settings_path))
+        settings = read_settings(settings_path)
 
         # Enable experimental agents (required for custom sub-agents in Gemini CLI)
         experimental = settings.get("experimental")
@@ -422,12 +390,14 @@ class GeminiAdapter(RuntimeAdapter):
             HOOK_SCRIPTS["statusline"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         update_check_cmd = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["check_update"],
             is_global=is_global,
             config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
         ensure_update_hook(settings, update_check_cmd)
 
@@ -485,7 +455,7 @@ class GeminiAdapter(RuntimeAdapter):
             status_line = settings.get("statusLine")
             if isinstance(status_line, dict):
                 cmd = status_line.get("command", "")
-                if isinstance(cmd, str) and ("gpd-statusline" in cmd or "statusline.py" in cmd):
+                if isinstance(cmd, str) and "statusline.py" in cmd:
                     del settings["statusLine"]
                     modified = True
 
@@ -511,9 +481,22 @@ class GeminiAdapter(RuntimeAdapter):
                     del settings["experimental"]
                 modified = True
 
+            # Remove GPD MCP servers
+            mcp_servers = settings.get("mcpServers")
+            if isinstance(mcp_servers, dict):
+                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+                if removed_keys:
+                    for key in removed_keys:
+                        del mcp_servers[key]
+                    if not mcp_servers:
+                        del settings["mcpServers"]
+                    modified = True
+
             if modified:
                 write_settings(settings_path, settings)
-                logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental)")
+                logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
 
         return result
 
@@ -533,12 +516,7 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and (
-            "gpd-check-update" in h["command"]
-            or "check_update" in h["command"]
-            or "gpd-statusline" in h["command"]
-            or "statusline.py" in h["command"]
-        )
+        and ("check_update.py" in h["command"] or "statusline.py" in h["command"])
         for h in entry_hooks
     )
 

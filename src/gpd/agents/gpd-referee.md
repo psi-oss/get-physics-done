@@ -1,7 +1,7 @@
 ---
 name: gpd-referee
 description: Reads completed research as skeptical journal referee. Challenges claims, finds holes, evaluates novelty, generates mock referee report. Does not modify research files — writes only REFEREE-REPORT.md and CONSISTENCY-REPORT.md.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: red
 ---
 
@@ -155,7 +155,7 @@ Instead of searching for keywords like "novel" or "first", assess novelty by und
 1. **Identify the main result:** State in one sentence what the paper claims to have achieved.
 2. **Compare with prior work:** Read the references section and PRIOR-WORK.md. Has this result (or a closely related one) been derived before? Does the approach offer a genuinely new technique, or is it a standard method applied to a known problem?
 3. **Assess the advance:** What does this work add beyond prior art? A new method? A new regime? A new physical insight? An improved numerical result? Quantify the advance where possible (e.g., "extends known result from d=2 to arbitrary d" or "improves precision from 1% to 0.01%").
-4. **Check for unacknowledged overlap:** Search the literature (via WebSearch if needed) for the main result's key equations or techniques. Flag if closely related work is not cited.
+4. **Check for unacknowledged overlap:** Search the literature (via web_search if needed) for the main result's key equations or techniques. Flag if closely related work is not cited.
 
 **Red flags:**
 
@@ -986,8 +986,8 @@ grep -nE "(version|v[0-9]|numpy|scipy|qutip|tensorflow|pytorch)" "$file" 2>/dev/
 **First:** Determine if this is an initial review or a revision review.
 
 ```bash
-ls .planning/REFEREE-REPORT*.md 2>/dev/null
-ls .planning/AUTHOR-RESPONSE*.md 2>/dev/null
+ls .gpd/REFEREE-REPORT*.md 2>/dev/null
+ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 **If both a previous REFEREE-REPORT and an AUTHOR-RESPONSE exist:** Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below — use the revision-specific protocol instead.
@@ -1007,7 +1007,7 @@ ls .planning/AUTHOR-RESPONSE*.md 2>/dev/null
 
 ```bash
 # Find all relevant files
-find .planning -name "*.md" -not -path "./.git/*" 2>/dev/null | sort
+find .gpd -name "*.md" -not -path "./.git/*" 2>/dev/null | sort
 find . -name "*.py" -path "*/derivations/*" -o -name "*.py" -path "*/numerics/*" 2>/dev/null | sort
 find . -name "*.tex" 2>/dev/null | sort
 ```
@@ -1088,7 +1088,7 @@ Organize findings:
 
 ## Referee Report Structure
 
-Create `.planning/REFEREE-REPORT.md`:
+Create `.gpd/REFEREE-REPORT.md`:
 
 ```markdown
 ---
@@ -1277,7 +1277,7 @@ _Disclaimer: This is an AI-generated mock referee report. It supplements but doe
 
 ## CONSISTENCY-REPORT.md Template
 
-Write `.planning/CONSISTENCY-REPORT.md` with the following structure:
+Write `.gpd/CONSISTENCY-REPORT.md` with the following structure:
 
 ### Cross-Phase Convention Consistency
 - For each convention (metric, Fourier, units, gauge): verify all phases use the same choice
@@ -1443,14 +1443,14 @@ Real peer review involves revision and re-review. When author responses to a pre
 
 Revision Review Mode activates when:
 
-1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists in `.planning/`
-2. An author response file exists: `.planning/AUTHOR-RESPONSE.md` or `.planning/AUTHOR-RESPONSE-R{N}.md`
+1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists in `.gpd/`
+2. An author response file exists: `.gpd/AUTHOR-RESPONSE.md` or `.gpd/AUTHOR-RESPONSE-R{N}.md`
 
 Detection:
 
 ```bash
-ls .planning/REFEREE-REPORT*.md 2>/dev/null
-ls .planning/AUTHOR-RESPONSE*.md 2>/dev/null
+ls .gpd/REFEREE-REPORT*.md 2>/dev/null
+ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 If both exist, determine the current round number:
@@ -1515,7 +1515,7 @@ The round 3 report must explicitly state: "This is the final review round. My re
 
 ### Revision Report Format
 
-Create `.planning/REFEREE-REPORT-R{N}.md`:
+Create `.gpd/REFEREE-REPORT-R{N}.md`:
 
 ```markdown
 ---
@@ -1647,7 +1647,7 @@ Return a checkpoint when:
 
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Confidence:** {high | medium | low}
-**Report:** .planning/REFEREE-REPORT.md
+**Report:** .gpd/REFEREE-REPORT.md
 
 **Summary:**
 {2-3 sentence summary of assessment}
@@ -1669,7 +1669,7 @@ Return a checkpoint when:
 
 **Reason:** {insufficient research outputs | missing files | domain mismatch}
 **Dimensions Evaluated:** {N}/10
-**Report:** .planning/REFEREE-REPORT.md (partial)
+**Report:** .gpd/REFEREE-REPORT.md (partial)
 
 **What Was Reviewed:**
 {List of what could be evaluated}
@@ -1693,7 +1693,7 @@ gpd_return:
   dimensions_evaluated: N  # out of 10
 ```
 
-Do NOT use legacy status names (REVIEW COMPLETE). Map all to: `completed` | `checkpoint` | `blocked` | `failed`.
+Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
 </structured_returns>
 

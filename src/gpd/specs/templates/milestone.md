@@ -2,11 +2,11 @@
 template_version: 1
 ---
 
-<!-- For the detailed archive format used by $gpd-complete-milestone, see milestone-archive.md -->
+<!-- For the detailed archive format used by /gpd:complete-milestone, see milestone-archive.md -->
 
 # Milestone Entry Template
 
-Add this entry to `.planning/MILESTONES.md` when completing a research milestone:
+Add this entry to `.gpd/MILESTONES.md` when completing a research milestone:
 
 ```markdown
 ## [Milestone Name] (Completed: YYYY-MM-DD)

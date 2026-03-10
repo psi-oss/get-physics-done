@@ -10,6 +10,7 @@ import pytest
 from gpd.core.errors import PatternError
 from gpd.core.patterns import (
     _BOOTSTRAP_PATTERNS,
+    patterns_root,
     CONFIDENCE_LEVELS,
     VALID_CATEGORIES,
     VALID_DOMAINS,
@@ -26,7 +27,6 @@ from gpd.core.patterns import (
     pattern_promote,
     pattern_search,
     pattern_seed,
-    pattern_update,
 )
 
 
@@ -53,6 +53,40 @@ class TestConstants:
 
     def test_confidence_order(self):
         assert CONFIDENCE_LEVELS == ("single_observation", "confirmed", "systematic")
+
+
+# ─── path resolution ─────────────────────────────────────────────────────────
+
+
+class TestPatternsRootResolution:
+    def test_prefers_explicit_patterns_root_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        explicit = tmp_path / "custom-patterns"
+        monkeypatch.setenv("GPD_PATTERNS_ROOT", str(explicit))
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+
+        assert patterns_root() == explicit
+
+    def test_uses_data_dir_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        data_dir = tmp_path / "data"
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_dir))
+
+        assert patterns_root() == data_dir / "learned-patterns"
+
+    def test_defaults_to_home_gpd_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+        assert patterns_root() == fake_home / ".gpd" / "learned-patterns"
+
+    def test_specs_root_overrides_env_and_home(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+
+        assert patterns_root(specs_root=tmp_path / "project") == tmp_path / "project" / "learned-patterns"
 
 
 # ─── pattern_init / ensure_library ───────────────────────────────────────────
@@ -253,25 +287,3 @@ class TestPatternPromote:
     def test_not_found_raises(self, lib_root: Path):
         with pytest.raises(PatternError, match="not found"):
             pattern_promote("nonexistent-id", root=lib_root)
-
-
-# ─── pattern_update ──────────────────────────────────────────────────────────
-
-
-class TestPatternUpdate:
-    def test_increments_count(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Update Me", root=lib_root)
-        result = pattern_update(add_result.id, root=lib_root)
-        assert result.occurrence_count == 2
-
-    def test_updates_severity(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Sev Change", severity="medium", root=lib_root)
-        pattern_update(add_result.id, severity="critical", root=lib_root)
-        result = pattern_list(root=lib_root)
-        assert result.patterns[0].severity == "critical"
-
-    def test_updates_body_fields(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Body Update", root=lib_root)
-        pattern_update(add_result.id, description="new desc", root=lib_root)
-        content = (lib_root / add_result.file).read_text()
-        assert "**What goes wrong:** new desc" in content

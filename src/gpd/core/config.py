@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "AGENT_DEFAULT_TIERS",
+    "ConfigError",
     "DEFAULT_COST_PER_MILLION",
     "MODEL_PROFILES",
     "AutonomyMode",
@@ -135,13 +136,6 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_1,
         "paper-writing": ModelTier.TIER_2,
     },
-    "map-content": {
-        "deep-theory": ModelTier.TIER_1,
-        "numerical": ModelTier.TIER_2,
-        "exploratory": ModelTier.TIER_1,
-        "review": ModelTier.TIER_2,
-        "paper-writing": ModelTier.TIER_3,
-    },
     "gpd-theory-mapper": {
         "deep-theory": ModelTier.TIER_2,
         "numerical": ModelTier.TIER_3,
@@ -223,7 +217,6 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     "gpd-project-researcher": ModelTier.TIER_2,
     "gpd-research-synthesizer": ModelTier.TIER_2,
     "gpd-debugger": ModelTier.TIER_1,
-    "map-content": ModelTier.TIER_2,
     "gpd-theory-mapper": ModelTier.TIER_3,
     "gpd-verifier": ModelTier.TIER_1,
     "gpd-plan-checker": ModelTier.TIER_1,
@@ -259,11 +252,11 @@ DEFAULT_COST_PER_MILLION: dict[str, TierCost] = {
 
 
 class GPDProjectConfig(BaseModel):
-    """Configuration for a GPD project, loaded from .planning/config.json.
+    """Configuration for a GPD project, loaded from .gpd/config.json.
 
-    Named GPDProjectConfig to avoid collision with contracts.GPDConfig
-    which controls feature-flag toggles. This model controls project-level
-    workflow settings (model profile, autonomy, git strategy, etc.).
+    Named GPDProjectConfig to distinguish it from other shared project
+    contracts. This model controls project-level workflow settings
+    (model profile, autonomy, git strategy, etc.).
     """
 
     model_profile: ModelProfile = ModelProfile.REVIEW
@@ -304,35 +297,28 @@ def _get_nested(parsed: dict, key: str, section: str | None = None, field: str |
     return None
 
 
-def _resolve_autonomy(parsed: dict) -> AutonomyMode:
-    """Resolve autonomy with backward compatibility for old 'mode' field."""
-    val = _get_nested(parsed, "autonomy")
-    if val is not None:
-        return AutonomyMode(val)
-    # Backward compat: map old "mode" field
-    mode = _get_nested(parsed, "mode")
-    if isinstance(mode, str):
-        mode = mode.strip().lower()
-    if mode == "yolo":
-        return AutonomyMode.YOLO
-    if mode == "interactive":
-        return AutonomyMode.SUPERVISED
-    return _CONFIG_DEFAULTS.autonomy
+def _removed_config_messages(parsed: dict) -> list[str]:
+    """Return migration messages for config keys that are no longer supported."""
+    messages: list[str] = []
 
+    if "mode" in parsed:
+        messages.append("`mode` was removed; use `autonomy`")
+    if "depth" in parsed:
+        messages.append("`depth` was removed; use `research_mode` and `model_profile`")
 
-def _resolve_parallelization(parsed: dict) -> bool:
-    """Resolve parallelization from bool or object with 'enabled' key."""
-    val = _get_nested(parsed, "parallelization")
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, dict) and "enabled" in val:
-        return bool(val["enabled"])
-    return _CONFIG_DEFAULTS.parallelization
+    workflow = parsed.get("workflow")
+    if isinstance(workflow, dict) and "plan_check" in workflow:
+        messages.append("`workflow.plan_check` was removed; use `workflow.plan_checker`")
+
+    if isinstance(parsed.get("parallelization"), dict):
+        messages.append("`parallelization.enabled` object form was removed; set `parallelization` to true or false")
+
+    return messages
 
 
 @instrument_gpd_function("config.load")
 def load_config(project_dir: Path) -> GPDProjectConfig:
-    """Load GPD config from .planning/config.json with defaults.
+    """Load GPD config from .gpd/config.json with defaults.
 
     Raises on malformed JSON. Returns defaults if file doesn't exist.
     """
@@ -341,6 +327,8 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         raw = config_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return GPDProjectConfig()
+    except (PermissionError, UnicodeDecodeError, OSError) as exc:
+        raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
 
     try:
         parsed = json.loads(raw)
@@ -350,11 +338,28 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
 
+    removed_messages = _removed_config_messages(parsed)
+    if removed_messages:
+        raise ConfigError(
+            "Removed config.json keys: "
+            + "; ".join(removed_messages)
+            + f". Update {PLANNING_DIR_NAME}/config.json to the current schema."
+        )
+
     try:
         return GPDProjectConfig(
-            model_profile=_get_nested(parsed, "model_profile") or _CONFIG_DEFAULTS.model_profile,
-            autonomy=_resolve_autonomy(parsed),
-            research_mode=_get_nested(parsed, "research_mode") or _CONFIG_DEFAULTS.research_mode,
+            model_profile=_coalesce(
+                _get_nested(parsed, "model_profile"),
+                _CONFIG_DEFAULTS.model_profile,
+            ),
+            autonomy=_coalesce(
+                _get_nested(parsed, "autonomy"),
+                _CONFIG_DEFAULTS.autonomy,
+            ),
+            research_mode=_coalesce(
+                _get_nested(parsed, "research_mode"),
+                _CONFIG_DEFAULTS.research_mode,
+            ),
             commit_docs=_coalesce(
                 _get_nested(parsed, "commit_docs", section="planning", field="commit_docs"),
                 _CONFIG_DEFAULTS.commit_docs,
@@ -379,17 +384,26 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
                 _get_nested(parsed, "research", section="workflow", field="research"),
                 _CONFIG_DEFAULTS.research,
             ),
-            plan_checker=_resolve_plan_checker(parsed),
+            plan_checker=_coalesce(
+                _get_nested(parsed, "plan_checker", section="workflow", field="plan_checker"),
+                _CONFIG_DEFAULTS.plan_checker,
+            ),
             verifier=_coalesce(
                 _get_nested(parsed, "verifier", section="workflow", field="verifier"),
                 _CONFIG_DEFAULTS.verifier,
             ),
-            parallelization=_resolve_parallelization(parsed),
+            parallelization=_coalesce(
+                _get_nested(parsed, "parallelization"),
+                _CONFIG_DEFAULTS.parallelization,
+            ),
             brave_search=_coalesce(
                 _get_nested(parsed, "brave_search"),
                 _CONFIG_DEFAULTS.brave_search,
             ),
-            model_map=_get_nested(parsed, "model_map") or None,
+            model_map=_coalesce(
+                _get_nested(parsed, "model_map"),
+                None,
+            ),
             cost_per_million=_parse_cost_per_million(parsed),
         )
     except (ValueError, TypeError) as e:
@@ -403,23 +417,10 @@ def _coalesce(value: object, default: object) -> object:
     return value if value is not None else default
 
 
-def _resolve_plan_checker(parsed: dict) -> bool:
-    """Resolve plan_checker with backward compat for workflow.plan_check."""
-    val = _get_nested(parsed, "plan_checker", section="workflow", field="plan_checker")
-    if val is not None:
-        return bool(val)
-    # backward compat: old configs used workflow.plan_check
-    if "workflow" in parsed and isinstance(parsed["workflow"], dict):
-        old_val = parsed["workflow"].get("plan_check")
-        if old_val is not None:
-            return bool(old_val)
-    return _CONFIG_DEFAULTS.plan_checker
-
-
 def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:
     """Parse cost_per_million override from config."""
     raw = _get_nested(parsed, "cost_per_million")
-    if not raw or not isinstance(raw, dict):
+    if raw is None or not isinstance(raw, dict):
         return None
     result: dict[str, TierCost] = {}
     for tier, costs in raw.items():
@@ -427,6 +428,7 @@ def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:
             try:
                 result[tier] = TierCost.model_validate(costs)
             except ValueError:
+                logger.warning("Ignoring invalid cost_per_million entry for tier %r: %r", tier, costs)
                 continue
     return result if result else None
 

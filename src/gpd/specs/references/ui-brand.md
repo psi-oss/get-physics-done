@@ -130,8 +130,8 @@ Always at end of major completions.
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `$gpd-alternative-1` — description
-- `$gpd-alternative-2` — description
+- `/gpd:alternative-1` — description
+- `/gpd:alternative-2` — description
 
 ───────────────────────────────────────────────────────────────
 ```

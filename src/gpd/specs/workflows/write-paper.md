@@ -1,7 +1,7 @@
 <purpose>
 Structure and write a physics paper from completed research results. Handles the full pipeline from outline through polished draft: section planning, equation presentation, figure integration, narrative flow, and internal consistency verification.
 
-Called from $gpd-write-paper command. Sections are drafted by gpd-paper-writer agents.
+Called from /gpd:write-paper command. Sections are drafted by gpd-paper-writer agents.
 </purpose>
 
 <core_principle>
@@ -84,7 +84,7 @@ For detailed mode adaptation specifications (bibliographer search breadth, refer
 ERROR: No project found.
 
 A paper requires completed research phases with results.
-Run $gpd-new-project first, then complete phases before writing.
+Run /gpd:new-project first, then complete phases before writing.
 ```
 
 Exit.
@@ -139,7 +139,7 @@ Check for research digests generated during milestone completion. These digests 
 **Step 1 -- Locate digest files:**
 
 ```bash
-ls .planning/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
+ls .gpd/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
 ```
 
 **If digest(s) found:**
@@ -147,7 +147,7 @@ ls .planning/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
 Read all available digests:
 
 ```bash
-cat .planning/milestones/*/RESEARCH-DIGEST.md
+cat .gpd/milestones/*/RESEARCH-DIGEST.md
 ```
 
 **Step 2 -- Map digest sections to paper structure:**
@@ -176,8 +176,8 @@ If the digest is incomplete or missing sections, note which paper sections will 
 
 ```bash
 # Fall back to raw sources if digest is insufficient
-cat .planning/phases/*-*/*-SUMMARY.md
-cat .planning/state.json
+cat .gpd/phases/*-*/*-SUMMARY.md
+cat .gpd/state.json
 ```
 
 **If NO digest found:**
@@ -185,18 +185,18 @@ cat .planning/state.json
 Display a clear warning explaining why and offering alternatives:
 
 ```
-⚠ No RESEARCH-DIGEST.md found in .planning/milestones/.
+⚠ No RESEARCH-DIGEST.md found in .gpd/milestones/.
 
-Research digests are generated during $gpd-complete-milestone. Without a digest,
+Research digests are generated during /gpd:complete-milestone. Without a digest,
 the paper will be built from raw phase data (SUMMARY.md files, STATE.md, state.json).
 This works but produces a less structured starting point — the digest provides
 a curated narrative arc, convention timeline, and figure registry.
 
 Options:
   1. Continue anyway — build paper from raw phase data (proceed below)
-  2. Run $gpd-complete-milestone first — generates the digest, then return here
+  2. Run /gpd:complete-milestone first — generates the digest, then return here
   3. Use --from-phases to explicitly select which phases to include:
-     $gpd-write-paper --from-phases 1,2,3,5
+     /gpd:write-paper --from-phases 1,2,3,5
 ```
 
 **If `--from-phases` flag is present:** Read SUMMARY.md and research artifacts only from the specified phase directories. Skip milestone digest lookup entirely. This is useful for writing papers that cover a subset of phases or when milestones haven't been completed yet.
@@ -204,7 +204,7 @@ Options:
 ```bash
 # Example: --from-phases 1,3,5
 for PHASE_NUM in $(echo "$FROM_PHASES" | tr ',' ' '); do
-  PHASE_DIR=$(ls -d .planning/phases/*/ | grep "^.planning/phases/0*${PHASE_NUM}-")
+  PHASE_DIR=$(ls -d .gpd/phases/*/ | grep "^.gpd/phases/0*${PHASE_NUM}-")
   cat "$PHASE_DIR"/*-SUMMARY.md 2>/dev/null
 done
 ```
@@ -266,9 +266,9 @@ Run checks across all contributing phases (from digest, `--from-phases`, or all 
 ```bash
 # Identify contributing phases
 if [ -n "$FROM_PHASES" ]; then
-  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d .planning/phases/0*${n}-* 2>/dev/null; done)
+  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d .gpd/phases/0*${n}-* 2>/dev/null; done)
 else
-  PHASE_DIRS=$(ls -d .planning/phases/*/ 2>/dev/null)
+  PHASE_DIRS=$(ls -d .gpd/phases/*/ 2>/dev/null)
 fi
 ```
 
@@ -315,8 +315,8 @@ Check whether planned figures have source data and generation scripts:
 
 ```bash
 # Check for figure-related files across phases
-ls .planning/phases/*/figures/ 2>/dev/null
-ls .planning/paper/FIGURE_TRACKER.md 2>/dev/null
+ls .gpd/phases/*/figures/ 2>/dev/null
+ls .gpd/paper/FIGURE_TRACKER.md 2>/dev/null
 ```
 
 For each figure referenced in the research digest or artifact catalog:
@@ -335,7 +335,7 @@ Check for bibliography infrastructure:
 
 ```bash
 ls paper/references.bib 2>/dev/null
-ls .planning/phases/*/LITERATURE-REVIEW.md 2>/dev/null
+ls .gpd/phases/*/LITERATURE-REVIEW.md 2>/dev/null
 ```
 
 1. Does references.bib exist (anywhere in the project)?
@@ -437,7 +437,7 @@ The main.tex should:
 - \input each section file
 - Handle bibliography correctly for the journal
 
-If the project has a `.planning/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
+If the project has a `.gpd/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
 
 Create `main.tex` and `Makefile` before proceeding to figure generation and section drafting. The compilation checks in `draft_sections` require `main.tex` to exist.
 
@@ -457,7 +457,7 @@ mkdir -p paper/figures
 
 Before drafting sections, generate all planned figures:
 
-1. Read `.planning/paper/FIGURE_TRACKER.md` for figure specifications
+1. Read `.gpd/paper/FIGURE_TRACKER.md` for figure specifications
 2. For each figure with status != "Final":
    a. Locate source data (from phase directories)
    b. Generate matplotlib script with publication styling:
@@ -533,10 +533,10 @@ Apply this pattern to each wave: check for the expected .tex output files before
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\n" + section_prompt,
   subagent_type="gpd-paper-writer",
   model="{writer_model}",
@@ -692,7 +692,7 @@ After all sections are drafted, run a systematic notation check:
 **Check for notation glossary:**
 
 ```bash
-ls .planning/NOTATION_GLOSSARY.md 2>/dev/null
+ls .gpd/NOTATION_GLOSSARY.md 2>/dev/null
 ```
 
 If NOTATION_GLOSSARY.md does not exist, skip step 2 below and note in the report that no glossary was available for cross-referencing. The consistency checks (steps 1, 3, 4) still run — they compare the paper against itself.
@@ -720,10 +720,10 @@ BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer --raw)
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   subagent_type="gpd-bibliographer",
   model="{biblio_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-bibliographer.md for your role and instructions.
@@ -751,11 +751,11 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 )
 ```
 
-**If the bibliographer agent fails to spawn or returns an error:** Proceed without bibliography verification — note in the paper status that citations are unverified. The user should run `$gpd-literature-review` to verify citations after the paper is written.
+**If the bibliographer agent fails to spawn or returns an error:** Proceed without bibliography verification — note in the paper status that citations are unverified. The user should run `/gpd:literature-review` to verify citations after the paper is written.
 
 **If CITATION ISSUES FOUND:**
 
-- Read the audit report and `.planning/references-status.json`
+- Read the audit report and `.gpd/references-status.json`
 - Replace resolved `MISSING:` markers: for each entry in `resolved_markers`, find-and-replace `\cite{MISSING:X}` → `\cite{resolved_key}` in all .tex files and remove the associated `% MISSING CITATION:` comment
 - Fix hallucinated entries (remove from .bib, update \cite commands)
 - Apply metadata corrections to .bib entries
@@ -779,10 +779,10 @@ REFEREE_MODEL=$(gpd resolve-model gpd-referee --raw)
 
 > See `{GPD_INSTALL_DIR}/references/known-bugs.md` for workarounds to known platform bugs affecting subagent spawning.
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `Task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
-Task(
+task(
   subagent_type="gpd-referee",
   model="{referee_model}",
   prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
@@ -796,8 +796,8 @@ Files to read:
 - paper/main.tex and all paper/*.tex section files
 - paper/references.bib
 - paper/CITATION-AUDIT.md (if exists)
-- .planning/phases/*/SUMMARY.md (for research context)
-- .planning/STATE.md (for conventions and notation)
+- .gpd/phases/*/SUMMARY.md (for research context)
+- .gpd/STATE.md (for conventions and notation)
 
 Evaluate across all 10 dimensions with emphasis on:
 1. Correctness -- dimensional analysis, limiting cases, sign conventions in all equations
@@ -806,17 +806,17 @@ Evaluate across all 10 dimensions with emphasis on:
 4. Literature context -- proper citations, comparison with prior work
 5. Publishability -- overall assessment for {target_journal}
 
-Write report to .planning/REFEREE-REPORT.md
+Write report to .gpd/REFEREE-REPORT.md
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )
 ```
 
-**If the referee agent fails to spawn or returns an error:** Proceed to final review without mock peer review — note in the paper status. The user should run `$gpd-verify-work` separately after the paper is written.
+**If the referee agent fails to spawn or returns an error:** Proceed to final review without mock peer review — note in the paper status. The user should run `/gpd:verify-work` separately after the paper is written.
 
 **After referee report:**
 
-Read `.planning/REFEREE-REPORT.md` and assess the findings:
+Read `.gpd/REFEREE-REPORT.md` and assess the findings:
 
 - **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to final_review. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
@@ -849,10 +849,10 @@ TODO=$(grep -cE 'TODO|FIXME|XXX' paper/*.tex 2>/dev/null || echo 0)
 CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
 
 # Check verification status
-VERIF_STATUS=$(grep '^status:' .planning/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | awk '{print $2}')
+VERIF_STATUS=$(grep '^status:' .gpd/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | awk '{print $2}')
 ```
 
-Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum, recommend proceeding to `$gpd-arxiv-submission`.
+Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum, recommend proceeding to `/gpd:arxiv-submission`.
 
 Present summary to user with build instructions, quality score, and next steps.
 </step>
@@ -860,7 +860,7 @@ Present summary to user with build instructions, quality score, and next steps.
 <step name="paper_revision">
 ## Revision Mode (Handling Referee Reports)
 
-**Note:** For a dedicated referee response workflow, use `$gpd-respond-to-referees`. This step handles revision when invoked from within the write-paper pipeline.
+**Note:** For a dedicated referee response workflow, use `/gpd:respond-to-referees`. This step handles revision when invoked from within the write-paper pipeline.
 
 When revising a paper in response to referee reports:
 
@@ -872,20 +872,20 @@ When revising a paper in response to referee reports:
 2. **Produce AUTHOR-RESPONSE.md:** Spawn a paper-writer agent to produce the structured author response that the gpd-referee expects for multi-round review:
 
    ```
-   Task(
+   task(
      subagent_type="gpd-paper-writer",
      model="{writer_model}",
      prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead your <author_response> protocol. Produce an AUTHOR-RESPONSE file.\n\n" +
-       "Referee report: .planning/REFEREE-REPORT{-RN}.md\n" +
+       "Referee report: .gpd/REFEREE-REPORT{-RN}.md\n" +
        "Manuscript: paper/*.tex\n" +
        "Round: {N}\n\n" +
        "For each REF-xxx issue, classify as fixed/rebutted/acknowledged.\n" +
-       "Write to .planning/AUTHOR-RESPONSE{-RN}.md",
+       "Write to .gpd/AUTHOR-RESPONSE{-RN}.md",
      description="Author response: round {N}"
    )
    ```
 
-   **If the author-response agent fails to spawn or returns an error:** Check if `.planning/AUTHOR-RESPONSE{-RN}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
+   **If the author-response agent fails to spawn or returns an error:** Check if `.gpd/AUTHOR-RESPONSE{-RN}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
 
    The AUTHOR-RESPONSE.md uses REF-xxx issue IDs matching the referee report, with classifications (fixed/rebutted/acknowledged) and specific change locations. See the gpd-paper-writer's `<author_response>` section for the full format.
 
@@ -897,7 +897,7 @@ When revising a paper in response to referee reports:
    - The planned response
    - Any new calculations or results needed
 
-4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `.planning/paper/REVISION_TASKS.md` and route to appropriate phases.
+4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `.gpd/paper/REVISION_TASKS.md` and route to appropriate phases.
 
 5. **Verify consistency:** After all revisions, re-run the consistency_check and notation_audit steps to ensure revisions don't introduce new inconsistencies.
 

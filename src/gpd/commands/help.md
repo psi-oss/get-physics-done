@@ -88,10 +88,10 @@ One command takes you from research idea to ready-for-investigation:
 - Research objectives definition with scoping
 - Roadmap creation with phase breakdown and success criteria
 
-Creates all `.planning/` artifacts:
+Creates all `.gpd/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
-- `config.json` — workflow mode (interactive/yolo)
+- `config.json` — workflow settings (`autonomy`, `research_mode`, agent toggles)
 - `research/` — literature survey (if selected)
 - `REQUIREMENTS.md` — scoped research requirements with REQ-IDs
 - `ROADMAP.md` — phases mapped to requirements
@@ -99,7 +99,7 @@ Creates all `.planning/` artifacts:
 
 **Flags:**
 
-- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `.planning/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
+- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `.gpd/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phase list, and key parameters from the file. No interactive questions asked.
 - `--auto` — Automatic mode with full depth. Expects research proposal via @ reference. Runs literature survey, requirements, and roadmap without interaction.
 
@@ -111,7 +111,7 @@ Usage: `/gpd:new-project --minimal @plan.md`
 Map an existing research project — theoretical framework, computations, conventions, and open questions.
 
 - Spawns 4 parallel theory-mapper agents to analyze project artifacts
-- Creates `.planning/research-map/` with 7 structured documents
+- Creates `.gpd/research-map/` with 7 structured documents
 - Covers formalism, references, computational architecture, structure, conventions, validation, concerns
 - Use before `/gpd:new-project` on existing research projects
 
@@ -170,7 +170,7 @@ Usage: `/gpd:show-phase 3`
 **`/gpd:plan-phase <number>`**
 Create detailed execution plan for a specific phase.
 
-- Generates `.planning/phases/XX-phase-name/XX-YY-PLAN.md`
+- Generates `.gpd/phases/XX-phase-name/XX-YY-PLAN.md`
 - Breaks phase into concrete, actionable steps
 - Includes verification criteria (limiting cases, consistency checks)
 - Multiple plans per phase supported (XX-01, XX-02, etc.)
@@ -187,7 +187,7 @@ Create detailed execution plan for a specific phase.
 Usage: `/gpd:plan-phase 1`
 Usage: `/gpd:plan-phase 3 --research`
 Usage: `/gpd:plan-phase 5 --light --skip-verify`
-Result: Creates `.planning/phases/01-framework-setup/01-01-PLAN.md`
+Result: Creates `.gpd/phases/01-framework-setup/01-01-PLAN.md`
 
 ### Execution
 
@@ -195,7 +195,7 @@ Result: Creates `.planning/phases/01-framework-setup/01-01-PLAN.md`
 Execute all plans in a phase.
 
 - Groups plans by wave (from frontmatter), executes waves sequentially
-- Plans within each wave run in parallel via Task tool
+- Plans within each wave run in parallel via task tool
 - Verifies phase goal after all plans complete (limiting cases, dimensional analysis, benchmarks)
 - Updates REQUIREMENTS.md, ROADMAP.md, STATE.md
 
@@ -222,13 +222,13 @@ Execute small, ad-hoc calculations with GPD guarantees but skip optional agents.
 Quick mode uses the same system with a shorter path:
 
 - Spawns planner + executor (skips literature scout, checker, validator)
-- Quick tasks live in `.planning/quick/` separate from planned phases
+- Quick tasks live in `.gpd/quick/` separate from planned phases
 - Updates STATE.md tracking (not ROADMAP.md)
 
 Use when you know exactly what to calculate and the task is small enough to not need literature survey or validation.
 
 Usage: `/gpd:quick`
-Result: Creates `.planning/quick/NNN-slug/PLAN.md`, `.planning/quick/NNN-slug/SUMMARY.md`
+Result: Creates `.gpd/quick/NNN-slug/PLAN.md`, `.gpd/quick/NNN-slug/SUMMARY.md`
 
 ### Roadmap Management
 
@@ -361,7 +361,7 @@ Usage: `/gpd:pause-work`
 Capture idea or task as todo from current conversation.
 
 - Extracts context from conversation (or uses provided description)
-- Creates structured todo file in `.planning/todos/pending/`
+- Creates structured todo file in `.gpd/todos/pending/`
 - Infers area from context for grouping
 - Checks for duplicates before creating
 - Updates STATE.md todo count
@@ -400,9 +400,9 @@ Usage: `/gpd:verify-work 3`
 Systematic debugging of physics calculations with persistent state across context resets.
 
 - Spawns gpd-debugger agent with scientific method approach
-- Maintains debug session state in `.planning/debug/`
+- Maintains debug session state in `.gpd/debug/`
 - Survives context window resets — resumes from last checkpoint
-- Archives resolved issues to `.planning/debug/resolved/`
+- Archives resolved issues to `.gpd/debug/resolved/`
 
 Usage: `/gpd:debug Sign error in self-energy diagram`
 
@@ -558,7 +558,7 @@ Usage: `/gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 **`/gpd:branch-hypothesis <description>`**
 Create a hypothesis branch for parallel investigation of an alternative approach.
 
-- Creates git branch with isolated `.planning/` state
+- Creates git branch with isolated `.gpd/` state
 - Allows exploring alternative methods without disrupting main line
 - Use when two valid approaches exist and you want to compare
 
@@ -581,7 +581,7 @@ Display and search the cumulative decision log.
 - Shows all recorded decisions across phases
 - Filter by phase number or keyword
 - Tracks sign conventions, approximation choices, gauge choices
-- Reads from `.planning/DECISIONS.md`
+- Reads from `.gpd/DECISIONS.md`
 
 Usage: `/gpd:decisions`
 Usage: `/gpd:decisions 3`
@@ -598,7 +598,7 @@ Visualize dependency graph across phases and identify gaps.
 
 Usage: `/gpd:graph`
 
-> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
+![1773117521686](image/help/1773117521686.png)![1773117527461](image/help/1773117527461.png)> **Note:** Wave dependency validation runs automatically when executing phases. To validate manually, use `gpd phase validate-waves <phase>` — checks depends_on targets, file overlap within waves, wave consistency, and circular dependencies.
 
 **`/gpd:export [--format html|latex|zip|all]`**
 Export research results to HTML, LaTeX, or ZIP package.
@@ -636,7 +636,7 @@ Record a project-specific learning or pattern to the insights ledger.
 - Records error patterns, convention pitfalls, verification lessons
 - Checks for duplicates before adding
 - Categorizes into appropriate section (Debugging Patterns, Verification Lessons, etc.)
-- Updates `.planning/INSIGHTS.md`
+- Updates `.gpd/INSIGHTS.md`
 
 Usage: `/gpd:record-insight`
 Usage: `/gpd:record-insight Sign error in Wick contractions with mostly-minus metric`
@@ -672,7 +672,7 @@ Configure workflow toggles and model profile interactively.
 - Configure inter-wave verification gates (auto/always/never)
 - Toggle parallel execution of wave plans
 - Select model profile (deep-theory/numerical/exploratory/review/paper-writing)
-- Updates `.planning/config.json`
+- Updates `.gpd/config.json`
 
 Usage: `/gpd:settings`
 
@@ -750,7 +750,7 @@ Show this command reference.
 ## Files & Structure
 
 ```
-.planning/
+.gpd/
 |-- PROJECT.md            # Research question, framework, parameters
 |-- REQUIREMENTS.md       # Scoped research requirements with REQ-IDs
 |-- ROADMAP.md            # Current phase breakdown
@@ -804,11 +804,11 @@ Set during `/gpd:new-project`:
 - Executes plans without confirmation
 - Only stops for critical checkpoints (e.g., sign convention choices)
 
-Change anytime by editing `.planning/config.json`
+Change anytime by editing `.gpd/config.json`
 
 ## Planning Configuration
 
-Configure how planning artifacts are managed in `.planning/config.json`:
+Configure how planning artifacts are managed in `.gpd/config.json`:
 
 **`planning.commit_docs`** (default: `true`)
 
@@ -817,14 +817,14 @@ Configure how planning artifacts are managed in `.planning/config.json`:
 
 When `commit_docs: false`:
 
-- Add `.planning/` to your `.gitignore`
+- Add `.gpd/` to your `.gitignore`
 - Useful for collaborative projects, shared repos, or keeping planning private
 - All planning files still work normally, just not tracked in git
 
 **`planning.search_gitignored`** (default: `false`)
 
 - `true`: Add `--no-ignore` to broad ripgrep searches
-- Only needed when `.planning/` is gitignored and you want project-wide searches to include it
+- Only needed when `.gpd/` is gitignored and you want project-wide searches to include it
 
 Example config:
 
@@ -889,8 +889,8 @@ Example config:
 
 ## Getting Help
 
-- Read `.planning/PROJECT.md` for research question and framework
-- Read `.planning/STATE.md` for current context and key results
-- Check `.planning/ROADMAP.md` for phase status
+- Read `.gpd/PROJECT.md` for research question and framework
+- Read `.gpd/STATE.md` for current context and key results
+- Check `.gpd/ROADMAP.md` for phase status
 - Run `/gpd:progress` to check where you are
   </process>

@@ -11,7 +11,7 @@ template_version: 1
 
 # Methods Research Template
 
-Template for `.planning/research/METHODS.md` - recommended methods and computational tools for the research domain.
+Template for `.gpd/research/METHODS.md` - recommended methods and computational tools for the research domain.
 
 <template>
 

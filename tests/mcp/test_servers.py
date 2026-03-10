@@ -7,7 +7,7 @@ Covers: conventions, errors, patterns, protocols, skills, state, verification.
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -80,7 +80,7 @@ class TestConventionsServer:
         lock_a = {"natural_units": "natural"}
         lock_b = {"natural_units": "natural", "metric_signature": "(+,-,-,-)"}
         result = convention_diff(lock_a, lock_b)
-        assert result["diff_count"] >= 1
+        assert result["diff_count"] == 1
 
     def test_assert_convention_validate_matching(self):
         from gpd.mcp.servers.conventions_server import assert_convention_validate
@@ -115,6 +115,22 @@ class TestConventionsServer:
         assert "natural_units" in result["defaults"]
         assert result["defaults"]["natural_units"] == "natural"
 
+    def test_subfield_defaults_algebraic_qft(self):
+        from gpd.mcp.servers.conventions_server import subfield_defaults
+
+        result = subfield_defaults("algebraic_qft")
+        assert result["found"] is True
+        assert result["defaults"]["natural_units"] == "natural"
+        assert result["defaults"]["state_normalization"] == "relativistic"
+
+    def test_subfield_defaults_string_field_theory(self):
+        from gpd.mcp.servers.conventions_server import subfield_defaults
+
+        result = subfield_defaults("string_field_theory")
+        assert result["found"] is True
+        assert result["defaults"]["natural_units"] == "natural"
+        assert result["defaults"]["creation_annihilation_order"] == "normal"
+
     def test_subfield_defaults_unknown(self):
         from gpd.mcp.servers.conventions_server import subfield_defaults
 
@@ -132,7 +148,7 @@ class TestConventionsServer:
     def test_convention_lock_status(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {
             "convention_lock": {
@@ -148,7 +164,7 @@ class TestConventionsServer:
     def test_convention_lock_status_empty_project(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         result = convention_lock_status(str(tmp_path))
         assert result["set_count"] == 0
@@ -156,7 +172,7 @@ class TestConventionsServer:
     def test_convention_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -167,7 +183,7 @@ class TestConventionsServer:
     def test_convention_set_already_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         state = {"convention_lock": {"metric_signature": "(+,-,-,-)"}}
         (planning / "state.json").write_text(json.dumps(state))
@@ -178,7 +194,7 @@ class TestConventionsServer:
     def test_convention_set_custom_key(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".planning"
+        planning = tmp_path / ".gpd"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -483,11 +499,11 @@ class TestSkillsServer:
 
     @pytest.fixture(autouse=True)
     def _mock_skill_registry(self, tmp_path):
-        """Create fake commands/spec skills and patch the shared registry paths."""
+        """Create fake commands/agents for MCP skill tests."""
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        specs_skills_dir = tmp_path / "skills"
-        specs_skills_dir.mkdir()
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
 
         (commands_dir / "execute-phase.md").write_text(
             "---\n"
@@ -511,57 +527,25 @@ class TestSkillsServer:
         (commands_dir / "help.md").write_text(
             "---\n"
             "name: gpd:help\n"
-            "description: Show available commands.\n"
-            "---\n"
-            "\n"
-            "Canonical help command.\n",
-            encoding="utf-8",
-        )
-
-        stale_exec = specs_skills_dir / "gpd-execute-phase"
-        stale_exec.mkdir()
-        (stale_exec / "SKILL.md").write_text(
-            "---\n"
-            "name: gpd-execute-phase\n"
-            "description: Stale execute skill.\n"
-            "---\n"
-            "\n"
-            "Stale execute spec that should be ignored.\n",
-            encoding="utf-8",
-        )
-
-        debugger = specs_skills_dir / "gpd-debugger"
-        debugger.mkdir()
-        (debugger / "SKILL.md").write_text(
-            "---\n"
-            "name: gpd-debugger\n"
-            "description: Debugger fallback skill.\n"
-            "---\n"
-            "\n"
-            "Spec-only debugger skill.\n",
-            encoding="utf-8",
-        )
-
-        (commands_dir / "help.md").write_text(
-            "---\n"
-            "name: gpd:help\n"
             "description: Show available GPD commands and usage guide.\n"
             "---\n"
             "\n"
             "Canonical help command.\n",
             encoding="utf-8",
         )
-
-        ignored = specs_skills_dir / "not-a-gpd-skill"
-        ignored.mkdir()
-        (ignored / "SKILL.md").write_text(
-            "---\nname: not-a-gpd-skill\ndescription: Ignore me.\n---\n\nIgnored.\n",
+        (agents_dir / "gpd-debugger.md").write_text(
+            "---\n"
+            "name: gpd-debugger\n"
+            "description: Canonical debugger agent.\n"
+            "---\n"
+            "\n"
+            "Primary debugger agent.\n",
             encoding="utf-8",
         )
 
         with (
             patch("gpd.registry.COMMANDS_DIR", commands_dir),
-            patch("gpd.registry.SPECS_SKILLS_DIR", specs_skills_dir),
+            patch("gpd.registry.AGENTS_DIR", agents_dir),
         ):
             from gpd.registry import invalidate_cache
 
@@ -599,8 +583,14 @@ class TestSkillsServer:
         result = get_skill("gpd-execute-phase")
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
-        assert "Stale execute spec" not in result["content"]
         assert result["file_count"] == 1
+
+    def test_get_skill_agent_uses_primary_agent_content(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-debugger")
+        assert result["name"] == "gpd-debugger"
+        assert "Primary debugger agent" in result["content"]
 
     def test_get_skill_resolves_install_and_agents_placeholders(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -639,6 +629,29 @@ class TestSkillsServer:
         assert result["suggestion"] == "gpd-help"
         assert result["confidence"] <= 0.1
 
+    def test_route_skill_no_match_without_help_falls_back_to_first_skill(self):
+        from gpd.mcp.servers.skills_server import route_skill
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-debugger",
+                    description="Debugger",
+                    content="Primary debugger agent.",
+                    category="debugging",
+                    path="/tmp/gpd-debugger.md",
+                    source_kind="agent",
+                    registry_name="gpd-debugger",
+                )
+            ],
+        ):
+            result = route_skill("zzz yyy xxx")
+
+        assert result["suggestion"] == "gpd-debugger"
+        assert result["confidence"] <= 0.1
+
     def test_get_skill_index(self):
         from gpd.mcp.servers.skills_server import get_skill_index
 
@@ -647,21 +660,12 @@ class TestSkillsServer:
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
 
-    def test_get_skill_accepts_registry_key_alias(self):
+    def test_get_skill_accepts_command_style_name(self):
         from gpd.mcp.servers.skills_server import get_skill
 
-        result = get_skill("execute-phase")
+        result = get_skill("gpd:execute-phase")
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
-
-    def test_infer_category(self):
-        from gpd.mcp.servers.skills_server import _infer_category
-
-        assert _infer_category("gpd-execute-phase") == "execution"
-        assert _infer_category("gpd-plan-phase") == "planning"
-        assert _infer_category("gpd-verify-work") == "verification"
-        assert _infer_category("gpd-debug") == "debugging"
-        assert _infer_category("unknown-skill") == "other"
 
 
 # ---------------------------------------------------------------------------
@@ -675,12 +679,27 @@ class TestStateServer:
     def test_get_state(self):
         from gpd.mcp.servers.state_server import get_state
 
-        mock_result = MagicMock()
-        mock_result.model_dump.return_value = {"content": "state md", "position": {"phase": "01"}}
+        mock_state = {"position": {"current_phase": "01"}, "decisions": [], "blockers": []}
 
-        with patch("gpd.mcp.servers.state_server.state_get", return_value=mock_result):
+        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
             result = get_state("/fake/project")
-        assert "content" in result
+        assert "position" in result
+        assert result["position"]["current_phase"] == "01"
+
+    def test_get_state_no_state(self):
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=None):
+            result = get_state("/fake/project")
+        assert "error" in result
+
+    def test_get_state_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
+            result = get_state("/fake/project")
+        assert result == {"error": "boom"}
 
     def test_get_phase_info_found(self):
         from gpd.mcp.servers.state_server import get_phase_info
@@ -688,7 +707,7 @@ class TestStateServer:
         mock_info = MagicMock()
         mock_info.phase_number = "01"
         mock_info.phase_name = "Setup"
-        mock_info.directory = ".planning/phases/01-setup"
+        mock_info.directory = ".gpd/phases/01-setup"
         mock_info.phase_slug = "01-setup"
         mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
         mock_info.summaries = ["summary-01.md", "summary-02.md"]
@@ -759,7 +778,7 @@ class TestStateServer:
 
         with patch("gpd.mcp.servers.state_server.run_health", return_value=mock_report) as mock_fn:
             result = run_health_check("/fake/project", fix=True)
-        mock_fn.assert_called_once()
+        mock_fn.assert_called_once_with(ANY, fix=True)
         assert result["fixes_applied"] == 1
 
     def test_get_config(self):
@@ -919,11 +938,11 @@ class TestVerificationServer:
         assert len(result["automated_issues"]) == 0
 
     def test_run_check_unknown_id(self):
-        from gpd.core.errors import ValidationError as SpecValidationError
         from gpd.mcp.servers.verification_server import run_check
 
-        with pytest.raises(SpecValidationError, match="Unknown check_id"):
-            run_check("99.99", "qft", "content")
+        result = run_check("99.99", "qft", "content")
+        assert "error" in result
+        assert "Unknown check_id" in result["error"]
 
     def test_run_check_domain_specific_guidance(self):
         from gpd.mcp.servers.verification_server import run_check
@@ -1007,16 +1026,6 @@ class TestVerificationServer:
         )
         assert "Full coverage" in result["recommendation"]
 
-    # --- CHECK_PROFILES ---
-
-    def test_check_profiles_completeness(self):
-        from gpd.core.verification_checks import VERIFICATION_CHECKS
-        from gpd.mcp.servers.verification_server import CHECK_PROFILES
-
-        all_checks = set(VERIFICATION_CHECKS.keys())
-        for profile_name, checks in CHECK_PROFILES.items():
-            for check in checks:
-                assert check in all_checks, f"Profile {profile_name} references unknown check {check}"
 
     # --- _parse_dimensions helper ---
 
@@ -1075,8 +1084,9 @@ class TestErrorStoreParsing:
         assert _infer_domain_from_id(1) == "core"
         assert _infer_domain_from_id(26) == "field_theory"
         assert _infer_domain_from_id(52) == "extended"
+        assert _infer_domain_from_id(72) == "deep_domain"
         assert _infer_domain_from_id(82) == "cross_domain"
-        assert _infer_domain_from_id(102) == "deep_domain"
+        assert _infer_domain_from_id(102) == "newly_identified"
         assert _infer_domain_from_id(200) == "unknown"
 
 
@@ -1142,6 +1152,8 @@ Not a checkpoint.
         from gpd.mcp.servers.protocols_server import _infer_domain
 
         assert _infer_domain("perturbation-theory", []) == "core_derivation"
+        assert _infer_domain("algebraic-qft", []) == "mathematical_methods"
+        assert _infer_domain("string-field-theory", []) == "core_derivation"
         assert _infer_domain("monte-carlo", []) == "computational_methods"
         assert _infer_domain("group-theory", []) == "mathematical_methods"
         assert _infer_domain("numerical-computation", []) == "numerical_translation"

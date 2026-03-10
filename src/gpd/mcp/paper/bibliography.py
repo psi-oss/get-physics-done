@@ -72,13 +72,18 @@ def _create_bib_key(source: CitationSource, existing_keys: set[str]) -> str:
     if base_key not in existing_keys:
         return base_key
 
-    # Deduplicate with a/b/c suffix
+    # Deduplicate with a/b/c suffix, then numeric suffixes for 27+
     for suffix in "abcdefghijklmnopqrstuvwxyz":
         candidate = f"{base_key}{suffix}"
         if candidate not in existing_keys:
             return candidate
 
-    return f"{base_key}_extra"
+    n = 27
+    while True:
+        candidate = f"{base_key}_{n}"
+        if candidate not in existing_keys:
+            return candidate
+        n += 1
 
 
 _SOURCE_TYPE_TO_BIBTEX = {
@@ -195,39 +200,24 @@ def enrich_with_ads(bibcodes: list[str]) -> dict[str, str]:
             result = json.loads(resp.read())
 
         export_text = result.get("export", "")
-        # Parse into per-bibcode mapping
+        if not isinstance(export_text, str) or not export_text.strip():
+            return {}
+
+        entry_chunks = re.split(r"(?m)(?=^@\w)", export_text.strip())
         mapping: dict[str, str] = {}
-        for bibcode in bibcodes:
-            if bibcode in export_text:
-                mapping[bibcode] = export_text
+        for chunk in entry_chunks:
+            entry = chunk.strip()
+            if not entry:
+                continue
+            for bibcode in bibcodes:
+                if bibcode in entry:
+                    mapping[bibcode] = entry + "\n"
+                    break
         return mapping
 
     except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
         logger.debug("ADS API request failed; skipping enrichment", exc_info=True)
         return {}
-
-
-def search_ads_by_title(title: str) -> list[dict]:
-    """Search ADS by title to find bibcode and metadata.
-
-    Returns list of result dicts. Gracefully returns [] on failure.
-    """
-    token = _get_ads_token()
-    if not token:
-        return []
-
-    try:
-        query = urllib.parse.quote(f'title:"{title}"')
-        url = f"{ADS_API_URL}/search/query?q={query}&fl=bibcode,title,author,doi,year,pub&rows=3"
-        headers = {"Authorization": f"Bearer {token}"}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-        return result.get("response", {}).get("docs", [])
-
-    except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
-        logger.debug("ADS search failed; returning empty", exc_info=True)
-        return []
 
 
 # ---- arXiv metadata to BibTeX ----
@@ -291,8 +281,8 @@ def build_bibliography(sources: list[CitationSource], enrich: bool = True) -> Bi
         # 2. ADS enrichment for sources with bibcode
         bibcodes = [s.bibcode for s in enriched if s.bibcode]
         if bibcodes:
-            enrich_with_ads(bibcodes)
-            # ADS enrichment currently returns raw BibTeX; for now we just
-            # ensure the call doesn't crash. Full integration deferred.
+            # TODO: Integrate ADS enrichment -- enrich_with_ads(bibcodes)
+            # returns raw BibTeX keyed by bibcode.  Full integration deferred.
+            pass
 
     return create_bibliography(enriched)

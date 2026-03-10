@@ -1,6 +1,6 @@
 """JSONL-based execution tracing for GPD agent debugging.
 
-Traces are stored in ``.planning/traces/{phase}-{plan}.jsonl`` as one JSON
+Traces are stored in ``.gpd/traces/{phase}-{plan}.jsonl`` as one JSON
 object per line.  An active-trace marker file tracks which trace is currently
 recording.
 
@@ -207,7 +207,7 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     """Create a trace file and set it as the active trace.
 
     Raises:
-        ValueError: If *phase* or *plan* is empty, or a trace is already active.
+        TraceError: If *phase* or *plan* is empty, or a trace is already active.
     """
     if not phase:
         raise TraceError(
@@ -235,11 +235,22 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     with trace_file.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
 
+    # NOTE: active.file stores an absolute path as a string.  If the project
+    # directory is moved/renamed after a trace is started, active traces and
+    # trace_log / trace_stop will break because the stored path no longer
+    # resolves.  A full fix requires a schema migration to store relative
+    # paths; for now we document the limitation.
     marker = ActiveTrace(phase=phase, plan=plan, file=str(trace_file), started_at=started_at)
     atomic_write(_active_trace_path(cwd), marker.model_dump_json(indent=2))
 
-    rel = str(trace_file.relative_to(cwd))
-    with gpd_span("gpd.trace.start", **{"gpd.phase": phase, "gpd.plan": plan}):
+    # relative_to raises ValueError when trace_file is not under cwd
+    # (e.g. symlinked or non-standard layout).  Fall back to the filename.
+    try:
+        rel = str(trace_file.relative_to(cwd))
+    except ValueError:
+        rel = trace_file.name
+
+    with gpd_span("trace.start", **{"gpd.phase": phase, "gpd.plan": plan}):
         logger.info("trace_started", extra={"phase": phase, "plan": plan, "file": rel})
 
     return TraceStartResult(phase=phase, plan=plan, file=rel)
@@ -250,7 +261,7 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
     """Append a timestamped event to the active trace.
 
     Raises:
-        ValueError: If *event_type* is unknown or no trace is active.
+        TraceError: If *event_type* is unknown or no trace is active.
     """
     if event_type not in USER_EVENT_TYPES:
         raise TraceError(f"Unknown event type: {event_type!r}. Valid: {sorted(USER_EVENT_TYPES)}")
@@ -260,9 +271,12 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
         raise TraceError("No active trace. Call trace_start() first.")
 
     line = _serialize_event(event_type, data=data)
+    # NOTE: active.file is an absolute path string (see trace_start comment).
+    # If the project directory has been moved since the trace was started,
+    # this Path() will point to a stale location.
     _append_line(Path(active.file), line)
 
-    with gpd_span("gpd.trace.log", **{"gpd.trace_event_type": event_type}):
+    with gpd_span("trace.log", **{"gpd.trace_event_type": event_type}):
         pass
 
     return TraceLogResult(event_type=event_type)
@@ -273,7 +287,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     """Close the active trace and write a summary event.
 
     Raises:
-        ValueError: If no trace is active.
+        TraceError: If no trace is active.
     """
     active = _read_active_trace(cwd)
     if active is None:
@@ -302,7 +316,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
 
     _active_trace_path(cwd).unlink(missing_ok=True)
 
-    with gpd_span("gpd.trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
+    with gpd_span("trace.stop", **{"gpd.phase": active.phase, "gpd.plan": active.plan}):
         logger.info("trace_stopped", extra={"phase": active.phase, "plan": active.plan, "counts": counts})
 
     return TraceStopResult(phase=active.phase, plan=active.plan, event_counts=counts)
@@ -328,7 +342,7 @@ def trace_show(
     """
     traces = _traces_dir(cwd)
 
-    with gpd_span("gpd.trace.show", **{"gpd.phase": phase or "", "gpd.plan": plan or ""}):
+    with gpd_span("trace.show", **{"gpd.phase": phase or "", "gpd.plan": plan or ""}):
         # Specific phase + plan
         if phase and plan:
             tf = _trace_file_path(cwd, phase, plan)

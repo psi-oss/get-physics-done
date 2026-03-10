@@ -48,7 +48,7 @@ def _make_gpd_root(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (root / "agents" / "gpd-verifier.md").write_text(
-        "---\nname: gpd-verifier\ndescription: Verify\ntools: Read\ncolor: green\n---\nPrompt.\n",
+        "---\nname: gpd-verifier\ndescription: Verify\ntools: file_read\ncolor: green\n---\nPrompt.\n",
         encoding="utf-8",
     )
     (root / "hooks" / "statusline.py").write_text("print('ok')\n", encoding="utf-8")
@@ -493,7 +493,6 @@ class TestRegistryInvalidYaml:
         (agents_dir / "broken.yaml").write_text("---\n: : : invalid\n---\n", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
-        monkeypatch.setattr(registry, "SPECS_AGENTS_DIR", tmp_path / "nonexistent")
 
         result = registry._discover_agents()
         assert "valid" in result

@@ -166,7 +166,7 @@ When the orchestrator detects transition criteria are met:
 2. Update config: `gpd config-set research_mode exploit`
 3. Announce to user: "Research mode transitioning to exploit. The [approach] methodology validated in Phase N will be executed with maximum rigor for remaining phases."
 
-The user can override at any time: `$gpd-settings` or `gpd config-set research_mode explore`
+The user can override at any time: `/gpd:settings` or `gpd config-set research_mode explore`
 
 ## Interaction with Model Profiles
 

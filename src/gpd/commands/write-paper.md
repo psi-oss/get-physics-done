@@ -3,15 +3,15 @@ name: gpd:write-paper
 description: Structure and write a physics paper from research results
 argument-hint: "[paper title or topic] [--from-phases 1,2,3]"
 allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Task
-  - WebSearch
-  - AskUserQuestion
+  - file_read
+  - file_write
+  - file_edit
+  - shell
+  - search_files
+  - find_files
+  - task
+  - web_search
+  - ask_user
 ---
 
 <!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
@@ -51,16 +51,16 @@ Check for existing drafts:
 
 ```bash
 ls paper/ manuscript/ draft/ 2>/dev/null
-ls .planning/paper/*.md 2>/dev/null
+ls .gpd/paper/*.md 2>/dev/null
 find . -name "*.tex" -maxdepth 2 2>/dev/null | head -10
 ```
 
 Load research context:
 
 ```bash
-cat .planning/ROADMAP.md 2>/dev/null
-ls .planning/phases/*/SUMMARY.md 2>/dev/null
-cat .planning/research-map/FORMALISM.md 2>/dev/null
+cat .gpd/ROADMAP.md 2>/dev/null
+ls .gpd/phases/*/SUMMARY.md 2>/dev/null
+cat .gpd/research-map/FORMALISM.md 2>/dev/null
 ```
 
 </context>

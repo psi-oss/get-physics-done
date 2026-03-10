@@ -3,9 +3,19 @@
   "description": "GPD physics verification checks. Tools for running dimensional analysis, limiting case checks, symmetry verification, and coverage gap analysis.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "gpd.mcp.servers.verification_server"],
+  "args": [
+    "-m",
+    "gpd.mcp.servers.verification_server"
+  ],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-verification",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   },
   "capabilities": [
     "run_check",
@@ -17,11 +27,13 @@
   ],
   "registry_prefix": "gpd_verification",
   "prerequisites": [
-    "Install GPD first: npx github:physicalsuperintelligence/get-physics-done"
+    "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done"
   ],
   "health_check": {
     "tool": "get_checklist",
-    "input": {"domain": "qft"},
+    "input": {
+      "domain": "qft"
+    },
     "expect": "contains Ward identities"
   }
 }
