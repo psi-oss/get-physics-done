@@ -808,7 +808,7 @@ class OpenCodeAdapter(RuntimeAdapter):
 
         return {
             "target": str(target_dir),
-            "hooks": self._hooks_count,
+            "hooks": getattr(self, "_hooks_count", 0),
             "gpd_files": getattr(self, "_gpd_files_count", 0),
             "mcpServers": mcp_count,
         }

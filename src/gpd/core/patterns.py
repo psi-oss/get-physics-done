@@ -30,7 +30,6 @@ from datetime import date
 from enum import StrEnum
 from pathlib import Path
 
-import logfire
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
@@ -42,7 +41,7 @@ from gpd.core.constants import (
     SEED_PATTERN_INITIAL_OCCURRENCES,
 )
 from gpd.core.errors import PatternError
-from gpd.core.observability import instrument_gpd_function
+from gpd.core.observability import gpd_span, instrument_gpd_function
 from gpd.core.utils import atomic_write, file_lock, generate_slug
 
 logger = logging.getLogger(__name__)
@@ -437,7 +436,7 @@ def pattern_add(
     )
     _save_index(lib_root, index)
 
-    with logfire.span("gpd.patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
+    with gpd_span("gpd.patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
         logger.info("pattern_added", extra={"id": pattern_id, "domain": domain, "severity": severity})
 
     return PatternAddResult(id=pattern_id, file=rel_path, severity=severity)
@@ -473,7 +472,7 @@ def pattern_list(
         )
     )
 
-    with logfire.span("gpd.patterns.list", **{"gpd.count": len(patterns)}):
+    with gpd_span("gpd.patterns.list", **{"gpd.count": len(patterns)}):
         pass
 
     return PatternListResult(patterns=patterns, count=len(patterns))
@@ -517,7 +516,7 @@ def pattern_promote(pattern_id: str, *, root: Path | None = None) -> PatternProm
     _update_pattern_frontmatter(lib_root, entry)
     _save_index(lib_root, index)
 
-    with logfire.span("gpd.patterns.promote", **{"gpd.pattern_id": pattern_id, "gpd.to": next_level}):
+    with gpd_span("gpd.patterns.promote", **{"gpd.pattern_id": pattern_id, "gpd.to": next_level}):
         logger.info("pattern_promoted", extra={"id": pattern_id, "from": current, "to": next_level})
 
     return PatternPromoteResult(
@@ -563,7 +562,7 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     scored.sort(key=lambda x: -x[0])
     matches = [p for _, p in scored]
 
-    with logfire.span("gpd.patterns.search", **{"gpd.query": query, "gpd.matches": len(matches)}):
+    with gpd_span("gpd.patterns.search", **{"gpd.query": query, "gpd.matches": len(matches)}):
         pass
 
     return PatternSearchResult(matches=matches, count=len(matches), query=query)
@@ -654,7 +653,7 @@ def pattern_update(
 
     _save_index(lib_root, index)
 
-    with logfire.span("gpd.patterns.update", **{"gpd.pattern_id": pattern_id}):
+    with gpd_span("gpd.patterns.update", **{"gpd.pattern_id": pattern_id}):
         pass
 
     return PatternUpdateResult(
@@ -891,7 +890,7 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
 
     _save_index(lib_root, index)
 
-    with logfire.span("gpd.patterns.seed", **{"gpd.added": added, "gpd.skipped": skipped}):
+    with gpd_span("gpd.patterns.seed", **{"gpd.added": added, "gpd.skipped": skipped}):
         logger.info("patterns_seeded", extra={"added": added, "skipped": skipped, "total": len(index.patterns)})
 
     return PatternSeedResult(added=added, skipped=skipped, total=len(index.patterns))

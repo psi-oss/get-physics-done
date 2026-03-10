@@ -337,7 +337,7 @@ def limiting_case_check(expression: str, limits: dict[str, str]) -> dict:
         return _limiting_case_inner(expression, limits)
 
 
-def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:  # noqa: F821
+def _limiting_case_inner(expression: str, limits: dict[str, str]) -> dict:
     results: list[dict[str, object]] = []
     standard_limits = {
         "classical": "hbar -> 0",

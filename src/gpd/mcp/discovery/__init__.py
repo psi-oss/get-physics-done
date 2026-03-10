@@ -49,6 +49,8 @@ __all__ = [
     "reevaluate_tools",
     "route_and_select",
     "select_tools",
+    "get_tool_catalog",
+    "discover_tools",
 ]
 
 

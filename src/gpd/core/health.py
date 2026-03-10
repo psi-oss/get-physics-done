@@ -15,7 +15,6 @@ import sys
 from enum import StrEnum
 from pathlib import Path
 
-import logfire
 import yaml
 from pydantic import BaseModel, Field
 
@@ -40,6 +39,7 @@ from gpd.core.constants import (
 )
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
+from gpd.core.observability import gpd_span
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.state import (
     load_state_json,
@@ -613,11 +613,11 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
         cwd: Project root directory.
         fix: If True, attempt auto-fixes for common issues.
     """
-    with logfire.span("gpd.health.run", **{"gpd.health.fix": fix}):
+    with gpd_span("gpd.health.run", **{"gpd.health.fix": fix}):
         checks: list[HealthCheck] = []
 
         for name, check_fn in _ALL_CHECKS:
-            with logfire.span(f"gpd.health.check.{name}"):
+            with gpd_span(f"gpd.health.check.{name}"):
                 if name == "environment":
                     checks.append(check_fn())  # type: ignore[operator]
                 else:
@@ -684,7 +684,7 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             version = None
     sd = specs_dir
 
-    with logfire.span("gpd.doctor.run"):
+    with gpd_span("gpd.doctor.run"):
         checks: list[HealthCheck] = []
 
         # 1. Specs directory structure

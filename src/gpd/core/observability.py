@@ -33,6 +33,7 @@ __all__ = [
     "FlagNotInitializedError",
     "GPD_FEATURE_FLAGS",
     "UnknownPresetError",
+    "get_active_flags",
     "gpd_span",
     "init_feature_flags",
     "instrument_gpd_function",
@@ -392,6 +393,11 @@ def is_enabled(flag_path: str) -> bool:
     if _active_flags is None:
         return False
     return _active_flags.is_enabled(flag_path)
+
+
+def get_active_flags() -> FeatureFlags | None:
+    """Return the module-level FeatureFlags singleton, or None if not initialized."""
+    return _active_flags
 
 
 def reset_feature_flags() -> None:

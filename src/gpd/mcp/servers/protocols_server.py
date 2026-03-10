@@ -34,7 +34,7 @@ PROTOCOLS_DIR = SPECS_DIR / "references" / "protocols"
 _HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
 
 
-def _extract_sections(body: str) -> list[dict[str, str]]:
+def _extract_sections(body: str) -> list[dict[str, str | int]]:
     """Extract H2/H3 sections from markdown body."""
     sections: list[dict[str, str]] = []
     matches = list(_HEADING_RE.finditer(body))

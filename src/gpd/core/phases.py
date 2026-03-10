@@ -16,7 +16,6 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-import logfire
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
@@ -38,6 +37,7 @@ from gpd.core.utils import (
     generate_slug,
     is_phase_complete,
     phase_normalize,
+    phase_sort_key as _phase_sort_key,
     phase_unpad,
     safe_parse_int,
     safe_read_file,
@@ -434,13 +434,6 @@ def _strip_suffix(name: str, suffix: str) -> str:
     return name
 
 
-def _phase_sort_key(name: str) -> list[int]:
-    """Sort key for phase directory names based on numeric segments."""
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
-    if not match:
-        return [0]
-    return [int(s) for s in match.group(1).split(".")]
-
 
 def _sorted_phases(dirs: list[str]) -> list[str]:
     """Sort phase directory names by numeric segments."""
@@ -835,11 +828,11 @@ def validate_waves(plans: list[PlanEntry]) -> WaveValidation:
                         f"wave {wave_numbers[i]} (expected {wave_numbers[i - 1] + 1})"
                     )
 
-        logfire.info(
-            "wave_validation_complete",
-            valid=len(errors) == 0,
-            error_count=len(errors),
-            warning_count=len(warnings),
+        logger.info(
+            "wave_validation_complete: valid=%s errors=%d warnings=%d",
+            len(errors) == 0,
+            len(errors),
+            len(warnings),
         )
         return WaveValidation(valid=len(errors) == 0, errors=errors, warnings=warnings)
 

@@ -113,12 +113,19 @@ def _fix_unbalanced_braces(tex: str) -> str:
     if open_count > close_count:
         missing = open_count - close_count
         tex = tex.rstrip() + ("}" * missing)
+    elif close_count > open_count:
+        missing = close_count - open_count
+        tex = ("{" * missing) + tex.lstrip()
     return tex
 
 
+def _fix_unescaped_underscores_and_carets(tex: str) -> str:
+    """Apply both underscore and caret fixes for 'Missing $ inserted' errors."""
+    return _fix_unescaped_carets(_fix_unescaped_underscores(tex))
+
+
 _AUTO_FIX_RULES: list[tuple[str, Callable[[str], str], str]] = [
-    (r"Missing \$ inserted", _fix_unescaped_underscores, "Escaped underscores outside math mode"),
-    (r"Missing \$ inserted", _fix_unescaped_carets, "Escaped carets outside math mode"),
+    (r"Missing \$ inserted", _fix_unescaped_underscores_and_carets, "Escaped underscores and carets outside math mode"),
     (r"Missing \\begin\{document\}", _fix_missing_document_begin, "Added missing \\begin{document}"),
     (r"LaTeX Error: \\begin\{document\} ended", _fix_missing_document_end, "Added missing \\end{document}"),
     (r"Runaway argument", _fix_unbalanced_braces, "Balanced unmatched braces"),

@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from gpd.core.utils import atomic_write
+
 
 def _resolve_path(data: Any, key: str) -> Any:
     """Walk a dot-path like ``.section``, ``.waves``, or ``.directories[-1]``.
@@ -156,7 +158,8 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, Any]:
         current = current[part]
     current[parts[-1]] = parsed_value
 
-    fp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(fp, json.dumps(data, indent=2) + "\n")
     return {"file": str(fp), "path": path, "updated": True}
 
 
@@ -174,8 +177,7 @@ def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, Any]:
                 pass
 
     out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+    atomic_write(out, json.dumps(merged, indent=2) + "\n")
     return {"file": str(out), "merged": len(file_paths), "keys": len(merged)}
 
 

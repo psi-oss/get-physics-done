@@ -23,8 +23,6 @@ from gpd.core.config import (
 )
 from gpd.core.constants import (
     CONFIG_FILENAME,
-    DEFAULT_MAX_INCLUDE_CHARS,
-    ENV_MAX_INCLUDE_CHARS,
     PHASES_DIR_NAME,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
@@ -32,11 +30,14 @@ from gpd.core.constants import (
     STATE_MD_FILENAME,
 )
 from gpd.core.errors import ValidationError
+from gpd.core.utils import (
+    MAX_INCLUDE_CHARS,
+    is_phase_complete as _is_phase_complete,
+    safe_read_file as _safe_read_file,
+    safe_read_file_truncated as _safe_read_file_truncated,
+)
 
 logger = logging.getLogger(__name__)
-
-# Maximum chars to include when embedding file contents in context.
-MAX_INCLUDE_CHARS = int(os.environ.get(ENV_MAX_INCLUDE_CHARS, str(DEFAULT_MAX_INCLUDE_CHARS)))
 
 
 # Research file extensions for project detection.
@@ -80,29 +81,6 @@ __all__ = [
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _safe_read_file(filepath: Path) -> str | None:
-    """Read a file, returning None if it doesn't exist or can't be read."""
-    try:
-        return filepath.read_text(encoding="utf-8")
-    except (FileNotFoundError, IsADirectoryError, PermissionError, OSError):
-        return None
-
-
-def _safe_read_file_truncated(filepath: Path, max_chars: int = 0) -> str | None:
-    """Read a file, truncating if it exceeds max_chars."""
-    content = _safe_read_file(filepath)
-    if content is None:
-        return None
-    limit = max_chars or MAX_INCLUDE_CHARS
-    if len(content) <= limit:
-        return content
-    return (
-        content[:limit]
-        + f"\n\n...truncated ({len(content)} chars total, showing first {limit}). "
-        + "Use Read tool for full content."
-    )
-
-
 def _path_exists(cwd: Path, target: str) -> bool:
     """Check if a relative path exists under cwd."""
     return (cwd / target).exists()
@@ -131,10 +109,6 @@ def _normalize_phase_name(phase: str) -> str:
             normalized.append(p)
     return ".".join(normalized)
 
-
-def _is_phase_complete(plan_count: int, summary_count: int) -> bool:
-    """A phase is complete when it has plans and all have matching summaries."""
-    return plan_count > 0 and summary_count >= plan_count
 
 
 def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str) -> str | None:

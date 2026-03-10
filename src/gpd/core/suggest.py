@@ -25,6 +25,11 @@ from gpd.core.constants import (
     SUMMARY_SUFFIX,
     VERIFICATION_SUFFIX,
 )
+from gpd.core.utils import (
+    compare_phase_numbers as _compare_phase_numbers,
+    is_phase_complete as _is_phase_complete,
+    phase_sort_key as _phase_sort_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,23 +168,8 @@ def _is_verification_file(name: str) -> bool:
     return name.endswith(VERIFICATION_SUFFIX) or name == STANDALONE_VERIFICATION
 
 
-def _is_phase_complete(plan_count: int, summary_count: int) -> bool:
-    return plan_count > 0 and summary_count >= plan_count
 
 
-def _compare_phase_numbers(a: str, b: str) -> int:
-    """Compare two phase number strings segment-by-segment (e.g. '2.1' < '2.10')."""
-    a_match = re.match(r"^(\d+(?:\.\d+)*)", a)
-    b_match = re.match(r"^(\d+(?:\.\d+)*)", b)
-    a_parts = (a_match.group(1) if a_match else "0").split(".")
-    b_parts = (b_match.group(1) if b_match else "0").split(".")
-
-    for i in range(max(len(a_parts), len(b_parts))):
-        a_val = int(a_parts[i]) if i < len(a_parts) else 0
-        b_val = int(b_parts[i]) if i < len(b_parts) else 0
-        if a_val != b_val:
-            return -1 if a_val < b_val else 1
-    return 0
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
@@ -199,7 +189,7 @@ def _load_config(cwd: Path) -> dict[str, object]:
             "research_mode": str(cfg.research_mode.value),
         }
     except Exception:
-        logger.debug("suggest: canonical config load failed, using defaults")
+        logger.warning("suggest: canonical config load failed, using defaults", exc_info=True)
         return dict(_CONFIG_DEFAULTS)
 
 
@@ -262,13 +252,6 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
 
     return results
 
-
-def _phase_sort_key(name: str) -> list[int]:
-    """Sort key for phase directory names by numeric segments."""
-    match = re.match(r"^(\d+(?:\.\d+)*)", name)
-    if not match:
-        return [999999]
-    return [int(x) for x in match.group(1).split(".")]
 
 
 def _phase_label(phase: _PhaseAnalysis) -> str:

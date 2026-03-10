@@ -90,45 +90,6 @@ def get_skills_summary() -> dict:
     return {}
 
 
-def get_streaming_configs() -> dict:
-    """Load streaming configurations from metadata.json files."""
-    simulators_dir = _resolve_simulators_dir()
-    if simulators_dir is None:
-        return {}
-
-    streaming_configs: dict = {}
-    for mcp_dir in simulators_dir.iterdir():
-        if not mcp_dir.is_dir():
-            continue
-
-        metadata_file = mcp_dir / "metadata.json"
-        if not metadata_file.exists():
-            continue
-
-        try:
-            with open(metadata_file, encoding="utf-8") as f:
-                metadata = json.load(f)
-
-            streaming = metadata.get("streaming", {})
-            if streaming.get("enabled", False):
-                streaming_configs[mcp_dir.name] = streaming
-        except (OSError, json.JSONDecodeError):
-            continue
-
-    return streaming_configs
-
-
-def get_skill_path(mcp_name: str) -> Path | None:
-    """Get the SKILL.md path for any MCP (external or simulator)."""
-    simulators_dir = _resolve_simulators_dir()
-    if simulators_dir is None:
-        return None
-
-    sim_path = simulators_dir / mcp_name / "SKILL.md"
-    if sim_path.exists():
-        return sim_path
-    return None
-
 
 def get_available_mcps() -> dict:
     """Scan simulators directory for available MCPs with descriptions and tools."""

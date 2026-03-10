@@ -36,8 +36,6 @@ from gpd.core.utils import (
 )
 
 __all__ = [
-    "REQUIRED_RETURN_FIELDS",
-    "VALID_RETURN_STATUSES",
     "CurrentTimestampResult",
     "DecisionEntry",
     "GenerateSlugResult",

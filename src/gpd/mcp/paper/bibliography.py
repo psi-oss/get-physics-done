@@ -264,8 +264,8 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
         )
         return updated
 
-    except ImportError:
-        logger.debug("pybtex/arxiv client not available; returning source unchanged")
+    except Exception:
+        logger.debug("arxiv enrichment unavailable or failed; returning source unchanged")
         return source
 
 

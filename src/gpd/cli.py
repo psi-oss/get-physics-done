@@ -1541,7 +1541,8 @@ def dependency_graph(
     validate: bool = typer.Option(False, "--validate", help="Validate graph integrity"),
 ) -> None:
     """Generate a dependency graph across phases."""
-    raise typer.BadParameter("dependency-graph is not yet implemented")
+    console.print("[yellow]dependency-graph is not yet implemented[/]")
+    raise typer.Exit(code=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

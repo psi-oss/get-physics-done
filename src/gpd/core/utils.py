@@ -25,6 +25,7 @@ __all__ = [
     "generate_slug",
     "is_phase_complete",
     "phase_normalize",
+    "phase_sort_key",
     "phase_top_level",
     "phase_unpad",
     "safe_parse_int",
@@ -115,6 +116,17 @@ def compare_phase_numbers(a: str, b: str) -> int:
 def is_phase_complete(plan_count: int, summary_count: int) -> bool:
     """A phase is complete when it has at least one plan and every plan has a summary."""
     return plan_count > 0 and summary_count >= plan_count
+
+
+def phase_sort_key(name: str) -> list[int]:
+    """Sort key for phase directory names by numeric segments.
+
+    "03-setup" -> [3], "2.1-derive" -> [2, 1].
+    """
+    match = re.match(r"^(\d+(?:\.\d+)*)", name)
+    if not match:
+        return [999999]
+    return [int(s) for s in match.group(1).split(".")]
 
 
 # ─── Text Utilities ─────────────────────────────────────────────────────────────

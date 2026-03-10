@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 
 from gpd.core.observability import (
     FeatureFlags,
+    get_active_flags,
     gpd_span,
     is_enabled,
 )
@@ -261,6 +262,8 @@ def apply_ablation_overrides(
             for flag_key in point.flag_keys:
                 if flag_key in flags:
                     flags[flag_key] = False
+                else:
+                    logger.warning("ablation flag_key %r not found in feature flags", flag_key)
             applied.append(subsystem)
 
     if applied:
@@ -406,9 +409,7 @@ def report_ablations(
         AblationReport with active/disabled subsystems and env override list.
     """
     if flags is None:
-        from gpd.core.observability import _active_flags
-
-        flags = _active_flags
+        flags = get_active_flags()
 
     if flags is None:
         return AblationReport()

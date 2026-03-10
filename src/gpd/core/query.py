@@ -17,7 +17,7 @@ from gpd.core.constants import STANDALONE_SUMMARY, SUMMARY_SUFFIX, ProjectLayout
 from gpd.core.errors import QueryError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import compare_phase_numbers, phase_unpad
+from gpd.core.utils import compare_phase_numbers, phase_sort_key as _phase_sort_key, phase_unpad
 
 logger = logging.getLogger(__name__)
 
@@ -130,13 +130,6 @@ class AssumptionsResult(BaseModel):
 
 # ─── Internal Helpers ────────────────────────────────────────────────────────
 
-
-def _phase_sort_key(name: str) -> list[int]:
-    """Convert a phase directory name to a sortable key."""
-    m = re.match(r"^(\d+(?:\.\d+)*)", name)
-    if not m:
-        return [999999]
-    return [int(s) for s in m.group(1).split(".")]
 
 
 def _is_valid_phase_str(s: str) -> bool:
