@@ -42,6 +42,9 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.pytest_cache/**`
 - `.mypy_cache/**`
 - `.ruff_cache/**`
+- `.codex/**`
+- `.gemini/**`
+- `.opencode/**`
 
 Generated-output families are modeled when code or tests depend on them:
 
@@ -123,7 +126,7 @@ flowchart TD
 
 - `package.json -> bin/install.js`
   `authority`
-  npm/bootstrap surface; `bin/install.js` reads package version and repository metadata.
+  npm/bootstrap surface; `bin/install.js` reads the npm wrapper version, the pinned Python package version, and repository metadata.
 
 - `bin/install.js -> package.json`
   `package-data-load`
@@ -1257,7 +1260,7 @@ They explicitly preserve:
 - `tests/test_paper_compiler_regressions.py -> paper.pdf`
   `generated-output`
 
-- `tests/test_bootstrap_installer.py -> GitHub source/archive/git candidate family {https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v0.1.0.tar.gz, https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v0.1.0, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
+- `tests/test_bootstrap_installer.py -> GitHub source/archive/git candidate family {https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v<PYTHON_PACKAGE_VERSION>.tar.gz, https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<PYTHON_PACKAGE_VERSION>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<PYTHON_PACKAGE_VERSION>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
   `external-service`
 
 - `tests/test_bootstrap_installer.py -> ${GPD_HOME:-~/.gpd}/venv/**`
@@ -1294,11 +1297,11 @@ They explicitly preserve:
 
 - `tests/test_release_consistency.py -> package.json`
   `semantic`
-  Public npm and Python release versions are contractually locked together.
+  `package.json["gpdPythonVersion"]` is the public Python-release pin used by the bootstrap installer.
 
 - `tests/test_release_consistency.py -> pyproject.toml`
   `semantic`
-  Public npm and Python release versions are contractually locked together.
+  `pyproject.toml [project.version]` must match `package.json["gpdPythonVersion"]`, even when the npm wrapper version differs.
 
 - `tests/test_metadata_consistency.py -> README.md`
   `count-contract`

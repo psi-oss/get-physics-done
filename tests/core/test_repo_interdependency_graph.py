@@ -7,7 +7,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GRAPH_PATH = REPO_ROOT / "REPO_INTERDEPENDENCY_GRAPH.md"
-EXCLUDED_GRAPH_DIRS = {".git", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+EXCLUDED_GRAPH_DIRS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".codex",
+    ".gemini",
+    ".opencode",
+}
 
 
 def _graph_text() -> str:
