@@ -681,3 +681,198 @@ def test_valid_statuses_is_list():
     assert isinstance(VALID_STATUSES, list)
     assert "Executing" in VALID_STATUSES
     assert "Complete" in VALID_STATUSES
+
+
+# ─── Issue 1: state_compact must call _recover_intent_locked ──────────────────
+
+
+def _bootstrap_project_with_state(
+    tmp_path: Path,
+    state_dict: dict | None = None,
+    *,
+    current_phase: str = "03",
+    status: str = "Executing",
+    extra_lines: int = 0,
+) -> Path:
+    """Create a minimal .gpd/ project with STATE.md + state.json."""
+    from gpd.core.state import default_state_dict, generate_state_markdown
+
+    planning = tmp_path / ".gpd"
+    planning.mkdir(exist_ok=True)
+    (planning / "phases").mkdir(exist_ok=True)
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+
+    state = state_dict or default_state_dict()
+    pos = state.setdefault("position", {})
+    if pos.get("current_phase") is None:
+        pos["current_phase"] = current_phase
+    if pos.get("status") is None:
+        pos["status"] = status
+    if pos.get("current_plan") is None:
+        pos["current_plan"] = "1"
+    if pos.get("total_plans_in_phase") is None:
+        pos["total_plans_in_phase"] = 3
+    if pos.get("progress_percent") is None:
+        pos["progress_percent"] = 33
+
+    md = generate_state_markdown(state)
+    if extra_lines > 0:
+        md += "\n" + "\n".join(f"<!-- padding line {i} -->" for i in range(extra_lines))
+    (planning / "STATE.md").write_text(md, encoding="utf-8")
+    (planning / "state.json").write_text(
+        json.dumps(state, indent=2) + "\n", encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_state_compact_recovers_intent_before_reading(tmp_path):
+    """state_compact must call _recover_intent_locked before reading state.json.
+
+    Simulates an interrupted dual-write by leaving an intent marker whose
+    temp files contain updated state.  After recovery, state_compact should
+    see the updated (recovered) state.json, not the stale one.
+    """
+    from gpd.core.state import (
+        default_state_dict,
+        generate_state_markdown,
+        state_compact,
+    )
+    from gpd.core.constants import STATE_WRITE_INTENT_FILENAME
+
+    # Build a project whose STATE.md is large enough to trigger compaction
+    state = default_state_dict()
+    pos = state["position"]
+    pos["current_phase"] = "05"
+    pos["status"] = "Executing"
+    pos["current_plan"] = "1"
+    pos["total_plans_in_phase"] = 3
+    pos["progress_percent"] = 50
+
+    # Add many old decisions so there is content to compact
+    state["decisions"] = [
+        {"phase": str((i % 3) + 1), "summary": f"Old decision {i}"}
+        for i in range(40)
+    ]
+
+    md = generate_state_markdown(state)
+    md += "\n" + "\n".join(f"<!-- padding {i} -->" for i in range(100))
+
+    planning = tmp_path / ".gpd"
+    planning.mkdir(exist_ok=True)
+    (planning / "phases").mkdir(exist_ok=True)
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+
+    # Write a STALE state.json with phase "01" (wrong)
+    stale_state = default_state_dict()
+    stale_state["position"]["current_phase"] = "01"
+    stale_state["position"]["status"] = "Executing"
+    (planning / "state.json").write_text(
+        json.dumps(stale_state, indent=2) + "\n", encoding="utf-8"
+    )
+    (planning / "STATE.md").write_text(md, encoding="utf-8")
+
+    # Create temp files that _recover_intent_locked will promote —
+    # these carry the correct state with phase "05"
+    json_tmp = planning / ".state-json-tmp"
+    md_tmp = planning / ".state-md-tmp"
+    json_tmp.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    md_tmp.write_text(md, encoding="utf-8")
+
+    # Write the intent marker pointing at the temp files
+    intent_path = planning / STATE_WRITE_INTENT_FILENAME
+    intent_path.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
+
+    # Now call state_compact.  Before the fix, it would read the stale
+    # state.json (phase "01") and skip intent recovery entirely.
+    result = state_compact(tmp_path)
+
+    # The intent marker must have been consumed (recovered)
+    assert not intent_path.exists(), "intent marker should be removed after recovery"
+    # The temp files should have been promoted (renamed away)
+    assert not json_tmp.exists(), "json temp should be promoted by recovery"
+
+    # state.json should now reflect phase "05" (recovered), not "01" (stale)
+    recovered = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+    assert recovered["position"]["current_phase"] == "05"
+
+    # state_compact itself should return a sensible result
+    assert result.error is None
+
+
+# ─── Issue 2: unreachable code removed from state_advance_plan ────────────────
+
+
+def test_advance_plan_advances_normally(tmp_path):
+    """state_advance_plan should advance Current Plan when below total."""
+    from gpd.core.state import state_advance_plan
+
+    cwd = _bootstrap_project_with_state(
+        tmp_path,
+        current_phase="03",
+        status="Ready to execute",
+    )
+    result = state_advance_plan(cwd)
+    assert result.advanced is True
+    assert result.previous_plan == 1
+    assert result.current_plan == 2
+
+
+def test_advance_plan_returns_error_when_fields_missing(tmp_path):
+    """state_advance_plan returns an error when Current Plan field is missing.
+
+    After removing the unreachable code, the earlier None-check on
+    safe_parse_int must still catch the missing-field case correctly.
+    """
+    from gpd.core.state import state_advance_plan
+
+    planning = tmp_path / ".gpd"
+    planning.mkdir(exist_ok=True)
+    (planning / "phases").mkdir(exist_ok=True)
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+
+    # A STATE.md that has no **Current Plan:** field at all
+    md = "# Research State\n\n**Status:** Executing\n**Total Plans in Phase:** 3\n"
+    (planning / "STATE.md").write_text(md, encoding="utf-8")
+    (planning / "state.json").write_text("{}", encoding="utf-8")
+
+    result = state_advance_plan(tmp_path)
+    assert result.advanced is False
+    assert result.error is not None
+    assert "Cannot parse" in result.error
+
+
+def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
+    """When current_plan >= total_plans, it marks phase complete."""
+    from gpd.core.state import (
+        default_state_dict,
+        generate_state_markdown,
+        state_advance_plan,
+    )
+
+    state = default_state_dict()
+    pos = state["position"]
+    pos["current_phase"] = "02"
+    pos["current_plan"] = "3"
+    pos["total_plans_in_phase"] = 3
+    pos["status"] = "Executing"
+    pos["progress_percent"] = 90
+
+    planning = tmp_path / ".gpd"
+    planning.mkdir(exist_ok=True)
+    (planning / "phases").mkdir(exist_ok=True)
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+
+    md = generate_state_markdown(state)
+    (planning / "STATE.md").write_text(md, encoding="utf-8")
+    (planning / "state.json").write_text(
+        json.dumps(state, indent=2) + "\n", encoding="utf-8"
+    )
+
+    result = state_advance_plan(tmp_path)
+    assert result.advanced is False
+    assert result.reason == "last_plan"
+    assert result.status == "ready_for_verification"

@@ -181,3 +181,31 @@ class TestPrepare:
 
         assert len(result) == 1
         assert any("double-column width" in message for message in caplog.messages)
+
+
+# ---- Exception chaining regression ----
+
+
+class TestTiffConversionExceptionChaining:
+    def test_tiff_missing_pillow_raises_from_none(self, tmp_path, monkeypatch):
+        """When Pillow is missing, _convert_tiff should raise RuntimeError
+        *without* chaining the original ImportError (from None), so the
+        traceback stays clean (Issue 3)."""
+        import sys
+
+        # Make 'from PIL import Image' raise ImportError
+        monkeypatch.setitem(sys.modules, "PIL", None)
+        monkeypatch.setitem(sys.modules, "PIL.Image", None)
+
+        source = tmp_path / "fig.tiff"
+        source.write_bytes(b"fake-tiff-data")
+
+        from gpd.mcp.paper.figures import _convert_tiff
+
+        with pytest.raises(RuntimeError, match="TIFF conversion requires Pillow") as exc_info:
+            _convert_tiff(source, tmp_path / "output")
+
+        # __cause__ is None when 'from None' is used
+        assert exc_info.value.__cause__ is None
+        # __suppress_context__ is True when 'from None' is used
+        assert exc_info.value.__suppress_context__ is True

@@ -171,3 +171,46 @@ def test_compute_and_verify_output_checksum(tmp_path: Path):
 
     assert len(checksum) == 64
     assert verify_output_checksum(target, checksum) is True
+
+
+# ─── Issue 1: whitespace-only last_verified should not trigger platform warning ──
+
+
+def test_whitespace_last_verified_no_contradictory_platform_warning():
+    """Whitespace-only last_verified must NOT trigger last_verified_platform warning.
+
+    Before the fix, line 403 used raw truthiness (``if manifest_obj.last_verified``)
+    which is True for ``"  "``, while line 395 used ``.strip()`` which treats it as
+    empty.  This produced two contradictory warnings: "no last verified timestamp"
+    AND "platform should be recorded when last_verified is set".
+    """
+    manifest = _manifest().model_copy(
+        update={
+            "last_verified": "   ",  # whitespace-only
+            "last_verified_platform": "",
+        }
+    )
+
+    result = validate_reproducibility_manifest(manifest)
+
+    warning_fields = [w.field for w in result.warnings]
+    # Should warn about missing last_verified
+    assert "last_verified" in warning_fields
+    # Should NOT warn about missing platform — there is nothing to pair it with
+    assert "last_verified_platform" not in warning_fields
+
+
+def test_nonempty_last_verified_without_platform_warns():
+    """Non-whitespace last_verified without platform should trigger platform warning."""
+    manifest = _manifest().model_copy(
+        update={
+            "last_verified": "2026-03-10",
+            "last_verified_platform": "  ",  # whitespace-only
+        }
+    )
+
+    result = validate_reproducibility_manifest(manifest)
+
+    warning_fields = [w.field for w in result.warnings]
+    assert "last_verified" not in warning_fields
+    assert "last_verified_platform" in warning_fields

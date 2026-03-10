@@ -425,3 +425,38 @@ class TestInitProgress:
 
         ctx = init_progress(tmp_path, includes={"project"})
         assert ctx["project_content"] == "# My Project"
+
+
+# ─── _extract_frontmatter_field ──────────────────────────────────────────────
+
+
+class TestExtractFrontmatterField:
+    """Regression: \\s* in the field regex must not match newlines."""
+
+    def test_empty_value_does_not_bleed_into_next_line(self, tmp_path: Path) -> None:
+        """When a field has an empty value (e.g. 'title:\\n'), the regex must
+        NOT consume the newline and capture the next line's content."""
+        from gpd.core.context import _extract_frontmatter_field
+
+        content = "title:\narea: numerical\ncreated: 2026-03-01"
+        # 'title' has no value on its line → should return None
+        assert _extract_frontmatter_field(content, "title") is None
+
+    def test_field_with_value_still_works(self, tmp_path: Path) -> None:
+        from gpd.core.context import _extract_frontmatter_field
+
+        content = "title: Check convergence\narea: numerical"
+        assert _extract_frontmatter_field(content, "title") == "Check convergence"
+        assert _extract_frontmatter_field(content, "area") == "numerical"
+
+    def test_field_with_leading_spaces(self, tmp_path: Path) -> None:
+        from gpd.core.context import _extract_frontmatter_field
+
+        content = "title:   spaced value  \narea: numerical"
+        assert _extract_frontmatter_field(content, "title") == "spaced value"
+
+    def test_field_with_quoted_value(self, tmp_path: Path) -> None:
+        from gpd.core.context import _extract_frontmatter_field
+
+        content = 'title: "Quoted Title"\narea: theory'
+        assert _extract_frontmatter_field(content, "title") == "Quoted Title"

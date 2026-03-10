@@ -267,3 +267,64 @@ def test_calculation_complete_empty():
 def test_calculation_complete_too_short():
     with pytest.raises(ExtrasError):
         calculation_complete({}, "ab")
+
+
+# ─── dict-item support for questions and calculations ─────────────────────
+
+
+def test_question_resolve_with_dict_items():
+    """question_resolve should handle dict items via _item_text()."""
+    state = {"open_questions": [{"text": "What is the coupling constant?"}]}
+    removed = question_resolve(state, "What is the coupling constant?")
+    assert removed == 1
+    assert len(state["open_questions"]) == 0
+
+
+def test_question_resolve_substring_with_dict_items():
+    """question_resolve substring match should work with dict items."""
+    state = {"open_questions": [{"text": "What is the coupling constant in QCD?"}]}
+    removed = question_resolve(state, "coupling constant")
+    assert removed == 1
+
+
+def test_question_resolve_mixed_str_and_dict():
+    """question_resolve should handle a mix of str and dict items."""
+    state = {
+        "open_questions": [
+            "plain string question",
+            {"text": "dict question about quarks"},
+        ]
+    }
+    removed = question_resolve(state, "dict question about quarks")
+    assert removed == 1
+    assert len(state["open_questions"]) == 1
+    assert state["open_questions"][0] == "plain string question"
+
+
+def test_calculation_complete_with_dict_items():
+    """calculation_complete should handle dict items via _item_text()."""
+    state = {"active_calculations": [{"text": "Loop integrals"}]}
+    removed = calculation_complete(state, "Loop integrals")
+    assert removed == 1
+    assert len(state["active_calculations"]) == 0
+
+
+def test_calculation_complete_substring_with_dict_items():
+    """calculation_complete substring match should work with dict items."""
+    state = {"active_calculations": [{"text": "Computing loop integrals for QCD"}]}
+    removed = calculation_complete(state, "loop integrals")
+    assert removed == 1
+
+
+def test_calculation_complete_mixed_str_and_dict():
+    """calculation_complete should handle a mix of str and dict items."""
+    state = {
+        "active_calculations": [
+            "plain string calc",
+            {"text": "dict calc about renormalization"},
+        ]
+    }
+    removed = calculation_complete(state, "dict calc about renormalization")
+    assert removed == 1
+    assert len(state["active_calculations"]) == 1
+    assert state["active_calculations"][0] == "plain string calc"

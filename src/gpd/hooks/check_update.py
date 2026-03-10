@@ -131,6 +131,8 @@ def main() -> None:
             continue
         try:
             cache = json.loads(candidate.read_text(encoding="utf-8"))
+            if not isinstance(cache, dict):
+                continue
             checked = cache.get("checked")
             if isinstance(checked, (int, float)):
                 age = int(time.time()) - int(checked)

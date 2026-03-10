@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -95,3 +96,20 @@ def test_main_accepts_string_workspace_payload() -> None:
 
     mock_trigger.assert_called_once_with("/tmp/project")
     mock_notify.assert_called_once_with("/tmp/project")
+
+
+def test_main_logs_handler_exception_instead_of_swallowing(tmp_path: Path) -> None:
+    """Exceptions in _trigger_update_check / _check_and_notify_update are logged via _debug."""
+    payload = json.dumps({"type": "agent-turn-complete", "workspace": "/tmp/project"})
+    stderr = io.StringIO()
+    with (
+        patch("sys.stdin", io.StringIO(payload)),
+        patch("gpd.hooks.codex_notify._trigger_update_check", side_effect=RuntimeError("boom")),
+        patch.dict("os.environ", {"GPD_DEBUG": "1"}),
+        patch("sys.stderr", stderr),
+    ):
+        # Should not raise — the exception is caught and logged
+        main()
+
+    output = stderr.getvalue()
+    assert "codex-notify handler failed: boom" in output

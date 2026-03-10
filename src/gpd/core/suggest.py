@@ -399,9 +399,10 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
 
     if state:
         position = state.get("position") or {}
-        ctx_kwargs["current_phase"] = position.get("current_phase")
+        _raw_phase = position.get("current_phase")
+        ctx_kwargs["current_phase"] = str(_raw_phase) if _raw_phase is not None else None
         ctx_kwargs["status"] = position.get("status")
-        ctx_kwargs["progress_percent"] = position.get("progress_percent", 0) or 0
+        ctx_kwargs["progress_percent"] = position.get("progress_percent", 0)
         ctx_kwargs["paused_at"] = position.get("paused_at")
 
     # ── 2. Check for paused work (highest priority) ─────────────────────
@@ -703,7 +704,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     ctx_kwargs["autonomy"] = autonomy_val
     ctx_kwargs["research_mode"] = research_mode_val
 
-    progress_pct = float(ctx_kwargs.get("progress_percent", 0) or 0)
+    progress_pct = float(ctx_kwargs.get("progress_percent", 0))
     _apply_mode_adjustments(suggestions, config, progress_pct)
 
     # ── Sort by priority ────────────────────────────────────────────────

@@ -190,3 +190,93 @@ def test_score_paper_quality_applies_journal_adjustments():
 
     assert report_with_extra.adjusted_score > report_without_extra.adjusted_score
     assert report_with_extra.minimum_submission_score == 85.0
+
+
+def test_severity_in_module_all():
+    """Severity should be importable via __all__ (used in PaperQualityIssue)."""
+    from gpd.core import paper_quality
+
+    assert "Severity" in paper_quality.__all__
+
+
+def test_severity_importable_directly():
+    """Severity can be imported by name from paper_quality."""
+    from gpd.core.paper_quality import Severity
+
+    assert Severity.blocker == "blocker"
+    assert Severity.major == "major"
+    assert Severity.minor == "minor"
+
+
+def test_paper_quality_issue_uses_severity():
+    """PaperQualityIssue.severity field accepts Severity enum values."""
+    from gpd.core.paper_quality import PaperQualityIssue, Severity
+
+    issue = PaperQualityIssue(
+        check="test_check",
+        category="equations",
+        severity=Severity.blocker,
+        summary="test message",
+    )
+    assert issue.severity == Severity.blocker
+
+
+# ─── Issue 2: CATEGORY_MAX dict is actually used in scoring ──────────────────
+
+
+def test_category_max_scores_match_constant():
+    """CategoryScore.max_score values must come from CATEGORY_MAX, not hardcoded."""
+    from gpd.core.paper_quality import CATEGORY_MAX
+
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Max Score Check",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                must_haves_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(1),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+        )
+    )
+
+    for name, cat in report.categories.items():
+        assert cat.max_score == CATEGORY_MAX[name], (
+            f"Category {name!r}: max_score={cat.max_score} does not match "
+            f"CATEGORY_MAX[{name!r}]={CATEGORY_MAX[name]}"
+        )

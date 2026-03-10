@@ -12,6 +12,7 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
+REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 
 COMMAND_SPAWN_TOKENS = {
     "literature-review.md": ["gpd-literature-reviewer"],
@@ -219,6 +220,32 @@ def test_referee_latex_template_exists() -> None:
     assert "\\RecommendationBadge" in content
 
 
+def test_shared_protocols_require_permission_before_dependency_installs() -> None:
+    shared = (REFERENCES_DIR / "shared" / "shared-protocols.md").read_text(encoding="utf-8")
+    checkpoints = (REFERENCES_DIR / "orchestration" / "checkpoints.md").read_text(encoding="utf-8")
+    verifier = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+    planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+
+    assert "Agents must NEVER install dependencies silently." in shared
+    assert "Ask the user before any install attempt" in shared
+    assert "BasicTeX yourself (small macOS option, about 100MB)" in shared
+    assert "Never install TeX automatically." not in checkpoints
+    assert "install silently" not in checkpoints
+    assert "ask the user before any install attempt" in checkpoints
+    assert "ask the user before any install attempt" in verifier
+    assert "permission-gated" in planner
+
+
+def test_referee_workflow_mentions_optional_pdf_compile_and_missing_tex_prompt() -> None:
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "compile the latest referee-report `.tex` file to a matching `.pdf`" in referee
+    assert "Do NOT install TeX yourself" in referee
+    assert "Continue now with `.gpd/REFEREE-REPORT.md` + `.gpd/REFEREE-REPORT.tex` only" in peer_review
+    assert "Authorize the agent to install TeX now" in peer_review
+
+
 def test_prompt_sources_do_not_use_stale_agent_install_paths():
     files = [
         REPO_ROOT / "src/gpd/specs/references/orchestration/agent-delegation.md",
@@ -304,4 +331,19 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "structured referee issues" in respond_to_referees.review_contract.required_evidence
     assert "gpd:peer-review" in registry.list_review_commands()
     assert "gpd:write-paper" in registry.list_review_commands()
-    assert "gpd:peer-review" in registry.list_review_commands()
+    assert "gpd:respond-to-referees" in registry.list_review_commands()
+    assert "gpd:verify-work" in registry.list_review_commands()
+
+
+def test_list_review_commands_contains_all_expected_commands() -> None:
+    """Regression: line 307 duplicated the gpd:peer-review check instead of
+    testing gpd:respond-to-referees and gpd:verify-work."""
+    review_cmds = registry.list_review_commands()
+    expected = {"gpd:peer-review", "gpd:write-paper", "gpd:respond-to-referees", "gpd:verify-work"}
+    assert expected <= set(review_cmds), f"Missing review commands: {expected - set(review_cmds)}"
+
+
+def test_list_review_commands_no_duplicates() -> None:
+    """Each review command should appear exactly once."""
+    review_cmds = registry.list_review_commands()
+    assert len(review_cmds) == len(set(review_cmds))

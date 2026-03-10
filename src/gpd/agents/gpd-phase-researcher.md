@@ -254,6 +254,8 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 **Installation / Setup:**
 \`\`\`bash
+# If additional packages are needed, list the commands the user could run.
+# Do not imply silent agent-side installation.
 pip install [packages] # or: uv add [packages]
 \`\`\`
 

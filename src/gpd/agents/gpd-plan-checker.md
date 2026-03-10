@@ -727,7 +727,7 @@ issue:
 - Plan assumes internet access for downloading data or packages during execution
 - Code requires specific OS features (Linux-only system calls, Windows COM objects)
 
-**Key principle:** The executor agent runs in a computational environment with Python, standard scientific packages, and file I/O. Plans should not assume anything beyond this without explicit justification. When specialized tools are genuinely needed, the plan must either (a) confirm availability, (b) provide installation instructions as a prerequisite task, or (c) offer a fallback using standard tools.
+**Key principle:** The executor agent runs in a computational environment with Python, standard scientific packages, and file I/O. Plans should not assume anything beyond this without explicit justification. When specialized tools are genuinely needed, the plan must either (a) confirm availability, (b) provide installation instructions as a permission-gated prerequisite task, or (c) offer a fallback using standard tools.
 
 **Example — licensed software:**
 

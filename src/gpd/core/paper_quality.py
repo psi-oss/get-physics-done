@@ -7,6 +7,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
+    "Severity",
     "CoverageMetric",
     "BinaryCheck",
     "VerificationConfidence",
@@ -345,33 +346,33 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     }
 
     categories = {
-        "equations": CategoryScore(name="equations", score=sum(eq_checks.values()), max_score=20.0, checks=eq_checks),
-        "figures": CategoryScore(name="figures", score=sum(figures_checks.values()), max_score=15.0, checks=figures_checks),
+        "equations": CategoryScore(name="equations", score=sum(eq_checks.values()), max_score=CATEGORY_MAX["equations"], checks=eq_checks),
+        "figures": CategoryScore(name="figures", score=sum(figures_checks.values()), max_score=CATEGORY_MAX["figures"], checks=figures_checks),
         "citations": CategoryScore(
             name="citations",
             score=sum(citation_checks.values()),
-            max_score=10.0,
+            max_score=CATEGORY_MAX["citations"],
             checks=citation_checks,
         ),
         "conventions": CategoryScore(
             name="conventions",
             score=sum(convention_checks.values()),
-            max_score=15.0,
+            max_score=CATEGORY_MAX["conventions"],
             checks=convention_checks,
         ),
         "verification": CategoryScore(
             name="verification",
             score=sum(verification_checks.values()),
-            max_score=20.0,
+            max_score=CATEGORY_MAX["verification"],
             checks=verification_checks,
         ),
         "completeness": CategoryScore(
             name="completeness",
             score=sum(completeness_checks.values()),
-            max_score=10.0,
+            max_score=CATEGORY_MAX["completeness"],
             checks=completeness_checks,
         ),
-        "results": CategoryScore(name="results", score=sum(results_checks.values()), max_score=10.0, checks=results_checks),
+        "results": CategoryScore(name="results", score=sum(results_checks.values()), max_score=CATEGORY_MAX["results"], checks=results_checks),
     }
 
     issues.extend(

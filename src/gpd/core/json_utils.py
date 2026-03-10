@@ -6,6 +6,7 @@ and returns a plain Python object suitable for printing.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from pathlib import Path
@@ -153,8 +154,9 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         except json.JSONDecodeError:
             data = {}
     else:
-        fp.parent.mkdir(parents=True, exist_ok=True)
         data = {}
+
+    working = copy.deepcopy(data)
 
     # Try to parse value as JSON, fall back to string
     try:
@@ -184,9 +186,10 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         return {"file": str(fp), "path": path, "updated": False, "error": "empty path"}
 
     # Traverse / create intermediate containers
-    current: object = data
+    current: object = working
     traversal_complete = True
-    for step_key, is_idx in steps[:-1]:
+    for index, (step_key, is_idx) in enumerate(steps[:-1]):
+        next_is_idx = steps[index + 1][1]
         if is_idx and isinstance(current, list):
             try:
                 current = current[step_key]  # type: ignore[index]
@@ -195,7 +198,7 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
                 break
         elif isinstance(current, dict):
             if step_key not in current or not isinstance(current[step_key], (dict, list)):
-                current[step_key] = {}  # type: ignore[index]
+                current[step_key] = [] if next_is_idx else {}  # type: ignore[index]
             current = current[step_key]  # type: ignore[index]
         else:
             traversal_complete = False
@@ -213,12 +216,13 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
             updated = True
         except (IndexError, TypeError):
             pass
-    elif isinstance(current, dict):
+    elif not final_is_idx and isinstance(current, dict):
         current[final_key] = parsed_value  # type: ignore[index]
         updated = True
 
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(fp, json.dumps(data, indent=2) + "\n")
+    if updated:
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(fp, json.dumps(working, indent=2) + "\n")
     return {"file": str(fp), "path": path, "updated": updated}
 
 

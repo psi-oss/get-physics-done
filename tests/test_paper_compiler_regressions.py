@@ -137,3 +137,28 @@ async def test_manual_multipass_applies_autofix_even_after_compile_errors(
     assert result.success is True
     assert result.pdf_path == pdf_path
     assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
+
+
+# ---- Regression tests for import and dead-code fixes ----
+
+
+def test_figureref_is_importable_from_compiler_module() -> None:
+    """FigureRef must be imported in compiler.py so the type annotation
+    ``list[tuple[FigureRef, FigureRef]]`` resolves at runtime (Issue 1)."""
+    import gpd.mcp.paper.compiler as compiler_mod
+
+    assert hasattr(compiler_mod, "FigureRef"), (
+        "FigureRef should be importable from compiler module"
+    )
+
+
+def test_no_original_figures_dead_code() -> None:
+    """The local variable ``original_figures`` was assigned but never used.
+    Verify it no longer appears in the build_paper source (Issue 2)."""
+    import inspect
+    from gpd.mcp.paper.compiler import build_paper
+
+    source = inspect.getsource(build_paper)
+    assert "original_figures" not in source, (
+        "Dead-code variable 'original_figures' should have been removed"
+    )

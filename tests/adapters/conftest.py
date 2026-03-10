@@ -47,6 +47,8 @@ def gpd_root(tmp_path: Path) -> Path:
         "---\nname: gpd-verifier\ndescription: Verifies physics results\n"
         "tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch\ncolor: green\n---\n"
         "Verifier body with {GPD_INSTALL_DIR}/data.\n"
+        "Config dir: {GPD_CONFIG_DIR}\n"
+        "Runtime flag: {GPD_RUNTIME_FLAG}\n"
         "Use the file_read tool to check files.\n",
         encoding="utf-8",
     )

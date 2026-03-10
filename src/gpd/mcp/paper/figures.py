@@ -121,7 +121,7 @@ def _convert_tiff(source: Path, output_dir: Path) -> Path:
     try:
         from PIL import Image
     except ImportError:
-        raise RuntimeError(f"TIFF conversion requires Pillow (pip install Pillow). Cannot convert: {source}")
+        raise RuntimeError(f"TIFF conversion requires Pillow (pip install Pillow). Cannot convert: {source}") from None
 
     dest = _unique_dest(output_dir, Path(f"{source.stem}.png"))
     with Image.open(source) as img:

@@ -230,10 +230,18 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     if not has_description:
         new_lines.insert(1, f"description: GPD skill - {skill_name}")
 
+    # Deduplicate tools while preserving order
+    seen: set[str] = set()
+    unique_tools: list[str] = []
+    for tool in tools:
+        if tool not in seen:
+            seen.add(tool)
+            unique_tools.append(tool)
+
     # Add allowed-tools as YAML array
-    if tools:
+    if unique_tools:
         new_lines.append("allowed-tools:")
-        for tool in tools:
+        for tool in unique_tools:
             new_lines.append(f"  - {tool}")
 
     new_frontmatter = "\n".join(new_lines).strip()

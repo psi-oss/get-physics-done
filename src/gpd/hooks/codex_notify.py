@@ -99,8 +99,8 @@ def main() -> None:
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)
-    except Exception:
-        pass
+    except Exception as exc:
+        _debug(f"codex-notify handler failed: {exc}")
 
 
 if __name__ == "__main__":

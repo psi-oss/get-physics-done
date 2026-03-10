@@ -133,6 +133,14 @@ class TestCheckConventionLock:
         result = check_convention_lock(tmp_path)
         assert result.status == CheckStatus.WARN
 
+    def test_convention_lock_non_dict_warns(self, tmp_path: Path):
+        """A truthy non-dict convention_lock must not raise AttributeError."""
+        fake_state = {"convention_lock": "not-a-dict"}
+        with patch("gpd.core.health.load_state_json", return_value=fake_state):
+            result = check_convention_lock(tmp_path)
+        assert result.status == CheckStatus.WARN
+        assert any("not a dict" in w for w in result.warnings)
+
 
 class TestCheckConfig:
     def test_missing_config(self, tmp_path: Path):
@@ -212,6 +220,33 @@ class TestCheckPlanFrontmatter:
         result = check_plan_frontmatter(tmp_path)
         assert result.status == CheckStatus.OK
         assert result.details["plans_checked"] == 0
+
+    def test_detects_plan_numbering_gap(self, tmp_path: Path):
+        """Standard plan filenames like 01-PLAN.md must be parsed by the regex."""
+        phases = tmp_path / ".gpd" / "phases"
+        phase_dir = phases / "01-intro"
+        phase_dir.mkdir(parents=True)
+        # Create plans with a gap: 01, 03 (missing 02)
+        plan_content = "---\nwave: 1\n---\n# Plan\n"
+        (phase_dir / "01-PLAN.md").write_text(plan_content)
+        (phase_dir / "03-PLAN.md").write_text(plan_content)
+        result = check_plan_frontmatter(tmp_path)
+        assert result.status == CheckStatus.WARN
+        assert result.details["numbering_gaps"] >= 1
+        assert any("Plan numbering gap" in w for w in result.warnings)
+
+    def test_no_gap_with_consecutive_plans(self, tmp_path: Path):
+        """Consecutive plan numbers should not produce warnings."""
+        phases = tmp_path / ".gpd" / "phases"
+        phase_dir = phases / "01-intro"
+        phase_dir.mkdir(parents=True)
+        plan_content = "---\nwave: 1\n---\n# Plan\n"
+        (phase_dir / "01-PLAN.md").write_text(plan_content)
+        (phase_dir / "02-PLAN.md").write_text(plan_content)
+        (phase_dir / "03-PLAN.md").write_text(plan_content)
+        result = check_plan_frontmatter(tmp_path)
+        assert result.details["numbering_gaps"] == 0
+        assert not any("Plan numbering gap" in w for w in result.warnings)
 
 
 class TestCheckStateValidity:

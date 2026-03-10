@@ -760,7 +760,7 @@ function runtimeCommandPrefix(runtime) {
 
 function formatRuntimeCommand(runtime, action) {
   const prefix = runtimeCommandPrefix(runtime);
-  return prefix.endsWith(":") ? `${prefix}${action}` : `${prefix}${action}`;
+  return `${prefix}${action}`;
 }
 
 function printBanner() {

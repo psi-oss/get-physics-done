@@ -200,6 +200,40 @@ class TestInstall:
         assert cmds.count("/custom/venv/bin/python .claude/hooks/check_update.py") == 1
         assert "python3 .claude/hooks/check_update.py" not in cmds
 
+    def test_install_preserves_non_gpd_check_update_hook(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party/check_update.py"}]}
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+        session_start = result["settings"].get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+
+        assert "python3 /tmp/third-party/check_update.py" in commands
+        assert any(command.endswith(".claude/hooks/check_update.py") for command in commands)
+
     def test_install_with_explicit_target_uses_absolute_hook_paths(
         self,
         adapter: ClaudeCodeAdapter,
@@ -298,6 +332,20 @@ class TestInstall:
 
         assert not (agents_dir / "gpd-old-agent.md").exists()
         assert (agents_dir / "custom-agent.md").exists()
+
+
+    def test_install_agents_replace_runtime_placeholders(
+        self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Regression: _copy_agents_native must pass runtime='claude-code' to replace_placeholders."""
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        verifier = (target / "agents" / "gpd-verifier.md").read_text(encoding="utf-8")
+        assert "{GPD_CONFIG_DIR}" not in verifier
+        assert "{GPD_RUNTIME_FLAG}" not in verifier
+        assert "--claude" in verifier
 
 
 class TestUninstall:
@@ -439,3 +487,41 @@ class TestUninstall:
         target.mkdir()
         result = adapter.uninstall(target)
         assert result["removed"] == []
+
+    def test_uninstall_preserves_non_gpd_sessionstart_statusline_hook(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings_path = target / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings.setdefault("hooks", {}).setdefault("SessionStart", []).append(
+            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party-statusline.py"}]}
+        )
+        settings["statusLine"] = {"type": "command", "command": "python3 /tmp/third-party-statusline.py"}
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert cleaned["statusLine"]["command"] == "python3 /tmp/third-party-statusline.py"
+        session_start = cleaned.get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert "python3 /tmp/third-party-statusline.py" in commands

@@ -24,7 +24,7 @@ from gpd.mcp.paper.bibliography import (
 )
 from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
+from gpd.mcp.paper.models import FigureRef, JournalSpec, PaperConfig, PaperOutput
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
@@ -288,7 +288,6 @@ async def build_paper(
     bibliography_audit = None
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
-    original_figures = list(config.figures)
     figure_source_pairs: list[tuple[FigureRef, FigureRef]] = []
     bib_path: Path | None = None
 

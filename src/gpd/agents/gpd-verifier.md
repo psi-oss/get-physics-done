@@ -3932,7 +3932,7 @@ Code execution is unavailable when:
 - Code depends on project-specific modules that cannot be resolved
 - Sandbox restrictions prevent file I/O or subprocess execution
 
-**After the first execution failure**, attempt ONE recovery: check if the dependency is available under an alternative import or can be installed. If recovery fails, switch to static analysis mode for the remainder of the verification.
+**After the first execution failure**, attempt ONE recovery: check if the dependency is available under an alternative import. If the dependency is genuinely missing, explain it and ask the user before any install attempt. If recovery fails or the user does not authorize installation, switch to static analysis mode for the remainder of the verification.
 
 ### Static Analysis Fallback
 

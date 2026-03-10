@@ -108,6 +108,43 @@ class TestConvertToCodexSkill:
         result = _convert_to_codex_skill(content, "gpd-test")
         assert "description: GPD skill - gpd-test" in result
 
+    def test_duplicate_tools_deduplicated(self) -> None:
+        """Tools appearing in both tools: and allowed-tools: are deduplicated."""
+        content = (
+            "---\n"
+            "name: test\n"
+            "description: D\n"
+            "tools: Read, Bash\n"
+            "allowed-tools:\n"
+            "  - Read\n"
+            "  - Write\n"
+            "---\n"
+            "Body"
+        )
+        result = _convert_to_codex_skill(content, "gpd-test")
+        # Extract allowed-tools entries from the frontmatter
+        fm = result.split("---")[1]
+        tool_entries = [line.strip()[2:] for line in fm.splitlines() if line.strip().startswith("- ")]
+        assert tool_entries == ["read_file", "shell", "write_file"]
+
+    def test_duplicate_tools_in_allowed_tools_only(self) -> None:
+        """Duplicate entries within allowed-tools: alone are deduplicated."""
+        content = (
+            "---\n"
+            "name: test\n"
+            "description: D\n"
+            "allowed-tools:\n"
+            "  - Read\n"
+            "  - Bash\n"
+            "  - Read\n"
+            "---\n"
+            "Body"
+        )
+        result = _convert_to_codex_skill(content, "gpd-test")
+        fm = result.split("---")[1]
+        tool_entries = [line.strip()[2:] for line in fm.splitlines() if line.strip().startswith("- ")]
+        assert tool_entries == ["read_file", "shell"]
+
 
 class TestInstall:
     def test_local_install_uses_target_skills_dir_by_default(

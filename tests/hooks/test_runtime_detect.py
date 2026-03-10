@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from gpd.adapters import get_adapter
 from gpd.hooks.runtime_detect import (
     RUNTIME_CLAUDE,
     RUNTIME_CODEX,
@@ -348,6 +349,10 @@ class TestUpdateCacheFiles:
 
 class TestUpdateCommand:
     """Tests for update_command_for_runtime."""
+
+    def test_known_runtime_commands_are_adapter_derived(self) -> None:
+        for runtime in (RUNTIME_CLAUDE, RUNTIME_CODEX, RUNTIME_GEMINI, RUNTIME_OPENCODE):
+            assert update_command_for_runtime(runtime) == get_adapter(runtime).update_command
 
     def test_unknown_runtime_uses_plain_bootstrap_command(self) -> None:
         assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y get-physics-done"

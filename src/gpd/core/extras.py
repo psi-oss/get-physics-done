@@ -424,7 +424,7 @@ def question_resolve(state: dict, text: str) -> int:
     if "open_questions" not in state:
         state["open_questions"] = []
 
-    questions: list[str] = state["open_questions"]
+    questions: list[object] = state["open_questions"]
     before = len(questions)
 
     # Try exact match (case-insensitive)
@@ -488,7 +488,7 @@ def calculation_complete(state: dict, text: str) -> int:
     if "active_calculations" not in state:
         state["active_calculations"] = []
 
-    calculations: list[str] = state["active_calculations"]
+    calculations: list[object] = state["active_calculations"]
     before = len(calculations)
 
     # Try exact match (case-insensitive)

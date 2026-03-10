@@ -333,6 +333,14 @@ def check_convention_lock(cwd: Path) -> HealthCheck:
             status=CheckStatus.WARN, label="Convention Lock", warnings=["No convention_lock in state.json"]
         )
 
+    if not isinstance(cl, dict):
+        return HealthCheck(
+            status=CheckStatus.WARN,
+            label="Convention Lock",
+            warnings=["convention_lock is not a dict"],
+            details={},
+        )
+
     set_count = 0
     total_count = 0
     for key in KNOWN_CONVENTIONS:
@@ -405,7 +413,7 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
         for p in plans:
             if p == "PLAN.md":
                 continue
-            pm = re.search(r"-(\d{2})-PLAN\.md$", p)
+            pm = re.search(r"(\d{2,})-PLAN\.md$", p)
             if pm:
                 plan_nums.append(int(pm.group(1)))
 

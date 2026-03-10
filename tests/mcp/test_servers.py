@@ -203,6 +203,39 @@ class TestConventionsServer:
         assert result["type"] == "custom"
 
 
+    def test_load_lock_non_dict_state_json(self, tmp_path):
+        """If state.json contains a non-dict (e.g. a list), return empty lock."""
+        from gpd.mcp.servers.conventions_server import _load_lock_from_project
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps([1, 2, 3]))
+        lock = _load_lock_from_project(str(tmp_path))
+        assert lock.metric_signature is None
+
+    def test_load_lock_string_state_json(self, tmp_path):
+        """If state.json contains a bare string, return empty lock."""
+        from gpd.mcp.servers.conventions_server import _load_lock_from_project
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps("just a string"))
+        lock = _load_lock_from_project(str(tmp_path))
+        assert lock.metric_signature is None
+
+    def test_update_lock_non_dict_state_json(self, tmp_path):
+        """If state.json contains a non-dict, _update_lock_in_project resets raw to {}."""
+        from gpd.mcp.servers.conventions_server import _update_lock_in_project
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps([1, 2, 3]))
+        lock, result = _update_lock_in_project(
+            str(tmp_path), lambda lk: lk.metric_signature
+        )
+        assert lock.metric_signature is None
+        assert result is None
+
 # ---------------------------------------------------------------------------
 # 2. Errors MCP server
 # ---------------------------------------------------------------------------

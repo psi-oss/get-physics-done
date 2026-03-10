@@ -384,8 +384,8 @@ _COMMIT_HASH_RE = re.compile(
 
 # Self-check section heading
 _SELF_CHECK_HEADING = re.compile(r"##\s*(?:Self[- ]?Check|Verification|Quality Check)", re.IGNORECASE)
-_SELF_CHECK_PASS = re.compile(r"(?:all\s+)?(?:pass|complete|succeeded)", re.IGNORECASE)
-_SELF_CHECK_FAIL = re.compile(r"(?:fail|incomplete|blocked)", re.IGNORECASE)
+_SELF_CHECK_PASS = re.compile(r"\b(?:(?:all\s+)?pass(?:ed)?|complete[d]?|succeeded)\b", re.IGNORECASE)
+_SELF_CHECK_FAIL = re.compile(r"\b(?:fail(?:ed)?|incomplete|blocked)\b", re.IGNORECASE)
 
 
 @instrument_gpd_function("frontmatter.verify_summary")

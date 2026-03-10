@@ -331,3 +331,35 @@ class TestMainThrottle:
             main()
 
         mock_popen.assert_not_called()
+
+    def test_non_dict_cache_json_spawns_check(self, tmp_path: Path) -> None:
+        """If cache file contains valid JSON but not a dict (e.g. a list), main() spawns background check."""
+        cache_dir = tmp_path / ".gpd" / "cache"
+        cache_dir.mkdir(parents=True)
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps([1, 2, 3]))
+
+        with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_called_once()
+
+    def test_string_cache_json_spawns_check(self, tmp_path: Path) -> None:
+        """If cache file contains a JSON string instead of a dict, main() spawns background check."""
+        cache_dir = tmp_path / ".gpd" / "cache"
+        cache_dir.mkdir(parents=True)
+        cache_file = cache_dir / "gpd-update-check.json"
+        cache_file.write_text(json.dumps("just a string"))
+
+        with (
+            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_called_once()

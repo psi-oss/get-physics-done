@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 from gpd.adapters import get_adapter, iter_adapters
-from gpd.adapters.install_utils import MANIFEST_NAME, expand_tilde
+from gpd.adapters.install_utils import MANIFEST_NAME
 from gpd.core.constants import PLANNING_DIR_NAME
 
 RUNTIME_CLAUDE = "claude-code"
@@ -188,23 +188,18 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
 
 def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
     """Return the public bootstrap command to update a given runtime install."""
-    install_flag_map = {
-        RUNTIME_CLAUDE: "--claude",
-        RUNTIME_CODEX: "--codex",
-        RUNTIME_GEMINI: "--gemini",
-        RUNTIME_OPENCODE: "--opencode",
-    }
-    install_flag = install_flag_map.get(runtime)
     base = "npx -y get-physics-done"
-    if install_flag is None:
-        return base
+    try:
+        command = get_adapter(runtime).update_command
+    except KeyError:
+        command = base
 
     scope_flag = ""
     if scope == SCOPE_LOCAL:
         scope_flag = " --local"
     elif scope == SCOPE_GLOBAL:
         scope_flag = " --global"
-    return f"{base} {install_flag}{scope_flag}"
+    return f"{command}{scope_flag}"
 
 
 __all__ = [
@@ -219,7 +214,6 @@ __all__ = [
     "all_runtime_dirs",
     "detect_install_scope",
     "detect_active_runtime",
-    "expand_tilde",
     "get_cache_dirs",
     "get_gpd_install_dirs",
     "get_todo_dirs",

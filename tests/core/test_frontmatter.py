@@ -634,3 +634,62 @@ class TestVerifyPlanStructure:
         result = verify_plan_structure(tmp_path, f)
         assert any("checkpoint" in e.lower() for e in result.errors)
 
+
+
+# ---------------------------------------------------------------------------
+# Self-check regex word boundaries (regression for substring matching)
+# ---------------------------------------------------------------------------
+
+
+class TestSelfCheckRegexBoundaries:
+    """Regression: _SELF_CHECK_PASS/FAIL must not match substrings."""
+
+    def test_fail_does_not_match_failures(self):
+        from gpd.core.frontmatter import _SELF_CHECK_FAIL
+
+        assert _SELF_CHECK_FAIL.search("fail") is not None
+        assert _SELF_CHECK_FAIL.search("failed") is not None
+        # "failures" should NOT match — "fail" is a substring without a word boundary
+        assert _SELF_CHECK_FAIL.search("failures") is None
+        # "no failures" should NOT match either
+        assert _SELF_CHECK_FAIL.search("no failures") is None
+
+    def test_fail_does_not_match_failsafe(self):
+        from gpd.core.frontmatter import _SELF_CHECK_FAIL
+
+        assert _SELF_CHECK_FAIL.search("failsafe") is None
+
+    def test_pass_does_not_match_incomplete(self):
+        from gpd.core.frontmatter import _SELF_CHECK_PASS
+
+        # "complete" must not match inside "incomplete"
+        assert _SELF_CHECK_PASS.search("incomplete") is None
+
+    def test_pass_matches_valid_words(self):
+        from gpd.core.frontmatter import _SELF_CHECK_PASS
+
+        assert _SELF_CHECK_PASS.search("pass") is not None
+        assert _SELF_CHECK_PASS.search("passed") is not None
+        assert _SELF_CHECK_PASS.search("all pass") is not None
+        assert _SELF_CHECK_PASS.search("all passed") is not None
+        assert _SELF_CHECK_PASS.search("complete") is not None
+        assert _SELF_CHECK_PASS.search("completed") is not None
+        assert _SELF_CHECK_PASS.search("succeeded") is not None
+
+    def test_fail_matches_valid_words(self):
+        from gpd.core.frontmatter import _SELF_CHECK_FAIL
+
+        assert _SELF_CHECK_FAIL.search("fail") is not None
+        assert _SELF_CHECK_FAIL.search("failed") is not None
+        assert _SELF_CHECK_FAIL.search("incomplete") is not None
+        assert _SELF_CHECK_FAIL.search("blocked") is not None
+
+    def test_pass_does_not_match_passover(self):
+        from gpd.core.frontmatter import _SELF_CHECK_PASS
+
+        assert _SELF_CHECK_PASS.search("passover") is None
+
+    def test_pass_does_not_match_compass(self):
+        from gpd.core.frontmatter import _SELF_CHECK_PASS
+
+        assert _SELF_CHECK_PASS.search("compass") is None

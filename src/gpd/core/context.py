@@ -168,7 +168,7 @@ def _compute_branch_name(
 
 def _extract_frontmatter_field(content: str, field: str) -> str | None:
     """Extract a bare field: value from frontmatter-like content."""
-    match = re.search(rf"^{re.escape(field)}:\s*(.+)$", content, re.MULTILINE)
+    match = re.search(rf"^{re.escape(field)}:[ \t]*(.+)$", content, re.MULTILINE)
     if not match:
         return None
     val = match.group(1).strip()

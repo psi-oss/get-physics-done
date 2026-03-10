@@ -19,6 +19,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    _is_hook_command_for_script,
     build_hook_command,
     convert_tool_references_in_body,
     ensure_update_hook,
@@ -212,12 +213,12 @@ def _copy_agents_gemini(
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
         content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, install_scope=install_scope)
+        content = replace_placeholders(content, path_prefix, "gemini", install_scope)
         content = process_attribution(content, attribution)
 
         # Expand @ includes — Gemini doesn't support native @ file inclusion
         if gpd_src_root:
-            content = expand_at_includes(content, str(gpd_src_root), path_prefix, install_scope=install_scope)
+            content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="gemini", install_scope=install_scope)
 
         content = _convert_frontmatter_to_gemini(content)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -415,7 +416,12 @@ class GeminiAdapter(RuntimeAdapter):
             config_dir_name=self.config_dir_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
-        ensure_update_hook(settings, update_check_cmd)
+        ensure_update_hook(
+            settings,
+            update_check_cmd,
+            target_dir=target_dir,
+            config_dir_name=self.config_dir_name,
+        )
 
         # Wire MCP servers into settings so they start automatically.
         import sys
@@ -491,7 +497,12 @@ class GeminiAdapter(RuntimeAdapter):
             status_line = settings.get("statusLine")
             if isinstance(status_line, dict):
                 cmd = status_line.get("command", "")
-                if isinstance(cmd, str) and "statusline.py" in cmd:
+                if _is_hook_command_for_script(
+                    cmd,
+                    HOOK_SCRIPTS["statusline"],
+                    target_dir=target_dir,
+                    config_dir_name=self.config_dir_name,
+                ):
                     del settings["statusLine"]
                     modified = True
 
@@ -501,7 +512,11 @@ class GeminiAdapter(RuntimeAdapter):
                 session_start = hooks.get("SessionStart")
                 if isinstance(session_start, list):
                     before = len(session_start)
-                    session_start[:] = [entry for entry in session_start if not _entry_has_gpd_hook(entry)]
+                    session_start[:] = [
+                        entry
+                        for entry in session_start
+                        if not _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                    ]
                     if len(session_start) < before:
                         modified = True
                     if not session_start:
@@ -554,7 +569,10 @@ class GeminiAdapter(RuntimeAdapter):
 
         hooks = settings.get("hooks")
         session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
-        if not isinstance(session_start, list) or not any(_entry_has_gpd_hook(entry) for entry in session_start):
+        if not isinstance(session_start, list) or not any(
+            _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+            for entry in session_start
+        ):
             raise RuntimeError("Gemini install incomplete: update hook not configured")
 
         mcp_servers = settings.get("mcpServers")
@@ -567,7 +585,12 @@ class GeminiAdapter(RuntimeAdapter):
 # ---------------------------------------------------------------------------
 
 
-def _entry_has_gpd_hook(entry: object) -> bool:
+def _entry_has_gpd_hook(
+    entry: object,
+    *,
+    target_dir: Path | None,
+    config_dir_name: str | None,
+) -> bool:
     """Check if a hook entry contains the GPD-managed Gemini update hook."""
     if not isinstance(entry, dict):
         return False
@@ -577,7 +600,12 @@ def _entry_has_gpd_hook(entry: object) -> bool:
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and "check_update.py" in h["command"]
+        and _is_hook_command_for_script(
+            h["command"],
+            HOOK_SCRIPTS["check_update"],
+            target_dir=target_dir,
+            config_dir_name=config_dir_name,
+        )
         for h in entry_hooks
     )
 

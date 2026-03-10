@@ -2107,7 +2107,8 @@ for k, v in libs.items():
 1. Note it in the plan frontmatter under `environment_requirements`
 2. Add a prerequisite task for installation, OR
 3. Choose an alternative approach that uses available tools
-4. Do NOT create plans that depend on unavailable libraries without addressing the gap
+4. If the prerequisite would require the agent to install something, mark it as permission-gated and require explicit user approval before execution
+5. Do NOT create plans that depend on unavailable libraries without addressing the gap
 
 **Environment frontmatter (add to plans that need specific tools):**
 

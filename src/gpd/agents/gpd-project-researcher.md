@@ -288,6 +288,8 @@ METHODS.md covers analytical and numerical PHYSICS methods (perturbation theory,
 ## Installation / Setup
 
 ```bash
+# If additional packages are needed, list commands for the user or for a
+# later permission-gated setup step. Do not imply silent installation.
 # Python environment
 pip install numpy scipy matplotlib sympy
 

@@ -536,21 +536,6 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is False
 
-    def test_review_preflight_peer_review_fails_without_manuscript(self, gpd_project: Path) -> None:
-        (gpd_project / "paper" / "main.tex").unlink()
-
-        result = runner.invoke(
-            app,
-            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 1, result.output
-        payload = json.loads(result.output)
-        assert payload["command"] == "gpd:peer-review"
-        assert payload["passed"] is False
-        checks = {check["name"]: check for check in payload["checks"]}
-        assert checks["manuscript"]["passed"] is False
 
     def test_review_preflight_peer_review_strict_requires_artifact_audits(self, gpd_project: Path) -> None:
         paper_dir = gpd_project / "paper"
@@ -875,3 +860,20 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is True
         assert payload["ready_for_review"] is False
+
+
+class TestNoDuplicateTestMethods:
+    """Regression: duplicate method names hide tests in Python."""
+
+    def test_no_duplicate_test_method_in_review_validation(self) -> None:
+        import ast
+
+        source = Path(__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == "TestReviewValidationCommands":
+                method_names = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+                duplicates = [name for name in method_names if method_names.count(name) > 1]
+                assert duplicates == [], f"Duplicate test methods in TestReviewValidationCommands: {set(duplicates)}"
+                break

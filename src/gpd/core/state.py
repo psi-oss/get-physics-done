@@ -17,6 +17,7 @@ import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -1244,9 +1245,9 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
     intent_file = _intent_path(cwd)
-    pid = os.getpid()
-    json_tmp = json_path.with_suffix(f".json.tmp.{pid}")
-    md_tmp = md_path.with_suffix(f".md.tmp.{pid}")
+    temp_suffix = f"{os.getpid()}.{uuid4().hex}"
+    json_tmp = json_path.with_suffix(f".json.tmp.{temp_suffix}")
+    md_tmp = md_path.with_suffix(f".md.tmp.{temp_suffix}")
 
     json_backup = safe_read_file(json_path)
     md_backup = safe_read_file(md_path)
@@ -1566,11 +1567,6 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
         if current_plan is None or total_plans is None:
             return AdvancePlanResult(
                 advanced=False, error="Cannot parse Current Plan or Total Plans in Phase from STATE.md"
-            )
-
-        if not state_has_field(content, "Current Plan"):
-            return AdvancePlanResult(
-                advanced=False, error="STATE.md is missing **Current Plan:** field \u2014 cannot advance"
             )
 
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -2135,6 +2131,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
         return StateCompactResult(compacted=False, error="STATE.md not found")
 
     with _state_lock(cwd):
+        _recover_intent_locked(cwd)
         content = md_path.read_text(encoding="utf-8")
         lines = content.split("\n")
         total_lines = len(lines)

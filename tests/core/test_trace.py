@@ -236,6 +236,18 @@ class TestTraceShow:
         assert isinstance(result, TraceListResult)
         assert len(result.available_traces) >= 1
 
+
+    def test_show_phase_with_spaces(self, project: Path) -> None:
+        """Phase names with spaces should match trace files (uses _safe_trace_component)."""
+        trace_start(project, 'phase one', 'plan-01')
+        trace_log(project, 'info')
+        trace_stop(project)
+        # The trace file is named 'phase-one-plan-01.jsonl'.
+        # Filtering by phase='phase one' must sanitise the input to 'phase-one'.
+        result = trace_show(project, phase='phase one')
+        assert isinstance(result, TraceShowResult)
+        assert result.count >= 3  # start + info + stop
+
     def test_show_no_traces_dir_raises(self, project: Path) -> None:
         with pytest.raises(TraceError, match="No traces directory"):
             trace_show(project)

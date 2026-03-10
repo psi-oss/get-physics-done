@@ -400,7 +400,7 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
                 message="Manifest has not recorded a last verified timestamp.",
             )
         )
-    if manifest_obj.last_verified and not manifest_obj.last_verified_platform.strip():
+    if manifest_obj.last_verified.strip() and not manifest_obj.last_verified_platform.strip():
         warnings.append(
             ReproducibilityIssue(
                 severity="warning",

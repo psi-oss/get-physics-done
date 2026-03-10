@@ -581,7 +581,7 @@ def trace_show(
         if phase:
             if not traces.is_dir():
                 raise TraceError("No traces directory found.")
-            prefix = f"{phase}-"
+            prefix = f"{_safe_trace_component(phase)}-"
             files = sorted(f for f in traces.iterdir() if f.name.startswith(prefix) and f.suffix == ".jsonl")
             if not files:
                 raise TraceError(f"No traces found for phase {phase}")

@@ -288,6 +288,41 @@ class TestInstall:
         assert cmds.count("/custom/venv/bin/python .gemini/hooks/check_update.py") == 1
         assert "python3 .gemini/hooks/check_update.py" not in cmds
 
+    def test_install_preserves_non_gpd_check_update_hook(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".gemini"
+        target.mkdir(parents=True)
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party/check_update.py"}]}
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+        settings = result["settings"]
+        session_start = settings.get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+
+        assert "python3 /tmp/third-party/check_update.py" in commands
+        assert any(command.endswith(".gemini/hooks/check_update.py") for command in commands)
+
     def test_install_with_explicit_target_uses_absolute_hook_paths(
         self,
         adapter: GeminiAdapter,
@@ -380,6 +415,50 @@ class TestInstall:
             assert "{GPD_INSTALL_DIR}" not in content
 
 
+    def test_install_agents_replace_runtime_placeholders(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Regression: _copy_agents_gemini must pass runtime='gemini' to replace_placeholders."""
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        verifier = (target / "agents" / "gpd-verifier.md").read_text(encoding="utf-8")
+        assert "{GPD_CONFIG_DIR}" not in verifier
+        assert "{GPD_RUNTIME_FLAG}" not in verifier
+        assert "--gemini" in verifier
+
+    def test_install_agents_at_includes_receive_runtime(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Regression: expand_at_includes in _copy_agents_gemini must receive runtime='gemini'.
+
+        Agents with @ includes pointing at specs that contain {GPD_CONFIG_DIR}
+        must have those placeholders replaced during include expansion.
+        """
+        # Create an agent that @-includes a spec with runtime placeholders
+        agents_src = gpd_root / "agents"
+        specs_dir = gpd_root / "specs" / "references"
+        (specs_dir / "runtime-ref.md").write_text(
+            "---\ndescription: ref\n---\nConfig: {GPD_CONFIG_DIR}\nFlag: {GPD_RUNTIME_FLAG}\n",
+            encoding="utf-8",
+        )
+        (agents_src / "gpd-includer.md").write_text(
+            "---\nname: gpd-includer\ndescription: test\n---\n"
+            "@{GPD_INSTALL_DIR}/references/runtime-ref.md\n",
+            encoding="utf-8",
+        )
+
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        includer = (target / "agents" / "gpd-includer.md").read_text(encoding="utf-8")
+        assert "{GPD_CONFIG_DIR}" not in includer
+        assert "{GPD_RUNTIME_FLAG}" not in includer
+        assert "--gemini" in includer
+
+
 class TestUninstall:
     def test_uninstall_removes_gpd_dirs(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
@@ -466,6 +545,42 @@ class TestUninstall:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
         assert "python3 /tmp/third-party-statusline.py" in commands
+
+    def test_uninstall_preserves_non_gpd_sessionstart_check_update_hook(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings_path = target / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings.setdefault("hooks", {}).setdefault("SessionStart", []).append(
+            {"hooks": [{"type": "command", "command": "python3 /tmp/third-party/check_update.py"}]}
+        )
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(settings_path.read_text(encoding="utf-8"))
+        session_start = cleaned.get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert "python3 /tmp/third-party/check_update.py" in commands
 
     def test_uninstall_on_empty_dir(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"

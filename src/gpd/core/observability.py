@@ -432,7 +432,7 @@ def _prefixed_attrs(attrs: dict[str, object]) -> dict[str, object]:
 def gpd_span(name: str, **attrs: object) -> Generator[LocalSpan, None, None]:
     """Create a local observability span."""
     prefixed = _prefixed_attrs(attrs)
-    cwd = _extract_cwd(prefixed.get("gpd.cwd") or prefixed.get("cwd"))
+    cwd = _extract_cwd(prefixed.get("gpd.cwd"))
     session = ensure_session(cwd, source="span")
     span_id = _new_id("span") if session is not None else None
     parent_stack = _span_stack_var.get()

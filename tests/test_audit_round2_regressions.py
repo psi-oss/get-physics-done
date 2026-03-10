@@ -5,11 +5,8 @@ Each test targets a specific bug fix and verifies the corrected behavior.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -331,3 +328,35 @@ class TestResultNotFoundErrorStr:
         our_str = str(err)
         # KeyError adds quotes; our override should strip them
         assert our_str != key_str
+
+
+# ---------------------------------------------------------------------------
+# Regression: dead imports removed (import re, import pytest)
+# ---------------------------------------------------------------------------
+
+
+class TestNoDeadImports:
+    """Verify this file has no unused imports."""
+
+    def test_no_unused_re_import(self) -> None:
+        """import re was unused in this module and should have been removed."""
+        source = Path(__file__).read_text(encoding="utf-8")
+        # Check that 'import re' does not appear as a standalone import
+        import ast
+
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert alias.name != "re", "Dead 'import re' should have been removed"
+
+    def test_no_unused_pytest_import(self) -> None:
+        """import pytest was unused in this module and should have been removed."""
+        source = Path(__file__).read_text(encoding="utf-8")
+        import ast
+
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert alias.name != "pytest", "Dead 'import pytest' should have been removed"

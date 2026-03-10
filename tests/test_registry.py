@@ -676,3 +676,49 @@ class TestDataclasses:
         )
         with pytest.raises((AttributeError, TypeError)):
             skill.new_attr = "nope"  # type: ignore[misc]
+
+
+class TestSkillCategoryMap:
+    """Tests for _SKILL_CATEGORY_MAP integrity."""
+
+    def test_no_duplicate_keys_in_skill_category_map(self) -> None:
+        """Verify _SKILL_CATEGORY_MAP has no duplicate keys (Python silently keeps last).
+
+        We parse the source to detect duplicates that the dict literal would hide.
+        """
+        import ast
+        import inspect
+        from gpd.registry import _SKILL_CATEGORY_MAP
+
+        source = inspect.getsource(registry)
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "_SKILL_CATEGORY_MAP":
+                assert isinstance(node.value, ast.Dict)
+                keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+                duplicates = [k for k in keys if keys.count(k) > 1]
+                assert duplicates == [], f"Duplicate keys in _SKILL_CATEGORY_MAP: {set(duplicates)}"
+                break
+        else:
+            pytest.fail("_SKILL_CATEGORY_MAP not found in registry source")
+
+    def test_peer_review_appears_exactly_once(self) -> None:
+        """Regression: 'gpd-peer-review' was duplicated at two positions."""
+        import ast
+        import inspect
+
+        source = inspect.getsource(registry)
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "_SKILL_CATEGORY_MAP":
+                assert isinstance(node.value, ast.Dict)
+                keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+                assert keys.count("gpd-peer-review") == 1
+                break
+
+    def test_infer_skill_category_peer_review(self) -> None:
+        from gpd.registry import _infer_skill_category
+
+        assert _infer_skill_category("gpd-peer-review") == "paper"

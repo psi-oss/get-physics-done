@@ -389,42 +389,42 @@ def pattern_add(
     full_path = lib_root / rel_path
     full_path.parent.mkdir(parents=True, exist_ok=True)
 
-    content = _build_pattern_md(
-        domain=domain,
-        category=category,
-        severity=severity,
-        confidence="single_observation",
-        first_seen=today,
-        last_seen=today,
-        occurrence_count=1,
-        title=title,
-        description=description,
-        detection=detection,
-        prevention=prevention,
-        example=example,
-        test_value=test_value,
-    )
-    atomic_write(full_path, content)
-
-    tags = _generate_tags(title, description)
-    index.patterns.append(
-        PatternEntry(
-            id=pattern_id,
-            file=rel_path,
+    with gpd_span("patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
+        content = _build_pattern_md(
             domain=domain,
             category=category,
             severity=severity,
             confidence="single_observation",
-            title=title,
             first_seen=today,
             last_seen=today,
             occurrence_count=1,
-            tags=tags,
+            title=title,
+            description=description,
+            detection=detection,
+            prevention=prevention,
+            example=example,
+            test_value=test_value,
         )
-    )
-    _save_index(lib_root, index)
+        atomic_write(full_path, content)
 
-    with gpd_span("patterns.add", **{"gpd.pattern_id": pattern_id, "gpd.domain": domain}):
+        tags = _generate_tags(title, description)
+        index.patterns.append(
+            PatternEntry(
+                id=pattern_id,
+                file=rel_path,
+                domain=domain,
+                category=category,
+                severity=severity,
+                confidence="single_observation",
+                title=title,
+                first_seen=today,
+                last_seen=today,
+                occurrence_count=1,
+                tags=tags,
+            )
+        )
+        _save_index(lib_root, index)
+
         logger.info("pattern_added", extra={"id": pattern_id, "domain": domain, "severity": severity})
 
     return PatternAddResult(id=pattern_id, file=rel_path, severity=severity)
@@ -444,24 +444,22 @@ def pattern_list(
     if index is None:
         return PatternListResult(library_exists=False)
 
-    patterns = list(index.patterns)
-    if domain:
-        patterns = [p for p in patterns if p.domain == domain]
-    if category:
-        patterns = [p for p in patterns if p.category == category]
-    if severity:
-        patterns = [p for p in patterns if p.severity == severity]
+    with gpd_span("patterns.list"):
+        patterns = list(index.patterns)
+        if domain:
+            patterns = [p for p in patterns if p.domain == domain]
+        if category:
+            patterns = [p for p in patterns if p.category == category]
+        if severity:
+            patterns = [p for p in patterns if p.severity == severity]
 
-    patterns.sort(
-        key=lambda p: (
-            _SEVERITY_ORDER.get(p.severity, 3),
-            _CONFIDENCE_ORDER.get(p.confidence, 2),
-            -p.occurrence_count,
+        patterns.sort(
+            key=lambda p: (
+                _SEVERITY_ORDER.get(p.severity, 3),
+                _CONFIDENCE_ORDER.get(p.confidence, 2),
+                -p.occurrence_count,
+            )
         )
-    )
-
-    with gpd_span("patterns.list", **{"gpd.count": len(patterns)}):
-        pass
 
     return PatternListResult(patterns=patterns, count=len(patterns))
 
@@ -496,15 +494,15 @@ def pattern_promote(pattern_id: str, *, root: Path | None = None) -> PatternProm
             reason="already_at_maximum",
         )
 
-    entry.confidence = next_level
-    entry.last_seen = _today_iso()
-    entry.occurrence_count += 1
-
-    # Update pattern file frontmatter
-    _update_pattern_frontmatter(lib_root, entry)
-    _save_index(lib_root, index)
-
     with gpd_span("patterns.promote", **{"gpd.pattern_id": pattern_id, "gpd.to": next_level}):
+        entry.confidence = next_level
+        entry.last_seen = _today_iso()
+        entry.occurrence_count += 1
+
+        # Update pattern file frontmatter
+        _update_pattern_frontmatter(lib_root, entry)
+        _save_index(lib_root, index)
+
         logger.info("pattern_promoted", extra={"id": pattern_id, "from": current, "to": next_level})
 
     return PatternPromoteResult(
@@ -531,27 +529,25 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     if index is None:
         return PatternSearchResult(query=query, library_exists=False)
 
-    terms = [t for t in query.lower().split() if len(t) > 1]
-    scored: list[tuple[int, PatternEntry]] = []
+    with gpd_span("patterns.search", **{"gpd.query": query}):
+        terms = [t for t in query.lower().split() if len(t) > 1]
+        scored: list[tuple[int, PatternEntry]] = []
 
-    for p in index.patterns:
-        searchable = " ".join([p.title, p.domain, p.category, *p.tags]).lower()
-        score = 0
-        for term in terms:
-            if term in searchable:
-                score += 1
-            if term in p.tags:
-                score += 2
-            if p.domain == term or p.category == term:
-                score += 3
-        if score > 0:
-            scored.append((score, p))
+        for p in index.patterns:
+            searchable = " ".join([p.title, p.domain, p.category, *p.tags]).lower()
+            score = 0
+            for term in terms:
+                if term in searchable:
+                    score += 1
+                if term in p.tags:
+                    score += 2
+                if p.domain == term or p.category == term:
+                    score += 3
+            if score > 0:
+                scored.append((score, p))
 
-    scored.sort(key=lambda x: -x[0])
-    matches = [p for _, p in scored]
-
-    with gpd_span("patterns.search", **{"gpd.query": query, "gpd.matches": len(matches)}):
-        pass
+        scored.sort(key=lambda x: -x[0])
+        matches = [p for _, p in scored]
 
     return PatternSearchResult(matches=matches, count=len(matches), query=query)
 
@@ -688,65 +684,23 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
     added = 0
     skipped = 0
 
-    for bp in _BOOTSTRAP_PATTERNS:
-        domain = str(bp["domain"])
-        category = str(bp["category"])
-        slug = str(bp.get("slug", ""))
-        pattern_id = f"{domain}-{category}-{slug}"
+    with gpd_span("patterns.seed"):
+        for bp in _BOOTSTRAP_PATTERNS:
+            domain = str(bp["domain"])
+            category = str(bp["category"])
+            slug = str(bp.get("slug", ""))
+            pattern_id = f"{domain}-{category}-{slug}"
 
-        if pattern_id in existing_ids:
-            skipped += 1
-            continue
-
-        rel_path = f"{PATTERNS_BY_DOMAIN_DIR}/{domain}/{category}-{slug}.md"
-        full_path = lib_root / rel_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-
-        content = _build_pattern_md(
-            domain=domain,
-            category=category,
-            severity=str(bp["severity"]),
-            confidence="systematic",
-            first_seen=today,
-            last_seen=today,
-            occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
-            title=str(bp["title"]),
-            description=str(bp.get("description", "")),
-            detection=str(bp.get("detection", "")),
-            prevention=str(bp.get("prevention", "")),
-            root_cause="See cross-project-patterns.md for root cause analysis.",
-        )
-        atomic_write(full_path, content)
-
-        tags = list(bp.get("tags", [])) if isinstance(bp.get("tags"), list) else []
-        entry = PatternEntry(
-            id=pattern_id,
-            file=rel_path,
-            domain=domain,
-            category=category,
-            severity=str(bp["severity"]),
-            confidence="systematic",
-            title=str(bp["title"]),
-            first_seen=today,
-            last_seen=today,
-            occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
-            tags=tags,
-        )
-        index.patterns.append(entry)
-        existing_ids.add(pattern_id)
-
-        # Cross-domain entries
-        for extra_domain in bp.get("domains_extra", []):
-            extra_domain = str(extra_domain)
-            extra_id = f"{extra_domain}-{category}-{slug}"
-            if extra_id in existing_ids:
+            if pattern_id in existing_ids:
+                skipped += 1
                 continue
-            extra_rel = f"{PATTERNS_BY_DOMAIN_DIR}/{extra_domain}/{category}-{slug}.md"
-            extra_path = lib_root / extra_rel
-            extra_path.parent.mkdir(parents=True, exist_ok=True)
 
-            extra_content = _build_pattern_md(
-                domain=extra_domain,
+            rel_path = f"{PATTERNS_BY_DOMAIN_DIR}/{domain}/{category}-{slug}.md"
+            full_path = lib_root / rel_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+
+            content = _build_pattern_md(
+                domain=domain,
                 category=category,
                 severity=str(bp["severity"]),
                 confidence="systematic",
@@ -757,32 +711,74 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
                 description=str(bp.get("description", "")),
                 detection=str(bp.get("detection", "")),
                 prevention=str(bp.get("prevention", "")),
-                root_cause=f"See primary pattern at `{rel_path}`.",
+                root_cause="See cross-project-patterns.md for root cause analysis.",
             )
-            atomic_write(extra_path, extra_content)
+            atomic_write(full_path, content)
 
-            index.patterns.append(
-                PatternEntry(
-                    id=extra_id,
-                    file=extra_rel,
+            tags = list(bp.get("tags", [])) if isinstance(bp.get("tags"), list) else []
+            entry = PatternEntry(
+                id=pattern_id,
+                file=rel_path,
+                domain=domain,
+                category=category,
+                severity=str(bp["severity"]),
+                confidence="systematic",
+                title=str(bp["title"]),
+                first_seen=today,
+                last_seen=today,
+                occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
+                tags=tags,
+            )
+            index.patterns.append(entry)
+            existing_ids.add(pattern_id)
+
+            # Cross-domain entries
+            for extra_domain in bp.get("domains_extra", []):
+                extra_domain = str(extra_domain)
+                extra_id = f"{extra_domain}-{category}-{slug}"
+                if extra_id in existing_ids:
+                    continue
+                extra_rel = f"{PATTERNS_BY_DOMAIN_DIR}/{extra_domain}/{category}-{slug}.md"
+                extra_path = lib_root / extra_rel
+                extra_path.parent.mkdir(parents=True, exist_ok=True)
+
+                extra_content = _build_pattern_md(
                     domain=extra_domain,
                     category=category,
                     severity=str(bp["severity"]),
                     confidence="systematic",
-                    title=str(bp["title"]),
                     first_seen=today,
                     last_seen=today,
                     occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
-                    tags=tags,
+                    title=str(bp["title"]),
+                    description=str(bp.get("description", "")),
+                    detection=str(bp.get("detection", "")),
+                    prevention=str(bp.get("prevention", "")),
+                    root_cause=f"See primary pattern at `{rel_path}`.",
                 )
-            )
-            existing_ids.add(extra_id)
+                atomic_write(extra_path, extra_content)
 
-        added += 1
+                index.patterns.append(
+                    PatternEntry(
+                        id=extra_id,
+                        file=extra_rel,
+                        domain=extra_domain,
+                        category=category,
+                        severity=str(bp["severity"]),
+                        confidence="systematic",
+                        title=str(bp["title"]),
+                        first_seen=today,
+                        last_seen=today,
+                        occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
+                        tags=tags,
+                    )
+                )
+                existing_ids.add(extra_id)
 
-    _save_index(lib_root, index)
+            added += 1
 
-    with gpd_span("patterns.seed", **{"gpd.added": added, "gpd.skipped": skipped}):
+        _save_index(lib_root, index)
+
         logger.info("patterns_seeded", extra={"added": added, "skipped": skipped, "total": len(index.patterns)})
 
     return PatternSeedResult(added=added, skipped=skipped, total=len(index.patterns))

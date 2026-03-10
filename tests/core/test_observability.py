@@ -84,3 +84,51 @@ def test_instrument_gpd_function_async_emits_local_events(tmp_path: Path, monkey
 
     events = _read_jsonl(project / ".gpd" / "observability" / "events.jsonl")
     assert any(_event_name(event) == "test.async_func" for event in events)
+
+
+def test_prefixed_attrs_renames_cwd_to_gpd_cwd():
+    """Verify _prefixed_attrs renames 'cwd' -> 'gpd.cwd', so only gpd.cwd exists."""
+    from gpd.core.observability import _prefixed_attrs
+
+    result = _prefixed_attrs({"cwd": "/some/path"})
+    assert "gpd.cwd" in result
+    assert "cwd" not in result
+    assert result["gpd.cwd"] == "/some/path"
+
+
+def test_gpd_span_cwd_uses_only_gpd_cwd_key(tmp_path: Path, monkeypatch) -> None:
+    """After removing the dead 'cwd' fallback branch, gpd_span must still
+    correctly resolve cwd when the caller passes 'cwd' (without prefix).
+
+    _prefixed_attrs renames 'cwd' to 'gpd.cwd', so only the gpd.cwd lookup
+    is needed in gpd_span.
+    """
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import gpd_span
+
+    # Passing bare "cwd" — _prefixed_attrs will rename it to "gpd.cwd"
+    with gpd_span("test.cwd_resolution", cwd=str(project)):
+        pass
+
+    events_path = project / ".gpd" / "observability" / "events.jsonl"
+    assert events_path.exists()
+    events = _read_jsonl(events_path)
+    assert any(_event_name(e) == "test.cwd_resolution" for e in events)
+
+
+def test_gpd_span_cwd_with_prefixed_key(tmp_path: Path, monkeypatch) -> None:
+    """gpd_span should work when caller passes 'gpd.cwd' directly."""
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import gpd_span
+
+    with gpd_span("test.prefixed_cwd", **{"gpd.cwd": str(project)}):
+        pass
+
+    events_path = project / ".gpd" / "observability" / "events.jsonl"
+    assert events_path.exists()
+    events = _read_jsonl(events_path)
+    assert any(_event_name(e) == "test.prefixed_cwd" for e in events)

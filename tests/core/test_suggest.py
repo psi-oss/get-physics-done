@@ -498,3 +498,57 @@ def test_adaptive_mode_late_progress(tmp_path: Path) -> None:
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
     assert execute is not None
     assert execute.priority <= 3  # boosted from 3 → 2
+
+
+# ─── Issue 3: current_phase int coercion ─────────────────────────────────────
+
+
+def test_int_current_phase_coerced_to_str(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Integer current_phase from state.json must be coerced to str.
+
+    The state module's validated loader normalizes ints before they reach
+    suggest_next, so we mock the internal loader to simulate the fallback
+    path (direct JSON read) which can return raw int values.
+    """
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_phase(root, "01-setup", plans=1, summaries=0)
+
+    raw_state = {"position": {"current_phase": 3, "status": "active"}}
+    monkeypatch.setattr(
+        "gpd.core.suggest._load_state_json_safe",
+        lambda _cwd: raw_state,
+    )
+    result = suggest_next(root)
+    assert result.context.current_phase == "3"
+    assert isinstance(result.context.current_phase, str)
+
+
+def test_none_current_phase_stays_none(tmp_path: Path) -> None:
+    """None current_phase should remain None, not become 'None'."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {"status": "active"}})
+    result = suggest_next(root)
+    assert result.context.current_phase is None
+
+
+# ─── Issue 4: progress_percent 0 is not swallowed ────────────────────────────
+
+
+def test_progress_percent_zero_preserved(tmp_path: Path) -> None:
+    """progress_percent=0 must stay 0, not be coerced by 'or 0'."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {"progress_percent": 0}})
+    result = suggest_next(root)
+    assert result.context.progress_percent == 0.0
+
+
+def test_progress_percent_missing_defaults_to_zero(tmp_path: Path) -> None:
+    """Missing progress_percent should default to 0."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"position": {}})
+    result = suggest_next(root)
+    assert result.context.progress_percent == 0.0

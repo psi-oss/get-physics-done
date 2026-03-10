@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import TypeVar
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import ValidationError
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
@@ -37,7 +36,7 @@ from gpd.core.conventions import (
 from gpd.core.conventions import (
     convention_set as _convention_set,
 )
-from gpd.core.errors import ConventionError, GPDError
+from gpd.core.errors import ConventionError
 from gpd.core.observability import gpd_span
 
 T = TypeVar("T")
@@ -169,6 +168,9 @@ def _load_lock_from_project(project_dir: str) -> ConventionLock:
     except json.JSONDecodeError as e:
         raise ConventionError(f"Malformed state.json: {e}") from e
 
+
+    if not isinstance(raw, dict):
+        return ConventionLock()
     lock_data = raw.get("convention_lock", {})
     if not isinstance(lock_data, dict):
         return ConventionLock()
@@ -201,6 +203,9 @@ def _update_lock_in_project(
         except json.JSONDecodeError as e:
             raise ConventionError(f"Malformed state.json: {e}") from e
 
+
+        if not isinstance(raw, dict):
+            raw = {}
         lock_data = raw.get("convention_lock", {})
         if not isinstance(lock_data, dict):
             lock_data = {}
