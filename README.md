@@ -6,7 +6,7 @@
 
 Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
-This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](https://github.com/physicalsuperintelligence/get-physics-done/blob/main/CONTRIBUTING.md).
 
 If GPD is useful in your work, please star the repo and share it with other physicists who might benefit from it.
 
@@ -142,6 +142,8 @@ GPD will:
 
 These commands run inside your installed AI runtime after GPD has been installed there.
 
+### Common Starting Points
+
 | Command | What it does |
 |---------|--------------|
 | `new-project` | Start a new research project |
@@ -195,7 +197,7 @@ These layers complement each other: traces are narrow and plan-specific, while o
 
 ## Citation
 
-If GPD contributes to published research, please cite the software using [`CITATION.cff`](CITATION.cff). Copy-ready formats:
+If GPD contributes to published research, please cite the software using [`CITATION.cff`](https://github.com/physicalsuperintelligence/get-physics-done/blob/main/CITATION.cff). Copy-ready formats:
 
 The same file provides the machine-readable CFF metadata used by GitHub's repository citation UI.
 
@@ -216,4 +218,4 @@ Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.0) [Computer so
 
 ## License
 
-GPD is released under the Apache License 2.0. See [`LICENSE`](LICENSE).
+GPD is released under the Apache License 2.0. See [`LICENSE`](https://github.com/physicalsuperintelligence/get-physics-done/blob/main/LICENSE).
