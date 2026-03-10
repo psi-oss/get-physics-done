@@ -125,7 +125,7 @@ def get_default_config() -> MCPSourcesConfig:
     """Return the public default MCP sources configuration.
 
     The public release ships with local and external discovery enabled by
-    default. Hosted Modal-backed sources remain opt-in via explicit config.
+    default. Custom sources remain opt-in via explicit config.
     """
     return MCPSourcesConfig(
         version="1.0.0",

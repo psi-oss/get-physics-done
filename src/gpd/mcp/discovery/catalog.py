@@ -1,9 +1,8 @@
-"""ToolCatalog -- lazy per-category MCP tool discovery with optional hosted checks.
+"""ToolCatalog -- lazy per-category MCP tool discovery.
 
-Loads tools from multiple configured sources (hosted registry, external
-services, local MCP servers, custom endpoints). Discovery is lazy:
-per-category reconciliation for hosted tools only happens when a specific
-physics category is requested.
+Loads tools from configured external services, local MCP servers, and
+custom inline endpoints. The full catalog loads lazily on first access,
+and per-category results are cached.
 """
 
 from __future__ import annotations
@@ -20,24 +19,9 @@ from gpd.mcp.discovery.models import (
     ToolEntry,
     categorize_tool,
 )
-from gpd.mcp.discovery.reconciler import reconcile_modal
 from gpd.mcp.discovery.sources import load_external_services_file
 
 logger = logging.getLogger(__name__)
-
-MODAL_RATES_USD_PER_SECOND: dict[str, float] = {
-    "T4": 0.000164,
-    "L4": 0.000222,
-    "A10G": 0.000306,
-    "L40S": 0.000542,
-    "A100-40GB": 0.000389,
-    "A100-80GB": 0.000450,
-    "H100": 0.001380,
-    "H200": 0.001780,
-    "B200": 0.002780,
-    "CPU": 0.0000131,
-}
-"""Modal per-second rates by GPU type (as of Mar 2026)."""
 
 STALENESS_FRESH_THRESHOLD_SECONDS: float = 300.0
 """Tools checked within this many seconds are labelled 'fresh' in the catalog display."""
@@ -58,32 +42,26 @@ class ToolCatalog:
     """Lazy-loaded, category-cached MCP tool catalog.
 
     Loads the full catalog from all configured sources on first access.
-    Per-category reconciliation for hosted tools only happens when
-    get_tools_for_category() is called for a specific category.
     """
 
     def __init__(self, sources_config: MCPSourcesConfig) -> None:
         self._sources = sources_config
         self._full_catalog: dict[str, ToolEntry] | None = None
         self._category_cache: dict[str, list[ToolEntry]] = {}
-        self._reconciled_categories: set[str] = set()
 
     def _load_full_catalog(self) -> dict[str, ToolEntry]:
         """Build the complete catalog from all configured sources.
 
         Loads from:
-        1. Optional hosted registry metadata
-        2. External source: external_services.yaml
-        3. Local source: known local MCP servers
-        4. Custom source: inline endpoint definitions
+        1. External source: external_services.yaml
+        2. Local source: known local MCP servers
+        3. Custom source: inline endpoint definitions
         """
         catalog: dict[str, ToolEntry] = {}
 
         for source_name, source_config in self._sources.sources.items():
             try:
-                if source_config.type == "modal":
-                    catalog.update(self._load_modal_source(source_config))
-                elif source_config.type == "external":
+                if source_config.type == "external":
                     catalog.update(self._load_external_source(source_config))
                 elif source_config.type == "local":
                     catalog.update(self._load_local_source(source_config))
@@ -95,14 +73,6 @@ class ToolCatalog:
                 logger.warning("Failed to load source %r: %s", source_name, exc)
 
         return catalog
-
-    def _load_modal_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
-        """Load tools from optional hosted registry metadata.
-
-        Returns an empty dict since Modal hosting is not currently active.
-        The simulators registry only populates when SIMULATORS_DIR is set.
-        """
-        return {}
 
     def _load_external_source(self, source_config: SourceConfig) -> dict[str, ToolEntry]:
         """Load tools from external services YAML."""
@@ -189,43 +159,26 @@ class ToolCatalog:
         return entries
 
     def get_tools_for_category(self, category: str) -> list[ToolEntry]:
-        """Get tools for a physics category with lazy reconciliation.
+        """Get tools for a physics category with lazy caching.
 
-        On first access per category:
-        1. Loads the full catalog if not loaded
-        2. Filters tools by category
-        3. Reconciles hosted deployment status for matching tools
-        4. Caches the result
-
-        Subsequent calls return cached results without re-reconciling.
+        On first access per category, the catalog is loaded if needed,
+        filtered by category, and the result is cached. Subsequent calls
+        reuse the cached list until invalidated.
         """
-        if category in self._category_cache and category in self._reconciled_categories:
+        if category in self._category_cache:
             return self._category_cache[category]
 
         if self._full_catalog is None:
             self._full_catalog = self._load_full_catalog()
 
         matching = [t for t in self._full_catalog.values() if category in t.categories]
-
-        if category not in self._reconciled_categories:
-            app_name = ""
-            for src in self._sources.sources.values():
-                if src.type == "modal" and src.app_name:
-                    app_name = src.app_name
-                    break
-
-            if app_name and any(tool.source == "modal" for tool in matching):
-                reconcile_modal(matching, app_name=app_name)
-            self._reconciled_categories.add(category)
-
         self._category_cache[category] = matching
         return matching
 
     def get_all_tools(self) -> dict[str, ToolEntry]:
-        """Return the full catalog without reconciliation.
+        """Return the full catalog without populating category cache.
 
-        For browsing and counting, not execution. Does not trigger
-        hosted reconciliation.
+        For browsing and counting, not execution.
         """
         if self._full_catalog is None:
             self._full_catalog = self._load_full_catalog()
@@ -251,31 +204,24 @@ class ToolCatalog:
                     "cost_per_call": f"${entry.cost_profile.cost_per_call_usd:.4f}",
                     "last_checked": entry.last_checked or "never",
                     "staleness": staleness_label,
-                    "deployment": entry.deployment_name,
                     "source": entry.source,
                 }
             )
         return rows
 
     def background_refresh(self) -> None:
-        """Start a daemon thread that refreshes all tool statuses.
+        """Start a daemon thread that reloads the catalog from source.
 
-        Non-blocking -- UI shows cached data with staleness indicators.
+        Non-blocking -- callers keep using the current cache until the
+        background refresh completes.
         """
 
         def _refresh_worker() -> None:
             try:
-                if self._full_catalog is None:
-                    return
-                app_name = ""
-                for src in self._sources.sources.values():
-                    if src.type == "modal" and src.app_name:
-                        app_name = src.app_name
-                        break
-                modal_tools = [t for t in self._full_catalog.values() if t.source == "modal"]
-                if modal_tools and app_name:
-                    reconcile_modal(modal_tools, app_name=app_name)
-                logger.info("Background refresh complete: %d tools checked", len(modal_tools))
+                refreshed = self._load_full_catalog()
+                self._full_catalog = refreshed
+                self._category_cache.clear()
+                logger.info("Background refresh complete: %d tools loaded", len(refreshed))
             except Exception as exc:
                 logger.warning("Background refresh failed: %s", exc)
 
@@ -295,7 +241,7 @@ class ToolCatalog:
             total_tools=len(tools),
             available_tools=available,
             stale_tools=stale,
-            categories_discovered=sorted(self._reconciled_categories),
+            categories_discovered=sorted(self._category_cache),
             tools=tools,
         )
 
@@ -305,7 +251,6 @@ class ToolCatalog:
         Used at milestone boundaries for re-evaluation.
         """
         self._category_cache.pop(category, None)
-        self._reconciled_categories.discard(category)
 
     def invalidate_all(self) -> None:
         """Clear all caches, forcing complete re-discovery.
@@ -314,7 +259,6 @@ class ToolCatalog:
         """
         self._full_catalog = None
         self._category_cache.clear()
-        self._reconciled_categories.clear()
 
     @property
     def tool_count(self) -> int:

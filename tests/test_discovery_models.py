@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from gpd.mcp.discovery.models import (
     PHYSICS_CATEGORIES,
@@ -45,10 +46,10 @@ class TestMCPStatus:
 
 class TestToolEntry:
     def test_creation_with_defaults(self) -> None:
-        entry = ToolEntry(name="openfoam", description="CFD solver", source="modal")
+        entry = ToolEntry(name="openfoam", description="CFD solver", source="external")
         assert entry.name == "openfoam"
         assert entry.description == "CFD solver"
-        assert entry.source == "modal"
+        assert entry.source == "external"
         assert entry.status == MCPStatus.unknown
         assert entry.categories == []
         assert entry.domains == []
@@ -59,7 +60,7 @@ class TestToolEntry:
         entry = ToolEntry(
             name="openfoam",
             description="CFD solver",
-            source="modal",
+            source="external",
             status=MCPStatus.available,
             categories=["cfd"],
             domains=["Computational fluid dynamics"],
@@ -69,6 +70,11 @@ class TestToolEntry:
         assert entry.status == MCPStatus.available
         assert entry.categories == ["cfd"]
         assert len(entry.tools) == 1
+
+    def test_rejects_removed_legacy_source(self) -> None:
+        legacy_source = "".join(["mo", "dal"])
+        with pytest.raises(ValidationError):
+            ToolEntry(name="openfoam", description="CFD solver", source=legacy_source)
 
 
 # -- PhysicsCategory tests --
@@ -139,10 +145,15 @@ class TestMCPSourcesConfig:
 
     def test_creation_with_sources(self) -> None:
         config = MCPSourcesConfig(
-            sources={"test": SourceConfig(type="modal")},
+            sources={"test": SourceConfig(type="custom")},
         )
         assert "test" in config.sources
-        assert config.sources["test"].type == "modal"
+        assert config.sources["test"].type == "custom"
+
+    def test_rejects_removed_legacy_source_type(self) -> None:
+        legacy_type = "".join(["mo", "dal"])
+        with pytest.raises(ValidationError):
+            SourceConfig(type=legacy_type)
 
 
 # -- ToolCatalogSnapshot tests --

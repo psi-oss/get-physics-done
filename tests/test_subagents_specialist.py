@@ -28,12 +28,9 @@ def _make_tool(name: str = "openfoam", tools: list[dict[str, str]] | None = None
     """Create a ToolEntry for testing."""
     return ToolEntry(
         name=name,
-        description=f"{name} MCP tool",
-        source="modal",
-        categories=["cfd"],
-        domains=["computational fluid dynamics", "turbulence"],
-        tools=tools or [{"name": "create_simulation", "desc": "Create sim"}],
-        overview="A CFD simulation tool for fluid dynamics.",
+        description=name,
+        source="external",
+        tools=tools or [{"name": "create_simulation"}],
     )
 
 

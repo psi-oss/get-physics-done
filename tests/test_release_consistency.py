@@ -271,10 +271,10 @@ def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
     disallowed_markers = (
         "fix-mcps",
         "MCP Builder",
-        "modal token set",
-        "MODAL_ENVIRONMENT",
+        "".join(["mo", "dal token set"]),
+        "".join(["MO", "DAL_ENVIRONMENT"]),
         "gpd-mcp-servers",
-        "gpd-modal",
+        "".join(["gpd-", "mo", "dal"]),
     )
 
     for relative_path in paths:

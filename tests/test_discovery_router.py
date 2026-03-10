@@ -20,13 +20,11 @@ def _make_tool(
     """Create a test ToolEntry."""
     return ToolEntry(
         name=name,
-        description=f"{name} simulator",
-        source="modal",
+        description=name,
+        source="external",
         status=status,
         categories=categories,
-        domains=[f"{name} domain"],
-        tools=tools or [{"name": "create_simulation", "desc": "Create a sim"}],
-        overview=f"Overview of {name}",
+        tools=tools or [{"name": "create_simulation"}],
     )
 
 

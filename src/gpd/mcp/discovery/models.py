@@ -7,6 +7,7 @@ source configuration, and catalog snapshots.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -17,18 +18,21 @@ Used when storing ToolEntry.overview and when building compact LLM prompts
 to keep context size manageable.
 """
 
+ToolSource = Literal["external", "local", "custom"]
+SourceType = Literal["external", "local", "custom"]
+
 
 class MCPStatus(StrEnum):
-    """Deployment status of an MCP tool."""
+    """Availability status of an MCP tool."""
 
     available = "available"
-    """Confirmed live on a hosted or local source."""
+    """Available from a configured source."""
 
     stale = "stale"
-    """In registry but not confirmed after a live check."""
+    """Catalog metadata exists but availability is no longer fresh."""
 
     unavailable = "unavailable"
-    """Confirmed not deployed."""
+    """Confirmed unavailable."""
 
     unknown = "unknown"
     """Not yet checked."""
@@ -53,11 +57,11 @@ class ToolEntry(BaseModel):
     description: str
     """Human-readable description."""
 
-    source: str
-    """Where this came from: 'modal', 'local', 'external', 'custom'."""
+    source: ToolSource
+    """Where this came from: 'local', 'external', or 'custom'."""
 
     status: MCPStatus = MCPStatus.unknown
-    """Current deployment status."""
+    """Current availability status."""
 
     categories: list[str] = Field(default_factory=list)
     """Physics categories this tool belongs to (derived from SKILLS_SUMMARY domains)."""
@@ -79,9 +83,6 @@ class ToolEntry(BaseModel):
 
     staleness_seconds: float = 0.0
     """Seconds since last check."""
-
-    deployment_name: str = ""
-    """Hosted deployment name for display."""
 
 
 class PhysicsCategory(BaseModel):
@@ -204,20 +205,8 @@ def categorize_tool(tool_name: str, domains: list[str]) -> list[str]:
 class SourceConfig(BaseModel):
     """Configuration for a single MCP source."""
 
-    type: str
-    """Source type: 'modal', 'local', 'external', 'custom'."""
-
-    app_name: str = ""
-    """Hosted deployment name (for modal type)."""
-
-    env: str = ""
-    """Hosted environment name, when applicable."""
-
-    registry: str = ""
-    """Registry identifier to use for catalog metadata."""
-
-    reconcile: bool = True
-    """Whether to check hosted deployment status when supported."""
+    type: SourceType
+    """Source type: 'local', 'external', or 'custom'."""
 
     config_dir: str = ""
     """For local type: directory with MCP configs."""

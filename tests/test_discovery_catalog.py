@@ -1,4 +1,4 @@
-"""Tests for ToolCatalog, hosted reconciliation, and lazy per-category discovery."""
+"""Tests for ToolCatalog and lazy per-category discovery."""
 
 from __future__ import annotations
 
@@ -12,126 +12,16 @@ from gpd.mcp.discovery.models import (
     SourceConfig,
     ToolEntry,
 )
-from gpd.mcp.discovery.reconciler import check_deployment_status, reconcile_modal
 
 # -- Test fixtures --
 
-
-def _make_mock_mcps() -> dict:
-    """Return a mock registry matching get_available_mcps() format."""
-    return {
-        "openfoam": {
-            "description": "CFD toolkit",
-            "tools": [{"name": "create_simulation", "desc": "Create a sim"}],
-        },
-        "su2": {
-            "description": "CFD shape optimization",
-            "tools": [{"name": "create_simulation", "desc": "Create a sim"}],
-        },
-        "rebound": {
-            "description": "N-body orbital mechanics",
-            "tools": [{"name": "create_simulation", "desc": "Create a sim"}],
-        },
-        "lammps": {
-            "description": "Molecular dynamics",
-            "tools": [{"name": "create_simulation", "desc": "Create a sim"}],
-        },
-        "calculix": {
-            "description": "FEM solver",
-            "tools": [{"name": "create_simulation", "desc": "Create a sim"}],
-        },
-    }
-
-
-def _make_mock_skills() -> dict:
-    """Return a mock skills summary matching get_skills_summary() format."""
-    return {
-        "openfoam": {
-            "overview": "Computational fluid dynamics toolkit",
-            "domains": ["Computational fluid dynamics", "turbulence modeling"],
-        },
-        "su2": {
-            "overview": "Shape optimization CFD",
-            "domains": ["CFD", "aerodynamics"],
-        },
-        "rebound": {
-            "overview": "N-body simulator",
-            "domains": ["N-body", "orbital mechanics"],
-        },
-        "lammps": {
-            "overview": "Large-scale MD",
-            "domains": ["Molecular dynamics", "materials science"],
-        },
-        "calculix": {
-            "overview": "Finite element solver",
-            "domains": ["Finite element", "structural mechanics"],
-        },
-    }
-
-
 def _make_test_config() -> MCPSourcesConfig:
-    """Return a test config that only has an explicitly configured hosted source."""
+    """Return a test config with a single inline custom source."""
     return MCPSourcesConfig(
         sources={
-            "hosted": SourceConfig(type="modal", app_name="physics-suite"),
+            "custom": SourceConfig(type="custom"),
         },
     )
-
-
-# -- reconciler tests --
-
-
-class TestCheckDeploymentStatus:
-    def test_returns_empty_set_when_file_missing(self, tmp_path: Path) -> None:
-        result = check_deployment_status(tmp_path / "nonexistent")
-        assert result == set()
-
-    def test_reads_passed_list(self, tmp_path: Path) -> None:
-        import json
-
-        status_path = tmp_path / "infra" / "mcp" / "deployment_status.json"
-        status_path.parent.mkdir(parents=True)
-        status_path.write_text(json.dumps({"passed": ["openfoam", "su2", "lammps"]}))
-        result = check_deployment_status(tmp_path)
-        assert result == {"openfoam", "su2", "lammps"}
-
-    def test_handles_malformed_json(self, tmp_path: Path) -> None:
-        status_path = tmp_path / "infra" / "mcp" / "deployment_status.json"
-        status_path.parent.mkdir(parents=True)
-        status_path.write_text("not valid json{{{")
-        result = check_deployment_status(tmp_path)
-        assert result == set()
-
-
-class TestReconcileModal:
-    """reconcile_modal is a no-op (Modal is not a dependency).
-
-    These tests verify that it returns tools unchanged.
-    """
-
-    def test_returns_tools_unchanged(self) -> None:
-        tools = [
-            ToolEntry(name="openfoam", description="CFD", source="modal"),
-            ToolEntry(name="su2", description="CFD", source="modal"),
-        ]
-        result = reconcile_modal(tools, app_name="physics-suite", max_workers=1)
-        assert result is tools
-        # Status stays at default (unknown) since reconciliation is a no-op
-        assert tools[0].status == MCPStatus.unknown
-        assert tools[1].status == MCPStatus.unknown
-
-    def test_preserves_non_modal_tools(self) -> None:
-        tools = [
-            ToolEntry(name="sympy", description="Math", source="local", status=MCPStatus.available),
-            ToolEntry(name="openfoam", description="CFD", source="modal"),
-        ]
-        result = reconcile_modal(tools, app_name="physics-suite")
-        assert result is tools
-        # Local tool status unchanged
-        assert tools[0].status == MCPStatus.available
-        assert tools[0].source == "local"
-        # Modal tool status unchanged (no-op)
-        assert tools[1].status == MCPStatus.unknown
 
 
 class TestToolCatalogExternalSource:
@@ -174,11 +64,11 @@ services:
 
 
 class TestToolCatalogLoadFullCatalog:
-    @patch("gpd.mcp.discovery.catalog.ToolCatalog._load_modal_source")
-    def test_loads_from_mocked_registry(self, mock_load: MagicMock) -> None:
+    @patch("gpd.mcp.discovery.catalog.ToolCatalog._load_custom_source")
+    def test_loads_from_mocked_custom_source(self, mock_load: MagicMock) -> None:
         mock_load.return_value = {
-            "openfoam": ToolEntry(name="openfoam", description="CFD", source="modal", categories=["cfd"]),
-            "lammps": ToolEntry(name="lammps", description="MD", source="modal", categories=["md"]),
+            "openfoam": ToolEntry(name="openfoam", description="CFD", source="custom", categories=["cfd"]),
+            "lammps": ToolEntry(name="lammps", description="MD", source="custom", categories=["md"]),
         }
         config = _make_test_config()
         catalog = ToolCatalog(config)
@@ -190,55 +80,43 @@ class TestToolCatalogLoadFullCatalog:
 
 class TestToolCatalogGetToolsForCategory:
     def _make_catalog_with_tools(self) -> ToolCatalog:
-        """Create a catalog with pre-loaded tools, mocking reconciliation."""
+        """Create a catalog with pre-loaded tools."""
         config = _make_test_config()
         catalog = ToolCatalog(config)
         catalog._full_catalog = {
-            "openfoam": ToolEntry(name="openfoam", description="CFD", source="modal", categories=["cfd"]),
-            "su2": ToolEntry(name="su2", description="CFD opt", source="modal", categories=["cfd"]),
-            "rebound": ToolEntry(name="rebound", description="N-body", source="modal", categories=["nbody"]),
-            "lammps": ToolEntry(name="lammps", description="MD", source="modal", categories=["md"]),
+            "openfoam": ToolEntry(name="openfoam", description="CFD", source="external", categories=["cfd"]),
+            "su2": ToolEntry(name="su2", description="CFD opt", source="external", categories=["cfd"]),
+            "rebound": ToolEntry(name="rebound", description="N-body", source="external", categories=["nbody"]),
+            "lammps": ToolEntry(name="lammps", description="MD", source="external", categories=["md"]),
             "sympy": ToolEntry(name="sympy", description="Math", source="local", categories=["utility"]),
         }
         return catalog
 
-    @patch("gpd.mcp.discovery.catalog.reconcile_modal", side_effect=lambda tools, **kw: tools)
-    def test_returns_only_cfd_tools(self, mock_reconcile: MagicMock) -> None:
+    def test_returns_only_cfd_tools(self) -> None:
         catalog = self._make_catalog_with_tools()
         cfd_tools = catalog.get_tools_for_category("cfd")
         names = {t.name for t in cfd_tools}
         assert names == {"openfoam", "su2"}
 
-    @patch("gpd.mcp.discovery.catalog.reconcile_modal", side_effect=lambda tools, **kw: tools)
-    def test_lazy_reconcile_only_first_access(self, mock_reconcile: MagicMock) -> None:
-        catalog = self._make_catalog_with_tools()
-
-        # First access triggers reconcile
-        catalog.get_tools_for_category("cfd")
-        assert mock_reconcile.call_count == 1
-
-        # Second access returns cached (no extra reconcile)
-        catalog.get_tools_for_category("cfd")
-        assert mock_reconcile.call_count == 1
-
-    @patch("gpd.mcp.discovery.catalog.reconcile_modal", side_effect=lambda tools, **kw: tools)
-    def test_caches_results(self, mock_reconcile: MagicMock) -> None:
+    def test_caches_results(self) -> None:
         catalog = self._make_catalog_with_tools()
         first = catalog.get_tools_for_category("cfd")
         second = catalog.get_tools_for_category("cfd")
         assert first is second
 
-    @patch("gpd.mcp.discovery.catalog.reconcile_modal", side_effect=lambda tools, **kw: tools)
-    def test_invalidate_category_clears_cache(self, mock_reconcile: MagicMock) -> None:
+    def test_invalidate_category_clears_cache(self) -> None:
         catalog = self._make_catalog_with_tools()
-
-        catalog.get_tools_for_category("cfd")
-        assert mock_reconcile.call_count == 1
-
+        first = catalog.get_tools_for_category("cfd")
         catalog.invalidate_category("cfd")
+        second = catalog.get_tools_for_category("cfd")
+        assert first == second
+        assert first is not second
 
+    def test_snapshot_tracks_discovered_categories(self) -> None:
+        catalog = self._make_catalog_with_tools()
         catalog.get_tools_for_category("cfd")
-        assert mock_reconcile.call_count == 2
+        snapshot = catalog.get_snapshot()
+        assert snapshot.categories_discovered == ["cfd"]
 
 
 class TestToolCatalogSnapshot:
@@ -249,33 +127,33 @@ class TestToolCatalogSnapshot:
             "openfoam": ToolEntry(
                 name="openfoam",
                 description="CFD",
-                source="modal",
+                source="external",
                 status=MCPStatus.available,
                 categories=["cfd"],
             ),
             "su2": ToolEntry(
                 name="su2",
                 description="CFD",
-                source="modal",
+                source="external",
                 status=MCPStatus.available,
                 categories=["cfd"],
             ),
             "missing": ToolEntry(
                 name="missing",
                 description="Gone",
-                source="modal",
+                source="external",
                 status=MCPStatus.unavailable,
                 categories=["cfd"],
             ),
             "unknown_tool": ToolEntry(
                 name="unknown_tool",
                 description="?",
-                source="modal",
+                source="external",
                 status=MCPStatus.unknown,
                 categories=["quantum"],
             ),
         }
-        catalog._reconciled_categories = {"cfd"}
+        catalog.get_tools_for_category("cfd")
 
         snapshot = catalog.get_snapshot()
         assert snapshot.total_tools == 4
@@ -288,8 +166,8 @@ class TestToolCatalogToolCount:
     @patch("gpd.mcp.discovery.catalog.ToolCatalog._load_full_catalog")
     def test_tool_count(self, mock_load: MagicMock) -> None:
         mock_load.return_value = {
-            "a": ToolEntry(name="a", description="A", source="modal"),
-            "b": ToolEntry(name="b", description="B", source="modal"),
+            "a": ToolEntry(name="a", description="A", source="external"),
+            "b": ToolEntry(name="b", description="B", source="custom"),
             "c": ToolEntry(name="c", description="C", source="local"),
         }
         config = _make_test_config()
@@ -298,15 +176,14 @@ class TestToolCatalogToolCount:
 
 
 class TestToolCatalogGracefulDegradation:
-    def test_handles_missing_gpd_mcp_shared(self) -> None:
-        """Catalog should return empty results if hosted registry metadata is unavailable."""
+    def test_handles_failing_custom_source_loader(self) -> None:
+        """Catalog should return empty results if one source loader fails."""
         config = _make_test_config()
         catalog = ToolCatalog(config)
 
         with patch(
-            "gpd.mcp.discovery.catalog.ToolCatalog._load_modal_source",
-            side_effect=ImportError("gpd-mcp-shared not installed"),
+            "gpd.mcp.discovery.catalog.ToolCatalog._load_custom_source",
+            side_effect=ImportError("custom loader unavailable"),
         ):
-            # The _load_full_catalog catches the exception and continues
             all_tools = catalog.get_all_tools()
             assert isinstance(all_tools, dict)
