@@ -302,7 +302,7 @@ gpd health --raw
 
 ## gpd CLI Phase Dependency Graph
 
-The `gpd dependency-graph` entry exists in the CLI, but it is currently a placeholder and is not implemented. Today, phase dependency graphing is done by combining `gpd roadmap analyze` with SUMMARY frontmatter and `gpd query` lookups.
+For phase dependency graphing, combine `gpd roadmap analyze` with SUMMARY frontmatter and `gpd query` lookups.
 
 ```bash
 # Inspect roadmap structure
@@ -371,22 +371,22 @@ Query research data across phases by what they provide, require, or affect:
 
 ```bash
 # Find phases that provide a specific quantity
-gpd query --provides "dispersion relation"
+gpd query search --provides "dispersion relation"
 
 # Find phases that require a specific input
-gpd query --requires "Hamiltonian"
+gpd query search --requires "Hamiltonian"
 
 # Find phases that affect a specific area
-gpd query --affects "phase boundary"
+gpd query search --affects "phase boundary"
 
 # Search by equation content
-gpd query --equation "E = mc^2"
+gpd query search --equation "E = mc^2"
 
-# Query dependencies for a specific phase
-gpd query-deps <phase-number>
+# Trace dependencies for a specific identifier
+gpd query deps <identifier>
 
 # Query assumptions across phases
-gpd query-assumptions "<search term>"
+gpd query assumptions "<search term>"
 ```
 
 ---

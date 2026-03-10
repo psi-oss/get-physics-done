@@ -5,10 +5,9 @@ Targets (prioritized by risk):
   2. state_record_session      — state-mutating: updates session fields
   3. save_state_json_locked    — state-mutating: atomic dual-write core
   4. verify_phase_completeness — validation: plan/summary matching
-  5. fill_template             — template: generates pre-filled files
-  6. validate_phase_waves      — validation: wave dependency checks
-  7. list_phase_files          — query: lists plans/summaries across phases
-  8. walk_for_nan / safe_parse_json / safe_parse_yaml / safe_parse_int /
+  5. validate_phase_waves      — validation: wave dependency checks
+  6. list_phase_files          — query: lists plans/summaries across phases
+  7. walk_for_nan / safe_parse_json / safe_parse_yaml / safe_parse_int /
      safe_read_file / safe_read_file_truncated / format_progress_bar /
      phase_top_level / file_lock — pure helpers, widely used
 """

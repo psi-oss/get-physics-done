@@ -366,19 +366,7 @@ class TestValidateReturn:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 7. dependency-graph
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestDependencyGraph:
-    def test_dependency_graph_not_implemented(self) -> None:
-        """dependency-graph currently raises BadParameter (not implemented)."""
-        result = runner.invoke(app, ["dependency-graph"], catch_exceptions=False)
-        assert result.exit_code != 0
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 8. config subcommands
+# 7. config subcommands
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -450,76 +438,7 @@ class TestConfigCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 9. template subcommands
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestTemplateCommands:
-    def test_template_select(self, gpd_project: Path) -> None:
-        """select should classify a plan file as minimal/standard/complex."""
-        plan_path = ".gpd/phases/01-test-phase/01-PLAN.md"
-        result = _invoke("--raw", "template", "select", plan_path)
-        parsed = json.loads(result.output)
-        assert "template_type" in parsed
-        assert parsed["template_type"] in ("minimal", "standard", "complex")
-
-    def test_template_fill_summary(self) -> None:
-        """fill summary should create a SUMMARY template in the phase dir."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "summary",
-            "--phase",
-            "1",
-            "--plan",
-            "01",
-            "--name",
-            "Test Phase",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_fill_plan(self) -> None:
-        """fill plan should create a PLAN template."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "plan",
-            "--phase",
-            "1",
-            "--plan",
-            "02",
-            "--name",
-            "Second Plan",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_fill_verification(self) -> None:
-        """fill verification should create a VERIFICATION template."""
-        result = _invoke(
-            "--raw",
-            "template",
-            "fill",
-            "verification",
-            "--phase",
-            "1",
-            "--name",
-            "Test Phase",
-        )
-        parsed = json.loads(result.output)
-        assert "path" in parsed or "created" in parsed
-
-    def test_template_help(self) -> None:
-        result = _invoke("template", "--help")
-        assert "select" in result.output
-        assert "fill" in result.output
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 10. json subcommands
+# 8. json subcommands
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -643,23 +562,8 @@ class TestJsonCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Extra coverage: scaffold, summary-extract, resolve-model
+# Extra coverage: summary-extract, resolve-model
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestScaffoldCommand:
-    def test_scaffold_context(self) -> None:
-        result = _invoke("--raw", "scaffold", "context", "--phase", "1")
-        parsed = json.loads(result.output)
-        assert parsed["created"] is True
-
-    def test_scaffold_phase_dir(self) -> None:
-        result = _invoke(
-            "--raw", "scaffold", "phase-dir", "--phase", "3", "--name", "New Phase"
-        )
-        parsed = json.loads(result.output)
-        assert parsed["created"] is True
-
 
 class TestSummaryExtractCommand:
     def test_summary_extract(self) -> None:

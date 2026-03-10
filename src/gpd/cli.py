@@ -1519,91 +1519,6 @@ def validate_consistency() -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# template — Template selection and filling
-# ═══════════════════════════════════════════════════════════════════════════
-
-template_app = typer.Typer(help="Plan and document templates")
-app.add_typer(template_app, name="template")
-
-
-@template_app.command("select")
-def template_select(
-    plan_path: str = typer.Argument(..., help="Path to plan file"),
-) -> None:
-    """Select appropriate template for a plan."""
-    from gpd.core.frontmatter import select_template
-
-    _output(select_template(_get_cwd(), Path(plan_path)))
-
-
-@template_app.command("fill")
-def template_fill(
-    template_type: str = typer.Argument(..., help="Template type"),
-    phase: str = typer.Option(..., "--phase", help="Phase number"),
-    plan: str | None = typer.Option(None, "--plan", help="Plan name"),
-    name: str | None = typer.Option(None, "--name", help="Document name"),
-    plan_type: str = typer.Option("execute", "--type", help="Plan type (execute/research)"),
-    wave: str = typer.Option("1", "--wave", help="Wave number"),
-    fields: str | None = typer.Option(None, "--fields", help="JSON fields"),
-) -> None:
-    """Fill a template with provided fields."""
-    from gpd.core.frontmatter import TemplateFillOptions, fill_template
-
-    parsed_fields = {}
-    if fields:
-        try:
-            parsed_fields = json.loads(fields)
-        except json.JSONDecodeError as exc:
-            raise typer.BadParameter(f"--fields must be valid JSON: {exc}") from exc
-    try:
-        wave_int = int(wave)
-    except ValueError:
-        raise typer.BadParameter(f"--wave must be an integer, got {wave!r}") from None
-    options = TemplateFillOptions(
-        phase=phase,
-        name=name,
-        plan=plan,
-        plan_type=plan_type,
-        wave=wave_int,
-        fields=parsed_fields or None,
-    )
-    _output(fill_template(_get_cwd(), template_type, options))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# dependency-graph — Visual dependency graph
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("dependency-graph")
-def dependency_graph(
-    fmt: str | None = typer.Option(None, "--format", help="Output format (mermaid, dot, json)"),
-    phase: str | None = typer.Option(None, "--phase", help="Filter to phase"),
-    validate: bool = typer.Option(False, "--validate", help="Validate graph integrity"),
-) -> None:
-    """Generate a dependency graph across phases."""
-    console.print("[yellow]dependency-graph is not yet implemented[/]")
-    raise typer.Exit(code=1)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# scaffold — File and directory scaffolding
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("scaffold")
-def scaffold(
-    scaffold_type: str = typer.Argument(..., help="Type: context, validation, verification, phase-dir"),
-    phase: str | None = typer.Option(None, "--phase", help="Phase number"),
-    name: str | None = typer.Option(None, "--name", help="Name for the scaffold"),
-) -> None:
-    """Create scaffold files (context, validation, verification) or phase directories."""
-    from gpd.core.commands import cmd_scaffold
-
-    _output(cmd_scaffold(_get_cwd(), scaffold_type, phase=phase, name=name))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # history-digest — History analysis
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1630,21 +1545,6 @@ def summary_extract(
     from gpd.core.commands import cmd_summary_extract
 
     _output(cmd_summary_extract(_get_cwd(), summary_path, fields=field))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# todo-complete — Move todo from pending to done
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@app.command("todo-complete")
-def todo_complete(
-    filename: str = typer.Argument(..., help="Todo filename in .gpd/todos/pending/"),
-) -> None:
-    """Mark a todo as completed (move from pending/ to done/)."""
-    from gpd.core.commands import cmd_todo_complete
-
-    _output(cmd_todo_complete(_get_cwd(), filename))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

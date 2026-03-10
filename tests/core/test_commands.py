@@ -5,7 +5,6 @@ Tests the pure logic functions without filesystem mocking (uses tmp_path).
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -15,9 +14,7 @@ from gpd.core.commands import (
     cmd_generate_slug,
     cmd_history_digest,
     cmd_regression_check,
-    cmd_scaffold,
     cmd_summary_extract,
-    cmd_todo_complete,
     cmd_validate_return,
     cmd_verify_path_exists,
 )
@@ -98,100 +95,6 @@ class TestVerifyPathExists:
     def test_empty_path_raises(self, tmp_path: Path):
         with pytest.raises(ValidationError, match="path required"):
             cmd_verify_path_exists(tmp_path, "")
-
-
-# ─── cmd_todo_complete ─────────────────────────────────────────────────────
-
-
-class TestTodoComplete:
-    def _setup_todo(self, tmp_path: Path, filename: str = "fix-bug.md") -> Path:
-        pending = tmp_path / ".gpd" / "todos" / "pending"
-        pending.mkdir(parents=True)
-        todo = pending / filename
-        todo.write_text("---\ntitle: Fix bug\narea: core\n---\n\nFix the bug.\n")
-        return todo
-
-    def test_moves_to_done(self, tmp_path: Path):
-        self._setup_todo(tmp_path)
-        result = cmd_todo_complete(tmp_path, "fix-bug.md")
-        assert result.completed is True
-        assert result.file == "fix-bug.md"
-        assert result.date == date.today().isoformat()
-
-        # Source should be gone
-        assert not (tmp_path / ".gpd" / "todos" / "pending" / "fix-bug.md").exists()
-        # Dest should exist
-        done_path = tmp_path / ".gpd" / "todos" / "done" / "fix-bug.md"
-        assert done_path.exists()
-        assert "completed:" in done_path.read_text()
-
-    def test_not_found_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd" / "todos" / "pending").mkdir(parents=True)
-        with pytest.raises(ValidationError, match="Todo not found"):
-            cmd_todo_complete(tmp_path, "nonexistent.md")
-
-    def test_empty_filename_raises(self, tmp_path: Path):
-        with pytest.raises(ValidationError, match="filename required"):
-            cmd_todo_complete(tmp_path, "")
-
-
-# ─── cmd_scaffold ──────────────────────────────────────────────────────────
-
-
-class TestScaffold:
-    def _setup_phase(self, tmp_path: Path, phase_dir: str = "03-core-work") -> Path:
-        d = tmp_path / ".gpd" / "phases" / phase_dir
-        d.mkdir(parents=True)
-        return d
-
-    def test_scaffold_phase_dir(self, tmp_path: Path):
-        result = cmd_scaffold(tmp_path, "phase-dir", phase="5", name="Integration Tests")
-        assert result.created is True
-        assert "05-integration-tests" in (result.directory or "")
-        assert (tmp_path / ".gpd" / "phases" / "05-integration-tests").is_dir()
-
-    def test_scaffold_context(self, tmp_path: Path):
-        self._setup_phase(tmp_path)
-        result = cmd_scaffold(tmp_path, "context", phase="3", name="Core Work")
-        assert result.created is True
-        assert "CONTEXT.md" in (result.path or "")
-
-    def test_scaffold_validation(self, tmp_path: Path):
-        self._setup_phase(tmp_path)
-        result = cmd_scaffold(tmp_path, "validation", phase="3")
-        assert result.created is True
-        assert "VALIDATION.md" in (result.path or "")
-
-    def test_scaffold_verification(self, tmp_path: Path):
-        self._setup_phase(tmp_path)
-        result = cmd_scaffold(tmp_path, "verification", phase="3")
-        assert result.created is True
-        assert "VERIFICATION.md" in (result.path or "")
-
-    def test_already_exists(self, tmp_path: Path):
-        phase_dir = self._setup_phase(tmp_path)
-        (phase_dir / "03-CONTEXT.md").write_text("existing")
-        result = cmd_scaffold(tmp_path, "context", phase="3")
-        assert result.created is False
-        assert result.reason == "already_exists"
-
-    def test_unknown_type_raises(self, tmp_path: Path):
-        self._setup_phase(tmp_path)
-        with pytest.raises(ValidationError, match="Unknown scaffold type"):
-            cmd_scaffold(tmp_path, "unknown", phase="3")
-
-    def test_phase_dir_missing_name_raises(self, tmp_path: Path):
-        with pytest.raises(ValidationError, match="phase and name required"):
-            cmd_scaffold(tmp_path, "phase-dir", phase="1")
-
-    def test_missing_phase_raises(self, tmp_path: Path):
-        with pytest.raises(ValidationError, match="--phase is required"):
-            cmd_scaffold(tmp_path, "context")
-
-    def test_nonexistent_phase_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd" / "phases").mkdir(parents=True)
-        with pytest.raises(ValidationError, match="Phase 99 directory not found"):
-            cmd_scaffold(tmp_path, "context", phase="99")
 
 
 # ─── cmd_summary_extract ──────────────────────────────────────────────────

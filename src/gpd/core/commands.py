@@ -28,6 +28,7 @@ from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import (
     compare_phase_numbers,
+    generate_slug,
     is_phase_complete,
     safe_read_file,
 )

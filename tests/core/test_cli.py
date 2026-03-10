@@ -393,16 +393,6 @@ def test_history_digest_subcommand(mock_digest):
     mock_digest.assert_called_once()
 
 
-@patch("gpd.core.commands.cmd_scaffold")
-def test_scaffold_subcommand(mock_scaffold):
-    mock_result = MagicMock()
-    mock_result.model_dump.return_value = {"created": True, "path": "test"}
-    mock_scaffold.return_value = mock_result
-    result = runner.invoke(app, ["scaffold", "phase-dir", "--phase", "1", "--name", "Setup"])
-    assert result.exit_code == 0
-    mock_scaffold.assert_called_once()
-
-
 @patch("gpd.core.commands.cmd_regression_check")
 def test_regression_check_subcommand_passing(mock_check):
     mock_result = MagicMock()
