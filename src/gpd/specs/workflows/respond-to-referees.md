@@ -94,6 +94,15 @@ ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ```
 
 If found, load as continuation context (user may be resuming an interrupted session).
+
+**Check for staged peer-review decision artifacts:**
+
+```bash
+ls .gpd/review/REVIEW-LEDGER*.json 2>/dev/null
+ls .gpd/review/REFEREE-DECISION*.json 2>/dev/null
+```
+
+If matching round-specific files exist, load them as structured context. Use `REFEREE-REPORT*.md` as the canonical issue-ID source, and use `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` to identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale.
 </step>
 
 <step name="parse_referee_reports">
@@ -118,6 +127,14 @@ For each comment, extract:
 
 **Also parse editor comments** (if present) as a separate section -- editor guidance often indicates which referee points are critical vs. optional.
 
+**If staged peer-review artifacts exist, extract additional decision context:**
+
+- Final recommendation from `REFEREE-DECISION*.json`
+- Blocking issues and unresolved issue IDs from `REVIEW-LEDGER*.json`
+- Any finding that the paper's claim scope outruns the evidence, that physical interpretation is unsupported, or that venue fit/significance is inadequate
+
+Do not invent new `REF-*` identifiers from the JSON artifacts. Instead, use them to prioritize and calibrate the responses to the issues already surfaced in `REFEREE-REPORT*.md`.
+
 Present the parsed structure for user confirmation:
 
 ```
@@ -138,6 +155,12 @@ Present the parsed structure for user confirmation:
 2.{N}: {brief summary} — {affected section}
 ...
 
+### Decision Context (if available)
+
+- Recommendation floor: {major_revision / reject / etc.}
+- Blocking issues from review ledger: {count}
+- Central claims needing narrowed scope or stronger support: {summary}
+
 Confirm parsing is correct, or paste corrections.
 ```
 
@@ -156,7 +179,9 @@ Create `.gpd/paper/REFEREE_RESPONSE.md` using the template structure, populated 
 
 - Paper metadata (journal, manuscript ID, dates)
 - Decision summary from editor
+- Decision summary from `REFEREE-DECISION*.json` when available
 - Each referee comment with full quote, category, priority
+- Explicit list of blocking items from `REVIEW-LEDGER*.json` when available
 - Empty response and changes-made fields (to be filled in subsequent steps)
 - Progress tracking table
 
@@ -200,6 +225,10 @@ Sort all comments into three groups:
 - New comparisons with published results
 - Extended parameter ranges or new limiting cases
 - Additional numerical checks or convergence tests
+
+**Mandatory override from staged peer-review artifacts:**
+
+If `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json` marks an issue as blocking, unsupported, or central to the recommendation floor, classify it as Must Address even if the prose report sounds mild. If the decision artifacts say the paper's claims outrun the evidence, do not triage that as response-only; it requires either manuscript revision, claim narrowing, or new evidence.
 
 Present triage:
 
@@ -253,6 +282,8 @@ gpd phase add "Referee revision: {description}"
 ```
 
 The user should run `/gpd:plan-phase` and `/gpd:execute-phase` for each new phase, then return to `/gpd:respond-to-referees` to continue.
+
+If the staged decision artifacts indicate that the main problem is overclaiming rather than missing computation, prefer narrowing the claim set or venue framing before creating new research phases.
 
 </step>
 

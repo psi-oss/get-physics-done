@@ -787,7 +787,7 @@ For the detailed staging, artifact naming, round handling, `CLAIMS.json` / `STAG
 
 **After final adjudication:**
 
-Read `.gpd/REFEREE-REPORT.md` and assess the findings:
+Read `.gpd/review/REFEREE-DECISION.json` and `.gpd/review/REVIEW-LEDGER.json` first when they exist, then read `.gpd/REFEREE-REPORT.md` and assess the findings:
 
 - **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to `final_review`. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
@@ -848,9 +848,11 @@ When revising a paper in response to referee reports:
      model="{writer_model}",
      prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead your <author_response> protocol. Produce an AUTHOR-RESPONSE file.\n\n" +
        "Referee report: .gpd/REFEREE-REPORT{-RN}.md\n" +
+       "Review ledger (if present): .gpd/review/REVIEW-LEDGER{-RN}.json\n" +
+       "Decision artifact (if present): .gpd/review/REFEREE-DECISION{-RN}.json\n" +
        "Manuscript: paper/*.tex\n" +
        "Round: {N}\n\n" +
-       "For each REF-xxx issue, classify as fixed/rebutted/acknowledged.\n" +
+       "For each REF-xxx issue, classify as fixed/rebutted/acknowledged. Use the JSON artifacts to identify blocking issues and decision-floor reasons, but keep REF-xxx IDs from the report.\n" +
        "Write to .gpd/AUTHOR-RESPONSE{-RN}.md",
      description="Author response: round {N}"
    )
@@ -858,7 +860,7 @@ When revising a paper in response to referee reports:
 
    **If the author-response agent fails to spawn or returns an error:** Check if `.gpd/AUTHOR-RESPONSE{-RN}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
 
-   The AUTHOR-RESPONSE.md uses REF-xxx issue IDs matching the referee report, with classifications (fixed/rebutted/acknowledged) and specific change locations. See the gpd-paper-writer's `<author_response>` section for the full format.
+   The AUTHOR-RESPONSE.md uses REF-xxx issue IDs matching the referee report, with classifications (fixed/rebutted/acknowledged) and specific change locations. When present, `REVIEW-LEDGER{-RN}.json` and `REFEREE-DECISION{-RN}.json` provide the blocking-issue and recommendation-floor context that the response must resolve. See the gpd-paper-writer's `<author_response>` section for the full format.
 
    Also create `paper/REFEREE_RESPONSE.md` (the human-readable response letter) using the `templates/paper/referee-response.md` template for the actual journal submission cover letter.
 

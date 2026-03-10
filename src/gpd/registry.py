@@ -147,10 +147,12 @@ _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
     },
     "gpd:respond-to-referees": {
         "review_mode": "publication",
-        "required_outputs": ["REFEREE_RESPONSE.md", "AUTHOR-RESPONSE.md"],
+        "required_outputs": [".gpd/paper/REFEREE_RESPONSE.md", ".gpd/AUTHOR-RESPONSE.md"],
         "required_evidence": [
             "existing manuscript",
             "structured referee issues",
+            "peer-review review ledger when available",
+            "peer-review decision artifacts when available",
             "revision verification evidence",
         ],
         "blocking_conditions": [

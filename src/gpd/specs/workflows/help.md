@@ -559,6 +559,7 @@ Structure point-by-point response to referee reports and revise the manuscript.
 
 - Parses referee comments into structured items with severity levels
 - Drafts AUTHOR-RESPONSE.md with REF-xxx issue tracking (fixed/rebutted/acknowledged)
+- Consumes `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
 - Spawns paper-writer agents for targeted section revisions
 - Tracks new calculations required by referees as revision tasks
 - Produces response letter from `templates/paper/referee-response.md`

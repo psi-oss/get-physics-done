@@ -1711,6 +1711,8 @@ When a REFEREE-REPORT.md (or REFEREE-REPORT-R{N}.md) exists in `.gpd/`, you may 
 
 The referee's report includes machine-readable `actionable_items` YAML with issue IDs (REF-001, etc.), severity levels, and `blocks_publication` flags. Parse this YAML to ensure every blocking issue is addressed. In rounds 2-3, the referee also classifies prior issues as `resolved`, `partially-resolved`, `unresolved`, or `new-issue` — focus your response on items NOT marked `resolved`.
 
+If the staged panel artifacts `.gpd/review/REVIEW-LEDGER{-RN}.json` or `.gpd/review/REFEREE-DECISION{-RN}.json` exist, read them too. They do not replace the referee report as the canonical `REF-*` issue source, but they do tell you which issues are still blocking, which claims are unsupported, and what recommendation floor the referee is enforcing.
+
 ### Triggering
 
 The write-paper orchestrator's `paper_revision` step spawns you with a referee report and instructions to produce an author response. You may also be spawned directly by `/gpd:respond-to-referees`.
@@ -1736,6 +1738,11 @@ Address **every** item. Items with `blocks_publication: true` are mandatory.
 **Step 1: Load the referee report.**
 
 Read the most recent REFEREE-REPORT{-RN}.md. Extract every issue by its ID (REF-001, REF-002, etc.) with severity and description.
+
+If present, also read the matching `.gpd/review/REVIEW-LEDGER{-RN}.json` and `.gpd/review/REFEREE-DECISION{-RN}.json`.
+- Use them to identify blocking items and unsupported central claims.
+- Do not invent new `REF-*` IDs from those JSON files.
+- Do not classify a blocking unsupported-claim issue as merely `acknowledged` unless the orchestrator explicitly says the authors are accepting a still-negative recommendation.
 
 **Step 2: For each REF-xxx issue, classify your response.**
 
@@ -1825,6 +1832,12 @@ follow-up calculation.
 - **Round 1:** Full responses to all issues. Focus on clarity and thoroughness.
 - **Round 2:** Respond only to issues marked `partially-resolved` or `unresolved` by the referee in REFEREE-REPORT-R2.md, plus any `new-issue` entries. Do not re-argue resolved issues.
 - **Round 3 (final):** This is the last response. Every remaining issue must be either fixed or given a definitive rebuttal with evidence. Avoid "acknowledged" classifications in round 3 — the referee expects resolution, not promises.
+
+Across all rounds, if `REFEREE-DECISION{-RN}.json` still caps the paper at `major_revision` or `reject` because of unsupported physics, weak significance, or overclaiming, your response must either:
+1. show the concrete manuscript changes that remove that blocker, or
+2. provide direct evidence that defeats the blocker.
+
+Do not write a polished response that leaves the decision-floor reason untouched.
 
 ### Integration with Section Revision
 

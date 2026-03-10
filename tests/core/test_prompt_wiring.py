@@ -405,7 +405,11 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "phase_artifacts" in verify_work.review_contract.preflight_checks
 
     assert respond_to_referees.review_contract is not None
+    assert ".gpd/paper/REFEREE_RESPONSE.md" in respond_to_referees.review_contract.required_outputs
+    assert ".gpd/AUTHOR-RESPONSE.md" in respond_to_referees.review_contract.required_outputs
     assert "structured referee issues" in respond_to_referees.review_contract.required_evidence
+    assert "peer-review review ledger when available" in respond_to_referees.review_contract.required_evidence
+    assert "peer-review decision artifacts when available" in respond_to_referees.review_contract.required_evidence
     assert "gpd:peer-review" in registry.list_review_commands()
     assert "gpd:write-paper" in registry.list_review_commands()
     assert "gpd:respond-to-referees" in registry.list_review_commands()
@@ -424,3 +428,16 @@ def test_list_review_commands_no_duplicates() -> None:
     """Each review command should appear exactly once."""
     review_cmds = registry.list_review_commands()
     assert len(review_cmds) == len(set(review_cmds))
+
+
+def test_respond_to_referees_references_staged_review_artifacts() -> None:
+    command_text = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
+
+    assert ".gpd/review/REVIEW-LEDGER.json" in command_text
+    assert ".gpd/review/REFEREE-DECISION.json" in command_text
+    assert "REVIEW-LEDGER*.json" in workflow_text
+    assert "REFEREE-DECISION*.json" in workflow_text
+    assert "REVIEW-LEDGER{-RN}.json" in writer_text
+    assert "REFEREE-DECISION{-RN}.json" in writer_text

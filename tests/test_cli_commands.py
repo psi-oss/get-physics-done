@@ -432,6 +432,22 @@ class TestReviewValidationCommands:
         assert payload["review_contract"]["final_decision_output"] == ".gpd/review/REFEREE-DECISION.json"
         assert payload["review_contract"]["requires_fresh_context_per_stage"] is True
 
+    def test_review_contract_respond_to_referees_uses_typed_registry_surface(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-contract", "respond-to-referees"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["review_contract"]["review_mode"] == "publication"
+        assert ".gpd/paper/REFEREE_RESPONSE.md" in payload["review_contract"]["required_outputs"]
+        assert ".gpd/AUTHOR-RESPONSE.md" in payload["review_contract"]["required_outputs"]
+        assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
+        assert "peer-review decision artifacts when available" in payload["review_contract"]["required_evidence"]
+
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,
