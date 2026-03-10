@@ -140,6 +140,53 @@ def test_install_all_success_exits_0(tmp_path: Path):
     assert result.exit_code == 0
 
 
+def test_install_banner_uses_display_names(tmp_path: Path):
+    """Install banner should show human-friendly runtime names."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / ".claude")}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.help_command = "/gpd:help"
+        del mock_adapter.finish_install
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
+
+    assert result.exit_code == 0
+    assert "Installing GPD (local) for: Claude Code" in result.output
+    assert "Installing GPD (local) for: claude-code" not in result.output
+
+
+def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
+    """Install summary should show a compact target path."""
+    target = tmp_path / ".claude"
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.help_command = "/gpd:help"
+        del mock_adapter.finish_install
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, ["--cwd", str(tmp_path), "install", "claude-code", "--local"])
+
+    assert result.exit_code == 0
+    assert "./.claude" in result.output
+    assert str(target) not in result.output
+
+
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 

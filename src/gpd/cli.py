@@ -97,6 +97,54 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
+def _format_display_path(target: str | Path | None) -> str:
+    """Format a path for concise, user-facing CLI output."""
+    if target is None:
+        return ""
+
+    raw_target = str(target)
+    if not raw_target:
+        return ""
+
+    target_path = Path(raw_target).expanduser()
+    if not target_path.is_absolute():
+        target_path = _get_cwd() / target_path
+
+    resolved_target = target_path.resolve(strict=False)
+    resolved_cwd = _get_cwd().expanduser().resolve(strict=False)
+    resolved_home = Path.home().expanduser().resolve(strict=False)
+
+    try:
+        relative_to_cwd = resolved_target.relative_to(resolved_cwd)
+    except ValueError:
+        pass
+    else:
+        relative_text = relative_to_cwd.as_posix()
+        return "." if relative_text in ("", ".") else f"./{relative_text}"
+
+    try:
+        relative_to_home = resolved_target.relative_to(resolved_home)
+    except ValueError:
+        return resolved_target.as_posix()
+
+    relative_text = relative_to_home.as_posix()
+    return "~" if relative_text in ("", ".") else f"~/{relative_text}"
+
+
+def _format_runtime_list(runtime_names: list[str]) -> str:
+    """Render runtime identifiers as human-friendly names."""
+    from gpd.adapters import get_adapter
+
+    display_names = [get_adapter(runtime_name).display_name for runtime_name in runtime_names]
+    if not display_names:
+        return "no runtimes"
+    if len(display_names) == 1:
+        return display_names[0]
+    if len(display_names) == 2:
+        return f"{display_names[0]} and {display_names[1]}"
+    return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
+
+
 def _print_version(*, ctx: typer.Context | None = None) -> None:
     """Emit the CLI version using the active raw/non-raw output contract."""
     value = f"gpd {gpd.__version__}"
@@ -1927,7 +1975,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 
     for runtime_name, result in results:
         adapter = get_adapter(runtime_name)
-        target = str(result.get("target", ""))
+        target = _format_display_path(result.get("target"))
         agents = result.get("agents", 0)
         commands = result.get("commands", 0)
         table.add_row(
@@ -2010,7 +2058,7 @@ def install(
 
     location_label = "global" if is_global else "local"
     if not _raw:
-        console.print(f"\n[bold]Installing GPD ({location_label}) for: {', '.join(selected)}[/]\n")
+        console.print(f"\n[bold]Installing GPD ({location_label}) for: {_format_runtime_list(selected)}[/]\n")
 
     # Install each runtime with progress
     results: list[tuple[str, dict[str, object]]] = []
@@ -2114,7 +2162,7 @@ def uninstall(
 
     if not target_dir:
         location_label = "global" if is_global else "local"
-        runtime_names = ", ".join(selected)
+        runtime_names = _format_runtime_list(selected)
         if not Confirm.ask(f"Remove GPD from {runtime_names} ({location_label})?", default=False):
             console.print("[dim]Cancelled.[/]")
             raise typer.Exit()
@@ -2125,7 +2173,7 @@ def uninstall(
         target = Path(target_dir) if target_dir else adapter.resolve_target_dir(is_global, _get_cwd())
         if not target.is_dir():
             if not _raw:
-                console.print(f"  [yellow]⊘[/] {adapter.display_name} — not installed at {target}")
+                console.print(f"  [yellow]⊘[/] {adapter.display_name} — not installed at {_format_display_path(target)}")
             continue
         result = adapter.uninstall(target)
         removed_items = result.get("removed", [])
