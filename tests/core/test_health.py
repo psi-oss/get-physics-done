@@ -22,6 +22,7 @@ from gpd.core.health import (
     check_project_structure,
     check_roadmap_consistency,
     check_state_validity,
+    run_doctor,
     run_health,
 )
 
@@ -199,3 +200,43 @@ class TestRunHealth:
     def test_fix_mode(self, tmp_path: Path):
         report = run_health(tmp_path, fix=True)
         assert isinstance(report.fixes_applied, list)
+
+
+class TestRunDoctor:
+    def _make_specs_dir(self, tmp_path: Path, *, include_patterns: bool = True) -> Path:
+        from gpd.core.constants import PATTERNS_BY_DOMAIN_DIR, PATTERNS_DIR_NAME, PATTERNS_INDEX_FILENAME
+
+        specs = tmp_path / "specs"
+        (specs / "references").mkdir(parents=True)
+        (specs / "workflows").mkdir()
+        (specs / "templates").mkdir()
+
+        (specs / "references" / "shared-protocols.md").write_text("shared\n", encoding="utf-8")
+        (specs / "references" / "verification-core.md").write_text("verify\n", encoding="utf-8")
+        (specs / "references" / "llm-physics-errors.md").write_text("errors\n", encoding="utf-8")
+        (specs / "workflows" / "plan-phase.md").write_text("plan\n", encoding="utf-8")
+        (specs / "templates" / "phase-prompt.md").write_text("template\n", encoding="utf-8")
+
+        if include_patterns:
+            patterns_dir = specs / PATTERNS_DIR_NAME
+            patterns_by_domain = patterns_dir / PATTERNS_BY_DOMAIN_DIR / "qft"
+            patterns_by_domain.mkdir(parents=True)
+            (patterns_dir / PATTERNS_INDEX_FILENAME).write_text('{"patterns": []}\n', encoding="utf-8")
+            (patterns_by_domain / "sample-pattern.md").write_text("pattern\n", encoding="utf-8")
+
+        return specs
+
+    def test_reports_specs_structure_and_pattern_library(self, tmp_path: Path):
+        report = run_doctor(specs_dir=self._make_specs_dir(tmp_path), version="0.1.0")
+        checks = {check.label: check for check in report.checks}
+
+        assert checks["Specs Structure"].status == CheckStatus.OK
+        assert checks["Pattern Library"].status == CheckStatus.OK
+        assert checks["Pattern Library"].details["pattern_file_count"] == 1
+
+    def test_missing_pattern_library_fails(self, tmp_path: Path):
+        report = run_doctor(specs_dir=self._make_specs_dir(tmp_path, include_patterns=False), version="0.1.0")
+        checks = {check.label: check for check in report.checks}
+
+        assert checks["Specs Structure"].status == CheckStatus.FAIL
+        assert checks["Pattern Library"].status == CheckStatus.FAIL

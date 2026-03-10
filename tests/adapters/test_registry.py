@@ -57,7 +57,7 @@ class TestToolNames:
             assert canonical(name) == name
 
     @pytest.mark.parametrize(
-        ("legacy", "expected"),
+        ("runtime_alias", "expected"),
         [
             ("Read", "file_read"),
             ("read_file", "file_read"),
@@ -76,8 +76,8 @@ class TestToolNames:
             ("skill", "slash_command"),
         ],
     )
-    def test_canonical_legacy_aliases(self, legacy: str, expected: str) -> None:
-        assert canonical(legacy) == expected
+    def test_canonical_runtime_aliases(self, runtime_alias: str, expected: str) -> None:
+        assert canonical(runtime_alias) == expected
 
     def test_canonical_unknown_passthrough(self) -> None:
         assert canonical("custom_tool") == "custom_tool"
@@ -100,7 +100,7 @@ class TestToolNames:
     def test_translate_canonical_to_runtime(self, canon: str, runtime: str, expected: str) -> None:
         assert translate(canon, runtime) == expected
 
-    def test_translate_legacy_name_auto_canonicalized(self) -> None:
+    def test_translate_runtime_alias_auto_canonicalized(self) -> None:
         assert translate("Read", "codex") == "read_file"
         assert translate("Bash", "gemini") == "run_shell_command"
 
