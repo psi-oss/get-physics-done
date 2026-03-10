@@ -133,6 +133,7 @@ def _run_bootstrap_with_fake_python(
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["GPD_HOME"] = str(home / ".gpd")
+    env["GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"] = "1"
     env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin), env.get("PATH", "")])
     if extra_env:
         env.update(extra_env)
@@ -269,6 +270,42 @@ def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> No
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inaccessible(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--claude", "--local", "--upgrade"],
+        extra_env={
+            "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
+                {
+                    "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz": {
+                        "availability": "unavailable",
+                        "reason": "HTTP 404",
+                    },
+                    "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main": {
+                        "availability": "available",
+                        "reason": "git ls-remote succeeded",
+                    },
+                }
+            ),
+        },
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == ["git+https://github.com/physicalsuperintelligence/get-physics-done.git@main"]
+    assert "Detected that current main branch source archive is unavailable (HTTP 404)." in result.stdout
+    assert "Using HTTPS git checkout of main for the main-branch upgrade." in result.stdout
+    assert "HTTP error 404 while getting branch archive" not in result.stderr
+    assert "current main branch source archive failed. Falling back to HTTPS git checkout of main..." not in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(tmp_path, installer_args=["--all", "--global"])
 
@@ -308,6 +345,54 @@ def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_mis
     ]
     assert "PyPI install failed. Falling back to GitHub source archive for v0.1.0..." in result.stdout
     assert "GitHub source archive for v0.1.0 failed. Falling back to current main branch source archive..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
+            "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
+                {
+                    "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v0.1.0.tar.gz": {
+                        "availability": "unavailable",
+                        "reason": "HTTP 404",
+                    },
+                    "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz": {
+                        "availability": "unavailable",
+                        "reason": "HTTP 404",
+                    },
+                    "git+https://github.com/physicalsuperintelligence/get-physics-done.git@v0.1.0": {
+                        "availability": "unavailable",
+                        "reason": "tag v0.1.0 is not published",
+                    },
+                    "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main": {
+                        "availability": "available",
+                        "reason": "git ls-remote succeeded",
+                    },
+                }
+            ),
+        },
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == [
+        "get-physics-done==0.1.0",
+        "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main",
+    ]
+    assert "Detected that GitHub source archive for v0.1.0 is unavailable (HTTP 404)." in result.stdout
+    assert "Detected that current main branch source archive is unavailable (HTTP 404)." in result.stdout
+    assert "Detected that GitHub HTTPS git checkout for v0.1.0 is unavailable (tag v0.1.0 is not published)." in result.stdout
+    assert "PyPI install failed. Using HTTPS git checkout of main." in result.stdout
+    assert "HTTP error 404 while getting tagged archive" not in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

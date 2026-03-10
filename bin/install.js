@@ -12,6 +12,8 @@
  */
 
 const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
@@ -22,6 +24,10 @@ const PYTHON_PACKAGE_NAME = "get-physics-done";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
 const GITHUB_FALLBACK_BRANCH = "main";
+const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
+const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
+const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
+const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
 
 const red = "\x1b[31m";
 const green = "\x1b[32m";
@@ -30,6 +36,8 @@ const cyan = "\x1b[36m";
 const dim = "\x1b[2m";
 const bold = "\x1b[1m";
 const reset = "\x1b[0m";
+
+let bootstrapProbeOverridesCache = undefined;
 
 const ALL_RUNTIMES = ["claude-code", "opencode", "gemini", "codex"];
 const RUNTIMES = {
@@ -185,11 +193,17 @@ function sourceInstallCandidates(version) {
       {
         label: `GitHub source archive for v${version}`,
         spec: `${repoBaseUrl}/archive/refs/tags/v${version}.tar.gz`,
+        probe: {
+          kind: "http",
+        },
       },
       {
         label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
         spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
         noCache: true,
+        probe: {
+          kind: "http",
+        },
       }
     );
   }
@@ -199,11 +213,23 @@ function sourceInstallCandidates(version) {
       {
         label: `GitHub HTTPS git checkout for v${version}`,
         spec: `git+${repoGitUrl}@v${version}`,
+        probe: {
+          kind: "git",
+          repoUrl: repoGitUrl,
+          ref: `v${version}`,
+          refNamespace: "tags",
+        },
       },
       {
         label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
         spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
         noCache: true,
+        probe: {
+          kind: "git",
+          repoUrl: repoGitUrl,
+          ref: GITHUB_FALLBACK_BRANCH,
+          refNamespace: "heads",
+        },
       }
     );
   }
@@ -213,11 +239,23 @@ function sourceInstallCandidates(version) {
       {
         label: `SSH git checkout for v${version}`,
         spec: `git+${repoSshUrl}@v${version}`,
+        probe: {
+          kind: "git",
+          repoUrl: repoSshUrl,
+          ref: `v${version}`,
+          refNamespace: "tags",
+        },
       },
       {
         label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
         spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
         noCache: true,
+        probe: {
+          kind: "git",
+          repoUrl: repoSshUrl,
+          ref: GITHUB_FALLBACK_BRANCH,
+          refNamespace: "heads",
+        },
       }
     );
   }
@@ -236,6 +274,9 @@ function latestMainInstallCandidates() {
       label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
       spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
       noCache: true,
+      probe: {
+        kind: "http",
+      },
     });
   }
 
@@ -244,6 +285,12 @@ function latestMainInstallCandidates() {
       label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
       spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
       noCache: true,
+      probe: {
+        kind: "git",
+        repoUrl: repoGitUrl,
+        ref: GITHUB_FALLBACK_BRANCH,
+        refNamespace: "heads",
+      },
     });
   }
 
@@ -252,10 +299,206 @@ function latestMainInstallCandidates() {
       label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
       spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
       noCache: true,
+      probe: {
+        kind: "git",
+        repoUrl: repoSshUrl,
+        ref: GITHUB_FALLBACK_BRANCH,
+        refNamespace: "heads",
+      },
     });
   }
 
   return candidates;
+}
+
+function bootstrapProbeOverrides() {
+  if (bootstrapProbeOverridesCache !== undefined) {
+    return bootstrapProbeOverridesCache;
+  }
+
+  const raw = process.env[BOOTSTRAP_TEST_PROBES_ENV];
+  if (!raw) {
+    bootstrapProbeOverridesCache = {};
+    return bootstrapProbeOverridesCache;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    bootstrapProbeOverridesCache = parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    warn(`Ignoring invalid ${BOOTSTRAP_TEST_PROBES_ENV} JSON.`);
+    bootstrapProbeOverridesCache = {};
+  }
+
+  return bootstrapProbeOverridesCache;
+}
+
+function normalizeProbeStatus(value) {
+  if (value === true) {
+    return { status: "available", reason: "test override" };
+  }
+  if (value === false) {
+    return { status: "unavailable", reason: "test override" };
+  }
+  if (value === null || value === "unknown") {
+    return { status: "unknown", reason: "test override" };
+  }
+  if (value === "available" || value === "unavailable") {
+    return { status: value, reason: "test override" };
+  }
+  if (typeof value === "object" && value !== null) {
+    const status = value.status || value.availability;
+    if (status === "available" || status === "unavailable" || status === "unknown") {
+      return { status, reason: value.reason || "test override" };
+    }
+  }
+  return null;
+}
+
+function probeOverrideForCandidate(candidate) {
+  const overrides = bootstrapProbeOverrides();
+  return normalizeProbeStatus(overrides[candidate.spec]);
+}
+
+function formatProbeReason(reason) {
+  return reason ? ` (${reason})` : "";
+}
+
+function probeHttpCandidate(urlString, redirectCount = 0) {
+  return new Promise((resolve) => {
+    let targetUrl;
+    try {
+      targetUrl = new URL(urlString);
+    } catch (err) {
+      resolve({ status: "unknown", reason: err.message });
+      return;
+    }
+
+    const transport = targetUrl.protocol === "http:" ? http : https;
+    const request = transport.request(
+      targetUrl,
+      {
+        method: "HEAD",
+        headers: {
+          "User-Agent": `get-physics-done-bootstrap/${packageVersion}`,
+        },
+      },
+      (response) => {
+        const { statusCode = 0, headers } = response;
+        response.resume();
+
+        if ([301, 302, 303, 307, 308].includes(statusCode) && headers.location) {
+          if (redirectCount >= INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT) {
+            resolve({ status: "unknown", reason: "too many redirects" });
+            return;
+          }
+          const nextUrl = new URL(headers.location, targetUrl).toString();
+          resolve(probeHttpCandidate(nextUrl, redirectCount + 1));
+          return;
+        }
+
+        if (statusCode >= 200 && statusCode < 400) {
+          resolve({ status: "available", reason: `HTTP ${statusCode}` });
+          return;
+        }
+        if (statusCode >= 400 && statusCode < 500) {
+          resolve({ status: "unavailable", reason: `HTTP ${statusCode}` });
+          return;
+        }
+        resolve({ status: "unknown", reason: `HTTP ${statusCode}` });
+      }
+    );
+
+    request.on("error", (err) => {
+      resolve({ status: "unknown", reason: err.message });
+    });
+
+    request.setTimeout(INSTALL_CANDIDATE_PROBE_TIMEOUT_MS, () => {
+      request.destroy(new Error("timed out"));
+    });
+
+    request.end();
+  });
+}
+
+function probeGitCandidate(repoUrl, ref, refNamespace) {
+  const gitArgs = ["ls-remote", "--exit-code", refNamespace === "tags" ? "--tags" : "--heads", repoUrl, ref];
+  const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  if (repoUrl.startsWith("ssh://") && !gitEnv.GIT_SSH_COMMAND) {
+    gitEnv.GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5";
+  }
+
+  const result = spawnSync("git", gitArgs, {
+    encoding: "utf-8",
+    env: gitEnv,
+    timeout: INSTALL_CANDIDATE_PROBE_TIMEOUT_MS,
+  });
+
+  if (result.error) {
+    if (result.error.code === "ENOENT") {
+      return { status: "unavailable", reason: "git is not installed" };
+    }
+    return { status: "unknown", reason: result.error.message };
+  }
+  if (result.status === 0) {
+    return { status: "available", reason: "git ls-remote succeeded" };
+  }
+
+  const detail = (result.stderr || result.stdout || "").trim().split("\n")[0] || `git exit ${result.status}`;
+  if (
+    result.status === 2
+    || /authentication failed|repository not found|access denied|not found|permission denied|could not read from remote repository/i.test(detail)
+  ) {
+    return { status: "unavailable", reason: detail };
+  }
+
+  return { status: "unknown", reason: detail };
+}
+
+async function probeInstallCandidate(candidate) {
+  const override = probeOverrideForCandidate(candidate);
+  if (override) {
+    return override;
+  }
+
+  if (process.env[BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV] === "1") {
+    return { status: "unknown", reason: "network probes disabled" };
+  }
+
+  if (!candidate.probe) {
+    return { status: "unknown", reason: "no preflight probe configured" };
+  }
+  if (candidate.probe.kind === "http") {
+    return probeHttpCandidate(candidate.spec);
+  }
+  if (candidate.probe.kind === "git") {
+    return probeGitCandidate(candidate.probe.repoUrl, candidate.probe.ref, candidate.probe.refNamespace);
+  }
+  return { status: "unknown", reason: "unsupported preflight probe" };
+}
+
+async function resolveInstallCandidates(candidates) {
+  const skipped = [];
+
+  for (const [index, candidate] of candidates.entries()) {
+    const probe = await probeInstallCandidate(candidate);
+    if (probe.status === "unavailable") {
+      skipped.push({ candidate, probe });
+      continue;
+    }
+    return {
+      candidates: [candidate, ...candidates.slice(index + 1)],
+      skipped,
+    };
+  }
+
+  return { candidates: [], skipped };
+}
+
+function logUnavailableCandidates(skipped) {
+  for (const { candidate, probe } of skipped) {
+    log(`Detected that ${candidate.label} is unavailable${formatProbeReason(probe.reason)}.`);
+  }
 }
 
 function runPipInstall(python, spec, env, options = {}) {
@@ -352,15 +595,20 @@ function ensureManagedEnvironment(basePython) {
   return { gpdHome, venvDir, python: managedPython };
 }
 
-function installManagedPackage(python, version, options = {}) {
+async function installManagedPackage(python, version, options = {}) {
   const { forceReinstall = false, preferMain = false } = options;
   const pythonPackageSpec = `${PYTHON_PACKAGE_NAME}==${version}`;
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
-    const upgradeCandidates = latestMainInstallCandidates();
+    const resolution = await resolveInstallCandidates(latestMainInstallCandidates());
+    const upgradeCandidates = resolution.candidates;
     if (upgradeCandidates.length > 0) {
       log(`Upgrading GPD from the latest GitHub ${GITHUB_FALLBACK_BRANCH} branch into the managed environment...`);
+      logUnavailableCandidates(resolution.skipped);
+      if (resolution.skipped.length > 0) {
+        log(`Using ${upgradeCandidates[0].label} for the ${GITHUB_FALLBACK_BRANCH}-branch upgrade.`);
+      }
       let installResult = runPipInstall(python, upgradeCandidates[0].spec, pipInstallEnv, {
         forceReinstall: true,
         noCache: upgradeCandidates[0].noCache,
@@ -387,6 +635,9 @@ function installManagedPackage(python, version, options = {}) {
       }
 
       log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed. Falling back to the matching ${pythonPackageSpec} release...`);
+    } else if (resolution.skipped.length > 0) {
+      logUnavailableCandidates(resolution.skipped);
+      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected. Falling back to the matching ${pythonPackageSpec} release...`);
     }
   }
 
@@ -400,10 +651,19 @@ function installManagedPackage(python, version, options = {}) {
   }
   flushCapturedOutput(installResult);
 
-  const fallbacks = sourceInstallCandidates(version);
+  const resolution = await resolveInstallCandidates(sourceInstallCandidates(version));
+  const fallbacks = resolution.candidates;
+  logUnavailableCandidates(resolution.skipped);
+  if (fallbacks.length > 0 && resolution.skipped.length > 0) {
+    log(`PyPI install failed. Using ${fallbacks[0].label}.`);
+  }
   for (const [index, candidate] of fallbacks.entries()) {
-    const previousLabel = index === 0 ? "PyPI install" : fallbacks[index - 1].label;
-    log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+    const previousLabel = index === 0
+      ? resolution.skipped.length > 0 ? null : "PyPI install"
+      : fallbacks[index - 1].label;
+    if (previousLabel) {
+      log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+    }
     installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
       forceReinstall,
       noCache: candidate.noCache,
@@ -738,7 +998,7 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const packageInstall = installManagedPackage(managedEnv.python, packageVersion, {
+  const packageInstall = await installManagedPackage(managedEnv.python, packageVersion, {
     forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
     preferMain: upgradeManagedPackage,
   });
