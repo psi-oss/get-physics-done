@@ -7,8 +7,6 @@ Entry point: python -m gpd.mcp.servers.errors_mcp
 Console script: gpd-mcp-errors
 """
 
-from __future__ import annotations
-
 import logging
 import re
 import sys

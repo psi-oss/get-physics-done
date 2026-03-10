@@ -10,8 +10,6 @@ Usage:
     gpd-mcp-verification
 """
 
-from __future__ import annotations
-
 import logging
 import re
 import sys

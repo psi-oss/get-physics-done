@@ -7,8 +7,6 @@ Entry point: python -m gpd.mcp.servers.protocols_server
 Console script: gpd-mcp-protocols
 """
 
-from __future__ import annotations
-
 import logging
 import re
 import sys
