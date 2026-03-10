@@ -1046,7 +1046,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
 
             # Check ROADMAP checkbox status
             escaped_num = re.escape(phase_num)
-            checkbox_pattern = re.compile(rf"-\s*\[(x| )\]\s*.*Phase\s+{escaped_num}", re.IGNORECASE)
+            checkbox_pattern = re.compile(rf"-\s*\[(x| )\]\s*.*Phase\s+{escaped_num}(?=[:\s.\)]|$)", re.IGNORECASE)
             checkbox_match = checkbox_pattern.search(content)
             roadmap_complete = checkbox_match is not None and checkbox_match.group(1) == "x"
 
@@ -1231,15 +1231,16 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
 
             new_phase_num = max_phase + 1
             padded = str(new_phase_num).zfill(2)
-            dir_name = f"{padded}-{slug}"
+            dir_name = f"{padded}-{slug}" if slug else padded
             dir_path = _phases_dir(cwd) / dir_name
 
             dir_path.mkdir(parents=True, exist_ok=True)
 
+            depends = f"Phase {max_phase}" if max_phase > 0 else "None"
             phase_entry = (
                 f"\n### Phase {new_phase_num}: {description}\n\n"
                 f"**Goal:** [To be planned]\n"
-                f"**Depends on:** Phase {max_phase}\n"
+                f"**Depends on:** {depends}\n"
                 f"**Plans:** 0 plans\n\n"
                 f"Plans:\n"
                 f"- [ ] TBD (run plan-phase {new_phase_num} to break down)\n"
@@ -1330,7 +1331,7 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
 
             next_decimal = 1 if not existing_decimals else max(existing_decimals) + 1
             decimal_phase = f"{normalized_base}.{next_decimal}"
-            dir_name = f"{decimal_phase}-{slug}"
+            dir_name = f"{decimal_phase}-{slug}" if slug else decimal_phase
 
             phase_entry = (
                 f"\n### Phase {decimal_phase}: {description} (INSERTED)\n\n"

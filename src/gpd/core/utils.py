@@ -162,7 +162,7 @@ def safe_read_file(path: Path) -> str | None:
     """Read a file, returning None if it doesn't exist, is a directory, or can't be read."""
     try:
         return path.read_text(encoding="utf-8")
-    except (FileNotFoundError, IsADirectoryError, PermissionError, OSError):
+    except (FileNotFoundError, IsADirectoryError, PermissionError, UnicodeDecodeError, OSError):
         return None
 
 

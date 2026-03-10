@@ -485,7 +485,8 @@ def check_latest_return(cwd: Path) -> HealthCheck:
         issues.append(f"{summary_name}: gpd_return YAML parse error: {e}")
         return HealthCheck(status=CheckStatus.FAIL, label="Latest Return Envelope", details=details, issues=issues)
 
-    fields = (parsed.get("gpd_return") or {}) if isinstance(parsed, dict) else {}
+    raw = parsed.get("gpd_return") if isinstance(parsed, dict) else None
+    fields = raw if isinstance(raw, dict) else {}
     details["fields_found"] = list(fields.keys())
 
     for field_name in REQUIRED_RETURN_FIELDS:
@@ -621,7 +622,7 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
     config_check = next((c for c in checks if c.label == "Config"), None)
     if config_check and (
         any("not found" in w for w in config_check.warnings)
-        or any("Malformed" in i for i in config_check.issues)
+        or any("parse error" in i for i in config_check.issues)
     ):
         config_path = layout.config_json
         try:

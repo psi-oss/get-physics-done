@@ -73,7 +73,7 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
             "phase_slug": info.phase_slug,
             "plan_count": plan_count,
             "summary_count": summary_count,
-            "complete": plan_count > 0 and summary_count >= plan_count,
+            "complete": plan_count > 0 and len(info.incomplete_plans) == 0,
         }
 
 
@@ -124,7 +124,7 @@ def validate_state(project_dir: str) -> dict:
 
 @mcp.tool()
 def run_health_check(project_dir: str, fix: bool = False) -> dict:
-    """Run the full 11-check health dashboard.
+    """Run the full 12-check health dashboard.
 
     Checks environment, project structure, state validity, compaction,
     roadmap consistency, orphans, conventions, frontmatter, return

@@ -221,6 +221,13 @@ class _GPDTyper(typer.Typer):
         _cwd = Path(".")
         try:
             return super().__call__(*args, **kwargs)
+        except KeyError as exc:
+            msg = f"Command or resource not found: {exc}"
+            if _raw:
+                err_console.print_json(json.dumps({"error": msg}))
+            else:
+                err_console.print(f"[bold red]Error:[/] {msg}", highlight=False)
+            raise SystemExit(1) from None
         except GPDError as exc:
             if _raw:
                 err_console.print_json(json.dumps({"error": str(exc)}))
@@ -2000,7 +2007,7 @@ def _build_review_preflight(
                 manuscript.parent / "REPRODUCIBILITY-MANIFEST.json",
                 cwd / ".gpd" / "paper" / "reproducibility-manifest.json",
             )
-            blocking_artifacts = command.name == "gpd:arxiv-submission"
+            blocking_artifacts = command.name in {"gpd:arxiv-submission", "gpd:peer-review"}
             add_check(
                 "artifact_manifest",
                 artifact_manifest is not None,
@@ -2029,8 +2036,48 @@ def _build_review_preflight(
                     if reproducibility_manifest is not None
                     else "no reproducibility manifest found near the manuscript"
                 ),
-                blocking=False,
+                blocking=blocking_artifacts,
             )
+            if strict and command.name == "gpd:peer-review" and bibliography_audit is not None:
+                try:
+                    audit_payload = json.loads(bibliography_audit.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    add_check("bibliography_audit_clean", False, f"could not parse bibliography audit: {exc}")
+                else:
+                    clean = (
+                        int(audit_payload.get("resolved_sources", 0)) == int(audit_payload.get("total_sources", 0))
+                        and int(audit_payload.get("partial_sources", 0)) == 0
+                        and int(audit_payload.get("unverified_sources", 0)) == 0
+                        and int(audit_payload.get("failed_sources", 0)) == 0
+                    )
+                    add_check(
+                        "bibliography_audit_clean",
+                        clean,
+                        (
+                            "all bibliography sources resolved and verified"
+                            if clean
+                            else "bibliography audit still has unresolved, partial, unverified, or failed sources"
+                        ),
+                    )
+            if strict and command.name == "gpd:peer-review" and reproducibility_manifest is not None:
+                from gpd.core.reproducibility import validate_reproducibility_manifest
+
+                try:
+                    repro_payload = json.loads(reproducibility_manifest.read_text(encoding="utf-8"))
+                    repro_validation = validate_reproducibility_manifest(repro_payload)
+                except Exception as exc:  # pragma: no cover - defensive parsing guard
+                    add_check("reproducibility_ready", False, f"could not validate reproducibility manifest: {exc}")
+                else:
+                    ready = repro_validation.valid and repro_validation.ready_for_review and not repro_validation.warnings
+                    detail = (
+                        "reproducibility manifest is review-ready"
+                        if ready
+                        else (
+                            f"valid={repro_validation.valid}, ready_for_review={repro_validation.ready_for_review}, "
+                            f"warnings={len(repro_validation.warnings)}, issues={len(repro_validation.issues)}"
+                        )
+                    )
+                    add_check("reproducibility_ready", ready, detail)
 
     if "phase_artifacts" in contract.preflight_checks:
         if subject:
@@ -2251,7 +2298,6 @@ def paper_build(
     ),
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
-    from pybtex.database import parse_file
 
     from gpd.mcp.paper.bibliography import CitationSource
     from gpd.mcp.paper.compiler import build_paper
@@ -2288,6 +2334,7 @@ def paper_build(
     )
     bib_data = None
     if bib_source is not None:
+        from pybtex.database import parse_file
         try:
             bib_data = parse_file(str(bib_source))
         except Exception as exc:  # noqa: BLE001

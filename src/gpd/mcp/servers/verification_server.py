@@ -432,7 +432,11 @@ def _symmetry_check_inner(expression: str, symmetries: list[str]) -> dict:
         matched_type = None
         for key, strat in symmetry_strategies.items():
             key_clean = key.replace(" ", "").replace("-", "").replace("_", "")
-            if key_clean in sym_lower or sym_lower in key_clean:
+            if key_clean == sym_lower:
+                strategy = strat
+                matched_type = key
+                break
+            if len(sym_lower) >= 3 and (key_clean in sym_lower or sym_lower in key_clean):
                 strategy = strat
                 matched_type = key
                 break

@@ -427,10 +427,11 @@ def _extract_phase_conventions(cwd: Path, phase_id: str) -> dict[str, str] | Non
         if isinstance(fm_lock, dict):
             for k, v in fm_lock.items():
                 if k != "custom_conventions":
-                    conventions[k] = str(v) if v is not None else v
+                    if v is not None:
+                        conventions[k] = str(v)
             custom = fm_lock.get("custom_conventions")
             if isinstance(custom, dict):
-                conventions.update(custom)
+                conventions.update({k: str(v) for k, v in custom.items() if v is not None})
 
         # Scan body for "Convention Label: value" patterns
         for key in KNOWN_CONVENTIONS:

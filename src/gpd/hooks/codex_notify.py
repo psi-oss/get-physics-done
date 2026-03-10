@@ -54,6 +54,8 @@ def _check_and_notify_update() -> None:
             _debug(f"Failed to parse cache {cache_file}: {exc}")
             continue
 
+        if not isinstance(cache, dict):
+            continue
         checked = cache.get("checked")
         checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
         if latest_cache is None or checked_value > latest_checked:
@@ -87,8 +89,11 @@ def main() -> None:
         cwd = workspace_value
     else:
         cwd = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
-    _trigger_update_check(cwd)
-    _check_and_notify_update()
+    try:
+        _trigger_update_check(cwd)
+        _check_and_notify_update()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

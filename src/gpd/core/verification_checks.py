@@ -213,7 +213,7 @@ ERROR_CLASS_COVERAGE_DEFS: tuple[ErrorClassCoverageDef, ...] = (
     ErrorClassCoverageDef(
         error_class_id=3,
         name="Green's function confusion",
-        primary_checks=["5.13", "5.14"],
+        primary_checks=["5.11", "5.13"],
         domains=["condensed_matter", "qft"],
     ),
     ErrorClassCoverageDef(

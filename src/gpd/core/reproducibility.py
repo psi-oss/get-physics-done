@@ -224,7 +224,7 @@ def _has_valid_checksum(checksum: str) -> bool:
 
 def verify_output_checksum(path: Path, expected_checksum: str) -> bool:
     """Verify a file against an expected SHA-256 checksum."""
-    return compute_sha256(path) == expected_checksum.lower()
+    return compute_sha256(path) == expected_checksum.strip().lower()
 
 
 def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) -> ReproducibilityValidationResult:
@@ -308,7 +308,7 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
                     message=f"Output file '{output_file.path}' is missing a valid checksum.",
                 )
             )
-    checksum_coverage = round((100.0 * checksum_ok / checksum_items), 2) if checksum_items else 0.0
+    checksum_coverage = round((100.0 * checksum_ok / checksum_items), 2) if checksum_items else 100.0
 
     if not manifest_obj.execution_steps:
         issues.append(

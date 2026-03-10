@@ -711,6 +711,7 @@ class TestStateServer:
         mock_info.phase_slug = "01-setup"
         mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
         mock_info.summaries = ["summary-01.md", "summary-02.md"]
+        mock_info.incomplete_plans = ["plan-03.md"]
 
         with patch("gpd.core.phases.find_phase", return_value=mock_info):
             result = get_phase_info("/fake/project", "01")

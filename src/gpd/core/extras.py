@@ -128,9 +128,10 @@ def check_approximation_validity(val: float, range_str: str) -> ValidityStatus |
         if bound is None:
             return None
         if bound == 0:
-            if abs(val) > 10:
+            # "much greater than zero" — value should be large and positive
+            if val > 10:
                 return "valid"
-            if abs(val) > 1:
+            if val > 1:
                 return "marginal"
             return "invalid"
         if bound < 0:

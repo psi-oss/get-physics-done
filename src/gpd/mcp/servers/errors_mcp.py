@@ -68,7 +68,7 @@ def _parse_table_rows(body: str) -> list[list[str]]:
         m = _TABLE_ROW_RE.match(line)
         if not m:
             continue
-        cells = [cell.strip() for cell in m.group(1).split("|")]
+        cells = [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", m.group(1))]
         rows.append(cells)
     return rows
 

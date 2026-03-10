@@ -77,8 +77,8 @@ _NAN_PATTERN = re.compile(
         | -?Inf
         | -?INF
         | -?[Ii]nfinity   # Infinity / -Infinity / -infinity
-        | \.nan           # YAML .nan
-        | -?\.inf         # YAML .inf / -.inf
+        | \.[Nn][Aa][Nn]  # YAML .nan / .NaN / .NAN
+        | -?\.[Ii][Nn][Ff]  # YAML .inf / -.inf / .Inf / .INF
     )
     (?:$|[\s,.\]\);:!?])  # followed by end, whitespace, or delimiter/punctuation
     """,

@@ -12,6 +12,7 @@ from gpd.adapters.install_utils import (
     build_hook_command,
     copy_with_path_replacement,
     ensure_update_hook,
+    parse_jsonc,
     read_settings,
     remove_stale_agents,
     replace_placeholders,
@@ -111,7 +112,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             mcp_config: dict = {}
             if mcp_config_path.exists():
                 try:
-                    mcp_config = _json.loads(mcp_config_path.read_text(encoding="utf-8"))
+                    mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
                 except (ValueError, OSError):
                     mcp_config = {}
             if not isinstance(mcp_config, dict):

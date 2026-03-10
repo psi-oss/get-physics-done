@@ -96,6 +96,9 @@ class ResultNotFoundError(ResultError, KeyError):
         self.result_id = result_id
         super().__init__(f'Result "{result_id}" not found')
 
+    def __str__(self) -> str:
+        return Exception.__str__(self)
+
 
 class DuplicateResultError(ResultError, ValueError):
     """A result with the given ID already exists.
