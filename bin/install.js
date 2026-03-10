@@ -514,6 +514,13 @@ async function resolveInstallCandidates(candidates) {
     };
   }
 
+  // All probes said "unavailable" — but probes can be wrong for private repos
+  // (e.g., unauthenticated HTTP HEAD returns 404, but pip with credential helper
+  // can still clone). Return all candidates so the actual install is attempted.
+  if (skipped.length > 0) {
+    return { candidates: skipped.map(({ candidate }) => candidate), skipped };
+  }
+
   return { candidates: [], skipped };
 }
 
