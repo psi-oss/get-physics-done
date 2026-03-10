@@ -175,21 +175,6 @@ def _load_lock_from_project(project_dir: str) -> ConventionLock:
     return ConventionLock(**lock_data)
 
 
-def _save_lock_to_project(project_dir: str, lock: ConventionLock) -> None:
-    """Save convention lock back to project state.json."""
-    from gpd.core.utils import atomic_write, file_lock
-
-    state_path = ProjectLayout(Path(project_dir)).state_json
-    with file_lock(state_path):
-        try:
-            raw = json.loads(state_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            raw = {}
-
-        raw["convention_lock"] = lock.model_dump(exclude_none=True)
-        atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
-
-
 def _update_lock_in_project(
     project_dir: str,
     mutate_fn: Callable[[ConventionLock], T],
@@ -202,9 +187,11 @@ def _update_lock_in_project(
 
     Returns (updated_lock, result_of_mutate_fn).
     """
-    from gpd.core.utils import atomic_write, file_lock
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
 
     state_path = ProjectLayout(Path(project_dir)).state_json
+    cwd = Path(project_dir)
     with file_lock(state_path):
         # --- read ---
         try:
@@ -226,7 +213,7 @@ def _update_lock_in_project(
         new_lock_data = lock.model_dump(exclude_none=True)
         if new_lock_data != lock_data:
             raw["convention_lock"] = new_lock_data
-            atomic_write(state_path, json.dumps(raw, indent=2) + "\n")
+            save_state_json_locked(cwd, raw)
 
     return lock, result
 

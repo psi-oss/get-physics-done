@@ -17,7 +17,6 @@ pattern_add      — add a new pattern
 pattern_list     — list with optional filters
 pattern_search   — keyword search
 pattern_promote  — promote confidence level
-pattern_update   — increment occurrence + update fields
 pattern_seed     — initialize with canonical physics patterns
 """
 
@@ -60,7 +59,6 @@ __all__ = [
     "PatternSearchResult",
     "PatternSeedResult",
     "PatternSeverity",
-    "PatternUpdateResult",
     "VALID_CATEGORIES",
     "VALID_DOMAINS",
     "VALID_SEVERITIES",
@@ -71,7 +69,6 @@ __all__ = [
     "pattern_promote",
     "pattern_search",
     "pattern_seed",
-    "pattern_update",
 ]
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -201,16 +198,6 @@ class PatternSearchResult(BaseModel):
     count: int = 0
     query: str = ""
     library_exists: bool = True
-
-
-class PatternUpdateResult(BaseModel):
-    """Returned by :func:`pattern_update`."""
-
-    updated: bool = True
-    id: str
-    occurrence_count: int
-    last_seen: str
-    fields_updated: list[str] = Field(default_factory=list)
 
 
 class PatternSeedResult(BaseModel):
@@ -563,102 +550,6 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
         pass
 
     return PatternSearchResult(matches=matches, count=len(matches), query=query)
-
-
-@instrument_gpd_function("patterns.update")
-def pattern_update(
-    pattern_id: str,
-    *,
-    title: str | None = None,
-    severity: str | None = None,
-    description: str | None = None,
-    detection: str | None = None,
-    prevention: str | None = None,
-    example: str | None = None,
-    test_value: str | None = None,
-    root: Path | None = None,
-) -> PatternUpdateResult:
-    """Increment occurrence count, update last_seen, and optionally update fields.
-
-    Raises:
-        ValueError: If pattern not found or library not initialized.
-    """
-    if not pattern_id:
-        raise PatternError("pattern_id required")
-
-    lib_root = root or _patterns_root()
-    index = _load_index(lib_root)
-    if index is None:
-        raise PatternError("Pattern library not initialized. Call pattern_init() first.")
-
-    entry = next((p for p in index.patterns if p.id == pattern_id), None)
-    if entry is None:
-        raise PatternError(f"Pattern {pattern_id!r} not found")
-
-    today = _today_iso()
-    entry.last_seen = today
-    entry.occurrence_count += 1
-    updated_fields: list[str] = []
-
-    if title is not None:
-        entry.title = title
-        updated_fields.append("title")
-    if severity is not None:
-        if severity not in VALID_SEVERITIES:
-            raise PatternError(f"Invalid severity {severity!r}. Valid: {', '.join(VALID_SEVERITIES)}")
-        entry.severity = severity
-        updated_fields.append("severity")
-
-    # Update pattern file
-    full_path = lib_root / entry.file
-    try:
-        content = full_path.read_text(encoding="utf-8")
-        content = re.sub(r"^last_seen:\s*\S+", f"last_seen: {today}", content, flags=re.MULTILINE)
-        content = re.sub(
-            r"^occurrence_count:\s*\d+",
-            f"occurrence_count: {entry.occurrence_count}",
-            content,
-            flags=re.MULTILINE,
-        )
-        if severity:
-            content = re.sub(r"^severity:\s*\S+", f"severity: {severity}", content, flags=re.MULTILINE)
-
-        body_fields = {
-            "What goes wrong:": description,
-            "How to detect:": detection,
-            "How to prevent:": prevention,
-            "Example:": example,
-            "Test value:": test_value,
-        }
-        for label, value in body_fields.items():
-            if value is not None:
-                escaped = re.escape(label)
-                content = re.sub(
-                    rf"(\*\*{escaped}\*\*\s*).+",
-                    rf"\g<1>{value}",
-                    content,
-                    flags=re.MULTILINE,
-                )
-                updated_fields.append(label.rstrip(":").lower().replace(" ", "_"))
-
-        if title is not None:
-            content = re.sub(r"^(## Pattern: ).+$", rf"\g<1>{title}", content, flags=re.MULTILINE)
-
-        atomic_write(full_path, content)
-    except FileNotFoundError:
-        pass
-
-    _save_index(lib_root, index)
-
-    with gpd_span("gpd.patterns.update", **{"gpd.pattern_id": pattern_id}):
-        pass
-
-    return PatternUpdateResult(
-        id=pattern_id,
-        occurrence_count=entry.occurrence_count,
-        last_seen=today,
-        fields_updated=updated_fields,
-    )
 
 
 def _update_pattern_frontmatter(root: Path, entry: PatternEntry) -> None:

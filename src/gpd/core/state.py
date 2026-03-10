@@ -33,6 +33,7 @@ from gpd.core.constants import (
     SUMMARY_SUFFIX,
     ProjectLayout,
 )
+from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
 from gpd.core.extras import Uncertainty as PropagatedUncertainty
@@ -1940,7 +1941,7 @@ def state_validate(cwd: Path) -> StateValidateResult:
     # Convention lock completeness
     if state_json and state_json.get("convention_lock"):
         cl = state_json["convention_lock"]
-        unset = [k for k, v in cl.items() if v is None and k != "custom_conventions"]
+        unset = [k for k in KNOWN_CONVENTIONS if is_bogus_value(cl.get(k))]
         if unset:
             issues.append(f"convention_lock: {len(unset)} conventions unset ({', '.join(unset)})")
 

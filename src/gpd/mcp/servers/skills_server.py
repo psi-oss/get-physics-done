@@ -26,11 +26,6 @@ logger = logging.getLogger("gpd-skills")
 mcp = FastMCP("gpd-skills")
 
 
-def _infer_category(skill_name: str) -> str:
-    """Infer category using the canonical registry mapping."""
-    return content_registry._infer_skill_category(skill_name)
-
-
 def _load_skill_index() -> list[content_registry.SkillDef]:
     """Load available skills from the canonical commands/agents registry.
     """

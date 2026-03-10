@@ -3,7 +3,7 @@
 Core operations:
   extract_frontmatter / reconstruct_frontmatter / splice_frontmatter — YAML CRUD
   validate_frontmatter — schema enforcement for plan/summary/verification files
-  verify_* — verification suite (summary, plan structure, phase, references, commits, artifacts, key links)
+  verify_* — verification suite (summary, plan structure, phase, references, commits, artifacts)
 """
 
 from __future__ import annotations
@@ -54,8 +54,6 @@ __all__ = [
     "CommitVerification",
     "ArtifactCheck",
     "ArtifactVerification",
-    "KeyLinkCheck",
-    "KeyLinkVerification",
     # Verification implementations
     "verify_summary",
     "verify_plan_structure",
@@ -63,7 +61,6 @@ __all__ = [
     "verify_references",
     "verify_commits",
     "verify_artifacts",
-    "verify_key_links",
 ]
 
 # ---------------------------------------------------------------------------
@@ -350,21 +347,6 @@ class ArtifactVerification(BaseModel):
     passed_count: int = 0
     total: int = 0
     artifacts: list[ArtifactCheck] = Field(default_factory=list)
-
-
-class KeyLinkCheck(BaseModel):
-    from_path: str
-    to_path: str | None = None
-    via: str = ""
-    verified: bool = False
-    detail: str = ""
-
-
-class KeyLinkVerification(BaseModel):
-    all_verified: bool
-    verified_count: int = 0
-    total: int = 0
-    links: list[KeyLinkCheck] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -799,100 +781,6 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
         passed_count=passed_count,
         total=len(results),
         artifacts=results,
-    )
-
-
-# Regex safety: reject patterns with nested quantifiers
-_UNSAFE_REGEX_RE = re.compile(r"([+*?}])\s*[+*?{]")
-_MAX_PATTERN_LEN = 200
-
-
-@instrument_gpd_function("frontmatter.verify_links")
-def verify_key_links(cwd: Path, plan_file_path: Path) -> KeyLinkVerification:
-    """Verify key links declared in ``must_haves.key_links`` of a plan file."""
-    full_path = plan_file_path if plan_file_path.is_absolute() else cwd / plan_file_path
-    content = safe_read_file(full_path)
-    if content is None:
-        return KeyLinkVerification(
-            all_verified=False,
-            links=[KeyLinkCheck(from_path=str(plan_file_path), detail="Plan file not found")],
-            total=1,
-        )
-
-    key_links = parse_must_haves_block(content, "key_links")
-    if not key_links:
-        return KeyLinkVerification(all_verified=False, total=0)
-
-    results: list[KeyLinkCheck] = []
-    for link in key_links:
-        if isinstance(link, str):
-            exists = (cwd / link).exists()
-            results.append(
-                KeyLinkCheck(
-                    from_path=link,
-                    verified=exists,
-                    detail="File exists" if exists else "File not found",
-                )
-            )
-            continue
-
-        if not isinstance(link, dict):
-            continue
-
-        check = KeyLinkCheck(
-            from_path=link.get("from", ""),
-            to_path=link.get("to"),
-            via=link.get("via", ""),
-        )
-
-        if not check.from_path or not check.to_path:
-            check.detail = "Malformed key_link: missing from or to field"
-            results.append(check)
-            continue
-
-        source_content = safe_read_file(cwd / check.from_path)
-        if source_content is None:
-            check.detail = "Source file not found"
-        elif "pattern" in link:
-            pattern = link["pattern"]
-            # Reject unsafe regex
-            if _UNSAFE_REGEX_RE.search(pattern) or len(pattern) > _MAX_PATTERN_LEN:
-                check.detail = f"Unsafe regex pattern rejected: {pattern[:50]}"
-                results.append(check)
-                continue
-            try:
-                regex = re.compile(pattern)
-            except re.error:
-                check.detail = f"Invalid regex pattern: {pattern}"
-                results.append(check)
-                continue
-
-            if regex.search(source_content):
-                check.verified = True
-                check.detail = "Pattern found in source"
-            else:
-                target_content = safe_read_file(cwd / check.to_path)
-                if target_content and regex.search(target_content):
-                    check.verified = True
-                    check.detail = "Pattern found in target"
-                else:
-                    check.detail = f'Pattern "{pattern}" not found in source or target'
-        else:
-            # No pattern — check source references target
-            if check.to_path in source_content:
-                check.verified = True
-                check.detail = "Target referenced in source"
-            else:
-                check.detail = "Target not referenced in source"
-
-        results.append(check)
-
-    verified_count = sum(1 for r in results if r.verified)
-    return KeyLinkVerification(
-        all_verified=verified_count == len(results) and len(results) > 0,
-        verified_count=verified_count,
-        total=len(results),
-        links=results,
     )
 
 

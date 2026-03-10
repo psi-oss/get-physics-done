@@ -667,15 +667,6 @@ class TestSkillsServer:
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
 
-    def test_infer_category(self):
-        from gpd.mcp.servers.skills_server import _infer_category
-
-        assert _infer_category("gpd-execute-phase") == "execution"
-        assert _infer_category("gpd-plan-phase") == "planning"
-        assert _infer_category("gpd-verify-work") == "verification"
-        assert _infer_category("gpd-debug") == "debugging"
-        assert _infer_category("unknown-skill") == "other"
-
 
 # ---------------------------------------------------------------------------
 # 6. State server

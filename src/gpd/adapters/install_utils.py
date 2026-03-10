@@ -902,24 +902,6 @@ def save_local_patches(
     return modified
 
 
-def report_local_patches(config_dir: str | Path) -> list[str]:
-    """Read and return the list of backed-up patches from a previous upgrade.
-
-    Returns the list of relative paths that were backed up, or ``[]`` if none.
-    """
-    patches_dir = Path(config_dir) / PATCHES_DIR_NAME
-    meta_path = patches_dir / "backup-meta.json"
-    if not meta_path.exists():
-        return []
-
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-
-    return meta.get("files", [])
-
-
 # ---------------------------------------------------------------------------
 # Verification helpers
 # ---------------------------------------------------------------------------

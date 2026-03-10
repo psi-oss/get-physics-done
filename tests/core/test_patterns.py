@@ -27,7 +27,6 @@ from gpd.core.patterns import (
     pattern_promote,
     pattern_search,
     pattern_seed,
-    pattern_update,
 )
 
 
@@ -282,25 +281,3 @@ class TestPatternPromote:
     def test_not_found_raises(self, lib_root: Path):
         with pytest.raises(PatternError, match="not found"):
             pattern_promote("nonexistent-id", root=lib_root)
-
-
-# ─── pattern_update ──────────────────────────────────────────────────────────
-
-
-class TestPatternUpdate:
-    def test_increments_count(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Update Me", root=lib_root)
-        result = pattern_update(add_result.id, root=lib_root)
-        assert result.occurrence_count == 2
-
-    def test_updates_severity(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Sev Change", severity="medium", root=lib_root)
-        pattern_update(add_result.id, severity="critical", root=lib_root)
-        result = pattern_list(root=lib_root)
-        assert result.patterns[0].severity == "critical"
-
-    def test_updates_body_fields(self, lib_root: Path):
-        add_result = pattern_add(domain="qft", title="Body Update", root=lib_root)
-        pattern_update(add_result.id, description="new desc", root=lib_root)
-        content = (lib_root / add_result.file).read_text()
-        assert "**What goes wrong:** new desc" in content

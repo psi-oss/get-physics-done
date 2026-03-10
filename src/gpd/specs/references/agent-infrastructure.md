@@ -231,7 +231,7 @@ Used by verifiers and orchestrators to validate research artifacts:
 gpd verify plan-structure <plan-file-path>
 
 # Verify phase completeness (all plans have SUMMARY.md)
-gpd verify phase-completeness <phase-number>
+gpd verify phase <phase-number>
 
 # Verify cross-file references in a document
 gpd verify references <file-path>
@@ -242,17 +242,14 @@ gpd verify commits <hash1> [hash2] ...
 # Verify artifacts declared in a plan's must_haves
 gpd verify artifacts <plan-file-path>
 
-# Verify key links declared in a plan's must_haves
-gpd verify key-links <plan-file-path>
-
 # Verify SUMMARY.md format and required fields
-gpd verify-summary <summary-path>
+gpd verify summary <summary-path>
 
 # Check for convention conflicts and verification regressions across phases
 gpd regression-check [--quick]
 
 # Validate wave assignments within a phase
-gpd validate-waves <phase-number>
+gpd phase validate-waves <phase-number>
 
 # Validate cross-phase consistency
 gpd validate consistency
@@ -352,14 +349,8 @@ gpd pattern list [--domain <subfield>]
 # Search patterns by keyword
 gpd pattern search "<query>"
 
-# Promote a pattern's confidence level
-gpd pattern promote <pattern-id>
-
 # Seed library with bootstrap patterns for a domain
 gpd pattern seed
-
-# Update occurrence count and metadata for an existing pattern
-gpd pattern update <pattern-id> [--field value ...]
 ```
 
 ---
