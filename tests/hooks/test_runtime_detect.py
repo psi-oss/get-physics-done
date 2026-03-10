@@ -37,6 +37,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_UNKNOWN
 
@@ -90,6 +91,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_CODEX
 
@@ -114,6 +116,7 @@ class TestDetectActiveRuntime:
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime() == RUNTIME_OPENCODE
 

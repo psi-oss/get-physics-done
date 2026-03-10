@@ -13,13 +13,20 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
+    "ACTIVE_TRACE_FILENAME",
+    "AGENT_ID_FILENAME",
     "CONFIG_FILENAME",
+    "CONTEXT_SUFFIX",
+    "CONVENTIONS_FILENAME",
     "DECISION_THRESHOLD",
     "DEFAULT_MAX_INCLUDE_CHARS",
     "ENV_DATA_DIR",
     "ENV_GPD_DEBUG",
     "ENV_MAX_INCLUDE_CHARS",
     "ENV_PATTERNS_ROOT",
+    "LITERATURE_DIR_NAME",
+    "MILESTONES_DIR_NAME",
+    "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
     "MIN_PYTHON_MINOR",
     "OPTIONAL_PLANNING_FILES",
@@ -36,27 +43,34 @@ __all__ = [
     "REQUIRED_PLANNING_FILES",
     "REQUIRED_RETURN_FIELDS",
     "REQUIRED_SPECS_SUBDIRS",
+    "REQUIREMENTS_FILENAME",
+    "RESEARCH_MAP_DIR_NAME",
+    "RESEARCH_SUFFIX",
     "ROADMAP_FILENAME",
     "SEED_PATTERN_INITIAL_OCCURRENCES",
+    "SPECS_REFERENCES_DIR",
+    "SPECS_TEMPLATES_DIR",
+    "SPECS_WORKFLOWS_DIR",
+    "STANDALONE_CONTEXT",
     "STANDALONE_PLAN",
+    "STANDALONE_RESEARCH",
     "STANDALONE_SUMMARY",
+    "STANDALONE_VALIDATION",
+    "STANDALONE_VERIFICATION",
+    "STATE_ARCHIVE_FILENAME",
+    "STATE_JSON_BACKUP_FILENAME",
     "STATE_JSON_FILENAME",
     "STATE_LINES_BUDGET",
     "STATE_LINES_TARGET",
     "STATE_MD_FILENAME",
+    "STATE_WRITE_INTENT_FILENAME",
     "SUMMARY_SUFFIX",
+    "TODOS_DIR_NAME",
+    "TRACES_DIR_NAME",
     "UNCOMMITTED_FILES_THRESHOLD",
     "VALID_RETURN_STATUSES",
+    "VALIDATION_SUFFIX",
     "VERIFICATION_SUFFIX",
-    "CONVENTIONS_FILENAME",
-    "TRACES_DIR_NAME",
-    "ACTIVE_TRACE_FILENAME",
-    "STATE_ARCHIVE_FILENAME",
-    "STATE_JSON_BACKUP_FILENAME",
-    "STATE_WRITE_INTENT_FILENAME",
-    "SPECS_REFERENCES_DIR",
-    "SPECS_WORKFLOWS_DIR",
-    "SPECS_TEMPLATES_DIR",
 ]
 
 # ─── Planning Directory Layout ────────────────────────────────────────────────
@@ -83,11 +97,32 @@ CONFIG_FILENAME = "config.json"
 CONVENTIONS_FILENAME = "CONVENTIONS.md"
 """Human-readable convention documentation."""
 
+REQUIREMENTS_FILENAME = "REQUIREMENTS.md"
+"""Project requirements document."""
+
+MILESTONES_FILENAME = "MILESTONES.md"
+"""Milestone tracking document."""
+
+AGENT_ID_FILENAME = "current-agent-id.txt"
+"""File storing the current agent's identifier for resume detection."""
+
 PHASES_DIR_NAME = "phases"
 """Subdirectory under .gpd/ containing per-phase directories."""
 
 TRACES_DIR_NAME = "traces"
 """Subdirectory under .gpd/ for execution trace JSONL files."""
+
+MILESTONES_DIR_NAME = "milestones"
+"""Subdirectory under .gpd/ for archived milestone snapshots."""
+
+TODOS_DIR_NAME = "todos"
+"""Subdirectory under .gpd/ for todo items."""
+
+LITERATURE_DIR_NAME = "literature"
+"""Subdirectory under .gpd/ for literature review files."""
+
+RESEARCH_MAP_DIR_NAME = "research-map"
+"""Subdirectory under .gpd/ for theory/research map files."""
 
 ACTIVE_TRACE_FILENAME = ".active-trace"
 """Marker file in traces/ indicating the currently recording trace."""
@@ -103,7 +138,8 @@ STATE_WRITE_INTENT_FILENAME = ".state-write-intent"
 
 
 # ─── File Suffixes ────────────────────────────────────────────────────────────
-# Naming conventions for plan, summary, and verification files within phases.
+# Naming conventions for plan, summary, verification, research, context,
+# and validation files within phases.
 
 PLAN_SUFFIX = "-PLAN.md"
 """Suffix for numbered plan files (e.g., '01-PLAN.md')."""
@@ -114,11 +150,32 @@ SUMMARY_SUFFIX = "-SUMMARY.md"
 VERIFICATION_SUFFIX = "-VERIFICATION.md"
 """Suffix for verification report files."""
 
+RESEARCH_SUFFIX = "-RESEARCH.md"
+"""Suffix for numbered research files (e.g., '01-RESEARCH.md')."""
+
+CONTEXT_SUFFIX = "-CONTEXT.md"
+"""Suffix for numbered context files (e.g., '01-CONTEXT.md')."""
+
+VALIDATION_SUFFIX = "-VALIDATION.md"
+"""Suffix for numbered validation files (e.g., '01-VALIDATION.md')."""
+
 STANDALONE_PLAN = "PLAN.md"
 """Standalone plan filename (no number prefix)."""
 
 STANDALONE_SUMMARY = "SUMMARY.md"
 """Standalone summary filename (no number prefix)."""
+
+STANDALONE_VERIFICATION = "VERIFICATION.md"
+"""Standalone verification filename (no number prefix)."""
+
+STANDALONE_RESEARCH = "RESEARCH.md"
+"""Standalone research filename (no number prefix)."""
+
+STANDALONE_CONTEXT = "CONTEXT.md"
+"""Standalone context filename (no number prefix)."""
+
+STANDALONE_VALIDATION = "VALIDATION.md"
+"""Standalone validation filename (no number prefix)."""
 
 
 # ─── Specs Directory Structure ────────────────────────────────────────────────
@@ -291,6 +348,18 @@ class ProjectLayout:
     def state_intent(self) -> Path:
         return self.gpd / STATE_WRITE_INTENT_FILENAME
 
+    @property
+    def requirements_md(self) -> Path:
+        return self.gpd / REQUIREMENTS_FILENAME
+
+    @property
+    def milestones_md(self) -> Path:
+        return self.gpd / MILESTONES_FILENAME
+
+    @property
+    def agent_id_file(self) -> Path:
+        return self.gpd / AGENT_ID_FILENAME
+
     # ── Directories ───────────────────────────────────────────────────────
 
     @property
@@ -300,6 +369,22 @@ class ProjectLayout:
     @property
     def traces_dir(self) -> Path:
         return self.gpd / TRACES_DIR_NAME
+
+    @property
+    def milestones_dir(self) -> Path:
+        return self.gpd / MILESTONES_DIR_NAME
+
+    @property
+    def todos_dir(self) -> Path:
+        return self.gpd / TODOS_DIR_NAME
+
+    @property
+    def literature_dir(self) -> Path:
+        return self.gpd / LITERATURE_DIR_NAME
+
+    @property
+    def research_map_dir(self) -> Path:
+        return self.gpd / RESEARCH_MAP_DIR_NAME
 
     # ── Derived paths ─────────────────────────────────────────────────────
 
@@ -340,7 +425,7 @@ class ProjectLayout:
 
     def is_verification_file(self, filename: str) -> bool:
         """Check if a filename matches the verification naming convention."""
-        return filename.endswith(VERIFICATION_SUFFIX)
+        return filename.endswith(VERIFICATION_SUFFIX) or filename == STANDALONE_VERIFICATION
 
     def strip_plan_suffix(self, filename: str) -> str:
         """Remove plan suffix from filename to get the plan ID."""

@@ -53,11 +53,17 @@ CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
 # Paper search paths relative to cwd
 PAPER_PATHS = ("paper/main.tex", "manuscript/main.tex", "draft/main.tex")
 
-# Config defaults matching load_config()
-_CONFIG_DEFAULTS: dict[str, object] = {
-    "autonomy": "guided",
-    "research_mode": "balanced",
-}
+# Config defaults derived from the canonical GPDProjectConfig model in config.py.
+# Importing from the source of truth avoids maintaining a separate copy.
+def _build_config_defaults() -> dict[str, object]:
+    from gpd.core.config import GPDProjectConfig
+    _defaults = GPDProjectConfig()
+    return {
+        "autonomy": str(_defaults.autonomy.value),
+        "research_mode": str(_defaults.research_mode.value),
+    }
+
+_CONFIG_DEFAULTS: dict[str, object] = _build_config_defaults()
 
 
 # ─── Data Models ──────────────────────────────────────────────────────────────

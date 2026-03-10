@@ -19,12 +19,22 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from gpd.core.constants import (
+    CONTEXT_SUFFIX,
+    MILESTONES_DIR_NAME,
+    MILESTONES_FILENAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
+    REQUIREMENTS_FILENAME,
+    RESEARCH_SUFFIX,
+    STANDALONE_CONTEXT,
     STANDALONE_PLAN,
+    STANDALONE_RESEARCH,
     STANDALONE_SUMMARY,
+    STANDALONE_VALIDATION,
+    STANDALONE_VERIFICATION,
     SUMMARY_SUFFIX,
+    VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
     ProjectLayout,
 )
@@ -169,6 +179,15 @@ def _sync_state_json(cwd: Path, state_content: str) -> None:
     from gpd.core.state import sync_state_json
 
     sync_state_json(cwd, state_content)
+
+
+def _validate_transition(current_status: str, new_status: str) -> None:
+    """Validate a state transition, raising PhaseValidationError if invalid."""
+    from gpd.core.state import validate_state_transition
+
+    error = validate_state_transition(current_status, new_status)
+    if error is not None:
+        raise PhaseValidationError(error)
 
 
 def _extract_state_field(state_content: str, field_name: str) -> str | None:
@@ -546,10 +565,10 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
 
         plans = sorted(f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
         summaries = sorted(f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
-        has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
-        has_context = any(f.endswith("-CONTEXT.md") or f == "CONTEXT.md" for f in phase_files)
-        has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == "VERIFICATION.md" for f in phase_files)
-        has_validation = any(f.endswith("-VALIDATION.md") or f == "VALIDATION.md" for f in phase_files)
+        has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
+        has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
+        has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == STANDALONE_VERIFICATION for f in phase_files)
+        has_validation = any(f.endswith(VALIDATION_SUFFIX) or f == STANDALONE_VALIDATION for f in phase_files)
 
         # Determine incomplete plans (plans without matching summaries)
         completed_plan_ids = {_strip_suffix(_strip_suffix(s, SUMMARY_SUFFIX), STANDALONE_SUMMARY) for s in summaries}
@@ -1002,8 +1021,8 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
                 phase_files = [f.name for f in (phases_dir / dir_match_name).iterdir() if f.is_file()]
                 plan_count = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
                 summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
-                has_context = any(f.endswith("-CONTEXT.md") or f == "CONTEXT.md" for f in phase_files)
-                has_research = any(f.endswith("-RESEARCH.md") or f == "RESEARCH.md" for f in phase_files)
+                has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
+                has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
 
                 if is_phase_complete(plan_count, summary_count):
                     disk_status = "complete"
@@ -1770,6 +1789,10 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
                 with file_lock(state_path):
                     state_content = state_path.read_text(encoding="utf-8")
 
+                    new_status = "Milestone complete" if is_last_phase else "Ready to plan"
+                    current_status = _extract_state_field(state_content, "Status") or ""
+                    _validate_transition(current_status, new_status)
+
                     state_content = re.sub(
                         r"(\*\*Current Phase:\*\*\s*).*",
                         rf"\g<1>{next_phase_num or phase_num}",
@@ -1861,10 +1884,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
         raise PhaseValidationError("version required for milestone complete (e.g., v1.0)")
 
     roadmap_path = _roadmap_path(cwd)
-    req_path = _planning_path(cwd) / "REQUIREMENTS.md"
+    req_path = _planning_path(cwd) / REQUIREMENTS_FILENAME
     state_path = _state_path(cwd)
-    milestones_path = _planning_path(cwd) / "MILESTONES.md"
-    archive_dir = _planning_path(cwd) / "milestones"
+    milestones_path = _planning_path(cwd) / MILESTONES_FILENAME
+    archive_dir = _planning_path(cwd) / MILESTONES_DIR_NAME
     phases_dir = _phases_dir(cwd)
     today = date.today().isoformat()
     milestone_name = name or version
@@ -1967,9 +1990,11 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             if state_path.exists():
                 with file_lock(state_path):
                     state_content = state_path.read_text(encoding="utf-8")
+                    current_status = _extract_state_field(state_content, "Status") or ""
+                    _validate_transition(current_status, "Milestone complete")
                     state_content = re.sub(
                         r"(\*\*Status:\*\*\s*).*",
-                        rf"\g<1>{version} milestone complete",
+                        r"\g<1>Milestone complete",
                         state_content,
                     )
                     state_content = re.sub(

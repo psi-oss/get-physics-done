@@ -3,7 +3,10 @@
   "description": "GPD cross-project pattern library. Tools for searching, adding, promoting, and seeding physics error patterns across research projects.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "gpd.mcp.servers.patterns_server"],
+  "args": [
+    "-m",
+    "gpd.mcp.servers.patterns_server"
+  ],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },

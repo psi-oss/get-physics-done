@@ -391,7 +391,7 @@ VALID_STATUSES: list[str] = [
 # None means any transition is valid (recovery states like Paused/Blocked).
 VALID_TRANSITIONS: dict[str, list[str] | None] = {
     "not started": ["planning", "researching", "ready to plan", "ready to execute", "executing"],
-    "ready to plan": ["planning", "researching", "paused", "blocked", "not started"],
+    "ready to plan": ["planning", "researching", "paused", "blocked", "not started", "milestone complete"],
     "planning": ["ready to execute", "researching", "paused", "blocked", "ready to plan", "not started"],
     "researching": ["planning", "ready to execute", "paused", "blocked", "ready to plan", "not started"],
     "ready to execute": ["executing", "planning", "researching", "paused", "blocked", "not started"],
@@ -401,6 +401,8 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "planning",
         "researching",
         "ready to execute",
+        "ready to plan",
+        "milestone complete",
         "paused",
         "blocked",
     ],
@@ -410,6 +412,8 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "not started",
         "planning",
         "executing",
+        "ready to plan",
+        "milestone complete",
     ],
     "phase complete \u2014 ready for verification": [
         "verifying",
@@ -417,6 +421,8 @@ VALID_TRANSITIONS: dict[str, list[str] | None] = {
         "planning",
         "executing",
         "paused",
+        "ready to plan",
+        "milestone complete",
     ],
     "verifying": ["complete", "phase complete \u2014 ready for verification", "planning", "blocked", "paused"],
     "complete": ["not started", "planning", "milestone complete"],
@@ -709,17 +715,16 @@ def parse_state_to_json(content: str) -> dict:
     """Parse STATE.md content into JSON-sidecar format."""
     parsed = parse_state_md(content)
 
-    session: dict = {}
     last_date = _strip_placeholder(parsed["session"]["last_date"])
     stopped_at = _strip_placeholder(parsed["session"]["stopped_at"])
     resume_file = _strip_placeholder(parsed["session"]["resume_file"])
+    session: dict[str, str | None] = {
+        "last_date": last_date,
+        "stopped_at": stopped_at,
+        "resume_file": resume_file,
+    }
     if last_date:
         session["last_session"] = last_date
-        session["last_date"] = last_date
-    if stopped_at:
-        session["stopped_at"] = stopped_at
-    if resume_file:
-        session["resume_file"] = resume_file
 
     return {
         "_version": 1,
@@ -727,6 +732,7 @@ def parse_state_to_json(content: str) -> dict:
         "project": {
             "core_question": _strip_placeholder(parsed["project"]["core_question"]),
             "current_focus": _strip_placeholder(parsed["project"]["current_focus"]),
+            "project_md_updated": parsed["project"]["project_md_updated"],
         },
         "position": {
             "current_phase": _strip_placeholder(parsed["position"]["current_phase"]),
@@ -764,6 +770,28 @@ def _normalize_legacy_keys(raw: dict) -> dict:
             else None,
             "current_focus": project.get("current_focus") if isinstance(project, dict) else None,
         }
+
+    session = raw.get("session")
+    if isinstance(session, dict) and "last_session" in session and "last_date" not in session:
+        session["last_date"] = session.get("last_session")
+
+    position = raw.get("position")
+    if isinstance(position, dict):
+        progress_percent = position.get("progress_percent")
+        if progress_percent is None and "progress" in position:
+            progress = position.get("progress")
+            if isinstance(progress, str):
+                match = re.search(r"(\d+)%", progress)
+                if match:
+                    position["progress_percent"] = int(match.group(1))
+            elif isinstance(progress, (int, float)):
+                position["progress_percent"] = int(progress)
+        position.pop("progress", None)
+
+    if "metrics" in raw and "performance_metrics" not in raw:
+        metrics = raw.pop("metrics")
+        raw["performance_metrics"] = {"rows": metrics if isinstance(metrics, list) else []}
+
     return raw
 
 
@@ -1184,28 +1212,17 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
                     "core_research_question": None,
                     "current_focus": None,
                 }
-            cq = parsed["project"].get("core_question")
-            if cq is not None and str(cq).strip().lower() != "[not set]":
-                merged["project_reference"]["core_research_question"] = cq
-            cf = parsed["project"].get("current_focus")
-            if cf is not None and str(cf).strip().lower() != "[not set]":
-                merged["project_reference"]["current_focus"] = cf
+            merged["project_reference"]["project_md_updated"] = parsed["project"].get("project_md_updated")
+            merged["project_reference"]["core_research_question"] = parsed["project"].get("core_question")
+            merged["project_reference"]["current_focus"] = parsed["project"].get("current_focus")
 
         # Merge position
         if parsed.get("position"):
-            if "position" not in merged:
-                merged["position"] = {}
-            for key, val in parsed["position"].items():
-                if val is not None and val != EM_DASH:
-                    merged["position"][key] = val
+            merged["position"] = {**(merged.get("position") or {}), **parsed["position"]}
 
-        # Merge session (filter out placeholder values)
-        if parsed.get("session") and parsed["session"]:
-            filtered_session = {
-                k: v for k, v in parsed["session"].items() if v is not None and v != EM_DASH
-            }
-            if filtered_session:
-                merged["session"] = {**(merged.get("session") or {}), **filtered_session}
+        # Merge session, allowing markdown placeholders to clear stale values.
+        if parsed.get("session") is not None:
+            merged["session"] = {**(merged.get("session") or {}), **parsed["session"]}
 
         # Replace decisions and blockers (fully represented in markdown)
         if parsed.get("decisions") is not None:
@@ -1214,7 +1231,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
             merged["blockers"] = parsed["blockers"]
 
         # Metrics
-        if parsed.get("metrics") and len(parsed["metrics"]) > 0:
+        if parsed.get("metrics") is not None:
             merged["performance_metrics"] = {"rows": parsed["metrics"]}
 
         # Bullet sections are fully represented in markdown, so markdown wins.
@@ -1222,7 +1239,9 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
             if field in parsed:
                 merged[field] = parsed.get(field) or []
     else:
-        merged = ensure_state_schema(parsed)
+        merged = parsed
+
+    merged = ensure_state_schema(merged)
 
     json_content = json.dumps(merged, indent=2)
     atomic_write(json_path, json_content)
@@ -1519,8 +1538,12 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
             )
 
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        current_status = state_extract_field(content, "Status") or ""
 
         if current_plan >= total_plans:
+            transition_error = validate_state_transition(current_status, "Phase complete \u2014 ready for verification")
+            if transition_error:
+                return AdvancePlanResult(advanced=False, error=transition_error)
             content = state_replace_field(content, "Status", "Phase complete \u2014 ready for verification")
             content = state_replace_field(content, "Last Activity", today)
             atomic_write(md_path, content)
@@ -1535,6 +1558,9 @@ def state_advance_plan(cwd: Path) -> AdvancePlanResult:
 
         new_plan = current_plan + 1
         content = state_replace_field(content, "Current Plan", str(new_plan))
+        transition_error = validate_state_transition(current_status, "Ready to execute")
+        if transition_error:
+            return AdvancePlanResult(advanced=False, error=transition_error)
         content = state_replace_field(content, "Status", "Ready to execute")
         content = state_replace_field(content, "Last Activity", today)
         atomic_write(md_path, content)
@@ -1604,17 +1630,19 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
 
         phases_dir = ProjectLayout(cwd).phases_dir
         total_plans = 0
-        total_summaries = 0
+        total_completed = 0
 
         if phases_dir.exists():
             for phase_dir in phases_dir.iterdir():
                 if not phase_dir.is_dir():
                     continue
                 phase_files = [f.name for f in phase_dir.iterdir() if f.is_file()]
-                total_plans += sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                total_summaries += sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                phase_plans = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
+                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                total_plans += phase_plans
+                total_completed += min(phase_plans, phase_summaries)
 
-        percent = round((total_summaries / total_plans) * 100) if total_plans > 0 else 0
+        percent = min(100, round((total_completed / total_plans) * 100)) if total_plans > 0 else 0
         bar_width = 10
         filled = max(0, min(bar_width, round((percent / 100) * bar_width)))
         bar = "\u2588" * filled + "\u2591" * (bar_width - filled)
@@ -1626,7 +1654,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
             atomic_write(md_path, new_content)
             sync_state_json(cwd, new_content)
             return UpdateProgressResult(
-                updated=True, percent=percent, completed=total_summaries, total=total_plans, bar=progress_str
+                updated=True, percent=percent, completed=total_completed, total=total_plans, bar=progress_str
             )
 
         return UpdateProgressResult(updated=False, reason="Progress field not found in STATE.md")
@@ -1941,9 +1969,10 @@ def state_validate(cwd: Path) -> StateValidateResult:
     # Convention lock completeness
     if state_json and state_json.get("convention_lock"):
         cl = state_json["convention_lock"]
+        set_fields = [k for k in KNOWN_CONVENTIONS if not is_bogus_value(cl.get(k))]
         unset = [k for k in KNOWN_CONVENTIONS if is_bogus_value(cl.get(k))]
-        if unset:
-            issues.append(f"convention_lock: {len(unset)} conventions unset ({', '.join(unset)})")
+        if set_fields and unset:
+            warnings.append(f"convention_lock: {len(unset)} conventions unset ({', '.join(unset)})")
 
     # NaN in numeric fields
     if state_json and state_json.get("position"):

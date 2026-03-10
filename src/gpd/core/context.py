@@ -17,6 +17,7 @@ from pathlib import Path
 from gpd.core.config import (
     GPDProjectConfig,
     resolve_agent_tier,
+    resolve_model as _resolve_model_canonical,
 )
 from gpd.core.config import (
     load_config as _load_config_structured,
@@ -208,17 +209,21 @@ def load_config(cwd: Path) -> dict:
 def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> str:
     """Resolve the model identifier for a given agent type based on config profile.
 
-    Delegates tier resolution to :func:`gpd.core.config.resolve_agent_tier`
-    which owns the canonical ``MODEL_PROFILES`` table.
+    Delegates to :func:`gpd.core.config.resolve_model` when no pre-loaded
+    config dict is available.  When *config* is supplied (the common path
+    inside context assemblers), we still delegate tier resolution to
+    :func:`gpd.core.config.resolve_agent_tier` and then apply the
+    ``model_map`` override exactly as the canonical implementation does.
 
     Args:
         cwd: Project root directory.
         agent_type: Agent name (e.g. "gpd-executor").
-        config: Pre-loaded config dict. If None, loads from disk (slower).
+        config: Pre-loaded config dict. If None, loads from disk via
+            the canonical :func:`gpd.core.config.resolve_model`.
     """
     if config is None:
-        config = load_config(cwd)
-    profile = config.get("model_profile", "review")
+        return _resolve_model_canonical(cwd, agent_type)
+    profile = config.get("model_profile", str(GPDProjectConfig.model_fields["model_profile"].default.value))
     tier = resolve_agent_tier(agent_type, profile).value
     model_map = config.get("model_map")
     if model_map and isinstance(model_map, dict) and tier in model_map:

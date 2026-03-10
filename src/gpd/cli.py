@@ -1056,6 +1056,17 @@ def pattern_search(
     _output(pattern_search(" ".join(query), root=_resolve_patterns_root()))
 
 
+@pattern_app.command("promote")
+def pattern_promote(
+    pattern_id: str = typer.Argument(..., help="Pattern ID to promote"),
+) -> None:
+    """Promote a pattern's confidence level (single_observation -> confirmed -> systematic)."""
+    from gpd.core.patterns import pattern_promote
+
+    _output(pattern_promote(pattern_id, root=_resolve_patterns_root()))
+
+
+
 @pattern_app.command("seed")
 def pattern_seed() -> None:
     """Seed the pattern library with common physics error patterns."""
@@ -1884,6 +1895,8 @@ def _install_single_runtime(
     target_dir_override: str | None = None,
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
+    import inspect
+
     from gpd.adapters import get_adapter
 
     adapter = get_adapter(runtime_name)
@@ -1894,7 +1907,12 @@ def _install_single_runtime(
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
 
-    return adapter.install(gpd_root, dest, is_global=is_global)
+    install_kwargs: dict[str, object] = {"is_global": is_global}
+    install_params = inspect.signature(adapter.install).parameters
+    if "explicit_target" in install_params:
+        install_kwargs["explicit_target"] = target_dir_override is not None
+
+    return adapter.install(gpd_root, dest, **install_kwargs)
 
 
 def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None:
