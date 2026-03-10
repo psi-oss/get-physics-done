@@ -26,6 +26,7 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `protocols/phenomenology.md`, and `executor-subfield-guide.md` §Nuclear & Particle Physics |
 | **Astrophysics** | `verification-domain-astrophysics.md`, `executor-subfield-guide.md` §Astrophysics |
 | **Mathematical physics** | `verification-domain-mathematical-physics.md`, `executor-subfield-guide.md` §Mathematical Physics, plus `protocols/conformal-bootstrap.md` or `protocols/holography-ads-cft.md` for CFT-heavy problems |
+| **String field theory** | `verification-domain-string-field-theory.md`, `protocols/string-field-theory.md`, and `executor-subfield-guide.md` §String Field Theory |
 | **Conformal bootstrap / CFT** | `verification-domain-mathematical-physics.md`, `protocols/conformal-bootstrap.md`, and `subfields/qft.md` or `subfields/mathematical-physics.md` depending on whether the project is field-theoretic or structural |
 | **Numerical computation** | `protocols/numerical-computation.md`, `protocols/symbolic-to-numerical.md`, `verification-numerical.md` |
 | **Paper writing** | `figure-generation-templates.md`, `bibtex-standards.md` |
@@ -65,7 +66,8 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | Nuclear / particle physics | `verification-domain-nuclear-particle.md` |
 | Astrophysics | `verification-domain-astrophysics.md` |
 | Mathematical physics | `verification-domain-mathematical-physics.md` |
+| String field theory | `verification-domain-string-field-theory.md` |
 
 ## Protocol Files
 
-See `shared-protocols.md` §Detailed Protocol References for the full protocol index (44 protocols across 4 categories).
+See `shared-protocols.md` §Detailed Protocol References for the full protocol index.

@@ -18,6 +18,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 | Nuclear & Particle Physics | `subfields/nuclear-particle.md` | `verification-domain-nuclear-particle.md` |
 | Astrophysics | `subfields/astrophysics.md` | `verification-domain-astrophysics.md` |
 | Mathematical Physics | `subfields/mathematical-physics.md` | `verification-domain-mathematical-physics.md` |
+| String Field Theory | `subfields/string-field-theory.md` | `verification-domain-string-field-theory.md` |
 | Quantum Information | `subfields/quantum-info.md` | `verification-domain-quantum-info.md` |
 | Fluid Dynamics & Plasma | `subfields/fluid-plasma.md` | `verification-domain-fluid-plasma.md` |
 | Soft Matter & Biophysics | `subfields/soft-matter-biophysics.md` | `verification-domain-soft-matter.md` |
@@ -77,6 +78,13 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Conformal bootstrap routing:** For crossing equations, OPE truncations, semidefinite programming, extremal functionals, or rigorous CFT bounds, load `protocols/conformal-bootstrap.md` immediately. Do not treat bootstrap work as generic QFT numerics.
 - **Sector bookkeeping:** In mixed-correlator or global-symmetry bootstrap problems, write the representation content of each OPE channel before interpreting a bound. Misplacing the stress tensor, conserved current, or singlet/traceless sectors invalidates the result.
 - **Numerical rigor:** Record derivative order `Lambda`, spin truncation, block normalization, and solver precision. A claimed island, kink, or bound is not usable until stability under these controls is checked.
+
+## String Field Theory
+
+- **Formulation first:** State open vs closed, bosonic vs super, small vs large Hilbert space, and whether the action is cubic, WZW-like, `A_infinity`, `L_infinity`, or 1PI before manipulating any field.
+- **Quantum-number bookkeeping:** Ghost number, picture number, BPZ parity, and BRST charge assignments are structural data, not comments. Write them out for every field and gauge parameter.
+- **Gauge and truncation discipline:** Do not read physical meaning off a low-level or single-gauge solution. Track Siegel/Schnabl/other gauge assumptions and rerun key observables at multiple truncation levels.
+- **Gauge-invariant observables:** For solutions claimed to represent tachyon vacua, marginal deformations, or shifted backgrounds, verify vacuum energy, Ellwood invariants, boundary-state data, or amplitude matching rather than only inspecting the gauge-fixed string field.
 
 ## General Relativity
 
