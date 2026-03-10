@@ -88,7 +88,7 @@ class TestInstallReadOnlyDirectory:
         readonly.mkdir()
         readonly.chmod(stat.S_IRUSR | stat.S_IXUSR)
         try:
-            with pytest.raises(PermissionError, match="Cannot write settings"):
+            with pytest.raises(PermissionError, match="Cannot write to settings"):
                 write_settings(readonly / "settings.json", {"key": "value"})
         finally:
             readonly.chmod(stat.S_IRWXU)

@@ -21,6 +21,7 @@ from gpd.core.constants import (
     REQUIRED_RETURN_FIELDS,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
+    STANDALONE_VERIFICATION,
     SUMMARY_SUFFIX,
     VALID_RETURN_STATUSES,
     VERIFICATION_SUFFIX,
@@ -87,7 +88,7 @@ class SummaryExtractResult(BaseModel):
     patterns: list[str] = Field(default_factory=list)
     decisions: list[SummaryDecision] = Field(default_factory=list)
     affects: list[str] = Field(default_factory=list)
-    conventions: object = None
+    conventions: dict[str, str] | list[str] | str | None = None
     key_results: str | None = None
     equations: str | None = None
 
@@ -505,7 +506,7 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
         verifications = [
             f
             for f in d.iterdir()
-            if f.is_file() and (f.name.endswith(VERIFICATION_SUFFIX) or f.name == "VERIFICATION.md")
+            if f.is_file() and (f.name.endswith(VERIFICATION_SUFFIX) or f.name == STANDALONE_VERIFICATION)
         ]
         for v_file in verifications:
             content = safe_read_file(v_file)

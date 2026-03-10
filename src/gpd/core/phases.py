@@ -1090,7 +1090,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             completed_phases=completed,
             total_plans=total_plans,
             total_summaries=total_summaries,
-            progress_percent=round(total_summaries / total_plans * 100) if total_plans > 0 else 0,
+            progress_percent=min(100, round(total_summaries / total_plans * 100)) if total_plans > 0 else 0,
             current_phase=current_phase.number if current_phase else None,
             next_phase=next_phase.number if next_phase else None,
         )
@@ -2135,7 +2135,7 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
                     )
                 )
 
-        percent = round(total_summaries / total_plans * 100) if total_plans > 0 else 0
+        percent = min(100, round(total_summaries / total_plans * 100)) if total_plans > 0 else 0
 
         if fmt == "table":
             bar_width = 10

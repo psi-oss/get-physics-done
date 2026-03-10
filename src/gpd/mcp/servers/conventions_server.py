@@ -25,6 +25,7 @@ from gpd.core.conventions import (
     KNOWN_CONVENTIONS,
     convention_list,
     normalize_key,
+    normalize_value,
     validate_assertions,
 )
 from gpd.core.conventions import (
@@ -298,8 +299,10 @@ def convention_set(
         # Warn about non-standard values for known fields
         canonical = normalize_key(key)
         options = CONVENTION_OPTIONS.get(canonical, [])
-        if options and result.value not in options:
-            response["warning"] = f"Non-standard value '{result.value}' for '{canonical}'. Known options: {options}"
+        if options:
+            normalized_options = [normalize_value(canonical, o) for o in options]
+            if result.value not in options and result.value not in normalized_options:
+                response["warning"] = f"Non-standard value '{result.value}' for '{canonical}'. Known options: {options}"
 
         return response
 

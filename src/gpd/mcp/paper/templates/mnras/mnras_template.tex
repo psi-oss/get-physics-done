@@ -13,7 +13,8 @@
 \BLOCK{for author in authors}
 \VAR{author.name}\BLOCK{if author.affiliation}$^{\VAR{loop.index}}$\BLOCK{endif}\BLOCK{if not loop.last}, \BLOCK{endif}
 \BLOCK{endfor}
-\\
+\BLOCK{if authors}\\
+\BLOCK{endif}
 \BLOCK{for author in authors}
 \BLOCK{if author.affiliation}
 $^{\VAR{loop.index}}$\VAR{author.affiliation}\\

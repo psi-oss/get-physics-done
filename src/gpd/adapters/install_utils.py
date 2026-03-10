@@ -255,7 +255,7 @@ def write_settings(settings_path: str | Path, settings: dict[str, object]) -> No
     try:
         tmp_path.write_text(content, encoding="utf-8")
     except PermissionError as exc:
-        raise PermissionError(f"Cannot write settings file: {p} — check directory permissions") from exc
+        raise PermissionError(f"Cannot write to settings directory {p.parent} — check permissions") from exc
     try:
         tmp_path.rename(p)
     except OSError:
@@ -357,7 +357,7 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
 
         escaped = re.escape(source_name)
         if source_name not in CONTEXTUAL_TOOL_REFERENCE_NAMES:
-            content = re.sub(r"\b" + escaped + r"\b", target, content)
+            content = re.sub(r"\b" + escaped + r"\b", lambda m: target, content)
             continue
 
         # Backtick-quoted
@@ -365,27 +365,27 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
         # "the X tool"
         content = re.sub(
             r"\b(the\s+)" + escaped + r"(\s+tool)",
-            r"\g<1>" + target + r"\2",
+            lambda m: m.group(1) + target + m.group(2),
             content,
             flags=re.IGNORECASE,
         )
         # "X tool" after punctuation/start-of-line
         content = re.sub(
             r"(^|[.,:;!?\-\s])" + escaped + r"(\s+tool\b)",
-            r"\1" + target + r"\2",
+            lambda m: m.group(1) + target + m.group(2),
             content,
             flags=re.MULTILINE,
         )
         # "Use X" / "using X" / "via X"
         content = re.sub(
             r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + escaped + r"\b",
-            r"\1" + target,
+            lambda m: m.group(1) + target,
             content,
         )
         # Function-style invocation, e.g. Task(...) or shell(...)
         content = re.sub(
             r"\b" + escaped + r"(?=\s*\()",
-            target,
+            lambda m: target,
             content,
         )
 

@@ -14,7 +14,7 @@
 \BLOCK{for author in authors}
 \author{\VAR{author.name}}
 \BLOCK{if author.email}\email{\VAR{author.email}}\BLOCK{endif}
-\affiliation{\VAR{author.affiliation}}
+\BLOCK{if author.affiliation}\affiliation{\VAR{author.affiliation}}\BLOCK{endif}
 \BLOCK{endfor}
 
 \date{\today}

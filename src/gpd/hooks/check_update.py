@@ -145,7 +145,8 @@ def main() -> None:
             [
                 sys.executable,
                 "-c",
-                f"from gpd.hooks.check_update import _do_check; from pathlib import Path; _do_check(Path({str(cache_file)!r}))",
+                "import sys; from gpd.hooks.check_update import _do_check; from pathlib import Path; _do_check(Path(sys.argv[1]))",
+                str(cache_file),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,

@@ -392,7 +392,9 @@ def get_traceability(error_id: int) -> dict[str, object]:
             return {
                 "id": error_id,
                 "name": error["name"],
-                "traceability": {},
+                "verification_checks": {},
+                "covered_by": [],
+                "coverage_count": 0,
                 "note": "No traceability data available for this error class",
             }
 

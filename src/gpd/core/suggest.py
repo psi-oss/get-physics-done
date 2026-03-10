@@ -51,18 +51,6 @@ CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
 # Paper search paths relative to cwd
 PAPER_PATHS = ("paper/main.tex", "manuscript/main.tex", "draft/main.tex")
 
-# Config defaults derived from the canonical GPDProjectConfig model in config.py.
-# Importing from the source of truth avoids maintaining a separate copy.
-def _build_config_defaults() -> dict[str, object]:
-    from gpd.core.config import GPDProjectConfig
-    _defaults = GPDProjectConfig()
-    return {
-        "autonomy": str(_defaults.autonomy.value),
-        "research_mode": str(_defaults.research_mode.value),
-    }
-
-_CONFIG_DEFAULTS: dict[str, object] = _build_config_defaults()
-
 
 # ─── Data Models ──────────────────────────────────────────────────────────────
 
@@ -204,8 +192,13 @@ def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
     if not phases_dir.is_dir():
         return []
 
-    entries = [d for d in phases_dir.iterdir() if d.is_dir()]
-    dir_names = sorted([d.name for d in entries], key=_phase_sort_key)
+    try:
+        dir_names = sorted(
+            [d.name for d in phases_dir.iterdir() if d.is_dir()],
+            key=_phase_sort_key,
+        )
+    except OSError:
+        return []
 
     results: list[_PhaseAnalysis] = []
     for dir_name in dir_names:

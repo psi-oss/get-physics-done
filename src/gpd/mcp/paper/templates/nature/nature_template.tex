@@ -16,7 +16,7 @@
 \BLOCK{for author in authors}
 \VAR{author.name}\BLOCK{if author.affiliation}\textsuperscript{\VAR{loop.index}}\BLOCK{endif}\BLOCK{if not loop.last}, \BLOCK{endif}
 \BLOCK{endfor}
-\\[6pt]
+\BLOCK{if authors}\\[6pt]\BLOCK{endif}
 \BLOCK{for author in authors}
 \BLOCK{if author.affiliation}
 \textsuperscript{\VAR{loop.index}}{\small \VAR{author.affiliation}}\\

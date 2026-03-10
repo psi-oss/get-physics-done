@@ -15,7 +15,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from gpd.core.errors import GPDError
+from gpd.core.errors import PatternError
 from gpd.core.observability import gpd_span
 from gpd.core.patterns import (
     VALID_CATEGORIES,
@@ -99,17 +99,20 @@ def add_pattern(
         prevention: How to prevent it.
     """
     with gpd_span("mcp.patterns.add", domain=domain, category=category):
-        result = pattern_add(
-            domain=domain,
-            title=title,
-            category=category,
-            severity=severity,
-            description=description,
-            detection=detection,
-            prevention=prevention,
-            root=_DEFAULT_PATTERNS_ROOT,
-        )
-        return result.model_dump()
+        try:
+            result = pattern_add(
+                domain=domain,
+                title=title,
+                category=category,
+                severity=severity,
+                description=description,
+                detection=detection,
+                prevention=prevention,
+                root=_DEFAULT_PATTERNS_ROOT,
+            )
+            return result.model_dump()
+        except PatternError as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -123,8 +126,11 @@ def promote_pattern(pattern_id: str) -> dict:
         pattern_id: Pattern ID (e.g., "qft-sign-error-fourier-convention-switch").
     """
     with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
-        result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
-        return result.model_dump()
+        try:
+            result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
+            return result.model_dump()
+        except PatternError as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -136,8 +142,11 @@ def seed_patterns() -> dict:
     and statistical mechanics. Idempotent — safe to call multiple times.
     """
     with gpd_span("mcp.patterns.seed"):
-        result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
-        return result.model_dump()
+        try:
+            result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
+            return result.model_dump()
+        except PatternError as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()

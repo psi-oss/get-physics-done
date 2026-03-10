@@ -620,6 +620,7 @@ def init_verify_work(cwd: Path, phase: str | None) -> dict:
         # Models
         "planner_model": _resolve_model(cwd, "gpd-planner", config),
         "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
+        "verifier_model": _resolve_model(cwd, "gpd-verifier", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],

@@ -1707,8 +1707,9 @@ def state_add_decision(
     if not summary:
         return AddDecisionResult(added=False, error="summary required")
 
-    rat_str = f" \u2014 {rationale}" if rationale else ""
-    entry = f"- [Phase {phase or '?'}]: {summary}{rat_str}"
+    summary_clean = summary.replace("\n", " ").strip()
+    rat_str = f" \u2014 {rationale.replace(chr(10), ' ').strip()}" if rationale else ""
+    entry = f"- [Phase {phase or '?'}]: {summary_clean}{rat_str}"
 
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
@@ -1740,7 +1741,8 @@ def state_add_blocker(cwd: Path, text: str) -> AddBlockerResult:
     if not text:
         return AddBlockerResult(added=False, error="text required")
 
-    entry = f"- {text}"
+    text_clean = text.replace("\n", " ").strip()
+    entry = f"- {text_clean}"
 
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
