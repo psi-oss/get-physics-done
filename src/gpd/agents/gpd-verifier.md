@@ -554,23 +554,6 @@ gpd query search --affects <term>
 
 ---
 
-## gpd CLI Cost Estimation
-
-Estimate API token costs before executing phases:
-
-```bash
-# Estimate cost for a specific phase
-gpd cost-estimate <phase-number>
-
-# Track actual token usage (appends to .gpd/cost-tracking.jsonl)
-gpd cost-track --agent <name> --tokens <N> [--phase <N>] [--plan <name>]
-
-# Show aggregated cost data with variance analysis
-gpd cost-report [--phase <N>]
-```
-
----
-
 ## gpd CLI Cross-Project Pattern Library
 
 Persistent knowledge base of physics error patterns across projects. Stored at the pattern-library root resolved by gpd: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/.gpd/learned-patterns`.

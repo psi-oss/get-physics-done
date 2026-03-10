@@ -412,7 +412,6 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-check-todos": "management",
     "gpd-consistency-checker": "verification",
     "gpd-discuss-phase": "planning",
-    "gpd-estimate-cost": "diagnostics",
     "gpd-executor": "execution",
     "gpd-experiment-designer": "planning",
     "gpd-list-phase-assumptions": "planning",

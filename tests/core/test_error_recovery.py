@@ -566,23 +566,6 @@ class TestConfigErrorHandling:
         config = load_config(cwd)
         assert config == GPDProjectConfig()
 
-    def test_removed_cost_per_million_key_raises(self, tmp_path: Path) -> None:
-        """Removed cost_per_million key should raise ConfigError."""
-        cwd = _make_planning(tmp_path)
-        config_path = ProjectLayout(cwd).config_json
-        config_path.write_text(
-            json.dumps({
-                "cost_per_million": {
-                    "tier-1": {"input": "not a number", "output": "bad"},
-                    "tier-2": {"input": 3.0, "output": 15.0},
-                }
-            }),
-            encoding="utf-8",
-        )
-        with pytest.raises(ConfigError, match="`cost_per_million` was removed"):
-            load_config(cwd)
-
-
 # ===================================================================
 # health.py: check_* functions graceful degradation
 # ===================================================================

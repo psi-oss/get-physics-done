@@ -182,14 +182,6 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="`brave_search` was removed"):
             load_config(tmp_path)
 
-    def test_removed_cost_per_million_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps({"cost_per_million": {"tier-1": {"input": 10, "output": 30}}})
-        )
-        with pytest.raises(ConfigError, match="`cost_per_million` was removed"):
-            load_config(tmp_path)
-
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text("{bad json")

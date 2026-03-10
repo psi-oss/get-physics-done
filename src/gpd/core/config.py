@@ -279,8 +279,6 @@ def _removed_config_messages(parsed: dict) -> list[str]:
         messages.append("`depth` was removed; use `research_mode` and `model_profile`")
     if "brave_search" in parsed:
         messages.append("`brave_search` was removed")
-    if "cost_per_million" in parsed:
-        messages.append("`cost_per_million` was removed")
 
     workflow = parsed.get("workflow")
     if isinstance(workflow, dict) and "plan_check" in workflow:

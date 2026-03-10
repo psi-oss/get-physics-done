@@ -646,16 +646,6 @@ Export research results to HTML, LaTeX, or ZIP package.
 Usage: `/gpd:export --format html`
 Usage: `/gpd:export --format all`
 
-**`/gpd:estimate-cost [phase|remaining|all]`**
-Estimate token usage and API cost for phases.
-
-- Per-phase and per-agent-type token breakdown
-- Uses 3-tier model cost data (tier-1/tier-2/tier-3)
-- Accounts for current model profile setting
-
-Usage: `/gpd:estimate-cost 3`
-Usage: `/gpd:estimate-cost remaining`
-
 **`/gpd:error-patterns [category]`**
 View accumulated physics error patterns for this project.
 

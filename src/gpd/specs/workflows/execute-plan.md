@@ -535,14 +535,6 @@ gpd trace stop 2>/dev/null || true
 ```
 </step>
 
-<step name="track_cost">
-Optional token-cost tracking (only if your local build exposes cost commands and the runtime provides token counts):
-
-```bash
-gpd cost-track --phase "${phase}" --plan "${plan}" --agent executor --tokens "${tokens_used:-0}" 2>/dev/null || true
-```
-</step>
-
 <step name="cleanup_checkpoint">
 After successful plan completion, remove the checkpoint tag. See `execute-plan-checkpoints.md` for cleanup rules.
 
