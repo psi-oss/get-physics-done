@@ -279,6 +279,34 @@ class TestInstall:
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert "/custom/venv/bin/python .gemini/hooks/check_update.py" in cmds
 
+    def test_install_rewrites_legacy_arxiv_mcp_server(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "arxiv": {"command": "python", "args": ["-m", "legacy_server"]},
+                        "custom": {"command": "keep"},
+                    }
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+
+        mcp_servers = result["settings"]["mcpServers"]
+        assert "gpd-arxiv" in mcp_servers
+        assert "arxiv" not in mcp_servers
+        assert mcp_servers["custom"]["command"] == "keep"
+
     def test_install_writes_manifest(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()

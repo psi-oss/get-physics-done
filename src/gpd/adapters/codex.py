@@ -619,11 +619,11 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
 
 def _remove_gpd_mcp_toml_sections(content: str) -> str:
     """Remove GPD MCP server sections from TOML content."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+    from gpd.mcp.builtin_servers import GPD_MANAGED_MCP_SERVER_KEYS
 
-    # Remove the header comment and all [mcp_servers.gpd-*] / [mcp_servers.arxiv] sections.
+    # Remove the header comment and all managed GPD MCP sections, including legacy aliases.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
-    for key in GPD_MCP_SERVER_KEYS:
+    for key in GPD_MANAGED_MCP_SERVER_KEYS:
         escaped = re.escape(key)
         # Remove [mcp_servers.key] and [mcp_servers.key.env] sections until the next section.
         content = re.sub(

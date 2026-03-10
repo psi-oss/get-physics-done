@@ -1,5 +1,5 @@
 {
-  "name": "arxiv",
+  "name": "gpd-arxiv",
   "description": "arXiv paper search and retrieval via arxiv-mcp-server. Search for physics papers, fetch abstracts, and download full text.",
   "transport": "stdio",
   "command": "python",
@@ -11,7 +11,7 @@
     "list_papers",
     "read_paper"
   ],
-  "registry_prefix": "arxiv",
+  "registry_prefix": "gpd_arxiv",
   "prerequisites": [
     "Install GPD first: npx github:physicalsuperintelligence/get-physics-done",
     "pip install arxiv-mcp-server"

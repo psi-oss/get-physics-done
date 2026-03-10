@@ -133,7 +133,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         import json as _json
         import sys
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict, remove_legacy_mcp_server_entries
 
         mcp_servers = build_mcp_servers_dict(python_path=sys.executable)
         mcp_count = 0
@@ -155,6 +155,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             existing_mcp = mcp_config.get("mcpServers", {})
             if not isinstance(existing_mcp, dict):
                 existing_mcp = {}
+            remove_legacy_mcp_server_entries(existing_mcp)
             existing_mcp.update(mcp_servers)
             mcp_config["mcpServers"] = existing_mcp
 

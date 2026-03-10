@@ -321,6 +321,35 @@ class TestInstall:
 
         assert (target / "opencode.json").exists()
 
+    def test_install_rewrites_legacy_arxiv_mcp_server(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "mcp": {
+                        "arxiv": {"type": "local", "command": ["python", "-m", "legacy_server"]},
+                        "custom": {"type": "local", "command": ["toolctl"]},
+                    }
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "gpd-arxiv" in config["mcp"]
+        assert "arxiv" not in config["mcp"]
+        assert config["mcp"]["custom"]["command"] == ["toolctl"]
+
     def test_install_writes_manifest(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()

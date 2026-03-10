@@ -70,7 +70,7 @@
         "LOG_LEVEL": "WARNING"
       }
     },
-    "arxiv": {
+    "gpd-arxiv": {
       "command": "/bin/sh",
       "args": [
         "-c",
