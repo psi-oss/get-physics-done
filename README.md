@@ -4,11 +4,11 @@
 
 Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence (PSI)](https://www.psi.inc), released as a community contribution. Built by physicists, for physicists, GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
-For day-to-day usage, see [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md). For package internals, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Inspiration
 
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption helped show that AI-native command workflows can be genuinely useful in practice. GPD takes inspiration from that workflow success while focusing the system specifically on physics research.
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption and companion packages such as `get-shit-done-cc` helped show that AI-native command workflows can be genuinely useful in practice. GPD takes inspiration from that workflow success while focusing the system specifically on physics research.
 
 ## Install
 
@@ -30,6 +30,12 @@ If you want to skip the prompts, pass the runtime and scope directly:
 
 ```bash
 npx github:physicalsuperintelligence/get-physics-done --claude --global
+```
+
+For a project-local install instead of a global one:
+
+```bash
+npx github:physicalsuperintelligence/get-physics-done --codex --local
 ```
 
 ## Supported Runtimes
@@ -56,6 +62,36 @@ GPD guides research in four stages:
 
 Each phase produces real artifacts such as `PROJECT.md`, `ROADMAP.md`, `.tex` derivations, `.py` verification scripts, and figures.
 
+GPD also locks conventions for up to 18 physics fields across a project so notation, sign choices, and verification assumptions stay consistent as phases accumulate.
+
+## How Work Is Structured
+
+GPD's main workflow in `.planning/` is organized like this:
+
+```text
+Project
+└── Milestone (v1.0, v1.1, v2.0, ...)
+    └── Phase (1, 2, 2.1, 3, ...)
+        └── Plan (01-01, 01-02, ...)
+            └── Task
+```
+
+During execution, plans are grouped into waves:
+
+```text
+Wave 1: plans with no unmet dependencies
+Wave 2: plans that depend on wave 1 outputs
+Wave 3: plans that depend on earlier waves
+```
+
+- **Project**: the overall research workspace and its persistent context.
+- **Milestone**: a major research checkpoint such as a paper submission, revision cycle, or result package. One project can have multiple milestones.
+- **Phase**: one coherent chunk of work inside a milestone. Integer phases are planned work; decimal phases like `2.1` are inserted later when urgent work appears.
+- **Plan**: the detailed execution breakdown for a phase, created by `/gpd:plan-phase N`.
+- **Wave**: not a separate top-level planning object, but the execution order inside a phase. Plans in the same wave can run in parallel; later waves depend on earlier ones.
+
+Phase numbers continue across the whole project, so a new milestone may start at `Phase 6` rather than resetting to `Phase 1`.
+
 ## Example
 
 ```text
@@ -69,7 +105,9 @@ GPD will:
 - Produce derivations and Python verification scripts as artifacts
 ```
 
-## Key Commands
+## Key In-Runtime Commands
+
+These commands run inside your installed AI runtime after GPD has been installed there.
 
 | Command | What it does |
 |---------|--------------|
@@ -83,7 +121,7 @@ GPD will:
 
 Use the runtime-specific prefix from the table above if you are on Codex or OpenCode.
 
-## Integrated Session And Pipeline
+## Terminal CLI
 
 The same `gpd` install also includes the session, MCP pipeline, and frame-viewer features. Use the unified CLI from your shell:
 
@@ -94,7 +132,7 @@ gpd pipeline discover "lattice QCD phase transition"
 gpd view
 ```
 
-`gpd session` launches an interactive Claude Code session with MCP orchestration and the standard GPD command surface available inside it. `gpd pipeline` and `gpd view` are regular CLI subcommands you can run directly from the terminal.
+`gpd session` launches an interactive Claude Code-backed session from your shell with MCP orchestration and the standard GPD command surface available inside it. `gpd pipeline` and `gpd view` are regular CLI subcommands you can run directly from the terminal.
 
 ## Requirements
 

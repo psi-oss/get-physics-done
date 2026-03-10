@@ -694,30 +694,23 @@ Parse the output. Build two sets:
 - `completed_phases`: all phases whose status is "Complete".
 - `upcoming_phases`: all phases whose status is NOT "Complete" (i.e., "Ready to plan", "Not started", etc.).
 
-**2. Build the dependency graph:**
+**2. Build a lightweight dependency view from SUMMARY frontmatter:**
 
-```bash
-DEP_GRAPH=$(gpd dependency-graph --format json)
-if [ $? -ne 0 ]; then echo "WARNING: dependency-graph failed — falling back to sequential execution"; fi
-```
+Read phase SUMMARY files directly and extract `provides`, `requires`, and `affects` (including nested `dependency-graph.*` fields when present). Combine that metadata with explicit ROADMAP phase dependencies from step 1.
 
-The JSON output contains:
-
-- `graph` — adjacency list (`source -> [targets]`)
-- `nodes` — per-phase `provides`, `requires`, `affects` arrays
-- `gaps` — any `requires` with no matching `provides`
+If the project has too little frontmatter metadata to infer dependencies reliably, emit a warning and fall back to sequential execution.
 
 **3. Compute the set of all artifacts provided by completed phases:**
 
 ```
-provided_artifacts = union of nodes[phase].provides for every phase in completed_phases
+provided_artifacts = union of provides[phase] for every phase in completed_phases
 ```
 
 **4. Identify unblocked upcoming phases:**
 
 For each phase in `upcoming_phases`:
 
-- Fetch its `requires` from `nodes[phase].requires`.
+- Fetch its `requires` from the SUMMARY metadata you assembled in step 2.
 - If `requires` is empty OR every entry in `requires` is present in `provided_artifacts`, the phase is **unblocked**.
 
 Collect all unblocked phases into `ready_phases`.

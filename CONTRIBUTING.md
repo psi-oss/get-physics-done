@@ -29,7 +29,7 @@ uv run pytest tests/ -v
 
 - Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`.
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
-- Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CHANGELOG.md`, `CONTRIBUTING.md`, and `SECURITY.md`.
+- Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.
 
 ## Pull Request Checklist
@@ -40,4 +40,4 @@ uv run pytest tests/ -v
 
 ## Security
 
-If you find a security issue, do not open a public issue. Follow the process in [`SECURITY.md`](SECURITY.md).
+If you find a security issue, do not open a public issue. Email [security@getphysicsdone.com](mailto:security@getphysicsdone.com).

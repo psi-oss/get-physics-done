@@ -102,13 +102,9 @@ fi
 
    Report status of both phases (complete, partial, unstarted).
 
-3. **Dependency check:** Verify no other phases depend solely on the source phase:
+3. **Dependency check:** Verify no other phases depend solely on the source phase.
 
-   ```bash
-   DEP_GRAPH=$(gpd dependency-graph --format json)
-   ```
-
-   Check if any phase has `requires` pointing to artifacts that only the source provides. These dependencies must be redirected to the target after merge.
+   Inspect SUMMARY frontmatter and ROADMAP dependencies directly. Check whether any other phase has `requires` entries pointing to artifacts that only the source phase provides. Those dependencies must be redirected to the target after the merge. If the dependency picture is nontrivial, reuse the manual graph-building procedure from `workflows/graph.md`.
 
 **Present merge plan to user:**
 

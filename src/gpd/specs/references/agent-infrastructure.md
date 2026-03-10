@@ -302,26 +302,19 @@ gpd health --raw
 
 ## gpd CLI Phase Dependency Graph
 
-Visualize and validate phase dependencies:
+The `gpd dependency-graph` entry exists in the CLI, but it is currently a placeholder and is not implemented. Today, phase dependency graphing is done by combining `gpd roadmap analyze` with SUMMARY frontmatter and `gpd query` lookups.
 
 ```bash
-# Show dependency graph (default: json format; available: json, mermaid, ascii, dot)
-gpd dependency-graph
+# Inspect roadmap structure
+gpd roadmap analyze
 
-# Mermaid diagram format for documentation
-gpd dependency-graph --format mermaid
+# Trace a specific result across phases
+gpd query deps <identifier>
 
-# ASCII visual format
-gpd dependency-graph --format ascii
-
-# DOT (Graphviz) format
-gpd dependency-graph --format dot
-
-# Focus on a single phase's dependencies
-gpd dependency-graph --phase <N>
-
-# Validate dependency consistency (detect cycles, missing phases)
-gpd dependency-graph --validate
+# Search SUMMARY frontmatter by provides/requires/affects
+gpd query search --provides <term>
+gpd query search --requires <term>
+gpd query search --affects <term>
 ```
 
 ---

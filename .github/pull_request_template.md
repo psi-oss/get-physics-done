@@ -15,4 +15,4 @@
 - [ ] Tests pass (`uv run pytest -v`)
 - [ ] Lint clean (`ruff check src/ tests/`)
 - [ ] No secrets or credentials in the diff
-- [ ] CHANGELOG.md updated (if user-facing change)
+- [ ] User-facing docs updated (if behavior or install flow changed)

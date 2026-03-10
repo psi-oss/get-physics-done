@@ -60,7 +60,7 @@ gpd = "gpd.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/physicalsuperintelligence/get-physics-done"
-Documentation = "https://github.com/physicalsuperintelligence/get-physics-done/blob/main/docs/USER-GUIDE.md"
+Documentation = "https://github.com/physicalsuperintelligence/get-physics-done#readme"
 Repository = "https://github.com/physicalsuperintelligence/get-physics-done"
 Issues = "https://github.com/physicalsuperintelligence/get-physics-done/issues"
 Security = "mailto:security@getphysicsdone.com"

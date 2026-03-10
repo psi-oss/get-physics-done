@@ -44,29 +44,16 @@ Construct a directed graph: edges from providers to consumers.
 
 ## Step 3: Generate Graph Visualization
 
-Use `gpd dependency-graph` to produce the graph in the best format for the user:
+There is not yet a supported standalone `gpd dependency-graph` helper. Build the graph directly from `ROADMAP.md` plus SUMMARY frontmatter, then present it in the format that best fits the user's request:
 
-```bash
-# ASCII for terminal display (default)
-gpd dependency-graph --format ascii
-
-# Mermaid for markdown embedding
-gpd dependency-graph --format mermaid
-
-# DOT for Graphviz rendering
-gpd dependency-graph --format dot
-
-# JSON for programmatic use
-gpd dependency-graph --format json
-```
+- ASCII for quick terminal inspection
+- Mermaid for markdown embedding
+- DOT if the user explicitly wants Graphviz-compatible output
+- JSON only if a downstream tool or workflow needs structured graph data
 
 ## Step 4: Validate Dependencies
 
-Run cycle detection and gap analysis:
-
-```bash
-gpd dependency-graph --validate
-```
+Run cycle detection and gap analysis from the graph you assembled manually.
 
 Report: cycles found, unsatisfied requirements, missing plan dependencies, wave ordering gaps.
 

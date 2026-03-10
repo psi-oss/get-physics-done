@@ -210,14 +210,14 @@ Both the lock value and the asserted value are normalized before comparison, so 
 
 The following improvements were made during a comprehensive audit and hardening session:
 
-**New CLI Commands:**
+**New CLI Commands And Workflow Support:**
 - `gpd state validate` — 11-check validation between STATE.md and state.json
 - `gpd convention check` — convention lock vs CONVENTIONS.md consistency
 - `gpd trace start/stop/log/show` — execution trace logging for debugging
 - `gpd cost-estimate` — token budget estimation
 - `gpd cost-track` — post-execution token tracking (JSONL-based)
 - `gpd cost-report` — cost aggregation by agent/phase with variance analysis
-- `gpd dependency-graph` — phase dependency visualization (mermaid/JSON)
+- Manual dependency graph workflow backed by roadmap analysis and SUMMARY frontmatter
 - `gpd validate-return` — validates gpd_return YAML envelope from agent output
 - `gpd health` — comprehensive environment and project health checks
 

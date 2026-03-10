@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 
 
@@ -27,15 +30,38 @@ def _project_script_lines(repo_root: Path) -> list[str]:
     return script_lines
 
 
+def _public_release_version(repo_root: Path) -> str:
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert package_json["version"] == pyproject["project"]["version"]
+    return str(package_json["version"])
+
+
+def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Path, Path]:
+    result = subprocess.run(
+        ["uv", "build", "--out-dir", str(out_dir)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+    wheel = next(out_dir.glob("get_physics_done-*.whl"))
+    sdist = next(out_dir.glob("get_physics_done-*.tar.gz"))
+    return wheel, sdist
+
+
 def test_required_public_release_artifacts_exist() -> None:
     repo_root = _repo_root()
     required = (
         "README.md",
         "LICENSE",
         "CITATION.cff",
-        "CHANGELOG.md",
         "CONTRIBUTING.md",
-        "SECURITY.md",
+        "package.json",
+        "pyproject.toml",
     )
 
     missing = [path for path in required if not (repo_root / path).is_file()]
@@ -48,12 +74,8 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     assert "Physical Superintelligence (PSI)" in readme
     assert "GSD" in readme
+    assert "get-shit-done-cc" in readme
     assert "[Physical Superintelligence (PSI)](https://www.psi.inc)" in readme
-
-    user_guide = (repo_root / "docs/USER-GUIDE.md").read_text(encoding="utf-8")
-    assert "Physical Superintelligence (PSI)" in user_guide
-    assert "GSD" in user_guide
-    assert "get-shit-done-cc" in user_guide
 
 
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
@@ -72,6 +94,19 @@ def test_public_bootstrap_installer_uses_python_cli_without_uv() -> None:
 
     assert "uv" not in content
     assert "gpd.cli" in content
+
+
+def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert 'require("../package.json")' in content
+    assert '["-m", "pip", "--version"]' in content
+    assert "does not have pip available" in content
+    assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
+    assert "==${packageVersion}" in content
+    assert "git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git" not in content
+    assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in content
 
 
 def test_public_cli_surface_is_unified() -> None:
@@ -93,11 +128,24 @@ def test_install_docs_use_only_public_npx_flow() -> None:
         "gpd install",
     )
 
-    for relative_path in ("README.md", "docs/USER-GUIDE.md"):
+    for relative_path in ("README.md",):
         content = (repo_root / relative_path).read_text(encoding="utf-8")
         assert npx_command in content, f"{relative_path} should mention the npx bootstrap installer"
         for marker in disallowed_markers:
             assert marker not in content, f"{relative_path} should not mention {marker!r}"
+
+
+def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -> None:
+    repo_root = _repo_root()
+
+    for relative_path in ("README.md",):
+        content = (repo_root / relative_path).read_text(encoding="utf-8")
+        assert "Node.js with `npm`/`npx`" in content
+        assert "Python 3.11+ with `pip`" in content
+        assert "GitHub and PyPI" in content
+
+    assert not (repo_root / "docs" / "USER-GUIDE.md").exists()
+    assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
 def test_standard_install_includes_viewer_surface_dependencies() -> None:
@@ -109,9 +157,7 @@ def test_standard_install_includes_viewer_surface_dependencies() -> None:
         assert any(item.startswith(dependency) for item in dependencies), f"Missing runtime dependency for {dependency}"
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    user_guide = (repo_root / "docs/USER-GUIDE.md").read_text(encoding="utf-8")
     assert "gpd view" in readme
-    assert "gpd view" in user_guide
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
@@ -161,18 +207,34 @@ def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
             assert marker not in content, f"{relative_path} should not mention {marker!r}"
 
 
-def test_architecture_runtime_formats_match_release_behavior() -> None:
+def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path: Path) -> None:
     repo_root = _repo_root()
-    content = (repo_root / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    version = _public_release_version(repo_root)
+    wheel, sdist = _build_public_release_artifacts(repo_root, tmp_path / "dist")
 
-    assert "`commands/gpd/*.toml`" in content
-    assert "`command/gpd-*.md`" in content
-    assert "| Google Gemini CLI | `GeminiAdapter`" in content
-    assert "| OpenCode          | `OpenCodeAdapter`" in content
+    assert wheel.name == f"get_physics_done-{version}-py3-none-any.whl"
+    assert sdist.name == f"get_physics_done-{version}.tar.gz"
 
+    with zipfile.ZipFile(wheel) as wheel_zip:
+        wheel_names = set(wheel_zip.namelist())
+        assert "gpd/cli.py" in wheel_names
+        assert "gpd/mcp/viewer/cli.py" in wheel_names
+        entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
+        assert "gpd = gpd.cli:app" in entry_points
 
-def test_initial_release_date_matches_launch_plan() -> None:
-    repo_root = _repo_root()
-    changelog = (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+    sdist_prefix = f"get_physics_done-{version}/"
+    with tarfile.open(sdist, "r:gz") as sdist_tar:
+        sdist_names = set(sdist_tar.getnames())
+        assert f"{sdist_prefix}README.md" in sdist_names
+        assert f"{sdist_prefix}docs/USER-GUIDE.md" not in sdist_names
+        assert f"{sdist_prefix}bin/install.js" in sdist_names
+        assert f"{sdist_prefix}package.json" in sdist_names
+        assert f"{sdist_prefix}MANUAL-TEST-PLAN.md" not in sdist_names
 
-    assert "## [0.1.0] - 2026-03-15" in changelog
+        install_js = sdist_tar.extractfile(f"{sdist_prefix}bin/install.js")
+        assert install_js is not None
+        install_content = install_js.read().decode("utf-8")
+        assert 'require("../package.json")' in install_content
+        assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
+        assert "==${packageVersion}" in install_content
+        assert "git+https://github.com/physicalsuperintelligence/get-physics-done.git" not in install_content
