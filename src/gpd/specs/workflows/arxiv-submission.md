@@ -70,6 +70,12 @@ SUBMISSION_DIR="arxiv-submission"
 <step name="validate_latex">
 **Compile LaTeX and check for errors:**
 
+If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript and artifact manifest first:
+
+```bash
+gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
+```
+
 ```bash
 cd "${PAPER_DIR}"
 pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -30

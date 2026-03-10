@@ -10,13 +10,6 @@
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
-  "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-verification",
-      "args": [],
-      "notes": "Requires gpd package installed"
-    }
-  },
   "capabilities": [
     "run_check",
     "get_checklist",
@@ -35,5 +28,12 @@
       "domain": "qft"
     },
     "expect": "contains Ward identities"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-verification",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   }
 }

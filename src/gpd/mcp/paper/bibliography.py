@@ -2,12 +2,17 @@
 
 Creates BibTeX entries from research provenance data, enriches them
 via arXiv APIs, and writes .bib files using pybtex.
+
+The module also exposes machine-readable audit helpers so higher-level
+review and publication workflows can reason about citation quality
+without reparsing BibTeX.
 """
 
 from __future__ import annotations
 
 import logging
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -30,6 +35,38 @@ class CitationSource(BaseModel):
     journal: str = ""
     volume: str = ""
     pages: str = ""
+
+
+CitationResolutionStatus = Literal["provided", "enriched", "incomplete", "failed"]
+CitationVerificationStatus = Literal["verified", "partial", "unverified"]
+
+
+class CitationAuditRecord(BaseModel):
+    """Machine-readable audit record for a citation source."""
+
+    key: str
+    source_type: Literal["paper", "tool", "data", "website"]
+    title: str
+    resolution_status: CitationResolutionStatus
+    verification_status: CitationVerificationStatus
+    verification_sources: list[str] = []
+    canonical_identifiers: list[str] = []
+    missing_core_fields: list[str] = []
+    enriched_fields: list[str] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+
+
+class BibliographyAudit(BaseModel):
+    """Summary audit artifact for a bibliography emission batch."""
+
+    generated_at: str
+    total_sources: int
+    resolved_sources: int
+    partial_sources: int
+    unverified_sources: int
+    failed_sources: int
+    entries: list[CitationAuditRecord]
 
 
 # ---- BibTeX entry creation ----
@@ -110,6 +147,102 @@ def _source_to_entry(source: CitationSource, existing_keys: set[str]) -> tuple[s
     return key, Entry(entry_type, fields)
 
 
+def _core_missing_fields(source: CitationSource) -> list[str]:
+    """Return the minimal fields needed for a trustworthy paper-style citation."""
+    missing: list[str] = []
+    if not source.title.strip():
+        missing.append("title")
+    if not source.authors:
+        missing.append("authors")
+    if not source.year.strip():
+        missing.append("year")
+    return missing
+
+
+def _canonical_identifiers(source: CitationSource) -> list[str]:
+    """Return normalized identifiers usable by audit/reporting layers."""
+    identifiers: list[str] = []
+    if source.doi:
+        identifiers.append(f"doi:{source.doi}")
+    if source.arxiv_id:
+        identifiers.append(f"arxiv:{source.arxiv_id}")
+    if source.url:
+        identifiers.append(f"url:{source.url}")
+    return identifiers
+
+
+def audit_citation_source(
+    source: CitationSource,
+    existing_keys: set[str] | None = None,
+    *,
+    enrich: bool = True,
+) -> tuple[CitationSource, CitationAuditRecord]:
+    """Audit one source and optionally enrich it before bibliography emission."""
+    existing = existing_keys or set()
+    original_missing = _core_missing_fields(source)
+    resolved = source
+    resolution_status: CitationResolutionStatus = "provided"
+    verification_status: CitationVerificationStatus = "unverified"
+    verification_sources: list[str] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+    enriched_fields: list[str] = []
+
+    if original_missing:
+        resolution_status = "incomplete"
+
+    should_enrich = bool(enrich and source.arxiv_id and original_missing)
+    if should_enrich:
+        try:
+            resolved = enrich_from_arxiv(source)
+        except Exception as exc:
+            resolution_status = "failed"
+            errors.append(str(exc))
+        else:
+            verification_sources.append("arXiv")
+            enriched_fields = [
+                field
+                for field in ("title", "authors", "year")
+                if (
+                    (field == "authors" and not getattr(source, field) and getattr(resolved, field))
+                    or (field != "authors" and not str(getattr(source, field)).strip() and str(getattr(resolved, field)).strip())
+                )
+            ]
+            resolution_status = "enriched" if not _core_missing_fields(resolved) else "incomplete"
+            verification_status = "verified" if resolution_status == "enriched" else "partial"
+
+    missing_after = _core_missing_fields(resolved)
+    identifiers = _canonical_identifiers(resolved)
+
+    if resolution_status == "provided":
+        if missing_after:
+            resolution_status = "incomplete"
+        elif identifiers:
+            verification_status = "partial"
+            warnings.append("Canonical identifiers were provided by the caller but not externally verified")
+
+    if resolution_status == "incomplete" and not errors:
+        warnings.append(f"Missing core citation fields: {', '.join(missing_after)}")
+    if not identifiers:
+        warnings.append("No canonical identifier available")
+
+    key = _create_bib_key(resolved, existing)
+    record = CitationAuditRecord(
+        key=key,
+        source_type=resolved.source_type,
+        title=resolved.title,
+        resolution_status=resolution_status,
+        verification_status=verification_status,
+        verification_sources=verification_sources,
+        canonical_identifiers=identifiers,
+        missing_core_fields=missing_after,
+        enriched_fields=enriched_fields,
+        warnings=warnings,
+        errors=errors,
+    )
+    return resolved, record
+
+
 def bibliography_entries_from_sources(sources: list[CitationSource]) -> list[tuple[str, Entry]]:
     """Build ordered `(key, entry)` pairs for citation sources.
 
@@ -145,6 +278,12 @@ def write_bib_file(bib_data: BibliographyData, output_path: Path) -> None:
     """Write a .bib file using pybtex."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bib_data.to_file(str(output_path), "bibtex")
+
+
+def write_bibliography_audit(audit: BibliographyAudit, output_path: Path) -> None:
+    """Write a machine-readable bibliography audit artifact as JSON."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(audit.model_dump_json(indent=2), encoding="utf-8")
 
 
 # ---- arXiv metadata to BibTeX ----
@@ -184,6 +323,36 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
 # ---- Orchestrator ----
 
 
+def build_bibliography_with_audit(
+    sources: list[CitationSource],
+    enrich: bool = True,
+) -> tuple[BibliographyData, BibliographyAudit]:
+    """Build both the BibTeX payload and a machine-readable audit artifact."""
+    audited_sources: list[CitationSource] = []
+    audit_entries: list[CitationAuditRecord] = []
+    existing_keys: set[str] = set()
+
+    for source in sources:
+        resolved, audit_record = audit_citation_source(source, existing_keys, enrich=enrich)
+        audited_sources.append(resolved)
+        audit_entries.append(audit_record)
+        existing_keys.add(audit_record.key)
+
+    bib = create_bibliography(audited_sources)
+    audit = BibliographyAudit(
+        generated_at=datetime.now(UTC).isoformat(),
+        total_sources=len(audit_entries),
+        resolved_sources=sum(
+            1 for entry in audit_entries if entry.resolution_status in {"provided", "enriched"}
+        ),
+        partial_sources=sum(1 for entry in audit_entries if entry.verification_status == "partial"),
+        unverified_sources=sum(1 for entry in audit_entries if entry.verification_status == "unverified"),
+        failed_sources=sum(1 for entry in audit_entries if entry.resolution_status == "failed"),
+        entries=audit_entries,
+    )
+    return bib, audit
+
+
 def build_bibliography(sources: list[CitationSource], enrich: bool = True) -> BibliographyData:
     """Build a BibliographyData from citation sources with optional enrichment.
 
@@ -193,9 +362,5 @@ def build_bibliography(sources: list[CitationSource], enrich: bool = True) -> Bi
         sources: List of citation sources from the provenance chain.
         enrich: If True, attempt arXiv enrichment for incomplete sources.
     """
-    enriched = list(sources)
-
-    if enrich:
-        enriched = [enrich_from_arxiv(s) if s.arxiv_id else s for s in enriched]
-
-    return create_bibliography(enriched)
+    bib, _audit = build_bibliography_with_audit(sources, enrich=enrich)
+    return bib

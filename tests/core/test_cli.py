@@ -8,7 +8,8 @@ be fully ported yet and have their own test suites.
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -50,6 +51,7 @@ def test_help():
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
+    assert "paper-build" in result.output
 
 
 def test_state_help():
@@ -348,6 +350,56 @@ def test_init_new_project(mock_init):
     result = runner.invoke(app, ["init", "new-project"])
     assert result.exit_code == 0
     mock_init.assert_called_once()
+
+
+def test_paper_build_uses_default_config_surface(tmp_path: Path):
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [{"path": "figures/plot.png", "caption": "Plot", "label": "plot"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    references_dir = tmp_path / "references"
+    references_dir.mkdir()
+    (references_dir / "references.bib").write_text(
+        "@article{einstein1905,\n  author={Einstein, Albert},\n  title={Relativity},\n  year={1905}\n}\n",
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./paper"
+    assert payload["tex_path"] == "./paper/main.tex"
+    assert payload["bibliography_source"] == "./references/references.bib"
+    assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
+    assert payload["pdf_path"] == "./paper/main.pdf"
+
+    args = mock_build.await_args.args
+    kwargs = mock_build.await_args.kwargs
+    assert args[1] == paper_dir.resolve(strict=False)
+    assert args[0].figures[0].path == (paper_dir / "figures" / "plot.png").resolve(strict=False)
+    assert kwargs["bib_data"] is not None
+    assert kwargs["citation_sources"] is None
+    assert kwargs["enrich_bibliography"] is True
 
 
 # ─── ported command subcommands ─────────────────────────────────────────────

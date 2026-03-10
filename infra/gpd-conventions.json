@@ -10,13 +10,6 @@
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
-  "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-conventions",
-      "args": [],
-      "notes": "Requires gpd package installed"
-    }
-  },
   "capabilities": [
     "convention_lock_status",
     "convention_set",
@@ -35,5 +28,12 @@
       "domain": "qft"
     },
     "expect": "contains metric_signature"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-conventions",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   }
 }

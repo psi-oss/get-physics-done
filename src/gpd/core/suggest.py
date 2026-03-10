@@ -178,25 +178,19 @@ def _is_verification_file(name: str) -> bool:
 
 
 def _load_config(cwd: Path) -> dict[str, object]:
-    """Load project config.json with defaults. Returns flat dict with autonomy & research_mode.
+    """Load project config.json, preserving canonical validation behavior.
 
-    Delegates to :func:`gpd.core.config.load_config` (the canonical loader)
-    which validates the current config schema and nested config sections.
-    Falls back to built-in defaults when the config file doesn't exist yet.
+    Missing config files still resolve to defaults via
+    :func:`gpd.core.config.load_config`. Malformed files and removed keys are
+    intentionally surfaced to callers instead of being silently masked here.
     """
-    try:
-        from gpd.core.config import load_config as _load_config_canonical
+    from gpd.core.config import load_config as _load_config_canonical
 
-        cfg = _load_config_canonical(cwd)
-        return {
-            "autonomy": str(cfg.autonomy.value),
-            "research_mode": str(cfg.research_mode.value),
-        }
-    except (FileNotFoundError, OSError):
-        return dict(_CONFIG_DEFAULTS)
-    except ImportError:
-        logger.warning("suggest: config module not available, using defaults", exc_info=True)
-        return dict(_CONFIG_DEFAULTS)
+    cfg = _load_config_canonical(cwd)
+    return {
+        "autonomy": str(cfg.autonomy.value),
+        "research_mode": str(cfg.research_mode.value),
+    }
 
 
 def _format_command(action: str) -> str:

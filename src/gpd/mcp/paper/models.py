@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from gpd.mcp.paper.bibliography import BibliographyAudit
 
 
 class Author(BaseModel):
@@ -31,6 +34,35 @@ class FigureRef(BaseModel):
     label: str
     width: str = r"\columnwidth"
     double_column: bool = False
+
+
+class ArtifactSourceRef(BaseModel):
+    """A source artifact or upstream input associated with an emitted paper artifact."""
+
+    path: str
+    role: str = ""
+
+
+class ArtifactRecord(BaseModel):
+    """Machine-readable record for an emitted paper artifact."""
+
+    artifact_id: str
+    category: Literal["tex", "bib", "figure", "pdf", "audit"]
+    path: str
+    sha256: str
+    produced_by: str
+    sources: list[ArtifactSourceRef] = Field(default_factory=list)
+    metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+
+class ArtifactManifest(BaseModel):
+    """Manifest describing the concrete paper artifacts emitted by the build."""
+
+    version: int = 1
+    paper_title: str
+    journal: str
+    created_at: str
+    artifacts: list[ArtifactRecord] = Field(default_factory=list)
 
 
 class JournalSpec(BaseModel):
@@ -73,5 +105,9 @@ class PaperOutput(BaseModel):
     bib_content: str
     figures_dir: Path | None = None
     pdf_path: Path | None = None
+    bibliography_audit_path: Path | None = None
+    bibliography_audit: BibliographyAudit | None = None
+    manifest_path: Path | None = None
+    manifest: ArtifactManifest | None = None
     success: bool
     errors: list[str] = Field(default_factory=list)

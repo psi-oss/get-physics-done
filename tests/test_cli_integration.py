@@ -442,6 +442,9 @@ class TestConfigCommands:
         assert config["parallelization"] is True
         assert config["workflow"]["plan_checker"] is True
         assert config["git"]["branching_strategy"] == "none"
+        assert "brave_search" not in config
+        assert "search_gitignored" not in config
+        assert "cost_per_million" not in config
 
     def test_config_help(self) -> None:
         result = _invoke("config", "--help")

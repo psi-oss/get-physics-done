@@ -10,13 +10,6 @@
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
-  "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-state",
-      "args": [],
-      "notes": "Requires gpd package installed"
-    }
-  },
   "capabilities": [
     "get_state",
     "get_phase_info",
@@ -36,5 +29,12 @@
       "project_dir": "."
     },
     "expect": "contains model_profile"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-state",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   }
 }

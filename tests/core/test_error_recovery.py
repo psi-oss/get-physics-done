@@ -566,8 +566,8 @@ class TestConfigErrorHandling:
         config = load_config(cwd)
         assert config == GPDProjectConfig()
 
-    def test_cost_per_million_bad_values_ignored(self, tmp_path: Path) -> None:
-        """Invalid cost_per_million entries are silently skipped."""
+    def test_removed_cost_per_million_key_raises(self, tmp_path: Path) -> None:
+        """Removed cost_per_million key should raise ConfigError."""
         cwd = _make_planning(tmp_path)
         config_path = ProjectLayout(cwd).config_json
         config_path.write_text(
@@ -579,11 +579,8 @@ class TestConfigErrorHandling:
             }),
             encoding="utf-8",
         )
-        config = load_config(cwd)
-        # tier-1 should be dropped, tier-2 should be kept
-        assert config.cost_per_million is not None
-        assert "tier-2" in config.cost_per_million
-        assert "tier-1" not in config.cost_per_million
+        with pytest.raises(ConfigError, match="`cost_per_million` was removed"):
+            load_config(cwd)
 
 
 # ===================================================================

@@ -253,6 +253,8 @@ def test_claude_sdk_is_not_shipped_in_public_install() -> None:
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
+    from gpd.mcp.builtin_servers import build_public_descriptors
+
     repo_root = _repo_root()
     expected = "npx -y github:physicalsuperintelligence/get-physics-done"
     stale_markers = (
@@ -260,12 +262,18 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
         "uv pip install -e",
         "pip install -e packages/gpd",
     )
+    expected_descriptors = build_public_descriptors()
 
     for path in sorted((repo_root / "infra").glob("gpd-*.json")):
         content = path.read_text(encoding="utf-8")
         assert expected in content, f"{path.name} should reference the public bootstrap flow"
         for marker in stale_markers:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
+        assert json.loads(content) == expected_descriptors[path.stem]
+
+    assert {
+        path.stem for path in (repo_root / "infra").glob("gpd-*.json")
+    } == set(expected_descriptors)
 
 
 def test_contributing_docs_cover_release_validation_flow() -> None:

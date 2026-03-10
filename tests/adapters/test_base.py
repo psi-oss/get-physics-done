@@ -132,7 +132,7 @@ class TestUninstallBase:
 
 
 class TestAdapterConformance:
-    """Verify all adapters implement the full ABC interface."""
+    """Verify all adapters implement the runtime-facing interface."""
 
     @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_has_required_properties(self, runtime: str) -> None:
@@ -146,10 +146,6 @@ class TestAdapterConformance:
     @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
     def test_has_required_methods(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
-        assert callable(adapter.translate_tool_name)
-        assert callable(adapter.generate_command)
-        assert callable(adapter.generate_agent)
-        assert callable(adapter.generate_hook)
         assert callable(adapter.install)
         assert callable(adapter.uninstall)
 

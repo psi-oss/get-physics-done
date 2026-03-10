@@ -159,11 +159,6 @@ def translate_for_runtime(name: str, runtime: str) -> str | None:
     return translate(canon, runtime)
 
 
-def translate_list(names: list[str], runtime: str) -> list[str]:
-    """Translate a list of tool names to a runtime."""
-    return [translate(n, runtime) for n in names]
-
-
 def reference_translation_map(runtime: str) -> dict[str, str]:
     """Build a source-to-runtime mapping for prompt body tool references."""
     mapping: dict[str, str | None] = {
@@ -184,5 +179,4 @@ __all__ = [
     "reference_translation_map",
     "translate",
     "translate_for_runtime",
-    "translate_list",
 ]

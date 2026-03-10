@@ -20,8 +20,6 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.tool_names import CLAUDE_CODE, canonical
-
 logger = logging.getLogger(__name__)
 
 
@@ -50,40 +48,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         if env:
             return Path(env).expanduser()
         return Path.home() / ".claude"
-
-    def translate_tool_name(self, canonical_name: str) -> str:
-        canon = canonical(canonical_name)
-        return CLAUDE_CODE.get(canon, canon)
-
-    def generate_command(self, command_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Claude Code skill .md file from a GPD command definition."""
-        name = str(command_def["name"])
-        content = str(command_def.get("content", ""))
-        commands_dir = target_dir / "commands"
-        commands_dir.mkdir(parents=True, exist_ok=True)
-        out_path = commands_dir / f"{name}.md"
-        out_path.write_text(content, encoding="utf-8")
-        return out_path
-
-    def generate_agent(self, agent_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Claude Code agent .md file."""
-        name = str(agent_def["name"])
-        content = str(agent_def.get("content", ""))
-        agents_dir = target_dir / "agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
-        out_path = agents_dir / f"{name}.md"
-        out_path.write_text(content, encoding="utf-8")
-        return out_path
-
-    def generate_hook(self, hook_name: str, hook_config: dict[str, object]) -> dict[str, object]:
-        """Generate a Claude Code hooks.json entry."""
-        event = str(hook_config.get("event", "Notification"))
-        command = str(hook_config.get("command", ""))
-        matcher = hook_config.get("matcher")
-        entry: dict[str, object] = {"command": command}
-        if matcher:
-            entry["matcher"] = str(matcher)
-        return {"hooks": {event: [entry]}}
 
     # --- Template method hooks ---
 

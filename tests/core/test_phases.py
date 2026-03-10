@@ -28,6 +28,7 @@ from gpd.core.phases import (
     progress_render,
     roadmap_analyze,
     roadmap_get_phase,
+    validate_phase_waves,
     validate_waves,
 )
 from gpd.core.state import default_state_dict, generate_state_markdown
@@ -849,7 +850,7 @@ def test_phase_plan_index_basic(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
     (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\n---\n## Task 1\nDo stuff")
-    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\n---\n## Task 1\nMore stuff")
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: [a]\n---\n## Task 1\nMore stuff")
 
     result = phase_plan_index(tmp_path, "1")
     assert result.phase == "01"
@@ -857,6 +858,27 @@ def test_phase_plan_index_basic(tmp_path: Path) -> None:
     assert "1" in result.waves
     assert "2" in result.waves
     assert result.validation.valid is True
+
+
+def test_phase_plan_index_rejects_scalar_dependency_fields(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\nfiles_modified: []\n---\n## Task 1\nDo stuff")
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\nfiles_modified: []\n---\n## Task 1\nMore stuff")
+
+    result = phase_plan_index(tmp_path, "1")
+    assert result.validation.valid is False
+    assert any("depends_on" in error for error in result.validation.errors)
+
+
+def test_validate_phase_waves_reports_malformed_frontmatter(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    phase_dir = _create_phase_dir(tmp_path, "01-setup")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: [\n---\n## Task 1\nDo stuff")
+
+    result = validate_phase_waves(tmp_path, "1")
+    assert result.validation.valid is False
+    assert any("a-PLAN.md" in error for error in result.validation.errors)
 
 
 def test_phase_plan_index_not_found(tmp_path: Path) -> None:

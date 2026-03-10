@@ -3,16 +3,12 @@
   "description": "Physics computation protocols for GPD research workflows. Provides step-by-step methodology, verification checkpoints, and auto-routing for 47 physics domains.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "gpd.mcp.servers.protocols_server"],
+  "args": [
+    "-m",
+    "gpd.mcp.servers.protocols_server"
+  ],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
-  "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-protocols",
-      "args": [],
-      "notes": "Requires gpd package installed"
-    }
   },
   "capabilities": [
     "get_protocol",
@@ -28,5 +24,12 @@
     "tool": "list_protocols",
     "input": {},
     "expect": "count >= 40 protocols loaded"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-protocols",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   }
 }

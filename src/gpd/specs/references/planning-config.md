@@ -6,8 +6,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 
 ```json
 "planning": {
-  "commit_docs": true,
-  "search_gitignored": false
+  "commit_docs": true
 },
 "autonomy": "guided",
 "research_mode": "balanced",
@@ -36,7 +35,6 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | Option                          | Default                      | Description                                                                                    |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
-| `search_gitignored`             | `false`                      | Add `--no-ignore` to broad rg searches                                                         |
 | `autonomy`                      | `"guided"`                   | Human-in-the-loop level: `"supervised"`, `"guided"`, `"autonomous"`, `"yolo"`                  |
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
 | `parallelization`               | `true`                       | Execute plans within a wave in parallel (`true`) or sequentially (`false`)                     |
@@ -179,23 +177,6 @@ Individual phases can override this for specific calculations that need tighter 
 
 </physics_config_behavior>
 
-<search_behavior>
-
-**When `search_gitignored: false` (default):**
-
-- Standard rg behavior (respects .gitignore)
-- Direct path searches work: `rg "pattern" .gpd/` finds files
-- Broad searches skip gitignored: `rg "pattern"` skips `.gpd/`
-
-**When `search_gitignored: true`:**
-
-- Add `--no-ignore` to broad rg searches that should include `.gpd/`
-- Only needed when searching entire repo and expecting `.gpd/` matches
-
-**Note:** Most GPD operations use direct file reads or explicit paths, which work regardless of gitignore status.
-
-</search_behavior>
-
 <setup_uncommitted_mode>
 
 To use uncommitted mode:
@@ -204,8 +185,7 @@ To use uncommitted mode:
 
    ```json
    "planning": {
-     "commit_docs": false,
-     "search_gitignored": true
+     "commit_docs": false
    }
    ```
 

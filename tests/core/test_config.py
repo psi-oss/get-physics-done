@@ -14,7 +14,6 @@ from gpd.core.config import (
     ModelProfile,
     ModelTier,
     ResearchMode,
-    get_cost_per_million,
     load_config,
     resolve_agent_tier,
     resolve_model,
@@ -90,11 +89,9 @@ class TestGPDProjectConfigDefaults:
         assert cfg.autonomy == AutonomyMode.GUIDED
         assert cfg.research_mode == ResearchMode.BALANCED
         assert cfg.commit_docs is True
-        assert cfg.search_gitignored is False
         assert cfg.parallelization is True
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_map is None
-        assert cfg.cost_per_million is None
 
 
 # ─── load_config ────────────────────────────────────────────────────────────────
@@ -134,7 +131,7 @@ class TestLoadConfig:
         (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
-                    "planning": {"commit_docs": False, "search_gitignored": True},
+                    "planning": {"commit_docs": False},
                     "git": {"branching_strategy": "per-phase"},
                     "workflow": {"research": False, "verifier": False},
                 }
@@ -142,7 +139,6 @@ class TestLoadConfig:
         )
         cfg = load_config(tmp_path)
         assert cfg.commit_docs is False
-        assert cfg.search_gitignored is True
         assert cfg.branching_strategy == BranchingStrategy.PER_PHASE
         assert cfg.research is False
         assert cfg.verifier is False
@@ -174,6 +170,26 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="`workflow.plan_check` was removed; use `workflow.plan_checker`"):
             load_config(tmp_path)
 
+    def test_removed_search_gitignored_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"planning": {"search_gitignored": True}}))
+        with pytest.raises(ConfigError, match="`planning.search_gitignored` was removed"):
+            load_config(tmp_path)
+
+    def test_removed_brave_search_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"brave_search": True}))
+        with pytest.raises(ConfigError, match="`brave_search` was removed"):
+            load_config(tmp_path)
+
+    def test_removed_cost_per_million_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps({"cost_per_million": {"tier-1": {"input": 10, "output": 30}}})
+        )
+        with pytest.raises(ConfigError, match="`cost_per_million` was removed"):
+            load_config(tmp_path)
+
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text("{bad json")
@@ -191,22 +207,6 @@ class TestLoadConfig:
         )
         cfg = load_config(tmp_path)
         assert cfg.model_map == {"tier-1": "o3", "tier-2": "gpt-4.1"}
-
-    def test_cost_per_million_override(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "cost_per_million": {
-                        "tier-1": {"input": 10, "output": 30},
-                    },
-                }
-            )
-        )
-        cfg = load_config(tmp_path)
-        assert cfg.cost_per_million is not None
-        assert cfg.cost_per_million["tier-1"].input == 10.0
-
 
 # ─── resolve_agent_tier ─────────────────────────────────────────────────────────
 
@@ -249,30 +249,3 @@ class TestResolveModel:
         )
         model = resolve_model(tmp_path, "gpd-planner")
         assert model == "opus"
-
-
-# ─── get_cost_per_million ───────────────────────────────────────────────────────
-
-
-class TestGetCostPerMillion:
-    def test_defaults(self):
-        costs = get_cost_per_million()
-        assert "tier-1" in costs
-        assert costs["tier-1"].input == 15.0
-        assert costs["tier-1"].output == 75.0
-
-    def test_project_override(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
-            json.dumps(
-                {
-                    "cost_per_million": {
-                        "tier-1": {"input": 10, "output": 30},
-                    },
-                }
-            )
-        )
-        costs = get_cost_per_million(tmp_path)
-        assert costs["tier-1"].input == 10.0
-        # tier-2 falls back to default
-        assert costs["tier-2"].input == 3.0

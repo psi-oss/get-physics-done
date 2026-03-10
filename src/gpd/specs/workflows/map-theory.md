@@ -16,7 +16,7 @@ Output: .gpd/research-map/ folder with 7 structured documents covering theoretic
 **Document quality over length:**
 Include enough detail to be useful as reference. Prioritize practical examples (key equations, code patterns, data formats) over arbitrary brevity.
 
-**Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). See the gpd-theory-mapper agent for the full template list.
+**Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). These paths are deterministic across runtimes after install; if they are missing, treat that as a broken install and fall back to the agent's built-in structural guidance rather than searching alternate runtime-specific locations.
 
 **Always include file paths:**
 Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/main.tex`.

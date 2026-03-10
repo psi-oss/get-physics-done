@@ -35,18 +35,6 @@ class TestProperties:
         assert adapter.help_command == "/gpd:help"
 
 
-class TestTranslateToolName:
-    def test_canonical_to_gemini(self, adapter: GeminiAdapter) -> None:
-        assert adapter.translate_tool_name("file_read") == "read_file"
-        assert adapter.translate_tool_name("shell") == "run_shell_command"
-        assert adapter.translate_tool_name("search_files") == "search_file_content"
-        assert adapter.translate_tool_name("web_search") == "google_web_search"
-
-    def test_runtime_native_alias(self, adapter: GeminiAdapter) -> None:
-        assert adapter.translate_tool_name("Read") == "read_file"
-        assert adapter.translate_tool_name("Bash") == "run_shell_command"
-
-
 class TestConvertGeminiToolName:
     def test_known_mappings(self) -> None:
         assert _convert_gemini_tool_name("Read") == "read_file"
@@ -162,39 +150,6 @@ class TestConvertToGeminiToml:
         assert "prompt" in result
         # The prompt is JSON-encoded, not wrapped in '''
         assert "prompt = '''" not in result
-
-
-class TestGenerateCommand:
-    def test_creates_toml_file(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_command(
-            {"name": "help", "content": "---\ndescription: Help\n---\nHelp body"},
-            tmp_path,
-        )
-        assert result == tmp_path / "commands" / "help.toml"
-        assert result.exists()
-        content = result.read_text(encoding="utf-8")
-        assert "prompt" in content
-
-    def test_creates_commands_dir(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
-        adapter.generate_command({"name": "test", "content": "body"}, tmp_path)
-        assert (tmp_path / "commands").is_dir()
-
-
-class TestGenerateAgent:
-    def test_creates_md_with_converted_frontmatter(self, adapter: GeminiAdapter, tmp_path: Path) -> None:
-        content = "---\nname: gpd-verifier\nallowed-tools:\n  - Read\n  - Bash\ncolor: green\n---\nPrompt"
-        result = adapter.generate_agent({"name": "gpd-verifier", "content": content}, tmp_path)
-        assert result == tmp_path / "agents" / "gpd-verifier.md"
-        text = result.read_text(encoding="utf-8")
-        assert "color:" not in text
-        assert "tools:" in text
-        assert "read_file" in text
-
-
-class TestGenerateHook:
-    def test_format_matches_claude_code(self, adapter: GeminiAdapter) -> None:
-        result = adapter.generate_hook("test", {"event": "SessionStart", "command": "echo hi"})
-        assert result == {"hooks": {"SessionStart": [{"command": "echo hi"}]}}
 
 
 class TestInstall:

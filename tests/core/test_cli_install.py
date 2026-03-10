@@ -353,26 +353,7 @@ def test_uninstall_raw_outputs_json(tmp_path: Path):
 
 
 def test_install_single_runtime_passes_is_global(tmp_path: Path):
-    """_install_single_runtime passes is_global to adapters that accept it."""
-    from gpd.adapters.claude_code import ClaudeCodeAdapter
-
-    # Use wraps= to preserve the real method signature for inspect.signature
-    captured_kwargs: dict[str, object] = {}
-
-    def spy_install(self, gpd_root, target_dir, **kwargs):
-        captured_kwargs.update(kwargs)
-        return {"runtime": "claude-code", "commands": 0, "agents": 0}
-
-    with (
-        patch.object(ClaudeCodeAdapter, "install", spy_install),
-        patch("gpd.cli._get_cwd", return_value=tmp_path),
-    ):
-        # Need to also ensure inspect.signature sees the real signature
-        # Since we replace with a different function, re-check the approach
-        pass
-
-    # Better approach: test via the actual adapter with a real gpd_root
-    # Verify compute_path_prefix gets is_global=True for global installs
+    """compute_path_prefix still distinguishes global vs local installs."""
     from gpd.adapters.install_utils import compute_path_prefix
 
     # Global install should produce absolute path prefix
@@ -401,8 +382,8 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
         def resolve_target_dir(self, is_global, cwd=None):
             return tmp_path / ".claude"
 
-        def install(self, gpd_root, target_dir, *, is_global=False):
-            captured_calls.append({"is_global": is_global})
+        def install(self, gpd_root, target_dir, *, is_global=False, explicit_target=False):
+            captured_calls.append({"is_global": is_global, "explicit_target": explicit_target})
             return {"runtime": "claude-code", "commands": 0, "agents": 0}
 
     with (
@@ -413,6 +394,7 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
 
     assert len(captured_calls) == 1
     assert captured_calls[0]["is_global"] is True
+    assert captured_calls[0]["explicit_target"] is False
 
     captured_calls.clear()
     with (
@@ -423,6 +405,7 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
 
     assert len(captured_calls) == 1
     assert captured_calls[0]["is_global"] is False
+    assert captured_calls[0]["explicit_target"] is False
 
 
 def test_install_single_runtime_marks_explicit_target(tmp_path: Path):

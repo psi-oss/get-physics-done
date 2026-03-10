@@ -26,9 +26,8 @@ logger = logging.getLogger(__name__)
 class RuntimeAdapter(abc.ABC):
     """Abstract base for GPD runtime adapters.
 
-    Each adapter knows how to generate configuration files, skill definitions,
-    agent definitions, and hook scripts for a specific AI agent
-    (Claude Code, Codex, Gemini CLI, OpenCode).
+    Each adapter knows how to install GPD content and runtime configuration
+    for a specific AI agent (Claude Code, Codex, Gemini CLI, OpenCode).
 
     The ``install()`` method implements a **template method** pattern:
     ``_validate → _compute_path_prefix → _pre_cleanup → _install_commands →
@@ -67,31 +66,6 @@ class RuntimeAdapter(abc.ABC):
         environment variable precedence chains (XDG, etc.).
         """
         return Path.home() / self.config_dir_name
-
-    @abc.abstractmethod
-    def translate_tool_name(self, canonical_name: str) -> str:
-        """Convert a canonical GPD tool name to this runtime's equivalent."""
-
-    @abc.abstractmethod
-    def generate_command(self, command_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a command/skill file from a GPD command definition.
-
-        Returns the path to the generated file.
-        """
-
-    @abc.abstractmethod
-    def generate_agent(self, agent_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate an agent definition file.
-
-        Returns the path to the generated file.
-        """
-
-    @abc.abstractmethod
-    def generate_hook(self, hook_name: str, hook_config: dict[str, object]) -> dict[str, object]:
-        """Generate a hook configuration entry for this runtime.
-
-        Returns a dict suitable for merging into the runtime's hook config.
-        """
 
     # ---------------------------------------------------------------------------
     # Template method: install pipeline

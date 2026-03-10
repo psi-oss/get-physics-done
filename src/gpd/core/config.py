@@ -6,22 +6,18 @@ Layer 1 code: stdlib + pydantic only.
 from __future__ import annotations
 
 import json
-import logging
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
 from gpd.core.errors import ConfigError
 from gpd.core.observability import instrument_gpd_function
 
-logger = logging.getLogger(__name__)
-
 __all__ = [
     "AGENT_DEFAULT_TIERS",
     "ConfigError",
-    "DEFAULT_COST_PER_MILLION",
     "MODEL_PROFILES",
     "AutonomyMode",
     "BranchingStrategy",
@@ -29,8 +25,6 @@ __all__ = [
     "ModelProfile",
     "ModelTier",
     "ResearchMode",
-    "TierCost",
-    "get_cost_per_million",
     "load_config",
     "resolve_agent_tier",
     "resolve_model",
@@ -229,25 +223,6 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     "gpd-notation-coordinator": ModelTier.TIER_2,
 }
 
-# ─── Cost Defaults ──────────────────────────────────────────────────────────────
-
-
-class TierCost(BaseModel):
-    """Cost per million tokens for a single tier."""
-
-    model_config = ConfigDict(frozen=True)
-
-    input: float
-    output: float
-
-
-# Default pricing per million tokens (provider-agnostic tier defaults)
-DEFAULT_COST_PER_MILLION: dict[str, TierCost] = {
-    "tier-1": TierCost(input=15.0, output=75.0),
-    "tier-2": TierCost(input=3.0, output=15.0),
-    "tier-3": TierCost(input=0.25, output=1.25),
-}
-
 # ─── Config Model ───────────────────────────────────────────────────────────────
 
 
@@ -265,12 +240,10 @@ class GPDProjectConfig(BaseModel):
 
     # Workflow toggles
     commit_docs: bool = True
-    search_gitignored: bool = False
     research: bool = True
     plan_checker: bool = True
     verifier: bool = True
     parallelization: bool = True
-    brave_search: bool = False
 
     # Git settings
     branching_strategy: BranchingStrategy = BranchingStrategy.NONE
@@ -279,7 +252,6 @@ class GPDProjectConfig(BaseModel):
 
     # Optional overrides
     model_map: dict[str, str] | None = Field(default=None)
-    cost_per_million: dict[str, TierCost] | None = Field(default=None)
 
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
@@ -305,10 +277,20 @@ def _removed_config_messages(parsed: dict) -> list[str]:
         messages.append("`mode` was removed; use `autonomy`")
     if "depth" in parsed:
         messages.append("`depth` was removed; use `research_mode` and `model_profile`")
+    if "brave_search" in parsed:
+        messages.append("`brave_search` was removed")
+    if "cost_per_million" in parsed:
+        messages.append("`cost_per_million` was removed")
 
     workflow = parsed.get("workflow")
     if isinstance(workflow, dict) and "plan_check" in workflow:
         messages.append("`workflow.plan_check` was removed; use `workflow.plan_checker`")
+
+    planning = parsed.get("planning")
+    if isinstance(planning, dict) and "search_gitignored" in planning:
+        messages.append("`planning.search_gitignored` was removed")
+    if "search_gitignored" in parsed:
+        messages.append("`search_gitignored` was removed")
 
     if isinstance(parsed.get("parallelization"), dict):
         messages.append("`parallelization.enabled` object form was removed; set `parallelization` to true or false")
@@ -364,10 +346,6 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
                 _get_nested(parsed, "commit_docs", section="planning", field="commit_docs"),
                 _CONFIG_DEFAULTS.commit_docs,
             ),
-            search_gitignored=_coalesce(
-                _get_nested(parsed, "search_gitignored", section="planning", field="search_gitignored"),
-                _CONFIG_DEFAULTS.search_gitignored,
-            ),
             branching_strategy=_coalesce(
                 _get_nested(parsed, "branching_strategy", section="git", field="branching_strategy"),
                 _CONFIG_DEFAULTS.branching_strategy,
@@ -396,15 +374,10 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
                 _get_nested(parsed, "parallelization"),
                 _CONFIG_DEFAULTS.parallelization,
             ),
-            brave_search=_coalesce(
-                _get_nested(parsed, "brave_search"),
-                _CONFIG_DEFAULTS.brave_search,
-            ),
             model_map=_coalesce(
                 _get_nested(parsed, "model_map"),
                 None,
             ),
-            cost_per_million=_parse_cost_per_million(parsed),
         )
     except (ValueError, TypeError) as e:
         raise ConfigError(
@@ -415,22 +388,6 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
 def _coalesce(value: object, default: object) -> object:
     """Return value if not None, else default."""
     return value if value is not None else default
-
-
-def _parse_cost_per_million(parsed: dict) -> dict[str, TierCost] | None:
-    """Parse cost_per_million override from config."""
-    raw = _get_nested(parsed, "cost_per_million")
-    if raw is None or not isinstance(raw, dict):
-        return None
-    result: dict[str, TierCost] = {}
-    for tier, costs in raw.items():
-        if isinstance(costs, dict):
-            try:
-                result[tier] = TierCost.model_validate(costs)
-            except ValueError:
-                logger.warning("Ignoring invalid cost_per_million entry for tier %r: %r", tier, costs)
-                continue
-    return result if result else None
 
 
 # ─── Model Resolution ───────────────────────────────────────────────────────────
@@ -467,15 +424,3 @@ def resolve_model(project_dir: Path, agent_name: str) -> str:
     if config.model_map and tier.value in config.model_map:
         return config.model_map[tier.value]
     return tier.value
-
-
-@instrument_gpd_function("config.cost_per_million")
-def get_cost_per_million(project_dir: Path | None = None) -> dict[str, TierCost]:
-    """Get cost per million tokens, with optional project override."""
-    if project_dir is not None:
-        config = load_config(project_dir)
-        if config.cost_per_million:
-            merged = dict(DEFAULT_COST_PER_MILLION)
-            merged.update(config.cost_per_million)
-            return merged
-    return dict(DEFAULT_COST_PER_MILLION)

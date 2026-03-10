@@ -334,11 +334,12 @@ For each figure referenced in the research digest or artifact catalog:
 Check for bibliography infrastructure:
 
 ```bash
+ls references/references.bib 2>/dev/null
 ls paper/references.bib 2>/dev/null
 ls .gpd/phases/*/LITERATURE-REVIEW.md 2>/dev/null
 ```
 
-1. Does references.bib exist (anywhere in the project)?
+1. Does a project bibliography exist (`references/references.bib` or `paper/references.bib`)?
 2. Does at least one LITERATURE-REVIEW.md or RESEARCH.md exist?
 3. Are key prior works identified (the research digest's "Prior Work" or literature review)?
 
@@ -439,7 +440,13 @@ The main.tex should:
 
 If the project has a `.gpd/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
 
-Create `main.tex` and `Makefile` before proceeding to figure generation and section drafting. The compilation checks in `draft_sections` require `main.tex` to exist.
+If a machine-readable paper spec is available, prefer the canonical builder:
+
+```bash
+gpd paper-build paper/PAPER-CONFIG.json
+```
+
+This emits `paper/main.tex`, writes the artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. If no JSON spec exists yet, create `paper/PAPER-CONFIG.json` first and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
 
 **Supplemental material:** If the paper requires supplemental material (common for PRL and other letter-format journals), use `{GPD_INSTALL_DIR}/templates/paper/supplemental-material.md` for the standard structure (extended derivations, computational details, additional figures, data tables, code availability).
 
@@ -727,14 +734,14 @@ Verify all references in the paper and audit citation completeness.
 Mode: Audit bibliography + Audit manuscript
 
 Paper directory: paper/
-Bibliography: paper/references.bib
+Bibliography: `references/references.bib` (preferred) or `paper/references.bib` if the manuscript keeps a local copy
 Manuscript files: paper/*.tex
 Target journal: {target_journal}
 
 Tasks:
-1. Verify every entry in references.bib against authoritative databases (INSPIRE, ADS, arXiv)
-2. Check all \cite{} keys in .tex files resolve to .bib entries
-3. Detect orphaned .bib entries (not cited in any .tex file)
+1. Verify every entry in the active bibliography file against authoritative databases (INSPIRE, ADS, arXiv)
+2. Check all \cite{} keys in .tex files resolve to bibliography entries
+3. Detect orphaned bibliography entries (not cited in any .tex file)
 4. Scan for uncited named results, theorems, or methods that should have citations
 5. Verify BibTeX formatting matches {target_journal} requirements
 6. Check arXiv preprints for published versions (update stale preprint-only entries)
@@ -785,7 +792,7 @@ Target journal: {target_journal}
 
 Files to read:
 - paper/main.tex and all paper/*.tex section files
-- paper/references.bib
+- references/references.bib or paper/references.bib (whichever exists)
 - paper/CITATION-AUDIT.md (if exists)
 - .gpd/phases/*/SUMMARY.md (for research context)
 - .gpd/STATE.md (for conventions and notation)

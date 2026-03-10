@@ -918,6 +918,9 @@ class TestVerificationServer:
         result = run_check("5.1", "qft", "quantum field theory with \\hbar")
         assert result["check_id"] == "5.1"
         assert result["check_name"] == "Dimensional analysis"
+        assert result["schema_version"] == 1
+        assert result["evidence_kind"] == "computational"
+        assert result["machine_supported"] is True
 
     def test_run_check_dimensional_missing_hbar(self):
         from gpd.mcp.servers.verification_server import run_check
@@ -957,8 +960,11 @@ class TestVerificationServer:
 
         result = get_checklist("qft")
         assert result["found"] is True
+        assert result["schema_version"] == 1
         assert result["domain_check_count"] > 0
         assert result["universal_check_count"] == 14
+        assert result["universal_checks"][0]["check_id"] == "5.1"
+        assert "evidence_kind" in result["universal_checks"][0]
 
     def test_get_checklist_unknown_domain(self):
         from gpd.mcp.servers.verification_server import get_checklist
@@ -983,6 +989,7 @@ class TestVerificationServer:
             error_class_ids=[15],
             active_checks=["5.1", "5.2", "5.3"],
         )
+        assert result["schema_version"] == 1
         assert result["covered"] == 1
         assert result["coverage_percent"] == 100.0
 

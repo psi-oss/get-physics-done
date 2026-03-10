@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd import registry
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
@@ -55,3 +57,21 @@ def test_workflow_task_prompts_do_not_embed_at_references() -> None:
                 break
 
     assert invalid == []
+
+
+def test_review_commands_expose_typed_contracts() -> None:
+    write_paper = registry.get_command("gpd:write-paper")
+    verify_work = registry.get_command("verify-work")
+    respond_to_referees = registry.get_command("respond-to-referees")
+
+    assert write_paper.review_contract is not None
+    assert write_paper.review_contract.review_mode == "publication"
+    assert "artifact manifest" in write_paper.review_contract.required_evidence
+
+    assert verify_work.review_contract is not None
+    assert verify_work.review_contract.required_state == "phase_executed"
+    assert "phase_artifacts" in verify_work.review_contract.preflight_checks
+
+    assert respond_to_referees.review_contract is not None
+    assert "structured referee issues" in respond_to_referees.review_contract.required_evidence
+    assert "gpd:write-paper" in registry.list_review_commands()

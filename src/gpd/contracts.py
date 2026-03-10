@@ -1,6 +1,8 @@
-"""GPD contracts -- shared data types for physics convention locks."""
+"""GPD contracts -- shared data types for conventions and verification."""
 
 from __future__ import annotations
+
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,3 +29,19 @@ class ConventionLock(BaseModel):
     gamma_matrix_convention: str | None = None
     creation_annihilation_order: str | None = None
     custom_conventions: dict[str, str] = Field(default_factory=dict)
+
+
+class VerificationEvidence(BaseModel):
+    """Structured provenance for a verification event attached to a result."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    verified_at: str | None = None
+    verifier: str | None = None
+    method: str = "manual"
+    confidence: Literal["high", "medium", "low", "unreliable"] = "medium"
+    evidence_path: str | None = None
+    trace_id: str | None = None
+    commit_sha: str | None = None
+    notes: str | None = None
+    claim_id: str | None = None

@@ -1,8 +1,9 @@
-"""Built-in MCP server definitions for GPD install and session launch.
+"""Built-in MCP server definitions for GPD install, session launch, and release descriptors.
 
 Provides the canonical registry of GPD's built-in MCP servers. Used by:
 - Adapter install flow (_configure_runtime)
 - Session launch (build_mcp_config_file)
+- Public infra descriptor generation (infra/gpd-*.json)
 """
 
 from __future__ import annotations
@@ -61,6 +62,169 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
     },
 }
 
+_PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD first: npx -y github:physicalsuperintelligence/get-physics-done"
+_ENTRY_POINT_NOTES = "Requires gpd package installed"
+
+_PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
+    "gpd-conventions": {
+        "description": (
+            "GPD convention lock management. Tools for querying, setting, validating, and comparing "
+            "physics conventions across research phases."
+        ),
+        "capabilities": [
+            "convention_lock_status",
+            "convention_set",
+            "convention_check",
+            "convention_diff",
+            "assert_convention_validate",
+            "subfield_defaults",
+        ],
+        "registry_prefix": "gpd_conventions",
+        "health_check": {
+            "tool": "subfield_defaults",
+            "input": {"domain": "qft"},
+            "expect": "contains metric_signature",
+        },
+    },
+    "gpd-errors": {
+        "description": (
+            "LLM physics error catalog and traceability matrix for GPD verification. "
+            "104 error classes with detection strategies mapped to 8 verification check categories."
+        ),
+        "capabilities": [
+            "get_error_class",
+            "check_error_classes",
+            "get_detection_strategy",
+            "get_traceability",
+            "list_error_classes",
+        ],
+        "registry_prefix": "gpd_errors",
+        "health_check": {
+            "tool": "list_error_classes",
+            "input": {},
+            "expect": "count >= 100 error classes loaded",
+        },
+    },
+    "gpd-patterns": {
+        "description": (
+            "GPD cross-project pattern library. Tools for searching, adding, promoting, "
+            "and seeding physics error patterns across research projects."
+        ),
+        "capabilities": [
+            "lookup_pattern",
+            "add_pattern",
+            "promote_pattern",
+            "seed_patterns",
+            "list_domains",
+        ],
+        "registry_prefix": "gpd_patterns",
+        "health_check": {
+            "tool": "list_domains",
+            "input": {},
+            "expect": "contains qft",
+        },
+    },
+    "gpd-protocols": {
+        "description": (
+            "Physics computation protocols for GPD research workflows. Provides step-by-step methodology, "
+            "verification checkpoints, and auto-routing for 47 physics domains."
+        ),
+        "capabilities": [
+            "get_protocol",
+            "list_protocols",
+            "route_protocol",
+            "get_protocol_checkpoints",
+        ],
+        "registry_prefix": "gpd_protocols",
+        "health_check": {
+            "tool": "list_protocols",
+            "input": {},
+            "expect": "count >= 40 protocols loaded",
+        },
+    },
+    "gpd-skills": {
+        "description": (
+            "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, "
+            "and indexing GPD workflow skills for agent prompt injection."
+        ),
+        "capabilities": [
+            "list_skills",
+            "get_skill",
+            "route_skill",
+            "get_skill_index",
+        ],
+        "registry_prefix": "gpd_skills",
+        "health_check": {
+            "tool": "list_skills",
+            "input": {},
+            "expect": "contains gpd-execute-phase",
+        },
+    },
+    "gpd-state": {
+        "description": (
+            "GPD project state management. Tools for querying state, phase info, progress, "
+            "validation, health checks, and configuration."
+        ),
+        "capabilities": [
+            "get_state",
+            "get_phase_info",
+            "advance_plan",
+            "get_progress",
+            "validate_state",
+            "run_health_check",
+            "get_config",
+        ],
+        "registry_prefix": "gpd_state",
+        "health_check": {
+            "tool": "get_config",
+            "input": {"project_dir": "/tmp/test"},
+            "expect": "contains model_profile",
+        },
+    },
+    "gpd-verification": {
+        "description": (
+            "GPD physics verification checks. Tools for running dimensional analysis, "
+            "limiting case checks, symmetry verification, and coverage gap analysis."
+        ),
+        "capabilities": [
+            "run_check",
+            "get_checklist",
+            "dimensional_check",
+            "limiting_case_check",
+            "symmetry_check",
+            "get_verification_coverage",
+        ],
+        "registry_prefix": "gpd_verification",
+        "health_check": {
+            "tool": "get_checklist",
+            "input": {"domain": "qft"},
+            "expect": "contains Ward identities",
+        },
+    },
+    "gpd-arxiv": {
+        "description": (
+            "arXiv paper search and retrieval via arxiv-mcp-server. Search for physics papers, "
+            "fetch abstracts, and download full text."
+        ),
+        "capabilities": [
+            "search_papers",
+            "download_paper",
+            "list_papers",
+            "read_paper",
+        ],
+        "registry_prefix": "gpd_arxiv",
+        "prerequisites": [
+            _PUBLIC_BOOTSTRAP_PREREQUISITE,
+            "pip install arxiv-mcp-server",
+        ],
+        "health_check": {
+            "tool": "search_papers",
+            "input": {"query": "quantum field theory", "max_results": 1},
+            "expect": "contains paper",
+        },
+    },
+}
+
 _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
 
@@ -91,6 +255,51 @@ def _is_module_available(module_name: str) -> bool:
         return find_spec(module_name) is not None
     except (ModuleNotFoundError, ValueError):
         return False
+
+
+def _build_public_alternatives(name: str) -> dict[str, dict[str, str | list[str]]] | None:
+    """Build a descriptor alternatives block for a built-in server."""
+    if name == "gpd-arxiv":
+        return None
+    if not name.startswith("gpd-"):
+        return None
+    suffix = name.removeprefix("gpd-")
+    return {
+        "entry_point": {
+            "command": f"gpd-mcp-{suffix}",
+            "args": [],
+            "notes": _ENTRY_POINT_NOTES,
+        }
+    }
+
+
+def build_public_descriptor(name: str) -> dict[str, object]:
+    """Build the canonical public infra descriptor for a built-in MCP server."""
+    raw = _BUILTIN_SERVERS[name]
+    metadata = _PUBLIC_DESCRIPTOR_METADATA[name]
+    args = list(raw.get("args", [])) if isinstance(raw.get("args"), list) else []
+    env = dict(raw.get("env", {})) if isinstance(raw.get("env"), dict) else {}
+    descriptor: dict[str, object] = {
+        "name": name,
+        "description": str(metadata["description"]),
+        "transport": "stdio",
+        "command": str(raw["command"]),
+        "args": args,
+        "env": env,
+        "capabilities": list(metadata["capabilities"]) if isinstance(metadata["capabilities"], list) else [],
+        "registry_prefix": str(metadata["registry_prefix"]),
+        "prerequisites": list(metadata.get("prerequisites", [_PUBLIC_BOOTSTRAP_PREREQUISITE])),
+        "health_check": dict(metadata["health_check"]) if isinstance(metadata["health_check"], dict) else {},
+    }
+    alternatives = _build_public_alternatives(name)
+    if alternatives:
+        descriptor["alternatives"] = alternatives
+    return descriptor
+
+
+def build_public_descriptors() -> dict[str, dict[str, object]]:
+    """Build canonical public infra descriptors for all built-in MCP servers."""
+    return {name: build_public_descriptor(name) for name in _BUILTIN_SERVERS}
 
 
 def build_mcp_servers_dict(

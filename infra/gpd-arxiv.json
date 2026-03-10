@@ -3,7 +3,10 @@
   "description": "arXiv paper search and retrieval via arxiv-mcp-server. Search for physics papers, fetch abstracts, and download full text.",
   "transport": "stdio",
   "command": "python",
-  "args": ["-m", "arxiv_mcp_server"],
+  "args": [
+    "-m",
+    "arxiv_mcp_server"
+  ],
   "env": {},
   "capabilities": [
     "search_papers",
@@ -18,7 +21,10 @@
   ],
   "health_check": {
     "tool": "search_papers",
-    "input": {"query": "quantum field theory", "max_results": 1},
+    "input": {
+      "query": "quantum field theory",
+      "max_results": 1
+    },
     "expect": "contains paper"
   }
 }

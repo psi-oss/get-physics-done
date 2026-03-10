@@ -18,7 +18,6 @@ from gpd.adapters.tool_names import (
     reference_translation_map,
     translate,
     translate_for_runtime,
-    translate_list,
 )
 
 
@@ -114,13 +113,6 @@ class TestToolNames:
 
     def test_translate_unknown_tool_fallback(self) -> None:
         assert translate("custom_tool", "claude-code") == "custom_tool"
-
-    def test_translate_list(self) -> None:
-        result = translate_list(["file_read", "shell", "web_search"], "claude-code")
-        assert result == ["Read", "Bash", "WebSearch"]
-
-    def test_translate_list_empty(self) -> None:
-        assert translate_list([], "claude-code") == []
 
     def test_translate_for_runtime_drops_auto_discovered_tools(self) -> None:
         assert translate_for_runtime("task", "codex") is None

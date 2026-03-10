@@ -2,8 +2,12 @@
 template_version: 1
 ---
 
-> **Context:** This template is for the `new-project` literature survey — researching a topic BEFORE
-> starting a new project. For analyzing existing project artifacts, see `templates/analysis/`.
+> **Status:** Supplemental research template. The current `new-project` workflow does not spawn a
+> standalone `KEY_RESULTS.md`; its live outputs are `PRIOR-WORK.md`, `METHODS.md`,
+> `COMPUTATIONAL.md`, `PITFALLS.md`, and `SUMMARY.md`.
+>
+> Keep this template only if you intentionally add an extra key-results survey artifact. For
+> analyzing existing project artifacts, see `templates/analysis/`.
 
 # Key Results Research Template
 

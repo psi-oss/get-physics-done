@@ -50,6 +50,12 @@ If no paper found, suggest `/gpd:write-paper` first.
 
 ## 2. Validate LaTeX
 
+If `PAPER-CONFIG.json` exists in the paper directory, refresh the derived manuscript first:
+
+```bash
+gpd paper-build "{paper_dir}/PAPER-CONFIG.json" --output-dir "{paper_dir}"
+```
+
 ```bash
 cd {paper_dir} && pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -20
 bibtex main 2>&1 | tail -10

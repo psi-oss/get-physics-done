@@ -159,10 +159,10 @@ class TestParseMustHavesBlock:
         result = parse_must_haves_block(content, "truths")
         assert result == ["truth1", "truth2"]
 
-    def test_hyphenated_key(self):
+    def test_hyphenated_key_returns_empty(self):
         content = "---\nmust-haves:\n  artifacts:\n    - art1\n---\n\nBody."
         result = parse_must_haves_block(content, "artifacts")
-        assert result == ["art1"]
+        assert result == []
 
     def test_missing_block(self):
         content = "---\ntitle: Hello\n---\n\nBody."
@@ -211,7 +211,7 @@ class TestValidateFrontmatter:
         assert "phase" not in result.missing
         assert "plan" in result.missing
 
-    def test_hyphen_case_accepted(self):
+    def test_hyphen_case_rejected(self):
         content = (
             "---\n"
             "phase: 01-test\n"
@@ -225,7 +225,10 @@ class TestValidateFrontmatter:
             "---\n\nBody."
         )
         result = validate_frontmatter(content, "plan")
-        assert result.valid is True
+        assert result.valid is False
+        assert "depends_on" in result.missing
+        assert "files_modified" in result.missing
+        assert "must_haves" in result.missing
 
     def test_valid_summary(self):
         content = "---\nphase: 01\nplan: 01\ndepth: standard\nprovides: []\ncompleted: 2025-01-01\n---\n\nBody."
@@ -630,5 +633,4 @@ class TestVerifyPlanStructure:
         f.write_text(content)
         result = verify_plan_structure(tmp_path, f)
         assert any("checkpoint" in e.lower() for e in result.errors)
-
 

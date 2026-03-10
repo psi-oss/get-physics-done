@@ -2,10 +2,13 @@
 template_version: 1
 ---
 
-> **Context:** This template is for the `map-theory` workflow — analyzing an EXISTING research project
-> to understand its current state. For new-project research, use `templates/research.md` (the primary
-> research template, which incorporates methods coverage). For pre-project literature survey details,
-> see `templates/research-project/METHODS.md` (consumed by workflows, not user-facing).
+> **Status:** Supplemental analysis template. The live `map-theory` workflow now loads
+> `{GPD_INSTALL_DIR}/references/theory-mapper-templates/*` via `gpd-theory-mapper`, not this file.
+> Keep this template only as standalone reference material for manual analysis work.
+>
+> For new-project research, use `templates/research.md` (the primary research template, which
+> incorporates methods coverage). For workflow-consumed literature survey details, see
+> `templates/research-project/METHODS.md`.
 
 # Methods Template
 

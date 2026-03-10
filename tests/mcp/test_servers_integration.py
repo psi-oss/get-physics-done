@@ -266,10 +266,12 @@ class TestVerificationServerIntegration:
         )
         result = run_check("5.1", "qft", artifact)
 
+        assert result["schema_version"] == 1
         assert result["check_id"] == "5.1"
         assert result["check_name"] == "Dimensional analysis"
         assert result["domain"] == "qft"
         assert result["tier"] >= 1
+        assert result["evidence_kind"] == "computational"
         assert isinstance(result["catches"], str)
         # hbar is present -> no automated issue about missing hbar
         assert not any("hbar" in issue for issue in result["automated_issues"])
@@ -287,6 +289,7 @@ class TestVerificationServerIntegration:
 
         result = dimensional_check(["[M][L]^2[T]^-2 = [M][L]^2[T]^-2"])
 
+        assert result["schema_version"] == 1
         assert result["all_consistent"] is True
         assert result["checked_count"] == 1
         assert result["results"][0]["valid"] is True

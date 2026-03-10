@@ -9,7 +9,6 @@ resolution so that defaults and model profiles are defined in exactly one place.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -194,7 +193,6 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "autonomy": str(cfg.autonomy.value),
         "research_mode": str(cfg.research_mode.value),
         "commit_docs": cfg.commit_docs,
-        "search_gitignored": cfg.search_gitignored,
         "branching_strategy": str(cfg.branching_strategy.value),
         "phase_branch_template": cfg.phase_branch_template,
         "milestone_branch_template": cfg.milestone_branch_template,
@@ -202,7 +200,6 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "plan_checker": cfg.plan_checker,
         "verifier": cfg.verifier,
         "parallelization": cfg.parallelization,
-        "brave_search": cfg.brave_search,
     }
     if cfg.model_map:
         d["model_map"] = cfg.model_map
@@ -255,112 +252,23 @@ def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> st
 
 # ─── Phase Info Helper ────────────────────────────────────────────────────────
 
-# We use gpd.core.phases.find_phase and get_milestone_info when available,
-# but provide a lightweight fallback to avoid circular imports during initial boot.
-
 
 def _try_find_phase(cwd: Path, phase: str) -> dict | None:
     """Attempt to find phase info. Returns a plain dict or None."""
-    try:
-        from gpd.core.phases import find_phase
+    from gpd.core.phases import find_phase
 
-        result = find_phase(cwd, phase)
-        if result is None:
-            return None
-        return result.model_dump()
-    except ImportError:
-        return _find_phase_fallback(cwd, phase)
-
-
-def _find_phase_fallback(cwd: Path, phase: str) -> dict | None:
-    """Minimal phase discovery without the full phases module."""
-    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
-    if not phases_dir.is_dir():
+    result = find_phase(cwd, phase)
+    if result is None:
         return None
-
-    # Normalize: zero-pad top-level to 2 digits to match phases.phase_normalize
-    _stripped = phase.strip().lstrip("0") or "0"
-    _parts = _stripped.split(".", 1)
-    _top = _parts[0].zfill(2)
-    normalized = f"{_top}.{_parts[1]}" if len(_parts) > 1 else _top
-
-    for d in sorted(phases_dir.iterdir()):
-        if not d.is_dir():
-            continue
-        name = d.name
-        # Strip leading zeros from the directory's numeric prefix for comparison
-        dir_prefix_match = re.match(r"^(\d+(?:\.\d+)*)", name)
-        if dir_prefix_match:
-            _dir_parts = dir_prefix_match.group(1).split(".", 1)
-            _dir_top = _dir_parts[0].zfill(2)
-            dir_normalized = f"{_dir_top}.{_dir_parts[1]}" if len(_dir_parts) > 1 else _dir_top
-        else:
-            dir_normalized = name
-        if dir_normalized == normalized or dir_normalized.startswith(normalized + ".") or name.startswith(normalized + "-") or name.startswith(normalized + "."):
-            dir_match = re.match(r"^(\d+(?:\.\d+)*)-?(.*)", name)
-            phase_number = dir_match.group(1) if dir_match else normalized
-            phase_name = dir_match.group(2) if dir_match and dir_match.group(2) else None
-            phase_slug = _generate_slug(phase_name) if phase_name else None
-
-            phase_files = sorted(f.name for f in d.iterdir() if f.is_file())
-            plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
-            has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
-            has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
-            has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == STANDALONE_VERIFICATION for f in phase_files)
-            has_validation = any(f.endswith(VALIDATION_SUFFIX) or f == STANDALONE_VALIDATION for f in phase_files)
-
-            # Incomplete plans: plans without matching summaries
-            summary_prefixes = set()
-            for s in summaries:
-                prefix = s.removesuffix(SUMMARY_SUFFIX) if s.endswith(SUMMARY_SUFFIX) else ""
-                summary_prefixes.add(prefix)
-            incomplete_plans = []
-            for p in plans:
-                prefix = p.removesuffix(PLAN_SUFFIX) if p.endswith(PLAN_SUFFIX) else ""
-                if prefix not in summary_prefixes:
-                    incomplete_plans.append(p)
-
-            return {
-                "found": True,
-                "directory": f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}/{name}",
-                "phase_number": phase_number,
-                "phase_name": phase_name,
-                "phase_slug": phase_slug,
-                "plans": plans,
-                "summaries": summaries,
-                "incomplete_plans": incomplete_plans,
-                "has_research": has_research,
-                "has_context": has_context,
-                "has_verification": has_verification,
-                "has_validation": has_validation,
-            }
-    return None
+    return result.model_dump()
 
 
 def _try_get_milestone_info(cwd: Path) -> dict:
-    """Get milestone info, falling back to defaults."""
-    try:
-        from gpd.core.phases import get_milestone_info
+    """Get milestone info from the canonical phases module."""
+    from gpd.core.phases import get_milestone_info
 
-        result = get_milestone_info(cwd)
-        return result.model_dump()
-    except ImportError:
-        return _get_milestone_fallback(cwd)
-
-
-def _get_milestone_fallback(cwd: Path) -> dict:
-    """Minimal milestone extraction without the full phases module."""
-    roadmap_path = cwd / PLANNING_DIR_NAME / ROADMAP_FILENAME
-    content = _safe_read_file(roadmap_path)
-    if content is None:
-        return {"version": "v1.0", "name": "milestone"}
-    version_match = re.search(r"v(\d+\.\d+)", content)
-    name_match = re.search(r"## .*v\d+\.\d+[:\s]+([^\n(]+)", content)
-    return {
-        "version": version_match.group(0) if version_match else "v1.0",
-        "name": name_match.group(1).strip() if name_match else "milestone",
-    }
+    result = get_milestone_info(cwd)
+    return result.model_dump()
 
 
 # ─── Platform Detection ──────────────────────────────────────────────────────
@@ -368,24 +276,9 @@ def _get_milestone_fallback(cwd: Path) -> dict:
 
 def _detect_platform() -> str:
     """Detect the AI agent platform (claude, codex, gemini, etc.)."""
-    try:
-        from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime, runtime_to_adapter_name
+    from gpd.hooks.runtime_detect import detect_active_runtime, runtime_to_adapter_name
 
-        runtime = detect_active_runtime()
-        if runtime != RUNTIME_UNKNOWN:
-            return runtime_to_adapter_name(runtime)
-    except ImportError:
-        pass
-
-    if os.environ.get("CLAUDE_CODE_SESSION") or os.environ.get("CLAUDE_CODE"):
-        return "claude-code"
-    if os.environ.get("CODEX_SESSION") or os.environ.get("CODEX_CLI"):
-        return "codex"
-    if os.environ.get("GEMINI_CLI"):
-        return "gemini"
-    if os.environ.get("OPENCODE_SESSION"):
-        return "opencode"
-    return "unknown"  # No known platform detected
+    return runtime_to_adapter_name(detect_active_runtime())
 
 
 _PLATFORM = _detect_platform()
@@ -547,10 +440,6 @@ def init_new_project(cwd: Path) -> dict:
     """Assemble context for new project creation."""
     config = load_config(cwd)
 
-    # Detect Brave Search API key
-    brave_key_file = Path.home() / PLANNING_DIR_NAME / "brave_api_key"
-    has_brave_search = bool(os.environ.get("BRAVE_API_KEY") or brave_key_file.exists())
-
     # Detect existing research files (walk up to depth 3, max 5 files)
     has_research_files = False
     found_count = 0
@@ -604,8 +493,6 @@ def init_new_project(cwd: Path) -> dict:
         and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
         # Git state
         "has_git": _path_exists(cwd, ".git"),
-        # Enhanced search
-        "brave_search_available": has_brave_search,
         # Platform
         "platform": _PLATFORM,
     }
@@ -762,7 +649,6 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
-        "brave_search": config["brave_search"],
         "parallelization": config["parallelization"],
         # Phase info
         "phase_found": phase_info is not None,
@@ -932,7 +818,6 @@ def init_map_theory(cwd: Path) -> dict:
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
-        "search_gitignored": config["search_gitignored"],
         "parallelization": config["parallelization"],
         # Paths
         "research_map_dir": f"{PLANNING_DIR_NAME}/research-map",

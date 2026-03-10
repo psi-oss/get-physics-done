@@ -36,18 +36,6 @@ class TestProperties:
         assert adapter.help_command == "/gpd-help"
 
 
-class TestTranslateToolName:
-    def test_canonical_to_opencode(self, adapter: OpenCodeAdapter) -> None:
-        assert adapter.translate_tool_name("file_read") == "read_file"
-        assert adapter.translate_tool_name("file_edit") == "edit_file"
-        assert adapter.translate_tool_name("ask_user") == "question"
-        assert adapter.translate_tool_name("slash_command") == "skill"
-
-    def test_runtime_native_alias(self, adapter: OpenCodeAdapter) -> None:
-        assert adapter.translate_tool_name("AskUserQuestion") == "question"
-        assert adapter.translate_tool_name("SlashCommand") == "skill"
-
-
 class TestConvertToolName:
     def test_special_mappings(self) -> None:
         assert convert_tool_name("AskUserQuestion") == "question"
@@ -229,29 +217,6 @@ class TestConfigureOpenCodePermissions:
         configure_opencode_permissions(tmp_path)
         modified = configure_opencode_permissions(tmp_path)
         assert modified is False
-
-
-class TestGenerateCommand:
-    def test_creates_flattened_md(self, adapter: OpenCodeAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_command(
-            {"name": "gpd-help", "content": "---\nname: gpd:help\ndescription: Help\n---\nBody"},
-            tmp_path,
-        )
-        assert result == tmp_path / "command" / "gpd-help.md"
-        assert result.exists()
-        content = result.read_text(encoding="utf-8")
-        # name: stripped by frontmatter conversion
-        assert "name:" not in content
-
-
-class TestGenerateAgent:
-    def test_creates_agent_md(self, adapter: OpenCodeAdapter, tmp_path: Path) -> None:
-        content = "---\nname: gpd-verifier\nallowed-tools:\n  - Read\ncolor: green\n---\nPrompt"
-        result = adapter.generate_agent({"name": "gpd-verifier", "content": content}, tmp_path)
-        assert result == tmp_path / "agents" / "gpd-verifier.md"
-        text = result.read_text(encoding="utf-8")
-        assert "name:" not in text
-        assert "tools:" in text
 
 
 class TestInstall:

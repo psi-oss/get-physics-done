@@ -33,67 +33,6 @@ class TestProperties:
         assert adapter.help_command == "/gpd:help"
 
 
-class TestTranslateToolName:
-    """Test tool name translation for Claude Code runtime."""
-
-    def test_canonical_to_claude(self, adapter: ClaudeCodeAdapter) -> None:
-        assert adapter.translate_tool_name("file_read") == "Read"
-        assert adapter.translate_tool_name("shell") == "Bash"
-        assert adapter.translate_tool_name("search_files") == "Grep"
-
-    def test_runtime_native_alias(self, adapter: ClaudeCodeAdapter) -> None:
-        assert adapter.translate_tool_name("Read") == "Read"
-        assert adapter.translate_tool_name("Bash") == "Bash"
-
-    def test_unknown_passthrough(self, adapter: ClaudeCodeAdapter) -> None:
-        assert adapter.translate_tool_name("custom_tool") == "custom_tool"
-
-
-class TestGenerateCommand:
-    """Test command file generation."""
-
-    def test_creates_md_file(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_command({"name": "help", "content": "Help text"}, tmp_path)
-        assert result == tmp_path / "commands" / "help.md"
-        assert result.exists()
-        assert result.read_text(encoding="utf-8") == "Help text"
-
-    def test_creates_commands_dir(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
-        adapter.generate_command({"name": "test", "content": "body"}, tmp_path)
-        assert (tmp_path / "commands").is_dir()
-
-
-class TestGenerateAgent:
-    """Test agent file generation."""
-
-    def test_creates_md_file(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_agent({"name": "gpd-verifier", "content": "Agent prompt"}, tmp_path)
-        assert result == tmp_path / "agents" / "gpd-verifier.md"
-        assert result.exists()
-        assert result.read_text(encoding="utf-8") == "Agent prompt"
-
-    def test_creates_agents_dir(self, adapter: ClaudeCodeAdapter, tmp_path: Path) -> None:
-        adapter.generate_agent({"name": "test", "content": "body"}, tmp_path)
-        assert (tmp_path / "agents").is_dir()
-
-
-class TestGenerateHook:
-    """Test hook configuration generation."""
-
-    def test_basic_hook(self, adapter: ClaudeCodeAdapter) -> None:
-        result = adapter.generate_hook("test", {"event": "SessionStart", "command": "echo hi"})
-        assert result == {"hooks": {"SessionStart": [{"command": "echo hi"}]}}
-
-    def test_hook_with_matcher(self, adapter: ClaudeCodeAdapter) -> None:
-        result = adapter.generate_hook("test", {"event": "Notification", "command": "cmd", "matcher": "*.md"})
-        hooks = result["hooks"]["Notification"]
-        assert hooks[0]["matcher"] == "*.md"
-
-    def test_hook_default_event(self, adapter: ClaudeCodeAdapter) -> None:
-        result = adapter.generate_hook("test", {"command": "cmd"})
-        assert "Notification" in result["hooks"]
-
-
 class TestInstall:
     """Test full install flow."""
 

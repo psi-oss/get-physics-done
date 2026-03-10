@@ -10,13 +10,6 @@
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
-  "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-skills",
-      "args": [],
-      "notes": "Requires gpd package installed"
-    }
-  },
   "capabilities": [
     "list_skills",
     "get_skill",
@@ -31,5 +24,12 @@
     "tool": "list_skills",
     "input": {},
     "expect": "contains gpd-execute-phase"
+  },
+  "alternatives": {
+    "entry_point": {
+      "command": "gpd-mcp-skills",
+      "args": [],
+      "notes": "Requires gpd package installed"
+    }
   }
 }

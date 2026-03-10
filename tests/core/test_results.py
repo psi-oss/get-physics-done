@@ -26,6 +26,7 @@ def test_result_add_basic():
     assert result.id == "R-01"
     assert result.equation == "E=mc^2"
     assert result.verified is False
+    assert result.verification_records == []
     assert len(state["intermediate_results"]) == 1
 
 
@@ -158,9 +159,46 @@ def test_result_deps_not_found():
 def test_result_verify():
     state: dict = {}
     result_add(state, result_id="R-01")
-    result = result_verify(state, "R-01")
+    result = result_verify(
+        state,
+        "R-01",
+        verifier="gpd-verifier",
+        method="numerical-spot-check",
+        confidence="high",
+        evidence_path="artifacts/checks/R-01.txt",
+        trace_id="trace-1",
+    )
     assert result.verified is True
     assert state["intermediate_results"][0]["verified"] is True
+    records = state["intermediate_results"][0]["verification_records"]
+    assert len(records) == 1
+    assert records[0]["verifier"] == "gpd-verifier"
+    assert records[0]["method"] == "numerical-spot-check"
+    assert records[0]["confidence"] == "high"
+
+
+def test_result_add_with_verification_records_sets_verified():
+    state: dict = {}
+    result = result_add(
+        state,
+        result_id="R-02",
+        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
+    )
+    assert result.verified is True
+    assert len(result.verification_records) == 1
+
+
+def test_result_update_verification_records_normalizes_and_marks_verified():
+    state: dict = {}
+    result_add(state, result_id="R-03", verified=False)
+    fields, result = result_update(
+        state,
+        "R-03",
+        verification_records=[{"verifier": "auditor", "method": "manual", "confidence": "low"}],
+    )
+    assert "verification_records" in fields
+    assert result.verified is True
+    assert len(result.verification_records) == 1
 
 
 def test_result_verify_not_found():

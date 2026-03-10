@@ -35,7 +35,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.tool_names import GEMINI, canonical, reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
 _TOOL_REFERENCE_MAP = reference_translation_map("gemini")
@@ -309,43 +309,6 @@ class GeminiAdapter(RuntimeAdapter):
         if env:
             return Path(env).expanduser()
         return Path.home() / ".gemini"
-
-    def translate_tool_name(self, canonical_name: str) -> str:
-        canon = canonical(canonical_name)
-        return GEMINI.get(canon, canon)
-
-    def generate_command(self, command_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Gemini CLI command as a .toml file."""
-        name = str(command_def["name"])
-        content = str(command_def.get("content", ""))
-        commands_dir = target_dir / "commands"
-        commands_dir.mkdir(parents=True, exist_ok=True)
-        toml_content = _convert_to_gemini_toml(content)
-        out_path = commands_dir / f"{name}.toml"
-        out_path.write_text(toml_content, encoding="utf-8")
-        return out_path
-
-    def generate_agent(self, agent_def: dict[str, object], target_dir: Path) -> Path:
-        """Generate a Gemini CLI agent .md file with converted frontmatter."""
-        name = str(agent_def["name"])
-        content = str(agent_def.get("content", ""))
-        content = _convert_frontmatter_to_gemini(content)
-        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-        agents_dir = target_dir / "agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
-        out_path = agents_dir / f"{name}.md"
-        out_path.write_text(content, encoding="utf-8")
-        return out_path
-
-    def generate_hook(self, hook_name: str, hook_config: dict[str, object]) -> dict[str, object]:
-        """Generate a Gemini CLI hook entry (same format as Claude Code)."""
-        event = str(hook_config.get("event", "Notification"))
-        command = str(hook_config.get("command", ""))
-        matcher = hook_config.get("matcher")
-        entry: dict[str, object] = {"command": command}
-        if matcher:
-            entry["matcher"] = str(matcher)
-        return {"hooks": {event: [entry]}}
 
     # --- Template method hooks ---
 

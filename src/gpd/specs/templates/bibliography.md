@@ -1,19 +1,25 @@
 ---
 template_version: 1
-purpose: Central cross-phase citation accumulator for the project
+purpose: Supplemental bibliography registry template
 total_references: 0
 ---
 
 # Bibliography Template
 
-Template for `.gpd/BIBLIOGRAPHY.md` -- central cross-phase citation accumulator tracking all references used across the research project.
+Template for `.gpd/BIBLIOGRAPHY.md` -- optional bibliography registry for projects that want a
+human-readable citation ledger in addition to the live BibTeX files.
 
-**Purpose:** Single source of truth for every citation. Prevents duplicate references, tracks which phases use which citations, enables the bibliographer agent to verify citations against INSPIRE-HEP/ADS/arXiv, and feeds directly into the BibTeX file for paper generation.
+**Status:** Not wired into the current GPD bibliography flow. The live bibliographer/paper pipeline
+uses `references/references.bib`, `references/references-verified.log`, and
+`references/references-pending.md`.
+
+**Purpose:** Use this only if you explicitly want a parallel markdown registry of citations across
+the project. It is no longer treated as the canonical source of truth for paper generation.
 
 **Relationship to other files:**
 
-- `.gpd/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
-- Phase SUMMARY.md files may reference citations by BibTeX key; this file is the registry
+- `references/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
+- Phase SUMMARY.md files may reference citations by BibTeX key; this file is optional supplemental tracking
 - `CONVENTIONS.md` records which textbook conventions are followed; those textbooks should appear here
 - `PARAMETERS.md` may cite data sources; those citations should appear here
 

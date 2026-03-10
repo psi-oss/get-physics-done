@@ -2,12 +2,12 @@
 template_version: 1
 ---
 
-> **Context:** This template is for the `new-project` literature survey — researching a topic BEFORE
-> starting a new project. For analyzing existing project artifacts, see `templates/analysis/`.
-
-> **Used by:** `workflows/new-project.md` (as template for researcher subagents) and incorporated
-> into `templates/research.md` (combined research template). Do not use this file as a standalone
-> user-facing template — it is consumed by workflows and other templates.
+> **Status:** Supplemental research template. The current `new-project` workflow does not spawn a
+> standalone `THEORETICAL_FRAMEWORK.md`; its live outputs are `PRIOR-WORK.md`, `METHODS.md`,
+> `COMPUTATIONAL.md`, `PITFALLS.md`, and `SUMMARY.md`.
+>
+> Keep this template only if you intentionally add an extra theoretical-framework survey artifact.
+> For analyzing existing project artifacts, see `templates/analysis/`.
 
 # Theoretical Framework Research Template
 

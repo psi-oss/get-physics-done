@@ -30,17 +30,6 @@ class TestProperties:
         assert adapter.help_command == "$gpd-help"
 
 
-class TestTranslateToolName:
-    def test_canonical_to_codex(self, adapter: CodexAdapter) -> None:
-        assert adapter.translate_tool_name("file_read") == "read_file"
-        assert adapter.translate_tool_name("file_edit") == "apply_patch"
-        assert adapter.translate_tool_name("shell") == "shell"
-
-    def test_runtime_native_alias(self, adapter: CodexAdapter) -> None:
-        assert adapter.translate_tool_name("Read") == "read_file"
-        assert adapter.translate_tool_name("Edit") == "apply_patch"
-
-
 class TestConvertCodexToolName:
     def test_known_mappings(self) -> None:
         assert _convert_codex_tool_name("Bash") == "shell"
@@ -115,38 +104,6 @@ class TestConvertToCodexSkill:
         content = "---\nname: test\n---\nBody"
         result = _convert_to_codex_skill(content, "gpd-test")
         assert "description: GPD skill - gpd-test" in result
-
-
-class TestGenerateCommand:
-    def test_creates_skill_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_command({"name": "gpd-help", "content": "---\nname: help\n---\nBody"}, tmp_path)
-        assert result == tmp_path / "gpd-help" / "SKILL.md"
-        assert result.exists()
-
-    def test_skill_has_codex_frontmatter(self, adapter: CodexAdapter, tmp_path: Path) -> None:
-        adapter.generate_command(
-            {"name": "gpd-help", "content": "---\nname: gpd:help\ndescription: Help\ncolor: cyan\n---\nBody"},
-            tmp_path,
-        )
-        content = (tmp_path / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
-        assert "name: gpd-help" in content
-        assert "color:" not in content
-
-
-class TestGenerateAgent:
-    def test_creates_skill_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
-        result = adapter.generate_agent(
-            {"name": "gpd-verifier", "content": "---\nname: gpd-verifier\n---\nPrompt"},
-            tmp_path,
-        )
-        assert result == tmp_path / "gpd-verifier" / "SKILL.md"
-        assert result.exists()
-
-
-class TestGenerateHook:
-    def test_returns_notify_array(self, adapter: CodexAdapter) -> None:
-        result = adapter.generate_hook("notify", {"command": "check_update.py"})
-        assert result == {"notify": [sys.executable or "python3", "check_update.py"]}
 
 
 class TestInstall:

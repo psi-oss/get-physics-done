@@ -147,11 +147,6 @@ def runtime_to_adapter_name(runtime: str) -> str:
     return RUNTIME_CLI_NAMES.get(runtime, runtime)
 
 
-def runtime_dir(runtime: str) -> Path:
-    """Return the home-relative config directory for a runtime."""
-    return _global_runtime_dir(runtime)
-
-
 def _unique_paths(paths: list[Path]) -> list[Path]:
     """Return paths in order with duplicates removed."""
     seen: set[Path] = set()

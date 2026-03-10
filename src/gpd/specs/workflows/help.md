@@ -819,18 +819,12 @@ When `commit_docs: false`:
 - Useful for collaborative projects, shared repos, or keeping planning private
 - All planning files still work normally, just not tracked in git
 
-**`planning.search_gitignored`** (default: `false`)
-
-- `true`: Add `--no-ignore` to broad ripgrep searches
-- Only needed when `.gpd/` is gitignored and you want project-wide searches to include it
-
 Example config:
 
 ```json
 {
   "planning": {
-    "commit_docs": false,
-    "search_gitignored": true
+    "commit_docs": false
   }
 }
 ```

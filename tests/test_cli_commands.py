@@ -76,9 +76,62 @@ def gpd_project(tmp_path: Path) -> Path:
     p1 = planning / "phases" / "01-test-phase"
     p1.mkdir(parents=True)
     (p1 / "README.md").write_text("# Phase 1: Test Phase\n")
+    (p1 / "01-SUMMARY.md").write_text("# Summary\n\nExecuted plan summary.\n")
+    (p1 / "01-VERIFICATION.md").write_text("# Verification\n\nVerified result.\n")
     p2 = planning / "phases" / "02-phase-two"
     p2.mkdir(parents=True)
     (p2 / "README.md").write_text("# Phase 2: Phase Two\n")
+
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "main.tex").write_text("\\documentclass{article}\n\\begin{document}\nTest manuscript.\n\\end{document}\n")
+    (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps({"version": 1, "paper_title": "Test", "journal": "prl", "created_at": "2026-03-10T00:00:00+00:00", "artifacts": []}),
+        encoding="utf-8",
+    )
+    (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-10T00:00:00+00:00",
+                "total_sources": 0,
+                "resolved_sources": 0,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (paper_dir / "reproducibility-manifest.json").write_text(
+        json.dumps(
+            {
+                "paper_title": "Test",
+                "date": "2026-03-10",
+                "environment": {
+                    "python_version": "3.12.1",
+                    "package_manager": "uv",
+                    "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                    "lock_file": "pyproject.toml",
+                    "system_requirements": {},
+                },
+                "execution_steps": [{"name": "run", "command": "python scripts/run.py"}],
+                "expected_results": [{"quantity": "x", "expected_value": "1", "tolerance": "0.1", "script": "scripts/run.py"}],
+                "output_files": [{"path": "results/out.json", "checksum_sha256": "a" * 64}],
+                "resource_requirements": [{"step": "run", "cpu_cores": 1, "memory_gb": 1.0}],
+                "verification_steps": ["rerun", "compare", "inspect"],
+                "minimum_viable": "1 core",
+                "recommended": "2 cores",
+                "random_seeds": [],
+                "seeding_strategy": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "referee-report.md").write_text("# Referee Report\n\n1. Clarify the derivation.\n")
 
     return tmp_path
 
@@ -315,3 +368,220 @@ class TestUtilityCommands:
 
     def test_slug(self) -> None:
         _invoke("slug", "Hello World Test")
+
+
+class TestReviewValidationCommands:
+    def test_review_contract_uses_typed_registry_surface(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-contract", "write-paper"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["review_contract"]["review_mode"] == "publication"
+        assert "artifact manifest" in payload["review_contract"]["required_evidence"]
+
+    def test_review_preflight_write_paper_strict(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "write-paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:write-paper"
+        assert payload["passed"] is True
+        check_names = {check["name"] for check in payload["checks"]}
+        assert {
+            "project_state",
+            "state_integrity",
+            "roadmap",
+            "conventions",
+            "research_artifacts",
+            "verification_reports",
+        } <= check_names
+
+    def test_review_preflight_strict_blocks_review_integrity_failures(self, gpd_project: Path) -> None:
+        planning = gpd_project / ".gpd"
+        state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        state["intermediate_results"] = [
+            {"id": "R-01", "description": "Unbacked claim", "depends_on": [], "verified": True, "verification_records": []}
+        ]
+        (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "write-paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["state_integrity"]["passed"] is False
+
+    def test_review_preflight_verify_work_for_phase(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "verify-work", "1"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:verify-work"
+        assert payload["passed"] is True
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["phase_lookup"]["passed"] is True
+        assert checks["phase_summaries"]["passed"] is True
+
+    def test_review_preflight_respond_to_referees_checks_report_path(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "respond-to-referees", "reports/referee-report.md"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["passed"] is True
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert checks["referee_report_source"]["passed"] is True
+
+    def test_review_preflight_fails_without_manuscript(self, gpd_project: Path) -> None:
+        (gpd_project / "paper" / "main.tex").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "respond-to-referees", "reports/referee-report.md"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:respond-to-referees"
+        assert payload["passed"] is False
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is False
+
+    def test_validate_paper_quality_command(self, gpd_project: Path) -> None:
+        quality_path = gpd_project / "paper-quality.json"
+        quality_path.write_text(
+            json.dumps(
+                {
+                    "title": "Review-grade paper",
+                    "journal": "prd",
+                    "equations": {
+                        "labeled": {"satisfied": 4, "total": 4},
+                        "symbols_defined": {"satisfied": 4, "total": 4},
+                        "dimensionally_verified": {"satisfied": 4, "total": 4},
+                        "limiting_cases_verified": {"satisfied": 4, "total": 4},
+                    },
+                    "figures": {
+                        "axes_labeled_with_units": {"satisfied": 2, "total": 2},
+                        "error_bars_present": {"satisfied": 2, "total": 2},
+                        "referenced_in_text": {"satisfied": 2, "total": 2},
+                        "captions_self_contained": {"satisfied": 2, "total": 2},
+                        "colorblind_safe": {"satisfied": 2, "total": 2},
+                    },
+                    "citations": {
+                        "citation_keys_resolve": {"satisfied": 5, "total": 5},
+                        "missing_placeholders": {"passed": True},
+                        "key_prior_work_cited": {"passed": True},
+                        "hallucination_free": {"passed": True},
+                    },
+                    "conventions": {
+                        "convention_lock_complete": {"passed": True},
+                        "assert_convention_coverage": {"satisfied": 3, "total": 3},
+                        "notation_consistent": {"passed": True},
+                    },
+                    "verification": {
+                        "report_passed": {"passed": True},
+                        "must_haves_verified": {"satisfied": 3, "total": 3},
+                        "key_result_confidences": ["INDEPENDENTLY CONFIRMED"],
+                    },
+                    "completeness": {
+                        "abstract_written_last": {"passed": True},
+                        "required_sections_present": {"satisfied": 4, "total": 4},
+                        "placeholders_cleared": {"passed": True},
+                        "supplemental_cross_referenced": {"passed": True},
+                    },
+                    "results": {
+                        "uncertainties_present": {"satisfied": 3, "total": 3},
+                        "comparison_with_prior_work_present": {"passed": True},
+                        "physical_interpretation_present": {"passed": True},
+                    },
+                    "journal_extra_checks": {"convergence_three_points": True},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["--raw", "validate", "paper-quality", str(quality_path)], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["ready_for_submission"] is True
+        assert payload["journal"] == "prd"
+
+    def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
+        manifest_path = gpd_project / "reproducibility-ready.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "paper_title": "Reproducible Paper",
+                    "date": "2026-03-10",
+                    "environment": {
+                        "python_version": "3.12.1",
+                        "package_manager": "uv",
+                        "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                        "lock_file": "uv.lock",
+                        "system_requirements": {},
+                    },
+                    "input_data": [
+                        {
+                            "name": "benchmark",
+                            "source": "NIST",
+                            "version_or_date": "2026-03-01",
+                            "checksum_sha256": "a" * 64,
+                        }
+                    ],
+                    "generated_data": [{"name": "spectrum", "script": "scripts/run.py", "checksum_sha256": "b" * 64}],
+                    "execution_steps": [
+                        {"name": "prepare", "command": "python scripts/prepare.py"},
+                        {"name": "sample", "command": "python scripts/run.py", "stochastic": True},
+                    ],
+                    "expected_results": [{"quantity": "x", "expected_value": "1", "tolerance": "0.1", "script": "scripts/run.py"}],
+                    "output_files": [{"path": "results/out.json", "checksum_sha256": "c" * 64}],
+                    "resource_requirements": [
+                        {"step": "prepare", "cpu_cores": 1, "memory_gb": 1.0},
+                        {"step": "sample", "cpu_cores": 2, "memory_gb": 2.0},
+                    ],
+                    "random_seeds": [{"computation": "sample", "seed": "42"}],
+                    "seeding_strategy": "Fixed seed per stochastic step",
+                    "verification_steps": ["rerun pipeline", "compare numbers", "inspect artifacts"],
+                    "minimum_viable": "1 core",
+                    "recommended": "2 cores",
+                    "last_verified": "2026-03-10",
+                    "last_verified_platform": "macOS 14 arm64",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "reproducibility-manifest", str(manifest_path), "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+        assert payload["ready_for_review"] is True

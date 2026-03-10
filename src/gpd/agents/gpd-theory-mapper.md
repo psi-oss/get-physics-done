@@ -667,11 +667,11 @@ Templates are stored as separate reference files. Load only the templates for yo
 
 ### When Template Files Don't Exist
 
-If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` does not exist), fall back to this procedure:
+If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/references/theory-mapper-templates/` does not exist), treat that as a broken install and fall back to this procedure:
 
-1. **Check alternate locations:** Template files may be installed at a different path depending on your runtime. Search for the template filename using find_files: `find_files("**/theory-mapper-templates/FORMALISM.md")`
+1. **Do not search alternate runtime-specific paths.** GPD installs the shared reference tree at a deterministic `{GPD_INSTALL_DIR}` location for every runtime.
 
-2. **If no template is found anywhere:** Use the section structure from the `<template_filling_guidance>` section of this prompt. The guidance describes what each section should contain — use that as your structural template.
+2. **Use the section structure from the `<template_filling_guidance>` section of this prompt.** The guidance describes what each section should contain — use that as your structural template.
 
 3. **Minimum required structure for each document:**
 
@@ -683,7 +683,7 @@ If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/r
    **VALIDATION.md:** Limiting Cases, Numerical Benchmarks, Cross-Checks Performed, Gaps
    **CONCERNS.md:** Unjustified Approximations, Missing Validations, Theoretical Gaps, Priority Rankings
 
-4. **Flag the missing template** in your return confirmation: `"Template not found at expected path — used fallback structure"`
+4. **Flag the missing template** in your return confirmation: `"Template missing at deterministic install path — used fallback structure"`
 
 </templates>
 

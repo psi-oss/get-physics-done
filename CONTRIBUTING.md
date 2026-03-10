@@ -37,6 +37,7 @@ Cross-runtime release checks:
 - Public install docs should use `npx -y github:physicalsuperintelligence/get-physics-done`.
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
+- Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.
 
 ## Pull Request Checklist

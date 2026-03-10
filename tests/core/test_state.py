@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+from gpd.core.constants import ProjectLayout
 from gpd.core.state import (
     VALID_STATUSES,
     ResearchState,
@@ -9,13 +12,24 @@ from gpd.core.state import (
     ensure_state_schema,
     generate_state_markdown,
     is_valid_status,
+    load_state_json,
     parse_state_md,
     parse_state_to_json,
+    save_state_json,
+    save_state_markdown,
+    state_load,
     state_extract_field,
     state_has_field,
     state_replace_field,
+    state_validate,
     validate_state_transition,
 )
+
+
+def _state_with_result(result: dict) -> dict:
+    state = default_state_dict()
+    state["intermediate_results"] = [result]
+    return state
 
 # ─── default_state_dict ──────────────────────────────────────────────────────
 
@@ -146,6 +160,15 @@ def test_parse_state_md_decisions():
     assert d["rationale"] is not None
 
 
+def test_parse_state_md_decision_table_ignored():
+    content = MINIMAL_STATE_MD.replace(
+        "- [Phase 1]: Use metric signature (-,+,+,+) — matches Weinberg convention",
+        "| Phase | Summary | Rationale |\n| ----- | ------- | --------- |\n| 1 | Use metric signature (-,+,+,+) | matches Weinberg convention |",
+    )
+    parsed = parse_state_md(content)
+    assert parsed["decisions"] == []
+
+
 def test_parse_state_md_blockers():
     parsed = parse_state_md(MINIMAL_STATE_MD)
     assert len(parsed["blockers"]) == 1
@@ -208,6 +231,23 @@ def test_round_trip_with_data():
     assert "dim-reg" in parsed["decisions"][0]["summary"]
     assert len(parsed["blockers"]) == 1
     assert "IR divergence" in parsed["blockers"][0]
+
+
+def test_generate_state_markdown_shows_verification_evidence_count():
+    state = _state_with_result(
+        {
+            "id": "R-01",
+            "description": "Mass shell relation",
+            "equation": "p^2 = m^2",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [
+                {"verifier": "gpd-verifier", "method": "limit-check", "confidence": "high"}
+            ],
+        }
+    )
+    md = generate_state_markdown(state)
+    assert "evidence: 1" in md
 
 
 # ─── ensure_state_schema ─────────────────────────────────────────────────────
@@ -337,6 +377,147 @@ def test_ensure_state_schema_list_for_session():
     assert isinstance(result["session"], dict)
 
 
+# ─── integrity mode / provenance ─────────────────────────────────────────────
+
+
+def test_state_validate_missing_files_sets_review_integrity_metadata(tmp_path):
+    result = state_validate(tmp_path, integrity_mode="review")
+    assert result.valid is False
+    assert result.integrity_mode == "review"
+    assert result.integrity_status == "blocked"
+    assert "state.json not found" in result.issues
+    assert "STATE.md not found" in result.issues
+
+
+def test_load_state_json_review_blocks_on_schema_normalization(tmp_path):
+    layout = ProjectLayout(tmp_path)
+    layout.gpd.mkdir(parents=True, exist_ok=True)
+    layout.state_json.write_text(json.dumps({"position": {"status": 42}}), encoding="utf-8")
+
+    assert load_state_json(tmp_path, integrity_mode="review") is None
+
+    standard = load_state_json(tmp_path, integrity_mode="standard")
+    assert standard is not None
+    assert standard["position"]["status"] is None
+
+
+def test_state_validate_standard_warns_for_verified_result_without_records(tmp_path):
+    state = _state_with_result(
+        {
+            "id": "R-02",
+            "description": "Unbacked result",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [],
+        }
+    )
+    save_state_json(tmp_path, state)
+
+    result = state_validate(tmp_path)
+    assert result.valid is True
+    assert result.integrity_mode == "standard"
+    assert result.integrity_status == "warning"
+    assert any("verified=true but no verification_records present" in warning for warning in result.warnings)
+
+
+def test_state_validate_review_blocks_verified_result_without_records(tmp_path):
+    state = _state_with_result(
+        {
+            "id": "R-03",
+            "description": "Review-blocking result",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [],
+        }
+    )
+    save_state_json(tmp_path, state)
+
+    result = state_validate(tmp_path, integrity_mode="review")
+    assert result.valid is False
+    assert result.integrity_mode == "review"
+    assert result.integrity_status == "blocked"
+    assert any("verified=true but no verification_records present" in issue for issue in result.issues)
+
+
+def test_state_validate_review_blocks_missing_evidence_file(tmp_path):
+    state = _state_with_result(
+        {
+            "id": "R-04",
+            "description": "Result with missing artifact",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [
+                {
+                    "verifier": "gpd-verifier",
+                    "method": "artifact-check",
+                    "confidence": "high",
+                    "evidence_path": "artifacts/reports/R-04.json",
+                }
+            ],
+        }
+    )
+    save_state_json(tmp_path, state)
+
+    result = state_validate(tmp_path, integrity_mode="review")
+    assert result.valid is False
+    assert result.integrity_status == "blocked"
+    assert any('evidence_path "artifacts/reports/R-04.json" does not exist' in issue for issue in result.issues)
+
+
+def test_state_load_review_surfaces_integrity_blockers(tmp_path):
+    state = _state_with_result(
+        {
+            "id": "R-05",
+            "description": "Result pending evidence ledger",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [],
+        }
+    )
+    save_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path, integrity_mode="review")
+    assert loaded.state["intermediate_results"][0]["id"] == "R-05"
+    assert loaded.integrity_mode == "review"
+    assert loaded.integrity_status == "blocked"
+    assert any("verified=true but no verification_records present" in issue for issue in loaded.integrity_issues)
+
+
+def test_save_state_markdown_preserves_verification_records_for_tagged_results(tmp_path):
+    state = _state_with_result(
+        {
+            "id": "R-06",
+            "description": "Tagged result",
+            "equation": "F = ma",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [
+                {
+                    "verifier": "gpd-verifier",
+                    "method": "dimensional-analysis",
+                    "confidence": "high",
+                    "trace_id": "trace-06",
+                    "commit_sha": "abc1234",
+                }
+            ],
+        }
+    )
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    md_content = layout.state_md.read_text(encoding="utf-8")
+    assert "evidence: 1" in md_content
+
+    save_state_markdown(tmp_path, md_content)
+    reloaded = load_state_json(tmp_path)
+
+    assert reloaded is not None
+    result = reloaded["intermediate_results"][0]
+    assert result["id"] == "R-06"
+    assert result["verification_records"][0]["trace_id"] == "trace-06"
+    assert result["verification_records"][0]["commit_sha"] == "abc1234"
+
+
 # ─── field helpers ────────────────────────────────────────────────────────────
 
 
@@ -367,15 +548,22 @@ def test_is_valid_status():
     assert is_valid_status("Executing") is True
     assert is_valid_status("Planning") is True
     assert is_valid_status("Complete") is True
+    assert is_valid_status("Phase complete") is False
     assert is_valid_status("InvalidFoo") is False
 
 
 def test_validate_state_transition_valid():
-    assert validate_state_transition("Executing", "Phase complete") is None
+    assert validate_state_transition("Executing", "Phase complete — ready for verification") is None
 
 
 def test_validate_state_transition_invalid():
     result = validate_state_transition("Not started", "Complete")
+    assert result is not None
+    assert "Invalid transition" in result
+
+
+def test_validate_state_transition_removed_phase_complete_alias_invalid():
+    result = validate_state_transition("Executing", "Phase complete")
     assert result is not None
     assert "Invalid transition" in result
 

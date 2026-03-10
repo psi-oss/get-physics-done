@@ -39,6 +39,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.errors import GPDError
+from gpd.core.frontmatter import FrontmatterParseError
 from gpd.core.observability import gpd_span
 from gpd.core.utils import (
     atomic_write,
@@ -160,18 +161,11 @@ class MilestoneIncompleteError(PhaseError):
 
 
 def _extract_frontmatter(content: str) -> dict:
-    """Lazy-load extract_frontmatter from frontmatter module.
+    """Lazy-load extract_frontmatter from frontmatter module and return metadata only."""
+    from gpd.core.frontmatter import extract_frontmatter
 
-    Returns just the metadata dict (discards body). On parse error, returns
-    ``{"_parse_error": message}`` for compatibility with callers that check that key.
-    """
-    from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
-
-    try:
-        meta, _body = extract_frontmatter(content)
-        return meta
-    except FrontmatterParseError as exc:
-        return {"_parse_error": str(exc)}
+    meta, _body = extract_frontmatter(content)
+    return meta
 
 
 def _save_state_markdown(cwd: Path, state_content: str) -> None:
@@ -491,13 +485,13 @@ def _list_phase_dirs_raw(phases_dir: Path) -> list[str]:
     return _sorted_phases([d.name for d in phases_dir.iterdir() if d.is_dir()])
 
 
-def _ensure_list(value: object) -> list[str]:
-    """Coerce a value to a list of strings."""
+def _ensure_list(value: object, *, field_name: str) -> list[str]:
+    """Require a list-valued frontmatter field and normalize items to strings."""
     if value is None:
         return []
     if isinstance(value, list):
         return [str(v) for v in value]
-    return [str(value)]
+    raise PhaseValidationError(f"Frontmatter field '{field_name}' must be a list")
 
 
 def _validate_phase_number(phase_num: str) -> None:
@@ -874,20 +868,25 @@ def validate_phase_waves(cwd: Path, phase: str) -> PhaseWaveValidationResult:
         phase_dir = cwd / phase_info.directory
 
         plans: list[PlanEntry] = []
+        errors: list[str] = []
         for plan_file in phase_info.plans:
             plan_id = _strip_suffix(_strip_suffix(plan_file, PLAN_SUFFIX), STANDALONE_PLAN)
             content = (phase_dir / plan_file).read_text(encoding="utf-8")
-            fm = _extract_frontmatter(content)
-            if fm.get("_parse_error"):
+            try:
+                fm = _extract_frontmatter(content)
+                files_modified = _ensure_list(fm.get("files_modified"), field_name="files_modified")
+                depends_on = _ensure_list(fm.get("depends_on"), field_name="depends_on")
+            except (FrontmatterParseError, PhaseValidationError) as exc:
+                errors.append(f"{plan_file}: {exc}")
                 continue
 
             wave = safe_parse_int(fm.get("wave"), 1)
-            files_modified = _ensure_list(fm.get("files_modified") or fm.get("files-modified"))
-            depends_on = _ensure_list(fm.get("depends_on") or fm.get("depends-on"))
 
             plans.append(PlanEntry(id=plan_id, wave=wave, depends_on=depends_on, files_modified=files_modified))
 
         validation = validate_waves(plans)
+        if errors:
+            validation = validation.model_copy(update={"valid": False, "errors": [*errors, *validation.errors]})
         return PhaseWaveValidationResult(phase=normalized, validation=validation)
 
 
@@ -913,12 +912,17 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
         waves: dict[str, list[str]] = {}
         incomplete: list[str] = []
         has_checkpoints = False
+        validation_errors: list[str] = []
 
         for plan_file in phase_info.plans:
             plan_id = _strip_suffix(_strip_suffix(plan_file, PLAN_SUFFIX), STANDALONE_PLAN)
             content = (phase_dir / plan_file).read_text(encoding="utf-8")
-            fm = _extract_frontmatter(content)
-            if fm.get("_parse_error"):
+            try:
+                fm = _extract_frontmatter(content)
+                files_modified = _ensure_list(fm.get("files_modified"), field_name="files_modified")
+                depends_on = _ensure_list(fm.get("depends_on"), field_name="depends_on")
+            except (FrontmatterParseError, PhaseValidationError) as exc:
+                validation_errors.append(f"{plan_file}: {exc}")
                 continue
 
             task_count = len(re.findall(r"##\s*Task\s*\d+", content, re.IGNORECASE))
@@ -932,9 +936,6 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
 
             if not autonomous:
                 has_checkpoints = True
-
-            files_modified = _ensure_list(fm.get("files_modified") or fm.get("files-modified"))
-            depends_on = _ensure_list(fm.get("depends_on") or fm.get("depends-on"))
 
             has_summary = plan_id in completed_plan_ids
             if not has_summary:
@@ -956,6 +957,10 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
             waves.setdefault(wave_key, []).append(plan_id)
 
         validation = validate_waves(plans)
+        if validation_errors:
+            validation = validation.model_copy(
+                update={"valid": False, "errors": [*validation_errors, *validation.errors]}
+            )
 
         return PhasePlanIndex(
             phase=normalized,
@@ -1981,9 +1986,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
             phase_dir = phases_dir / Path(phase_info.directory).name
             for summary_name in phase_info.summaries:
                 content = (phase_dir / summary_name).read_text(encoding="utf-8")
-                fm = _extract_frontmatter(content)
-                if fm.get("_parse_error"):
-                    continue
+                try:
+                    fm = _extract_frontmatter(content)
+                except FrontmatterParseError as exc:
+                    raise PhaseValidationError(f"{summary_name}: {exc}") from exc
 
                 one_liner = fm.get("one-liner")
                 if not one_liner:
