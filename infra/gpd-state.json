@@ -26,7 +26,7 @@
   "health_check": {
     "tool": "get_config",
     "input": {
-      "project_dir": "."
+      "project_dir": "/tmp/test"
     },
     "expect": "contains model_profile"
   },

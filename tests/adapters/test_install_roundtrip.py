@@ -192,10 +192,6 @@ class TestGeminiRoundtrip:
         assert "google_web_search" in reference
         assert "WebSearch" not in reference
 
-    @pytest.mark.skip(
-        reason="Gemini install() builds settings in-memory but finish_install() writes them; "
-        "settings.json is not on disk after install() alone"
-    )
     def test_settings_json_has_experimental(self, installed: Path) -> None:
         """settings.json enables experimental.enableAgents."""
         settings_path = installed / "settings.json"

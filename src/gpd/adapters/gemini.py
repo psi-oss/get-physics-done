@@ -310,6 +310,37 @@ class GeminiAdapter(RuntimeAdapter):
             return Path(env).expanduser()
         return Path.home() / ".gemini"
 
+    def install(
+        self,
+        gpd_root: Path,
+        target_dir: Path,
+        *,
+        is_global: bool = False,
+        explicit_target: bool = False,
+    ) -> dict[str, object]:
+        """Install GPD and persist Gemini settings as part of the install.
+
+        Unlike Claude Code, Gemini requires ``settings.json`` to enable
+        ``experimental.enableAgents`` for the installed agents to function.
+        A bare content copy is therefore an incomplete Gemini install.
+        """
+        previous_finalize_pending = getattr(self, "_gemini_finalize_pending", False)
+        self._gemini_finalize_pending = True
+        try:
+            result = super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
+        finally:
+            self._gemini_finalize_pending = previous_finalize_pending
+
+        settings_path = result.get("settingsPath")
+        settings = result.get("settings")
+        statusline_command = result.get("statuslineCommand")
+        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            self.finish_install(settings_path, settings, statusline_command, True)
+            result["settingsWritten"] = True
+            self._verify(target_dir)
+
+        return result
+
     # --- Template method hooks ---
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
@@ -462,6 +493,31 @@ class GeminiAdapter(RuntimeAdapter):
                 logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
 
         return result
+
+    def _verify(self, target_dir: Path) -> None:
+        """Verify the Gemini install is usable, including persisted settings."""
+        super()._verify(target_dir)
+
+        if getattr(self, "_gemini_finalize_pending", False):
+            return
+
+        settings_path = target_dir / "settings.json"
+        if not settings_path.exists():
+            raise RuntimeError("Gemini install incomplete: settings.json was not written")
+
+        settings = read_settings(settings_path)
+        experimental = settings.get("experimental")
+        if not isinstance(experimental, dict) or experimental.get("enableAgents") is not True:
+            raise RuntimeError("Gemini install incomplete: experimental.enableAgents is not enabled")
+
+        hooks = settings.get("hooks")
+        session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+        if not isinstance(session_start, list) or not any(_entry_has_gpd_hook(entry) for entry in session_start):
+            raise RuntimeError("Gemini install incomplete: update hook not configured")
+
+        mcp_servers = settings.get("mcpServers")
+        if not isinstance(mcp_servers, dict) or not mcp_servers:
+            raise RuntimeError("Gemini install incomplete: MCP servers are not configured")
 
 
 # ---------------------------------------------------------------------------

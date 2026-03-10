@@ -190,9 +190,11 @@ class TestInstall:
         target.mkdir()
         result = adapter.install(gpd_root, target)
 
-        # install() returns settings dict (not yet written to disk)
+        settings_on_disk = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         settings = result["settings"]
         assert settings.get("experimental", {}).get("enableAgents") is True
+        assert settings_on_disk.get("experimental", {}).get("enableAgents") is True
+        assert result["settingsWritten"] is True
 
     def test_install_configures_update_hook(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
@@ -204,6 +206,13 @@ class TestInstall:
         session_start = hooks.get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
         assert any("check_update" in c for c in cmds)
+        persisted = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        persisted_cmds = [
+            h.get("command", "")
+            for entry in persisted.get("hooks", {}).get("SessionStart", [])
+            for h in (entry.get("hooks") or [])
+        ]
+        assert any("check_update" in c for c in persisted_cmds)
 
     def test_install_preserves_jsonc_settings_and_uses_current_interpreter(
         self,

@@ -2764,7 +2764,12 @@ def install(
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
 
                 # Handle finish_install for adapters that support it (e.g. statusline setup)
-                if hasattr(adapter, "finish_install") and "settingsPath" in result and "settings" in result:
+                if (
+                    hasattr(adapter, "finish_install")
+                    and "settingsPath" in result
+                    and "settings" in result
+                    and not result.get("settingsWritten")
+                ):
                     should_install_statusline = True
                     adapter.finish_install(
                         result["settingsPath"],
