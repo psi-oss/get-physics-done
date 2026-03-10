@@ -22,6 +22,8 @@ import sys
 LOG_PATH = pathlib.Path({str(log_path)!r})
 FAIL_PYPI_RELEASE = os.environ.get("FAKE_PIP_FAIL_PYPI") == "1"
 FAIL_TAG_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_TAG_ARCHIVE") == "1"
+FAIL_BRANCH_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_BRANCH_ARCHIVE") == "1"
+FAIL_TAG_GIT = os.environ.get("FAKE_PIP_FAIL_TAG_GIT") == "1"
 
 
 def record() -> None:
@@ -85,6 +87,14 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     if FAIL_TAG_ARCHIVE and target.endswith("/archive/refs/tags/v0.1.0.tar.gz"):
         record()
         sys.stderr.write("ERROR: HTTP error 404 while getting tagged archive\\n")
+        raise SystemExit(1)
+    if FAIL_BRANCH_ARCHIVE and target.endswith("/archive/refs/heads/main.tar.gz"):
+        record()
+        sys.stderr.write("ERROR: HTTP error 404 while getting branch archive\\n")
+        raise SystemExit(1)
+    if FAIL_TAG_GIT and target.endswith(".git@v0.1.0"):
+        record()
+        sys.stderr.write("ERROR: git checkout could not find tag v0.1.0\\n")
         raise SystemExit(1)
     record()
     raise SystemExit(0)
@@ -189,3 +199,37 @@ def test_bootstrap_falls_back_to_github_source_archives_when_pypi_release_is_mis
     ]
     assert "PyPI install failed. Falling back to GitHub source archive for v0.1.0..." in result.stdout
     assert "GitHub source archive for v0.1.0 failed. Falling back to current main branch source archive..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_falls_back_to_authenticated_git_when_archive_urls_fail(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
+            "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_TAG_GIT": "1",
+        },
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == [
+        "get-physics-done==0.1.0",
+        "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v0.1.0.tar.gz",
+        "https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz",
+        "git+https://github.com/physicalsuperintelligence/get-physics-done.git@v0.1.0",
+        "git+https://github.com/physicalsuperintelligence/get-physics-done.git@main",
+    ]
+    assert (
+        "current main branch source archive failed. Falling back to GitHub git checkout for v0.1.0..."
+        in result.stdout
+    )
+    assert "GitHub git checkout for v0.1.0 failed. Falling back to authenticated git checkout of main..." in result.stdout

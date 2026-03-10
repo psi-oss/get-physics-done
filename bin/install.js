@@ -109,22 +109,62 @@ function repositoryBaseUrl(repositoryField) {
   return normalized || null;
 }
 
-function githubSourceCandidates(version) {
-  const repoBaseUrl = repositoryBaseUrl(repository);
-  if (!repoBaseUrl) {
-    return [];
+function repositoryGitUrl(repositoryField) {
+  const raw = typeof repositoryField === "string"
+    ? repositoryField
+    : repositoryField && typeof repositoryField.url === "string"
+      ? repositoryField.url
+      : "";
+  if (!raw) {
+    return null;
   }
 
-  return [
-    {
-      label: `GitHub source archive for v${version}`,
-      spec: `${repoBaseUrl}/archive/refs/tags/v${version}.tar.gz`,
-    },
-    {
-      label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
-      spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
-    },
-  ];
+  let normalized = raw.trim();
+  if (normalized.startsWith("git+")) {
+    normalized = normalized.slice(4);
+  }
+  if (normalized.startsWith("git@github.com:")) {
+    normalized = `https://github.com/${normalized.slice("git@github.com:".length)}`;
+  }
+  normalized = normalized.replace(/\/+$/, "");
+  if (!normalized.endsWith(".git")) {
+    normalized = `${normalized}.git`;
+  }
+  return normalized || null;
+}
+
+function sourceInstallCandidates(version) {
+  const repoBaseUrl = repositoryBaseUrl(repository);
+  const repoGitUrl = repositoryGitUrl(repository);
+  const candidates = [];
+
+  if (repoBaseUrl) {
+    candidates.push(
+      {
+        label: `GitHub source archive for v${version}`,
+        spec: `${repoBaseUrl}/archive/refs/tags/v${version}.tar.gz`,
+      },
+      {
+        label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
+        spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
+      }
+    );
+  }
+
+  if (repoGitUrl) {
+    candidates.push(
+      {
+        label: `GitHub git checkout for v${version}`,
+        spec: `git+${repoGitUrl}@v${version}`,
+      },
+      {
+        label: `authenticated git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+        spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+      }
+    );
+  }
+
+  return candidates;
 }
 
 function runPipInstall(python, spec, env) {
@@ -303,7 +343,7 @@ function installManagedPackage(python, version) {
     return { ok: true, pythonPackageSpec };
   }
 
-  const fallbacks = githubSourceCandidates(version);
+  const fallbacks = sourceInstallCandidates(version);
   for (const [index, candidate] of fallbacks.entries()) {
     const previousLabel = index === 0 ? "PyPI install" : fallbacks[index - 1].label;
     log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
