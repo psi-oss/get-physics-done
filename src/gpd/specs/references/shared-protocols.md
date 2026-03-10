@@ -316,7 +316,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | Classical Mechanics | `protocols/classical-mechanics.md` | Lagrangian/Newtonian mechanics — constraints, conserved quantities, oscillations |
 | Hamiltonian Mechanics | `protocols/hamiltonian-mechanics.md` | Canonical transformations, Poisson brackets, Hamilton-Jacobi, action-angle variables |
 | Scattering Theory | `protocols/scattering-theory.md` | Cross sections, phase shifts, S-matrix, partial waves, optical theorem |
-| Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, superfields, soft breaking, MSSM, superspace |
+| Supersymmetry | `protocols/supersymmetry.md` | SUSY algebra, BPS bounds, localization, Seiberg-Witten/duality, soft breaking, supergravity caveats |
 | Cosmological Perturbation Theory | `protocols/cosmological-perturbation-theory.md` | Inflation, scalar/tensor perturbations, gauge choices, power spectra |
 | de Sitter Space | `protocols/de-sitter-space.md` | Positive cosmological constant, cosmological horizons, dS/CFT, static patch holography |
 | Holography / AdS-CFT | `protocols/holography-ads-cft.md` | AdS/CFT dictionary, holographic renormalization, entanglement entropy |

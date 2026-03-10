@@ -56,6 +56,13 @@ context_cost: medium
 - Higher-group symmetry requires mixed transformation laws for ordinary and higher-form background fields
 - Non-invertible symmetry requires topological defects with non-group-like fusion; duality language alone is not enough
 
+**Supersymmetric Field Theory:**
+
+- 4d `N=1`: holomorphy, superpotential non-renormalization, anomaly constraints, and controlled soft breaking
+- 4d `N=2`: Coulomb/Higgs branches, Seiberg-Witten geometry, BPS spectra, and localization-compatible observables
+- 4d `N=4`: exact conformality, S-duality, integrability, and AdS/CFT benchmark structure
+- Protected quantities include the Witten index, superconformal index, localized partition functions, and BPS Wilson or defect observables
+
 **Effective Field Theories (EFTs):**
 
 - Organize physics by energy scale: integrate out heavy degrees of freedom
@@ -157,6 +164,7 @@ context_cost: medium
 | **Amplitudes bootstrap** | Can on-shell methods (BCFW, generalized unitarity) replace Feynman diagrams at high loops? | Arkani-Hamed, Dixon, Bern, Zvi group | Excellent — symbolic algebra intensive |
 | **Asymptotic symmetries / celestial amplitudes** | How are infrared soft theorems, large gauge symmetries, and celestial currents encoded in scattering observables? | Strominger, Pasterski, Donnay, Raclariu, Pate | Good — symmetry constraints are strong; full celestial dictionary is still developing |
 | **Generalized symmetries / defects** | How do higher-form, higher-group, and non-invertible symmetries constrain phases, anomalies, and operator algebras in QFT? | Komargodski, Cordova, Iqbal, Schafer-Nameki, Gaiotto | Good — strong on defect/anomaly logic; categorical classification is still moving fast |
+| **Supersymmetric QFT / protected sectors** | How far can localization, indices, dualities, and superconformal constraints determine strongly coupled dynamics? | Pestun, Rastelli, Razamat, Tachikawa, Komargodski | Excellent — protected observables are highly constrained; unprotected quantities still need explicit control |
 | **Asymptotic safety** | Does gravity have a UV fixed point? Compute critical exponents of the gravitational RG | Reuter, Percacci, Eichhorn groups | Good — functional RG, truncation systematics |
 | **Conformal bootstrap** | Determine CFT data (dimensions, OPE coefficients) non-perturbatively | Simmons-Duffin, Poland, Rychkov | Excellent — algebraic + numerical optimization |
 | **Precision Higgs/EW** | NNLO and N3LO corrections for LHC processes | CERN theory, Mistlberger, Czakon | Good — multi-loop integrals, IBP reduction |

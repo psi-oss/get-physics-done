@@ -16,14 +16,15 @@ Maps execution scenarios to the correct reference file. Load this at execution s
 | Scenario | Load These References |
 |---|---|
 | **Any derivation** | `shared-protocols.md` (conventions), `executor-verification-flows.md` (verification) |
-| **QFT calculation** | `verification-domain-qft.md`, plus `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/asymptotic-symmetries.md`, or `protocols/generalized-symmetries.md` depending on the symmetry/IR structure |
+| **QFT calculation** | `verification-domain-qft.md`, plus `protocols/perturbation-theory.md`, `protocols/renormalization-group.md`, `protocols/supersymmetry.md`, `protocols/asymptotic-symmetries.md`, `protocols/generalized-symmetries.md`, or `protocols/conformal-bootstrap.md` when fixed-point CFT data or crossing constraints are central |
 | **Condensed matter** | `verification-domain-condmat.md`, `executor-subfield-guide.md` §Condensed Matter |
-| **Statistical mechanics / simulation** | `verification-domain-statmech.md`, `protocols/monte-carlo.md` or `protocols/molecular-dynamics.md` |
+| **Statistical mechanics / simulation** | `verification-domain-statmech.md`, `protocols/monte-carlo.md` or `protocols/molecular-dynamics.md`; add `protocols/conformal-bootstrap.md` when the target is critical exponents, universality class data, or the critical-point CFT |
 | **General relativity / cosmology** | `verification-domain-gr-cosmology.md`, plus `protocols/general-relativity.md`, `protocols/de-sitter-space.md`, `protocols/asymptotic-symmetries.md`, or `protocols/cosmological-perturbation-theory.md` depending on regime |
 | **AMO physics** | `verification-domain-amo.md`, `executor-subfield-guide.md` §AMO |
 | **Nuclear / particle** | `verification-domain-nuclear-particle.md`, `executor-subfield-guide.md` §Nuclear |
 | **Astrophysics** | `verification-domain-astrophysics.md`, `executor-subfield-guide.md` §Astrophysics |
-| **Mathematical physics** | `verification-domain-mathematical-physics.md`, `executor-subfield-guide.md` §Mathematical Physics |
+| **Mathematical physics** | `verification-domain-mathematical-physics.md`, `executor-subfield-guide.md` §Mathematical Physics, plus `protocols/conformal-bootstrap.md` or `protocols/holography-ads-cft.md` for CFT-heavy problems |
+| **Conformal bootstrap / CFT** | `verification-domain-mathematical-physics.md`, `protocols/conformal-bootstrap.md`, and `subfields/qft.md` or `subfields/mathematical-physics.md` depending on whether the project is field-theoretic or structural |
 | **Numerical computation** | `protocols/numerical-computation.md`, `protocols/symbolic-to-numerical.md`, `verification-numerical.md` |
 | **Paper writing** | `figure-generation-templates.md`, `bibtex-standards.md` |
 | **Debugging / error recovery** | `execute-plan-recovery.md`, `executor-deviation-rules.md` |

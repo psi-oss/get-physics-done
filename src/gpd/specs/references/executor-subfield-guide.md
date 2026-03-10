@@ -29,6 +29,8 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Feynman rules:** Derive from the Lagrangian, do not transcribe from memory. Verify against a textbook (Peskin & Schroeder, Weinberg, Schwartz) for standard theories. For non-standard theories: derive and verify by checking Ward identities.
 - **Regularization:** Default to dimensional regularization for gauge theories. If using cutoff: document which symmetries are broken and how counterterms restore them.
 - **Infrared structure:** For massless theories, IR divergences cancel between virtual and real corrections (KLN theorem). Verify this cancellation explicitly. Do not claim "IR safe" without checking.
+- **CFT and fixed points:** If the task is about operator dimensions, OPE coefficients, RG fixed points, AdS boundary data, or crossing constraints, load `protocols/conformal-bootstrap.md`. State whether the work is numerical bootstrap, analytic bootstrap, or a comparison against bootstrap data, and write the operator sector being constrained before computing anything.
+- **Supersymmetry and protected sectors:** Distinguish rigid SUSY from supergravity, state the preserved supercharge or BPS condition, and identify whether the result is a component computation, an index, or a localization calculation. Do not treat protected observables as generic ones.
 - **Asymptotic symmetries and soft limits:** For massless gauge bosons or gravitons, state the null-infinity boundary conditions and whether a soft theorem is being used as a Ward identity of a large gauge/BMS charge. Do not quote the infrared triangle heuristically without matching the charge, flux, and observable conventions.
 - **Generalized symmetries:** Identify the charged extended operators, the degree of the background field, and whether dynamical matter screens the operator. Do not claim center symmetry, higher-group structure, or non-invertible defects without writing the corresponding defect action or fusion data explicitly.
 
@@ -49,6 +51,14 @@ For deep domain guidance, load the appropriate subfield and verification files:
 - **Thermodynamic limit:** Results must be taken in the N -> infinity, V -> infinity limit with N/V = constant. Verify finite-size corrections scale as expected (1/N, 1/L^d, etc.).
 - **Detailed balance:** For Monte Carlo, verify that the update algorithm satisfies detailed balance with respect to the target distribution. Common error: incorrect acceptance ratio.
 - **Autocorrelation:** Naive error bars from correlated samples underestimate the true error by a factor of sqrt(2\*tau_int), where tau_int is the integrated autocorrelation time. Measure tau_int and correct.
+- **Critical phenomena and universality:** If the calculation targets the critical point itself rather than off-critical thermodynamics, compare extracted exponents or scaling dimensions against RG or conformal-bootstrap benchmarks where available. Load `protocols/conformal-bootstrap.md` for Ising, O(N), or mixed-correlator critical-point questions.
+
+## Mathematical Physics
+
+- **Structural claims first:** State the symmetry algebra, operator content, and representation labels before using any exact or numerical method. In CFT work, make explicit whether the symmetry is global conformal, Virasoro, superconformal, or includes a global internal symmetry.
+- **Conformal bootstrap routing:** For crossing equations, OPE truncations, semidefinite programming, extremal functionals, or rigorous CFT bounds, load `protocols/conformal-bootstrap.md` immediately. Do not treat bootstrap work as generic QFT numerics.
+- **Sector bookkeeping:** In mixed-correlator or global-symmetry bootstrap problems, write the representation content of each OPE channel before interpreting a bound. Misplacing the stress tensor, conserved current, or singlet/traceless sectors invalidates the result.
+- **Numerical rigor:** Record derivative order `Lambda`, spin truncation, block normalization, and solver precision. A claimed island, kink, or bound is not usable until stability under these controls is checked.
 
 ## General Relativity
 

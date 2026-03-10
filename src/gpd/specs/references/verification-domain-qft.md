@@ -127,6 +127,32 @@ Core logic:
 
 </generalized_symmetry_checks>
 
+<supersymmetry_bps_localization>
+
+## Supersymmetry, BPS, and Localization Checks
+
+Supersymmetric results are often protected rather than generic. A valid SUSY calculation must say whether it relies on algebraic shortening, an index, localization, duality, or a direct component computation.
+
+```
+For a claimed SUSY/protected result:
+  choose the supercharge(s) Q
+  state the regime: rigid SUSY or supergravity
+  state the object: BPS mass, index, localized partition function, duality map, or ordinary correlator
+```
+
+**Verification:**
+
+```
+1. State the dimension, amount of SUSY, and whether the setup is rigid SUSY or local SUSY/supergravity.
+2. If a BPS statement is made, derive the bound from the superalgebra and include the relevant central charge or R-charge combination.
+3. If an index is used, verify it is a protected quantity and do not equate it with a raw degeneracy count without extra control.
+4. If localization is used, state Q, Q^2, the fixed locus, one-loop determinants, contour prescription, and zero-mode treatment.
+5. If Seiberg duality or another SUSY duality is invoked, match global symmetries, 't Hooft anomalies, moduli spaces, operator maps, and protected observables.
+6. If supergravity is involved, verify Killing-spinor/BPS equations or the correct supergravity potential instead of importing rigid-SUSY vacuum formulas.
+```
+
+</supersymmetry_bps_localization>
+
 <unitarity_causality_positivity>
 
 ## Unitarity, Causality, and Positivity Constraints
