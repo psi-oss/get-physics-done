@@ -138,7 +138,7 @@ GPD will:
 - Produce derivations and Python verification scripts as artifacts
 ```
 
-## In-Runtime Commands
+## Key In-Runtime Commands
 
 These commands run inside your installed AI runtime after GPD has been installed there. The syntax below uses Claude Code and Gemini CLI form (`/gpd:...`); for Codex use `$gpd-...`, and for OpenCode use `/gpd-...`.
 
