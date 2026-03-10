@@ -28,7 +28,7 @@ RUNTIME_DIR_NAMES: dict[str, str] = {
     RUNTIME_CLAUDE: ".claude",
     RUNTIME_CODEX: ".codex",
     RUNTIME_GEMINI: ".gemini",
-    RUNTIME_OPENCODE: os.path.join(".config", "opencode"),
+    RUNTIME_OPENCODE: ".config/opencode",
 }
 
 # Map runtime → cwd-relative config directory name for local installs
@@ -79,6 +79,16 @@ def detect_active_runtime() -> str:
             return runtime
 
     return RUNTIME_UNKNOWN
+
+
+def runtime_to_adapter_name(runtime: str) -> str:
+    """Translate a detection result to the adapter registry name.
+
+    detect_active_runtime() returns short names like ``"claude"`` while
+    the adapter registry uses CLI names like ``"claude-code"``.  This helper
+    bridges the two using :data:`RUNTIME_CLI_NAMES`.
+    """
+    return RUNTIME_CLI_NAMES.get(runtime, runtime)
 
 
 def runtime_dir(runtime: str) -> Path:

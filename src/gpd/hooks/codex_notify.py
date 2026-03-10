@@ -10,9 +10,11 @@ import os
 import subprocess
 import sys
 
+from gpd.core.constants import ENV_GPD_DEBUG
+
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 

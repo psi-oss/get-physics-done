@@ -214,15 +214,15 @@ class TestConventionsServerIntegration:
 class TestStateServerIntegration:
     """Integration tests for state_server tools with real STATE.md / state.json."""
 
-    def test_get_state_returns_full_markdown(self, gpd_project: Path):
+    def test_get_state_returns_structured_data(self, gpd_project: Path):
         from gpd.mcp.servers.state_server import get_state
 
         result = get_state(str(gpd_project))
 
         assert isinstance(result, dict)
-        assert result["content"] is not None
-        assert "Research State" in result["content"]
-        assert "One-loop vacuum polarization" in result["content"]
+        # Should return structured state, not raw markdown
+        assert "position" in result
+        assert "decisions" in result or "blockers" in result
 
     def test_advance_plan_increments(self, gpd_project: Path):
         from gpd.mcp.servers.state_server import advance_plan

@@ -17,6 +17,7 @@ __all__ = [
     "DECISION_THRESHOLD",
     "DEFAULT_MAX_INCLUDE_CHARS",
     "ENV_DATA_DIR",
+    "ENV_GPD_DEBUG",
     "ENV_MAX_INCLUDE_CHARS",
     "ENV_PATTERNS_ROOT",
     "MIN_PYTHON_MAJOR",
@@ -156,6 +157,9 @@ ENV_DATA_DIR = "GPD_DATA_DIR"
 
 ENV_MAX_INCLUDE_CHARS = "GPD_MAX_INCLUDE_CHARS"
 """Override for maximum characters when reading files for context."""
+
+ENV_GPD_DEBUG = "GPD_DEBUG"
+"""Enable verbose debug output (stderr diagnostics, extra logging)."""
 
 
 # ─── Required / Optional Planning Files ───────────────────────────────────────

@@ -512,64 +512,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 hook_path.unlink()
                 counts["hooks"] += 1
 
-    # 5. Clean up settings.json (remove GPD hooks and statusline)
-    settings_path = target_dir / "settings.json"
-    if settings_path.exists():
-        try:
-            settings = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            settings = None
-        if not isinstance(settings, dict):
-            settings = None
-
-        if settings is not None:
-            settings_modified = False
-
-            # Remove GPD statusline
-            if (
-                isinstance(settings.get("statusLine"), dict)
-                and isinstance(settings["statusLine"].get("command"), str)
-                and (
-                    "gpd-statusline" in settings["statusLine"]["command"]
-                    or "statusline.py" in settings["statusLine"]["command"]
-                )
-            ):
-                del settings["statusLine"]
-                settings_modified = True
-
-            # Remove GPD hooks from SessionStart
-            if isinstance(settings.get("hooks"), dict) and isinstance(settings["hooks"].get("SessionStart"), list):
-                before = len(settings["hooks"]["SessionStart"])
-                settings["hooks"]["SessionStart"] = [
-                    entry
-                    for entry in settings["hooks"]["SessionStart"]
-                    if not (
-                        isinstance(entry.get("hooks"), list)
-                        and any(
-                            isinstance(h.get("command"), str)
-                            and (
-                                "gpd-check-update" in h["command"]
-                                or "check_update" in h["command"]
-                                or "gpd-statusline" in h["command"]
-                                or "statusline.py" in h["command"]
-                            )
-                            for h in entry["hooks"]
-                        )
-                    )
-                ]
-                if len(settings["hooks"]["SessionStart"]) < before:
-                    settings_modified = True
-                if not settings["hooks"]["SessionStart"]:
-                    del settings["hooks"]["SessionStart"]
-                if not settings["hooks"]:
-                    del settings["hooks"]
-
-            if settings_modified:
-                tmp_path = settings_path.with_suffix(".tmp")
-                tmp_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-                tmp_path.rename(settings_path)
-
-    # 6. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
+    # 5. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
     oc_config_dir_mcp = config_dir or get_opencode_global_dir()
     oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
     if oc_config_path_mcp.exists():
@@ -588,7 +531,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                     del oc_mcp["mcp"]
                 oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
 
-    # 7. Clean up permissions from opencode.json
+    # 6. Clean up permissions from opencode.json
     oc_config_dir = config_dir or get_opencode_global_dir()
     oc_config_path = oc_config_dir / "opencode.json"
     if oc_config_path.exists():

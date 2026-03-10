@@ -216,7 +216,6 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     "gpd-project-researcher": ModelTier.TIER_2,
     "gpd-research-synthesizer": ModelTier.TIER_2,
     "gpd-debugger": ModelTier.TIER_1,
-    "map-content": ModelTier.TIER_2,
     "gpd-theory-mapper": ModelTier.TIER_3,
     "gpd-verifier": ModelTier.TIER_1,
     "gpd-plan-checker": ModelTier.TIER_1,

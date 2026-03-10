@@ -2,8 +2,8 @@
 
 Primary GPD commands and agents live in markdown files with YAML frontmatter.
 This module parses them once, caches the results, and exposes typed dataclass
-definitions so every consumer (commands/__init__.py, agents/__init__.py,
-adapters, CLI, MCP) gets the same data without re-parsing.
+definitions so every consumer (adapters, CLI, MCP skills server) gets the
+same data without re-parsing.
 """
 
 from __future__ import annotations
@@ -214,6 +214,7 @@ def _discover_commands() -> dict[str, CommandDef]:
 
 _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-execute": "execution",
+    "gpd-plan-checker": "verification",
     "gpd-plan": "planning",
     "gpd-verify": "verification",
     "gpd-debug": "debugging",

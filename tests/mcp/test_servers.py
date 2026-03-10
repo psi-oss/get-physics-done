@@ -688,12 +688,27 @@ class TestStateServer:
     def test_get_state(self):
         from gpd.mcp.servers.state_server import get_state
 
-        mock_result = MagicMock()
-        mock_result.model_dump.return_value = {"content": "state md", "position": {"phase": "01"}}
+        mock_state = {"position": {"current_phase": "01"}, "decisions": [], "blockers": []}
 
-        with patch("gpd.mcp.servers.state_server.state_get", return_value=mock_result):
+        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
             result = get_state("/fake/project")
-        assert "content" in result
+        assert "position" in result
+        assert result["position"]["current_phase"] == "01"
+
+    def test_get_state_no_state(self):
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=None):
+            result = get_state("/fake/project")
+        assert "error" in result
+
+    def test_get_state_gpd_error(self):
+        from gpd.core.errors import GPDError
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
+            result = get_state("/fake/project")
+        assert result == {"error": "boom"}
 
     def test_get_phase_info_found(self):
         from gpd.mcp.servers.state_server import get_phase_info

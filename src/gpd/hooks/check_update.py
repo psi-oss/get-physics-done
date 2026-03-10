@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from gpd.core.constants import ENV_GPD_DEBUG
+
 try:
     from packaging.version import InvalidVersion, Version
 except ModuleNotFoundError:
@@ -27,7 +29,7 @@ PYPI_PACKAGE_NAME = "get-physics-done"
 
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 

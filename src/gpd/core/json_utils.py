@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gpd.core.errors import ValidationError
 from gpd.core.utils import atomic_write
 
 
@@ -69,7 +70,7 @@ def json_get(stdin_text: str, key: str, default: str | None = None) -> str:
     except json.JSONDecodeError as err:
         if default is not None:
             return default
-        raise ValueError(f"Invalid JSON input: {stdin_text[:80]!r}") from err
+        raise ValidationError(f"Invalid JSON input: {stdin_text[:80]!r}") from err
 
     result = _resolve_path(data, key)
     if result is None:

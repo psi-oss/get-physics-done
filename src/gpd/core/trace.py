@@ -207,7 +207,7 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     """Create a trace file and set it as the active trace.
 
     Raises:
-        ValueError: If *phase* or *plan* is empty, or a trace is already active.
+        TraceError: If *phase* or *plan* is empty, or a trace is already active.
     """
     if not phase:
         raise TraceError(
@@ -250,7 +250,7 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
     """Append a timestamped event to the active trace.
 
     Raises:
-        ValueError: If *event_type* is unknown or no trace is active.
+        TraceError: If *event_type* is unknown or no trace is active.
     """
     if event_type not in USER_EVENT_TYPES:
         raise TraceError(f"Unknown event type: {event_type!r}. Valid: {sorted(USER_EVENT_TYPES)}")
@@ -273,7 +273,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     """Close the active trace and write a summary event.
 
     Raises:
-        ValueError: If no trace is active.
+        TraceError: If no trace is active.
     """
     active = _read_active_trace(cwd)
     if active is None:

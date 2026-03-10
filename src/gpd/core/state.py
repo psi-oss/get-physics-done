@@ -29,6 +29,7 @@ from gpd.core.constants import (
     STANDALONE_SUMMARY,
     STATE_LINES_BUDGET,
     STATE_LINES_TARGET,
+    ENV_GPD_DEBUG,
     SUMMARY_SUFFIX,
     ProjectLayout,
 )
@@ -484,7 +485,7 @@ def state_replace_field(content: str, field_name: str, new_value: str) -> str:
     escaped = _escape_regex(field_name)
     pattern = re.compile(rf"(\*\*{escaped}:\*\*\s*)(.*)", re.IGNORECASE)
     if not pattern.search(content):
-        if os.environ.get("GPD_DEBUG"):
+        if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("State field '%s' not found in STATE.md — update skipped", field_name)
         return content
 
@@ -735,7 +736,7 @@ def parse_state_to_json(content: str) -> dict:
             "status": _strip_placeholder(parsed["position"]["status"]),
             "last_activity": _strip_placeholder(parsed["position"]["last_activity"]),
             "last_activity_desc": _strip_placeholder(parsed["position"]["last_activity_desc"]),
-            "progress": parsed["position"]["progress_raw"],
+            "progress_percent": parsed["position"]["progress_percent"],
             "paused_at": _strip_placeholder(parsed["position"]["paused_at"]),
         },
         "session": session,
@@ -1166,7 +1167,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
             existing = json.loads(bak_path.read_text(encoding="utf-8"))
             logger.info("Restored from state.json.bak")
         except (FileNotFoundError, json.JSONDecodeError, OSError):
-            if os.environ.get("GPD_DEBUG"):
+            if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json.bak also unavailable")
 
     if existing and isinstance(existing, dict):
@@ -1196,13 +1197,6 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
             for key, val in parsed["position"].items():
                 if val is not None and val != EM_DASH:
                     merged["position"][key] = val
-            # Convert progress string to progress_percent
-            progress = parsed["position"].get("progress")
-            if progress and isinstance(progress, str):
-                m = re.search(r"(\d+)%", progress)
-                if m:
-                    merged["position"]["progress_percent"] = int(m.group(1))
-                    merged["position"].pop("progress", None)
 
         # Merge session (filter out placeholder values)
         if parsed.get("session") and parsed["session"]:
@@ -1235,7 +1229,7 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     try:
         atomic_write(json_path.with_suffix(".json.bak"), json_content + "\n")
     except OSError:
-        if os.environ.get("GPD_DEBUG"):
+        if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("sync_state_json backup write failed")
 
     return merged
@@ -1266,7 +1260,7 @@ def load_state_json(cwd: Path) -> dict | None:
     except FileNotFoundError:
         pass
     except (json.JSONDecodeError, OSError) as e:
-        if os.environ.get("GPD_DEBUG"):
+        if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("state.json parse error: %s", e)
         # Try backup
         try:
@@ -1275,7 +1269,7 @@ def load_state_json(cwd: Path) -> dict | None:
             atomic_write(json_path, bak_raw)
             return restored
         except (FileNotFoundError, json.JSONDecodeError, OSError):
-            if os.environ.get("GPD_DEBUG"):
+            if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json.bak restore failed")
 
     # Fall back to STATE.md
@@ -1284,7 +1278,7 @@ def load_state_json(cwd: Path) -> dict | None:
         content = md_path.read_text(encoding="utf-8")
         return ensure_state_schema(sync_state_json_core(cwd, content))
     except (FileNotFoundError, OSError):
-        if os.environ.get("GPD_DEBUG"):
+        if os.environ.get(ENV_GPD_DEBUG):
             logger.debug("STATE.md fallback failed")
         return None
 
@@ -1325,7 +1319,7 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
         try:
             atomic_write(json_path.with_suffix(".json.bak"), json.dumps(state_obj, indent=2) + "\n")
         except OSError:
-            if os.environ.get("GPD_DEBUG"):
+            if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("Failed to write state.json backup")
     except Exception:
         # Cleanup temp files and intent
@@ -1855,7 +1849,7 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
                 session=state_obj.get("session"),
             )
         except (json.JSONDecodeError, OSError):
-            if os.environ.get("GPD_DEBUG"):
+            if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json read failed, falling back")
 
     # Fall back to parsing STATE.md

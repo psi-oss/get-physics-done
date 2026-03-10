@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-from gpd.core.constants import PLANNING_DIR_NAME, STATE_JSON_FILENAME
+from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
 
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
@@ -38,7 +38,7 @@ def _context_bar(remaining_pct: float) -> str:
 
 
 def _debug(msg: str) -> None:
-    if os.environ.get("GPD_DEBUG"):
+    if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 

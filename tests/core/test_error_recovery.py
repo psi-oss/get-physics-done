@@ -24,7 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from gpd.core.config import ConfigError, GPDProjectConfig, load_config
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
 from gpd.core.frontmatter import (
     FrontmatterParseError,
     FrontmatterValidationError,
@@ -193,7 +193,7 @@ class TestLoadStateJsonFallback:
         cwd = _make_planning(tmp_path)
         layout = ProjectLayout(cwd)
         layout.state_json.write_text("BAD JSON", encoding="utf-8")
-        with patch.dict(os.environ, {"GPD_DEBUG": "1"}):
+        with patch.dict(os.environ, {ENV_GPD_DEBUG: "1"}):
             import logging
 
             with caplog.at_level(logging.DEBUG, logger="gpd.core.state"):
@@ -207,7 +207,7 @@ class TestLoadStateJsonFallback:
         layout.state_json.write_text("BAD", encoding="utf-8")
         layout.state_json.with_suffix(".json.bak").write_text("BAD BAK", encoding="utf-8")
         _write_state_md(cwd, MINIMAL_STATE_MD)
-        with patch.dict(os.environ, {"GPD_DEBUG": "1"}):
+        with patch.dict(os.environ, {ENV_GPD_DEBUG: "1"}):
             import logging
 
             with caplog.at_level(logging.DEBUG, logger="gpd.core.state"):
