@@ -106,6 +106,11 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
     record()
     raise SystemExit(0)
 
+if args[:3] == ["-m", "gpd.cli", "uninstall"]:
+    print("runtime uninstall ok")
+    record()
+    raise SystemExit(0)
+
 record()
 raise SystemExit(0)
 """
@@ -182,6 +187,98 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
     assert "Installed GPD for Codex (local)." in result.stdout
     assert "$gpd-new-project" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", "--codex", "--local"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+
+    assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
+    assert any(
+        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/.gpd/venv")
+        for entry in entries
+    )
+
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    assert len(managed_pip_installs) == 1
+    assert managed_pip_installs[0]["argv"][-1] == "get-physics-done==0.1.0"
+
+    managed_runtime_uninstalls = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", "codex", "--local"]
+    ]
+    assert len(managed_runtime_uninstalls) == 1
+
+    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert "Uninstalling GPD from Codex (local)..." in result.stdout
+    assert "runtime uninstall ok" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_supports_all_runtime_uninstall_in_one_pass(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", "--all", "--global"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_uninstalls = [
+        entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", "--all", "--global"]
+    ]
+
+    assert len(managed_runtime_uninstalls) == 1
+    assert "Claude Code" in result.stdout
+    assert "Gemini CLI" in result.stdout
+    assert "Codex" in result.stdout
+    assert "OpenCode" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_requires_explicit_runtime_non_interactively(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", "--local"],
+    )
+
+    assert result.returncode == 1
+    assert "Specify a runtime with --claude/--gemini/--codex/--opencode or use --all when running --uninstall non-interactively." in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_requires_explicit_scope_non_interactively(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", "--codex"],
+    )
+
+    assert result.returncode == 1
+    assert "Specify --global or --local when running --uninstall non-interactively." in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_uninstall_rejects_reinstall_flag(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--uninstall", "--codex", "--local", "--reinstall"],
+    )
+
+    assert result.returncode == 1
+    assert "Cannot combine --uninstall with --reinstall." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

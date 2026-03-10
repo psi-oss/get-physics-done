@@ -2,6 +2,7 @@
 name: gpd:verify-work
 description: Verify research results through physics consistency checks
 argument-hint: "[phase] [--dimensional] [--limits] [--convergence] [--regression] [--all]"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md"]
   state: "phase_executed"

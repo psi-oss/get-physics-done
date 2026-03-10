@@ -469,6 +469,87 @@ class TestReviewValidationCommands:
             "verification_reports",
         } <= check_names
 
+    def test_command_context_global_command_passes_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:help"
+        assert payload["context_mode"] == "global"
+        assert payload["passed"] is True
+        assert checks["project_context"]["passed"] is True
+
+    def test_command_context_projectless_command_passes_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "new-project"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:new-project"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+        assert checks["project_context"]["passed"] is True
+
+    def test_command_context_project_aware_command_accepts_explicit_inputs(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "discover", "7"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:discover"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+
+    def test_command_context_project_required_command_fails_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "validate", "command-context", "quick"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:quick"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is False
+        assert checks["project_exists"]["passed"] is False
+
     def test_review_preflight_peer_review_strict(self) -> None:
         result = runner.invoke(
             app,

@@ -2,6 +2,7 @@
 name: gpd:derive-equation
 description: Perform a rigorous physics derivation with systematic verification at each step
 argument-hint: "[equation or topic to derive]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - file_write

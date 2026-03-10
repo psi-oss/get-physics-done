@@ -2,6 +2,7 @@
 name: gpd:compare-branches
 description: Compare results across hypothesis branches side-by-side
 argument-hint: ""
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

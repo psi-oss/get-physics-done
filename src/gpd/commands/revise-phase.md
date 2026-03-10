@@ -2,6 +2,7 @@
 name: gpd:revise-phase
 description: Supersede a completed phase and create a replacement for iterative revision
 argument-hint: '<phase-number> <reason for revision>'
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

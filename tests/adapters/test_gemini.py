@@ -203,10 +203,30 @@ class TestInstall:
         result = adapter.install(gpd_root, target)
 
         settings_on_disk = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
         settings = result["settings"]
         assert settings.get("experimental", {}).get("enableAgents") is True
         assert settings_on_disk.get("experimental", {}).get("enableAgents") is True
+        assert manifest["managed_config"] == {"experimental.enableAgents": True}
         assert result["settingsWritten"] is True
+
+    def test_install_does_not_claim_preexisting_experimental_agents(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps({"experimental": {"enableAgents": True}, "theme": "solarized"}) + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        assert "managed_config" not in manifest
 
     def test_install_configures_update_hook(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
@@ -488,6 +508,33 @@ class TestUninstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert "statusLine" not in settings
         assert settings.get("experimental", {}).get("enableAgents") is not True
+
+    def test_uninstall_preserves_preexisting_experimental_agents(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps({"experimental": {"enableAgents": True}, "theme": "solarized"}) + "\n",
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        adapter.uninstall(target)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert settings["experimental"]["enableAgents"] is True
+        assert settings["theme"] == "solarized"
 
     def test_uninstall_removes_gpd_mcp_servers(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"

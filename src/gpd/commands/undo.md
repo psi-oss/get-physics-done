@@ -1,6 +1,7 @@
 ---
 name: gpd:undo
 description: Rollback last GPD operation with safety checkpoint
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

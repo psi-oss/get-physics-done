@@ -2,6 +2,7 @@
 name: gpd:add-todo
 description: Capture idea or task as todo from current research conversation context
 argument-hint: "[optional description]"
+context_mode: projectless
 allowed-tools:
   - file_read
   - file_write

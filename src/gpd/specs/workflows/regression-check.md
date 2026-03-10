@@ -37,7 +37,16 @@ PROGRESS=$(gpd init progress --include state,roadmap,config)
 gpd roadmap analyze
 ```
 
-Parse `project_exists` and `state_exists` from PROGRESS JSON. **If `project_exists` is false:** Error — "No project found. Run /gpd:new-project first." Exit.
+Parse `project_exists` and `state_exists` from PROGRESS JSON.
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context regression-check "${PHASE_ARG:-}")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 
 Determine scope:
 

@@ -2,6 +2,7 @@
 name: gpd:research-phase
 description: Research how to tackle a phase (standalone - usually use /gpd:plan-phase instead)
 argument-hint: "[phase]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

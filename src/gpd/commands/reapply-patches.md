@@ -1,6 +1,7 @@
 ---
 name: gpd:reapply-patches
 description: Reapply local modifications after a GPD update
+context_mode: projectless
 allowed-tools:
   - file_read
   - file_write

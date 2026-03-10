@@ -2,6 +2,7 @@
 name: gpd:set-profile
 description: Switch research profile for GPD agents (deep-theory/numerical/exploratory/review/paper-writing)
 argument-hint: <profile>
+context_mode: projectless
 allowed-tools:
   - file_read
   - file_write

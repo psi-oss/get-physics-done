@@ -2,6 +2,7 @@
 name: gpd:error-patterns
 description: View accumulated physics error patterns for this project
 argument-hint: "[category]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

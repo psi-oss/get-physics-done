@@ -1,6 +1,7 @@
 ---
 name: gpd:update
 description: Update GPD to latest version with changelog display
+context_mode: global
 allowed-tools:
   - shell
   - ask_user

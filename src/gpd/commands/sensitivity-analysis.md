@@ -2,6 +2,7 @@
 name: gpd:sensitivity-analysis
 description: Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate
 argument-hint: "[--target quantity] [--params p1,p2,...] [--method analytical|numerical]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - file_write
@@ -36,6 +37,16 @@ Target: $ARGUMENTS
 </context>
 
 <process>
+Run centralized context preflight before executing the workflow:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context sensitivity-analysis "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
 Execute the sensitivity-analysis workflow from @{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md end-to-end.
 
 ## 1. Identify Parameters and Observables

@@ -78,16 +78,15 @@ Mode effects on the write-paper pipeline:
 
 For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
 
-**If `project_exists` is false:**
+Run centralized context preflight before continuing:
 
+```bash
+CONTEXT=$(gpd --raw validate command-context write-paper "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
-ERROR: No project found.
-
-A paper requires completed research phases with results.
-Run /gpd:new-project first, then complete phases before writing.
-```
-
-Exit.
 
 **Locate paper directory (if resuming):**
 

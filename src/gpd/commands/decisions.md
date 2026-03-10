@@ -2,6 +2,7 @@
 name: gpd:decisions
 description: Display and search the cumulative decision log
 argument-hint: "[phase number or keyword]"
+context_mode: project-required
 requires:
   files: [".gpd/STATE.md"]
 allowed-tools:

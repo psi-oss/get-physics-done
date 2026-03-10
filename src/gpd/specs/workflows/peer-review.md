@@ -30,16 +30,15 @@ fi
 
 Parse JSON for: `project_exists`, `state_exists`, `commit_docs`.
 
-**If `project_exists` is false:**
+Run centralized context preflight before continuing:
 
+```bash
+CONTEXT=$(gpd --raw validate command-context peer-review "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
-ERROR: No project found.
-
-Peer review requires a GPD project with a manuscript or completed research artifacts.
-Run /gpd:new-project first.
-```
-
-Exit.
 
 **Resolve manuscript target:**
 

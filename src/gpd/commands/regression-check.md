@@ -2,6 +2,7 @@
 name: gpd:regression-check
 description: Re-verify all previously verified truths to catch regressions after changes
 argument-hint: "[phase number to limit scope, or empty for all]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

@@ -2,6 +2,7 @@
 name: gpd:add-phase
 description: Add research phase to end of current milestone in roadmap
 argument-hint: <description>
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

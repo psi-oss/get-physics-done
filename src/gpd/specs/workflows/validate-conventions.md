@@ -33,6 +33,16 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 - `autonomy=autonomous`: Auto-fix all resolvable conflicts, report unresolvable ones at end.
 - `autonomy=yolo`: Auto-fix all conflicts using most recent convention as authoritative.
 
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context validate-conventions "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
 **If `state_exists` is false:**
 
 ```

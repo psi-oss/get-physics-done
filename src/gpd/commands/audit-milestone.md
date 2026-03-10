@@ -2,6 +2,7 @@
 name: gpd:audit-milestone
 description: Audit research milestone completion against original research goals
 argument-hint: "[version]"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:

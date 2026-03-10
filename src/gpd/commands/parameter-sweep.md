@@ -2,6 +2,7 @@
 name: gpd:parameter-sweep
 description: Systematic parameter sweep with parallel execution and result aggregation
 argument-hint: "[phase] [--param name --range start:end:steps] [--adaptive] [--log]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

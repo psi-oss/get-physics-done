@@ -21,16 +21,15 @@ fi
 
 Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 
-**If `project_exists` is false:**
+Run centralized context preflight before continuing:
 
+```bash
+CONTEXT=$(gpd --raw validate command-context arxiv-submission "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
-ERROR: No project found.
-
-arXiv submission requires a project with a completed manuscript.
-Run /gpd:new-project and /gpd:write-paper first.
-```
-
-Exit.
 
 **Resolve paper directory from $ARGUMENTS:**
 

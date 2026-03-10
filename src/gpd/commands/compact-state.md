@@ -2,6 +2,7 @@
 name: gpd:compact-state
 description: Archive historical entries from STATE.md to keep it under the 150-line target
 argument-hint: "[--force]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

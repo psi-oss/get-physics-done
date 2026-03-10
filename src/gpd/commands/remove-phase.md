@@ -2,6 +2,7 @@
 name: gpd:remove-phase
 description: Remove a future research phase from roadmap and renumber subsequent phases
 argument-hint: <phase-number>
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

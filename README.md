@@ -63,6 +63,24 @@ npx -y get-physics-done --upgrade --claude --local
 
 `--reinstall` force-reinstalls the matching Python package into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
 
+## Uninstall
+
+Use the same `npx` bootstrap entrypoint to remove GPD:
+
+```bash
+npx -y get-physics-done --uninstall
+```
+
+That opens the uninstall flow, lets you choose the runtime and scope, and asks for a final confirmation before removing anything. You can also preselect the runtime and scope directly:
+
+```bash
+npx -y get-physics-done --uninstall --claude --global
+npx -y get-physics-done --uninstall --codex --local
+npx -y get-physics-done --uninstall --all --global
+```
+
+This removes GPD from the selected runtime config. It does not delete your project's `.gpd/` research artifacts or the shared files under `~/.gpd`. If you want a full wipe after uninstalling from all runtimes, remove `~/.gpd/` manually, or use `GPD_HOME` if you installed GPD there.
+
 ## Supported Runtimes
 
 GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:

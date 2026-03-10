@@ -2,6 +2,7 @@
 name: gpd:debug
 description: Systematic debugging of physics calculations with persistent state across context resets
 argument-hint: "[issue description]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

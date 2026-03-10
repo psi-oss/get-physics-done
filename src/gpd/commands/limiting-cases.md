@@ -2,6 +2,7 @@
 name: gpd:limiting-cases
 description: Systematically identify and verify all relevant limiting cases for a result or phase
 argument-hint: "[phase number or file path]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - file_write
@@ -48,8 +49,9 @@ cat .gpd/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".gpd" ]; then
-  echo "Error: No GPD project found. Run /gpd:new-project first."
+CONTEXT=$(gpd --raw validate command-context limiting-cases "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
   exit 1
 fi
 ```

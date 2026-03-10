@@ -2,6 +2,7 @@
 name: gpd:map-theory
 description: Map existing research project — theoretical framework, computations, conventions, and open questions
 argument-hint: "[optional: specific area to map, e.g., 'hamiltonian' or 'numerics' or 'perturbation-theory']"
+context_mode: projectless
 allowed-tools:
   - file_read
   - shell

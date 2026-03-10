@@ -170,6 +170,7 @@ class TestParseCommandFile:
         assert cmd.name == "gpd:debug"
         assert cmd.description == "Debug command"
         assert cmd.argument_hint == "<error>"
+        assert cmd.context_mode == "project-required"
         assert cmd.requires == {"project": True}
         assert cmd.allowed_tools == ["file_read", "shell"]
         assert cmd.content == "Command body."
@@ -202,6 +203,21 @@ class TestParseCommandFile:
         cmd = _parse_command_file(f, source="commands")
         assert cmd.name == "extra"
         assert cmd.content == "Body."
+
+    def test_command_parses_explicit_context_mode(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text("---\nname: gpd:help\ncontext_mode: global\n---\nBody.", encoding="utf-8")
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.context_mode == "global"
+
+    def test_command_invalid_context_mode_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text("---\nname: gpd:help\ncontext_mode: somewhere\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid context_mode"):
+            _parse_command_file(f, source="commands")
 
     def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"

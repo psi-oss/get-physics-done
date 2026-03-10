@@ -2,6 +2,7 @@
 name: gpd:check-todos
 description: List pending research todos and select one to work on
 argument-hint: "[area filter]"
+context_mode: projectless
 allowed-tools:
   - file_read
   - file_write

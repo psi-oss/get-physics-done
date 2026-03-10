@@ -1,6 +1,7 @@
 ---
 name: gpd:settings
 description: Configure GPD workflow toggles and physics research preferences
+context_mode: projectless
 allowed-tools:
   - file_read
   - file_write

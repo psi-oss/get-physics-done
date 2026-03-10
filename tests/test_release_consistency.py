@@ -173,6 +173,21 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
     assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
 
 
+def test_public_bootstrap_installer_documents_uninstall_path() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "## Uninstall" in readme
+    assert "npx -y get-physics-done --uninstall" in readme
+    assert "npx -y get-physics-done --uninstall --claude --global" in readme
+    assert "npx -y get-physics-done --uninstall --all --global" in readme
+    assert "~/.gpd/venv/bin/gpd uninstall" not in readme
+    assert "--uninstall" in content
+    assert "Uninstall from selected runtime config" in content
+    assert "npx -y get-physics-done --uninstall --claude --global" in content
+
+
 def test_export_workflow_uses_release_attribution_footer() -> None:
     repo_root = _repo_root()
     content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")

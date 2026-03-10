@@ -2,6 +2,7 @@
 name: gpd:literature-review
 description: Structured literature review for a physics research topic with citation network analysis and open question identification
 argument-hint: "[topic or research question]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - file_write
@@ -47,6 +48,12 @@ ls .gpd/literature/*.md 2>/dev/null | head -10
 ## 0. Initialize Context
 
 ```bash
+CONTEXT=$(gpd --raw validate command-context literature-review "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+
 INIT=$(gpd init progress --include state,roadmap,config)
 ```
 

@@ -46,7 +46,7 @@ Phase {N} complete:
 **Manuscript exists, no referee report yet:**
 ```
 Publication workflow:
-  /gpd:peer-review         — Run standalone peer review on the manuscript
+  /gpd:peer-review         — Run manuscript peer review inside the current project
   /gpd:arxiv-submission    — Package only after review passes
 ```
 
@@ -80,7 +80,7 @@ Project ─── the overall research goal
 4. `/gpd:verify-work` — Verify physics correctness
 5. Repeat 2-4 for each phase
 6. `/gpd:write-paper` — Generate publication from results
-7. `/gpd:peer-review` — Run standalone manuscript review before submission
+7. `/gpd:peer-review` — Run manuscript review before submission inside the current project
 8. `/gpd:respond-to-referees` — Address reviewer comments if needed
 9. `/gpd:arxiv-submission` — Package the approved manuscript
 
@@ -181,15 +181,16 @@ See what the agent plans to do before it starts.
 
 Usage: `/gpd:list-phase-assumptions 3`
 
-**`/gpd:discover <phase> [--depth quick|medium|deep]`**
+**`/gpd:discover [phase or topic] [--depth quick|medium|deep]`**
 Run discovery phase to investigate methods, literature, and approaches before planning.
 
 - Surveys known results, standard methods, and computational tools
 - Depth levels: quick (summary), medium (detailed), deep (comprehensive)
-- Creates discovery artifacts consumed by planner
+- Creates discovery artifacts consumed by planner or standalone analysis
 - Use when entering an unfamiliar subfield or technique
 
 Usage: `/gpd:discover 3`
+Usage: `/gpd:discover "finite-temperature RG flow" --depth deep`
 Usage: `/gpd:discover 3 --depth deep`
 
 **`/gpd:show-phase <number>`**
@@ -543,13 +544,14 @@ Usage: `/gpd:write-paper "Critical exponents via RG"`
 Usage: `/gpd:write-paper --from-phases 1,3,5` (subset of phases)
 
 **`/gpd:peer-review [paper directory or manuscript path]`**
-Run standalone skeptical peer review on an existing manuscript.
+Run skeptical peer review on an existing manuscript within the current GPD project.
 
 - Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
 - Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
 - Spawns a six-agent review panel: reader, literature, math, physics, significance, and final gpd-referee adjudicator
 - Produces stage artifacts under `.gpd/review/` plus `.gpd/REFEREE-REPORT.md` and `.gpd/REFEREE-REPORT.tex` (or revision-round follow-up pairs)
 - Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
+- Requires an initialized `.gpd/PROJECT.md` workspace; manuscript paths do not bypass project preflight
 
 Usage: `/gpd:peer-review`
 Usage: `/gpd:peer-review paper/`

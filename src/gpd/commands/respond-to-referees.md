@@ -2,6 +2,7 @@
 name: gpd:respond-to-referees
 description: Structure a point-by-point response to referee reports and update the manuscript
 argument-hint: "[path to referee report or paste inline]"
+context_mode: project-required
 requires:
   files: ["paper/*.tex"]
 allowed-tools:

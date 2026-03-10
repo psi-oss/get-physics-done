@@ -2,6 +2,7 @@
 name: gpd:show-phase
 description: Inspect a single phase's artifacts, status, and results
 argument-hint: "<phase-number>"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:

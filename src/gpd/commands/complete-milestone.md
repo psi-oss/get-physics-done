@@ -2,6 +2,7 @@
 name: gpd:complete-milestone
 description: Archive completed research milestone and prepare for next phase of investigation
 argument-hint: <version>
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md"]
   recommended: ["audit-milestone"]

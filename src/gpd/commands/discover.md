@@ -1,7 +1,8 @@
 ---
 name: gpd:discover
 description: Run discovery phase to investigate methods, literature, and approaches before planning
-argument-hint: "<phase> [--depth verify|standard|deep]"
+argument-hint: "[phase or topic] [--depth quick|medium|deep]"
+context_mode: project-aware
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:
@@ -40,7 +41,7 @@ Produces RESEARCH.md (with `depth: quick`) that informs subsequent planning via 
 </execution_context>
 
 <context>
-Phase: $ARGUMENTS (required - phase number, optionally with --depth flag)
+Phase or topic: $ARGUMENTS
 
 @.gpd/STATE.md
 @.gpd/ROADMAP.md
@@ -49,19 +50,22 @@ Phase: $ARGUMENTS (required - phase number, optionally with --depth flag)
 <process>
 Execute the discover workflow from @{GPD_INSTALL_DIR}/workflows/discover.md end-to-end.
 
-## Step 0: Initialize
+## Step 0: Validate Context
 
 ```bash
-INIT=$(gpd init phase-op "$PHASE")
+CONTEXT=$(gpd --raw validate command-context discover "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
 
-Extract: `phase_dir`, `phase_number`, `phase_name`, `phase_found`, `phase_slug`, `padded_phase`, `commit_docs`.
-
-**If `phase_found` is false:** Error with available phases and exit.
+If a phase number is supplied, use project phase context.
+If no project exists, require a standalone topic and proceed in standalone analysis mode.
 
 ## Step 1: Parse Arguments
 
-Extract phase number and depth flag from $ARGUMENTS.
+Extract an optional phase number or standalone topic, plus the optional depth flag, from `$ARGUMENTS`.
 Default depth: `medium` (Level 2).
 
 ## Step 2: Execute Discovery

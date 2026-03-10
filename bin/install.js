@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * GPD installer — sets up Get Physics Done in your AI agent.
+ * GPD bootstrap installer — installs or uninstalls Get Physics Done.
  *
  * Usage:
  *   npx -y get-physics-done
@@ -9,6 +9,8 @@
  *   npx -y get-physics-done --codex --local
  *   npx -y get-physics-done --opencode --global
  *   npx -y get-physics-done --all --global
+ *   npx -y get-physics-done --uninstall
+ *   npx -y get-physics-done --uninstall --claude --global
  */
 
 const fs = require("fs");
@@ -783,16 +785,17 @@ function printHelp() {
   console.log(` ${yellow}Usage:${reset} ${installCommand} [options]`);
   console.log("");
   console.log(` ${yellow}Options:${reset}`);
-  console.log(` ${cyan}-g, --global${reset}            Install globally (runtime config dir)`);
-  console.log(` ${cyan}-l, --local${reset}             Install locally (current project only)`);
+  console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
+  console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
+  console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
   console.log(` ${cyan}--reinstall${reset}             Reinstall the matching Python release in ~/.gpd/venv`);
   console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
-  console.log(` ${cyan}--claude${reset}                Install for Claude Code only`);
-  console.log(` ${cyan}--opencode${reset}              Install for OpenCode only`);
-  console.log(` ${cyan}--gemini${reset}               Install for Gemini CLI only`);
-  console.log(` ${cyan}--codex${reset}                Install for Codex only`);
-  console.log(` ${cyan}--all${reset}                  Install for all supported runtimes`);
-  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local install)`);
+  console.log(` ${cyan}--claude${reset}                Select Claude Code only`);
+  console.log(` ${cyan}--opencode${reset}              Select OpenCode only`);
+  console.log(` ${cyan}--gemini${reset}               Select Gemini CLI only`);
+  console.log(` ${cyan}--codex${reset}                Select Codex only`);
+  console.log(` ${cyan}--all${reset}                  Select all supported runtimes`);
+  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local scope)`);
   console.log(` ${cyan}--force-statusline${reset}     Replace an existing runtime statusline`);
   console.log(` ${cyan}-h, --help${reset}              Show this help message`);
   console.log("");
@@ -817,6 +820,15 @@ function printHelp() {
   console.log("");
   console.log(` ${dim}# Install into an explicit local target directory${reset}`);
   console.log(` ${installCommand} --codex --local --target-dir /path/to/.codex`);
+  console.log("");
+  console.log(` ${dim}# Interactive uninstall${reset}`);
+  console.log(` ${installCommand} --uninstall`);
+  console.log("");
+  console.log(` ${dim}# Uninstall from Claude Code globally${reset}`);
+  console.log(` ${installCommand} --uninstall --claude --global`);
+  console.log("");
+  console.log(` ${dim}# Uninstall from all runtimes globally${reset}`);
+  console.log(` ${installCommand} --uninstall --all --global`);
   console.log("");
 }
 
@@ -879,18 +891,23 @@ function parseSelectedRuntimes(args) {
   return selected;
 }
 
-async function selectRuntimes(args) {
+async function selectRuntimes(args, action = "install") {
   const selected = parseSelectedRuntimes(args);
   if (selected.length > 0) {
     return selected;
   }
 
   if (!process.stdin.isTTY) {
+    if (action === "uninstall") {
+      error("Specify a runtime with --claude/--gemini/--codex/--opencode or use --all when running --uninstall non-interactively.");
+      process.exit(1);
+    }
     warn("Non-interactive terminal detected, defaulting to Claude Code.");
     return ["claude-code"];
   }
 
-  console.log(` ${yellow}Which runtime(s) would you like to install for?${reset}`);
+  const actionPrompt = action === "uninstall" ? "uninstall from" : "install for";
+  console.log(` ${yellow}Which runtime(s) would you like to ${actionPrompt}?${reset}`);
   console.log("");
   console.log(
     ` ${cyan}1${reset}) ${RUNTIMES["claude-code"].name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("claude-code"))})${reset}`
@@ -922,7 +939,7 @@ async function selectRuntimes(args) {
   process.exit(1);
 }
 
-async function selectInstallScope(args, runtimes, targetDir) {
+async function selectInstallScope(args, runtimes, targetDir, action = "install") {
   if (targetDir) {
     return "local";
   }
@@ -934,17 +951,24 @@ async function selectInstallScope(args, runtimes, targetDir) {
   }
 
   if (!process.stdin.isTTY) {
+    if (action === "uninstall") {
+      error("Specify --global or --local when running --uninstall non-interactively.");
+      process.exit(1);
+    }
     warn("Non-interactive terminal detected, defaulting to global install.");
     return "global";
   }
 
   const globalExamples = runtimes.map((runtime) => formatDisplayPath(runtimeGlobalConfigDir(runtime))).join(", ");
   const localExamples = runtimes.map((runtime) => `./${RUNTIMES[runtime].configDirName}`).join(", ");
+  const actionPrompt = action === "uninstall" ? "uninstall from" : "install";
+  const globalDescription = action === "uninstall" ? "remove it from all projects" : "available in all projects";
+  const localDescription = action === "uninstall" ? "remove it from this project only" : "this project only";
 
-  console.log(` ${yellow}Where would you like to install?${reset}`);
+  console.log(` ${yellow}Where would you like to ${actionPrompt}?${reset}`);
   console.log("");
-  console.log(` ${cyan}1${reset}) Global ${dim}(${globalExamples})${reset} - available in all projects`);
-  console.log(` ${cyan}2${reset}) Local ${dim}(${localExamples})${reset} - this project only`);
+  console.log(` ${cyan}1${reset}) Global ${dim}(${globalExamples})${reset} - ${globalDescription}`);
+  console.log(` ${cyan}2${reset}) Local ${dim}(${localExamples})${reset} - ${localDescription}`);
   console.log("");
 
   const choice = ((await prompt(` Choice ${dim}[1]${reset}: `)) || "1").toLowerCase();
@@ -955,25 +979,26 @@ async function selectInstallScope(args, runtimes, targetDir) {
     return "local";
   }
 
-  error(`Invalid install location: ${choice}`);
+  error(`Invalid location selection: ${choice}`);
   process.exit(1);
 }
 
-function buildRuntimeInstallArgs(runtimes, scope, forceStatusline, targetDir = null) {
-  const installArgs = ["-m", "gpd.cli", "install"];
+function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, options = {}) {
+  const { forceStatusline = false } = options;
+  const cliArgs = ["-m", "gpd.cli", command];
   if (runtimes.length === ALL_RUNTIMES.length) {
-    installArgs.push("--all");
+    cliArgs.push("--all");
   } else {
-    installArgs.push(...runtimes);
+    cliArgs.push(...runtimes);
   }
-  installArgs.push(`--${scope}`);
+  cliArgs.push(`--${scope}`);
   if (targetDir) {
-    installArgs.push("--target-dir", targetDir);
+    cliArgs.push("--target-dir", targetDir);
   }
-  if (forceStatusline) {
-    installArgs.push("--force-statusline");
+  if (forceStatusline && command === "install") {
+    cliArgs.push("--force-statusline");
   }
-  return installArgs;
+  return cliArgs;
 }
 
 function printCompletionSummary(runtimes, scope) {
@@ -998,6 +1023,7 @@ function printCompletionSummary(runtimes, scope) {
 async function main() {
   const args = process.argv.slice(2);
   const hasHelp = args.includes("--help") || args.includes("-h");
+  const isUninstall = args.includes("--uninstall");
   const forceStatusline = args.includes("--force-statusline");
   const reinstallManagedPackage = args.includes("--reinstall");
   const upgradeManagedPackage = args.includes("--upgrade");
@@ -1014,13 +1040,26 @@ async function main() {
     error("Cannot specify both --global and --local.");
     process.exit(1);
   }
+  if (isUninstall && reinstallManagedPackage) {
+    error("Cannot combine --uninstall with --reinstall.");
+    process.exit(1);
+  }
+  if (isUninstall && upgradeManagedPackage) {
+    error("Cannot combine --uninstall with --upgrade.");
+    process.exit(1);
+  }
+  if (isUninstall && forceStatusline) {
+    error("Cannot combine --uninstall with --force-statusline.");
+    process.exit(1);
+  }
   if (targetDir && (args.includes("--global") || args.includes("-g"))) {
     error("Cannot combine --target-dir with --global. Use --local semantics for explicit target directories.");
     process.exit(1);
   }
 
-  const selectedRuntimes = await selectRuntimes(args);
-  const scope = await selectInstallScope(args, selectedRuntimes, targetDir);
+  const action = isUninstall ? "uninstall" : "install";
+  const selectedRuntimes = await selectRuntimes(args, action);
+  const scope = await selectInstallScope(args, selectedRuntimes, targetDir, action);
 
   const basePython = checkPython();
   if (!basePython) {
@@ -1046,20 +1085,23 @@ async function main() {
     process.exit(1);
   }
 
-  log(`Installing GPD for ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
+  const actionMessage = isUninstall ? "Uninstalling GPD from" : "Installing GPD for";
+  log(`${actionMessage} ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
 
-  const installArgs = buildRuntimeInstallArgs(selectedRuntimes, scope, forceStatusline, targetDir);
+  const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
 
-  // Run the installer through the managed Python interpreter.
-  const result = spawnSync(managedEnv.python, installArgs, {
+  // Run the installer/uninstaller through the managed Python interpreter.
+  const result = spawnSync(managedEnv.python, cliArgs, {
     stdio: "inherit",
     env: process.env,
   });
 
   if (result.status === 0) {
-    printCompletionSummary(selectedRuntimes, scope);
+    if (!isUninstall) {
+      printCompletionSummary(selectedRuntimes, scope);
+    }
   } else {
-    error("Installation failed. Check the output above for details.");
+    error(`${isUninstall ? "Uninstall" : "Installation"} failed. Check the output above for details.`);
     process.exit(1);
   }
 }

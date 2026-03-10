@@ -2,6 +2,7 @@
 name: gpd:execute-phase
 description: Execute all plans in a phase with wave-based parallelization
 argument-hint: "<phase-number> [--gaps-only]"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md"]
   state: "phase_planned"

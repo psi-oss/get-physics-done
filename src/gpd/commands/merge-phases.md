@@ -2,6 +2,7 @@
 name: gpd:merge-phases
 description: Merge results from one phase into another
 argument-hint: "<source-phase> <target-phase>"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

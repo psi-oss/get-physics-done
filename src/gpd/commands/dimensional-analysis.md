@@ -2,6 +2,7 @@
 name: gpd:dimensional-analysis
 description: Systematic dimensional analysis audit on all equations in a derivation or phase
 argument-hint: "[phase number or file path]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - shell
@@ -48,8 +49,9 @@ cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Conven
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".gpd" ]; then
-  echo "Error: No GPD project found. Run /gpd:new-project first."
+CONTEXT=$(gpd --raw validate command-context dimensional-analysis "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
   exit 1
 fi
 ```

@@ -36,6 +36,15 @@ def test_result_add_auto_id():
     assert result.id.startswith("R-03-")
 
 
+def test_result_add_auto_id_ignores_string_entries():
+    state: dict = {
+        "position": {"current_phase": "3"},
+        "intermediate_results": ["legacy markdown bullet", {"id": "R-03-01-abcd", "phase": "3"}],
+    }
+    result = result_add(state, description="auto-id test")
+    assert result.id.startswith("R-03-02-")
+
+
 def test_result_add_duplicate_raises():
     state: dict = {}
     result_add(state, result_id="R-01")
@@ -75,6 +84,18 @@ def test_result_list_all():
     result_add(state, result_id="R-02", phase="2")
     results = result_list(state)
     assert len(results) == 2
+
+
+def test_result_list_ignores_string_entries():
+    state: dict = {
+        "intermediate_results": [
+            "legacy markdown bullet",
+            {"id": "R-01", "phase": "1", "verified": False, "verification_records": []},
+        ]
+    }
+    results = result_list(state)
+    assert len(results) == 1
+    assert results[0].id == "R-01"
 
 
 def test_result_list_filter_phase():
@@ -145,6 +166,19 @@ def test_result_deps_missing_dep():
     assert len(deps.direct_deps) == 1
     assert isinstance(deps.direct_deps[0], MissingDep)
     assert deps.direct_deps[0].id == "R-missing"
+
+
+def test_result_deps_ignores_string_entries():
+    state: dict = {
+        "intermediate_results": [
+            "legacy markdown bullet",
+            {"id": "R-01", "depends_on": [], "verified": False, "verification_records": []},
+            {"id": "R-02", "depends_on": ["R-01"], "verified": False, "verification_records": []},
+        ]
+    }
+    deps = result_deps(state, "R-02")
+    assert len(deps.direct_deps) == 1
+    assert deps.direct_deps[0].id == "R-01"
 
 
 def test_result_deps_not_found():

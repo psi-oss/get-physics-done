@@ -2,6 +2,7 @@
 name: gpd:record-insight
 description: Record a project-specific learning or pattern to the insights ledger
 argument-hint: "[optional description]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

@@ -2,6 +2,7 @@
 name: gpd:write-paper
 description: Structure and write a physics paper from research results
 argument-hint: "[paper title or topic] [--from-phases 1,2,3]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

@@ -2,6 +2,7 @@
 name: gpd:numerical-convergence
 description: Systematic convergence testing for numerical physics computations
 argument-hint: "[phase number or file path]"
+context_mode: project-aware
 allowed-tools:
   - file_read
   - file_write

@@ -2,6 +2,7 @@
 name: gpd:new-project
 description: Initialize a new physics research project with deep context gathering and PROJECT.md
 argument-hint: "[--auto] [--minimal [@file.md]]"
+context_mode: projectless
 allowed-tools:
   - file_read
   - shell

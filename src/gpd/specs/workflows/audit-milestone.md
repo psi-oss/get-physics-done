@@ -34,7 +34,17 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 - `autonomy=autonomous`: Complete audit, generate gap-closure plan if needed.
 - `autonomy=yolo`: Complete audit, auto-approve milestone if > 80% criteria met.
 
-**If `project_exists` is false or `milestone_version` is null/empty:**
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context audit-milestone "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
+**If `milestone_version` is null/empty:**
 
 ```
 ERROR: No active milestone found.

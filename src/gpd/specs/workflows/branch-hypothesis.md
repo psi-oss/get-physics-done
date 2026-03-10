@@ -20,7 +20,7 @@ fi
 ```
 
 Parse JSON for: `phase_dir`, `phase_number`, `state_exists`, `roadmap_exists`, `commit_docs`.
-If no project context exists (standalone usage), proceed — branching only requires git.
+This command requires project context because it forks hypothesis state from the active roadmap and STATE.md.
 </step>
 
 <step name="parse_arguments">
@@ -174,7 +174,15 @@ INIT=$(gpd init progress --include roadmap,state)
 
 Parse from INIT JSON: `project_exists`, `state_exists`, `current_phase` (object with `number`, `name`, `directory`), `state_content`, `roadmap_content`.
 
-**If `project_exists` is false:** Error — "No project found. Run /gpd:new-project first." Exit.
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context branch-hypothesis "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 
 Then find the current phase directory:
 

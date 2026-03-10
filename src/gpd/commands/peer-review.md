@@ -1,7 +1,8 @@
 ---
 name: gpd:peer-review
-description: Conduct a staged six-pass peer review of a manuscript and supporting research artifacts
+description: Conduct a staged six-pass peer review of a manuscript and supporting research artifacts in the current GPD project
 argument-hint: "[paper directory or manuscript path]"
+context_mode: project-required
 requires:
   files: ["paper/*.tex"]
 review-contract:
@@ -76,7 +77,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Conduct a standalone skeptical peer review of a completed manuscript and its supporting research artifacts.
+Conduct a skeptical peer review of a completed manuscript and its supporting research artifacts within the current GPD project.
 
 This command promotes manuscript review to a first-class workflow instead of hiding it inside `write-paper`. It now runs a staged six-agent panel instead of a single all-purpose referee pass: full-manuscript reader, literature reviewer, mathematical-soundness reviewer, physical-soundness reviewer, significance reviewer, and final adjudicating referee.
 
@@ -105,6 +106,16 @@ find . -maxdepth 3 \( -name "main.tex" -o -name "*.tex" \) 2>/dev/null | head -2
 </context>
 
 <process>
+**Run centralized context preflight first:**
+
+```bash
+CONTEXT=$(gpd --raw validate command-context peer-review "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
 **Follow the peer-review workflow** from `@{GPD_INSTALL_DIR}/workflows/peer-review.md`.
 
 The workflow handles all logic including:

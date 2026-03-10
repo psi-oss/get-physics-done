@@ -111,7 +111,9 @@ def _auto_generate_id(state: dict) -> str:
     normalized_current = phase_unpad(str(phase))
     results = state.get("intermediate_results", [])
     existing_in_phase = [
-        r for r in results if r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_current
+        r
+        for r in results
+        if isinstance(r, dict) and r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_current
     ]
     seq = len(existing_in_phase) + 1
     padded_seq = str(seq).zfill(2)
@@ -222,7 +224,13 @@ def result_list(
 
     if phase is not None:
         normalized_filter = phase_unpad(phase)
-        results = [r for r in results if r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_filter]
+        results = [
+            r
+            for r in results
+            if isinstance(r, dict) and r.get("phase") is not None and phase_unpad(r["phase"]) == normalized_filter
+        ]
+    else:
+        results = [r for r in results if isinstance(r, dict)]
 
     if verified is True and unverified is True:
         raise ValueError("Cannot filter by both verified=True and unverified=True; the result would always be empty.")
@@ -233,7 +241,7 @@ def result_list(
     if unverified is True:
         results = [r for r in results if not (r.get("verified") is True or bool(r.get("verification_records")))]
 
-    return [IntermediateResult(**r) for r in results if isinstance(r, dict)]
+    return [IntermediateResult(**r) for r in results]
 
 
 @instrument_gpd_function("results.deps")
@@ -255,7 +263,7 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
     # Build lookup map
     by_id: dict[str, dict] = {}
     for r in results:
-        if r.get("id"):
+        if isinstance(r, dict) and r.get("id"):
             by_id[r["id"]] = r
 
     direct_dep_ids = list(dict.fromkeys(result.get("depends_on", [])))

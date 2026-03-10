@@ -1,6 +1,7 @@
 ---
 name: gpd:plan-milestone-gaps
 description: Create phases to close all gaps identified by research milestone audit
+context_mode: project-required
 requires:
   files: [".gpd/v*-MILESTONE-AUDIT.md"]
 allowed-tools:

@@ -2,6 +2,7 @@
 name: gpd:validate-conventions
 description: Validate convention consistency across all phases
 argument-hint: "[phase number to limit scope, or empty for all]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

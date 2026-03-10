@@ -44,7 +44,17 @@ fi
 
 Parse JSON for: `state_exists`, `project_exists`, `roadmap_exists`.
 
-**If `state_exists` is false or `project_exists` is false:**
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context error-propagation "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
+**If `state_exists` is false:**
 
 ```
 ERROR: No project state found.

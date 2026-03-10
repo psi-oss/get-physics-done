@@ -2,6 +2,7 @@
 name: gpd:list-phase-assumptions
 description: Surface the AI's assumptions about a phase approach before planning
 argument-hint: "[phase]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell

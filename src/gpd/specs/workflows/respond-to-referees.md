@@ -43,16 +43,15 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 - `autonomy=autonomous`: Draft complete response document, present for review at end.
 - `autonomy=yolo`: Draft response and apply manuscript changes without pausing.
 
-**If `project_exists` is false:**
+Run centralized context preflight before continuing:
 
+```bash
+CONTEXT=$(gpd --raw validate command-context respond-to-referees "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
-ERROR: No project found.
-
-Responding to referees requires a project with a completed manuscript.
-Run /gpd:new-project first.
-```
-
-Exit.
 
 **Locate paper directory:**
 

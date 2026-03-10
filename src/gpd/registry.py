@@ -54,6 +54,7 @@ class CommandDef:
     content: str
     path: str
     source: str  # "commands"
+    context_mode: str = "project-required"
     review_contract: ReviewCommandContract | None = None
 
 
@@ -124,6 +125,23 @@ def _parse_str_list(raw: object) -> list[str]:
     if isinstance(raw, list):
         return [str(item) for item in raw]
     return []
+
+
+VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
+
+
+def _parse_context_mode(raw: object, *, command_name: str) -> str:
+    """Normalize command context_mode frontmatter to a validated string."""
+    if raw is None:
+        return "project-required"
+
+    mode = str(raw).strip().lower()
+    if not mode:
+        return "project-required"
+    if mode not in VALID_CONTEXT_MODES:
+        valid = ", ".join(VALID_CONTEXT_MODES)
+        raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
+    return mode
 
 
 _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
@@ -311,6 +329,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         name=meta.get("name", path.stem),
         description=str(meta.get("description", "")),
         argument_hint=str(meta.get("argument-hint", "")),
+        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=str(meta.get("name", path.stem))),
         requires=requires,
         allowed_tools=[str(t) for t in allowed_tools_raw],
         review_contract=_parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires),
@@ -608,6 +627,7 @@ __all__ = [
     "ReviewCommandContract",
     "SkillDef",
     "SPECS_DIR",
+    "VALID_CONTEXT_MODES",
     "get_agent",
     "get_command",
     "get_skill",

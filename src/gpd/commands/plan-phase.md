@@ -2,6 +2,7 @@
 name: gpd:plan-phase
 description: Create detailed execution plan for a phase (PLAN.md) with verification loop
 argument-hint: "[phase] [--research] [--skip-research] [--gaps] [--skip-verify] [--light] [--inline-discuss]"
+context_mode: project-required
 agent: gpd-planner
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]

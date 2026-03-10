@@ -2,6 +2,7 @@
 name: gpd:arxiv-submission
 description: Prepare a paper for arXiv submission with validation and packaging
 argument-hint: "[paper directory path]"
+context_mode: project-required
 requires:
   files: ["paper/*.tex"]
 allowed-tools:

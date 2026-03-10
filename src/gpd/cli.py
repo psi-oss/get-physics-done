@@ -17,10 +17,11 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import shlex
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NoReturn
+from typing import Callable, NoReturn
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -169,6 +170,29 @@ class ReviewPreflightResult:
     required_outputs: list[str]
     required_evidence: list[str]
     blocking_conditions: list[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class CommandContextCheck:
+    """One executable context check for a command."""
+
+    name: str
+    passed: bool
+    blocking: bool
+    detail: str
+
+
+@dataclasses.dataclass(frozen=True)
+class CommandContextPreflightResult:
+    """Summary of whether a command can run in the current workspace context."""
+
+    command: str
+    context_mode: str
+    passed: bool
+    project_exists: bool
+    explicit_inputs: list[str]
+    guidance: str
+    checks: list[CommandContextCheck]
 
 
 def _format_runtime_list(runtime_names: list[str]) -> str:
@@ -2378,6 +2402,208 @@ def _resolve_bibliography_path(
     return _first_existing_path(*candidates)
 
 
+def _split_command_arguments(arguments: str | None) -> list[str]:
+    """Split a raw command argument string into shell-like tokens."""
+    if not arguments:
+        return []
+    try:
+        return shlex.split(arguments)
+    except ValueError:
+        return arguments.split()
+
+
+def _has_flag_value(tokens: list[str], flag: str) -> bool:
+    """Return True when ``flag`` is present with a non-empty value."""
+    for index, token in enumerate(tokens):
+        if token == flag:
+            if index + 1 < len(tokens):
+                next_token = tokens[index + 1]
+                if next_token and not next_token.startswith("--"):
+                    return True
+        elif token.startswith(f"{flag}="):
+            return bool(token.partition("=")[2].strip())
+    return False
+
+
+def _positional_tokens(arguments: str | None, *, flags_with_values: tuple[str, ...] = ()) -> list[str]:
+    """Extract positional tokens after removing known long-option/value pairs."""
+    tokens = _split_command_arguments(arguments)
+    positionals: list[str] = []
+    skip_next = False
+    value_flags = set(flags_with_values)
+
+    for index, token in enumerate(tokens):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--":
+            return positionals + tokens[index + 1 :]
+        if token in value_flags:
+            skip_next = True
+            continue
+        if any(token.startswith(f"{flag}=") for flag in value_flags):
+            continue
+        if token.startswith("--"):
+            continue
+        positionals.append(token)
+
+    return positionals
+
+
+def _has_discover_explicit_inputs(arguments: str | None) -> bool:
+    """Discover standalone mode needs either a phase number or a topic."""
+    return bool(_positional_tokens(arguments, flags_with_values=("--depth",)))
+
+
+def _has_simple_positional_inputs(arguments: str | None) -> bool:
+    """Generic detector for commands satisfied by any positional topic/target."""
+    return bool(_positional_tokens(arguments))
+
+
+def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
+    """Sensitivity analysis standalone mode requires both target and parameter list."""
+    tokens = _split_command_arguments(arguments)
+    return _has_flag_value(tokens, "--target") and _has_flag_value(tokens, "--params")
+
+
+_PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
+    "gpd:compare-experiment": (["prediction, dataset path, or phase identifier"], _has_simple_positional_inputs),
+    "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
+    "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
+    "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
+    "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
+    "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
+    "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
+    "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
+}
+
+
+def _build_project_aware_guidance(explicit_inputs: list[str]) -> str:
+    """Render the standardized project-aware guidance string."""
+    if not explicit_inputs:
+        return "Either provide explicit inputs for this command, or run /gpd:new-project."
+    if len(explicit_inputs) == 1:
+        requirement_text = explicit_inputs[0]
+    elif len(explicit_inputs) == 2:
+        requirement_text = f"{explicit_inputs[0]} and {explicit_inputs[1]}"
+    else:
+        requirement_text = ", ".join(explicit_inputs[:-1]) + f", and {explicit_inputs[-1]}"
+    return f"Either provide {requirement_text} explicitly, or run /gpd:new-project."
+
+
+def _build_command_context_preflight(
+    command_name: str,
+    *,
+    arguments: str | None = None,
+) -> CommandContextPreflightResult:
+    """Evaluate whether a command can run in the current workspace context."""
+    from gpd import registry as content_registry
+    from gpd.core.constants import ProjectLayout
+
+    cwd = _get_cwd()
+    layout = ProjectLayout(cwd)
+    command = content_registry.get_command(command_name)
+    project_exists = layout.project_md.exists()
+
+    checks: list[CommandContextCheck] = []
+
+    def add_check(name: str, passed: bool, detail: str, *, blocking: bool = True) -> None:
+        checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
+
+    add_check("context_mode", True, f"context_mode={command.context_mode}", blocking=False)
+
+    if command.context_mode == "global":
+        add_check("project_context", True, "command runs without project context", blocking=False)
+        return CommandContextPreflightResult(
+            command=command.name,
+            context_mode=command.context_mode,
+            passed=True,
+            project_exists=project_exists,
+            explicit_inputs=[],
+            guidance="",
+            checks=checks,
+        )
+
+    if command.context_mode == "projectless":
+        add_check(
+            "project_context",
+            True,
+            (
+                "initialized project detected"
+                if project_exists
+                else "no initialized project required"
+            ),
+            blocking=False,
+        )
+        return CommandContextPreflightResult(
+            command=command.name,
+            context_mode=command.context_mode,
+            passed=True,
+            project_exists=project_exists,
+            explicit_inputs=[],
+            guidance="",
+            checks=checks,
+        )
+
+    if command.context_mode == "project-required":
+        add_check(
+            "project_exists",
+            project_exists,
+            (
+                f"{_format_display_path(layout.project_md)} present"
+                if project_exists
+                else f"missing {_format_display_path(layout.project_md)}"
+            ),
+        )
+        guidance = "" if project_exists else "This command requires an initialized GPD project. Run /gpd:new-project."
+        return CommandContextPreflightResult(
+            command=command.name,
+            context_mode=command.context_mode,
+            passed=project_exists,
+            project_exists=project_exists,
+            explicit_inputs=[],
+            guidance=guidance,
+            checks=checks,
+        )
+
+    explicit_inputs, predicate = _PROJECT_AWARE_EXPLICIT_INPUTS.get(
+        command.name,
+        ([command.argument_hint.strip()] if command.argument_hint.strip() else ["explicit command inputs"], _has_simple_positional_inputs),
+    )
+    explicit_inputs_ok = predicate(arguments)
+    add_check(
+        "project_exists",
+        project_exists,
+        (
+            f"{_format_display_path(layout.project_md)} present"
+            if project_exists
+            else f"missing {_format_display_path(layout.project_md)}"
+        ),
+        blocking=False,
+    )
+    add_check(
+        "explicit_inputs",
+        explicit_inputs_ok,
+        (
+            "explicit standalone inputs detected"
+            if explicit_inputs_ok
+            else f"missing explicit standalone inputs ({', '.join(explicit_inputs)})"
+        ),
+        blocking=not project_exists,
+    )
+    passed = project_exists or explicit_inputs_ok
+    guidance = "" if passed else _build_project_aware_guidance(explicit_inputs)
+    return CommandContextPreflightResult(
+        command=command.name,
+        context_mode=command.context_mode,
+        passed=passed,
+        project_exists=project_exists,
+        explicit_inputs=explicit_inputs,
+        guidance=guidance,
+        checks=checks,
+    )
+
+
 def _build_review_preflight(
     command_name: str,
     *,
@@ -2401,6 +2627,13 @@ def _build_review_preflight(
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool = True) -> None:
         checks.append(ReviewPreflightCheck(name=name, passed=passed, detail=detail, blocking=blocking))
+
+    context_preflight = _build_command_context_preflight(command_name, arguments=subject)
+    add_check(
+        "command_context",
+        context_preflight.passed,
+        context_preflight.guidance or f"context_mode={command.context_mode}",
+    )
 
     if "project_state" in contract.preflight_checks:
         state_ok = layout.state_json.exists() and layout.state_md.exists()
@@ -2631,6 +2864,18 @@ def validate_consistency() -> None:
         raise typer.Exit(code=1)
 
 
+@validate_app.command("command-context")
+def validate_command_context(
+    command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
+    arguments: str | None = typer.Argument(None, help="Optional raw command arguments for standalone-context checks"),
+) -> None:
+    """Run centralized command-context preflight based on command metadata."""
+    result = _build_command_context_preflight(command_name, arguments=arguments)
+    _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
 @validate_app.command("review-contract")
 def validate_review_contract(
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
@@ -2644,6 +2889,7 @@ def validate_review_contract(
     _output(
         {
             "command": command.name,
+            "context_mode": command.context_mode,
             "review_contract": dataclasses.asdict(command.review_contract),
         }
     )

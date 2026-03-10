@@ -2,6 +2,7 @@
 name: gpd:progress
 description: Check research progress, show context, and route to next action (execute or plan)
 argument-hint: "[--brief] [--full] [--reconcile]"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:
@@ -25,6 +26,15 @@ Provides situational awareness before continuing research work.
 </execution_context>
 
 <process>
+## Step 0: Validate Context
+
+```bash
+CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 
 ## Mode Detection
 

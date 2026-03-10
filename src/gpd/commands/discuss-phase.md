@@ -2,6 +2,7 @@
 name: gpd:discuss-phase
 description: Gather phase context through adaptive questioning before planning
 argument-hint: "<phase>"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

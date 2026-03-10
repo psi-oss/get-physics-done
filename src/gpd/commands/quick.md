@@ -2,6 +2,7 @@
 name: gpd:quick
 description: Execute a quick research task with GPD guarantees (atomic commits, state tracking) but skip optional agents
 argument-hint: ""
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

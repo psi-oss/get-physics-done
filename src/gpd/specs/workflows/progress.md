@@ -85,15 +85,15 @@ Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `pha
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
-If `project_exists` is false (no `.gpd/` directory):
+Run centralized context preflight before continuing:
 
+```bash
+CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
 ```
-No planning structure found.
-
-Run /gpd:new-project to start a new research project.
-```
-
-Exit.
 
 If missing STATE.md: suggest `/gpd:new-project`.
 

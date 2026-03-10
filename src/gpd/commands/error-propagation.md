@@ -2,6 +2,7 @@
 name: gpd:error-propagation
 description: Track how uncertainties propagate through multi-step calculations across phases
 argument-hint: "[--target quantity] [--phase-range start:end]"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

@@ -33,7 +33,16 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.
 - `research_mode=adaptive`: Start focused, expand if gap analysis reveals significant unknowns.
 
-**If `project_exists` is false:** Error — run `/gpd:new-project` first.
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context new-milestone "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
+
 **If `roadmap_exists` is true:** Note — existing ROADMAP.md will be replaced by this milestone's roadmap.
 
 Load project files:

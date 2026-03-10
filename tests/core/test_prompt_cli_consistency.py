@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI_PATH = REPO_ROOT / "src/gpd/cli.py"
 PROMPT_ROOTS = (
@@ -54,4 +56,35 @@ def test_prompt_sources_use_canonical_gpd_command_syntax() -> None:
         for match in NON_CANONICAL_GPD_COMMAND_RE.finditer(content):
             invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
 
+    assert invalid == []
+
+
+def test_help_prompt_command_count_matches_live_inventory() -> None:
+    command_count = len(list((REPO_ROOT / "src/gpd/commands").glob("*.md")))
+    help_prompt = (REPO_ROOT / "src/gpd/commands/help.md").read_text(encoding="utf-8")
+
+    assert f"Run `/gpd:help --all` for all {command_count} commands." in help_prompt
+
+
+def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
+    suggest_prompt = (REPO_ROOT / "src/gpd/commands/suggest-next.md").read_text(encoding="utf-8")
+
+    assert "Uses `gpd suggest --raw`" in suggest_prompt
+    assert "gpd suggest-next to scan" not in suggest_prompt
+
+
+def test_command_prompts_declare_valid_context_modes() -> None:
+    missing: list[str] = []
+    invalid: list[str] = []
+
+    for path in sorted((REPO_ROOT / "src/gpd/commands").glob("*.md")):
+        meta, _body = _parse_frontmatter(path.read_text(encoding="utf-8"))
+        mode = meta.get("context_mode")
+        if mode is None:
+            missing.append(str(path.relative_to(REPO_ROOT)))
+            continue
+        if str(mode) not in VALID_CONTEXT_MODES:
+            invalid.append(f"{path.relative_to(REPO_ROOT)} -> {mode}")
+
+    assert missing == []
     assert invalid == []

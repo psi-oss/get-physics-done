@@ -2,6 +2,7 @@
 name: gpd:new-milestone
 description: Start a new research milestone cycle — update PROJECT.md and route to requirements
 argument-hint: "[milestone name, e.g., 'v1.1 Finite-Temperature Extension']"
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

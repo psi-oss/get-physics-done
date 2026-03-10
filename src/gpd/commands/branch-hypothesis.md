@@ -2,6 +2,7 @@
 name: gpd:branch-hypothesis
 description: Create a hypothesis branch for parallel investigation of an alternative approach
 argument-hint: "<description>"
+context_mode: project-required
 requires:
   files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
 allowed-tools:

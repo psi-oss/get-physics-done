@@ -19,6 +19,7 @@ from pathlib import Path
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
+    MANIFEST_NAME,
     _is_hook_command_for_script,
     build_hook_command,
     convert_tool_references_in_body,
@@ -31,6 +32,7 @@ from gpd.adapters.install_utils import (
     replace_placeholders,
     strip_sub_tags,
     verify_installed,
+    write_manifest,
     write_settings,
 )
 from gpd.adapters.install_utils import (
@@ -145,7 +147,7 @@ def _convert_frontmatter_to_gemini(content: str) -> str:
 def _convert_to_gemini_toml(content: str) -> str:
     """Convert Claude Code markdown command to Gemini TOML format.
 
-    Extracts ``description`` from frontmatter and puts body into ``prompt``.
+    Extracts selected frontmatter fields and puts body into ``prompt``.
     Uses TOML multi-line literal strings (``'''``) to avoid escape issues
     with backslashes in LaTeX/physics content.
     """
@@ -159,17 +161,21 @@ def _convert_to_gemini_toml(content: str) -> str:
     frontmatter = content[3:end_index].strip()
     body = content[end_index + 3 :].strip()
 
-    # Extract description from frontmatter
+    # Extract selected frontmatter fields
     description = ""
+    context_mode = ""
     for line in frontmatter.split("\n"):
         trimmed = line.strip()
         if trimmed.startswith("description:"):
             description = trimmed[12:].strip()
-            break
+        elif trimmed.startswith("context_mode:"):
+            context_mode = trimmed[13:].strip()
 
     toml = ""
     if description:
         toml += f"description = {json.dumps(description)}\n"
+    if context_mode:
+        toml += f"context_mode = {json.dumps(context_mode)}\n"
 
     # Use TOML multi-line literal strings (''') to avoid escape issues.
     # Fall back to JSON encoding if content contains '''.
@@ -394,12 +400,14 @@ class GeminiAdapter(RuntimeAdapter):
 
         # Enable experimental agents (required for custom sub-agents in Gemini CLI)
         experimental = settings.get("experimental")
+        enable_agents_was_present = isinstance(experimental, dict) and experimental.get("enableAgents") is True
         if not isinstance(experimental, dict):
             experimental = {}
             settings["experimental"] = experimental
         if not experimental.get("enableAgents"):
             experimental["enableAgents"] = True
             logger.info("Enabled experimental agents")
+        self._managed_enable_agents = not enable_agents_was_present
 
         # Build hook commands (Python hooks, same as Claude Code)
         statusline_cmd = build_hook_command(
@@ -439,6 +447,17 @@ class GeminiAdapter(RuntimeAdapter):
             "statuslineCommand": statusline_cmd,
             "mcpServers": len(mcp_servers),
         }
+
+    def _write_manifest(self, target_dir: Path, version: str) -> None:
+        """Record manifest metadata for shared config keys GPD actually introduced."""
+        manifest = write_manifest(
+            target_dir,
+            version,
+            install_scope=self._current_install_scope_flag(),
+        )
+        if getattr(self, "_managed_enable_agents", False):
+            manifest["managed_config"] = {"experimental.enableAgents": True}
+            (target_dir / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     def finish_install(
         self,
@@ -486,6 +505,12 @@ class GeminiAdapter(RuntimeAdapter):
 
         Extends base uninstall with Gemini-specific settings.json cleanup.
         """
+        manifest = read_settings(target_dir / MANIFEST_NAME)
+        managed_config = manifest.get("managed_config")
+        remove_managed_enable_agents = (
+            isinstance(managed_config, dict) and managed_config.get("experimental.enableAgents") is True
+        )
+
         result = super().uninstall(target_dir)
 
         settings_path = target_dir / "settings.json"
@@ -524,9 +549,13 @@ class GeminiAdapter(RuntimeAdapter):
                     if not hooks:
                         del settings["hooks"]
 
-            # Remove experimental.enableAgents
+            # Remove experimental.enableAgents only when GPD introduced it.
             experimental = settings.get("experimental")
-            if isinstance(experimental, dict) and experimental.get("enableAgents") is True:
+            if (
+                remove_managed_enable_agents
+                and isinstance(experimental, dict)
+                and experimental.get("enableAgents") is True
+            ):
                 del experimental["enableAgents"]
                 if not experimental:
                     del settings["experimental"]

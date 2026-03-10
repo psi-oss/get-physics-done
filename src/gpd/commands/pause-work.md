@@ -1,6 +1,7 @@
 ---
 name: gpd:pause-work
 description: Create context handoff when pausing research mid-phase
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write

@@ -2,6 +2,7 @@
 name: gpd:compare-experiment
 description: Systematically compare theoretical predictions with experimental or observational data
 argument-hint: "[prediction or dataset to compare]"
+context_mode: project-aware
 requires:
   files: [".gpd/ROADMAP.md"]
 allowed-tools:
@@ -55,8 +56,9 @@ find . -name "*.json" -o -name "*.csv" -o -name "*.dat" | grep -i "result\|predi
 
 **Pre-flight check:**
 ```bash
-if [ ! -d ".gpd" ]; then
-  echo "Error: No GPD project found. Run /gpd:new-project first."
+CONTEXT=$(gpd --raw validate command-context compare-experiment "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
   exit 1
 fi
 ```

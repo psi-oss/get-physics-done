@@ -1,6 +1,7 @@
 ---
 name: gpd:suggest-next
 description: Suggest the most impactful next action based on current project state
+context_mode: project-required
 allowed-tools:
   - file_read
   - shell
@@ -12,7 +13,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Analyze current project state and suggest the most impactful next action. Uses gpd suggest-next to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
+Analyze current project state and suggest the most impactful next action. Uses `gpd suggest --raw` to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
 
 This is the fastest way to answer "what should I do next?" without reading through progress reports.
 </objective>
@@ -24,7 +25,7 @@ This is the fastest way to answer "what should I do next?" without reading throu
 
 <process>
 
-## Step 1: Run suggest-next
+## Step 1: Run the suggest CLI
 
 ```bash
 SUGGESTIONS=$(gpd suggest --raw)
