@@ -66,6 +66,7 @@ Generated-output families are modeled when code or tests depend on them:
 | `conditional-spawn` | Spawn active only under a branch, severity gate, optional mode, or detected gap |
 | `include` | Explicit markdown include or prompt include |
 | `conditional-include` | Include/reference active only under a branch, severity gate, or selector |
+| `selector-input` | Config, state, flags, or mode classification that gates other edges |
 | `candidate-set` | Ordered family of possible paths rather than one fixed path |
 | `external-package` | Python package dependency |
 | `external-binary` | System binary dependency |
@@ -285,6 +286,17 @@ flowchart TD
 - `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
   `candidate-set`
 
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,traces/*.jsonl}`
+  `candidate-set`
+
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,traces/*.jsonl}`
+  `ordering-contract`
+  `events.jsonl` is preferred before falling back to per-session trace files.
+
+- `src/gpd/cli.py -> explicit --target-dir over adapter-derived local/global runtime roots during install/uninstall`
+  `selector-input`
+  Explicit target selection flips installed references from runtime-derived local/global paths to absolute target-root paths.
+
 - `src/gpd/cli.py -> src/gpd/adapters/__init__.py`
   `hard-import`
 
@@ -382,6 +394,18 @@ flowchart TD
 - `src/gpd/core/observability.py -> src/gpd/mcp/servers/*.py`
   `span-context`
 
+- `src/gpd/core/context.py -> import-time platform snapshot _PLATFORM`
+  `selector-input`
+  `init_*` context helpers reuse a cached platform classification chosen at module import.
+
+- `src/gpd/core/context.py -> project scan envelope {lexicographic cwd walk, depth limit, capped hit count, excludes runtime config dirs and ignored trees}`
+  `selector-input`
+  New-project detection is gated by this scan envelope rather than by a raw recursive walk.
+
+- `src/gpd/core/query.py -> dependency frontmatter precedence {nested dependency-graph fields over top-level requires}`
+  `ordering-contract`
+  Query-time dependency semantics follow parser precedence, not simple field union.
+
 ## Registry, Commands, Agents, Workflows, Templates, and References
 
 - `src/gpd/registry.py -> src/gpd/commands/*.md`
@@ -469,13 +493,13 @@ flowchart TD
   `include`
 
 - `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-phase-researcher.md`
-  `spawn`
+  `conditional-spawn`
 
 - `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-planner.md`
   `spawn`
 
 - `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-plan-checker.md`
-  `spawn`
+  `conditional-spawn`
 
 - `src/gpd/specs/workflows/plan-phase.md -> src/gpd/agents/gpd-experiment-designer.md`
   `conditional-spawn`
@@ -552,7 +576,14 @@ flowchart TD
   Selector family with explicit statically named candidates.
 
 - `src/gpd/agents/gpd-verifier.md -> src/gpd/specs/{references/verification/meta/verification-hierarchy-mapping.md,references/verification/core/computational-verification-templates.md,references/verification/domains/verification-domain-{qft,condmat,statmech,gr-cosmology,amo,nuclear-particle,astrophysics,fluid-plasma,mathematical-physics,algebraic-qft,string-field-theory,quantum-info,soft-matter}.md}`
-  `include`
+  `conditional-include`
+
+- `.gpd/config.json::{autonomy,research_mode,workflow.research,workflow.plan_checker,workflow.verifier,workflow.verify_between_waves,model_profile} -> src/gpd/specs/workflows/{plan-phase,execute-phase,verify-work,new-project,write-paper}.md`
+  `selector-input`
+
+- `STATE.md/state.json::convention_lock -> src/gpd/specs/workflows/{execute-phase,validate-conventions,new-project}.md`
+  `selector-input`
+  Convention-lock state participates in selector-driven orchestration and validation gates.
 
 - `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/workflows/execute-plan.md`
   `include`
@@ -580,6 +611,9 @@ flowchart TD
 
 - `src/gpd/specs/workflows/execute-phase.md -> src/gpd/agents/gpd-experiment-designer.md`
   `conditional-spawn`
+
+- `src/gpd/specs/workflows/execute-phase.md -> selector tree {phase classification, force-sequential, YOLO restrictions, inter-wave verification gates}`
+  `selector-input`
 
 - `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}`
   `include`
@@ -636,6 +670,9 @@ flowchart TD
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-referee.md`
   `spawn`
 
+- `src/gpd/specs/workflows/write-paper.md -> selector set {mode, existing manuscript/artifact checks, approval and hard-gate branches}`
+  `selector-input`
+
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/{references/publication/publication-pipeline-modes.md,references/publication/paper-quality-scoring.md,templates/latex-preamble.md,templates/paper/supplemental-material.md,templates/paper/experimental-comparison.md}`
   `include`
 
@@ -688,16 +725,22 @@ flowchart TD
   `include`
 
 - `src/gpd/specs/workflows/new-project.md -> src/gpd/agents/{gpd-project-researcher,gpd-research-synthesizer,gpd-roadmapper}.md`
-  `spawn`
+  `conditional-spawn`
 
 - `src/gpd/specs/workflows/new-project.md -> src/gpd/agents/gpd-notation-coordinator.md`
   `conditional-spawn`
+
+- `src/gpd/specs/workflows/new-project.md -> selector set {major mode, approval gates, existing file checks}`
+  `selector-input`
 
 - `src/gpd/specs/workflows/new-milestone.md -> src/gpd/specs/templates/research-project/SUMMARY.md`
   `include`
 
 - `src/gpd/specs/workflows/new-milestone.md -> src/gpd/agents/{gpd-project-researcher,gpd-research-synthesizer,gpd-roadmapper}.md`
-  `spawn`
+  `conditional-spawn`
+
+- `src/gpd/specs/workflows/new-milestone.md -> selector set {major mode, approval gates, existing file checks}`
+  `selector-input`
 
 - `src/gpd/specs/workflows/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
   `spawn`
@@ -868,6 +911,10 @@ flowchart TD
   `partial-ownership`
   Uninstall removes only bundled GPD hook filenames, not arbitrary user hooks.
 
+- `src/gpd/adapters/install_utils.py -> split ownership {manifest-backed content vs separately managed runtime config and bundled hooks}`
+  `partial-ownership`
+  Backup/reapply semantics are manifest-driven, while hook and runtime-config cleanup follow separate managed-path rules.
+
 - `src/gpd/adapters/opencode.py::write_manifest -> gpd-file-manifest.json["files"]["command/gpd-*.md"]`
   `manifest-contract`
 
@@ -922,8 +969,19 @@ They explicitly preserve:
 - `src/gpd/hooks/runtime_detect.py -> environment signals {CLAUDE_CODE_SESSION, CLAUDE_CODE, CODEX_SESSION, CODEX_CLI, GEMINI_CLI, OPENCODE_SESSION, CLAUDE_CONFIG_DIR, CODEX_CONFIG_DIR, GEMINI_CONFIG_DIR, OPENCODE_CONFIG_DIR, OPENCODE_CONFIG, XDG_CONFIG_HOME}`
   `candidate-set`
 
+- `src/gpd/hooks/runtime_detect.py -> active runtime precedence {activation env vars -> local runtime dirs -> global runtime dirs -> ALL_RUNTIMES tie-break}`
+  `ordering-contract`
+  Runtime detection is precedence-driven, not a flat unordered candidate family.
+
 - `src/gpd/hooks/runtime_detect.py -> candidate runtime directories {cwd}/{.claude,.codex,.gemini,.opencode} and {home}/{.claude,.codex,.gemini,.config/opencode}`
   `candidate-set`
+
+- `src/gpd/hooks/runtime_detect.py -> detect_install_scope() prefers local runtime dirs over global dirs when both exist`
+  `ordering-contract`
+
+- `src/gpd/hooks/runtime_detect.py -> active-first candidate families for {VERSION, update caches} under detected runtime local/global dirs before ~/.gpd fallback`
+  `ordering-contract`
+  Hook consumers inherit this precedence through `get_gpd_install_dirs(prefer_active=True)` and `get_update_cache_files()`.
 
 - `tests/hooks/test_runtime_detect.py -> src/gpd/hooks/runtime_detect.py::ALL_RUNTIMES`
   `ordering-contract`
@@ -1405,6 +1463,7 @@ The graph should be read with these limits in mind:
 - adapters usually do not own an entire shared config file; they own selected keys, sections, or managed entries
 - candidate-set edges describe ordered possibilities, not one guaranteed realized path
 - contract edges should not be confused with hard-import edges
+- selector-input edges identify branch controls, not proof that a branch was taken in one concrete run
 
 ### Static Ceiling Assessment
 
@@ -1428,6 +1487,8 @@ The graph is therefore strong enough to answer "as complete as it could possibly
 
 It is still not equivalent to a proven exhaustive runtime dependency graph.
 
+A full graph-wide dynamic execution layer is not presently worth adding. The highest-value extension is a bounded selector/runtime-contract overlay like the one above, not a generic execution trace graph.
+
 ### What This File Still Cannot Honestly Claim
 
 - a fully proven execution trace for every runtime branch
@@ -1441,5 +1502,6 @@ The next step would not be more broad repo reading. It would require deeper extr
 
 - automated extraction for `read_text`, `write_text`, `glob`, `rglob`, manifest writes, and config writes
 - function-level command-activated lazy edges from `src/gpd/cli.py`
+- a bounded resource-level mutation overlay around persistent state objects, if object coupling becomes more important than file topology
 - a deeper Python object graph for functions, methods, classes, inheritance, and call/dataflow
 - runtime execution traces to prove branch/path selection instead of only reading static code

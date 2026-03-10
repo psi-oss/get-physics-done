@@ -177,6 +177,23 @@ class TestReadCurrentTask:
         ):
             assert _read_current_task("session-123") == "Inspect local runtime"
 
+    def test_workspace_dir_overrides_process_cwd_for_local_todos(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        home = tmp_path / "home"
+        local_todo_dir = workspace / ".codex" / "todos"
+        local_todo_dir.mkdir(parents=True)
+        todos = [{"status": "in_progress", "activeForm": "Workspace-scoped task"}]
+        (local_todo_dir / "session-123-agent-local.json").write_text(json.dumps(todos))
+
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
+
     def test_corrupt_todo_file_returns_empty(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
@@ -273,6 +290,43 @@ class TestCheckUpdateHook:
             result = _check_update()
 
         assert "/gpd:update" in result
+
+    def test_workspace_dir_overrides_process_cwd_for_local_cache_selection(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        local_cache = workspace / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            result = _check_update(str(workspace))
+
+        assert "$gpd-update" in result
+
+    def test_unknown_runtime_falls_back_to_bootstrap_update_command(self, tmp_path: Path) -> None:
+        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache.mkdir(parents=True)
+        (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="unknown"),
+        ):
+            result = _check_update()
+
+        assert "npx -y github:physicalsuperintelligence/get-physics-done" in result
 
 
 # ─── main() integration ───────────────────────────────────────────────────

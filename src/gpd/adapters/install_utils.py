@@ -65,8 +65,26 @@ def expand_tilde(file_path: str | None) -> str | None:
     return file_path
 
 
-def _replace_runtime_placeholders(content: str, path_prefix: str, runtime: str | None) -> str:
+def _normalize_install_scope_flag(install_scope: str | None) -> str | None:
+    """Normalize install scope values to bootstrap flags."""
+    if install_scope in ("local", "--local"):
+        return "--local"
+    if install_scope in ("global", "--global"):
+        return "--global"
+    return install_scope
+
+
+def _replace_runtime_placeholders(
+    content: str,
+    path_prefix: str,
+    runtime: str | None,
+    install_scope: str | None = None,
+) -> str:
     """Replace runtime-specific placeholders in installed prompt content."""
+    scope_flag = _normalize_install_scope_flag(install_scope)
+    if scope_flag:
+        content = content.replace("{GPD_INSTALL_SCOPE_FLAG}", scope_flag)
+
     if not runtime:
         return content
 
@@ -80,7 +98,12 @@ def _replace_runtime_placeholders(content: str, path_prefix: str, runtime: str |
     return content
 
 
-def replace_placeholders(content: str, path_prefix: str, runtime: str | None = None) -> str:
+def replace_placeholders(
+    content: str,
+    path_prefix: str,
+    runtime: str | None = None,
+    install_scope: str | None = None,
+) -> str:
     """Replace GPD path placeholders in file content.
 
     Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, runtime placeholders,
@@ -97,7 +120,7 @@ def replace_placeholders(content: str, path_prefix: str, runtime: str | None = N
     content = content.replace("{GPD_INSTALL_DIR}", path_prefix + "get-physics-done")
     content = content.replace("{GPD_AGENTS_DIR}", path_prefix + "agents")
     content = re.sub(r"~/\.claude/", path_prefix, content)
-    return _replace_runtime_placeholders(content, path_prefix, runtime)
+    return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
 def get_opencode_global_dir() -> str:
@@ -466,7 +489,12 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
     return content
 
 
-def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str) -> str:
+def _translate_markdown_for_runtime(
+    content: str,
+    path_prefix: str,
+    runtime: str,
+    install_scope: str | None = None,
+) -> str:
     """Translate shared markdown content from canonical source form to *runtime*.
 
     This is used for markdown copied into installed shared content directories
@@ -475,7 +503,7 @@ def _translate_markdown_for_runtime(content: str, path_prefix: str, runtime: str
     references, placeholders, and lightweight formatting need the same
     runtime-specific adaptation as primary prompts.
     """
-    content = replace_placeholders(content, path_prefix, runtime)
+    content = replace_placeholders(content, path_prefix, runtime, install_scope)
     content = _translate_frontmatter_tool_names(content, runtime)
 
     if runtime == "codex":
@@ -495,6 +523,7 @@ def expand_at_includes(
     path_prefix: str,
     *,
     runtime: str | None = None,
+    install_scope: str | None = None,
     depth: int = 0,
     include_stack: set[str] | None = None,
 ) -> str:
@@ -611,12 +640,13 @@ def expand_at_includes(
                     body = body[actual_end:].strip()
 
             # Normalize path references in included content before recursion
-            body = replace_placeholders(body, path_prefix, runtime)
+            body = replace_placeholders(body, path_prefix, runtime, install_scope)
             body = expand_at_includes(
                 body,
                 str(src_root),
                 path_prefix,
                 runtime=runtime,
+                install_scope=install_scope,
                 depth=depth + 1,
                 include_stack=include_stack,
             )
@@ -643,6 +673,7 @@ def copy_with_path_replacement(
     dest_dir: str | Path,
     path_prefix: str,
     runtime: str,
+    install_scope: str | None = None,
 ) -> None:
     """Safely copy *src_dir* to *dest_dir* with path replacement in ``.md`` files.
 
@@ -674,7 +705,7 @@ def copy_with_path_replacement(
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        _copy_dir_contents(src_dir, tmp_dir, path_prefix, runtime)
+        _copy_dir_contents(src_dir, tmp_dir, path_prefix, runtime, install_scope)
 
         # Swap into place
         if dest_dir.exists():
@@ -705,6 +736,7 @@ def _copy_dir_contents(
     target_dir: Path,
     path_prefix: str,
     runtime: str,
+    install_scope: str | None = None,
 ) -> None:
     """Recursively copy directory contents with runtime translation in .md files.
 
@@ -718,10 +750,10 @@ def _copy_dir_contents(
 
         if entry.is_dir():
             dest.mkdir(parents=True, exist_ok=True)
-            _copy_dir_contents(entry, dest, path_prefix, runtime)
+            _copy_dir_contents(entry, dest, path_prefix, runtime, install_scope)
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = _translate_markdown_for_runtime(content, path_prefix, runtime)
+            content = _translate_markdown_for_runtime(content, path_prefix, runtime, install_scope)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
@@ -783,6 +815,7 @@ def write_manifest(
     version: str,
     *,
     codex_skills_dir: str | Path | None = None,
+    install_scope: str | None = None,
 ) -> dict[str, object]:
     """Write a file manifest after installation for future modification detection.
 
@@ -798,6 +831,11 @@ def write_manifest(
         "timestamp": _iso_now(),
         "files": {},
     }
+    normalized_scope = _normalize_install_scope_flag(install_scope)
+    if normalized_scope == "--local":
+        manifest["install_scope"] = "local"
+    elif normalized_scope == "--global":
+        manifest["install_scope"] = "global"
     files: dict[str, str] = {}
 
     # get-physics-done/
@@ -982,6 +1020,7 @@ def install_gpd_content(
     target_dir: Path,
     path_prefix: str,
     runtime: str,
+    install_scope: str | None = None,
 ) -> list[str]:
     """Install get-physics-done/ content from specs/ subdirectories.
 
@@ -994,7 +1033,7 @@ def install_gpd_content(
     for subdir_name in GPD_CONTENT_DIRS:
         src_subdir = specs_dir / subdir_name
         if src_subdir.is_dir():
-            copy_with_path_replacement(src_subdir, gpd_dest / subdir_name, path_prefix, runtime)
+            copy_with_path_replacement(src_subdir, gpd_dest / subdir_name, path_prefix, runtime, install_scope)
 
     if verify_installed(gpd_dest, "get-physics-done"):
         subdir_info = []

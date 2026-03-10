@@ -129,7 +129,9 @@ class RuntimeAdapter(abc.ABC):
 
         with gpd_span("adapter.install", runtime=self.runtime_name, target=str(target_dir)) as span:
             previous_explicit_target = getattr(self, "_install_explicit_target", False)
+            previous_is_global = getattr(self, "_install_is_global", False)
             self._install_explicit_target = explicit_target
+            self._install_is_global = is_global
             try:
                 self._validate(gpd_root)
                 path_prefix = self._compute_path_prefix(target_dir, is_global)
@@ -170,6 +172,7 @@ class RuntimeAdapter(abc.ABC):
                 return summary
             finally:
                 self._install_explicit_target = previous_explicit_target
+                self._install_is_global = previous_is_global
 
     # ---------------------------------------------------------------------------
     # Install hooks — override in subclasses for runtime-specific behavior
@@ -201,7 +204,15 @@ class RuntimeAdapter(abc.ABC):
 
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
         """Install get-physics-done/ content from specs/."""
-        failures.extend(install_gpd_content(gpd_root / "specs", target_dir, path_prefix, self.runtime_name))
+        failures.extend(
+            install_gpd_content(
+                gpd_root / "specs",
+                target_dir,
+                path_prefix,
+                self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+            )
+        )
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         """Install agents in runtime-specific format.
@@ -219,6 +230,10 @@ class RuntimeAdapter(abc.ABC):
         """Copy hook scripts."""
         failures.extend(copy_hook_scripts(gpd_root, target_dir))
 
+    def _current_install_scope_flag(self) -> str:
+        """Return the active install scope as a bootstrap-friendly flag."""
+        return "--global" if getattr(self, "_install_is_global", False) else "--local"
+
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         """Runtime-specific configuration (settings, permissions, etc.).
 
@@ -228,7 +243,7 @@ class RuntimeAdapter(abc.ABC):
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         """Write file manifest for modification detection."""
-        write_manifest(target_dir, version)
+        write_manifest(target_dir, version, install_scope=self._current_install_scope_flag())
 
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""

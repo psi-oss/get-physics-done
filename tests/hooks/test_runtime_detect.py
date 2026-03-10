@@ -6,6 +6,7 @@ priority ordering, helper functions, and unknown runtime fallback.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -16,11 +17,15 @@ from gpd.hooks.runtime_detect import (
     RUNTIME_GEMINI,
     RUNTIME_OPENCODE,
     RUNTIME_UNKNOWN,
+    SCOPE_GLOBAL,
+    SCOPE_LOCAL,
     all_runtime_dirs,
+    detect_install_scope,
     detect_active_runtime,
     get_cache_dirs,
     get_gpd_install_dirs,
     get_todo_dirs,
+    get_update_cache_files,
     update_command_for_runtime,
 )
 
@@ -127,6 +132,23 @@ class TestDetectActiveRuntime:
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_CLAUDE
 
+    def test_explicit_cwd_overrides_process_cwd_for_runtime_detection(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / ".gemini").mkdir()
+
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / ".claude").mkdir()
+
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        ):
+            assert detect_active_runtime(cwd=workspace) == RUNTIME_GEMINI
+
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
 
@@ -198,6 +220,62 @@ class TestHelperDirs:
         assert home / ".claude" / "cache" in dirs
         assert home / ".config" / "opencode" / "cache" in dirs
 
+    def test_todo_dirs_use_explicit_workspace_cwd(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        home = tmp_path / "home"
+        workspace.mkdir()
+
+        dirs = get_todo_dirs(cwd=workspace, home=home)
+
+        assert workspace / ".claude" / "todos" in dirs
+        assert workspace / ".codex" / "todos" in dirs
+        assert home / ".claude" / "todos" in dirs
+        assert home / ".config" / "opencode" / "todos" in dirs
+
+
+class TestDetectInstallScope:
+    """Tests for local/global install-scope detection."""
+
+    def test_prefers_local_scope_when_local_runtime_dir_exists(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (tmp_path / ".codex").mkdir()
+        (home / ".codex").mkdir(parents=True)
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_install_scope(RUNTIME_CODEX) == SCOPE_LOCAL
+
+    def test_returns_global_scope_when_only_global_runtime_dir_exists(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (home / ".gemini").mkdir(parents=True)
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_install_scope(RUNTIME_GEMINI) == SCOPE_GLOBAL
+
+    def test_manifest_scope_overrides_env_global_dir_for_explicit_target(self, tmp_path: Path) -> None:
+        custom_dir = tmp_path / "custom-codex"
+        custom_dir.mkdir()
+        (custom_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": SCOPE_LOCAL}),
+            encoding="utf-8",
+        )
+
+        elsewhere = tmp_path / "workspace"
+        elsewhere.mkdir()
+        home = tmp_path / "home"
+
+        with (
+            patch.dict(os.environ, {"CODEX_CONFIG_DIR": str(custom_dir)}, clear=False),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_install_scope(RUNTIME_CODEX) == SCOPE_LOCAL
+
 
 # ─── get_gpd_install_dirs ──────────────────────────────────────────────────
 
@@ -240,6 +318,20 @@ class TestGPDInstallDirs:
         assert tmp_path / "opencode-custom" / "get-physics-done" in dirs
 
 
+class TestUpdateCacheFiles:
+    """Tests for get_update_cache_files."""
+
+    def test_preferred_runtime_uses_explicit_workspace_cwd(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        home = tmp_path / "home"
+        workspace.mkdir()
+
+        files = get_update_cache_files(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+
+        assert files[0] == workspace / ".codex" / "cache" / "gpd-update-check.json"
+        assert files[1] == home / ".codex" / "cache" / "gpd-update-check.json"
+
+
 class TestUpdateCommand:
     """Tests for update_command_for_runtime."""
 
@@ -257,3 +349,9 @@ class TestUpdateCommand:
 
     def test_opencode_runtime_uses_opencode_flag(self) -> None:
         assert update_command_for_runtime(RUNTIME_OPENCODE).endswith(" --opencode")
+
+    def test_local_scope_adds_local_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_CLAUDE, scope=SCOPE_LOCAL).endswith(" --claude --local")
+
+    def test_global_scope_adds_global_flag(self) -> None:
+        assert update_command_for_runtime(RUNTIME_OPENCODE, scope=SCOPE_GLOBAL).endswith(" --opencode --global")

@@ -1,5 +1,5 @@
 <purpose>
-Check for GPD updates via npm, display changelog for versions between installed and latest, obtain user confirmation, and execute clean installation with cache clearing.
+Check for a newer GPD release, show recent release notes, confirm with the user, and reinstall the active runtime with the public bootstrap command.
 </purpose>
 
 <required_reading>
@@ -8,73 +8,96 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 <process>
 
-<step name="get_installed_version">
-Detect whether GPD is installed locally or globally by checking both locations:
+<step name="detect_current_install">
+Detect the currently installed version and the correct runtime/scope to update.
+
+Use the installed runtime files, not Python import location:
 
 ```bash
-# Get installed version from package metadata
-INSTALLED_VERSION=$(python3 -c "from gpd.version import __version__; print(__version__)" 2>/dev/null || echo "0.0.0")
+GPD_INSTALL_DIR="{GPD_INSTALL_DIR}"
+GPD_CONFIG_DIR="{GPD_CONFIG_DIR}"
+GPD_GLOBAL_CONFIG_DIR="{GPD_GLOBAL_CONFIG_DIR}"
+GPD_RUNTIME_FLAG="{GPD_RUNTIME_FLAG}"
+INSTALL_SCOPE="{GPD_INSTALL_SCOPE_FLAG}"
 
-# Detect install type from package location
-INSTALL_PATH=$(python3 -c "import gpd; print(gpd.__file__)" 2>/dev/null || echo "")
-if echo "$INSTALL_PATH" | grep -q "$HOME/.claude"; then
-  echo "$INSTALLED_VERSION"
-  echo "LOCAL"
-elif [ -n "$INSTALL_PATH" ]; then
-  echo "$INSTALLED_VERSION"
-  echo "GLOBAL"
+if [ -f "$GPD_INSTALL_DIR/VERSION" ]; then
+  INSTALLED_VERSION=$(tr -d '\n' < "$GPD_INSTALL_DIR/VERSION")
 else
-  echo "0.0.0"
-  echo "UNKNOWN"
+  INSTALLED_VERSION="0.0.0"
 fi
+
+TARGET_DIR_ARG=""
+if [ "$INSTALL_SCOPE" = "--local" ]; then
+  case "$GPD_CONFIG_DIR" in
+    ./*) ;;
+    *)
+      TARGET_DIR_ARG=$(python3 - "$GPD_CONFIG_DIR" <<'PY'
+import shlex
+import sys
+
+print(f" --target-dir {shlex.quote(sys.argv[1])}")
+PY
+)
+      ;;
+  esac
+fi
+
+UPDATE_COMMAND="npx -y github:physicalsuperintelligence/get-physics-done $GPD_RUNTIME_FLAG $INSTALL_SCOPE$TARGET_DIR_ARG"
+PATCH_META="$GPD_CONFIG_DIR/gpd-local-patches/backup-meta.json"
+
+printf '%s\n%s\n%s\n%s\n%s\n' \
+  "$INSTALLED_VERSION" \
+  "$INSTALL_SCOPE" \
+  "$UPDATE_COMMAND" \
+  "$GPD_CONFIG_DIR" \
+  "$PATCH_META"
 ```
 
-Parse output:
+Parse output as:
 
-- If last line is "LOCAL": installed version is first line, use `--local` flag for update
-- If last line is "GLOBAL": installed version is first line, use `--global` flag for update
-- If "UNKNOWN": proceed to install step (treat as version 0.0.0)
+- line 1: installed version
+- line 2: install scope flag (`--local` or `--global`)
+- line 3: public update command to run
+- line 4: runtime config directory
+- line 5: expected local-patch metadata path
 
-**If version detection fails:**
-
-```
-## GPD Update
-
-**Installed version:** Unknown
-
-Could not detect installed version.
-
-Running fresh install...
-```
-
-Proceed to install step (treat as version 0.0.0 for comparison).
+If the version file is missing, treat the install as version `0.0.0` and continue.
 </step>
 
 <step name="check_latest_version">
-Check PyPI for latest version:
+Check PyPI for the latest released `get-physics-done` version:
 
 ```bash
-# gpd is the unified Python package
-pip index versions gpd 2>/dev/null
+python3 - <<'PY'
+import json
+import urllib.request
+
+with urllib.request.urlopen("https://pypi.org/pypi/get-physics-done/json", timeout=10) as resp:
+    data = json.load(resp)
+print(data["info"]["version"])
+PY
 ```
 
-**If version check fails:**
+If that fails, show:
 
-```
+```text
+## GPD Update
+
 Couldn't check for updates (offline or PyPI unavailable).
 
-To update manually: `gpd install --all --global`
+To update manually, run:
+`<UPDATE_COMMAND>`
 ```
 
-Exit.
+Then exit.
 </step>
 
 <step name="compare_versions">
-Compare installed vs latest:
+Compare the installed version and the latest version semantically, not lexicographically.
 
-**If installed == latest:**
+If installed == latest, show:
 
-```
+```text
 ## GPD Update
 
 **Installed:** X.Y.Z
@@ -83,67 +106,52 @@ Compare installed vs latest:
 You're already on the latest version.
 ```
 
-Exit.
+Then exit.
 
-**If installed > latest:**
+If installed > latest, show:
 
-```
+```text
 ## GPD Update
 
 **Installed:** X.Y.Z
 **Latest:** A.B.C
 
-You're ahead of the latest release (development version?).
+You're ahead of the latest published release (development build or unreleased source install).
 ```
 
-Exit.
+Then exit.
 </step>
 
 <step name="show_changes_and_confirm">
-**If update available**, fetch and show what's new BEFORE updating:
+If an update is available, fetch recent release notes before asking for confirmation.
 
-1. Fetch changelog from GitHub raw URL
-2. Extract entries between installed and latest versions
-3. Display preview and ask for confirmation:
+Preferred source:
 
-```
+- GitHub Releases API: `https://api.github.com/repos/physicalsuperintelligence/get-physics-done/releases`
+
+Show a short preview covering releases newer than the installed version and up to the latest version. If release notes cannot be fetched, say so briefly and continue with the update prompt anyway.
+
+Display the confirmation prompt in this shape:
+
+```text
 ## GPD Update Available
 
 **Installed:** 1.5.10
 **Latest:** 1.5.15
 
 ### What's New
-------------------------------------------------------------
+[short preview of recent release notes, or a brief fallback note]
 
-## [1.5.15] - 2026-01-20
+>> **Note:** This reinstalls the current runtime's managed GPD files:
+- GPD command files for this runtime will be replaced
+- `get-physics-done/` will be replaced
+- `gpd-*` agent files will be replaced
 
-### Added
-- New physics validation command
-
-## [1.5.14] - 2026-01-18
-
-### Fixed
-- Corrected sign convention in template
-
-------------------------------------------------------------
-
->> **Note:** The installer performs a clean install of GPD folders:
-- `commands/gpd/` will be wiped and replaced
-- `get-physics-done/` will be wiped and replaced
-- `agents/gpd-*` files will be replaced
-
-(Paths are relative to your runtime's config directory)
-
-Your custom files in other locations are preserved:
-- Custom commands not in `commands/gpd/` -- preserved
-- Custom agents not prefixed with `gpd-` -- preserved
-- Custom hooks -- preserved
-- Your runtime config files -- preserved
-
-If you've modified any GPD files directly, they'll be automatically backed up to `gpd-local-patches/` and can be reapplied with `/gpd:reapply-patches` after the update.
+Custom files outside the managed GPD install are preserved.
+If you've modified managed GPD files directly, they will be backed up to `gpd-local-patches/` and can be reapplied with `/gpd:reapply-patches` after the update.
 ```
 
-> **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
+> **Platform note:** If `ask_user` is not available, present the choices in plain text and wait for the user's freeform response.
 
 Use ask_user:
 
@@ -152,46 +160,32 @@ Use ask_user:
   - "Yes, update now"
   - "No, cancel"
 
-**If user cancels:** Exit.
+If the user cancels, exit.
 </step>
 
 <step name="run_update">
-Run the update using the install type detected in step 1:
-
-**If LOCAL install:**
+Run the update with the public bootstrap command from step 1:
 
 ```bash
-gpd install --all --local
+<UPDATE_COMMAND>
 ```
 
-**If GLOBAL install (or unknown):**
+Capture output. If the update command fails, show the error and exit.
+
+Then clear update caches so indicators disappear immediately:
 
 ```bash
-gpd install --all --global
+rm -f \
+  "<GPD_CONFIG_DIR>/cache/gpd-update-check.json" \
+  "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json" \
+  "$HOME/.gpd/cache/gpd-update-check.json"
 ```
-
-Capture output. If install fails, show error and exit.
-
-Clear the update cache so statusline indicator disappears:
-
-**If LOCAL install:**
-
-```bash
-rm -f ~/.gpd/cache/gpd:update-check.json
-```
-
-**If GLOBAL install:**
-
-```bash
-rm -f ~/.gpd/cache/gpd:update-check.json
-```
-
 </step>
 
 <step name="display_result">
-Format completion message (changelog was already shown in confirmation step):
+Format completion like:
 
-```
+```text
 +===========================================================+
 |  GPD Updated: v1.5.10 -> v1.5.15                         |
 +===========================================================+
@@ -200,34 +194,32 @@ Format completion message (changelog was already shown in confirmation step):
 
 [View releases](https://github.com/physicalsuperintelligence/get-physics-done/releases)
 ```
-
 </step>
 
 <step name="check_local_patches">
-After update completes, check if the installer detected and backed up any locally modified files:
+After the update completes, check the patch metadata path captured in step 1.
 
-Check for gpd-local-patches/backup-meta.json in the config directory.
+If patches were backed up, show:
 
-**If patches found:**
-
-```
+```text
 Local patches were backed up before the update.
 Run /gpd:reapply-patches to merge your modifications into the new version.
 ```
 
-**If no patches:** Continue normally.
+Otherwise continue normally.
 </step>
 </process>
 
 <success_criteria>
 
-- [ ] Installed version read correctly
-- [ ] Latest version checked via PyPI
+- [ ] Installed version read from the runtime install
+- [ ] Latest released version checked from PyPI
 - [ ] Update skipped if already current
-- [ ] Changelog fetched and displayed BEFORE update
-- [ ] Clean install warning shown
+- [ ] Recent release notes shown before updating when available
+- [ ] Clean reinstall warning shown
 - [ ] User confirmation obtained
-- [ ] Update executed successfully
+- [ ] Runtime-specific update command executed successfully
+- [ ] Update caches cleared
 - [ ] Restart reminder shown
 
 </success_criteria>

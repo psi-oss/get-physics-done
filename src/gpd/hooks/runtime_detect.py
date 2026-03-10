@@ -6,11 +6,12 @@ env-var activation signals, and config-directory layout.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 from gpd.adapters import get_adapter, iter_adapters
-from gpd.adapters.install_utils import expand_tilde
+from gpd.adapters.install_utils import MANIFEST_NAME, expand_tilde
 from gpd.core.constants import PLANNING_DIR_NAME
 
 RUNTIME_CLAUDE = "claude-code"
@@ -18,6 +19,8 @@ RUNTIME_CODEX = "codex"
 RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
 RUNTIME_UNKNOWN = "unknown"
+SCOPE_GLOBAL = "global"
+SCOPE_LOCAL = "local"
 
 ALL_RUNTIMES = [adapter.runtime_name for adapter in iter_adapters()]
 
@@ -52,24 +55,66 @@ def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
     return adapter.resolve_local_config_dir(cwd)
 
 
-def detect_active_runtime() -> str:
+def _manifest_install_scope(config_dir: Path) -> str | None:
+    """Return persisted install scope from a runtime manifest, if present."""
+    manifest_path = config_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return None
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(manifest, dict):
+        return None
+
+    scope = manifest.get("install_scope")
+    return scope if scope in (SCOPE_LOCAL, SCOPE_GLOBAL) else None
+
+
+def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect which AI agent runtime is currently active."""
     for adapter in iter_adapters():
         for env_var in adapter.activation_env_vars:
             if os.environ.get(env_var):
                 return adapter.runtime_name
 
-    cwd = Path.cwd()
+    resolved_cwd = cwd or Path.cwd()
     for runtime in ALL_RUNTIMES:
-        if _local_runtime_dir(runtime, cwd).is_dir():
+        if _local_runtime_dir(runtime, resolved_cwd).is_dir():
             return runtime
 
-    home = Path.home()
+    resolved_home = home or Path.home()
     for runtime in ALL_RUNTIMES:
-        if _global_runtime_dir(runtime, home=home).is_dir():
+        if _global_runtime_dir(runtime, home=resolved_home).is_dir():
             return runtime
 
     return RUNTIME_UNKNOWN
+
+
+def detect_install_scope(
+    runtime: str | None = None,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> str | None:
+    """Detect whether the active install for *runtime* is local or global."""
+    resolved_runtime = runtime or detect_active_runtime(cwd=cwd, home=home)
+    if resolved_runtime not in ALL_RUNTIMES:
+        return None
+
+    resolved_cwd = cwd or Path.cwd()
+    local_dir = _local_runtime_dir(resolved_runtime, resolved_cwd)
+    if local_dir.is_dir():
+        return _manifest_install_scope(local_dir) or SCOPE_LOCAL
+
+    resolved_home = home or Path.home()
+    global_dir = _global_runtime_dir(resolved_runtime, home=resolved_home)
+    if global_dir.is_dir():
+        return _manifest_install_scope(global_dir) or SCOPE_GLOBAL
+
+    return None
 
 
 def _unique_paths(paths: list[Path]) -> list[Path]:
@@ -84,59 +129,64 @@ def _unique_paths(paths: list[Path]) -> list[Path]:
     return unique
 
 
-def all_runtime_dirs(*, include_local: bool = False) -> list[Path]:
+def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return config directories for all known runtimes."""
     dirs: list[Path] = []
     if include_local:
-        cwd = Path.cwd()
-        dirs.extend(_local_runtime_dir(runtime, cwd) for runtime in ALL_RUNTIMES)
+        resolved_cwd = cwd or Path.cwd()
+        dirs.extend(_local_runtime_dir(runtime, resolved_cwd) for runtime in ALL_RUNTIMES)
 
-    home = Path.home()
-    dirs.extend(_global_runtime_dir(runtime, home=home) for runtime in ALL_RUNTIMES)
+    resolved_home = home or Path.home()
+    dirs.extend(_global_runtime_dir(runtime, home=resolved_home) for runtime in ALL_RUNTIMES)
     return _unique_paths(dirs)
 
 
-def get_todo_dirs() -> list[Path]:
+def get_todo_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return todo directories for local and global runtime installs."""
-    return [d / "todos" for d in all_runtime_dirs(include_local=True)]
+    return [d / "todos" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
 
-def get_cache_dirs() -> list[Path]:
+def get_cache_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return cache directories for local and global runtime installs."""
-    return [d / "cache" for d in all_runtime_dirs(include_local=True)]
+    return [d / "cache" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
 
-def get_update_cache_files() -> list[Path]:
+def get_update_cache_files(
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    preferred_runtime: str | None = None,
+) -> list[Path]:
     """Return all candidate update-cache files in priority scan order."""
-    preferred_runtime = detect_active_runtime()
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+    prioritized_runtime = preferred_runtime or detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
     paths: list[Path] = []
-    cwd = Path.cwd()
-    home = Path.home()
 
-    if preferred_runtime in ALL_RUNTIMES:
-        paths.append(_local_runtime_dir(preferred_runtime, cwd) / "cache" / "gpd-update-check.json")
-        paths.append(_global_runtime_dir(preferred_runtime, home=home) / "cache" / "gpd-update-check.json")
+    if prioritized_runtime in ALL_RUNTIMES:
+        paths.append(_local_runtime_dir(prioritized_runtime, resolved_cwd) / "cache" / "gpd-update-check.json")
+        paths.append(_global_runtime_dir(prioritized_runtime, home=resolved_home) / "cache" / "gpd-update-check.json")
 
-    paths.append(home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
-    paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs())
+    paths.append(resolved_home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
+    paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs(cwd=resolved_cwd, home=resolved_home))
     return _unique_paths(paths)
 
 
-def get_gpd_install_dirs(*, prefer_active: bool = False) -> list[Path]:
+def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return GPD installation directories for all known runtimes."""
     if not prefer_active:
-        return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True)]
+        return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
     dirs: list[Path] = []
-    cwd = Path.cwd()
-    home = Path.home()
-    for runtime in _prioritized_runtimes(detect_active_runtime()):
-        dirs.append(_local_runtime_dir(runtime, cwd) / "get-physics-done")
-        dirs.append(_global_runtime_dir(runtime, home=home) / "get-physics-done")
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+    for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
+        dirs.append(_local_runtime_dir(runtime, resolved_cwd) / "get-physics-done")
+        dirs.append(_global_runtime_dir(runtime, home=resolved_home) / "get-physics-done")
     return _unique_paths(dirs)
 
 
-def update_command_for_runtime(runtime: str) -> str:
+def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
     """Return the public bootstrap command to update a given runtime install."""
     install_flag_map = {
         RUNTIME_CLAUDE: "--claude",
@@ -148,7 +198,13 @@ def update_command_for_runtime(runtime: str) -> str:
     base = "npx -y github:physicalsuperintelligence/get-physics-done"
     if install_flag is None:
         return base
-    return f"{base} {install_flag}"
+
+    scope_flag = ""
+    if scope == SCOPE_LOCAL:
+        scope_flag = " --local"
+    elif scope == SCOPE_GLOBAL:
+        scope_flag = " --global"
+    return f"{base} {install_flag}{scope_flag}"
 
 
 __all__ = [
@@ -158,7 +214,10 @@ __all__ = [
     "RUNTIME_GEMINI",
     "RUNTIME_OPENCODE",
     "RUNTIME_UNKNOWN",
+    "SCOPE_GLOBAL",
+    "SCOPE_LOCAL",
     "all_runtime_dirs",
+    "detect_install_scope",
     "detect_active_runtime",
     "expand_tilde",
     "get_cache_dirs",

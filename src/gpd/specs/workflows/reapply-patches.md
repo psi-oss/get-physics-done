@@ -11,11 +11,11 @@ Called from /gpd:reapply-patches command. In the physics research context, "patc
 Check for local patches directory:
 
 ```bash
-# Global install
-PATCHES_DIR="~/.claude/gpd-local-patches"
-# Local install fallback
-if [ ! -d "$PATCHES_DIR" ]; then
-  PATCHES_DIR="./.claude/gpd-local-patches"
+PATCHES_DIR="{GPD_CONFIG_DIR}/gpd-local-patches"
+GLOBAL_PATCHES_DIR="{GPD_GLOBAL_CONFIG_DIR}/gpd-local-patches"
+
+if [ ! -d "$PATCHES_DIR" ] && [ "$PATCHES_DIR" != "$GLOBAL_PATCHES_DIR" ]; then
+  PATCHES_DIR="$GLOBAL_PATCHES_DIR"
 fi
 ```
 

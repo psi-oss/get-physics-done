@@ -8,10 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gpd.hooks.codex_notify import _check_and_notify_update, main
-from gpd.hooks.runtime_detect import RUNTIME_CLAUDE
+from gpd.hooks.runtime_detect import RUNTIME_CODEX
 
 
-def test_notify_uses_latest_local_cache_and_valid_install_command(tmp_path: Path) -> None:
+def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home_cache = home / ".gpd" / "cache"
     home_cache.mkdir(parents=True)
@@ -38,7 +38,7 @@ def test_notify_uses_latest_local_cache_and_valid_install_command(tmp_path: Path
     with (
         patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CLAUDE),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
         patch("sys.stderr", stderr),
     ):
         _check_and_notify_update()
@@ -46,7 +46,43 @@ def test_notify_uses_latest_local_cache_and_valid_install_command(tmp_path: Path
     output = stderr.getvalue()
     assert "Update available: v1.2.3" in output
     assert "v1.3.0" in output
-    assert "Run: npx -y github:physicalsuperintelligence/get-physics-done --claude" in output
+    assert "Run: npx -y github:physicalsuperintelligence/get-physics-done --codex --local" in output
+
+
+def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+
+    local_cache = workspace / ".codex" / "cache"
+    local_cache.mkdir(parents=True)
+    (local_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "2.0.0",
+                "latest": "2.1.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / ".claude" / "cache").mkdir(parents=True)
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    output = stderr.getvalue()
+    assert "Update available: v2.0.0" in output
+    assert "Run: npx -y github:physicalsuperintelligence/get-physics-done --codex --local" in output
 
 
 def test_main_accepts_string_workspace_payload() -> None:
@@ -58,4 +94,4 @@ def test_main_accepts_string_workspace_payload() -> None:
         main()
 
     mock_trigger.assert_called_once_with("/tmp/project")
-    mock_notify.assert_called_once()
+    mock_notify.assert_called_once_with("/tmp/project")

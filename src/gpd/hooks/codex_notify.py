@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from gpd.core.constants import ENV_GPD_DEBUG
 
@@ -38,15 +39,21 @@ def _trigger_update_check(cwd: str) -> None:
         _debug(f"Failed to spawn check_update.py: {exc}")
 
 
-def _check_and_notify_update() -> None:
+def _check_and_notify_update(cwd: str | None = None) -> None:
     """Read update cache and emit a notification to stderr if update available."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files
+    from gpd.hooks.runtime_detect import (
+        RUNTIME_CODEX,
+        detect_install_scope,
+        get_update_cache_files,
+        update_command_for_runtime,
+    )
+
+    workspace_path = Path(cwd) if cwd else None
 
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0
 
-    for cache_file in get_update_cache_files():
+    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=RUNTIME_CODEX):
         if not cache_file.exists():
             continue
         try:
@@ -66,11 +73,7 @@ def _check_and_notify_update() -> None:
     if latest_cache and latest_cache.get("update_available"):
         installed = latest_cache.get("installed", "?")
         latest = latest_cache.get("latest", "?")
-        runtime = detect_active_runtime()
-        try:
-            cmd = get_adapter(runtime).update_command
-        except KeyError:
-            cmd = "npx -y github:physicalsuperintelligence/get-physics-done"
+        cmd = update_command_for_runtime(RUNTIME_CODEX, scope=detect_install_scope(RUNTIME_CODEX, cwd=workspace_path))
         sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 
@@ -95,7 +98,7 @@ def main() -> None:
         cwd = str(_mapping(workspace_value).get("current_dir") or os.getcwd())
     try:
         _trigger_update_check(cwd)
-        _check_and_notify_update()
+        _check_and_notify_update(cwd)
     except Exception:
         pass
 

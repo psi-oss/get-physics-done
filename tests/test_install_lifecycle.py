@@ -572,6 +572,31 @@ class TestManifestConsistency:
         assert manifest2["version"] == manifest1["version"]
         assert len(manifest2["files"]) > 0
 
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("is_global, expected_scope", [(False, "local"), (True, "global")])
+    def test_manifest_records_install_scope(
+        self,
+        runtime: str,
+        is_global: bool,
+        expected_scope: str,
+        tmp_path: Path,
+        gpd_root: Path,
+    ) -> None:
+        adapter = get_adapter(runtime)
+        target = tmp_path / adapter.config_dir_name
+        target.mkdir(parents=True, exist_ok=True)
+
+        install_kwargs: dict[str, object] = {"is_global": is_global}
+        if runtime == "codex":
+            skills_dir = (tmp_path / "global-skills") if is_global else (tmp_path / ".codex" / "skills")
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            install_kwargs["skills_dir"] = skills_dir
+
+        adapter.install(gpd_root, target, **install_kwargs)
+
+        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert manifest["install_scope"] == expected_scope
+
 
 # ---------------------------------------------------------------------------
 # Path replacement in installed content

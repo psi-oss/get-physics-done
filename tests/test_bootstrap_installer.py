@@ -199,6 +199,27 @@ def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> None:
+    target_dir = tmp_path / "custom target" / ".codex"
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--codex", "--local", "--target-dir", str(target_dir)],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_installs = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local", "--target-dir", str(target_dir)]
+    ]
+    assert len(managed_runtime_installs) == 1
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_reinstall_force_reinstalls_matching_release(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,

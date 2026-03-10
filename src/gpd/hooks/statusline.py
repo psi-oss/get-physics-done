@@ -71,14 +71,15 @@ def _read_position(workspace_dir: str) -> str:
         return ""
 
 
-def _read_current_task(session_id: str) -> str:
+def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str:
     """Find the in-progress task across all runtime todo directories."""
     if not session_id:
         return ""
 
     from gpd.hooks.runtime_detect import get_todo_dirs
 
-    todo_dirs = get_todo_dirs()
+    workspace_path = Path(workspace_dir) if workspace_dir else None
+    todo_dirs = get_todo_dirs(cwd=workspace_path)
 
     matches: list[tuple[float, Path]] = []
     for todos_dir in todo_dirs:
@@ -110,14 +111,16 @@ def _read_current_task(session_id: str) -> str:
     return ""
 
 
-def _latest_update_cache() -> dict[str, object] | None:
+def _latest_update_cache(workspace_dir: str | None = None) -> dict[str, object] | None:
     """Return the freshest valid update cache across all runtime locations."""
-    from gpd.hooks.runtime_detect import get_update_cache_files
+    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files
 
+    workspace_path = Path(workspace_dir) if workspace_dir else None
+    preferred_runtime = detect_active_runtime(cwd=workspace_path) if workspace_path else None
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0
 
-    for cache_file in get_update_cache_files():
+    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=preferred_runtime):
         if not cache_file.exists():
             continue
         try:
@@ -135,18 +138,20 @@ def _latest_update_cache() -> dict[str, object] | None:
     return latest_cache
 
 
-def _check_update() -> str:
+def _check_update(workspace_dir: str | None = None) -> str:
     """Check GPD update cache files for available updates."""
-    cache = _latest_update_cache()
+    cache = _latest_update_cache(workspace_dir)
     if cache and cache.get("update_available"):
         from gpd.adapters import get_adapter
-        from gpd.hooks.runtime_detect import detect_active_runtime
+        from gpd.hooks.runtime_detect import detect_active_runtime, detect_install_scope, update_command_for_runtime
 
-        runtime = detect_active_runtime()
+        workspace_path = Path(workspace_dir) if workspace_dir else None
+        runtime = detect_active_runtime(cwd=workspace_path)
+        scope = detect_install_scope(runtime, cwd=workspace_path)
         try:
             command = get_adapter(runtime).format_command("update")
         except KeyError:
-            command = "/gpd:update"
+            command = update_command_for_runtime(runtime, scope=scope)
         return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
     return ""
 
@@ -181,8 +186,8 @@ def main() -> None:
 
         ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
         position = _read_position(workspace_dir)
-        task = _read_current_task(session_id)
-        gpd_update = _check_update()
+        task = _read_current_task(session_id, workspace_dir)
+        gpd_update = _check_update(workspace_dir)
 
         dirname = Path(workspace_dir).name
         pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""

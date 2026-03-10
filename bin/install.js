@@ -792,6 +792,7 @@ function printHelp() {
   console.log(` ${cyan}--gemini${reset}               Install for Gemini CLI only`);
   console.log(` ${cyan}--codex${reset}                Install for Codex only`);
   console.log(` ${cyan}--all${reset}                  Install for all supported runtimes`);
+  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local install)`);
   console.log(` ${cyan}--force-statusline${reset}     Replace an existing runtime statusline`);
   console.log(` ${cyan}-h, --help${reset}              Show this help message`);
   console.log("");
@@ -814,6 +815,33 @@ function printHelp() {
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
   console.log(` ${installCommand} --all --global`);
   console.log("");
+  console.log(` ${dim}# Install into an explicit local target directory${reset}`);
+  console.log(` ${installCommand} --codex --local --target-dir /path/to/.codex`);
+  console.log("");
+}
+
+function parseTargetDirArg(args) {
+  const inline = args.find((arg) => arg.startsWith("--target-dir="));
+  if (inline) {
+    const value = inline.slice("--target-dir=".length).trim();
+    if (!value) {
+      error("Missing value for --target-dir.");
+      process.exit(1);
+    }
+    return value;
+  }
+
+  const index = args.indexOf("--target-dir");
+  if (index === -1) {
+    return null;
+  }
+
+  const value = args[index + 1];
+  if (!value || value.startsWith("-")) {
+    error("Missing value for --target-dir.");
+    process.exit(1);
+  }
+  return value;
 }
 
 function parseSelectedRuntimes(args) {
@@ -894,7 +922,10 @@ async function selectRuntimes(args) {
   process.exit(1);
 }
 
-async function selectInstallScope(args, runtimes) {
+async function selectInstallScope(args, runtimes, targetDir) {
+  if (targetDir) {
+    return "local";
+  }
   if (args.includes("--global") || args.includes("-g")) {
     return "global";
   }
@@ -928,7 +959,7 @@ async function selectInstallScope(args, runtimes) {
   process.exit(1);
 }
 
-function buildRuntimeInstallArgs(runtimes, scope, forceStatusline) {
+function buildRuntimeInstallArgs(runtimes, scope, forceStatusline, targetDir = null) {
   const installArgs = ["-m", "gpd.cli", "install"];
   if (runtimes.length === ALL_RUNTIMES.length) {
     installArgs.push("--all");
@@ -936,6 +967,9 @@ function buildRuntimeInstallArgs(runtimes, scope, forceStatusline) {
     installArgs.push(...runtimes);
   }
   installArgs.push(`--${scope}`);
+  if (targetDir) {
+    installArgs.push("--target-dir", targetDir);
+  }
   if (forceStatusline) {
     installArgs.push("--force-statusline");
   }
@@ -967,6 +1001,7 @@ async function main() {
   const forceStatusline = args.includes("--force-statusline");
   const reinstallManagedPackage = args.includes("--reinstall");
   const upgradeManagedPackage = args.includes("--upgrade");
+  const targetDir = parseTargetDirArg(args);
 
   printBanner();
 
@@ -979,9 +1014,13 @@ async function main() {
     error("Cannot specify both --global and --local.");
     process.exit(1);
   }
+  if (targetDir && (args.includes("--global") || args.includes("-g"))) {
+    error("Cannot combine --target-dir with --global. Use --local semantics for explicit target directories.");
+    process.exit(1);
+  }
 
   const selectedRuntimes = await selectRuntimes(args);
-  const scope = await selectInstallScope(args, selectedRuntimes);
+  const scope = await selectInstallScope(args, selectedRuntimes, targetDir);
 
   const basePython = checkPython();
   if (!basePython) {
@@ -1009,7 +1048,7 @@ async function main() {
 
   log(`Installing GPD for ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
 
-  const installArgs = buildRuntimeInstallArgs(selectedRuntimes, scope, forceStatusline);
+  const installArgs = buildRuntimeInstallArgs(selectedRuntimes, scope, forceStatusline, targetDir);
 
   // Run the installer through the managed Python interpreter.
   const result = spawnSync(managedEnv.python, installArgs, {
