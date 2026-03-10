@@ -129,6 +129,10 @@ def _latest_update_cache(workspace_dir: str | None = None) -> dict[str, object] 
             _debug(f"Failed to parse update cache {cache_file}: {exc}")
             continue
 
+        if not isinstance(cache, dict):
+            _debug(f"Ignoring non-object update cache {cache_file}")
+            continue
+
         checked = cache.get("checked")
         checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
         if latest_cache is None or checked_value > latest_checked:

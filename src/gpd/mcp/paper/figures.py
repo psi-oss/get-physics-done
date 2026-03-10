@@ -178,6 +178,43 @@ def check_figure_resolution(path: Path, journal: str, double_column: bool = Fals
 # ---- Batch processing ----
 
 
+def _prepare_figures_with_sources(
+    figures: list[FigureRef],
+    output_dir: Path,
+    journal: str,
+) -> tuple[list[FigureRef], list[str], list[tuple[FigureRef, FigureRef]]]:
+    """Prepare figures while preserving the original-to-output mapping."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result: list[FigureRef] = []
+    errors: list[str] = []
+    source_pairs: list[tuple[FigureRef, FigureRef]] = []
+
+    for fig in figures:
+        if not fig.path.exists():
+            errors.append(f"Figure not found: {fig.path}")
+            continue
+
+        normalized_path = normalize_figure(fig.path, output_dir)
+
+        passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)
+        if not passes:
+            logger.warning("Figure %s below resolution requirement: %s", fig.label, msg)
+
+        updated = fig.model_copy(
+            update={
+                "path": normalized_path,
+                "width": get_figure_width(journal, fig.double_column),
+            }
+        )
+        result.append(updated)
+        source_pairs.append((fig, updated))
+
+    for err in errors:
+        logger.warning(err)
+
+    return result, errors, source_pairs
+
+
 def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) -> tuple[list[FigureRef], list[str]]:
     """Normalize and size all figures for a given journal.
 
@@ -187,35 +224,5 @@ def prepare_figures(figures: list[FigureRef], output_dir: Path, journal: str) ->
     3. Update FigureRef.path to normalized file
     4. Set FigureRef.width based on journal and double_column flag
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    result: list[FigureRef] = []
-    errors: list[str] = []
-
-    for fig in figures:
-        if not fig.path.exists():
-            errors.append(f"Figure not found: {fig.path}")
-            continue
-
-        # Normalize
-        normalized_path = normalize_figure(fig.path, output_dir)
-
-        # Check resolution
-        passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)
-        if not passes:
-            logger.warning("Figure %s below resolution requirement: %s", fig.label, msg)
-
-        # Update width
-        width = get_figure_width(journal, fig.double_column)
-
-        updated = fig.model_copy(
-            update={
-                "path": normalized_path,
-                "width": width,
-            }
-        )
-        result.append(updated)
-
-    for err in errors:
-        logger.warning(err)
-
-    return result, errors
+    prepared, errors, _ = _prepare_figures_with_sources(figures, output_dir, journal)
+    return prepared, errors

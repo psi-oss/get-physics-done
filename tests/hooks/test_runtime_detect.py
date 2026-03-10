@@ -149,6 +149,20 @@ class TestDetectActiveRuntime:
         ):
             assert detect_active_runtime(cwd=workspace) == RUNTIME_GEMINI
 
+    def test_local_runtime_dirs_outrank_global_runtime_dirs(self, tmp_path: Path) -> None:
+        """Local runtime detection wins even when the global runtime has higher name priority."""
+        home = tmp_path / "home"
+        (tmp_path / ".gemini").mkdir()
+        (home / ".claude").mkdir(parents=True)
+
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert detect_active_runtime() == RUNTIME_GEMINI
+
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
 

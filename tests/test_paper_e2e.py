@@ -161,6 +161,41 @@ class TestBuildPaper:
         manifest_ids = {artifact.artifact_id for artifact in output.manifest.artifacts}
         assert "audit-bibliography" in manifest_ids
 
+    @pytest.mark.asyncio
+    async def test_build_paper_manifest_keeps_figure_source_alignment_when_some_figures_are_skipped(
+        self, tmp_path, monkeypatch
+    ):
+        from gpd.mcp.paper.compiler import build_paper
+
+        existing_figure = tmp_path / "existing.png"
+        Image.new("RGB", (200, 200), color="green").save(existing_figure)
+
+        config = PaperConfig(
+            title="Figure Alignment",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="See Fig.~\\ref{fig:existing}.")],
+            figures=[
+                FigureRef(path=tmp_path / "missing.png", caption="Missing figure.", label="missing"),
+                FigureRef(path=existing_figure, caption="Existing figure.", label="existing"),
+            ],
+        )
+
+        monkeypatch.setattr(
+            "gpd.mcp.paper.compiler.check_journal_dependencies",
+            lambda spec: (False, ["missing TeX dependency"]),
+        )
+
+        output = await build_paper(config, tmp_path / "output")
+
+        assert output.success is False
+        assert any(error.startswith("Figure not found:") for error in output.errors)
+        assert output.manifest is not None
+
+        figure_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.category == "figure")
+        assert figure_artifact.metadata["label"] == "existing"
+        assert figure_artifact.sources[0].path == str(existing_figure)
+
 
 # ---- Public API surface test ----
 

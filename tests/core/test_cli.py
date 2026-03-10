@@ -537,6 +537,196 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert kwargs["enrich_bibliography"] is True
 
 
+def test_paper_build_prefers_paper_dir_before_later_config_roots(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    manuscript_dir = tmp_path / "manuscript"
+    manuscript_dir.mkdir()
+    draft_dir = tmp_path / "draft"
+    draft_dir.mkdir()
+    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir.mkdir(parents=True)
+
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "paper-uppercase",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (manuscript_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "manuscript-uppercase",
+                "authors": [{"name": "B. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (draft_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "draft-uppercase",
+                "authors": [{"name": "D. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (planning_paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "planning-uppercase",
+                "authors": [{"name": "E. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./paper/PAPER-CONFIG.json"
+    assert mock_build.await_args.args[0].title == "paper-uppercase"
+
+
+def test_paper_build_prefers_manuscript_before_draft_and_planning_roots(tmp_path: Path) -> None:
+    manuscript_dir = tmp_path / "manuscript"
+    manuscript_dir.mkdir()
+    draft_dir = tmp_path / "draft"
+    draft_dir.mkdir()
+    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir.mkdir(parents=True)
+
+    (manuscript_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "manuscript-uppercase",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (draft_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "draft-uppercase",
+                "authors": [{"name": "B. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (planning_paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "planning-uppercase",
+                "authors": [{"name": "C. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = manuscript_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = manuscript_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./manuscript/PAPER-CONFIG.json"
+    assert mock_build.await_args.args[0].title == "manuscript-uppercase"
+
+
+def test_paper_build_prefers_config_dir_bibliography_before_output_and_references(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (paper_dir / "references.bib").write_text(
+        "@article{configsource,\n  author={Config, Source},\n  title={Config},\n  year={1905}\n}\n",
+        encoding="utf-8",
+    )
+
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / "references.bib").write_text(
+        "@article{outsource,\n  author={Output, Source},\n  title={Output},\n  year={1906}\n}\n",
+        encoding="utf-8",
+    )
+
+    references_dir = tmp_path / "references"
+    references_dir.mkdir()
+    (references_dir / "references.bib").write_text(
+        "@article{refsource,\n  author={References, Source},\n  title={References},\n  year={1907}\n}\n",
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = output_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["bibliography_source"] == "./paper/references.bib"
+    assert "configsource" in mock_build.await_args.kwargs["bib_data"].entries
+
+
 def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path, monkeypatch) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()

@@ -266,6 +266,17 @@ class TestCheckUpdateHook:
         ):
             assert _check_update() == ""
 
+    def test_non_mapping_cache_is_ignored_instead_of_crashing(self, tmp_path: Path) -> None:
+        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache.mkdir(parents=True)
+        (gpd_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        ):
+            assert _check_update() == ""
+
     def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         home_cache = home / ".gpd" / "cache"

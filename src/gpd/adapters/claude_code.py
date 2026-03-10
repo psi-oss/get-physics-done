@@ -182,6 +182,11 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         """Remove GPD from Claude Code config and clean the matching MCP config."""
         result = super().uninstall(target_dir)
 
+        try:
+            is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
+        except OSError:
+            is_global_target = target_dir.expanduser() == self.global_config_dir.expanduser()
+
         settings_path = target_dir / "settings.json"
         if settings_path.exists():
             settings = read_settings(settings_path)
@@ -210,32 +215,26 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             if modified:
                 write_settings(settings_path, settings)
 
-        import json as _json
-
-        mcp_config_path = target_dir.parent / ".mcp.json"
-        if mcp_config_path.exists():
-            try:
-                mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                mcp_config = None
-            if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
-                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in GPD_MCP_SERVER_KEYS]
-                if removed_keys:
-                    for key in removed_keys:
-                        del mcp_config["mcpServers"][key]
-                    if not mcp_config["mcpServers"]:
-                        del mcp_config["mcpServers"]
-                    mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
-                    result["removed"].append(f"MCP servers from {mcp_config_path.name}")
-
-        try:
-            is_global_target = target_dir.expanduser().resolve() == self.global_config_dir.expanduser().resolve()
-        except OSError:
-            is_global_target = target_dir.expanduser() == self.global_config_dir.expanduser()
-
         if not is_global_target:
+            import json as _json
+
+            mcp_config_path = target_dir.parent / ".mcp.json"
+            if mcp_config_path.exists():
+                try:
+                    mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    mcp_config = None
+                if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
+                    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                    removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in GPD_MCP_SERVER_KEYS]
+                    if removed_keys:
+                        for key in removed_keys:
+                            del mcp_config["mcpServers"][key]
+                        if not mcp_config["mcpServers"]:
+                            del mcp_config["mcpServers"]
+                        mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
+                        result["removed"].append(f"MCP servers from {mcp_config_path.name}")
             return result
 
         mcp_config_path = Path.home() / ".claude.json"

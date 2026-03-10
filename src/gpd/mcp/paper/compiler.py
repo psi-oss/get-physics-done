@@ -22,7 +22,7 @@ from gpd.mcp.paper.bibliography import (
     write_bib_file,
     write_bibliography_audit,
 )
-from gpd.mcp.paper.figures import prepare_figures
+from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
 from gpd.mcp.paper.models import JournalSpec, PaperConfig, PaperOutput
 from gpd.mcp.paper.template_registry import render_paper
@@ -289,6 +289,7 @@ async def build_paper(
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
     original_figures = list(config.figures)
+    figure_source_pairs: list[tuple[FigureRef, FigureRef]] = []
     bib_path: Path | None = None
 
     # 1. Prepare figures
@@ -296,11 +297,16 @@ async def build_paper(
         figures_dir = output_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
         try:
-            prepared, fig_errors = prepare_figures(config.figures, figures_dir, config.journal)
+            prepared, fig_errors, figure_source_pairs = _prepare_figures_with_sources(
+                config.figures,
+                figures_dir,
+                config.journal,
+            )
             errors.extend(fig_errors)
         except (ValueError, RuntimeError) as exc:
             errors.append(f"Figure preparation failed: {exc}")
             prepared = []
+            figure_source_pairs = []
         config = config.model_copy(update={"figures": prepared})
 
     if citation_sources:
@@ -337,8 +343,7 @@ async def build_paper(
         bib_path=bib_path,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
-        original_figures=original_figures,
-        prepared_figures=config.figures,
+        figure_source_pairs=figure_source_pairs,
     )
     await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
@@ -373,8 +378,7 @@ async def build_paper(
         bib_path=bib_path,
         bibliography_audit_path=bibliography_audit_path,
         bibliography_audit=bibliography_audit,
-        original_figures=original_figures,
-        prepared_figures=config.figures,
+        figure_source_pairs=figure_source_pairs,
         pdf_path=result.pdf_path,
     )
     await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)

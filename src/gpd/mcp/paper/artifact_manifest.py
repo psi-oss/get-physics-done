@@ -36,6 +36,7 @@ def build_artifact_manifest(
     bibliography_audit: BibliographyAudit | None = None,
     original_figures: list[FigureRef] | None = None,
     prepared_figures: list[FigureRef] | None = None,
+    figure_source_pairs: list[tuple[FigureRef, FigureRef]] | None = None,
     pdf_path: Path | None = None,
 ) -> ArtifactManifest:
     """Build a machine-readable manifest for emitted paper artifacts."""
@@ -89,7 +90,8 @@ def build_artifact_manifest(
             )
         )
 
-    for original, prepared in zip(original_figures or [], prepared_figures or [], strict=False):
+    source_pairs = figure_source_pairs or list(zip(original_figures or [], prepared_figures or [], strict=False))
+    for original, prepared in source_pairs:
         if not prepared.path.exists():
             continue
         artifacts.append(
