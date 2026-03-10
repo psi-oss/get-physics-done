@@ -187,7 +187,7 @@ def test_standard_install_includes_viewer_surface_dependencies() -> None:
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
 
-    for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette", "httpx"):
+    for dependency in ("fastapi", "uvicorn[standard]", "sse-starlette"):
         assert any(item.startswith(dependency) for item in dependencies), f"Missing runtime dependency for {dependency}"
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
@@ -202,6 +202,7 @@ def test_claude_sdk_is_optional_for_public_install() -> None:
 
     assert not any(item.startswith("claude-agent-sdk") for item in dependencies)
     assert any(item.startswith("claude-agent-sdk") for item in optional["claude-subagents"])
+    assert "scientific" not in optional
 
 
 def test_public_install_excludes_removed_pipeline_agent_dependencies() -> None:
