@@ -604,13 +604,13 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
         cmd = str(entry.get("command", ""))
         args = entry.get("args", [])
         args_list = list(args) if isinstance(args, list) else []
-        lines.append(f"\n[mcpServers.{name}]")
+        lines.append(f"\n[mcp_servers.{name}]")
         lines.append(f'command = "{cmd}"')
         args_toml = ", ".join(f'"{a}"' for a in args_list)
         lines.append(f"args = [{args_toml}]")
         env = entry.get("env", {})
         if isinstance(env, dict) and env:
-            lines.append(f"\n[mcpServers.{name}.env]")
+            lines.append(f"\n[mcp_servers.{name}.env]")
             for k, v in env.items():
                 lines.append(f'{k} = "{v}"')
 
@@ -623,13 +623,13 @@ def _remove_gpd_mcp_toml_sections(content: str) -> str:
     """Remove GPD MCP server sections from TOML content."""
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-    # Remove the header comment and all [mcpServers.gpd-*] / [mcpServers.arxiv] sections.
+    # Remove the header comment and all [mcp_servers.gpd-*] / [mcp_servers.arxiv] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
     for key in GPD_MCP_SERVER_KEYS:
         escaped = re.escape(key)
-        # Remove [mcpServers.key] and [mcpServers.key.env] sections until the next section.
+        # Remove [mcp_servers.key] and [mcp_servers.key.env] sections until the next section.
         content = re.sub(
-            rf"^\[mcpServers\.{escaped}(?:\.env)?\]\n(?:[^\[]*\n)*",
+            rf"^\[mcp_servers\.{escaped}(?:\.env)?\]\n(?:[^\[]*\n)*",
             "",
             content,
             flags=re.MULTILINE,

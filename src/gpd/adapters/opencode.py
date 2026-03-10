@@ -575,7 +575,7 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
                 tmp_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
                 tmp_path.rename(settings_path)
 
-    # 6. Remove GPD MCP servers from opencode.json
+    # 6. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
     oc_config_dir_mcp = config_dir or get_opencode_global_dir()
     oc_config_path_mcp = oc_config_dir_mcp / "opencode.json"
     if oc_config_path_mcp.exists():
@@ -583,15 +583,15 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
             oc_mcp = parse_jsonc(oc_config_path_mcp.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             oc_mcp = None
-        if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcpServers"), dict):
+        if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcp"), dict):
             from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-            gpd_keys = [k for k in oc_mcp["mcpServers"] if k in GPD_MCP_SERVER_KEYS]
+            gpd_keys = [k for k in oc_mcp["mcp"] if k in GPD_MCP_SERVER_KEYS]
             for k in gpd_keys:
-                del oc_mcp["mcpServers"][k]
+                del oc_mcp["mcp"][k]
             if gpd_keys:
-                if not oc_mcp["mcpServers"]:
-                    del oc_mcp["mcpServers"]
+                if not oc_mcp["mcp"]:
+                    del oc_mcp["mcp"]
                 oc_config_path_mcp.write_text(json.dumps(oc_mcp, indent=2) + "\n", encoding="utf-8")
 
     # 7. Clean up permissions from opencode.json
@@ -632,7 +632,12 @@ def uninstall_opencode(target_dir: Path, config_dir: Path | None = None) -> dict
 
 
 def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, object]]) -> int:
-    """Write MCP server entries into opencode.json."""
+    """Write MCP server entries into opencode.json.
+
+    OpenCode uses a different format from Claude Code / Gemini:
+    - Key is ``mcp`` (not ``mcpServers``)
+    - Each server has ``type: "local"``, ``command`` as an array, ``environment`` (not ``env``)
+    """
     config_path = config_dir / "opencode.json"
     config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -640,12 +645,29 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     if config_path.exists():
         config = parse_jsonc(config_path.read_text(encoding="utf-8"))
 
-    existing_mcp = config.get("mcpServers", {})
+    existing_mcp = config.get("mcp", {})
     if not isinstance(existing_mcp, dict):
         existing_mcp = {}
-    existing_mcp.update(servers)
-    config["mcpServers"] = existing_mcp
 
+    for name, entry in servers.items():
+        cmd = str(entry.get("command", ""))
+        raw_args = entry.get("args", [])
+        args_list = list(raw_args) if isinstance(raw_args, list) else []
+        # OpenCode wants command as a single array: ["executable", "arg1", "arg2"]
+        command_array = [cmd] + [str(a) for a in args_list]
+
+        oc_entry: dict[str, object] = {
+            "type": "local",
+            "command": command_array,
+            "enabled": True,
+        }
+        raw_env = entry.get("env", {})
+        if isinstance(raw_env, dict) and raw_env:
+            oc_entry["environment"] = dict(raw_env)
+
+        existing_mcp[name] = oc_entry
+
+    config["mcp"] = existing_mcp
     config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     return len(servers)
 
