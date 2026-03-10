@@ -284,20 +284,6 @@ function latestMainInstallCandidates() {
     });
   }
 
-  if (repoGitUrl) {
-    candidates.push({
-      label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-      spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
-      noCache: true,
-      probe: {
-        kind: "git",
-        repoUrl: repoGitUrl,
-        ref: GITHUB_FALLBACK_BRANCH,
-        refNamespace: "heads",
-      },
-    });
-  }
-
   if (repoSshUrl) {
     candidates.push({
       label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
@@ -306,6 +292,20 @@ function latestMainInstallCandidates() {
       probe: {
         kind: "git",
         repoUrl: repoSshUrl,
+        ref: GITHUB_FALLBACK_BRANCH,
+        refNamespace: "heads",
+      },
+    });
+  }
+
+  if (repoGitUrl) {
+    candidates.push({
+      label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
+      spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+      noCache: true,
+      probe: {
+        kind: "git",
+        repoUrl: repoGitUrl,
         ref: GITHUB_FALLBACK_BRANCH,
         refNamespace: "heads",
       },
