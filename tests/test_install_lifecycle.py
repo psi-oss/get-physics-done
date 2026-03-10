@@ -293,6 +293,7 @@ class TestCodexLifecycle:
         assert (target / "config.toml").exists()
         toml_content = (target / "config.toml").read_text(encoding="utf-8")
         assert "notify" in toml_content
+        assert "multi_agent = true" in toml_content
 
         # Manifest
         assert (target / MANIFEST_NAME).exists()

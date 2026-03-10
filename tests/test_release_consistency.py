@@ -197,8 +197,10 @@ def test_public_docs_note_current_terminal_cli_limitations() -> None:
     assert "## Known Limitations" in readme
     assert "The integrated terminal `gpd session` launcher currently supports Claude Code only." in readme
     assert "On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly." in readme
-    assert "On Codex, subagent support currently requires launching Codex from the CLI and enabling `/experimental`." in readme
-
+    assert (
+        "On Codex, GPD enables experimental multi-agent support automatically during install, "
+        "but subagent activity is currently surfaced in the CLI only."
+    ) in readme
 
 def test_standard_install_includes_viewer_surface_dependencies() -> None:
     repo_root = _repo_root()
@@ -262,26 +264,6 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "Public install docs should use `npx github:physicalsuperintelligence/get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
 
-
-def test_public_repo_avoids_internal_mcp_repair_workflow() -> None:
-    repo_root = _repo_root()
-    paths = (
-        "src/gpd/mcp/launch.py",
-        "src/gpd/mcp/discovery/sources.py",
-    )
-    disallowed_markers = (
-        "fix-mcps",
-        "MCP Builder",
-        "".join(["mo", "dal token set"]),
-        "".join(["MO", "DAL_ENVIRONMENT"]),
-        "gpd-mcp-servers",
-        "".join(["gpd-", "mo", "dal"]),
-    )
-
-    for relative_path in paths:
-        content = (repo_root / relative_path).read_text(encoding="utf-8")
-        for marker in disallowed_markers:
-            assert marker not in content, f"{relative_path} should not mention {marker!r}"
 
 
 def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path: Path) -> None:

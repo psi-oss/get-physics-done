@@ -289,6 +289,7 @@ class TestCodexRoundtrip:
         assert toml_path.exists()
         content = toml_path.read_text(encoding="utf-8")
         assert "notify" in content
+        assert "multi_agent = true" in content
 
     def test_manifest_tracks_skills(self, installed: tuple[Path, Path]) -> None:
         """File manifest includes skill entries."""

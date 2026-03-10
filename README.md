@@ -1,8 +1,10 @@
 # Get Physics Done (GPD)
 
+### Built by physicists, for physicists
+
 [![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
 
-Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence), released as a community contribution. Built by physicists, for physicists, GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
+Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
@@ -145,7 +147,7 @@ gpd view
 
 - The integrated terminal `gpd session` launcher currently supports Claude Code only.
 - On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
-- On Codex, subagent support currently requires launching Codex from the CLI and enabling `/experimental`.
+- On Codex, GPD enables experimental multi-agent support automatically during install, but subagent activity is currently surfaced in the CLI only.
 - `gpd view` remains available from the terminal on any install.
 
 ## Citation
@@ -155,7 +157,7 @@ If GPD contributes to published research, please cite the software using [`CITAT
 The same file provides the machine-readable CFF metadata used by GitHub's repository citation UI.
 
 ```bibtex
-@software{hernandez_cuenca_2026_gpd,
+@software{physical_superintelligence_2026_gpd,
   author = {Hernandez-Cuenca, Sergio},
   title = {Get Physics Done (GPD)},
   version = {0.1.0},
