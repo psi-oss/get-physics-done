@@ -26,7 +26,7 @@ Install GPD with `npx`:
 npx github:physicalsuperintelligence/get-physics-done
 ```
 
-That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI with the unified terminal CLI surface (`gpd session` and `gpd view`), and then runs the runtime installer.
+That command checks for Python 3.11+ and `pip`, installs the matching `get-physics-done` Python release from PyPI, and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime and scope directly:
 
@@ -52,6 +52,8 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
 Runtime syntax differs slightly, but the workflow is the same across all four.
+
+After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
 
 ## What GPD Does
 
@@ -125,15 +127,13 @@ Use the runtime-specific prefix from the table above if you are on Codex or Open
 
 ## Terminal CLI
 
-The same `gpd` install also includes the session launcher and frame viewer. Use the unified CLI from your shell:
+The same `gpd` install also includes the frame viewer. Use it from your shell when you want to inspect MCP simulation outputs:
 
 ```bash
-gpd session
-gpd session --history
 gpd view
 ```
 
-`gpd session` launches an interactive Claude Code-backed session from your shell with MCP orchestration and the standard GPD command surface available inside it. `gpd view` remains available as a regular CLI subcommand you can run directly from the terminal.
+`gpd view` is a regular terminal utility. The research workflow itself runs inside your installed AI runtime.
 
 ## Requirements
 
@@ -145,10 +145,7 @@ gpd view
 
 ## Known Limitations
 
-- The integrated terminal `gpd session` launcher currently supports Claude Code only.
-- On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly.
 - On Codex, GPD enables experimental multi-agent support automatically during install, but subagent activity is currently surfaced in the CLI only.
-- `gpd view` remains available from the terminal on any install.
 
 ## Citation
 

@@ -37,7 +37,6 @@ def test_help():
     assert "state" in result.output
     assert "phase" in result.output
     assert "health" in result.output
-    assert "session" in result.output
     assert "view" in result.output
 
 
@@ -57,14 +56,10 @@ def test_phase_help():
     assert "complete" in result.output
 
 
-def test_session_help():
-    import re
-
+def test_session_command_is_not_exposed():
     result = runner.invoke(app, ["session", "--help"])
-    assert result.exit_code == 0
-    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-    assert "--resume" in plain
-    assert "reindex" in plain
+    assert result.exit_code != 0
+    assert "No such command 'session'" in result.output
 
 
 def test_view_help():

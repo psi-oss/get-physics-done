@@ -190,13 +190,14 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
-def test_public_docs_note_current_terminal_cli_limitations() -> None:
+def test_public_docs_keep_terminal_surface_runtime_first() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Known Limitations" in readme
-    assert "The integrated terminal `gpd session` launcher currently supports Claude Code only." in readme
-    assert "On Gemini CLI, Codex, and OpenCode, use the installed in-runtime commands directly." in readme
+    assert "After installing GPD, open your chosen runtime normally" in readme
+    assert "gpd view" in readme
+    assert "gpd session" not in readme
     assert (
         "On Codex, GPD enables experimental multi-agent support automatically during install, "
         "but subagent activity is currently surfaced in the CLI only."
@@ -225,17 +226,7 @@ def test_claude_sdk_is_optional_for_public_install() -> None:
     assert "scientific" not in optional
 
 
-def test_public_install_excludes_removed_pipeline_agent_dependencies() -> None:
-    repo_root = _repo_root()
-    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    dependencies: list[str] = project["dependencies"]
-    readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    cli = (repo_root / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
 
-    assert not any(item.startswith("pydantic-ai-slim") for item in dependencies)
-    assert not any(item.startswith("tenacity") for item in dependencies)
-    assert "gpd pipeline" not in readme
-    assert 'name="pipeline"' not in cli
 
 
 def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
