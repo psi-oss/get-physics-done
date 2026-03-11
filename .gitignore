@@ -6,7 +6,7 @@ build/
 .venv/
 .env
 *.log
-.gpd/
+.gpd/observability/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
