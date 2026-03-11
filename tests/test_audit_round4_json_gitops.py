@@ -10,11 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from gpd.core.git_ops import FileCheckDetail, _check_frontmatter
 from gpd.core.json_utils import json_set
-
 
 # ---------------------------------------------------------------------------
 # Fix 1: json_set type-mismatch error key

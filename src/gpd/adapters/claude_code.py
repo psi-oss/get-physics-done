@@ -23,6 +23,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+
 logger = logging.getLogger(__name__)
 
 

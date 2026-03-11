@@ -6,7 +6,6 @@ Fix 2: double-bounded ranges with << / >> operators now apply "much less/greater
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # Fix 1: question_list and calculation_list return type annotations
 # ---------------------------------------------------------------------------

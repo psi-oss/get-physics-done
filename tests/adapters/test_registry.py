@@ -7,10 +7,10 @@ import pytest
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.tool_names import (
-    CLAUDE_CODE,
     CANONICAL_TOOL_NAMES,
-    CONTEXTUAL_TOOL_REFERENCE_NAMES,
+    CLAUDE_CODE,
     CODEX,
+    CONTEXTUAL_TOOL_REFERENCE_NAMES,
     GEMINI,
     OPENCODE,
     RUNTIME_TABLES,

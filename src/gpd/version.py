@@ -6,9 +6,9 @@ Reads from ``importlib.metadata`` so the only authoritative value is
 
 from __future__ import annotations
 
-from pathlib import Path
 import tomllib
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
 def _version_from_pyproject() -> str | None:

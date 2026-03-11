@@ -10,7 +10,6 @@ import random
 import re
 import string
 
-
 from gpd.core.frontmatter import extract_frontmatter, reconstruct_frontmatter
 from gpd.core.results import _auto_generate_id
 from gpd.core.state import ensure_state_schema, generate_state_markdown

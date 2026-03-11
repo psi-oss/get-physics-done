@@ -8,8 +8,8 @@ import pytest
 from PIL import Image
 from pybtex.database import BibliographyData, Entry
 
-from gpd.mcp.paper.compiler import CompilationResult, _get_tlmgr_package, check_class_file
 from gpd.mcp.paper.bibliography import CitationSource
+from gpd.mcp.paper.compiler import CompilationResult, _get_tlmgr_package, check_class_file
 from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 
 # ---- Compiler wrapper tests ----

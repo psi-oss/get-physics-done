@@ -1,17 +1,12 @@
 """Tests for round 6 codebase audit fixes."""
 from __future__ import annotations
 
-import subprocess
-from pathlib import Path
-from unittest.mock import patch
-
-import pytest
-
 
 def test_strikethrough_regex_non_greedy():
     """The strikethrough removal regex should use non-greedy matching."""
-    import re
     import inspect
+    import re
+
     import gpd.core.state as state_mod
     source = inspect.getsource(state_mod)
     # The regex should use non-greedy ~~.*?~~ not greedy ~~.*~~
@@ -71,6 +66,7 @@ def test_state_server_catches_timeout_error():
     """State server MCP tools should catch TimeoutError."""
     import ast
     import inspect
+
     from gpd.mcp.servers import state_server
     source = inspect.getsource(state_server)
     tree = ast.parse(source)
@@ -125,13 +121,13 @@ def test_init_todos_handles_corrupt_file(tmp_path):
 def test_state_result_models_are_frozen():
     """State result models should be frozen (immutable)."""
     from gpd.core.state import (
-        UpdateProgressResult,
-        AddDecisionResult,
         AddBlockerResult,
-        ResolveBlockerResult,
+        AddDecisionResult,
         RecordSessionResult,
-        StateSnapshotResult,
+        ResolveBlockerResult,
         StateCompactResult,
+        StateSnapshotResult,
+        UpdateProgressResult,
     )
     for model_cls in [
         UpdateProgressResult,

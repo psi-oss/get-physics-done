@@ -1131,7 +1131,7 @@ def _is_hook_command_for_script(
     managed_paths: list[str] = []
 
     if target_dir is not None:
-        managed_paths.append(str((target_dir / "hooks" / hook_filename)).replace("\\", "/"))
+        managed_paths.append(str(target_dir / "hooks" / hook_filename).replace("\\", "/"))
     if config_dir_name:
         managed_paths.append(f"{config_dir_name}/hooks/{hook_filename}")
 

@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Bug 1 & 15: Progress percent capping at 100%
 # (phases.py: progress_render and roadmap_analyze cap progress when

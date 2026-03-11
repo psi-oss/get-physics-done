@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from gpd.core.referee_policy import ReviewAdequacy, RefereeDecisionInput, evaluate_referee_decision
+from gpd.core.referee_policy import RefereeDecisionInput, ReviewAdequacy, evaluate_referee_decision
 from gpd.mcp.paper.models import ReviewRecommendation
 
 

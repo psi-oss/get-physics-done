@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import (
+    ENV_GPD_DEBUG,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
@@ -32,7 +33,6 @@ from gpd.core.constants import (
     STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_BUDGET,
     STATE_LINES_TARGET,
-    ENV_GPD_DEBUG,
     SUMMARY_SUFFIX,
     ProjectLayout,
 )

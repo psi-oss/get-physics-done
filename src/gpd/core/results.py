@@ -10,7 +10,8 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as _PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as _PydanticValidationError
 
 from gpd.contracts import VerificationEvidence
 from gpd.core.errors import DuplicateResultError, ResultError, ResultNotFoundError

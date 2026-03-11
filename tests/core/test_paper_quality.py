@@ -9,9 +9,9 @@ from gpd.core.paper_quality import (
     EquationsQualityInput,
     FiguresQualityInput,
     PaperQualityInput,
+    ResultsQualityInput,
     VerificationConfidence,
     VerificationQualityInput,
-    ResultsQualityInput,
     score_paper_quality,
 )
 

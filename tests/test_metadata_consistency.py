@@ -8,11 +8,11 @@ import tomllib
 from pathlib import Path
 
 from gpd import registry as content_registry
-from gpd.registry import VALID_CONTEXT_MODES
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
+from gpd.registry import VALID_CONTEXT_MODES
 
 
 def _repo_root() -> Path:

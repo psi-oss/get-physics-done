@@ -1,6 +1,5 @@
 """Consistency test: all state_server MCP tools must have error handling."""
 import ast
-import inspect
 from pathlib import Path
 
 

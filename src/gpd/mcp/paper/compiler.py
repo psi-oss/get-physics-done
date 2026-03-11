@@ -145,7 +145,7 @@ async def _compile_with_latexmk(tex_path: Path, output_dir: Path, compiler: str)
         )
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             process.kill()
             await process.wait()
             return CompilationResult(success=False, error="Compilation timed out after 120 seconds")
@@ -187,7 +187,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         )
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             process.kill()
             await process.wait()
             raise
@@ -259,7 +259,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         error = compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
-    except (asyncio.TimeoutError, TimeoutError):
+    except TimeoutError:
         return CompilationResult(success=False, error="Compilation timed out")
 
 

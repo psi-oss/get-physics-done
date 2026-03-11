@@ -25,6 +25,7 @@ import pytest
 
 from gpd.core.config import ConfigError, GPDProjectConfig, load_config
 from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
+from gpd.core.errors import ValidationError
 from gpd.core.frontmatter import (
     FrontmatterParseError,
     FrontmatterValidationError,
@@ -32,7 +33,6 @@ from gpd.core.frontmatter import (
     splice_frontmatter,
     validate_frontmatter,
 )
-from gpd.core.errors import ValidationError
 from gpd.core.health import (
     CheckStatus,
     check_config,

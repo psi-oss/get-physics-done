@@ -6,8 +6,6 @@ error-handling pattern used by every other tool in state_server.py.
 
 from __future__ import annotations
 
-import pytest
-
 from gpd.core.errors import GPDError
 from gpd.mcp.servers.state_server import advance_plan, validate_state
 

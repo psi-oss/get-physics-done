@@ -32,6 +32,7 @@ def test_coverage_metric_rejects_satisfied_greater_than_zero_total():
 def test_ready_for_review_with_approximate_checksums():
     """ready_for_review logic should not block on approximate-checksum warnings."""
     import inspect
+
     from gpd.core import reproducibility as repro_mod
     source = inspect.getsource(repro_mod)
     # The fix adds a blocking_warnings filter that excludes "approximate" warnings
@@ -57,7 +58,6 @@ def test_fallback_prerelease_detection():
 
 def test_silent_server_skip_logs(caplog):
     """build_mcp_servers_dict should log when skipping servers with unresolved env vars."""
-    import logging
     # Just verify the logging infrastructure exists
     from gpd.mcp.builtin_servers import build_mcp_servers_dict
     # The function should run without error and produce a dict

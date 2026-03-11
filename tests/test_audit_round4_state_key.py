@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from gpd.core.state import parse_state_md, parse_state_to_json
 
-
 # A minimal but valid STATE.md for testing the key-naming fix.
 _SAMPLE_STATE_MD = """\
 # Research State

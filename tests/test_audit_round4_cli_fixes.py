@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Fix 1: _resolve_paper_config_paths return type is PaperConfig

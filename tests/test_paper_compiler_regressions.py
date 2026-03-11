@@ -156,6 +156,7 @@ def test_no_original_figures_dead_code() -> None:
     """The local variable ``original_figures`` was assigned but never used.
     Verify it no longer appears in the build_paper source (Issue 2)."""
     import inspect
+
     from gpd.mcp.paper.compiler import build_paper
 
     source = inspect.getsource(build_paper)

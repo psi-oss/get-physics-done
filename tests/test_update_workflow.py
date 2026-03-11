@@ -6,7 +6,6 @@ import pytest
 
 from gpd.adapters import get_adapter
 
-
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
 
 

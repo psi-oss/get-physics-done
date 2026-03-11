@@ -19,9 +19,11 @@ import dataclasses
 import json
 import shlex
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, NoReturn
+from typing import NoReturn
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -37,7 +39,7 @@ err_console = Console(stderr=True)
 # Global state threaded through typer context
 _raw: bool = False
 _cwd: Path = Path(".")
-_active_cli_observation: "_CliObservationContext | None" = None
+_active_cli_observation: _CliObservationContext | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -391,7 +393,7 @@ def _emit_observability_event(
         session_id=session_id,
         data=data,
     )
-    if hasattr(result, "recorded") and getattr(result, "recorded") is False:
+    if hasattr(result, "recorded") and result.recorded is False:
         raise GPDError("Local observability unavailable for this working directory")
     return result
 
@@ -2291,7 +2293,7 @@ def _resolve_existing_input_path(input_path: str | None, *, candidates: tuple[st
     raise GPDError(f"No {label} found. Searched: {searched}")
 
 
-def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> "PaperConfig":
+def _resolve_paper_config_paths(config: object, *, base_dir: Path) -> PaperConfig:
     """Resolve relative figure paths in a PaperConfig against its config file directory."""
     from gpd.mcp.paper.models import FigureRef, PaperConfig
 

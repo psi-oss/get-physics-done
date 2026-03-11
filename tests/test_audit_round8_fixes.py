@@ -1,9 +1,6 @@
 """Tests for round 8 codebase audit fixes."""
 from __future__ import annotations
 
-from pathlib import Path
-import pytest
-
 
 def test_get_verification_check_valid_id():
     """get_verification_check returns a check for valid ID."""
@@ -32,7 +29,7 @@ def test_list_verification_checks_returns_all():
 def test_build_artifact_manifest_minimal(tmp_path):
     """build_artifact_manifest with minimal inputs produces valid manifest."""
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
-    from gpd.mcp.paper.models import PaperConfig, Author, Section
+    from gpd.mcp.paper.models import Author, PaperConfig, Section
 
     tex_path = tmp_path / "paper.tex"
     tex_path.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
@@ -58,7 +55,7 @@ def test_build_artifact_manifest_minimal(tmp_path):
 def test_build_artifact_manifest_with_bib(tmp_path):
     """build_artifact_manifest includes bib file when provided."""
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
-    from gpd.mcp.paper.models import PaperConfig, Author, Section
+    from gpd.mcp.paper.models import Author, PaperConfig, Section
 
     tex_path = tmp_path / "paper.tex"
     tex_path.write_text("\\documentclass{article}\\begin{document}\\bibliography{refs}\\end{document}", encoding="utf-8")
@@ -131,7 +128,6 @@ def test_latex_brace_fix_not_before_documentclass():
 
 def test_latex_autofix_structure_before_escaping():
     """Structural fixes should run before character escaping in try_autofix."""
-    import inspect
     from gpd.utils.latex import _AUTO_FIX_RULES
     # Find indices of structural vs character fixes
     structural_names = {"_fix_missing_document_begin", "_fix_missing_document_end", "_fix_unbalanced_braces"}
@@ -165,8 +161,9 @@ def test_latex_texttt_underscore_protected():
 
 def test_json_set_resolves_cwd(tmp_path, monkeypatch):
     """json set CLI command should resolve file path against --cwd."""
-    import gpd.cli as cli_mod
     from typer.testing import CliRunner
+
+    import gpd.cli as cli_mod
 
     # Create a JSON file in the project dir
     json_file = tmp_path / "test.json"

@@ -17,13 +17,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-
 from gpd.core.phases import (
     milestone_complete,
     phase_complete,
 )
 from gpd.core.state import default_state_dict
-
 
 # ---------------------------------------------------------------------------
 # Helpers

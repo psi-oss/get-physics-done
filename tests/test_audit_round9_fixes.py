@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
-
 
 # ── 1. Observability: span stack no longer pushes empty string ────────────────
 
@@ -18,7 +14,7 @@ class TestObservabilitySpanStack:
 
         # Run gpd_span in a context where there is no session (span_id will be None)
         # The key check: no empty strings leak as parent_span_id
-        with gpd_span("test-span", cwd="/tmp/fake") as span:
+        with gpd_span("test-span", cwd="/tmp/fake"):
             # span may or may not be a LocalSpan depending on session
             pass  # no crash is the baseline
 
@@ -141,8 +137,7 @@ class TestRefereePolicyFallback:
 
     def test_at_or_below_with_known_values(self):
         """Standard enum values should work as before."""
-        from gpd.core.referee_policy import _at_or_below
-        from gpd.core.referee_policy import ReviewAdequacy
+        from gpd.core.referee_policy import ReviewAdequacy, _at_or_below
 
         assert _at_or_below(ReviewAdequacy.insufficient, ReviewAdequacy.weak) is True
         assert _at_or_below(ReviewAdequacy.strong, ReviewAdequacy.weak) is False

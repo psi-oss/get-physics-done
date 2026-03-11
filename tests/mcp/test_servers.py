@@ -346,7 +346,7 @@ class TestErrorsMcp:
             assert (REFERENCES_DIR / rel_path).is_file(), rel_path
 
     def test_real_error_store_uses_new_catalog_paths_and_stable_basenames(self):
-        from gpd.mcp.servers.errors_mcp import ErrorStore, REFERENCES_DIR
+        from gpd.mcp.servers.errors_mcp import REFERENCES_DIR, ErrorStore
 
         store = ErrorStore(REFERENCES_DIR)
         error = store.get(1)
@@ -754,6 +754,12 @@ class TestSkillsServer:
 
         result = route_skill("peer review this manuscript like a referee")
         assert result["suggestion"] == "gpd-peer-review"
+
+    def test_route_skill_slides(self):
+        from gpd.mcp.servers.skills_server import route_skill
+
+        result = route_skill("build a beamer slide deck for a seminar presentation")
+        assert result["suggestion"] == "gpd-slides"
 
     def test_route_skill_no_match(self):
         from gpd.mcp.servers.skills_server import route_skill

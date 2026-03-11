@@ -15,8 +15,8 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
-from gpd.core.observability import gpd_span
 from gpd import registry as content_registry
+from gpd.core.observability import gpd_span
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-skills")
@@ -140,6 +140,7 @@ def route_skill(task_description: str) -> dict:
             "gpd-resume-work": ["resume", "continue", "pick up"],
             "gpd-pause-work": ["pause", "stop", "break"],
             "gpd-export": ["export", "html", "latex", "zip"],
+            "gpd-slides": ["slides", "slide", "presentation", "deck", "talk", "seminar", "beamer", "pptx"],
             "gpd-dimensional-analysis": ["dimensional", "dimensions", "units"],
             "gpd-limiting-cases": ["limiting", "limit", "asymptotic"],
             "gpd-sensitivity-analysis": ["sensitivity", "parameter", "uncertainty"],

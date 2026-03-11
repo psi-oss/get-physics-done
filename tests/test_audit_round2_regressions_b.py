@@ -13,7 +13,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ─── Bug 8: check_latest_return non-dict gpd_return ─────────────────────────
 
 
@@ -24,7 +23,7 @@ class TestBug8_CheckLatestReturnNonDictGpdReturn:
     def _setup_project_with_summary(self, tmp_path: Path, yaml_block: str) -> Path:
         """Create a minimal GPD project layout with one SUMMARY file
         containing the given gpd_return YAML block."""
-        from gpd.core.constants import PLANNING_DIR_NAME, PHASES_DIR_NAME
+        from gpd.core.constants import PHASES_DIR_NAME, PLANNING_DIR_NAME
 
         gpd_dir = tmp_path / PLANNING_DIR_NAME
         phases_dir = gpd_dir / PHASES_DIR_NAME / "01-test"

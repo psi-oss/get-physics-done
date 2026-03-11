@@ -9,7 +9,8 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as _PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as _PydanticValidationError
 
 from gpd.core.errors import DuplicateApproximationError, ExtrasError
 from gpd.core.observability import instrument_gpd_function

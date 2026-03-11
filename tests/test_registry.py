@@ -11,11 +11,11 @@ from gpd.registry import (
     AgentDef,
     CommandDef,
     SkillDef,
-    _RegistryCache,
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
     _parse_tools,
+    _RegistryCache,
 )
 
 
@@ -716,7 +716,7 @@ class TestSkillCategoryMap:
         """
         import ast
         import inspect
-        from gpd.registry import _SKILL_CATEGORY_MAP
+
 
         source = inspect.getsource(registry)
         tree = ast.parse(source)

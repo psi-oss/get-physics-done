@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Test 1: git_ops _NAN_PATTERN no longer false-positives on "infinity" in text
 # ---------------------------------------------------------------------------

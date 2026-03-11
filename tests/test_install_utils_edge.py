@@ -18,8 +18,8 @@ import pytest
 
 from gpd.adapters.install_utils import (
     build_hook_command,
-    copy_with_path_replacement,
     convert_tool_references_in_body,
+    copy_with_path_replacement,
     ensure_update_hook,
     expand_at_includes,
     generate_manifest,

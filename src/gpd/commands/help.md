@@ -53,7 +53,7 @@ Output this and STOP (do not display the full reference):
 **Workflow:** new-project → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
 
-Run `/gpd:help --all` for all 59 commands.
+Run `/gpd:help --all` for all 60 commands.
 
 --- END of default output. STOP here. ---
 
@@ -626,6 +626,16 @@ Export research results to HTML, LaTeX, or ZIP package.
 
 Usage: `/gpd:export --format html`
 Usage: `/gpd:export --format all`
+
+**`/gpd:slides [topic, audience, or source path]`**
+Create presentation slides from a GPD project or the current folder.
+
+- Audits papers, figures, notes, code, and data to build a talk brief
+- Asks targeted questions about audience, duration, format/toolchain, templates, and technical depth
+- Produces an outline plus deck source files in `slides/`
+
+Usage: `/gpd:slides "Group meeting update on finite-temperature RG"`
+Usage: `/gpd:slides -- "20 minute seminar for condensed matter theorists"`
 
 **`/gpd:error-patterns [category]`**
 View accumulated physics error patterns for this project.

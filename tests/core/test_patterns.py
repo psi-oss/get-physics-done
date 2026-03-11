@@ -10,7 +10,6 @@ import pytest
 from gpd.core.errors import PatternError
 from gpd.core.patterns import (
     _BOOTSTRAP_PATTERNS,
-    patterns_root,
     CONFIDENCE_LEVELS,
     VALID_CATEGORIES,
     VALID_DOMAINS,
@@ -27,6 +26,7 @@ from gpd.core.patterns import (
     pattern_promote,
     pattern_search,
     pattern_seed,
+    patterns_root,
 )
 
 
@@ -303,9 +303,10 @@ class TestSpanWrapsOperations:
         file_written_inside_span = False
         index_saved_inside_span = False
 
+        from contextlib import contextmanager
+
         from gpd.core import patterns as patterns_mod
         from gpd.core.observability import gpd_span as real_gpd_span
-        from contextlib import contextmanager
 
         @contextmanager
         def tracking_span(name, **attrs):
@@ -346,9 +347,10 @@ class TestSpanWrapsOperations:
 
         span_active_during_result = False
 
+        from contextlib import contextmanager
+
         from gpd.core import patterns as patterns_mod
         from gpd.core.observability import gpd_span as real_gpd_span
-        from contextlib import contextmanager
 
         @contextmanager
         def tracking_span(name, **attrs):
@@ -375,9 +377,10 @@ class TestSpanWrapsOperations:
         span_entered = False
         span_exited = False
 
+        from contextlib import contextmanager
+
         from gpd.core import patterns as patterns_mod
         from gpd.core.observability import gpd_span as real_gpd_span
-        from contextlib import contextmanager
 
         @contextmanager
         def tracking_span(name, **attrs):
@@ -416,13 +419,13 @@ class TestSpanWrapsOperations:
         """pattern_search's gpd_span should wrap the scoring logic."""
         pattern_add(domain="qft", title="Search Span Fourier", root=lib_root)
 
-        scoring_happened_inside_span = False
         span_entered = False
         span_exited = False
 
+        from contextlib import contextmanager
+
         from gpd.core import patterns as patterns_mod
         from gpd.core.observability import gpd_span as real_gpd_span
-        from contextlib import contextmanager
 
         # We track whether _load_index result is iterated inside the span
         # by monkey-patching the span itself
@@ -448,9 +451,10 @@ class TestSpanWrapsOperations:
         span_entered = False
         span_exited = False
 
+        from contextlib import contextmanager
+
         from gpd.core import patterns as patterns_mod
         from gpd.core.observability import gpd_span as real_gpd_span
-        from contextlib import contextmanager
 
         @contextmanager
         def tracking_span(name, **attrs):

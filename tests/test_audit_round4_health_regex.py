@@ -14,7 +14,6 @@ from pathlib import Path
 
 from gpd.core.health import CheckStatus, check_compaction_needed
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

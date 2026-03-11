@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
-
 from gpd.mcp.paper.models import Author, PaperConfig, Section
 from gpd.mcp.paper.template_registry import render_paper
 

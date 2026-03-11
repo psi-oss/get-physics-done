@@ -18,9 +18,9 @@ from gpd.core.state import (
     parse_state_to_json,
     save_state_json,
     save_state_markdown,
-    state_load,
     state_extract_field,
     state_has_field,
+    state_load,
     state_record_session,
     state_replace_field,
     state_validate,
@@ -733,12 +733,12 @@ def test_state_compact_recovers_intent_before_reading(tmp_path):
     temp files contain updated state.  After recovery, state_compact should
     see the updated (recovered) state.json, not the stale one.
     """
+    from gpd.core.constants import STATE_WRITE_INTENT_FILENAME
     from gpd.core.state import (
         default_state_dict,
         generate_state_markdown,
         state_compact,
     )
-    from gpd.core.constants import STATE_WRITE_INTENT_FILENAME
 
     # Build a project whose STATE.md is large enough to trigger compaction
     state = default_state_dict()

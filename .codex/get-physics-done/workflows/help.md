@@ -46,7 +46,7 @@ Phase {N} complete:
 **Manuscript exists, no referee report yet:**
 ```
 Publication workflow:
-  $gpd-peer-review         — Run standalone peer review on the manuscript
+  $gpd-peer-review         — Run manuscript peer review inside the current project
   $gpd-arxiv-submission    — Package only after review passes
 ```
 
@@ -80,7 +80,7 @@ Project ─── the overall research goal
 4. `$gpd-verify-work` — Verify physics correctness
 5. Repeat 2-4 for each phase
 6. `$gpd-write-paper` — Generate publication from results
-7. `$gpd-peer-review` — Run standalone manuscript review before submission
+7. `$gpd-peer-review` — Run manuscript review before submission inside the current project
 8. `$gpd-respond-to-referees` — Address reviewer comments if needed
 9. `$gpd-arxiv-submission` — Package the approved manuscript
 
@@ -181,15 +181,16 @@ See what the agent plans to do before it starts.
 
 Usage: `$gpd-list-phase-assumptions 3`
 
-**`$gpd-discover <phase> [--depth quick|medium|deep]`**
+**`$gpd-discover [phase or topic] [--depth quick|medium|deep]`**
 Run discovery phase to investigate methods, literature, and approaches before planning.
 
 - Surveys known results, standard methods, and computational tools
 - Depth levels: quick (summary), medium (detailed), deep (comprehensive)
-- Creates discovery artifacts consumed by planner
+- Creates discovery artifacts consumed by planner or standalone analysis
 - Use when entering an unfamiliar subfield or technique
 
 Usage: `$gpd-discover 3`
+Usage: `$gpd-discover "finite-temperature RG flow" --depth deep`
 Usage: `$gpd-discover 3 --depth deep`
 
 **`$gpd-show-phase <number>`**
@@ -536,20 +537,21 @@ Structure and write a physics paper from research results.
 - Spawns gpd-paper-writer agents for each section (Results first, Abstract last)
 - Generates LaTeX with proper equations, figures, and citations
 - Spawns gpd-bibliographer to verify all references
-- Spawns gpd-referee for pre-submission mock peer review
+- Runs the staged peer-review panel with gpd-referee as final adjudicator
 - Supports revision mode for referee responses (bounded 3-iteration loop)
 
 Usage: `$gpd-write-paper "Critical exponents via RG"`
 Usage: `$gpd-write-paper --from-phases 1,3,5` (subset of phases)
 
 **`$gpd-peer-review [paper directory or manuscript path]`**
-Run standalone skeptical peer review on an existing manuscript.
+Run skeptical peer review on an existing manuscript within the current GPD project.
 
 - Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
 - Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
-- Spawns gpd-referee as a dedicated manuscript reviewer
-- Produces `.gpd/REFEREE-REPORT.md` (or revision-round follow-up reports)
+- Spawns a six-agent review panel: reader, literature, math, physics, significance, and final gpd-referee adjudicator
+- Produces stage artifacts under `.gpd/review/` plus `.gpd/REFEREE-REPORT.md` and `.gpd/REFEREE-REPORT.tex` (or revision-round follow-up pairs)
 - Routes the result to `$gpd-respond-to-referees` or `$gpd-arxiv-submission`
+- Requires an initialized `.gpd/PROJECT.md` workspace; manuscript paths do not bypass project preflight
 
 Usage: `$gpd-peer-review`
 Usage: `$gpd-peer-review paper/`
@@ -559,6 +561,7 @@ Structure point-by-point response to referee reports and revise the manuscript.
 
 - Parses referee comments into structured items with severity levels
 - Drafts AUTHOR-RESPONSE.md with REF-xxx issue tracking (fixed/rebutted/acknowledged)
+- Consumes `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
 - Spawns paper-writer agents for targeted section revisions
 - Tracks new calculations required by referees as revision tasks
 - Produces response letter from `templates/paper/referee-response.md`
@@ -579,6 +582,15 @@ Prepare a completed paper for arXiv submission with validation and packaging.
 - Produces checklist of remaining manual steps
 
 Usage: `$gpd-arxiv-submission`
+
+**`$gpd-explain [concept]`**
+Explain a concept, method, notation, result, or paper in project context or from a standalone question.
+
+- Spawns a `gpd-explainer` agent and grounds the explanation in the active phase, manuscript, or local workflow when available
+- Produces a structured explanation under `.gpd/explanations/`
+- Audits cited papers with `gpd-bibliographer` and includes a reading path with openable links
+
+Usage: `$gpd-explain "Ward identity"`
 
 **`$gpd-literature-review [topic]`**
 Structured literature review for a physics research topic.
@@ -646,15 +658,15 @@ Export research results to HTML, LaTeX, or ZIP package.
 Usage: `$gpd-export --format html`
 Usage: `$gpd-export --format all`
 
-**`$gpd-estimate-cost [phase|remaining|all]`**
-Estimate token usage and API cost for phases.
+**`$gpd-slides [topic, audience, or source path]`**
+Create presentation slides from a GPD project or the current folder.
 
-- Per-phase and per-agent-type token breakdown
-- Uses 3-tier model cost data (tier-1/tier-2/tier-3)
-- Accounts for current model profile setting
+- Audits papers, figures, notes, code, and data to build a talk brief
+- Asks targeted questions about audience, duration, format/toolchain, templates, and technical depth
+- Produces an outline plus deck source files in `slides/`
 
-Usage: `$gpd-estimate-cost 3`
-Usage: `$gpd-estimate-cost remaining`
+Usage: `$gpd-slides "Group meeting update on finite-temperature RG"`
+Usage: `$gpd-slides -- "20 minute seminar for condensed matter theorists"`
 
 **`$gpd-error-patterns [category]`**
 View accumulated physics error patterns for this project.

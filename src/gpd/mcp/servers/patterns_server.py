@@ -21,12 +21,12 @@ from gpd.core.patterns import (
     VALID_CATEGORIES,
     VALID_DOMAINS,
     VALID_SEVERITIES,
-    patterns_root,
     pattern_add,
     pattern_list,
     pattern_promote,
     pattern_search,
     pattern_seed,
+    patterns_root,
 )
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")

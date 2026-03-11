@@ -8,7 +8,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-
 # ---------------------------------------------------------------------------
 # Bug 1: Escaped pipe parsing in error catalog tables
 # ---------------------------------------------------------------------------

@@ -17,10 +17,12 @@ from gpd.adapters import iter_adapters
 from gpd.core.config import (
     GPDProjectConfig,
     resolve_agent_tier,
-    resolve_model as _resolve_model_canonical,
 )
 from gpd.core.config import (
     load_config as _load_config_structured,
+)
+from gpd.core.config import (
+    resolve_model as _resolve_model_canonical,
 )
 from gpd.core.constants import (
     AGENT_ID_FILENAME,
@@ -48,13 +50,13 @@ from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
 )
 from gpd.core.utils import (
-    phase_sort_key as _phase_sort_key,
-)
-from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
 )
 from gpd.core.utils import (
     phase_normalize as _phase_normalize_impl,
+)
+from gpd.core.utils import (
+    phase_sort_key as _phase_sort_key,
 )
 from gpd.core.utils import (
     safe_read_file as _safe_read_file,

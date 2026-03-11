@@ -18,18 +18,18 @@ This graph therefore includes:
 
 - Live repo files analyzed in the current tree: `958`
 - Python files under `src/` and `tests/`: `177`
-- `src/gpd/commands/*.md`: `59`
+- `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
-- `src/gpd/specs/workflows/*.md`: `60`
+- `src/gpd/specs/workflows/*.md`: `61`
 - `src/gpd/specs/templates/**/*.md`: `65`
 - `src/gpd/specs/references/**/*.md`: `156`
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
 - `tests/**` files: `113`
-- `.claude/commands/gpd/*.md`: `59`
+- `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
-- `.claude/get-physics-done/workflows/**/*.md`: `60`
+- `.claude/get-physics-done/workflows/**/*.md`: `61`
 - `.claude/get-physics-done/templates/**/*.md`: `65`
 - `.claude/get-physics-done/references/**/*.md`: `156`
 - `infra/gpd-*.json`: `8`
@@ -424,7 +424,7 @@ flowchart TD
   `authority`
   Canonical parser for agent prompt definitions.
 
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,slides,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
 
