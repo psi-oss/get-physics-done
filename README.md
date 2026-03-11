@@ -154,13 +154,13 @@ Then continue with:
 /gpd:verify-work 1
 ```
 
-Once the relevant phases are complete and verified, continue toward publication with:
+Once the relevant phases are complete and verified, continue toward write-up with:
 
 ```text
 /gpd:write-paper "3D Ising bootstrap bounds"
+/gpd:arxiv-submission
 /gpd:peer-review
 /gpd:respond-to-referees
-/gpd:arxiv-submission
 ```
 
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `.gpd/`.
