@@ -311,6 +311,21 @@ def test_shared_protocols_require_permission_before_dependency_installs() -> Non
     assert "permission-gated" in planner
 
 
+def test_agent_infrastructure_requires_concrete_next_actions_and_continuation_block() -> None:
+    infra = (REFERENCES_DIR / "orchestration" / "agent-infrastructure.md").read_text(encoding="utf-8")
+
+    assert "Prefer copy-pasteable GPD commands" in infra
+    assert "references/orchestration/continuation-format.md" in infra
+    assert "## > Next Up" in infra
+
+
+def test_executor_completion_examples_use_command_based_next_actions() -> None:
+    completion = (REFERENCES_DIR / "execution" / "executor-completion.md").read_text(encoding="utf-8")
+
+    assert '"/gpd:execute-phase {phase}"' in completion
+    assert '"/gpd:show-phase {phase}"' in completion
+
+
 def test_referee_workflow_mentions_optional_pdf_compile_and_missing_tex_prompt() -> None:
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")

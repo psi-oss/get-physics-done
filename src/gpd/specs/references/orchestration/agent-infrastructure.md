@@ -57,6 +57,21 @@ gpd_return:
 
 Agents may extend this with additional fields specific to their role (e.g., `phases_created`, `dimensions_checked`). The four base fields above are required.
 
+### Next-Action Discipline
+
+`next_actions` is for concrete follow-up commands or explicit review actions, not abstract labels.
+
+- Prefer copy-pasteable GPD commands when one exists, e.g. `/gpd:execute-phase 3`, `/gpd:verify-work 3`, `/gpd:plan-phase 4 --gaps`
+- If no command fits, name the exact action and artifact, e.g. `Review .gpd/phases/03-example/03-VERIFICATION.md`
+- Avoid vague entries such as `continue`, `proceed`, `follow up`, or `structural revision needed`
+
+For the human-readable markdown portion of your return, end with a short continuation section whenever you are handing the user a completed result, checkpoint, or blocked handoff.
+
+- If your agent-specific template already has a next-step section, make that section concrete and command-oriented instead of adding a duplicate
+- Otherwise, append a `## > Next Up` block using `references/orchestration/continuation-format.md`
+- Include `Also available:` when there are meaningful secondary options
+- Include the note `<sub>\`/clear\` first -> fresh context window</sub>` when the next step is another GPD command
+
 ---
 
 ## Convention Loading Protocol

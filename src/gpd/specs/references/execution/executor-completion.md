@@ -246,8 +246,8 @@ gpd_return:
   issues:
     - "Lanczos solver required increased basis size (auto-fixed: Rule 2)"
   next_actions:
-    - "Execute Plan 02 (depends on results from this plan)"
-    - "Verify limiting cases in separate verification pass"
+    - "/gpd:execute-phase {phase}"
+    - "/gpd:show-phase {phase}"
   phase: "{phase}"
   plan: "{plan}"
   tasks_completed: N
