@@ -16,7 +16,7 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `1230`
+- Live repo files analyzed in the current tree: `971`
 - Python files under `src/` and `tests/`: `181`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
@@ -473,8 +473,18 @@ flowchart TD
 - `src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
 
+- `src/gpd/commands/write-paper.md -> gpd paper-build paper/PAPER-CONFIG.json`
+  `spawn`
+
+- `src/gpd/commands/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`
+  `generated-output`
+  The command explicitly creates the paper config and requires the canonical manuscript scaffold before drafting continues.
+
 - `src/gpd/commands/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
+
+- `src/gpd/commands/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`
+  `candidate-set`
 
 - `src/gpd/commands/health.md -> .gpd/{STATE.md,state.json,config.json}`
   `include`
@@ -738,11 +748,26 @@ flowchart TD
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/workflows/peer-review.md`
   `include`
 
+- `src/gpd/specs/workflows/write-paper.md -> src/gpd/cli.py::paper_build`
+  `spawn`
+  Invoked as `gpd paper-build paper/PAPER-CONFIG.json` before section drafting and review.
+
+- `src/gpd/specs/workflows/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`
+  `generated-output`
+  Drafting and downstream review are gated on the scaffold and manifest emitted by the paper-build contract.
+
 - `src/gpd/specs/workflows/write-paper.md -> src/gpd/agents/gpd-referee.md`
   `spawn`
 
 - `src/gpd/specs/workflows/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`
   `spawn`
+
+- `src/gpd/specs/workflows/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`
+  `candidate-set`
+
+- `src/gpd/specs/workflows/peer-review.md -> paper/{PAPER-CONFIG.json,ARTIFACT-MANIFEST.json,BIBLIOGRAPHY-AUDIT.json}`
+  `conditional-include`
+  `PAPER-CONFIG.json` is optional journal context; in strict review mode the manifest and bibliography audit become fail-closed inputs.
 
 - `src/gpd/specs/workflows/write-paper.md -> selector set {mode, existing manuscript/artifact checks, approval and hard-gate branches}`
   `selector-input`
@@ -899,10 +924,10 @@ flowchart TD
 - `src/gpd/adapters/install_utils.py -> .claude/gpd-file-manifest.json`
   `materialized`
 
-- `src/gpd/hooks/{check_update,statusline,codex_notify,runtime_detect}.py -> .claude/hooks/{check_update,statusline,codex_notify,runtime_detect}.py`
+- `src/gpd/hooks/{check_update,statusline,notify,runtime_detect}.py -> .claude/hooks/{check_update,statusline,notify,runtime_detect}.py`
   `materialized`
 
-- `src/gpd/hooks/{check_update,statusline,codex_notify,runtime_detect}.py -> runtime target_dir/hooks/{check_update,statusline,codex_notify,runtime_detect}.py`
+- `src/gpd/hooks/{check_update,statusline,notify,runtime_detect}.py -> runtime target_dir/hooks/{check_update,statusline,notify,runtime_detect}.py`
   `materialized`
 
 - `src/gpd/cli.py::_install_single_runtime -> adapter.install()`

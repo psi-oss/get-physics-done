@@ -11,3 +11,7 @@ build/
 .pytest_cache/
 .mypy_cache/
 .mcp.json
+.codex/
+.planning/
+.gemini/
+.opencode/

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -71,7 +72,19 @@ class ModelTier(StrEnum):
 
 
 _VALID_MODEL_TIER_VALUES = frozenset(tier.value for tier in ModelTier)
-_VALID_RUNTIME_NAMES = frozenset({"claude-code", "codex", "gemini", "opencode"})
+
+
+@lru_cache(maxsize=1)
+def _valid_runtime_names() -> frozenset[str]:
+    catalog_path = Path(__file__).resolve().parents[1] / "adapters" / "runtime_catalog.json"
+    entries = json.loads(catalog_path.read_text(encoding="utf-8"))
+    return frozenset(
+        runtime_name
+        for entry in entries
+        if isinstance(entry, dict)
+        for runtime_name in [str(entry.get("runtime_name", "")).strip()]
+        if runtime_name
+    )
 
 
 class BranchingStrategy(StrEnum):
@@ -314,11 +327,12 @@ class GPDProjectConfig(BaseModel):
             return None
 
         normalized: dict[str, dict[str, str]] = {}
-        supported_runtimes = ", ".join(sorted(_VALID_RUNTIME_NAMES))
+        valid_runtime_names = _valid_runtime_names()
+        supported_runtimes = ", ".join(sorted(valid_runtime_names))
         supported_tiers = ", ".join(sorted(_VALID_MODEL_TIER_VALUES))
 
         for runtime, tier_map in value.items():
-            if runtime not in _VALID_RUNTIME_NAMES:
+            if runtime not in valid_runtime_names:
                 raise ValueError(
                     f"model_overrides contains unknown runtime {runtime!r}; "
                     f"expected one of: {supported_runtimes}"
