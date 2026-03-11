@@ -367,7 +367,7 @@ gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
 **Pre-commit validation** runs automatically inside `gpd commit` before every commit. It checks:
 
 1. **state.json** — no NaN values, required top-level fields present
-2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, checkpoint_free, must_haves)
+2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, interactive, must_haves)
 3. **SUMMARY.md frontmatter** — all required fields (phase, plan, depth, provides, completed)
 
 If validation fails, the commit is blocked with `reason: "pre_commit_check_failed"` and a list of errors. Fix the errors and retry.
@@ -883,7 +883,7 @@ AUTONOMY=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).ge
 | Autonomy | Verifier Behavior | Rationale |
 |---|---|---|
 | **babysit** | **Concise mode.** Focus on the 3-5 most important findings. The human is reviewing each step, so the verifier supplements rather than replaces that review. Report key issues prominently and skip exhaustive detail on checks that passed. | Human is the primary reviewer. The verifier adds computational verification the human cannot easily do. |
-| **balanced** (default) | **Standard+ mode.** Run full verification per profile and report all findings with confidence levels. Add extra spot-checks for novel claims, checkpoint-free plans, or any result supported by only one verification path. | Balanced oversight still allows substantial automation, so the verifier remains a serious safety net even when the user is not reviewing every step. |
+| **balanced** (default) | **Standard+ mode.** Run full verification per profile and report all findings with confidence levels. Add extra spot-checks for novel claims, non-interactive plans, or any result supported by only one verification path. | Balanced oversight still allows substantial automation, so the verifier remains a serious safety net even when the user is not reviewing every step. |
 | **yolo** | **Maximum vigilance.** Everything in balanced mode PLUS: independently re-derive at least one key intermediate result (not just the final one). Verify every convention assertion line against `state.json` (not just spot-check). Flag any STRUCTURALLY PRESENT confidence as requiring follow-up and add a `human review recommended` tag to any novel result. | The verifier is the ONLY safety net. The cost of missing an error is an entire milestone of wrong physics. Extra verification tokens are cheap compared to re-doing a milestone. |
 
 **Key principle:** Autonomy and profile are independent axes. A project can be `yolo + exploratory` (fast execution, but the verifier still catches critical errors) or `babysit + deep-theory` (human reviews everything AND the verifier checks everything).
@@ -892,7 +892,7 @@ AUTONOMY=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).ge
 
 | Profile + Autonomy | Override Behavior |
 |---|---|
-| exploratory + balanced | Keep the profile-driven floor, but add extra spot-checks when claims are novel, phase-defining, or checkpoint-free |
+| exploratory + balanced | Keep the profile-driven floor, but add extra spot-checks when claims are novel, phase-defining, or non-interactive |
 | exploratory + yolo | Override 7-check floor → run all 15 checks + extra spot-checks |
 | quick mode + balanced | Allow only for low-stakes follow-up checks; escalate to standard verification for phase-completion claims |
 | quick mode + yolo | Reject quick mode — escalate to standard verification |

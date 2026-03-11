@@ -272,7 +272,7 @@ class PlanEntry(BaseModel):
     wave: int = 1
     depends_on: list[str] = Field(default_factory=list)
     files_modified: list[str] = Field(default_factory=list)
-    checkpoint_free: bool = True
+    interactive: bool = False
     objective: str | None = None
     task_count: int = 0
     has_summary: bool = False
@@ -940,11 +940,11 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
                 task_count = len(re.findall(r"<task\b", content, re.IGNORECASE))
             wave = safe_parse_int(fm.get("wave"), 1)
 
-            checkpoint_free = True
-            if "checkpoint_free" in fm:
-                checkpoint_free = fm["checkpoint_free"] in (True, "true")
+            interactive = False
+            if "interactive" in fm:
+                interactive = fm["interactive"] in (True, "true")
 
-            if not checkpoint_free:
+            if interactive:
                 has_checkpoints = True
 
             has_summary = plan_id in completed_plan_ids
@@ -954,7 +954,7 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
             entry = PlanEntry(
                 id=plan_id,
                 wave=wave,
-                checkpoint_free=checkpoint_free,
+                interactive=interactive,
                 objective=fm.get("objective"),
                 depends_on=depends_on,
                 files_modified=files_modified,

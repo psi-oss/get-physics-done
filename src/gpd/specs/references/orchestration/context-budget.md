@@ -56,7 +56,7 @@ Different workflows consume context at different rates. Use these targets to pla
 | Git operations       | 0.3-1k tokens    |
 | Simple bash commands | 0.2-0.5k tokens  |
 
-**Subagent advantage:** Each subagent (gpd-executor, gpd-planner, etc.) gets a fresh context window. The orchestrator's context stays lean. This is why `../../workflows/execute-plan.md` routes checkpoint-free work to subagents.
+**Subagent advantage:** Each subagent (gpd-executor, gpd-planner, etc.) gets a fresh context window. The orchestrator's context stays lean. This is why `../../workflows/execute-plan.md` routes non-interactive work to subagents.
 </context_consumption>
 
 <pressure_signs>

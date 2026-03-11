@@ -184,12 +184,12 @@ For manuscript review or any review with an explicit target journal, journal sta
 
 ### Autonomy Mode Effects on Review
 
-| Behavior | Supervised | Guided | Autonomous | YOLO |
-|----------|-----------|--------|------------|------|
-| Review rounds | Up to 3, user decides when to stop | Up to 3, auto-stop if only minor issues remain | Up to 2, auto-accept if all major resolved | 1 round only |
-| Major issue handling | Checkpoint for each | Batch report, checkpoint for decisions | Auto-plan fix phases for each | Auto-plan, auto-execute |
-| Minor issue handling | Report all, user decides | Report all, auto-accept standard fixes | Auto-fix what's clear, skip ambiguous | Auto-fix all |
-| "Reject" recommendation | Always checkpoint | Checkpoint with options (fix vs abandon vs reframe) | Auto-plan major revision phase | Auto-plan revision |
+| Behavior | Babysit | Balanced | YOLO |
+|----------|----------|----------|------|
+| Review rounds | Up to 3; user decides when to stop | Up to 3; auto-stop if only minor issues remain | 1 round only |
+| Major issue handling | Checkpoint for each | Batch report, checkpoint for real decisions | Auto-plan and auto-execute |
+| Minor issue handling | Report all; user decides | Report all and auto-accept standard fixes | Auto-fix all |
+| `"reject"` recommendation | Always checkpoint | Checkpoint with options (fix vs abandon vs reframe) | Auto-plan a revision |
 
 </mode_aware_review>
 

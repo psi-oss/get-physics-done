@@ -1531,7 +1531,7 @@ Gather symptoms through questioning. Update file after EACH answer.
    </step>
 
 <step name="investigation_loop">
-**Autonomous investigation. Update file continuously.**
+**Independent investigation. Update file continuously.**
 
 **Phase 1: Initial evidence gathering**
 

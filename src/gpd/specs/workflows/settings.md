@@ -105,7 +105,7 @@ ask_user([
     options: [
       { label: "Leave current setting unchanged", description: "Keep the current runtime-specific tier override map exactly as-is" },
       { label: "Use runtime defaults", description: "Do not pin model IDs for this runtime; GPD will omit the model parameter unless another override exists" },
-      { label: "Configure explicit tier models", description: "Guided setup for runtime-specific tier-1, tier-2, and tier-3 model strings" }
+      { label: "Configure explicit tier models", description: "Step-by-step setup for runtime-specific tier-1, tier-2, and tier-3 model strings" }
     ]
   },
   {

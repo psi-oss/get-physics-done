@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 _SAMPLE_STATE_MD = """\
 # Research State
 

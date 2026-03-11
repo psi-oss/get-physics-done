@@ -1184,14 +1184,14 @@ RESEARCH_MODE=$(gpd config-get research_mode --raw 2>/dev/null || echo "balanced
 
 ### Autonomy Mode Effects
 
-| Behavior | Supervised | Guided (default) | Autonomous | YOLO |
-|----------|-----------|-------------------|------------|------|
-| Hallucination detection | Full 5-step for every citation | Full 5-step for every citation | Full 5-step (non-negotiable) | Full 5-step (non-negotiable) |
-| SUSPECT classification | Checkpoint → ask user | Checkpoint → ask user | Auto-add to pending, continue | Auto-add to pending, continue |
-| AMBIGUOUS classification | Checkpoint → present options | Checkpoint → present options | Pick highest-cited match, note choice | Pick highest-cited match, note choice |
-| Convention mismatch in refs | Checkpoint → ask which to adopt | Warn + use project convention | Auto-use project convention | Auto-use project convention |
-| Orphaned .bib entries | Report each one | Report summary | Auto-remove with log | Auto-remove with log |
-| Missing citation suggestions | Present each for approval | Present batch for approval | Auto-add verified ones | Auto-add verified ones |
+| Behavior | Babysit | Balanced (default) | YOLO |
+|----------|----------|--------------------|------|
+| Hallucination detection | Full 5-step for every citation | Full 5-step for every citation | Full 5-step (non-negotiable) |
+| SUSPECT classification | Checkpoint and ask the user | Checkpoint and ask the user | Auto-add to pending, continue |
+| AMBIGUOUS classification | Checkpoint and present options | Checkpoint and present options | Pick the highest-cited match and note the choice |
+| Convention mismatch in refs | Checkpoint and ask which convention to adopt | Warn and use the project convention | Auto-use the project convention |
+| Orphaned `.bib` entries | Report each one | Report a summary | Auto-remove with log |
+| Missing citation suggestions | Present each for approval | Present a batch for approval | Auto-add verified ones |
 
 **Non-negotiable across ALL modes:** Hallucination detection always runs. No unverified citation ever enters .bib. This is the one defense that never relaxes.
 

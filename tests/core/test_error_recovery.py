@@ -496,7 +496,7 @@ class TestValidateFrontmatter:
 
     def test_valid_plan_frontmatter(self) -> None:
         """A plan with all required fields passes."""
-        content = "---\nphase: 01\nplan: 01\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ncheckpoint_free: true\nmust_haves: {}\n---\n\nBody"
+        content = "---\nphase: 01\nplan: 01\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nmust_haves: {}\n---\n\nBody"
         result = validate_frontmatter(content, "plan")
         assert result.valid
 

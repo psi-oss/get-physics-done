@@ -143,7 +143,7 @@ gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
 **Pre-commit validation** runs automatically inside `gpd CLI commit` before every commit. It checks:
 
 1. **state.json** — no NaN values, required top-level fields present
-2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, checkpoint_free, must_haves)
+2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, interactive, must_haves)
 3. **SUMMARY.md frontmatter** — all required fields (phase, plan, depth, provides, completed)
 
 If validation fails, the commit is blocked with `reason: "pre_commit_check_failed"` and a list of errors. Fix the errors and retry.

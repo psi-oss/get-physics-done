@@ -92,7 +92,7 @@ Pending → Active → [Checkpoint] → Active → Complete
 
 - **Owner**: Plan body (## Task N sections), executor agent state
 - **Pending → Active**: Executor starts working on the task
-- **Active → Checkpoint**: Plan has `checkpoint_free: false` in frontmatter; executor pauses for user review
+- **Active → Checkpoint**: Plan has `interactive: true` in frontmatter; executor pauses for user review
 - **Checkpoint → Active**: User approves checkpoint; executor resumes
 - **Active → Complete**: Task deliverables produced
 - **Active → Blocked**: External dependency or user input needed

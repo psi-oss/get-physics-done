@@ -85,16 +85,16 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
 - **Conventions:** Every convention choice is a `checkpoint:decision`. No automatic convention selection.
 - **Approximations:** Present 2-3 options with tradeoffs for every approximation, let user choose.
-- **Task autonomy:** Set `checkpoint_free: false` on all plans.
+- **Task interaction:** Set `interactive: true` on all plans.
 - **Use when:** First-time user, critical calculation for a paper, unfamiliar physics domain.
 
 **Balanced mode** (`autonomy: "balanced"`) — DEFAULT:
 
-- **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks stay checkpoint-free.
+- **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks stay non-interactive.
 - **Scope:** Follow CONTEXT.md locked decisions. Use your discretion for standard choices.
 - **Conventions:** Follow subfield defaults from notation-coordinator. Checkpoint only for non-standard choices.
 - **Approximations:** Select the standard approximation for the regime. If validity is borderline, add a validity check task or checkpoint depending on how much the choice could change downstream results.
-- **Task autonomy:** Set `checkpoint_free: true` for standard tasks and `false` for plans with physics decision points or structural uncertainty.
+- **Task interaction:** Set `interactive: false` for standard tasks and `true` for plans with physics decision points or structural uncertainty.
 - **Use when:** Standard research workflow where the user wants meaningful oversight but not constant interruption.
 
 **YOLO mode** (`autonomy: "yolo"`):
@@ -103,7 +103,7 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced
 - **Scope:** Make all decisions including scope changes. Add phases if needed. Modify roadmap within the current milestone's objectives.
 - **Conventions:** Automatic. Change conventions mid-project if physics demands it (with documented conversion).
 - **Approximations:** Select and switch approximations freely. If perturbation theory diverges, switch to non-perturbative without asking.
-- **Task autonomy:** Everything checkpoint-free. No checkpoints except hard failures.
+- **Task interaction:** Everything non-interactive. No checkpoints except hard failures.
 - **Use when:** Quick exploratory calculations, experienced researcher who will review the final result, time-critical work.
 - **WARNING:** YOLO mode with an incorrect starting assumption can waste an entire milestone before anyone notices. The circuit breaker is the only safety net.
 
@@ -125,9 +125,9 @@ Autonomy mode combines with research mode (explore/exploit) to form a 2D behavio
 
 | | Explore | Balanced | Exploit |
 |---|---------|----------|---------|
-| **Supervised** | User approves each branch | Standard + checkpoints | Focused + verified at each step |
-| **Guided** | Broad search, user picks best | Default research flow | Efficient execution, key checkpoints |
-| **Autonomous** | System explores freely, reports at milestone | Full auto research loop | Fast convergent execution |
+| **Babysit** | User approves each branch | Standard + checkpoints | Focused + verified at each step |
+| **Balanced** | Broad search, user picks best | Default research flow | Efficient execution, key checkpoints |
+| **YOLO** | System explores freely and reports only hard blockers | Fast auto research loop | Fast convergent execution |
 | **YOLO** | Maximum exploration budget | Maximum speed | Laser-focused sprint |
 
 </autonomy_modes>
@@ -809,7 +809,7 @@ type: execute
 wave: N # Execution wave (1, 2, 3...)
 depends_on: [] # Plan IDs this plan requires
 files_modified: [] # Files this plan touches
-checkpoint_free: true # false if plan has checkpoints
+interactive: false # true if plan has checkpoints
 researcher_setup: [] # Human-required setup (omit if empty)
 
 conventions: # Physics conventions for this plan
@@ -889,7 +889,7 @@ After completion, create `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 | `wave`             | Yes      | Execution wave number                     |
 | `depends_on`       | Yes      | Plan IDs this plan requires               |
 | `files_modified`   | Yes      | Files this plan touches                   |
-| `checkpoint_free`  | Yes      | `true` if no checkpoints                  |
+| `interactive`      | Yes      | `true` if the plan contains checkpoints   |
 | `conventions`      | Yes      | Physics conventions in effect             |
 | `dimensional_check`| If any   | Expected dimensions of key results (e.g., `{E_0: '[energy]', sigma: '[area]'}`) — executor verifies at completion, verifier gets independent expectation |
 | `approximations`   | If any   | Active approximation schemes              |
@@ -947,7 +947,7 @@ type: execute
 wave: 1
 depends_on: []
 files_modified: [derivations/vacuum-polarization.tex, code/vac_pol_numerical.py]
-checkpoint_free: true
+interactive: false
 
 conventions:
   units: "natural"
@@ -1092,7 +1092,7 @@ type: execute
 wave: 1
 depends_on: []
 files_modified: [simulations/ising_mc.py, data/ising/README.md]
-checkpoint_free: true
+interactive: false
 
 conventions:
   units: "lattice (a=1, k_B=1)"
@@ -1231,7 +1231,7 @@ type: execute
 wave: 1
 depends_on: ["04-01"]
 files_modified: [analysis/spectral_extraction.py, analysis/spectral_results.json, figures/spectral_function.pdf]
-checkpoint_free: true
+interactive: false
 
 conventions:
   units: "natural"
@@ -1675,7 +1675,7 @@ type: execute
 wave: 1 # Gap closures typically single wave
 depends_on: []
 files_modified: [...]
-checkpoint_free: true
+interactive: false
 gap_closure: true # Flag for tracking
 conventions: {} # Inherit from phase
 ---
@@ -1746,13 +1746,13 @@ When verification finds problems after execution, the planner must classify the 
 **Plan structure:**
 - **Tasks:** 1 (fix + re-verify in same task)
 - **Agents:** Executor only — no planner iteration, no checker needed
-- **Wave:** Single wave, checkpoint-free
+- **Wave:** Single wave, non-interactive
 - **Scope limit:** Fix ONLY the identified error. Do not "improve" surrounding code or derivations.
 - **Escalation:** None needed unless the fix cascades to >3 downstream equations
 
 ```yaml
 gap_closure: true
-checkpoint_free: true
+interactive: false
 estimated_execution:
   total_minutes: 15
   breakdown:
@@ -1781,7 +1781,7 @@ estimated_execution:
 
 ```yaml
 gap_closure: true
-checkpoint_free: false  # Checkpoint after diagnosis for user confirmation
+interactive: true  # Checkpoint after diagnosis for user confirmation
 estimated_execution:
   total_minutes: 45
   breakdown:
@@ -1859,7 +1859,7 @@ plan: 01
 type: execute
 wave: 1
 depends_on: ["03-01"]  # Depends on the original LO result
-checkpoint_free: true
+interactive: false
 ```
 
 **Scope creep guard:** Before creating the supplementary plan, verify:
@@ -2573,7 +2573,7 @@ for each plan in plan_order:
 Rules:
 1. Same-wave tasks with no file conflicts -> parallel plans
 2. Shared files -> same plan or sequential plans
-3. Checkpoint tasks -> `checkpoint_free: false`
+3. Checkpoint tasks -> `interactive: true`
 4. Each plan: 2-3 tasks, single physics concern, ~50% context target
 5. Convention tasks always in their own plan (or as Task 1 of the first plan)
 6. Validation tasks can be grouped with the calculation they validate (if total fits context budget)
@@ -2639,7 +2639,7 @@ Returns JSON: `{ valid, missing, present, schema }`
 
 Required plan frontmatter fields:
 
-- `phase`, `plan`, `type`, `wave`, `depends_on`, `files_modified`, `checkpoint_free`, `conventions`, `must_haves`
+- `phase`, `plan`, `type`, `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `must_haves`
 
 Also validate plan structure:
 
@@ -2653,7 +2653,7 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 
 - Missing `<name>` in task -> add name element
 - Missing `<action>` -> add action element
-- Checkpoint/checkpoint_free mismatch -> update `checkpoint_free: false`
+- Checkpoint/interactive mismatch -> update `interactive: true`
 - Missing conventions -> add conventions to frontmatter
 - Missing verification with physics checks -> add physics-appropriate verify element
 
@@ -2728,10 +2728,10 @@ Agent-specific: "current unit of work" = current plan file. Each plan produced ~
 
 ### Wave Structure
 
-| Wave | Plans                | Autonomous          |
+| Wave | Plans                | Interactive         |
 | ---- | -------------------- | ------------------- |
-| 1    | {plan-01}, {plan-02} | yes, yes            |
-| 2    | {plan-03}            | no (has checkpoint) |
+| 1    | {plan-01}, {plan-02} | no, no              |
+| 2    | {plan-03}            | yes (has checkpoint) |
 
 ### Plans Created
 
@@ -2781,12 +2781,12 @@ gpd_return:
   plans:
     - id: "{phase}-01"
       wave: 1
-      checkpoint_free: true
+      interactive: false
       tasks: 2
       objective: "Brief objective"
     - id: "{phase}-02"
       wave: 1
-      checkpoint_free: true
+      interactive: false
       tasks: 3
       objective: "Brief objective"
   context_pressure: low | high  # high if ORANGE/RED reached during planning
@@ -2836,7 +2836,7 @@ Phase planning complete when:
 - [ ] Dependency graph built (needs/creates for each task, respecting mathematical prerequisites)
 - [ ] Tasks grouped into plans by wave, not by sequence
 - [ ] PLAN file(s) exist with XML structure
-- [ ] Each plan: depends_on, files_modified, checkpoint_free, conventions, must_haves in frontmatter
+- [ ] Each plan: depends_on, files_modified, interactive, conventions, must_haves in frontmatter
 - [ ] Each plan: researcher_setup declared if external resources involved
 - [ ] Each plan: Objective, context, tasks, verification, success criteria, output
 - [ ] Each plan: 2-3 tasks (~50% context)

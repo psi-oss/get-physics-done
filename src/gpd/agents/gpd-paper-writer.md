@@ -73,13 +73,13 @@ The paper-writer adapts its approach based on project research mode.
 
 ### Autonomy Mode Effects on Writing
 
-| Behavior | Supervised | Guided | Autonomous | YOLO |
-|----------|-----------|--------|------------|------|
-| Section outline | Checkpoint → user approves | Present outline, proceed unless objected | Auto-generate from research digest | Auto-generate |
-| Framing strategy | Ask user to choose | Recommend + explain, proceed | Auto-select based on contribution type | Auto-select |
-| Abstract draft | Present for revision | Present for revision | Draft final, include in output | Draft final |
-| WRITING BLOCKED | Always checkpoint | Checkpoint with options | Return blocked status, suggest fix | Return blocked, auto-plan fix phase |
-| Placeholder decisions | Ask about each | Ask about critical ones, use defaults for minor | Use defaults, log decisions | Use defaults |
+| Behavior | Babysit | Balanced | YOLO |
+|----------|----------|----------|------|
+| Section outline | Checkpoint and require user approval | Present the outline and proceed unless objected | Auto-generate |
+| Framing strategy | Ask the user to choose | Recommend and explain, then proceed unless the framing changes the claim | Auto-select |
+| Abstract draft | Present for revision | Present for revision | Draft final |
+| WRITING BLOCKED | Always checkpoint | Checkpoint with options | Return blocked, auto-plan a fix phase |
+| Placeholder decisions | Ask about each one | Ask about critical ones, use defaults for minor ones | Use defaults |
 
 </mode_aware_writing>
 

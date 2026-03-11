@@ -152,7 +152,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 
 | Checkpoints | Pattern        | Execution                                                                                              |
 | ----------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| None        | A (checkpoint-free) | Single subagent: full plan + SUMMARY + commit                                                     |
+| None        | A (non-interactive) | Single subagent: full plan + SUMMARY + commit                                                    |
 | Verify-only | B (segmented)  | Segments between checkpoints. After none/human-verify -> SUBAGENT. After decision/human-action -> MAIN |
 | Decision    | C (main)       | Execute entirely in main context                                                                       |
 
@@ -160,7 +160,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 
 **If the executor agent fails to spawn or returns an error (Pattern A):** Check if any work was committed (`git log --oneline -3`). If commits with the plan's work exist, the executor may have completed but failed to report — verify output files and proceed to post-execution checks. If no work was done, offer: 1) Retry executor spawn, 2) Fall back to Pattern C (execute in main context), 3) Abort. Update agent tracking status to "failed" with error details.
 
-**Pattern B:** Execute segment-by-segment. Checkpoint-free segments: spawn subagent for assigned tasks only (no SUMMARY/commit). Checkpoints: main context. After all segments: aggregate, create SUMMARY, commit. See segment_execution.
+**Pattern B:** Execute segment-by-segment. Non-interactive segments: spawn subagent for assigned tasks only (no SUMMARY/commit). Checkpoints: main context. After all segments: aggregate, create SUMMARY, commit. See segment_execution.
 
 **If a segment executor fails to spawn or returns an error (Pattern B):** Check if the segment's tasks produced any output files. If work exists, proceed to the next segment. If no work, offer: 1) Retry this segment, 2) Execute the segment's tasks in the main context, 3) Skip this segment and continue. Do not abort the entire plan for a single segment failure. Record the failure in agent tracking.
 

@@ -140,7 +140,7 @@ Write `${SWEEP_DIR}/sweep-{PADDED_INDEX}-PLAN.md`:
 ```markdown
 ---
 wave: {wave_number}
-checkpoint_free: true
+interactive: false
 depends_on: []
 sweep_index: {i}
 sweep_param: {param_name}

@@ -18,7 +18,7 @@ type: execute | tdd | gap_closure
 wave: N
 depends_on: []
 files_modified: []
-checkpoint_free: true
+interactive: false
 researcher_setup: [] # Optional. Omit if empty.
 
 conventions:
@@ -114,7 +114,7 @@ These fields must always be present:
 - `wave`
 - `depends_on`
 - `files_modified`
-- `checkpoint_free`
+- `interactive`
 - `conventions`
 - `must_haves`
 
@@ -127,7 +127,7 @@ Add `dimensional_check` whenever the plan produces quantitative results. Add `ap
 - Use XML `<task>` blocks inside `<tasks>`.
 - Each task should produce one verifiable result.
 - Every task must include an explicit physics verification step.
-- Use checkpoint task types when the plan is not checkpoint-free.
+- Use checkpoint task types when the plan is interactive.
 - Reference only the prior summaries or artifacts the executor genuinely needs.
 
 ---
@@ -155,7 +155,7 @@ type: execute
 wave: 1
 depends_on: []
 files_modified: [derivations/vacuum-polarization.tex, code/vac_pol_numerical.py]
-checkpoint_free: true
+interactive: false
 
 conventions:
   units: "natural"

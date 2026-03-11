@@ -524,7 +524,7 @@ See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed 
 <downstream_consumer>
 Output consumed by /gpd:execute-phase. Plans need:
 
-- Frontmatter (wave, depends_on, files_modified, checkpoint_free)
+- Frontmatter (wave, depends_on, files_modified, interactive)
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
 - must_haves for goal-backward verification including limiting case checks

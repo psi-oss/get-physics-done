@@ -284,16 +284,16 @@ class TestBooleanValues:
     """YAML boolean handling: true/false/yes/no/on/off."""
 
     def test_true_false(self):
-        content = "---\ncheckpoint_free: true\nblocked: false\n---\n\nBody."
+        content = "---\ninteractive: true\nblocked: false\n---\n\nBody."
         meta, body = extract_frontmatter(content)
-        assert meta["checkpoint_free"] is True
+        assert meta["interactive"] is True
         assert meta["blocked"] is False
 
     def test_yes_no(self):
         """YAML 1.1 treats yes/no as booleans."""
-        content = "---\ncheckpoint_free: yes\nblocked: no\n---\n\nBody."
+        content = "---\ninteractive: yes\nblocked: no\n---\n\nBody."
         meta, body = extract_frontmatter(content)
-        assert meta["checkpoint_free"] is True
+        assert meta["interactive"] is True
         assert meta["blocked"] is False
 
     def test_on_off(self):
@@ -312,11 +312,11 @@ class TestBooleanValues:
         assert meta["d"] is False
 
     def test_boolean_roundtrip(self):
-        meta = {"checkpoint_free": True, "blocked": False}
+        meta = {"interactive": True, "blocked": False}
         body = "Body."
         result = reconstruct_frontmatter(meta, body)
         meta2, _ = extract_frontmatter(result)
-        assert meta2["checkpoint_free"] is True
+        assert meta2["interactive"] is True
         assert meta2["blocked"] is False
 
     def test_quoted_booleans_are_strings(self):
