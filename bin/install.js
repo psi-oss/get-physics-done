@@ -25,14 +25,12 @@ const {
 } = require("../package.json");
 const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
 
-const PYTHON_PACKAGE_NAME = "get-physics-done";
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
 const GITHUB_FALLBACK_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
-const PYPI_RELEASE_PROBE_BASE_URL = "https://pypi.org/pypi";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
 
@@ -331,18 +329,6 @@ function latestMainInstallCandidates() {
   return candidates;
 }
 
-function matchingPythonReleaseInstallCandidate(version) {
-  const spec = `${PYTHON_PACKAGE_NAME}==${version}`;
-  return {
-    label: `PyPI release ${spec}`,
-    spec,
-    probe: {
-      kind: "http",
-      url: `${PYPI_RELEASE_PROBE_BASE_URL}/${encodeURIComponent(PYTHON_PACKAGE_NAME)}/${encodeURIComponent(version)}/json`,
-    },
-  };
-}
-
 function bootstrapProbeOverrides() {
   if (bootstrapProbeOverridesCache !== undefined) {
     return bootstrapProbeOverridesCache;
@@ -636,8 +622,7 @@ function ensureManagedEnvironment(basePython) {
 
 async function installManagedPackage(python, pythonVersion, options = {}) {
   const { forceReinstall = false, preferMain = false } = options;
-  const pypiCandidate = matchingPythonReleaseInstallCandidate(pythonVersion);
-  const pythonPackageSpec = pypiCandidate.spec;
+  const requestedVersion = pythonVersion;
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
@@ -654,7 +639,7 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
         noCache: upgradeCandidates[0].noCache,
       });
       if (installResult.status === 0) {
-        return { ok: true, pythonPackageSpec, installedFrom: upgradeCandidates[0].spec };
+        return { ok: true, requestedVersion, installedFrom: upgradeCandidates[0].spec };
       }
       flushCapturedOutput(installResult);
 
@@ -669,21 +654,21 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
           noCache: candidate.noCache,
         });
         if (installResult.status === 0) {
-          return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
+          return { ok: true, requestedVersion, installedFrom: candidate.spec };
         }
         flushCapturedOutput(installResult);
       }
 
-      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed. Falling back to the matching ${pythonPackageSpec} release...`);
+      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed. Falling back to the broader GitHub source candidate set...`);
     } else if (resolution.skipped.length > 0) {
       logUnavailableCandidates(resolution.skipped);
-      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected. Falling back to the matching ${pythonPackageSpec} release...`);
+      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected. Falling back to the broader GitHub source candidate set...`);
     }
   }
 
   const action = forceReinstall ? "Reinstalling" : "Installing";
 
-  // Try GitHub source candidates first (SSH then HTTPS).
+  // Try GitHub source candidates in precedence order.
   const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
   const sourceCandidates = resolution.candidates;
   logUnavailableCandidates(resolution.skipped);
@@ -696,7 +681,7 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
       noCache: sourceCandidates[0].noCache,
     });
     if (installResult.status === 0) {
-      return { ok: true, pythonPackageSpec, installedFrom: sourceCandidates[0].spec };
+      return { ok: true, requestedVersion, installedFrom: sourceCandidates[0].spec };
     }
     flushCapturedOutput(installResult);
 
@@ -711,28 +696,13 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
         noCache: candidate.noCache,
       });
       if (installResult.status === 0) {
-        return { ok: true, pythonPackageSpec, installedFrom: candidate.spec };
+        return { ok: true, requestedVersion, installedFrom: candidate.spec };
       }
       flushCapturedOutput(installResult);
     }
   }
 
-  // Final fallback: PyPI (if the package is published there).
-  const pypiProbe = await probeInstallCandidate(pypiCandidate);
-  if (pypiProbe.status !== "unavailable") {
-    log(`GitHub source failed. Trying PyPI ${pythonPackageSpec}...`);
-    installResult = runPipInstall(python, pythonPackageSpec, pipInstallEnv, {
-      forceReinstall,
-    });
-    if (installResult.status === 0) {
-      return { ok: true, pythonPackageSpec };
-    }
-    flushCapturedOutput(installResult);
-  } else {
-    logUnavailableCandidates([{ candidate: pypiCandidate, probe: pypiProbe }]);
-  }
-
-  return { ok: false, pythonPackageSpec };
+  return { ok: false, requestedVersion };
 }
 
 async function prompt(question) {
@@ -852,7 +822,7 @@ function printHelp() {
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching Python release in ~/.gpd/venv`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching GitHub source in ~/.gpd/venv`);
   console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flag = runtimeInstallFlag(runtime);
@@ -874,7 +844,7 @@ function printHelp() {
   console.log(` ${dim}# Install for ${runtimeDisplayName(dollarCommandRuntime)} locally${reset}`);
   console.log(` ${installCommand} ${dollarCommandFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Reinstall the matching managed Python release${reset}`);
+  console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
@@ -1135,7 +1105,7 @@ async function main() {
     preferMain: upgradeManagedPackage,
   });
   if (!packageInstall.ok) {
-    error(`Failed to install ${packageInstall.pythonPackageSpec}.`);
+    error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
     process.exit(1);
   }
 

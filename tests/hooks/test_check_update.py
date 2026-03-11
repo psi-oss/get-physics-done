@@ -1,7 +1,7 @@
 """Tests for gpd/hooks/check_update.py edge cases.
 
-Covers: PyPI unreachable, cache locked, version comparison, throttle logic,
-background spawn failure, and graceful degradation.
+Covers: npm registry unreachable, cache locked, version comparison, throttle
+logic, background spawn failure, and graceful degradation.
 """
 
 from __future__ import annotations
@@ -115,14 +115,14 @@ class TestReadInstalledVersion:
             assert _read_installed_version() == "2.0.0"
 
 
-# ─── _do_check — PyPI unreachable ─────────────────────────────────────────
+# ─── _do_check — npm registry unreachable ────────────────────────────────
 
 
 class TestDoCheck:
     """Tests for _do_check with network and filesystem edge cases."""
 
-    def test_pypi_unreachable_writes_no_update(self, tmp_path: Path) -> None:
-        """When PyPI is unreachable, writes cache with update_available=False."""
+    def test_registry_unreachable_writes_no_update(self, tmp_path: Path) -> None:
+        """When the npm registry is unreachable, writes cache with update_available=False."""
         cache_file = tmp_path / "gpd-update-check.json"
 
         with (
@@ -137,13 +137,13 @@ class TestDoCheck:
         assert cache["installed"] == "1.0.0"
         assert cache["latest"] == "unknown"
 
-    def test_pypi_returns_newer_version(self, tmp_path: Path) -> None:
-        """When PyPI returns a newer version, update_available=True."""
+    def test_registry_returns_newer_version(self, tmp_path: Path) -> None:
+        """When the npm registry returns a newer version, update_available=True."""
         cache_file = tmp_path / "gpd-update-check.json"
-        pypi_response = json.dumps({"info": {"version": "2.0.0"}}).encode()
+        registry_response = json.dumps({"version": "2.0.0"}).encode()
 
         mock_resp = MagicMock()
-        mock_resp.read.return_value = pypi_response
+        mock_resp.read.return_value = registry_response
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
@@ -156,15 +156,15 @@ class TestDoCheck:
         cache = json.loads(cache_file.read_text())
         assert cache["update_available"] is True
         assert cache["latest"] == "2.0.0"
-        assert mock_urlopen.call_args.args[0] == "https://pypi.org/pypi/get-physics-done/json"
+        assert mock_urlopen.call_args.args[0] == "https://registry.npmjs.org/get-physics-done/latest"
 
-    def test_pypi_returns_same_version(self, tmp_path: Path) -> None:
-        """When PyPI returns same version, update_available=False."""
+    def test_registry_returns_same_version(self, tmp_path: Path) -> None:
+        """When the npm registry returns the same version, update_available=False."""
         cache_file = tmp_path / "gpd-update-check.json"
-        pypi_response = json.dumps({"info": {"version": "1.0.0"}}).encode()
+        registry_response = json.dumps({"version": "1.0.0"}).encode()
 
         mock_resp = MagicMock()
-        mock_resp.read.return_value = pypi_response
+        mock_resp.read.return_value = registry_response
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 

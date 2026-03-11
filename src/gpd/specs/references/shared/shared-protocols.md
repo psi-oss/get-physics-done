@@ -12,7 +12,7 @@ Agents must NEVER install dependencies silently. Ask the user before any install
 - `credentials.*`, `secrets.*`, `*secret*`, `*credential*` -- Credential files
 - `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks` -- Certificates and private keys
 - `id_rsa*`, `id_ed25519*`, `id_dsa*` -- SSH private keys
-- `.npmrc`, `.pypirc`, `*.netrc` -- Package manager auth tokens
+- `.npmrc`, `*.netrc` -- Package manager auth tokens
 - `config/secrets/*`, `.secrets/*`, `secrets/` -- Secret directories
 - `*.keystore`, `*.truststore` -- Java keystores
 - `serviceAccountKey.json`, `*-credentials.json` -- Cloud service credentials

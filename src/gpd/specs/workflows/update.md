@@ -65,16 +65,16 @@ If the version file is missing, treat the install as version `0.0.0` and continu
 </step>
 
 <step name="check_latest_version">
-Check PyPI for the latest released `get-physics-done` version:
+Check the npm registry for the latest released `get-physics-done` version:
 
 ```bash
 python3 - <<'PY'
 import json
 import urllib.request
 
-with urllib.request.urlopen("https://pypi.org/pypi/get-physics-done/json", timeout=10) as resp:
+with urllib.request.urlopen("https://registry.npmjs.org/get-physics-done/latest", timeout=10) as resp:
     data = json.load(resp)
-print(data["info"]["version"])
+print(data["version"])
 PY
 ```
 
@@ -83,7 +83,7 @@ If that fails, show:
 ```text
 ## GPD Update
 
-Couldn't check for updates (offline or PyPI unavailable).
+Couldn't check for updates (offline or npm unavailable).
 
 To update manually, run:
 `<UPDATE_COMMAND>`
@@ -213,7 +213,7 @@ Otherwise continue normally.
 <success_criteria>
 
 - [ ] Installed version read from the runtime install
-- [ ] Latest released version checked from PyPI
+- [ ] Latest released version checked from npm
 - [ ] Update skipped if already current
 - [ ] Recent release notes shown before updating when available
 - [ ] Clean reinstall warning shown

@@ -23,7 +23,6 @@ if not REPO_GIT_URL.endswith(".git"):
 REPO_BASE_URL = REPO_GIT_URL.removesuffix(".git")
 REPO_SSH_URL = f"ssh://git@github.com/{REPO_GIT_URL.removeprefix('https://github.com/')}"
 
-PYTHON_PACKAGE_SPEC = f"get-physics-done=={PYTHON_PACKAGE_VERSION}"
 TAG_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/tags/v{PYTHON_PACKAGE_VERSION}.tar.gz"
 MAIN_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/heads/main.tar.gz"
 TAG_SSH_GIT_SPEC = f"git+{REPO_SSH_URL}@v{PYTHON_PACKAGE_VERSION}"
@@ -46,16 +45,17 @@ import stat
 import sys
 
 LOG_PATH = pathlib.Path({str(log_path)!r})
-FAIL_PYPI_RELEASE = os.environ.get("FAKE_PIP_FAIL_PYPI") == "1"
 FAIL_TAG_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_TAG_ARCHIVE") == "1"
 FAIL_BRANCH_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_BRANCH_ARCHIVE") == "1"
 FAIL_TAG_GIT = os.environ.get("FAKE_PIP_FAIL_TAG_GIT") == "1"
+FAIL_MAIN_GIT = os.environ.get("FAKE_PIP_FAIL_MAIN_GIT") == "1"
 EMIT_PIP_SUCCESS_NOISE = os.environ.get("FAKE_PIP_SUCCESS_NOISE") == "1"
-PYTHON_PACKAGE_SPEC = {PYTHON_PACKAGE_SPEC!r}
 TAG_ARCHIVE_SPEC = {TAG_ARCHIVE_SPEC!r}
 MAIN_ARCHIVE_SPEC = {MAIN_ARCHIVE_SPEC!r}
 TAG_SSH_GIT_SPEC = {TAG_SSH_GIT_SPEC!r}
+MAIN_SSH_GIT_SPEC = {MAIN_SSH_GIT_SPEC!r}
 TAG_HTTPS_GIT_SPEC = {TAG_HTTPS_GIT_SPEC!r}
+MAIN_HTTPS_GIT_SPEC = {MAIN_HTTPS_GIT_SPEC!r}
 
 
 def record() -> None:
@@ -110,11 +110,6 @@ if args == ["-m", "ensurepip", "--upgrade"]:
 
 if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     target = args[-1]
-    if FAIL_PYPI_RELEASE and target == PYTHON_PACKAGE_SPEC:
-        record()
-        sys.stderr.write(f"ERROR: Could not find a version that satisfies the requirement {{PYTHON_PACKAGE_SPEC}} (from versions: none)\\n")
-        sys.stderr.write(f"ERROR: No matching distribution found for {{PYTHON_PACKAGE_SPEC}}\\n")
-        raise SystemExit(1)
     if FAIL_TAG_ARCHIVE and target == TAG_ARCHIVE_SPEC:
         record()
         sys.stderr.write("ERROR: HTTP error 404 while getting tagged archive\\n")
@@ -126,6 +121,10 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     if FAIL_TAG_GIT and target in (TAG_SSH_GIT_SPEC, TAG_HTTPS_GIT_SPEC):
         record()
         sys.stderr.write(f"ERROR: git checkout could not find tag v{PYTHON_PACKAGE_VERSION}\\n")
+        raise SystemExit(1)
+    if FAIL_MAIN_GIT and target in (MAIN_SSH_GIT_SPEC, MAIN_HTTPS_GIT_SPEC):
+        record()
+        sys.stderr.write("ERROR: git checkout could not resolve branch main\\n")
         raise SystemExit(1)
     if EMIT_PIP_SUCCESS_NOISE:
         print("Requirement already satisfied: noisy-package==1.0.0")
@@ -545,7 +544,6 @@ def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources
 
     assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
     assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
-    assert "PyPI release" not in result.stdout
     assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 
@@ -633,3 +631,35 @@ def test_bootstrap_falls_back_to_ssh_git_when_archive_urls_fail(tmp_path: Path) 
         in result.stdout
     )
     assert f"SSH git checkout for v{PYTHON_PACKAGE_VERSION} failed. Falling back to SSH git checkout of main..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_fails_closed_when_all_github_sources_fail(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={
+            "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_TAG_GIT": "1",
+            "FAKE_PIP_FAIL_MAIN_GIT": "1",
+        },
+    )
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == [
+        TAG_ARCHIVE_SPEC,
+        MAIN_ARCHIVE_SPEC,
+        TAG_SSH_GIT_SPEC,
+        MAIN_SSH_GIT_SPEC,
+        TAG_HTTPS_GIT_SPEC,
+        MAIN_HTTPS_GIT_SPEC,
+    ]
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert "Could not find a version that satisfies the requirement" not in result.stderr

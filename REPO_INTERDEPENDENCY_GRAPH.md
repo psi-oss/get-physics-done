@@ -150,13 +150,13 @@ flowchart TD
 - `bin/install.js -> GitHub git candidate family {git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout, PyPI release get-physics-done==<version>}`
+- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` try source candidates in precedence order and only then fall back to the matching PyPI release.
+  Normal install and `--reinstall` try GitHub source candidates in precedence order and fail closed if none can be installed.
 
-- `bin/install.js -> ordered upgrade candidate chain {main archive, ssh main checkout, https main checkout, PyPI release get-physics-done==<version>}`
+- `bin/install.js -> two-stage upgrade candidate chain {main archive, ssh main checkout, https main checkout} then {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
   `ordering-contract`
-  `--upgrade` prefers the latest `main` branch source and only then falls back to the matching PyPI release.
+  `--upgrade` prefers the latest `main` branch source and then falls back to the broader GitHub source candidate set.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`
@@ -1126,7 +1126,7 @@ They explicitly preserve:
 - `src/gpd/hooks/check_update.py -> update-cache candidate family including ~/.gpd/cache/gpd-update-check.json`
   `ordering-contract`
 
-- `src/gpd/hooks/check_update.py -> https://pypi.org/pypi/get-physics-done/json`
+- `src/gpd/hooks/check_update.py -> https://registry.npmjs.org/get-physics-done/latest`
   `external-service`
   Latest-version authority.
 
@@ -1589,7 +1589,7 @@ Operationally important node families that are not canonical repo files:
 - `dist/*.tar.gz`
 - paper outputs `main.tex`, `references.bib`, `main.pdf`, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`
 - GitHub Actions used by CI
-- PyPI version endpoint `https://pypi.org/pypi/get-physics-done/json`
+- npm latest-version endpoint `https://registry.npmjs.org/get-physics-done/latest`
 
 These are first-class parts of the operational graph, even though many are generated, external, or workspace-specific.
 

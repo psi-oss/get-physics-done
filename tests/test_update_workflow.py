@@ -16,6 +16,7 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "{GPD_RUNTIME_FLAG}" in content
     assert "{GPD_INSTALL_SCOPE_FLAG}" in content
     assert "--target-dir" in content
+    assert "registry.npmjs.org/get-physics-done/latest" in content
     assert "pip index versions gpd" not in content
     assert "gpd install --all" not in content
     assert "gpd:update-check.json" not in content

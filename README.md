@@ -20,7 +20,7 @@ Bootstrap prerequisites:
 
 - Node.js with `npm`/`npx`
 - Python 3.11+ with the standard `venv` module
-- Network access to GitHub and PyPI
+- Network access to npm and GitHub
 
 Install GPD with `npx`:
 
@@ -34,7 +34,7 @@ Or install directly from GitHub:
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the companion `get-physics-done` Python release targeted by the current bootstrap package, and then runs the runtime installer.
+The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the companion `get-physics-done` Python package from GitHub sources targeted by the current bootstrap package, and then runs the runtime installer.
 
 If you want to skip the prompts, pass the runtime selection and scope directly:
 
@@ -54,14 +54,14 @@ For a project-local install instead of a global one:
 npx -y get-physics-done@latest --codex --local
 ```
 
-To refresh an existing managed environment, you can either reinstall the matching release or upgrade directly from the latest GitHub `main` source:
+To refresh an existing managed environment, you can either reinstall the matching tagged GitHub source or upgrade directly from the latest GitHub `main` source:
 
 ```bash
 npx -y get-physics-done@latest --reinstall --claude --local
 npx -y get-physics-done@latest --upgrade --claude --local
 ```
 
-`--reinstall` force-reinstalls that companion Python package version into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when the bootstrap repo has moved ahead of the current PyPI release.
+`--reinstall` force-reinstalls the matching tagged GitHub source into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when you want the newest GitHub changes before the next tagged release.
 
 ## Uninstall
 
@@ -347,7 +347,7 @@ These layers complement each other: traces are narrow and plan-specific, while o
 
 - Node.js with `npm`/`npx`
 - Python 3.11+ with the standard `venv` module (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
-- Network access to GitHub and PyPI for the bootstrap installer
+- Network access to npm and GitHub for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
 

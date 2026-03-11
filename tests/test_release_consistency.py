@@ -184,11 +184,8 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
-    assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in content
     assert 'const GITHUB_FALLBACK_BRANCH = "main"' in content
-    assert "matchingPythonReleaseInstallCandidate" in content
     assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
-    assert "==${version}" in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
     assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
     assert "git+${repoSshUrl}@v${version}" in content
@@ -197,6 +194,8 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in content
     assert "function repositoryGitUrl(" in content
     assert "function repositorySshGitUrl(" in content
+    assert "requestedVersion" in content
+    assert "GitHub sources" in content
 
 
 def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None:
@@ -230,7 +229,7 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
     assert "npx -y get-physics-done@latest --upgrade --claude --local" in readme
     assert "--reinstall" in content
     assert "--upgrade" in content
-    assert "Reinstall the matching Python release in ~/.gpd/venv" in content
+    assert "Reinstall the matching GitHub source in ~/.gpd/venv" in content
     assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
 
 
@@ -292,7 +291,7 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
         content = (repo_root / relative_path).read_text(encoding="utf-8")
         assert "Node.js with `npm`/`npx`" in content
         assert "Python 3.11+ with the standard `venv` module" in content
-        assert "GitHub and PyPI" in content
+        assert "npm and GitHub" in content
         assert "~/.gpd/venv" in content
 
     assert not (repo_root / "docs" / "USER-GUIDE.md").exists()
@@ -463,10 +462,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
         assert "gpdPythonVersion" in install_content
-        assert 'const PYTHON_PACKAGE_NAME = "get-physics-done"' in install_content
         assert 'const GITHUB_FALLBACK_BRANCH = "main"' in install_content
-        assert "matchingPythonReleaseInstallCandidate" in install_content
-        assert "==${version}" in install_content
         assert '"-m", "venv"' in install_content
         assert '".gpd"' in install_content
         assert "archive/refs/tags/v${version}.tar.gz" in install_content
@@ -475,3 +471,5 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert "git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
         assert "git+${repoGitUrl}@v${version}" in install_content
         assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
+        assert "requestedVersion" in install_content
+        assert "GitHub sources" in install_content

@@ -23,7 +23,8 @@ except ImportError:
 
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
-PYPI_PACKAGE_NAME = "get-physics-done"
+NPM_PACKAGE_NAME = "get-physics-done"
+NPM_LATEST_RELEASE_URL = f"https://registry.npmjs.org/{NPM_PACKAGE_NAME}/latest"
 
 
 def _debug(msg: str) -> None:
@@ -96,11 +97,11 @@ def _do_check(cache_file: Path) -> None:
     try:
         import urllib.request
 
-        with urllib.request.urlopen(f"https://pypi.org/pypi/{PYPI_PACKAGE_NAME}/json", timeout=10) as resp:
+        with urllib.request.urlopen(NPM_LATEST_RELEASE_URL, timeout=10) as resp:
             data = json.loads(resp.read())
-            latest = data["info"]["version"]
+            latest = data["version"]
     except Exception as exc:
-        _debug(f"PyPI version check failed: {exc}")
+        _debug(f"npm registry version check failed: {exc}")
 
     result = {
         "update_available": bool(latest and _is_older_than(installed, latest)),
