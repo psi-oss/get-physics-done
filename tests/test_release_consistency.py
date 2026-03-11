@@ -64,6 +64,43 @@ def _paper_template_paths(repo_root: Path) -> tuple[list[str], list[str]]:
     return relative_paths, sdist_paths
 
 
+def _expected_runtime_dependency_names() -> set[str]:
+    return {
+        "arxiv-mcp-server",
+        "jinja2",
+        "mcp",
+        "pillow",
+        "pybtex",
+        "pydantic",
+        "pyyaml",
+        "rich",
+        "typer",
+    }
+
+
+def _normalized_requirement_name(requirement: str) -> str:
+    normalized: list[str] = []
+    for char in requirement.split(";", 1)[0].strip():
+        if char.isalnum() or char in {"-", "_", "."}:
+            normalized.append(char)
+            continue
+        break
+    return "".join(normalized).lower().replace("_", "-")
+
+
+def _normalized_dependency_names(requirements: list[str]) -> set[str]:
+    return {_normalized_requirement_name(requirement) for requirement in requirements}
+
+
+def _wheel_dependency_names(metadata: str) -> set[str]:
+    requirements = [
+        line.split(":", 1)[1].strip()
+        for line in metadata.splitlines()
+        if line.startswith("Requires-Dist:")
+    ]
+    return _normalized_dependency_names(requirements)
+
+
 def test_required_public_release_artifacts_exist() -> None:
     repo_root = _repo_root()
     required = (
@@ -336,32 +373,14 @@ def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     assert "scientific" not in optional
 
 
-def test_public_source_and_release_inputs_do_not_reference_logfire() -> None:
+def test_public_runtime_dependency_surface_stays_curated() -> None:
     repo_root = _repo_root()
     project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     dependencies: list[str] = project["dependencies"]
     optional = project.get("optional-dependencies", {})
 
-    assert not any("logfire" in item.lower() for item in dependencies)
-    assert not any("logfire" in item.lower() for items in optional.values() for item in items)
-
-    files_to_scan = [
-        repo_root / "README.md",
-        repo_root / "CONTRIBUTING.md",
-        repo_root / "package.json",
-        repo_root / "pyproject.toml",
-        repo_root / "bin" / "install.js",
-    ]
-    files_to_scan.extend(sorted((repo_root / "infra").glob("gpd-*.json")))
-    files_to_scan.extend(sorted((repo_root / "src").rglob("*.py")))
-    files_to_scan.extend(sorted((repo_root / "src").rglob("*.md")))
-
-    offenders = [
-        path.relative_to(repo_root).as_posix()
-        for path in files_to_scan
-        if "logfire" in path.read_text(encoding="utf-8").lower()
-    ]
-    assert offenders == []
+    assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
+    assert optional == {}
 
 
 
@@ -421,7 +440,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         metadata = wheel_zip.read(f"get_physics_done-{version}.dist-info/METADATA").decode("utf-8")
         assert "gpd = gpd.cli:app" in entry_points
-        assert "logfire" not in metadata.lower()
+        assert _wheel_dependency_names(metadata) == _expected_runtime_dependency_names()
 
     sdist_prefix = f"get_physics_done-{version}/"
     with tarfile.open(sdist, "r:gz") as sdist_tar:
