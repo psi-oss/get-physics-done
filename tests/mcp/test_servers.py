@@ -650,6 +650,15 @@ class TestSkillsServer:
             "Canonical help command.\n",
             encoding="utf-8",
         )
+        (commands_dir / "slides.md").write_text(
+            "---\n"
+            "name: gpd:slides\n"
+            "description: Create presentation slides from a project or folder.\n"
+            "---\n"
+            "\n"
+            "Canonical slides command.\n",
+            encoding="utf-8",
+        )
         (commands_dir / "peer-review.md").write_text(
             "---\n"
             "name: gpd:peer-review\n"
@@ -683,11 +692,12 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
-        assert result["count"] == 5
+        assert result["count"] == 6
         names = {s["name"] for s in result["skills"]}
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
         assert "gpd-peer-review" in names
+        assert "gpd-slides" in names
         assert "gpd-debugger" in names
         assert "gpd-help" in names
 
@@ -795,7 +805,7 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill_index
 
         result = get_skill_index()
-        assert result["total_skills"] == 5
+        assert result["total_skills"] == 6
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
         assert "/gpd:peer-review" in result["index_text"]
