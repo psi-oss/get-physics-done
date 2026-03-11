@@ -97,7 +97,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 
 ## General Relativity
 
-- **Coordinate vs. gauge artifacts:** Before claiming a physical result, verify it is coordinate-independent. Curvature scalars (R, R\_{mu nu} R^{mu nu}, Kretschner) are invariant. Christoffel symbols are not.
+- **Coordinate vs. gauge artifacts:** Before claiming a physical result, verify it is coordinate-independent. Curvature scalars (R, R\_{mu nu} R^{mu nu}, Kretschmann scalar) are invariant. Christoffel symbols are not.
 - **ADM vs. covariant formulation:** ADM (3+1 decomposition) gives lapse, shift, 3-metric. Covariant gives 4-metric. Results must agree. When comparing: verify the gauge/slicing condition.
 - **Energy conditions:** State which energy conditions matter is assumed to satisfy (weak, strong, dominant, null). The dominant energy condition (T^{mu nu} u_mu is causal) is physical; the strong energy condition (violated by cosmological constant) is mathematical.
 - **Singularity analysis:** Distinguish coordinate singularities (removable by coordinate change, like r=2M in Schwarzschild with bad coordinates) from physical singularities (curvature invariants diverge). Always compute curvature invariants.

@@ -1047,7 +1047,7 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
   - COMPUTE: Evaluate ADM mass; verify positive
 
 [] Singularity classification
-  - COMPUTE: Evaluate Kretschner scalar R_{mu nu rho sigma} R^{mu nu rho sigma} at suspected singularity
+  - COMPUTE: Evaluate Kretschmann scalar R_{mu nu rho sigma} R^{mu nu rho sigma} at suspected singularity
 
 [] Cosmological consistency
   - COMPUTE: Verify both Friedmann equations are simultaneously satisfied with given matter content

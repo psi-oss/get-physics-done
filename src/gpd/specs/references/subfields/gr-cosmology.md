@@ -256,7 +256,7 @@ context_cost: medium
 
 ## Common Pitfalls
 
-- **Coordinate singularities vs physical singularities:** Schwarzschild r=2M is a coordinate singularity (removable); r=0 is physical. Check Kretschmer scalar R\_{abcd}\*R^{abcd} to distinguish
+- **Coordinate singularities vs physical singularities:** Schwarzschild r=2M is a coordinate singularity (removable); r=0 is physical. Check the Kretschmann scalar R\_{abcd}\*R^{abcd} to distinguish
 - **Wrong sign convention for metric:** (-,+,+,+) vs (+,-,-,-) is a choice; mixing them produces wrong signs in Einstein equations. Be consistent
 - **Constraint-violating initial data:** Freely specifying all of g_ij and K_ij generally violates constraints. Must solve constraint equations (York procedure, conformal thin sandwich)
 - **Insufficient outer boundary distance:** Waves reflected from outer boundary contaminate the solution. Place boundary at r >> L/c \* T_simulation or use constraint-preserving boundary conditions

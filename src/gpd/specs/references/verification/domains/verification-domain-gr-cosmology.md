@@ -145,7 +145,7 @@ SEC violation: acceptable for dark energy (Lambda > 0 violates SEC).
 For any spacetime solution:
 1. Light cones must tilt correctly: dr/dt = +/- (1 - 2M/r) for Schwarzschild (ingoing light slows near horizon)
 2. Horizons: verify g_{tt} = 0 at claimed horizon location
-3. Singularities: verify Kretschner scalar R_{abcd}R^{abcd} diverges
+3. Singularities: verify Kretschmann scalar R_{abcd}R^{abcd} diverges
 4. Asymptotic structure: verify metric -> Minkowski as r -> infinity (asymptotic flatness)
    or metric -> de Sitter as r -> infinity (cosmological horizon)
 ```

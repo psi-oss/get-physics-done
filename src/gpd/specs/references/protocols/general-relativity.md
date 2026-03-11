@@ -107,7 +107,7 @@ R = g^{μν}R_{μν}
 **Verification:**
 - [ ] R_{μν} is symmetric: R_{μν} = R_{νμ}
 - [ ] For vacuum (T_{μν} = 0): R_{μν} = 0 (Einstein equation in vacuum)
-- [ ] Kretschner scalar K = R_{μνρσ}R^{μνρσ} is finite away from physical singularities (if K → ∞, it's a physical singularity; if only coordinate components diverge but K is finite, it's a coordinate singularity)
+- [ ] Kretschmann scalar K = R_{μνρσ}R^{μνρσ} is finite away from physical singularities (if K → ∞, it's a physical singularity; if only coordinate components diverge but K is finite, it's a coordinate singularity)
 
 ---
 
@@ -197,7 +197,7 @@ where A = 4π(2M)² = 16πM² is the horizon area.
 | Error | LLM Symptom | Detection | Error Class |
 |-------|-------------|-----------|-------------|
 | Metric signature mix-up | Sign errors in propagator, geodesic equation, energy | Check p² = ±m² and compare with declared convention | #37 |
-| Coordinate vs physical singularity | Claims r = 2M is a singularity in Schwarzschild | Compute Kretschner scalar — finite at r=2M, infinite at r=0 | #10 |
+| Coordinate vs physical singularity | Claims r = 2M is a singularity in Schwarzschild | Compute Kretschmann scalar — finite at r=2M, infinite at r=0 | #10 |
 | Wrong Christoffel index placement | Γ_{μνρ} instead of Γ^ρ_{μν} | Check symmetry in lower indices, verify inverse metric was used | #38, #39 |
 | Riemann tensor sign error | Wrong sign from swapped partial derivative order | Check antisymmetry: R^ρ_{σμν} = -R^ρ_{σνμ} | #2 |
 | Hawking temperature factor of 2 | T_H = 1/(4πM) instead of 1/(8πM) | Verify first law dM = TdS gives consistent entropy | #1 |
@@ -216,7 +216,7 @@ Before finalizing any GR calculation:
 - [ ] Riemann tensor satisfies all algebraic symmetries (antisymmetry, pair symmetry, Bianchi)
 - [ ] Ricci tensor is symmetric
 - [ ] Flat space limit gives zero curvature
-- [ ] Kretschner scalar computed to classify singularities
+- [ ] Kretschmann scalar computed to classify singularities
 - [ ] Geodesic normalization preserved along trajectories
 - [ ] Killing vector conservation laws have correct signs
 - [ ] Newtonian limit recovered (g_{00} ≈ -(1+2Φ) with correct units)
