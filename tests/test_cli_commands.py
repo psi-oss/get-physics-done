@@ -488,6 +488,25 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is True
 
+    def test_command_context_slides_passes_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "slides"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:slides"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+
     def test_command_context_project_aware_requires_explicit_inputs_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

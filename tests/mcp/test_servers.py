@@ -656,7 +656,8 @@ class TestSkillsServer:
             "description: Create presentation slides from a project or folder.\n"
             "---\n"
             "\n"
-            "Canonical slides command.\n",
+            "Canonical slides command.\n"
+            "Read @{GPD_INSTALL_DIR}/workflows/slides.md.\n",
             encoding="utf-8",
         )
         (commands_dir / "peer-review.md").write_text(
@@ -739,6 +740,15 @@ class TestSkillsServer:
         assert "{GPD_AGENTS_DIR}" not in result["content"]
         assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/plan-phase.md" in result["content"]
         assert f"{AGENTS_DIR.resolve().as_posix()}/gpd-planner.md" in result["content"]
+
+    def test_get_skill_resolves_slides_workflow_placeholder(self):
+        from gpd.mcp.servers.skills_server import get_skill
+        from gpd.registry import SPECS_DIR
+
+        result = get_skill("gpd-slides")
+
+        assert "{GPD_INSTALL_DIR}" not in result["content"]
+        assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/slides.md" in result["content"]
 
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill

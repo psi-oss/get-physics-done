@@ -440,9 +440,23 @@ def test_review_commands_expose_typed_contracts() -> None:
 def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("help").context_mode == "global"
     assert registry.get_command("map-theory").context_mode == "projectless"
+    assert registry.get_command("slides").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
     assert registry.get_command("explain").context_mode == "project-aware"
     assert registry.get_command("peer-review").context_mode == "project-required"
+
+
+def test_slides_workflow_references_templates_and_existing_output_policy() -> None:
+    workflow = (WORKFLOWS_DIR / "slides.md").read_text(encoding="utf-8")
+
+    assert "{GPD_INSTALL_DIR}/templates/slides/presentation-brief.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/slides/outline.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/slides/slides.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/slides/speaker-notes.md" in workflow
+    assert "{GPD_INSTALL_DIR}/templates/slides/main.tex" in workflow
+    assert "1. Refresh" in workflow
+    assert "2. Update" in workflow
+    assert "3. Skip" in workflow
 
 
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:

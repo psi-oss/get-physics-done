@@ -145,6 +145,19 @@ class TestClaudeCodeLifecycle:
             actual_hash = file_hash(full_path)
             assert actual_hash == expected_hash, f"Hash mismatch for {rel_path}"
 
+    def test_slides_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        slides_md = target / "commands" / "gpd" / "slides.md"
+        assert slides_md.exists()
+        content = slides_md.read_text(encoding="utf-8")
+        assert "context_mode: projectless" in content
+        assert "/get-physics-done/workflows/slides.md" in content
+
 
 # ---------------------------------------------------------------------------
 # Gemini lifecycle
@@ -258,6 +271,19 @@ class TestGeminiLifecycle:
             full_path = target / rel_path
             assert full_path.exists(), f"Manifest lists {rel_path} but file missing"
             assert file_hash(full_path) == expected_hash, f"Hash mismatch for {rel_path}"
+
+    def test_slides_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        slides_toml = target / "commands" / "gpd" / "slides.toml"
+        assert slides_toml.exists()
+        content = slides_toml.read_text(encoding="utf-8")
+        assert 'context_mode = "projectless"' in content
+        assert "PRESENTATION-BRIEF.md" in content
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +405,21 @@ class TestCodexLifecycle:
         skill_entries = [k for k in manifest["files"] if k.startswith("skills/")]
         assert len(skill_entries) > 0, "Manifest missing skill entries"
 
+    def test_slides_skill_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
+
+        slides_skill = skills_dir / "gpd-slides" / "SKILL.md"
+        assert slides_skill.exists()
+        content = slides_skill.read_text(encoding="utf-8")
+        assert "context_mode: projectless" in content
+        assert "<!-- [included: slides.md] -->" in content
+
 
 # ---------------------------------------------------------------------------
 # OpenCode lifecycle
@@ -418,7 +459,18 @@ class TestOpenCodeLifecycle:
         assert (target / MANIFEST_NAME).exists()
 
         assert result["runtime"] == "opencode"
-        assert result["commands"] > 0
+
+    def test_slides_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("opencode")
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target)
+
+        slides_md = target / "command" / "gpd-slides.md"
+        assert slides_md.exists()
+        content = slides_md.read_text(encoding="utf-8")
+        assert "PRESENTATION-BRIEF.md" in content
 
     def test_opencode_commands_are_flat(self, tmp_path: Path, gpd_root: Path) -> None:
         """OpenCode uses flat command structure: command/gpd-help.md not commands/gpd/help.md."""

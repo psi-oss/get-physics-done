@@ -21,7 +21,7 @@ This graph therefore includes:
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `61`
-- `src/gpd/specs/templates/**/*.md`: `65`
+- `src/gpd/specs/templates/**/*.md`: `69`
 - `src/gpd/specs/references/**/*.md`: `156`
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`

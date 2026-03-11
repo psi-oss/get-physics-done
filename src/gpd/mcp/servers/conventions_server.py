@@ -237,23 +237,23 @@ def convention_lock_status(project_dir: str) -> dict:
     with gpd_span("mcp.conventions.lock_status"):
         try:
             lock = _load_lock_from_project(project_dir)
+            result = convention_list(lock)
+
+            set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
+            unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
+            custom = {k: e.value for k, e in result.conventions.items() if not e.canonical and e.is_set}
+
+            return {
+                "lock": lock.model_dump(exclude_none=True),
+                "set_count": result.set_count,
+                "total_standard_fields": result.canonical_total,
+                "set_fields": set_fields,
+                "unset_fields": unset_fields,
+                "custom_conventions": custom,
+                "completeness_percent": round(len(set_fields) / max(result.canonical_total, 1) * 100, 1),
+            }
         except (ConventionError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
-        result = convention_list(lock)
-
-        set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
-        unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
-        custom = {k: e.value for k, e in result.conventions.items() if not e.canonical and e.is_set}
-
-        return {
-            "lock": lock.model_dump(exclude_none=True),
-            "set_count": result.set_count,
-            "total_standard_fields": result.canonical_total,
-            "set_fields": set_fields,
-            "unset_fields": unset_fields,
-            "custom_conventions": custom,
-            "completeness_percent": round(len(set_fields) / max(result.canonical_total, 1) * 100, 1),
-        }
 
 
 @mcp.tool()
@@ -330,44 +330,44 @@ def convention_check(lock: dict) -> dict:
         try:
             parsed = ConventionLock(**lock)
             result = _convention_check(parsed)
+
+            # Critical fields that should almost always be set
+            critical = {"metric_signature", "fourier_convention", "natural_units"}
+            missing_critical = [m.key for m in result.missing if m.key in critical]
+
+            # Consistency checks beyond what conventions.py provides
+            issues: list[str] = []
+            metric = parsed.metric_signature
+            fourier = parsed.fourier_convention
+            units = parsed.natural_units
+
+            if metric and fourier:
+                if "euclidean" in (metric or "").lower() and fourier == "QFT":
+                    issues.append(
+                        "Euclidean metric with QFT Fourier convention may cause sign issues. Check Wick rotation conventions."
+                    )
+
+            if units == "SI" and metric and ("(-,+,+,+)" in (metric or "") or "mostly-plus" in (metric or "").lower()):
+                issues.append(
+                    "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
+                )
+
+            if parsed.renormalization_scheme and not parsed.regularization_scheme:
+                issues.append(
+                    "Renormalization scheme set without regularization scheme. These are typically specified together."
+                )
+
+            return {
+                "valid": len(missing_critical) == 0,
+                "completeness_percent": round(result.set_count / max(result.total, 1) * 100, 1),
+                "set_fields": [s.key for s in result.set_conventions],
+                "unset_fields": [m.key for m in result.missing],
+                "missing_critical": missing_critical,
+                "issues": issues,
+                "total_standard_fields": result.total,
+            }
         except (ConventionError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
-
-    # Critical fields that should almost always be set
-    critical = {"metric_signature", "fourier_convention", "natural_units"}
-    missing_critical = [m.key for m in result.missing if m.key in critical]
-
-    # Consistency checks beyond what conventions.py provides
-    issues: list[str] = []
-    metric = parsed.metric_signature
-    fourier = parsed.fourier_convention
-    units = parsed.natural_units
-
-    if metric and fourier:
-        if "euclidean" in (metric or "").lower() and fourier == "QFT":
-            issues.append(
-                "Euclidean metric with QFT Fourier convention may cause sign issues. Check Wick rotation conventions."
-            )
-
-    if units == "SI" and metric and ("(-,+,+,+)" in (metric or "") or "mostly-plus" in (metric or "").lower()):
-        issues.append(
-            "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
-        )
-
-    if parsed.renormalization_scheme and not parsed.regularization_scheme:
-        issues.append(
-            "Renormalization scheme set without regularization scheme. These are typically specified together."
-        )
-
-    return {
-        "valid": len(missing_critical) == 0,
-        "completeness_percent": round(result.set_count / max(result.total, 1) * 100, 1),
-        "set_fields": [s.key for s in result.set_conventions],
-        "unset_fields": [m.key for m in result.missing],
-        "missing_critical": missing_critical,
-        "issues": issues,
-        "total_standard_fields": result.total,
-    }
 
 
 @mcp.tool()

@@ -38,7 +38,7 @@ Scan the workspace for likely source material:
 
 ```bash
 ls -d .gpd paper manuscript draft slides presentation deck figures data notebooks docs 2>/dev/null
-find . -maxdepth 2 \( -name "*.tex" -o -name "*.md" -o -name "*.ipynb" -o -name "*.csv" -o -name "*.json" -o -name "*.pdf" -o -name "*.png" -o -name "*.svg" -o -name "*.pptx" \) 2>/dev/null | head -120
+find . -maxdepth 2 \( -name "*.tex" -o -name "*.md" -o -name "*.ipynb" -o -name "*.csv" -o -name "*.json" -o -name "*.pdf" -o -name "*.png" -o -name "*.svg" -o -name "*.pptx" -o -name "*.odp" -o -name "*.key" \) 2>/dev/null | head -120
 ```
 
 If a GPD project exists, use it:
@@ -63,6 +63,7 @@ Ask a compact set of high-leverage questions for any missing requirements, inclu
 - talk length or target slide count
 - output format/toolchain (for example Beamer, native deck, markdown-based slides)
 - template, branding, or existing slide deck constraints
+- whether to refresh, update, or skip any existing slide artifacts
 - emphasis (paper, derivation, data, code, demo, project status)
 - level of verbosity, speaker notes, appendix/backups, and citation density
 
@@ -80,6 +81,7 @@ Create or update `slides/` artifacts for the selected format and report exactly 
 - [ ] Missing presentation requirements clarified with the user
 - [ ] Presentation brief written with audience, scope, and format locked
 - [ ] Slide outline created with a clear narrative arc
+- [ ] Existing slide outputs handled explicitly (refresh, update, or skip)
 - [ ] Deck source files written to `slides/`
 - [ ] Any compile/render limitations or unresolved assumptions clearly reported
 </success_criteria>

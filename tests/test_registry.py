@@ -621,6 +621,32 @@ class TestPublicAPI:
         assert skill.source_kind == "command"
         assert skill.content == "Execute body."
 
+    def test_real_slides_command_metadata(self) -> None:
+        registry.invalidate_cache()
+
+        cmd = registry.get_command("slides")
+
+        assert cmd.name == "gpd:slides"
+        assert cmd.argument_hint == "[topic, talk title, audience, or source path]"
+        assert cmd.context_mode == "projectless"
+        assert cmd.allowed_tools == [
+            "file_read",
+            "file_write",
+            "file_edit",
+            "shell",
+            "search_files",
+            "find_files",
+            "ask_user",
+        ]
+
+    def test_real_slides_skill_uses_output_category(self) -> None:
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("gpd-slides")
+
+        assert skill.name == "gpd-slides"
+        assert skill.category == "output"
+
     def test_invalidate_cache_module_level(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()

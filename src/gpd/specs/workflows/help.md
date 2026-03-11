@@ -662,7 +662,8 @@ Usage: `/gpd:export --format all`
 Create presentation slides from a GPD project or the current folder.
 
 - Audits papers, figures, notes, code, and data to build a talk brief
-- Asks targeted questions about audience, duration, format/toolchain, templates, and technical depth
+- Asks targeted questions about audience, duration, format/toolchain, templates, technical depth, and whether to refresh or extend existing slide assets
+- Defaults toward Beamer for equation-heavy talks and uses markdown or native decks when that fits better
 - Produces an outline plus deck source files in `slides/`
 
 Usage: `/gpd:slides "Group meeting update on finite-temperature RG"`
