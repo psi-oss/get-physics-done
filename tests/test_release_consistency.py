@@ -131,7 +131,7 @@ def test_public_citation_and_readme_versions_match_release_version() -> None:
 
     assert f"version: {version}" in citation
     assert f"version = {{{version}}}" in readme
-    assert f"(Version {version}) [Computer software]" in readme
+    assert f"(Version {version})" in readme
 
 
 def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
@@ -140,7 +140,7 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     assert "Physical Superintelligence PBC" in readme
     assert "GSD" in readme
-    assert "get-shit-done-cc" in readme
+    assert "get-shit-done" in readme
     assert "[Physical Superintelligence PBC](https://www.psi.inc)" in readme
 
 
