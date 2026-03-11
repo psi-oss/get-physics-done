@@ -18,6 +18,7 @@ from gpd.core.health import (
     check_convention_lock,
     check_environment,
     check_git_status,
+    check_latest_return,
     check_orphans,
     check_plan_frontmatter,
     check_project_structure,
@@ -353,3 +354,61 @@ class TestRunDoctor:
             "references/verification/errors/llm-physics-errors.md" in warning
             for warning in checks["Key References"].warnings
         )
+
+
+def _bootstrap_health_project(tmp_path: Path) -> Path:
+    planning = tmp_path / ".gpd"
+    planning.mkdir()
+    (planning / "phases").mkdir()
+    (planning / "state.json").write_text("{}", encoding="utf-8")
+    (planning / "config.json").write_text("{}", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    return tmp_path
+
+
+class TestCheckLatestReturn:
+    def test_no_summaries_is_ok(self, tmp_path: Path) -> None:
+        result = check_latest_return(_bootstrap_health_project(tmp_path))
+
+        assert result.status == CheckStatus.OK
+        assert result.details["reason"] == "no_summaries"
+
+    def test_summary_with_valid_return_is_ok(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        phase_dir = cwd / ".gpd" / "phases" / "01-setup"
+        phase_dir.mkdir(parents=True)
+        summary_content = (
+            "# Summary\n\n"
+            "```yaml\n"
+            "gpd_return:\n"
+            "  status: completed\n"
+            "  phase: '01'\n"
+            "  plan: 01-setup-01\n"
+            "  tasks_completed: 3\n"
+            "  tasks_total: 3\n"
+            "  one_liner: Everything done\n"
+            "  next_action: Move to phase 2\n"
+            "```\n"
+        )
+        (phase_dir / "01-setup-01-SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_latest_return(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.label == "Latest Return Envelope"
+
+    def test_summary_without_return_block_warns(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        phase_dir = cwd / ".gpd" / "phases" / "01-setup"
+        phase_dir.mkdir(parents=True)
+        (phase_dir / "01-setup-01-SUMMARY.md").write_text(
+            "# Summary\nJust text, no return block.\n",
+            encoding="utf-8",
+        )
+
+        result = check_latest_return(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.warnings
