@@ -248,12 +248,12 @@ class RuntimeAdapter(abc.ABC):
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""
 
-    def finalize_install(
+    def finalize_install(  # noqa: B027
         self,
         install_result: dict[str, object],
         *,
         force_statusline: bool = False,
-    ) -> None:  # noqa: B027
+    ) -> None:
         """Apply any runtime-specific post-install finalization."""
 
     def _cleanup_runtime_config(self, target_dir: Path) -> list[str]:
