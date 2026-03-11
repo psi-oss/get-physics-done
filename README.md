@@ -388,32 +388,47 @@ Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no o
 
 </details>
 
-## Validation Commands
+## Advanced CLI Utilities
 
-The `gpd` CLI also exposes machine-readable validation commands for workspace checks and review-grade workflows:
+The `gpd` CLI also includes machine-readable validation, observability, and tracing commands for automation, review-grade checks, and debugging.
+
+<details>
+<summary><strong>Validation commands</strong></summary>
 
 | Command | What it does |
 |---------|--------------|
 | `gpd validate consistency` | Run cross-phase consistency and project health checks for the current workspace |
 | `gpd validate command-context <command> [arguments]` | Report whether a command is global, projectless, project-aware, or project-required in the current workspace |
-| `gpd validate review-contract <command>` | Show the typed review contract for publication/review workflows |
-| `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript/artifact presence, and review prerequisites |
+| `gpd validate review-contract <command>` | Show the typed review contract for publication and review workflows |
+| `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript or artifact presence, and review prerequisites |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
 | `gpd validate referee-decision <file.json> [--strict]` | Validate a staged peer-review decision against hard recommendation gates |
 | `gpd validate reproducibility-manifest <file.json> --strict` | Validate a reproducibility manifest and require review-ready coverage |
 
-## Local Observability
+</details>
 
-GPD now keeps a project-local observability trail under `.gpd/observability/` alongside the existing state and trace artifacts.
+<details>
+<summary><strong>Observability and trace inspection</strong></summary>
 
-- `sessions/*.jsonl`: one event log per observed session, intended for workflow-, trace-, and agent-level activity
-- `current-session.json`: latest session metadata for status and resume tooling
-- `.gpd/traces/`: plan-local execution traces for detailed debugging and post-mortem review
-- STATE.md: concise human-readable continuity state, not the full event ledger
+GPD stores project-local observability under `.gpd/observability/` and detailed plan traces under `.gpd/traces/`.
 
-Ordinary low-level function/span calls are not recorded automatically. Observability is reserved for explicit session facts such as workflow milestones, trace lifecycle, and any agent/subagent events that the active runtime surfaces.
+| Command | What it does |
+|---------|--------------|
+| `gpd observe sessions [--status ...] [--command ...]` | List recorded observability sessions |
+| `gpd observe show [--session ...] [--category ...]` | Show logged observability events with filters |
+| `gpd observe event <category> <name>` | Append an explicit observability event |
+| `gpd trace show [--phase ...] [--plan ...]` | Inspect plan-local trace events |
 
-These layers complement each other: traces are narrow and plan-specific, while observability is broader and session-oriented.
+| Path | What it stores |
+|------|----------------|
+| `.gpd/observability/sessions/*.jsonl` | Per-session event logs |
+| `.gpd/observability/current-session.json` | Latest session metadata for status and resume tooling |
+| `.gpd/traces/` | Plan-local execution traces for debugging and post-mortem review |
+| `STATE.md` | Concise human-readable continuity state, not the full event ledger |
+
+Low-level function and span calls are not recorded automatically. Observability is reserved for explicit workflow facts, trace lifecycle, and any agent or subagent events surfaced by the active runtime.
+
+</details>
 
 ## Requirements
 
