@@ -135,7 +135,7 @@ If no SUMMARYs exist: "No results yet (no plans executed)."
 Look for:
 
 - `*-VERIFICATION.md` — automated physics checks
-- `*-VALIDATION.md` — researcher-guided validation
+- `*-VALIDATION.md` — researcher-reviewed validation
 
 For each file found, read frontmatter to extract `status`. Automated verification uses `passed`/`gaps_found`/`human_needed`; interactive validation uses `validating`/`completed`/`diagnosed`.
 

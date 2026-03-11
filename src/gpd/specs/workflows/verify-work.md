@@ -3,7 +3,7 @@ Validate research results through conversational research validation with persis
 
 Researcher validates, the AI records. One check at a time. Plain text responses.
 
-**Key upgrade: checks now include computational spot-checks that the AI performs before presenting to the researcher, and the researcher is guided through numerical verification rather than just qualitative confirmation.**
+**Key upgrade: checks now include computational spot-checks that the AI performs before presenting to the researcher, and the researcher is walked through numerical verification rather than just qualitative confirmation.**
 </purpose>
 
 <philosophy>
