@@ -192,12 +192,12 @@ If `PRE_EXECUTION_AGENTS` is non-empty, spawn them sequentially before wave 1:
 for AGENT_TYPE in "${PRE_EXECUTION_AGENTS[@]}"; do
   case "$AGENT_TYPE" in
     notation-coordinator)
-      AGENT_MODEL=$(gpd --raw resolve-model gpd-notation-coordinator)
+      AGENT_MODEL=$(gpd resolve-model gpd-notation-coordinator)
       # Spawn notation-coordinator to verify/establish conventions
       # task(subagent_type="gpd-notation-coordinator", model="{AGENT_MODEL}", ...)
       ;;
     experiment-designer)
-      AGENT_MODEL=$(gpd --raw resolve-model gpd-experiment-designer)
+      AGENT_MODEL=$(gpd resolve-model gpd-experiment-designer)
       # Spawn experiment-designer to validate parameter ranges
       # task(subagent_type="gpd-experiment-designer", model="{AGENT_MODEL}", ...)
       ;;
@@ -399,7 +399,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    Pass paths only -- executors read files themselves with their fresh 200k context.
    This keeps orchestrator context lean (~10-15%).
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```
    task(
@@ -1205,7 +1205,7 @@ task(
 **For persistent failures (same gap after 1 cycle):** Spawn debugger BEFORE the second gap-closure attempt:
 
 ```bash
-DEBUGGER_MODEL=$(gpd --raw resolve-model gpd-debugger)
+DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 
 ```
@@ -1255,7 +1255,7 @@ Do NOT attempt a third automated cycle.
 Automatically re-verify the phase to confirm gaps are closed:
 
 ```bash
-VERIFIER_MODEL=$(gpd --raw resolve-model gpd-verifier)
+VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 ```
 
 ```
@@ -1299,7 +1299,7 @@ Run a rapid cross-phase consistency check to catch convention violations and sig
 Resolve consistency checker model:
 
 ```bash
-CONSISTENCY_MODEL=$(gpd --raw resolve-model gpd-consistency-checker)
+CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker)
 ```
 
 Spawn the consistency checker in rapid mode:
@@ -1340,7 +1340,7 @@ Options:
 **If "Resolve conventions":** Spawn gpd-notation-coordinator to fix the conflicts:
 
 ```bash
-NOTATION_MODEL=$(gpd --raw resolve-model gpd-notation-coordinator)
+NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
 ```

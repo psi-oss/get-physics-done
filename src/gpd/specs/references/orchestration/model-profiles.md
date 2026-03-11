@@ -10,8 +10,9 @@ GPD uses capability tiers instead of platform-specific model names:
 - **tier-2**: Balanced capability/cost (standard model)
 - **tier-3**: Fast/economical (fastest model)
 
-Tiers are resolved to platform-specific models at runtime by gpd CLI.
-On single-model platforms, all tiers resolve to null (use the platform's default model).
+`gpd resolve-tier` exposes the abstract tier assignment for a given agent.
+`gpd resolve-model` resolves that tier to a runtime-specific override only when `.gpd/config.json` defines `model_overrides.<runtime>.<tier>`.
+If no override is configured for the active runtime, `gpd resolve-model` returns empty output and the task call should omit `model` so the platform uses its default model.
 
 ## Profile Definitions
 
@@ -234,13 +235,15 @@ When selecting a profile, consider not just the token cost tradeoff (shown in th
 
 ## Resolution Logic
 
-Orchestrators resolve model before spawning:
+Orchestrators resolve tier and optional concrete model before spawning:
 
 ```
 1. Read .gpd/config.json
 2. Get model_profile (default: "review")
 3. Look up agent in table above
-4. Pass model parameter to Task call
+4. Resolve tier via `gpd resolve-tier`
+5. Resolve runtime override via `gpd resolve-model`
+6. Omit `model` when `gpd resolve-model` returns empty
 ```
 
 ## Switching Profiles

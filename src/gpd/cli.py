@@ -3104,18 +3104,43 @@ def slug(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# resolve-model — Resolve model identifier for an agent
+# resolve-tier / resolve-model — Agent tier + runtime model resolution
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command("resolve-tier")
+def resolve_tier_cmd(
+    agent_name: str = typer.Argument(..., help="Agent name (e.g. gpd-executor)"),
+) -> None:
+    """Resolve the abstract model tier for an agent in the current project."""
+    from gpd.core.config import resolve_tier
+
+    _output(resolve_tier(_get_cwd(), agent_name))
 
 
 @app.command("resolve-model")
 def resolve_model_cmd(
     agent_name: str = typer.Argument(..., help="Agent name (e.g. gpd-executor)"),
+    runtime: str | None = typer.Option(
+        None,
+        "--runtime",
+        help="Runtime name override (claude-code, codex, gemini, opencode)",
+    ),
 ) -> None:
-    """Resolve the model identifier for an agent in the current project."""
-    from gpd.core.config import resolve_model
+    """Resolve the runtime-specific model override for an agent.
 
-    _output(resolve_model(_get_cwd(), agent_name))
+    Prints nothing when no override is configured so callers can omit the
+    runtime model parameter and let the platform use its default model.
+    """
+    from gpd.core.config import resolve_model
+    from gpd.hooks.runtime_detect import ALL_RUNTIMES, detect_active_runtime
+
+    if runtime is not None and runtime not in ALL_RUNTIMES:
+        supported = ", ".join(ALL_RUNTIMES)
+        _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
+
+    active_runtime = runtime or detect_active_runtime(cwd=_get_cwd())
+    _output(resolve_model(_get_cwd(), agent_name, runtime=active_runtime))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -17,6 +17,7 @@ from gpd.core.config import (
     load_config,
     resolve_agent_tier,
     resolve_model,
+    resolve_tier,
 )
 from gpd.core.errors import ConfigError
 
@@ -91,7 +92,7 @@ class TestGPDProjectConfigDefaults:
         assert cfg.commit_docs is True
         assert cfg.parallelization is True
         assert cfg.branching_strategy == BranchingStrategy.NONE
-        assert cfg.model_map is None
+        assert cfg.model_overrides is None
 
 
 # ─── load_config ────────────────────────────────────────────────────────────────
@@ -188,17 +189,45 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
-    def test_model_map_override(self, tmp_path: Path):
+    def test_model_overrides(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
-                    "model_map": {"tier-1": "o3", "tier-2": "gpt-4.1"},
+                    "model_overrides": {
+                        "codex": {"tier-1": "o3", "tier-2": "gpt-4.1"},
+                        "claude-code": {"tier-1": "opus"},
+                    },
                 }
             )
         )
         cfg = load_config(tmp_path)
-        assert cfg.model_map == {"tier-1": "o3", "tier-2": "gpt-4.1"}
+        assert cfg.model_overrides == {
+            "codex": {"tier-1": "o3", "tier-2": "gpt-4.1"},
+            "claude-code": {"tier-1": "opus"},
+        }
+
+    def test_removed_model_map_key_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"model_map": {"tier-1": "opus"}}))
+        with pytest.raises(ConfigError, match="`model_map` was removed; use `model_overrides.<runtime>.<tier>`"):
+            load_config(tmp_path)
+
+    def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps({"model_overrides": {"unknown-runtime": {"tier-1": "foo"}}})
+        )
+        with pytest.raises(ConfigError, match="model_overrides contains unknown runtime"):
+            load_config(tmp_path)
+
+    def test_invalid_model_overrides_tier_raises(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps({"model_overrides": {"codex": {"tier-x": "foo"}}})
+        )
+        with pytest.raises(ConfigError, match="model_overrides\\['codex'\\] contains unknown tier"):
+            load_config(tmp_path)
 
 # ─── resolve_agent_tier ─────────────────────────────────────────────────────────
 
@@ -227,17 +256,43 @@ class TestResolveAgentTier:
 class TestResolveModel:
     def test_default_config(self, tmp_path: Path):
         model = resolve_model(tmp_path, "gpd-planner")
-        # Default profile is "review", planner review is tier-1
-        assert model == "tier-1"
+        assert model is None
 
-    def test_with_model_map(self, tmp_path: Path):
+    def test_with_runtime_specific_override(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(
             json.dumps(
                 {
-                    "model_map": {"tier-1": "opus"},
+                    "model_overrides": {
+                        "claude-code": {"tier-1": "opus"},
+                        "codex": {"tier-1": "gpt-5"},
+                    },
                 }
             )
         )
-        model = resolve_model(tmp_path, "gpd-planner")
+        model = resolve_model(tmp_path, "gpd-planner", runtime="claude-code")
         assert model == "opus"
+
+    def test_without_override_for_active_runtime_returns_none(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps(
+                {
+                    "model_overrides": {
+                        "claude-code": {"tier-1": "opus"},
+                    }
+                }
+            )
+        )
+        model = resolve_model(tmp_path, "gpd-planner", runtime="codex")
+        assert model is None
+
+
+class TestResolveTier:
+    def test_project_resolve_tier_uses_profile(self, tmp_path: Path):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps({"model_profile": "paper-writing"})
+        )
+        tier = resolve_tier(tmp_path, "gpd-project-researcher")
+        assert tier == ModelTier.TIER_3

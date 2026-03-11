@@ -239,7 +239,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
 2. **Spawn executor agents for all plans in the wave:**
 
    Follow the same task() spawning pattern as execute-phase.md step `execute_waves`.
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```
    task(

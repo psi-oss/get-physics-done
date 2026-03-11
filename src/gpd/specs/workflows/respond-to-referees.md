@@ -292,7 +292,7 @@ If the staged decision artifacts indicate that the main problem is overclaiming 
 Resolve writer model:
 
 ```bash
-WRITER_MODEL=$(gpd --raw resolve-model gpd-paper-writer)
+WRITER_MODEL=$(gpd resolve-model gpd-paper-writer)
 ```
 
 **For Group A (response-only) items:**
@@ -308,7 +308,7 @@ Draft each response directly in REFEREE_RESPONSE.md. For each comment:
 **For Group B (manuscript revision) items:**
 
 Group revision items by affected section to minimize agent spawns. For each affected section, spawn a paper-writer agent:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(

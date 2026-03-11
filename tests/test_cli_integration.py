@@ -655,7 +655,19 @@ class TestSummaryExtractCommand:
 
 
 class TestResolveModelCommand:
-    def test_resolve_model(self) -> None:
+    def test_resolve_tier(self) -> None:
+        result = _invoke("resolve-tier", "gpd-executor")
+        assert result.output.strip() == "tier-2"
+
+    def test_resolve_model_uses_active_runtime_override(self, gpd_project: Path) -> None:
+        config_path = gpd_project / ".gpd" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["model_overrides"] = {"codex": {"tier-1": "gpt-5"}}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        (gpd_project / ".codex").mkdir()
+
         result = _invoke("resolve-model", "gpd-executor")
-        # Should return a tier or model name without crashing
-        assert result.exit_code == 0
+        assert result.output.strip() == ""
+
+        planner_result = _invoke("resolve-model", "gpd-planner")
+        assert planner_result.output.strip() == "gpt-5"

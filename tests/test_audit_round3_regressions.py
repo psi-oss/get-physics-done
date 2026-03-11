@@ -5,6 +5,7 @@ Each test targets a specific bug fix and verifies the corrected behavior.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -465,7 +466,7 @@ class TestVerifierModelInContext:
     """init_verify_work return dict should include 'verifier_model' key."""
 
     def test_verify_work_has_verifier_model(self, tmp_path: Path) -> None:
-        """The context dict must contain verifier_model."""
+        """The context dict must contain verifier_model for runtime overrides."""
         from gpd.core.context import init_verify_work
 
         # Set up minimal project structure
@@ -479,9 +480,22 @@ class TestVerifierModelInContext:
         phase_dir.mkdir(parents=True)
         (phase_dir / "task-1-PLAN.md").write_text("plan", encoding="utf-8")
 
+        (tmp_path / ".codex").mkdir()
+        (gpd / "config.json").write_text(
+            json.dumps(
+                {
+                    "model_profile": "review",
+                    "model_overrides": {
+                        "codex": {"tier-1": "gpt-5", "tier-2": "gpt-5-mini"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
         result = init_verify_work(tmp_path, "1")
         assert "verifier_model" in result
-        assert isinstance(result["verifier_model"], str)
+        assert result["verifier_model"] == "gpt-5"
 
 
 # ---------------------------------------------------------------------------

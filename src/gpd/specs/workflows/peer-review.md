@@ -143,10 +143,10 @@ Stage artifacts for revision rounds should use the same suffix:
 Resolve reader model:
 
 ```bash
-READ_MODEL=$(gpd --raw resolve-model gpd-review-reader)
+READ_MODEL=$(gpd resolve-model gpd-review-reader)
 ```
 
-> **Runtime delegation:** Spawn a fresh subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a fresh subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -185,8 +185,8 @@ If Stage 1 fails, STOP. Later stages depend on its claim map.
 Resolve models:
 
 ```bash
-LITERATURE_MODEL=$(gpd --raw resolve-model gpd-review-literature)
-MATH_MODEL=$(gpd --raw resolve-model gpd-review-math)
+LITERATURE_MODEL=$(gpd resolve-model gpd-review-literature)
+MATH_MODEL=$(gpd resolve-model gpd-review-math)
 ```
 
 Stage 2 prompt:
@@ -256,7 +256,7 @@ If either stage fails, STOP and report the failure.
 Resolve physics model:
 
 ```bash
-PHYSICS_MODEL=$(gpd --raw resolve-model gpd-review-physics)
+PHYSICS_MODEL=$(gpd resolve-model gpd-review-physics)
 ```
 
 ```
@@ -298,7 +298,7 @@ If Stage 4 fails, STOP and report the failure.
 Resolve significance model:
 
 ```bash
-SIGNIFICANCE_MODEL=$(gpd --raw resolve-model gpd-review-significance)
+SIGNIFICANCE_MODEL=$(gpd resolve-model gpd-review-significance)
 ```
 
 ```
@@ -340,7 +340,7 @@ If Stage 5 fails, STOP and report the failure.
 Resolve referee model:
 
 ```bash
-REFEREE_MODEL=$(gpd --raw resolve-model gpd-referee)
+REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
 
 ```

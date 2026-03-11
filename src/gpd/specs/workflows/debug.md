@@ -132,7 +132,7 @@ This runs in parallel - all issues investigated simultaneously.
 **Resolve debugger model and mode settings:**
 
 ```bash
-DEBUGGER_MODEL=$(gpd --raw resolve-model gpd-debugger)
+DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ```
 
@@ -145,7 +145,7 @@ AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 **Spawn investigation agents in parallel:**
 
 For each gap, fill the debug subagent prompt template (see `{GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md` for the full template with placeholders, continuation format, and failure protocol) and spawn:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(

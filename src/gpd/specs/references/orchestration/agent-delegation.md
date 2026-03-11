@@ -8,12 +8,12 @@ Every agent spawn in a workflow uses this pattern:
 
 ```
 # Resolve model for this agent role
-AGENT_MODEL=$(gpd --raw resolve-model gpd-{agent})
+AGENT_MODEL=$(gpd resolve-model gpd-{agent})
 
 # Spawn agent
 task(
   subagent_type="gpd-{agent}",
-  model="{AGENT_MODEL}",    # Omit if resolved to null
+  model="{AGENT_MODEL}",    # Omit if AGENT_MODEL is empty
   prompt="First, read {GPD_AGENTS_DIR}/gpd-{agent}.md for your role and instructions.\n\n{task_prompt}",
   description="{short description}"
 )
@@ -23,7 +23,7 @@ task(
 
 | Method | Agent Spawn Method |
 |--------|-------------------|
-| **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", prompt="...")` or equivalent |
+| **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", prompt="...")` or equivalent; omit `model` when it resolves empty |
 | **Skill invocation** | Invoke `/gpd:{agent}` — the installer adapts the command surface for your runtime |
 | **Tool discovery** | Agents are registered as callable tools via SKILL.md discovery |
 | **Fallback** | Execute the agent's SKILL.md instructions sequentially in the main context |
@@ -32,7 +32,7 @@ task(
 
 ## Rules
 
-1. **Always resolve model first:** `gpd --raw resolve-model gpd-{agent}`
+1. **Always resolve model first:** `gpd resolve-model gpd-{agent}`
 2. **If model is null or empty:** Omit the `model` parameter from task(). The runtime will use its default model.
 3. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
 4. **gpd path:** `bin/gpd CLI` (relative to project root, runtime-agnostic)
@@ -46,5 +46,5 @@ task(
 Add this before any task() call in a workflow:
 
 ```
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 ```

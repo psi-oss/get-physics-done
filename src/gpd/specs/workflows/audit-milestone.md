@@ -58,7 +58,7 @@ Exit.
 Resolve consistency checker model:
 
 ```bash
-CHECKER_MODEL=$(gpd --raw resolve-model gpd-consistency-checker)
+CHECKER_MODEL=$(gpd resolve-model gpd-consistency-checker)
 ```
 
 ## 1. Determine Milestone Scope
@@ -96,7 +96,7 @@ If a phase is missing VERIFICATION.md, flag it as "unverified phase" -- this is 
 ## 3. Spawn Consistency Checker
 
 With phase context collected:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -203,9 +203,9 @@ except Exception:
 Resolve referee model:
 
 ```bash
-REFEREE_MODEL=$(gpd --raw resolve-model gpd-referee)
+REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(

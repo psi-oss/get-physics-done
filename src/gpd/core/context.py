@@ -203,8 +203,8 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "verifier": cfg.verifier,
         "parallelization": cfg.parallelization,
     }
-    if cfg.model_map:
-        d["model_map"] = cfg.model_map
+    if cfg.model_overrides:
+        d["model_overrides"] = cfg.model_overrides
     return d
 
 
@@ -223,33 +223,38 @@ def load_config(cwd: Path) -> dict:
 
 # ─── Resolve Model ────────────────────────────────────────────────────────────
 
-# Core returns tier strings (e.g. "tier-1", "tier-2"). Adapters translate
-# these to provider-specific model names at install time.
+# Concrete model selection is runtime-scoped. When no override is configured
+# for the active runtime, callers should omit the runtime model parameter and
+# allow the platform to use its default model.
 
 
-def _resolve_model(cwd: Path, agent_type: str, config: dict | None = None) -> str:
-    """Resolve the model identifier for a given agent type based on config profile.
+def _resolve_model(
+    cwd: Path,
+    agent_type: str,
+    config: dict | None = None,
+    runtime: str | None = None,
+) -> str | None:
+    """Resolve the runtime-specific model override for an agent type."""
+    active_runtime = runtime or _detect_platform(cwd)
+    if active_runtime == "unknown":
+        active_runtime = None
 
-    Delegates to :func:`gpd.core.config.resolve_model` when no pre-loaded
-    config dict is available.  When *config* is supplied (the common path
-    inside context assemblers), we still delegate tier resolution to
-    :func:`gpd.core.config.resolve_agent_tier` and then apply the
-    ``model_map`` override exactly as the canonical implementation does.
-
-    Args:
-        cwd: Project root directory.
-        agent_type: Agent name (e.g. "gpd-executor").
-        config: Pre-loaded config dict. If None, loads from disk via
-            the canonical :func:`gpd.core.config.resolve_model`.
-    """
     if config is None:
-        return _resolve_model_canonical(cwd, agent_type)
+        return _resolve_model_canonical(cwd, agent_type, runtime=active_runtime)
+
+    if not active_runtime:
+        return None
+
     profile = config.get("model_profile", str(GPDProjectConfig.model_fields["model_profile"].default.value))
     tier = resolve_agent_tier(agent_type, profile).value
-    model_map = config.get("model_map")
-    if model_map and isinstance(model_map, dict) and tier in model_map:
-        return model_map[tier]
-    return tier
+    runtime_overrides = config.get("model_overrides")
+    if not isinstance(runtime_overrides, dict):
+        return None
+    runtime_map = runtime_overrides.get(active_runtime)
+    if not isinstance(runtime_map, dict):
+        return None
+    value = runtime_map.get(tier)
+    return value if isinstance(value, str) and value else None
 
 
 # ─── Phase Info Helper ────────────────────────────────────────────────────────
@@ -276,17 +281,14 @@ def _try_get_milestone_info(cwd: Path) -> dict:
 # ─── Platform Detection ──────────────────────────────────────────────────────
 
 
-def _detect_platform() -> str:
+def _detect_platform(cwd: Path | None = None) -> str:
     """Detect the active AI runtime, if any."""
     try:
         from gpd.hooks.runtime_detect import detect_active_runtime
 
-        return detect_active_runtime()
+        return detect_active_runtime(cwd=cwd)
     except Exception:
         return "unknown"
-
-
-_PLATFORM = _detect_platform()
 
 
 # ─── Context Assemblers ──────────────────────────────────────────────────────
@@ -353,7 +355,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "config_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{CONFIG_FILENAME}"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
     # Include file contents if requested
@@ -414,7 +416,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
     # Include file contents
@@ -499,7 +501,7 @@ def init_new_project(cwd: Path) -> dict:
         # Git state
         "has_git": _path_exists(cwd, ".git"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -526,7 +528,7 @@ def init_new_milestone(cwd: Path) -> dict:
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -574,7 +576,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -604,7 +606,7 @@ def init_resume(cwd: Path) -> dict:
         "autonomy": config["autonomy"],
         "research_mode": config["research_mode"],
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -637,7 +639,7 @@ def init_verify_work(cwd: Path, phase: str | None) -> dict:
         "has_verification": phase_info.get("has_verification", False) if phase_info else False,
         "has_validation": phase_info.get("has_validation", False) if phase_info else False,
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -675,7 +677,7 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
     planning = cwd / PLANNING_DIR_NAME
@@ -745,7 +747,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos"),
         "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos/pending"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -805,7 +807,7 @@ def init_milestone_op(cwd: Path) -> dict:
         "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/milestones"),
         "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/phases"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -838,7 +840,7 @@ def init_map_theory(cwd: Path) -> dict:
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
 
@@ -938,7 +940,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
         # Platform
-        "platform": _PLATFORM,
+        "platform": _detect_platform(cwd),
     }
 
     # Include file contents
