@@ -20,7 +20,6 @@ import json
 import shlex
 import sys
 from collections.abc import Callable
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
@@ -42,20 +41,6 @@ err_console = Console(stderr=True)
 # Global state threaded through typer context
 _raw: bool = False
 _cwd: Path = Path(".")
-_active_cli_observation: _CliObservationContext | None = None
-
-
-@dataclasses.dataclass(frozen=True)
-class _CliObservationContext:
-    session_id: str
-    started_at: str
-    argv: list[str]
-    command: str
-    cwd_hint: Path
-    events_file: Path
-    session_events_file: Path
-    session_meta_file: Path
-    current_session_file: Path
 
 
 def _output(data: object) -> None:
@@ -214,6 +199,21 @@ def _format_runtime_list(runtime_names: list[str]) -> str:
     return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
 
 
+def _supported_runtime_names() -> list[str]:
+    """Return runtime ids from the loaded adapter registry."""
+    from gpd.adapters import list_runtimes
+
+    return list_runtimes()
+
+
+def _runtime_override_help() -> str:
+    """Build runtime option help from adapter metadata."""
+    supported = _supported_runtime_names()
+    if not supported:
+        return "Runtime name override"
+    return f"Runtime name override ({', '.join(supported)})"
+
+
 def _print_version(*, ctx: typer.Context | None = None) -> None:
     """Emit the CLI version using the active raw/non-raw output contract."""
     value = f"gpd {gpd.__version__}"
@@ -254,121 +254,6 @@ def _json_cli_output(data: object) -> None:
         console.print(data, highlight=False)
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def _observability_paths(cwd: Path) -> dict[str, Path]:
-    from gpd.core.constants import ProjectLayout
-
-    layout = ProjectLayout(cwd)
-    obs_dir = getattr(layout, "observability_dir", layout.gpd / "observability")
-    sessions_dir = getattr(layout, "observability_sessions_dir", obs_dir / "sessions")
-    events_file = getattr(layout, "observability_events", obs_dir / "events.jsonl")
-    current_session = getattr(layout, "current_observability_session", obs_dir / "current-session.json")
-    return {
-        "gpd_dir": layout.gpd,
-        "obs_dir": obs_dir,
-        "sessions_dir": sessions_dir,
-        "events_file": events_file,
-        "current_session": current_session,
-    }
-
-
-def _read_json_file(path: Path) -> dict[str, object] | None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def _read_jsonl_file(path: Path) -> list[dict[str, object]]:
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (FileNotFoundError, OSError):
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
-
-
-def _command_from_argv(argv: list[str]) -> str:
-    tokens: list[str] = []
-    skip_value = False
-    for token in argv:
-        if skip_value:
-            skip_value = False
-            continue
-        if token == "--cwd":
-            skip_value = True
-            continue
-        if token.startswith("--cwd=") or token in {"--raw", "--version", "-v"}:
-            continue
-        if token.startswith("-"):
-            continue
-        tokens.append(token)
-    return " ".join(tokens[:3]) or "root"
-
-
-def _start_cli_observation_for_command(
-    cwd_hint: Path,
-    *,
-    command: str,
-    argv: list[str] | None = None,
-) -> _CliObservationContext | None:
-    from gpd.core.observability import ensure_session, observe_event
-
-    resolved_cwd = cwd_hint.resolve(strict=False)
-    paths = _observability_paths(resolved_cwd)
-    if not paths["gpd_dir"].exists():
-        return None
-
-    normalized_argv = argv or []
-    session = ensure_session(
-        resolved_cwd,
-        source="cli",
-        command=command,
-        metadata={"argv": normalized_argv, "raw": _raw},
-    )
-    if session is None:
-        return None
-
-    observe_event(
-        resolved_cwd,
-        category="cli",
-        name="command",
-        action="start",
-        status="active",
-        command=command,
-        session_id=session.session_id,
-        data={"argv": normalized_argv, "cwd": str(resolved_cwd), "raw": _raw},
-    )
-
-    context = _CliObservationContext(
-        session_id=session.session_id,
-        started_at=session.started_at,
-        argv=normalized_argv,
-        command=command,
-        cwd_hint=resolved_cwd,
-        events_file=paths["events_file"],
-        session_events_file=paths["sessions_dir"] / f"{session.session_id}.jsonl",
-        session_meta_file=paths["sessions_dir"] / f"{session.session_id}.json",
-        current_session_file=paths["current_session"],
-    )
-    return context
-
-
 def _emit_observability_event(
     cwd: Path,
     *,
@@ -381,6 +266,7 @@ def _emit_observability_event(
     plan: str | None = None,
     session_id: str | None = None,
     data: dict[str, object] | None = None,
+    end_session: bool = False,
 ) -> object:
     from gpd.core.observability import observe_event
 
@@ -395,62 +281,11 @@ def _emit_observability_event(
         plan=plan,
         session_id=session_id,
         data=data,
+        end_session=end_session,
     )
     if hasattr(result, "recorded") and result.recorded is False:
         raise GPDError("Local observability unavailable for this working directory")
     return result
-
-
-def _finish_cli_observation(
-    context: _CliObservationContext | None,
-    *,
-    status: str,
-    exit_code: int = 0,
-    error: str | None = None,
-) -> None:
-    from gpd.core.observability import observe_event
-
-    if context is None:
-        return
-
-    finished_at = _utc_now_iso()
-    final_cwd = _cwd.resolve(strict=False)
-    finish_data: dict[str, object] = {
-        "argv": context.argv,
-        "cwd": str(final_cwd),
-        "exit_code": exit_code,
-        "finished_at": finished_at,
-    }
-    if error:
-        finish_data["error"] = error
-    observe_event(
-        final_cwd,
-        category="cli",
-        name="command",
-        action="finish",
-        status=status,
-        command=context.command,
-        session_id=context.session_id,
-        data=finish_data,
-    )
-
-
-def _finish_cli_observation_if_active(
-    context: _CliObservationContext | None,
-    *,
-    status: str,
-    exit_code: int = 0,
-    error: str | None = None,
-) -> None:
-    if context is None:
-        return
-    current = _read_json_file(context.current_session_file)
-    metadata = _read_json_file(context.session_meta_file)
-    if current and current.get("session_id") == context.session_id and current.get("status") == "active":
-        _finish_cli_observation(context, status=status, exit_code=exit_code, error=error)
-        return
-    if metadata and metadata.get("status") == "active":
-        _finish_cli_observation(context, status=status, exit_code=exit_code, error=error)
 
 
 def _filter_observability_events(
@@ -504,45 +339,34 @@ class _GPDTyper(typer.Typer):
     """Typer subclass that catches GPDError and prints a user-friendly message."""
 
     def __call__(self, *args: object, **kwargs: object) -> object:
-        global _raw, _cwd, _active_cli_observation  # noqa: PLW0603
+        global _raw, _cwd  # noqa: PLW0603
         _raw = False
         _cwd = Path(".")
-        _active_cli_observation = None
         try:
             return super().__call__(*args, **kwargs)
         except KeyError as exc:
             msg = f"Internal error (missing key): {exc}"
-            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=msg)
             if _raw:
                 err_console.print_json(json.dumps({"error": msg}))
             else:
                 err_console.print(f"[bold red]Error:[/] {msg}", highlight=False)
             raise SystemExit(1) from None
         except GPDError as exc:
-            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
             if _raw:
                 err_console.print_json(json.dumps({"error": str(exc)}))
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
         except TimeoutError as exc:
-            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
             if _raw:
                 err_console.print_json(json.dumps({"error": str(exc)}))
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
         except SystemExit as exc:
-            raw_code = exc.code if isinstance(exc.code, int) else (1 if exc.code else 0)
-            status = "ok" if raw_code == 0 else "error"
-            error = None if raw_code == 0 else str(exc.code)
-            _finish_cli_observation_if_active(_active_cli_observation, status=status, exit_code=raw_code, error=error)
             raise
-        except Exception as exc:
-            _finish_cli_observation_if_active(_active_cli_observation, status="error", exit_code=1, error=str(exc))
+        except Exception:
             raise
-        finally:
-            _active_cli_observation = None
 
 
 app = _GPDTyper(
@@ -555,7 +379,7 @@ app = _GPDTyper(
 
 @app.callback()
 def main(
-    ctx: typer.Context,
+    _ctx: typer.Context,
     raw: bool = typer.Option(
         False,
         "--raw",
@@ -574,29 +398,9 @@ def main(
     ),
 ) -> None:
     """GPD — Get Physics Done."""
-    global _raw, _cwd, _active_cli_observation  # noqa: PLW0603
+    global _raw, _cwd  # noqa: PLW0603
     _raw = raw
     _cwd = Path(cwd)
-    command_tokens: list[str] = []
-    if ctx.invoked_subcommand:
-        command_tokens.append(ctx.invoked_subcommand)
-    if ctx.invoked_subcommand == "observe" and ctx.args:
-        command_tokens.append(str(ctx.args[0]))
-    command = " ".join(command_tokens) or _command_from_argv([str(arg) for arg in sys.argv[1:]])
-    argv = command_tokens + [str(arg) for arg in ctx.args]
-    _active_cli_observation = _start_cli_observation_for_command(
-        _cwd,
-        command=command,
-        argv=argv,
-    )
-    if _active_cli_observation is not None:
-        ctx.call_on_close(
-            lambda observed=_active_cli_observation: _finish_cli_observation_if_active(
-                observed,
-                status="ok",
-                exit_code=0,
-            )
-        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1680,6 +1484,7 @@ def observe_event(
             plan=plan,
             session_id=session,
             data=parsed_data,
+            end_session=action in {"finish", "error", "stop"},
         )
     )
 
@@ -3124,7 +2929,7 @@ def resolve_model_cmd(
     runtime: str | None = typer.Option(
         None,
         "--runtime",
-        help="Runtime name override (claude-code, codex, gemini, opencode)",
+        help=_runtime_override_help(),
     ),
 ) -> None:
     """Resolve the runtime-specific model override for an agent.
@@ -3133,10 +2938,11 @@ def resolve_model_cmd(
     runtime model parameter and let the platform use its default model.
     """
     from gpd.core.config import resolve_model
-    from gpd.hooks.runtime_detect import ALL_RUNTIMES, detect_active_runtime
+    from gpd.hooks.runtime_detect import detect_active_runtime
 
-    if runtime is not None and runtime not in ALL_RUNTIMES:
-        supported = ", ".join(ALL_RUNTIMES)
+    supported_runtimes = _supported_runtime_names()
+    if runtime is not None and runtime not in supported_runtimes:
+        supported = ", ".join(supported_runtimes)
         _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
     active_runtime = runtime or detect_active_runtime(cwd=_get_cwd())
@@ -3380,14 +3186,28 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     return []  # unreachable
 
 
-def _prompt_location(*, action: str = "install") -> bool:
+def _location_example(runtimes: list[str], *, is_global: bool) -> str:
+    """Return a representative install location example for the selected runtime set."""
+    if len(runtimes) != 1:
+        return "one config dir per runtime"
+
+    from gpd.adapters import get_adapter
+
+    adapter = get_adapter(runtimes[0])
+    target = adapter.resolve_target_dir(is_global, _get_cwd())
+    return _format_display_path(target)
+
+
+def _prompt_location(runtimes: list[str], *, action: str = "install") -> bool:
     """Interactive location selection. Returns True for global, False for local."""
     from rich.prompt import Prompt
 
     label = "Install" if action == "install" else "Uninstall"
+    local_example = _location_example(runtimes, is_global=False)
+    global_example = _location_example(runtimes, is_global=True)
     console.print(f"\n[bold cyan]{label} location:[/]\n")
-    console.print("  [bold]1[/]) [green]Local[/]  — current project only [dim](./.<runtime>/)[/]")
-    console.print("  [bold]2[/]) Global — all projects [dim](~/.<runtime>/)[/]")
+    console.print(f"  [bold]1[/]) [green]Local[/]  — current project only [dim]({local_example})[/]")
+    console.print(f"  [bold]2[/]) Global — all projects [dim]({global_example})[/]")
 
     choice = Prompt.ask("\n[bold]Enter choice[/]", default="1")
     return choice.strip() == "2"
@@ -3455,8 +3275,8 @@ def install(
         help="Runtime(s) to install. Omit for interactive selection.",
     ),
     install_all: bool = typer.Option(False, "--all", help="Install for all supported runtimes"),
-    global_install: bool = typer.Option(False, "--global", help="Install globally (~/.runtime/)"),
-    local_install: bool = typer.Option(False, "--local", help="Install locally (./. runtime/)"),
+    global_install: bool = typer.Option(False, "--global", help="Install into the global runtime config dir"),
+    local_install: bool = typer.Option(False, "--local", help="Install into the local runtime config dir"),
     target_dir: str | None = typer.Option(None, "--target-dir", help="Override target config directory"),
     force_statusline: bool = typer.Option(False, "--force-statusline", help="Overwrite existing statusline config"),
 ) -> None:
@@ -3506,7 +3326,7 @@ def install(
         is_global = False
     elif not runtimes and not install_all:
         # Interactive mode — ask for location
-        is_global = _prompt_location()
+        is_global = _prompt_location(selected)
     else:
         # Non-interactive default: local
         is_global = False
@@ -3599,7 +3419,7 @@ def uninstall(
     if target_dir:
         is_global = True  # irrelevant when target_dir is set
     elif not global_uninstall and not local_uninstall:
-        is_global = _prompt_location(action="uninstall")
+        is_global = _prompt_location(selected, action="uninstall")
     else:
         is_global = global_uninstall
 

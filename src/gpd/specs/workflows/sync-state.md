@@ -1,5 +1,5 @@
 <purpose>
-Reconcile diverged STATE.md and state.json. These two files represent the same project state in different formats: STATE.md is the human-readable markdown edited by the AI, and state.json is the structured JSON sidecar used by gpd CLI. They can diverge when one is edited directly, when a tool crashes mid-update, or when manual edits are made to STATE.md without running the sync.
+Reconcile diverged `STATE.md` and `state.json`. These two files represent the same project state in different formats: `state.json` is the machine-readable authoritative store for structured state, while `STATE.md` is the human-readable markdown view that the CLI keeps in sync and can also use as a controlled recovery input when `state.json` is missing or corrupt. They can diverge when a tool crashes mid-update, when one file is edited directly, or when a manual markdown edit needs to be merged back into the structured state.
 </purpose>
 
 <required_reading>
@@ -31,16 +31,16 @@ Exit.
 
 **If only STATE.md exists (state.json missing):**
 
-state.json is derived from STATE.md. Regenerate it by backing up state.json and triggering a state read:
+Use the loader's controlled fallback path to recover `state.json` from the current markdown while preserving any backup if one exists:
 
 ```bash
 if [ -f .gpd/state.json ]; then
   mv .gpd/state.json .gpd/state.json.bak
 fi
 
-gpd state snapshot --raw > /dev/null
+gpd --raw state snapshot > /dev/null
 if [ $? -ne 0 ]; then
-  echo "WARNING: state-snapshot failed — restoring backup"
+  echo "WARNING: gpd state snapshot failed — restoring backup"
   if [ -f .gpd/state.json.bak ]; then
     mv .gpd/state.json.bak .gpd/state.json
   fi
@@ -49,25 +49,22 @@ else
 fi
 ```
 
-Report: "state.json regenerated from STATE.md." Exit (no divergence to reconcile).
+Report: "state.json recovered from STATE.md via fallback sync." Exit (no divergence to reconcile).
 
 **If only state.json exists (STATE.md missing):**
 
-This is unusual — STATE.md is the primary file. Regenerate:
+`state.json` is the authoritative copy. Rebuild `STATE.md` directly from it:
 
 ```bash
-# Trigger STATE.md regeneration by reading state.json and writing it back
-# (sync_state_json always writes both state.json and STATE.md)
-STATUS=$(python3 -c "
-import json, pathlib
-try:
-    s = json.loads(pathlib.Path('.gpd/state.json').read_text())
-    print((s.get('position') or {}).get('status', 'Not started') or 'Not started')
-except Exception:
-    print('Not started')
-")
-gpd state update "Status" "${STATUS}"
-if [ $? -ne 0 ]; then echo "WARNING: state update failed — manual STATE.md repair may be needed"; fi
+uv run python - <<'PY'
+import json
+from pathlib import Path
+from gpd.core.state import save_state_json
+
+cwd = Path(".")
+state = json.loads((cwd / ".gpd" / "state.json").read_text(encoding="utf-8"))
+save_state_json(cwd, state)
+PY
 ```
 
 If state.json is also corrupt or empty, re-initialize the project.
@@ -141,7 +138,7 @@ For each shared field, check if values match:
 STATE.md and state.json are in sync. No reconciliation needed.
 ```
 
-Update `_synced_at` timestamp in state.json and exit.
+Optionally run `gpd state validate` and exit.
 
 **If divergences found:** Continue to resolution.
 </step>
@@ -161,10 +158,10 @@ JSON_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .gpd/state.json 2>/dev/null)
 
 **Recency rules:**
 
-1. **STATE.md is the primary source of truth** for human-readable fields (position, decisions, blockers, session).
-2. **state.json is authoritative** for JSON-only fields (convention_lock, intermediate_results, approximations, propagated_uncertainties).
-3. For shared fields with divergence: prefer the more recently modified file (by git commit timestamp).
-4. If timestamps are equal or ambiguous: prefer STATE.md (it is the primary).
+1. **state.json is authoritative** for structured state, including the shared machine-parsed fields mirrored into `STATE.md`.
+2. **STATE.md can still be the intended newer source** when a recent manual markdown edit was made to schema-backed fields and has not yet been merged back.
+3. **Preserve JSON-only fields from state.json** (`convention_lock`, `intermediate_results`, `approximations`, `propagated_uncertainties`) in every reconciliation path.
+4. If timestamps are equal or ambiguous and there is no clear evidence of an intentional markdown edit, prefer `state.json`.
 </step>
 
 <step name="present_divergences">
@@ -175,9 +172,9 @@ JSON_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .gpd/state.json 2>/dev/null)
 
 | Field | STATE.md | state.json | Preferred | Reason |
 |-------|----------|------------|-----------|--------|
-| current_phase | 5 | 4 | STATE.md | More recent commit |
-| status | "Executing" | "Ready to plan" | STATE.md | Primary source |
-| decision_count | 12 | 10 | STATE.md | MD has 2 newer decisions |
+| current_phase | 5 | 4 | STATE.md | Intentional markdown edit after last structured write |
+| status | "Executing" | "Ready to plan" | STATE.md | Same manual edit as current_phase |
+| decision_count | 12 | 10 | state.json | No matching markdown-only decision should override structured state |
 
 ### JSON-only fields (no divergence possible):
 - convention_lock: {count} fields locked
@@ -185,9 +182,9 @@ JSON_LAST_COMMIT=$(git log -1 --format="%H %ai" -- .gpd/state.json 2>/dev/null)
 - approximations: {count} entries
 
 ### Proposed resolution:
-- Update state.json position fields from STATE.md
+- Merge the intentional markdown-backed fields into state.json
 - Preserve state.json-only fields as-is
-- Sync timestamps
+- Re-run state validation
 
 Proceed with reconciliation? (y/n)
 ```
@@ -209,9 +206,9 @@ if [ -f .gpd/state.json ]; then
   mv .gpd/state.json .gpd/state.json.bak
 fi
 
-gpd state snapshot --raw > /dev/null
+gpd --raw state snapshot > /dev/null
 if [ $? -ne 0 ]; then
-  echo "WARNING: state-snapshot failed — restoring backup"
+  echo "WARNING: gpd state snapshot failed — restoring backup"
   if [ -f .gpd/state.json.bak ]; then
     mv .gpd/state.json.bak .gpd/state.json
   fi
@@ -220,32 +217,27 @@ else
 fi
 ```
 
-**For state.json-preferred fields (rare — only when JSON was updated more recently):**
+**For state.json-preferred fields (including the common case where JSON is newer):**
 
-Update STATE.md to match state.json for the specific divergent fields, then re-sync:
+Regenerate `STATE.md` from `state.json`:
 
 ```bash
-# Example: if state.json has more recent position
-gpd state patch \
-  "--Current Phase" "${JSON_PHASE}" \
-  --Status "${JSON_STATUS}"
+uv run python - <<'PY'
+import json
+from pathlib import Path
+from gpd.core.state import save_state_json
+
+cwd = Path(".")
+state = json.loads((cwd / ".gpd" / "state.json").read_text(encoding="utf-8"))
+save_state_json(cwd, state)
+PY
 ```
 
 **Verify sync result:**
 
 ```bash
 # Re-read both files and confirm no remaining divergences
-python3 -c "
-import json, pathlib
-try:
-    j = json.loads(pathlib.Path('.gpd/state.json').read_text())
-    pos = j.get('position') or {}
-    print('Phase:', pos.get('current_phase', 'unknown'))
-    print('Status:', pos.get('status', 'unknown'))
-    print('Synced:', j.get('_synced_at', 'not set'))
-except Exception as e:
-    print('ERROR: state.json is not valid JSON:', e)
-"
+gpd --raw state validate
 ```
 </step>
 
@@ -281,7 +273,7 @@ gpd commit \
 - convention_lock: {count} fields
 - intermediate_results: {count} results
 
-**Synced at:** {timestamp}
+**Validation status:** {healthy / warning / degraded}
 
 Both files are now consistent.
 ```
@@ -291,8 +283,8 @@ Both files are now consistent.
 
 <failure_handling>
 
-- **STATE.md corrupt (unparseable):** If STATE.md cannot be parsed, check if state.json is valid and offer to regenerate STATE.md from it. If both are corrupt, suggest restoring from git: `git checkout HEAD~1 -- .gpd/STATE.md .gpd/state.json`
-- **state.json corrupt (invalid JSON):** Delete state.json — it will be regenerated automatically from STATE.md on next access (any `gpd state` command triggers the fallback parser).
+- **STATE.md corrupt (unparseable):** If STATE.md cannot be parsed, check if state.json is valid and regenerate STATE.md from it. If both are corrupt, suggest restoring from git: `git checkout HEAD~1 -- .gpd/STATE.md .gpd/state.json`
+- **state.json corrupt (invalid JSON):** Move it aside to `.gpd/state.json.bak`, then use the fallback recovery path from `STATE.md`. Do not delete it without keeping a backup first.
 - **Regeneration still fails:** Fall back to manual reconciliation — read STATE.md, write state.json directly using `gpd state` subcommands.
 - **Both files very old (neither recently committed):** Warn user that both files may be stale. Suggest checking git log for the most recent good state.
 

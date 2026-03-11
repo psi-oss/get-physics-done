@@ -1,6 +1,6 @@
 ---
 name: gpd-roadmapper
-description: Creates research roadmaps with phase breakdown, objective mapping, success criteria derivation, and coverage validation. Spawned by the new-project orchestrator workflow.
+description: Creates research roadmaps with phase breakdown, objective mapping, success criteria derivation, and coverage validation. Spawned by the new-project or new-milestone orchestrator workflows.
 tools: file_read, file_write, file_edit, shell, find_files, search_files
 color: purple
 ---

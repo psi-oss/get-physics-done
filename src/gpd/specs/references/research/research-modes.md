@@ -163,10 +163,10 @@ The adaptive mode automatically transitions from explore to exploit based on the
 When the orchestrator detects transition criteria are met:
 
 1. Log the transition: `gpd state add-decision --phase N --summary "Research mode transition: explore → exploit" --rationale "Approach validated in phase N: [approach description]"`
-2. Update config: `gpd config-set research_mode exploit`
+2. Update config: `gpd config set research_mode exploit`
 3. Announce to user: "Research mode transitioning to exploit. The [approach] methodology validated in Phase N will be executed with maximum rigor for remaining phases."
 
-The user can override at any time: `/gpd:settings` or `gpd config-set research_mode explore`
+The user can override at any time: `/gpd:settings` or `gpd config set research_mode explore`
 
 ## Interaction with Model Profiles
 
@@ -197,16 +197,16 @@ Research mode and model profile are ORTHOGONAL:
 
 ```bash
 # Set research mode
-gpd config-set research_mode explore
-gpd config-set research_mode balanced
-gpd config-set research_mode exploit
-gpd config-set research_mode adaptive
+gpd config set research_mode explore
+gpd config set research_mode balanced
+gpd config set research_mode exploit
+gpd config set research_mode adaptive
 
 # Check current mode
-gpd config-get research_mode --raw
+gpd --raw config get research_mode
 
 # In adaptive mode, check transition status
-gpd state-snapshot  # includes research_mode and transition readiness
+gpd state snapshot  # includes research_mode and transition readiness
 ```
 
 ## See Also

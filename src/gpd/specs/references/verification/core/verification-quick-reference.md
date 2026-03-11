@@ -10,7 +10,7 @@ context_cost: medium
 
 # Verification Quick Reference
 
-Compact reference for physics verification. For full procedures, worked examples, and code templates, see the modular verification files: `references/verification/core/verification-core.md` (universal checks), `references/verification/core/verification-numerical.md` (convergence/statistics), `../domains/verification-domain-qft.md` (QFT/particle), `../domains/verification-domain-condmat.md` (condensed matter), `../domains/verification-domain-statmech.md` (stat mech/cosmo), `../domains/verification-domain-gr-cosmology.md` (GR/cosmology), `../domains/verification-domain-amo.md` (AMO/quantum optics), `../domains/verification-domain-nuclear-particle.md` (nuclear/particle), `../domains/verification-domain-astrophysics.md` (astrophysics/stellar), `../domains/verification-domain-mathematical-physics.md` (mathematical physics), `../domains/verification-domain-algebraic-qft.md` (algebraic QFT/operator algebras), `../domains/verification-domain-string-field-theory.md` (string field theory), `../domains/verification-domain-quantum-info.md` (quantum information/computing), `../domains/verification-domain-soft-matter.md` (soft matter/biophysics), `../domains/verification-domain-fluid-plasma.md` (fluid dynamics/MHD/plasma).
+Compact reference for physics verification. This file is the conceptual checklist; the stable machine-facing verifier registry lives in `gpd.core.verification_checks` and the `gpd-verification` MCP server. For full procedures, worked examples, and code templates, see the modular verification files: `references/verification/core/verification-core.md` (universal checks), `references/verification/core/verification-numerical.md` (convergence/statistics), `../domains/verification-domain-qft.md` (QFT/particle), `../domains/verification-domain-condmat.md` (condensed matter), `../domains/verification-domain-statmech.md` (stat mech/cosmo), `../domains/verification-domain-gr-cosmology.md` (GR/cosmology), `../domains/verification-domain-amo.md` (AMO/quantum optics), `../domains/verification-domain-nuclear-particle.md` (nuclear/particle), `../domains/verification-domain-astrophysics.md` (astrophysics/stellar), `../domains/verification-domain-mathematical-physics.md` (mathematical physics), `../domains/verification-domain-algebraic-qft.md` (algebraic QFT/operator algebras), `../domains/verification-domain-string-field-theory.md` (string field theory), `../domains/verification-domain-quantum-info.md` (quantum information/computing), `../domains/verification-domain-soft-matter.md` (soft matter/biophysics), `../domains/verification-domain-fluid-plasma.md` (fluid dynamics/MHD/plasma).
 
 ---
 
@@ -59,7 +59,7 @@ What type of result do you have?
 │  └─ If phase transition: #5 finite-size scaling, #6 compare known exponents
 │
 └─ Paper-ready result (final number for publication)
-   └─ ALL 15 checks applicable. Run every one relevant to the result type.
+   └─ Run every relevant live verifier-registry check (current registry: 5.1-5.14).
        Minimum: #1, #2, #5, #6, #7, #8. Add domain-specific checks from above.
 ```
 
@@ -157,7 +157,7 @@ Don't wait until the end. Validate after every intermediate step:
 4. **Forgetting quantum statistics** (identical particles, Fermi/Bose): Caught by spot-checks at special kinematics
 5. **Numerical artifacts reported as physics** (unconverged, unthermalized): Caught by convergence tests and statistical validation
 
-For the full catalog of 101 LLM physics error classes, see `../errors/llm-physics-errors.md` (index) or load specific parts: `../errors/llm-errors-core.md` (#1-25), `../errors/llm-errors-field-theory.md` (#26-51), `../errors/llm-errors-extended.md` (#52-81), `../errors/llm-errors-deep.md` (#82-101). For a compact summary of HIGH-risk classes, see `../audits/verification-gap-summary.md`.
+For the full catalog of 104 LLM physics error classes, see `../errors/llm-physics-errors.md` (index) or load specific parts: `../errors/llm-errors-core.md` (#1-25), `../errors/llm-errors-field-theory.md` (#26-51), `../errors/llm-errors-extended.md` (#52-81, #102-104), `../errors/llm-errors-deep.md` (#82-101). For a compact summary of HIGH-risk classes, see `../audits/verification-gap-summary.md`.
 
 ---
 

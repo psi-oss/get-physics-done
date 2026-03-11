@@ -1,4 +1,4 @@
-"""Guardrails for the checked-in repository interdependency graph."""
+"""Guardrails for the checked-in repository graph README."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GRAPH_PATH = REPO_ROOT / "REPO_INTERDEPENDENCY_GRAPH.md"
+GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 EXCLUDED_GRAPH_DIRS = {
     ".git",
     "__pycache__",

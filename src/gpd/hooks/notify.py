@@ -45,23 +45,31 @@ def _trigger_update_check(cwd: str) -> None:
         _debug(f"Failed to spawn check_update.py: {exc}")
 
 
-def _check_and_notify_update(cwd: str | None = None) -> None:
-    """Read update cache and emit a notification to stderr if update available."""
+def _hook_payload_policy(cwd: str | None = None):
+    """Return hook payload metadata for the active runtime or a merged fallback."""
+    from gpd.adapters.runtime_catalog import get_hook_payload_policy
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+
+    workspace_path = Path(cwd) if cwd else None
+    runtime = detect_active_runtime(cwd=workspace_path)
+    return get_hook_payload_policy(None if runtime == RUNTIME_UNKNOWN else runtime)
+
+
+def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | None, object | None]:
+    """Return the freshest valid update cache and its candidate metadata."""
     from gpd.hooks.runtime_detect import (
-        RUNTIME_UNKNOWN,
         detect_active_runtime_with_gpd_install,
-        detect_install_scope,
-        get_update_cache_files,
-        update_command_for_runtime,
+        get_update_cache_candidates,
     )
 
     workspace_path = Path(cwd) if cwd else None
-    runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
-
+    preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
     latest_cache: dict[str, object] | None = None
+    latest_candidate = None
     latest_checked = -1.0
 
-    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=runtime):
+    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
+        cache_file = candidate.path
         if not cache_file.exists():
             continue
         try:
@@ -76,21 +84,50 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
         checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
         if latest_cache is None or checked_value > latest_checked:
             latest_cache = cache
+            latest_candidate = candidate
             latest_checked = checked_value
+
+    return latest_cache, latest_candidate
+
+
+def _check_and_notify_update(cwd: str | None = None) -> None:
+    """Read update cache and emit a notification to stderr if update available."""
+    from gpd.hooks.runtime_detect import (
+        RUNTIME_UNKNOWN,
+        detect_active_runtime_with_gpd_install,
+        detect_install_scope,
+        update_command_for_runtime,
+    )
+
+    workspace_path = Path(cwd) if cwd else None
+    latest_cache, latest_candidate = _latest_update_cache(cwd)
 
     if latest_cache and latest_cache.get("update_available"):
         installed = latest_cache.get("installed", "?")
         latest = latest_cache.get("latest", "?")
-        scope = None if runtime == RUNTIME_UNKNOWN else detect_install_scope(runtime, cwd=workspace_path)
+        runtime = latest_candidate.runtime if latest_candidate is not None else RUNTIME_UNKNOWN
+        scope = getattr(latest_candidate, "scope", None)
+        if runtime not in (None, RUNTIME_UNKNOWN):
+            installed_scope = detect_install_scope(runtime, cwd=workspace_path)
+            if installed_scope is None:
+                runtime = RUNTIME_UNKNOWN
+                scope = None
+            else:
+                scope = installed_scope
+        if runtime == RUNTIME_UNKNOWN or runtime is None:
+            runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+        if scope is None and runtime != RUNTIME_UNKNOWN:
+            scope = detect_install_scope(runtime, cwd=workspace_path)
         cmd = update_command_for_runtime(runtime, scope=scope)
         sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 
-def _workspace_from_payload(data: dict[str, object]) -> str:
+def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+    policy = _hook_payload_policy(cwd)
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
-    return _first_string(workspace_value, "current_dir", "cwd", "path", "workspace_dir") or os.getcwd()
+    return _first_string(workspace_value, *policy.workspace_keys) or os.getcwd()
 
 
 def main() -> None:
@@ -104,7 +141,9 @@ def main() -> None:
     if not isinstance(data, dict):
         return
 
-    if data.get("type") not in ("agent-turn-complete", None):
+    hook_payload = _hook_payload_policy()
+    allowed_event_types = hook_payload.notify_event_types
+    if allowed_event_types and data.get("type") not in (*allowed_event_types, None):
         return
 
     cwd = _workspace_from_payload(data)

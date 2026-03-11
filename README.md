@@ -50,12 +50,6 @@ Or install directly from GitHub:
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-## Uninstall
-
-Run `npx -y get-physics-done --uninstall` for interactive uninstall, or add the runtime and scope flags above for a non-interactive uninstall.
-
-Uninstall removes GPD from the selected runtime config only. It does not delete project `.gpd/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
-
 ## Supported Runtimes
 
 GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
@@ -221,21 +215,21 @@ Not every GPD command needs the same amount of project state.
 
 Passing a manuscript path to a project-required command such as `/gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization.
 
-### Full Command Reference (59 Commands)
+### Full Command Reference (60 Commands)
 
 #### Project Initialization
 
-- `/gpd:new-project` — Initialize a new physics research project with deep context gathering and `PROJECT.md`
-- `/gpd:map-theory` — Map existing research project: theoretical framework, computations, conventions, and open questions
+- `/gpd:new-project` — Initialize a new physics research project with deep context gathering and PROJECT.md
+- `/gpd:map-theory` — Map existing research project — theoretical framework, computations, conventions, and open questions
 
 #### Phase Planning
 
 - `/gpd:discuss-phase <number>` — Gather phase context through adaptive questioning before planning
-- `/gpd:research-phase <number>` — Research how to tackle a phase (standalone; usually use `/gpd:plan-phase` instead)
+- `/gpd:research-phase <number>` — Research how to tackle a phase (standalone - usually use /gpd:plan-phase instead)
 - `/gpd:list-phase-assumptions <number>` — Surface the AI's assumptions about a phase approach before planning
 - `/gpd:discover [phase or topic] [--depth quick|medium|deep]` — Run discovery phase to investigate methods, literature, and approaches before planning
 - `/gpd:show-phase <number>` — Inspect a single phase's artifacts, status, and results
-- `/gpd:plan-phase <number>` — Create detailed execution plan for a phase (`PLAN.md`) with verification loop
+- `/gpd:plan-phase <number>` — Create detailed execution plan for a phase (PLAN.md) with verification loop
 
 #### Execution
 
@@ -252,33 +246,33 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 #### Roadmap Management
 
 - `/gpd:add-phase <description>` — Add research phase to end of current milestone in roadmap
-- `/gpd:insert-phase <after> <description>` — Insert urgent research work as a decimal phase (for example `72.1`) between existing phases
-- `/gpd:remove-phase <number>` — Remove a future research phase from the roadmap and renumber subsequent phases
+- `/gpd:insert-phase <after> <description>` — Insert urgent research work as decimal phase (e.g., 72.1) between existing phases
+- `/gpd:remove-phase <number>` — Remove a future research phase from roadmap and renumber subsequent phases
 - `/gpd:revise-phase <number> "<reason>"` — Supersede a completed phase and create a replacement for iterative revision
 - `/gpd:merge-phases <source> <target>` — Merge results from one phase into another
 
 #### Milestone Management
 
-- `/gpd:new-milestone <name>` — Start a new research milestone cycle and route back into requirements and planning
-- `/gpd:complete-milestone <version>` — Archive completed research milestone and prepare for the next phase of investigation
+- `/gpd:new-milestone <name>` — Start a new research milestone cycle — update PROJECT.md and route to requirements
+- `/gpd:complete-milestone <version>` — Archive completed research milestone and prepare for next phase of investigation
 
 #### Progress Tracking
 
-- `/gpd:progress` — Check research progress, show context, and route to the next action (execute or plan)
+- `/gpd:progress` — Check research progress, show context, and route to next action (execute or plan)
 - `/gpd:suggest-next` — Suggest the most impactful next action based on current project state
 
 #### Research Support
 
-- `/gpd:explain [concept]` — Explain a concept, method, notation, result, or paper rigorously in project context or from a standalone question
+- `/gpd:explain [concept]` — Explain a physics concept rigorously in the context of the active project or standalone question
 
 #### Session Management
 
-- `/gpd:resume-work` — Resume research from a previous session with full context restoration
-- `/gpd:pause-work` — Create a context handoff when pausing research mid-phase
+- `/gpd:resume-work` — Resume research from previous session with full context restoration
+- `/gpd:pause-work` — Create context handoff when pausing research mid-phase
 
 #### Todo Management
 
-- `/gpd:add-todo [description]` — Capture an idea or task as a todo from the current research conversation context
+- `/gpd:add-todo [description]` — Capture idea or task as todo from current research conversation context
 - `/gpd:check-todos [area]` — List pending research todos and select one to work on
 
 #### Validation
@@ -301,13 +295,13 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 #### Quantitative Analysis
 
 - `/gpd:parameter-sweep [phase]` — Systematic parameter sweep with parallel execution and result aggregation
-- `/gpd:sensitivity-analysis` — Systematic sensitivity analysis on which parameters matter most and how uncertainties propagate
+- `/gpd:sensitivity-analysis` — Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate
 - `/gpd:error-propagation` — Track how uncertainties propagate through multi-step calculations across phases
 
 #### Research Publishing
 
 - `/gpd:write-paper [title or topic] [--from-phases 1,2,3]` — Structure and write a physics paper from research results
-- `/gpd:peer-review [paper directory or manuscript path]` — Conduct a skeptical peer review of a manuscript and supporting research artifacts inside the current GPD project
+- `/gpd:peer-review [paper directory or manuscript path]` — Conduct a staged six-pass peer review of a manuscript and supporting research artifacts in the current GPD project
 - `/gpd:respond-to-referees` — Structure a point-by-point response to referee reports and update the manuscript
 - `/gpd:arxiv-submission` — Prepare a paper for arXiv submission with validation and packaging
 - `/gpd:literature-review [topic]` — Structured literature review for a physics research topic with citation network analysis and open question identification
@@ -315,7 +309,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 #### Hypothesis Branches
 
 - `/gpd:branch-hypothesis <description>` — Create a hypothesis branch for parallel investigation of an alternative approach
-- `/gpd:compare-branches` — Compare results across hypothesis branches side by side
+- `/gpd:compare-branches` — Compare results across hypothesis branches side-by-side
 
 #### Decision Tracking
 
@@ -323,54 +317,58 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 
 #### Visualization & Export
 
-- `/gpd:graph` — Visualize the dependency graph across phases and identify gaps
-- `/gpd:export [--format html|latex|zip|all]` — Export research results to HTML, LaTeX, or a ZIP package
+- `/gpd:graph` — Visualize dependency graph across phases and identify gaps
+- `/gpd:slides [topic]` — Create presentation slides from a GPD project or the current folder
+- `/gpd:export [--format html|latex|zip|all]` — Export research results to HTML, LaTeX, or ZIP package
 - `/gpd:error-patterns [category]` — View accumulated physics error patterns for this project
 - `/gpd:record-insight [description]` — Record a project-specific learning or pattern to the insights ledger
 
 #### Milestone Auditing
 
 - `/gpd:audit-milestone [version]` — Audit research milestone completion against original research goals
-- `/gpd:plan-milestone-gaps` — Create phases to close all gaps identified by the research milestone audit
+- `/gpd:plan-milestone-gaps` — Create phases to close all gaps identified by research milestone audit
 
 #### Configuration
 
-- `/gpd:settings` — Configure GPD workflow toggles, physics research preferences, and runtime-specific tier model overrides
-- `/gpd:set-profile <profile>` — Switch research profile for GPD agents (`deep-theory`, `numerical`, `exploratory`, `review`, `paper-writing`)
+- `/gpd:settings` — Configure GPD workflow toggles, tier models, and physics research preferences
+- `/gpd:set-profile <profile>` — Switch research profile for GPD agents (deep-theory/numerical/exploratory/review/paper-writing)
 
 #### Utility Commands
 
-- `/gpd:compact-state` — Archive historical entries from `STATE.md` to keep it under the 150-line target
-- `/gpd:sync-state` — Reconcile diverged `STATE.md` and `state.json` after manual edits or corruption
-- `/gpd:undo` — Roll back the last GPD operation with a safety checkpoint
-- `/gpd:update` — Update GPD to the latest version with changelog display
+- `/gpd:compact-state` — Archive historical entries from STATE.md to keep it under the 150-line target
+- `/gpd:sync-state` — Reconcile diverged STATE.md and state.json after manual edits or corruption
+- `/gpd:undo` — Rollback last GPD operation with safety checkpoint
+- `/gpd:update` — Update GPD to latest version with changelog display
 - `/gpd:reapply-patches` — Reapply local modifications after a GPD update
 - `/gpd:health` — Run project health checks and optionally auto-fix issues
-- `/gpd:help` — Show the available GPD commands and usage guide
+- `/gpd:help` — Show available GPD commands and usage guide
 
 For full per-command detail and examples inside your runtime, run `/gpd:help --all` or the equivalent runtime-specific help command.
 
 ## Validation Commands
 
-The `gpd` CLI also exposes machine-readable validation commands for review-grade workflows:
+The `gpd` CLI also exposes machine-readable validation commands for workspace checks and review-grade workflows:
 
 | Command | What it does |
 |---------|--------------|
+| `gpd validate consistency` | Run cross-phase consistency and project health checks for the current workspace |
 | `gpd validate command-context <command> [arguments]` | Report whether a command is global, projectless, project-aware, or project-required in the current workspace |
 | `gpd validate review-contract <command>` | Show the typed review contract for publication/review workflows |
 | `gpd validate review-preflight <command> [subject] --strict` | Check state integrity, manuscript/artifact presence, and review prerequisites |
 | `gpd validate paper-quality <file.json>` | Score a structured paper-quality manifest and fail on blocking issues |
+| `gpd validate referee-decision <file.json> [--strict]` | Validate a staged peer-review decision against hard recommendation gates |
 | `gpd validate reproducibility-manifest <file.json> --strict` | Validate a reproducibility manifest and require review-ready coverage |
 
 ## Local Observability
 
 GPD now keeps a project-local observability trail under `.gpd/observability/` alongside the existing state and trace artifacts.
 
-- `events.jsonl`: append-only project event stream for workflow, command, agent, and verification activity
-- `sessions/*.jsonl`: per-session event streams for reconstruction and handoff
+- `sessions/*.jsonl`: one event log per observed session, intended for workflow-, trace-, and agent-level activity
 - `current-session.json`: latest session metadata for status and resume tooling
 - `.gpd/traces/`: plan-local execution traces for detailed debugging and post-mortem review
 - STATE.md: concise human-readable continuity state, not the full event ledger
+
+Ordinary low-level function/span calls are not recorded automatically. Observability is reserved for explicit session facts such as workflow milestones, trace lifecycle, and any agent/subagent events that the active runtime surfaces.
 
 These layers complement each other: traces are narrow and plan-specific, while observability is broader and session-oriented.
 
@@ -385,6 +383,12 @@ These layers complement each other: traces are narrow and plan-specific, while o
 ## Known Limitations
 
 - Runtime-internal tool and subagent detail is limited by what the active provider/runtime exposes. GPD records the workflow, session, and trace events it can emit locally, but it does not fabricate opaque provider internals.
+
+## Uninstall
+
+Run `npx -y get-physics-done --uninstall` for interactive uninstall, or add the runtime and scope flags above for a non-interactive uninstall.
+
+Uninstall removes GPD from the selected runtime config only. It does not delete project `.gpd/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
 
 ## Citation
 

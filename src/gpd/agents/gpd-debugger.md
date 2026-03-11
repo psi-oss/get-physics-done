@@ -686,8 +686,8 @@ When a bug manifests in phase N but originates in an earlier phase M, standard s
 
 ```bash
 # Find which phases phase N depends on
-if ls .gpd/phases/*/SUMMARY.md 1>/dev/null 2>&1; then
-  grep -E "provides:|consumes:" .gpd/phases/*/SUMMARY.md
+if ls .gpd/phases/*-*/*-SUMMARY.md 1>/dev/null 2>&1; then
+  grep -E "provides:|consumes:" .gpd/phases/*-*/*-SUMMARY.md
 else
   echo "WARNING: No SUMMARY.md files found — cannot trace cross-phase dependencies"
 fi

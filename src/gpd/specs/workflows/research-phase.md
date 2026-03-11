@@ -58,7 +58,7 @@ If exists: Offer update/view/skip options.
 echo "$PHASE_INFO" | gpd json get .section --default ""
 cat .gpd/REQUIREMENTS.md 2>/dev/null
 cat "${phase_dir}/"*-CONTEXT.md 2>/dev/null
-# Decisions from state-snapshot (structured JSON)
+# Decisions from gpd state snapshot (structured JSON)
 gpd state snapshot | gpd json get .decisions --default "[]"
 ```
 

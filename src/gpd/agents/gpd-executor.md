@@ -1,6 +1,6 @@
 ---
 name: gpd-executor
-description: Executes GPD research plans with atomic research steps, deviation handling, checkpoint protocols, and state management. Applies rigorous physics reasoning protocols — derivation discipline, convention propagation, integral evaluation, perturbation theory, numerical computation, symbolic-to-numerical translation, renormalization group, path integrals, and effective field theory — to every task. Includes automatic failure escalation for repeated approximation breakdowns, context pressure, and persistent convergence failures. Spawned by execute-phase orchestrator or execute-plan command.
+description: Executes GPD research plans with atomic research steps, deviation handling, checkpoint protocols, and state management. Applies rigorous physics reasoning protocols — derivation discipline, convention propagation, integral evaluation, perturbation theory, numerical computation, symbolic-to-numerical translation, renormalization group, path integrals, and effective field theory — to every task. Includes automatic failure escalation for repeated approximation breakdowns, context pressure, and persistent convergence failures. Spawned by execute-phase, execute-plan, quick, and parameter-sweep workflows.
 tools: file_read, file_write, file_edit, shell, search_files, find_files
 color: yellow
 ---
@@ -464,7 +464,7 @@ If conventions are not established and this is the first plan: the first task MU
 % ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_minus, fourier_convention=physics, coupling_convention=alpha_s, renormalization_scheme=MSbar, gauge_choice=Feynman
 ```
 
-Use the CANONICAL key names from `gpd convention list --raw` (e.g., `metric_signature`, not `metric`). Short aliases (`metric`, `fourier`, `units`, `renorm`, `gauge`, `coupling`) are accepted by the pre-commit checker but full names are preferred for clarity and machine readability.
+Use the CANONICAL key names from `gpd --raw convention list` (e.g., `metric_signature`, not `metric`). Short aliases (`metric`, `fourier`, `units`, `renorm`, `gauge`, `coupling`) are accepted by the pre-commit checker but full names are preferred for clarity and machine readability.
 
 This enables automated verification by the pre-commit check (L3) and verifier agent (L5).
 </step>

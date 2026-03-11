@@ -15,7 +15,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map, translate_for_runtime
 
 # ---------------------------------------------------------------------------
@@ -43,13 +43,6 @@ HOOK_SCRIPTS: dict[str, str] = {
     "check_update": "check_update.py",
     "notify": "notify.py",
     "runtime_detect": "runtime_detect.py",
-}
-
-_RUNTIME_INSTALL_FLAGS: dict[str, str] = {
-    "claude-code": "--claude",
-    "codex": "--codex",
-    "gemini": "--gemini",
-    "opencode": "--opencode",
 }
 
 # ---------------------------------------------------------------------------
@@ -96,9 +89,10 @@ def _replace_runtime_placeholders(
     if not runtime:
         return content
 
+    descriptor = get_runtime_descriptor(runtime)
     config_dir = path_prefix[:-1] if path_prefix.endswith("/") else path_prefix
     global_config_dir = str(Path(get_global_dir(runtime)).expanduser()).replace("\\", "/")
-    install_flag = _RUNTIME_INSTALL_FLAGS.get(runtime, f"--{runtime}")
+    install_flag = descriptor.install_flag
 
     content = content.replace("{GPD_CONFIG_DIR}", config_dir)
     content = content.replace("{GPD_GLOBAL_CONFIG_DIR}", global_config_dir)
@@ -231,20 +225,7 @@ def get_opencode_global_dir() -> str:
     Priority: ``OPENCODE_CONFIG_DIR`` > ``dirname(OPENCODE_CONFIG)`` >
     ``XDG_CONFIG_HOME/opencode`` > ``~/.config/opencode``.
     """
-    env_dir = os.environ.get("OPENCODE_CONFIG_DIR")
-    if env_dir:
-        return expand_tilde(env_dir) or env_dir
-
-    env_cfg = os.environ.get("OPENCODE_CONFIG")
-    if env_cfg:
-        expanded = expand_tilde(env_cfg) or env_cfg
-        return str(Path(expanded).parent)
-
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    if xdg:
-        return str(Path(expand_tilde(xdg) or xdg) / "opencode")
-
-    return str(Path.home() / ".config" / "opencode")
+    return get_global_dir("opencode")
 
 
 def get_codex_global_dir() -> str:
@@ -252,10 +233,7 @@ def get_codex_global_dir() -> str:
 
     Priority: ``CODEX_CONFIG_DIR`` > ``~/.codex``.
     """
-    env_dir = os.environ.get("CODEX_CONFIG_DIR")
-    if env_dir:
-        return expand_tilde(env_dir) or env_dir
-    return str(Path.home() / ".codex")
+    return get_global_dir("codex")
 
 
 def get_codex_skills_dir() -> str:
@@ -275,31 +253,10 @@ def get_global_dir(runtime: str, explicit_dir: str | None = None) -> str:
     *explicit_dir* takes highest priority (from ``--config-dir`` flag).
     Then runtime-specific env vars, then defaults.
     """
-    if runtime == "opencode":
-        if explicit_dir:
-            return expand_tilde(explicit_dir) or explicit_dir
-        return get_opencode_global_dir()
-
-    if runtime == "codex":
-        if explicit_dir:
-            return expand_tilde(explicit_dir) or explicit_dir
-        return get_codex_global_dir()
-
-    if runtime == "gemini":
-        if explicit_dir:
-            return expand_tilde(explicit_dir) or explicit_dir
-        env_dir = os.environ.get("GEMINI_CONFIG_DIR")
-        if env_dir:
-            return expand_tilde(env_dir) or env_dir
-        return str(Path.home() / ".gemini")
-
-    # Claude Code
     if explicit_dir:
         return expand_tilde(explicit_dir) or explicit_dir
-    env_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-    if env_dir:
-        return expand_tilde(env_dir) or env_dir
-    return str(Path.home() / ".claude")
+    descriptor = get_runtime_descriptor(runtime)
+    return str(resolve_global_config_dir(descriptor))
 
 
 # ---------------------------------------------------------------------------

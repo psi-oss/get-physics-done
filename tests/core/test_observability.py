@@ -1,4 +1,4 @@
-"""Focused regression tests for local gpd.core.observability behavior."""
+"""Focused regression tests for session-scoped gpd.core.observability behavior."""
 
 from __future__ import annotations
 
@@ -17,15 +17,77 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _event_name(event: dict[str, object]) -> str | None:
-    for key in ("name", "span_name", "event", "event_name"):
-        value = event.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
+def test_ensure_session_writes_single_session_log_and_current_pointer(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session
+
+    session = ensure_session(project, source="cli", metadata={"argv": ["execute-phase"]}, command="execute-phase")
+    assert session is not None
+
+    observability_dir = project / ".gpd" / "observability"
+    current_session_path = observability_dir / "current-session.json"
+    sessions_dir = observability_dir / "sessions"
+    session_logs = sorted(sessions_dir.glob("*.jsonl"))
+
+    assert current_session_path.exists()
+    assert len(session_logs) == 1
+
+    current_session = json.loads(current_session_path.read_text(encoding="utf-8"))
+    assert current_session["session_id"] == session.session_id
+    assert current_session["status"] == "active"
+
+    events = _read_jsonl(session_logs[0])
+    assert len(events) == 1
+    assert events[0]["category"] == "session"
+    assert events[0]["name"] == "lifecycle"
+    assert events[0]["action"] == "start"
+    assert events[0]["command"] == "execute-phase"
+    assert events[0]["data"]["source"] == "cli"
 
 
-def test_gpd_span_writes_local_observability_artifacts(tmp_path: Path, monkeypatch) -> None:
+def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, observe_event, show_events
+
+    session = ensure_session(project, source="trace", command="trace start")
+    assert session is not None
+
+    result = observe_event(
+        project,
+        category="trace",
+        name="trace_stop",
+        action="stop",
+        status="ok",
+        session_id=session.session_id,
+        data={"phase": "03"},
+        end_session=True,
+    )
+
+    assert result.recorded is True
+    session_log = project / ".gpd" / "observability" / "sessions" / f"{session.session_id}.jsonl"
+    events = _read_jsonl(session_log)
+    assert len(events) == 3
+    assert events[0]["category"] == "session"
+    assert events[1]["category"] == "trace"
+    assert events[1]["name"] == "trace_stop"
+    assert events[2]["category"] == "session"
+    assert events[2]["action"] == "finish"
+    assert events[2]["status"] == "ok"
+    assert events[2]["data"]["ended_by"]["name"] == "trace_stop"
+
+    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    assert current_session["session_id"] == session.session_id
+    assert current_session["status"] == "ok"
+
+    shown = show_events(project, session=session.session_id)
+    assert shown.count == 3
+
+
+def test_gpd_span_does_not_write_observability_artifacts(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -34,26 +96,10 @@ def test_gpd_span_writes_local_observability_artifacts(tmp_path: Path, monkeypat
     with gpd_span("test.span", domain="physics"):
         pass
 
-    observability_dir = project / ".gpd" / "observability"
-    events_path = observability_dir / "events.jsonl"
-    current_session_path = observability_dir / "current-session.json"
-    sessions_dir = observability_dir / "sessions"
-
-    assert events_path.exists()
-    assert current_session_path.exists()
-    assert sessions_dir.is_dir()
-
-    current_session = json.loads(current_session_path.read_text(encoding="utf-8"))
-    session_files = sorted(sessions_dir.glob("*.jsonl"))
-    assert len(session_files) == 1
-
-    session_events = _read_jsonl(session_files[0])
-    assert session_events
-    assert any(_event_name(event) == "test.span" for event in session_events)
-    assert any(event.get("session_id") == current_session.get("session_id") for event in session_events)
+    assert not (project / ".gpd" / "observability").exists()
 
 
-def test_instrument_gpd_function_sync_emits_local_events(tmp_path: Path, monkeypatch) -> None:
+def test_instrument_gpd_function_sync_does_not_emit_local_events(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -64,12 +110,10 @@ def test_instrument_gpd_function_sync_emits_local_events(tmp_path: Path, monkeyp
         return x * 2
 
     assert my_func(5) == 10
-
-    events = _read_jsonl(project / ".gpd" / "observability" / "events.jsonl")
-    assert any(_event_name(event) == "test.func" for event in events)
+    assert not (project / ".gpd" / "observability").exists()
 
 
-def test_instrument_gpd_function_async_emits_local_events(tmp_path: Path, monkeypatch) -> None:
+def test_instrument_gpd_function_async_does_not_emit_local_events(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -81,26 +125,43 @@ def test_instrument_gpd_function_async_emits_local_events(tmp_path: Path, monkey
 
     result = asyncio.run(my_async_func(3))
     assert result == 4
-
-    events = _read_jsonl(project / ".gpd" / "observability" / "events.jsonl")
-    assert any(_event_name(event) == "test.async_func" for event in events)
+    assert not (project / ".gpd" / "observability").exists()
 
 
-def test_show_events_falls_back_to_session_streams_when_global_stream_missing(tmp_path: Path) -> None:
+def test_show_events_reads_session_streams(tmp_path: Path) -> None:
     project = _bootstrap_project(tmp_path)
     sessions_dir = project / ".gpd" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     (sessions_dir / "session-a.jsonl").write_text(
-        json.dumps(
-            {
-                "timestamp": "2026-03-10T00:00:00+00:00",
-                "session_id": "session-a",
-                "category": "cli",
-                "name": "command",
-                "action": "finish",
-                "status": "ok",
-                "command": "timestamp",
-            }
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:00+00:00",
+                        "event_id": "evt-1",
+                        "session_id": "session-a",
+                        "category": "session",
+                        "name": "lifecycle",
+                        "action": "start",
+                        "status": "active",
+                        "command": "execute-phase",
+                        "data": {"cwd": str(project), "source": "cli", "pid": 100, "metadata": {}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:01+00:00",
+                        "event_id": "evt-2",
+                        "session_id": "session-a",
+                        "category": "workflow",
+                        "name": "wave-start",
+                        "action": "start",
+                        "status": "active",
+                        "command": "execute-phase",
+                        "data": {"wave": 2},
+                    }
+                ),
+            ]
         )
         + "\n",
         encoding="utf-8",
@@ -108,66 +169,13 @@ def test_show_events_falls_back_to_session_streams_when_global_stream_missing(tm
 
     from gpd.core.observability import show_events
 
-    result = show_events(project, category="cli", command="timestamp")
-
+    result = show_events(project, category="workflow", command="execute-phase")
     assert result.count == 1
     assert result.events[0]["session_id"] == "session-a"
+    assert result.events[0]["name"] == "wave-start"
 
 
-def test_show_events_falls_back_when_global_stream_has_no_matching_records(tmp_path: Path) -> None:
-    """When global events file exists, show_events uses it as authoritative source.
-
-    It should NOT fall back to session events just because the filter yields no
-    matches from the global file.  This prevents non-deterministic data source
-    switching.
-    """
-    project = _bootstrap_project(tmp_path)
-    obs_dir = project / ".gpd" / "observability"
-    obs_dir.mkdir(parents=True, exist_ok=True)
-    (obs_dir / "events.jsonl").write_text(
-        json.dumps(
-            {
-                "timestamp": "2026-03-10T00:00:00+00:00",
-                "session_id": "cli-observe",
-                "category": "cli",
-                "name": "command",
-                "action": "start",
-                "status": "active",
-                "command": "observe show",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    sessions_dir = obs_dir / "sessions"
-    sessions_dir.mkdir(parents=True, exist_ok=True)
-    (sessions_dir / "session-a.jsonl").write_text(
-        json.dumps(
-            {
-                "timestamp": "2026-03-10T00:00:01+00:00",
-                "session_id": "session-a",
-                "category": "cli",
-                "name": "command",
-                "action": "finish",
-                "status": "ok",
-                "command": "timestamp",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    from gpd.core.observability import show_events
-
-    result = show_events(project, category="cli", command="timestamp")
-
-    # Global file exists but has no events matching command="timestamp".
-    # The fix ensures we do NOT fall back to session events in this case.
-    assert result.count == 0
-
-
-def test_prefixed_attrs_renames_cwd_to_gpd_cwd():
-    """Verify _prefixed_attrs renames 'cwd' -> 'gpd.cwd', so only gpd.cwd exists."""
+def test_prefixed_attrs_renames_cwd_to_gpd_cwd() -> None:
     from gpd.core.observability import _prefixed_attrs
 
     result = _prefixed_attrs({"cwd": "/some/path"})
@@ -176,30 +184,19 @@ def test_prefixed_attrs_renames_cwd_to_gpd_cwd():
     assert result["gpd.cwd"] == "/some/path"
 
 
-def test_gpd_span_cwd_uses_only_gpd_cwd_key(tmp_path: Path, monkeypatch) -> None:
-    """After removing the dead 'cwd' fallback branch, gpd_span must still
-    correctly resolve cwd when the caller passes 'cwd' (without prefix).
-
-    _prefixed_attrs renames 'cwd' to 'gpd.cwd', so only the gpd.cwd lookup
-    is needed in gpd_span.
-    """
+def test_gpd_span_accepts_bare_cwd_without_side_effects(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
     from gpd.core.observability import gpd_span
 
-    # Passing bare "cwd" — _prefixed_attrs will rename it to "gpd.cwd"
     with gpd_span("test.cwd_resolution", cwd=str(project)):
         pass
 
-    events_path = project / ".gpd" / "observability" / "events.jsonl"
-    assert events_path.exists()
-    events = _read_jsonl(events_path)
-    assert any(_event_name(e) == "test.cwd_resolution" for e in events)
+    assert not (project / ".gpd" / "observability").exists()
 
 
-def test_gpd_span_cwd_with_prefixed_key(tmp_path: Path, monkeypatch) -> None:
-    """gpd_span should work when caller passes 'gpd.cwd' directly."""
+def test_gpd_span_accepts_prefixed_cwd_without_side_effects(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -208,45 +205,68 @@ def test_gpd_span_cwd_with_prefixed_key(tmp_path: Path, monkeypatch) -> None:
     with gpd_span("test.prefixed_cwd", **{"gpd.cwd": str(project)}):
         pass
 
-    events_path = project / ".gpd" / "observability" / "events.jsonl"
-    assert events_path.exists()
-    events = _read_jsonl(events_path)
-    assert any(_event_name(e) == "test.prefixed_cwd" for e in events)
+    assert not (project / ".gpd" / "observability").exists()
 
 
 def test_list_sessions_empty_project(tmp_path: Path) -> None:
-    """list_sessions returns empty result for project with no sessions."""
     project = _bootstrap_project(tmp_path)
     from gpd.core.observability import list_sessions
+
     result = list_sessions(project)
     assert result.count == 0
     assert result.sessions == []
 
 
-def test_list_sessions_returns_sessions(tmp_path: Path) -> None:
-    """list_sessions returns sessions from the sessions directory."""
+def test_list_sessions_returns_sessions_from_logs(tmp_path: Path) -> None:
     project = _bootstrap_project(tmp_path)
     sessions_dir = project / ".gpd" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
-
-    import json
-    meta = {
-        "session_id": "test-session",
-        "started_at": "2026-03-10T00:00:00+00:00",
-        "last_event_at": "2026-03-10T00:01:00+00:00",
-        "command": "execute-phase",
-        "status": "active",
-        "event_count": 5,
-    }
-    (sessions_dir / "test-session.json").write_text(json.dumps(meta), encoding="utf-8")
+    (sessions_dir / "test-session.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:00+00:00",
+                        "event_id": "evt-1",
+                        "session_id": "test-session",
+                        "category": "session",
+                        "name": "lifecycle",
+                        "action": "start",
+                        "status": "active",
+                        "command": "execute-phase",
+                        "data": {"cwd": str(project), "source": "cli", "pid": 100, "metadata": {}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:01:00+00:00",
+                        "event_id": "evt-2",
+                        "session_id": "test-session",
+                        "category": "session",
+                        "name": "lifecycle",
+                        "action": "finish",
+                        "status": "ok",
+                        "command": "execute-phase",
+                        "data": {"ended_at": "2026-03-10T00:01:00+00:00", "ended_by": {"name": "command"}},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     from gpd.core.observability import list_sessions
+
     result = list_sessions(project)
-    assert result.count >= 1
+    assert result.count == 1
+    assert result.sessions[0]["session_id"] == "test-session"
+    assert result.sessions[0]["command"] == "execute-phase"
+    assert result.sessions[0]["status"] == "ok"
 
 
 def test_list_sessions_no_gpd_dir(tmp_path: Path) -> None:
-    """list_sessions with no .gpd directory returns empty result."""
     from gpd.core.observability import list_sessions
+
     result = list_sessions(tmp_path)
     assert result.count == 0

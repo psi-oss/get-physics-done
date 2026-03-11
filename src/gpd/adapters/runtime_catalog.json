@@ -23,6 +23,9 @@
     "activation_env_vars": ["CODEX_SESSION", "CODEX_CLI"],
     "selection_flags": ["--codex"],
     "selection_aliases": ["codex"],
+    "hook_payload": {
+      "notify_event_types": ["agent-turn-complete"]
+    },
     "global_config": {
       "strategy": "env_or_home",
       "env_var": "CODEX_CONFIG_DIR",

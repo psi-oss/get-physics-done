@@ -38,9 +38,9 @@ Check `$ARGUMENTS` for `--fix` flag.
 
 ```bash
 if echo "$ARGUMENTS" | grep -q "\-\-fix"; then
-  HEALTH=$(gpd health --fix --raw)
+  HEALTH=$(gpd --raw health --fix)
 else
-  HEALTH=$(gpd health --raw)
+  HEALTH=$(gpd --raw health)
 fi
 
 if [ $? -ne 0 ]; then
@@ -93,4 +93,3 @@ All {total} health checks passed.
 - [ ] Auto-fix applied if --fix flag present
 - [ ] Clear guidance on how to fix remaining issues
       </success_criteria>
-</output>

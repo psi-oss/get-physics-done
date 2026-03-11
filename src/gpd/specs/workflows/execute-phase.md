@@ -167,7 +167,7 @@ echo "Execution adaptation: convention_lock=${CONVENTION_LOCK_REQUIRED}, pre_age
 If `CONVENTION_LOCK_REQUIRED=true`:
 
 ```bash
-CONV_STATUS=$(gpd convention check --raw)
+CONV_STATUS=$(gpd --raw convention check)
 if [ "$CONV_STATUS" != "locked" ] && [ "$CONV_STATUS" != "complete" ]; then
   echo "ERROR: Phase class (${PHASE_CLASSES[*]}) requires locked conventions before execution."
   echo "Convention status: ${CONV_STATUS}"
@@ -462,7 +462,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Validate the gpd_return envelope:
 
      ```bash
-     RETURN_CHECK=$(gpd validate-return "${SUMMARY_FILE}" --raw)
+     RETURN_CHECK=$(gpd --raw validate-return "${SUMMARY_FILE}")
      if [ "$RETURN_CHECK" != "passed" ]; then
        echo "WARNING: validate-return failed for $(basename "$SUMMARY_FILE")"
        # Mark plan as NEEDS_REVIEW but continue — missing envelope is not fatal
@@ -555,7 +555,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    a. **Convention consistency** — verify convention lock hasn't drifted:
 
    ```bash
-   CONV_CHECK=$(gpd convention check --raw)
+   CONV_CHECK=$(gpd --raw convention check)
    if [ "$CONV_CHECK" = "incomplete" ]; then
      echo "WARNING: Convention lock has unlocked fields"
    fi

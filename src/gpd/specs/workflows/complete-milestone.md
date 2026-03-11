@@ -339,7 +339,7 @@ cat .gpd/state.json
 cat .gpd/CONVENTIONS.md
 
 # Convention lock (machine-readable, from state.json)
-gpd convention list --raw
+gpd --raw convention list
 
 # Original objectives
 cat .gpd/REQUIREMENTS.md
@@ -383,7 +383,7 @@ Listed in the order they were introduced, noting which phase introduced each met
 
 ## Convention Evolution
 
-[Timeline of convention changes extracted from `gpd convention list --raw`, showing
+[Timeline of convention changes extracted from `gpd --raw convention list`, showing
 when each convention was established or modified. This ensures the paper writer uses the
 final, settled notation consistently.]
 
@@ -492,7 +492,7 @@ If no INSIGHTS.md exists, skip this step.
 
 ```bash
 # Check if pattern library is initialized
-gpd pattern list --raw 2>/dev/null
+gpd --raw pattern list 2>/dev/null
 ```
 
 **Step 3 — Review insights for promotion candidates:**
@@ -505,7 +505,7 @@ Read `.gpd/INSIGHTS.md` and identify entries that:
 For each candidate, check if a matching pattern already exists:
 
 ```bash
-gpd pattern search "keyword from insight" --raw 2>/dev/null
+gpd --raw pattern search "keyword from insight" 2>/dev/null
 ```
 
 **Step 4 — Suggest promotions:**

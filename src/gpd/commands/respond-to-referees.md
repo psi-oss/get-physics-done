@@ -22,9 +22,9 @@ allowed-tools:
 <objective>
 Structure a point-by-point response to referee reports and revise the manuscript accordingly.
 
-Handles the full revision pipeline: parsing referee comments, categorizing by priority and type, drafting responses, spawning revision agents for manuscript changes, tracking new calculations needed, verifying consistency after revisions, and producing a response letter.
+Handles the full revision pipeline: parsing referee comments, categorizing by priority and type, drafting responses, spawning revision agents for manuscript changes, tracking new calculations needed, verifying consistency after revisions, and producing both the internal author-response tracker and the journal-facing response letter.
 
-**Orchestrator role:** Parse and triage referee comments, coordinate revision agents, track new calculation requests, generate response letter.
+**Orchestrator role:** Parse and triage referee comments, coordinate revision agents, track new calculation requests, and keep the internal and journal-facing response artifacts synchronized.
 
 **Why subagent:** Each section revision needs the full context of the referee comment, current section text, and planned response. Fresh 200k context per section revision ensures quality. Main context coordinates the overall response structure.
 
@@ -39,6 +39,7 @@ Responding to referees is collaborative improvement: every comment, even an inco
 Referee report source: $ARGUMENTS (file path or "paste" for inline input)
 
 @.gpd/STATE.md
+@.gpd/AUTHOR-RESPONSE.md
 @.gpd/paper/REFEREE_RESPONSE.md
 @.gpd/review/REVIEW-LEDGER.json
 @.gpd/review/REFEREE-DECISION.json
@@ -47,6 +48,7 @@ Check for existing paper and prior response files:
 
 ```bash
 ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
+ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
 ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ls .gpd/review/REVIEW-LEDGER*.json .gpd/review/REFEREE-DECISION*.json 2>/dev/null
 ```
@@ -62,7 +64,7 @@ Preserve all validation gates (report parsing, triage confirmation, compilation 
 <success_criteria>
 - [ ] Referee reports parsed and all comments categorized and prioritized
 - [ ] `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` consumed when available
-- [ ] REFEREE_RESPONSE.md created with complete point-by-point structure
+- [ ] `.gpd/AUTHOR-RESPONSE.md` and `.gpd/paper/REFEREE_RESPONSE.md` created with complete point-by-point structure
 - [ ] Comments triaged into response-only, revision, and new calculation groups
 - [ ] All responses drafted and revisions applied via paper-writer agents
 - [ ] Revised manuscript compiles without errors

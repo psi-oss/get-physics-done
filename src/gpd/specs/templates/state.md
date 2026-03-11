@@ -22,7 +22,7 @@ See: .gpd/PROJECT.md (updated [date])
 
 ## Current Position
 
-**Current Phase:** 1
+**Current Phase:** 01
 **Current Phase Name:** [Phase name]
 **Total Phases:** [N]
 **Current Plan:** 1
@@ -45,20 +45,20 @@ See: .gpd/PROJECT.md (updated [date])
 
 [Partial results obtained so far that inform ongoing work. Each result is a structured record in state.json:]
 
-- [res-0] Dispersion relation: `\omega(k) = \sqrt{k^2 + m^2}` (units: energy, valid: k << \Lambda, phase 1) [deps: none]
-- [res-1] Leading-order correction: `\Delta E = -0.237 g^2` (units: energy, valid: g << 1, phase 2, verified) [deps: res-0]
-- [res-2] Phase boundary: `T_c(\alpha=2.0) \in [0.71, 0.73]` (units: temperature, valid: L >= 32, phase 3) [deps: res-1]
+- [R-01-01-lxk7a2b] Dispersion relation: `\omega(k) = \sqrt{k^2 + m^2}` (units: energy, valid: k << \Lambda, phase 01) [deps: none]
+- [R-02-01-m1k3f9c] Leading-order correction: `\Delta E = -0.237 g^2` (units: energy, valid: g << 1, phase 02, verified) [deps: R-01-01-lxk7a2b]
+- [R-03-01-q9d4h2a] Phase boundary: `T_c(\alpha=2.0) \in [0.71, 0.73]` (units: temperature, valid: L >= 32, phase 03) [deps: R-02-01-m1k3f9c]
 
 JSON sidecar schema per result:
 
 ```json
 {
-  "id": "res-0",
+  "id": "R-01-01-lxk7a2b",
   "equation": "\\omega(k) = \\sqrt{k^2 + m^2}",
   "description": "Dispersion relation",
   "units": "energy",
   "validity": "k << \\Lambda",
-  "phase": 1,
+  "phase": "01",
   "depends_on": [],
   "verified": false
 }
@@ -108,6 +108,11 @@ Full log: `.gpd/DECISIONS.md`
 - Index positioning: {e.g., covariant derivatives ∂_μ with lower index or "not set"}
 - Time ordering: {e.g., T-product with Feynman iε prescription or "not set"}
 - Commutation convention: {e.g., [x_i, p_j] = iħδ_{ij} or "not set"}
+- Levi-Civita sign: {e.g., ε^{0123} = +1 or "not set"}
+- Generator normalization: {e.g., Tr(T^a T^b) = 1/2 δ^{ab} or "not set"}
+- Covariant derivative sign: {e.g., D_μ = ∂_μ + i g A_μ or "not set"}
+- Gamma matrix convention: {e.g., Dirac basis, γ^5 = iγ^0γ^1γ^2γ^3 or "not set"}
+- Creation/annihilation order: {e.g., normal ordering puts a† left of a or "not set"}
 
 ### Propagated Uncertainties
 
@@ -247,7 +252,7 @@ Updated after each plan completion.
 
 **Decisions:** Full log: `.gpd/DECISIONS.md` (single source of truth). Recent high-impact decisions shown in Accumulated Context for quick access.
 
-**Active Approximations:** Tracks all approximations currently in use, their validity ranges, and the controlling parameters. Convention lock is a 13-field snapshot of active conventions — full convention catalog lives in `.gpd/CONVENTIONS.md`.
+**Active Approximations:** Tracks all approximations currently in use, their validity ranges, and the controlling parameters. Convention lock is an 18-field snapshot of active conventions — full convention catalog lives in `.gpd/CONVENTIONS.md`.
 
 **Pending Todos:** Ideas captured via /gpd:add-todo
 

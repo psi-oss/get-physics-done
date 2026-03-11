@@ -126,7 +126,7 @@ Agent: notation-coordinator (sole authority)
 
 ## gpd CLI Commit Protocol
 
-All file commits during GPD workflows use the gpd CLI CLI:
+All file commits during GPD workflows use the gpd CLI:
 
 ```bash
 gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
@@ -138,13 +138,12 @@ gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
 - Always specify files explicitly via `--files` (never commit everything)
 - Scope should identify the phase or component (e.g., `docs(02-hamiltonian): derive energy spectrum`)
 - One commit per logical unit of work (one task, one checkpoint, one correction)
-- If `gpd CLI commit` fails twice, fall back to manual git operations and document the workaround
+- If `gpd commit` fails twice, fall back to manual git operations and document the workaround
 
-**Pre-commit validation** runs automatically inside `gpd CLI commit` before every commit. It checks:
+**Pre-commit validation** runs automatically inside `gpd commit` before every commit. In the current CLI implementation it checks:
 
-1. **state.json** — no NaN values, required top-level fields present
-2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, interactive, must_haves)
-3. **SUMMARY.md frontmatter** — all required fields (phase, plan, depth, provides, completed)
+1. **Markdown frontmatter parse validity** — `.md` files must have syntactically valid YAML frontmatter when frontmatter is present
+2. **NaN/Inf detection** — checked files must not contain NaN/Inf-style values
 
 If validation fails, the commit is blocked with `reason: "pre_commit_check_failed"` and a list of errors. Fix the errors and retry.
 
@@ -156,10 +155,9 @@ gpd pre-commit-check
 
 # Check specific files
 gpd pre-commit-check --files .gpd/phases/03-foo/03-01-PLAN.md
-
-# Skip physics checks (for documentation-only commits)
-gpd pre-commit-check --skip-physics
 ```
+
+For stricter semantic checks, use the dedicated commands alongside `pre-commit-check`: `gpd verify plan`, `gpd verify summary`, `gpd verify artifacts`, and `gpd convention check`.
 
 ---
 
@@ -243,7 +241,7 @@ Used by verifiers and orchestrators to validate research artifacts:
 
 ```bash
 # Verify plan structure (wave assignments, dependencies, frontmatter)
-gpd verify plan-structure <plan-file-path>
+gpd verify plan <plan-file-path>
 
 # Verify phase completeness (all plans have SUMMARY.md)
 gpd verify phase <phase-number>
@@ -326,7 +324,7 @@ gpd health
 gpd health --fix
 
 # Machine-readable JSON output (uses global --raw flag)
-gpd health --raw
+gpd --raw health
 ```
 
 ---
@@ -546,7 +544,7 @@ Different phase types have different context consumption patterns. The orchestra
 **Budget anomaly detection:**
 
 If the orchestrator detects it is consuming more than its allocated budget (e.g., >25% for a derivation phase), it should:
-1. Stop reading full SUMMARY files -- use `summary-extract --fields one_liner` instead.
+1. Stop reading full SUMMARY files -- use `gpd summary-extract <path> --field one_liner` instead.
 2. Stop re-reading STATE.md between waves (use cached version).
 3. Delegate any remaining analysis to a subagent.
 
@@ -624,7 +622,7 @@ BASE_PHASE=$(echo "$DECIMAL_INFO" | gpd json get .base_phase)
 Or with --raw flag:
 
 ```bash
-DECIMAL_PHASE=$(gpd phase next-decimal "${AFTER_PHASE}" --raw)
+DECIMAL_PHASE=$(gpd --raw phase next-decimal "${AFTER_PHASE}")
 # Returns just: 06.1
 ```
 
@@ -642,7 +640,7 @@ DECIMAL_PHASE=$(gpd phase next-decimal "${AFTER_PHASE}" --raw)
 Decimal phase directories use the full decimal number:
 
 ```bash
-SLUG=$(gpd generate-slug "$DESCRIPTION" --raw)
+SLUG=$(gpd --raw slug "$DESCRIPTION")
 PHASE_DIR=".gpd/phases/${DECIMAL_PHASE}-${SLUG}"
 mkdir -p "$PHASE_DIR"
 ```

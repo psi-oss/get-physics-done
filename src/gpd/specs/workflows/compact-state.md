@@ -103,13 +103,19 @@ ls -la .gpd/state.json
 **If required sections are missing:** The compaction was too aggressive. Attempt recovery:
 
 ```bash
-# First try: regenerate STATE.md from state.json
-# Any state-modifying command triggers dual-file write (state.json + STATE.md)
+# First try: regenerate STATE.md directly from authoritative state.json
 if [ -f .gpd/state.json ]; then
   echo "Attempting STATE.md recovery from state.json..."
-  # Touch a harmless field to trigger the dual-file write
-  gpd state update "Last Activity" "$(date -u +%Y-%m-%d)"
-  RECOVERY_METHOD="regenerated from state.json"
+  uv run python - <<'PY'
+import json
+from pathlib import Path
+from gpd.core.state import save_state_json
+
+cwd = Path(".")
+state = json.loads((cwd / ".gpd" / "state.json").read_text(encoding="utf-8"))
+save_state_json(cwd, state)
+PY
+  RECOVERY_METHOD="regenerated from authoritative state.json"
 else
   # Fallback: restore from git (state.json also missing or corrupt)
   echo "state.json unavailable. Falling back to git restore..."
@@ -121,7 +127,7 @@ echo "Recovery method: ${RECOVERY_METHOD}"
 
 Report error and recovery method used, then exit.
 
-**If state.json sync failed:** Delete state.json and it will be regenerated from STATE.md on next access by any `gpd state` command.
+**If state.json sync failed:** Do not delete it blindly. Keep `.gpd/state.json` (and `.gpd/state.json.bak` if present), inspect `gpd state validate`, and use `/gpd:sync-state` or the recovery step above so JSON-only fields are preserved.
 </step>
 
 <step name="verify_archive">

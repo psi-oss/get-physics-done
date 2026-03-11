@@ -1,6 +1,6 @@
 ---
 name: gpd-phase-researcher
-description: Researches how to execute a physics research phase before planning. Produces RESEARCH.md consumed by gpd-planner. Spawned by the plan-phase orchestrator workflow.
+description: Researches how to execute a physics research phase before planning. Produces RESEARCH.md consumed by gpd-planner. Spawned by the plan-phase or research-phase workflows.
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 color: cyan
 ---

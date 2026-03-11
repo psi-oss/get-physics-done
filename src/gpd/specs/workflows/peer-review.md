@@ -62,7 +62,7 @@ Exit.
 **Convention verification:**
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — the review panel may flag convention drift."
   echo "$CONV_CHECK"

@@ -9,7 +9,9 @@ context_cost: large
 
 # Physics Verification Protocol Gap Analysis
 
-Systematic analysis of which LLM physics error classes are caught by which defense layers, identifying gaps with no coverage or single-layer coverage. The full catalog now covers **101 error classes**: core (#1-51) with full coverage matrix, extended broad coverage (#52-71) for 10 underrepresented domains, deep domain classes (#72-81) for numerical relativity, quantum chemistry, plasma physics, fluid dynamics, and biophysics, and specialized classes (#82-101) covering nuclear physics, astrophysics, AMO, condensed matter, mathematical physics, nonlinear dynamics, optics, and cosmology.
+Systematic analysis of which LLM physics error classes are caught by which defense layers, identifying gaps with no coverage or single-layer coverage.
+
+**Status note (2026-03-11):** This document is a 2026-02-23 audit snapshot over the then-current **101-class** catalog. The live error catalog now has **104 classes** because `llm-errors-extended.md` added #102-104 (catastrophic cancellation, missing functional Jacobian, IR-unsafe observable computation). The aggregate coverage counts below have not yet been recomputed for those three newest classes.
 
 Last audited: 2026-02-23 (deep audit, cross-referenced against actual workflow/agent implementations)
 
@@ -21,7 +23,7 @@ Last audited: 2026-02-23 (deep audit, cross-referenced against actual workflow/a
 | L1 | **Convention Lock** | Pre-execution | Conventions in `state.json convention_lock` match plan frontmatter and prior phases | Requires lock to be populated; empty lock = no check |
 | L2 | **ASSERT_CONVENTION** | During execution | Inline `% ASSERT_CONVENTION:` declarations match project lock; missing assertions flagged | Only covers convention-trackable errors (metric, Fourier, units, coupling, renorm) |
 | L2b | **Executor self-critique + post-step guards** | During execution | Self-critique: sign, factor, convention, dimension checks every 3-4 steps. **Post-step guards:** IDENTITY_CLAIM tagging (#11), BOUNDARY_CONDITION declarations (#13), EXPANSION_ORDER tracking (#16), 12-type computation mini-checklist. Guard failures → deviation rules 3/4/5. | Best-effort — LLM may skip under context pressure. Guards are lightweight (~50 tokens) so more resilient than full self-critique. |
-| L3 | **Pre-commit check** | At commit time | ASSERT_CONVENTION vs lock validation, NaN detection in state.json, SUMMARY/PLAN frontmatter completeness | Now used in 37/59 workflows (bug #23 fixed). Advisory (`|| true`), not blocking |
+| L3 | **Pre-commit check** | At commit time | Markdown frontmatter YAML parse validity plus NaN/Inf detection in checked files | Now used in all 37 commit-producing workflow specs (37 of 61 total workflow specs). Advisory (`|| true`), not blocking |
 | L4 | **Inter-wave gates** | Between waves | Convention consistency + dimensional spot-check on wave SUMMARY.md equations | **Only runs between waves within execute-phase**; does NOT run limiting cases, symmetry, or conservation checks |
 | L5 | **Verifier 15-check** | Post-execution | Full verification: 5.1-5.15 (dimensional, spot-check, limiting cases, cross-check, symmetry, conservation, math consistency, convergence, literature, plausibility, statistics, thermodynamic, spectral, anomalies/topology) | **Profile-dependent**: exploratory runs 7-check floor (5.1,5.2,5.3,5.6,5.7,5.8,5.10); quick mode runs 5.1/5.3/5.10; Tier 4 (5.13-5.15) skipped under context pressure but promoted if computation type requires them |
 | L5b | **Researcher validation** | Post-execution | Interactive verify-work with computational evidence; researcher confirms/denies each check | Only runs when user invokes `/gpd:verify-work`; human-dependent |
@@ -155,7 +157,7 @@ Legend: `++` = primary detection, `+` = partial detection, `(+)` = theoretical/c
 
 ## Summary Statistics (Corrected 2026-02-23)
 
-**Previous analysis overstated coverage.** The original gap analysis counted L4 (inter-wave gates) as partial coverage for 12+ error classes. Actual L4 implementation only does convention consistency check + dimensional spot-check — it does NOT perform limiting case, symmetry, conservation, or sign checks. L3 (pre-commit) was also overcounted — originally only 2 of 35+ workflows (bug #23, now fixed: 37/59 workflows). The statistics below reflect the corrected L4 assessment; L3 coverage has improved but L4 inflation remains the primary distortion.
+**Previous analysis overstated coverage.** The original gap analysis counted L4 (inter-wave gates) as partial coverage for 12+ error classes. Actual L4 implementation only does convention consistency check + dimensional spot-check — it does NOT perform limiting case, symmetry, conservation, or sign checks. L3 (pre-commit) was also overcounted — the current implementation is intentionally shallow and checks only YAML parse validity plus NaN/Inf detection. The statistics below reflect the corrected L4 assessment; L3 coverage has improved in workflow adoption but L4 inflation remains the primary distortion.
 
 | Reliable Coverage | Count | Error Classes |
 |---|---|---|
@@ -169,7 +171,7 @@ Legend: `++` = primary detection, `+` = partial detection, `(+)` = theoretical/c
 **Updated key finding (101 error classes):** **82 of 101 error classes (81%) have only single reliable layer (the verifier, L5).** This ratio is remarkably consistent across all three catalog expansions (original 51: ~80%, extended 81: ~80%, full 101: 81%). The 20 newest classes (#82-101) follow the same pattern: most are caught only by L5 domain-specific checks, with 2 benefiting from L2b computation-type mini-checklists (#88, #89). One new class is rated HIGH risk (#87 reconnection topology). Seven total HIGH risk classes: #52, #63, #71, #72, #76, #77, #87. Zero CRITICAL (0-1 layer) classes remain. The overstated coverage came from:
 
 1. **L4 inflation:** L4 only checks convention consistency and dimensional spot-checks. It was credited with partial detection of #5, 6, 8, 10, 25, 27, 29, 40, 42, 43, 46 — none of which are caught by convention or dimensional checking alone.
-2. **L3 coverage (improved):** Pre-commit check was only in 2 of 35+ workflows (bug #23, now fixed: 37/59 workflows). L3 remains advisory (`|| true`) and catches only convention/NaN/frontmatter issues, not physics errors.
+2. **L3 coverage (improved):** Pre-commit check was only in 2 of 35+ workflows (bug #23, now fixed: all 37 commit-producing workflow specs / 61 total workflow specs). L3 remains advisory (`|| true`) and catches only YAML parse issues plus NaN/Inf markers, not physics errors.
 3. **L6 overcounting:** Cross-phase consistency only catches errors visible at phase boundaries. Errors localized within a single derivation are invisible to L6.
 4. **L5 profile risk:** In exploratory profile, 7-check floor runs (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). Error classes requiring 5.9, 5.11-5.15 (convergence, plausibility, statistics, thermodynamic, spectral, anomalies) have **zero** reliable coverage in exploratory mode.
 
@@ -289,7 +291,7 @@ Each entry maps to specific error classes from the 101-class catalog and provide
 ### Finding 1: L4 Coverage Overstated — Inter-Wave Gates Are Narrower Than Documented
 
 **Evidence:** execute-phase.md step 8 (lines 302-370) implements inter-wave gates with exactly two checks:
-1. `convention check --raw` — verifies convention lock hasn't drifted
+1. `gpd --raw convention check` — verifies convention lock hasn't drifted
 2. Dimensional spot-check — scans SUMMARY.md equations for dimensional consistency
 
 The original gap analysis credited L4 with partial (`+`) coverage for error classes #5, 6, 8, 10, 25, 27, 29, 40, 42, 43, 46. None of these are caught by convention or dimensional checking alone:
@@ -300,7 +302,7 @@ The original gap analysis credited L4 with partial (`+`) coverage for error clas
 ### Finding 2: L3 Was Effectively Absent for Most Workflows (NOW FIXED)
 
 **Evidence (original):** Bug #23: `pre-commit-check` was called in only 2 workflows.
-**Current status (bug #23 fixed):** `pre-commit-check` is now used in 37 of 59 workflows. The remaining 22 workflows are read-only or delegate commits to sub-workflows. The check is still advisory (`|| true`), not blocking.
+**Current status (bug #23 fixed):** `pre-commit-check` is now used in all 37 commit-producing workflow specs (37 of 61 total workflow specs). The remaining workflow specs are read-only or delegate commits to sub-workflows. The check is still advisory (`|| true`), not blocking.
 
 ### Finding 3: Two Defense Layers Were Missing From the Model
 
@@ -322,7 +324,7 @@ In exploratory profile, the verifier runs the 7-check floor (5.1, 5.2, 5.3, 5.6,
 
 ### Finding 5: derive-equation.md Had No Convention Verification (NOW FIXED)
 
-The `derive-equation.md` workflow was user-facing with no convention defense layers. **Bug #26 (now fixed):** derive-equation.md now has convention loading via `gpd init` + `convention check --raw` (pre-step), 5-point checklist with hard STOP on mismatch (Step 1b), ASSERT_CONVENTION template (Step 1b + Step 5), and cross-phase consistency check (Step 3e). Standalone derivations now have L1 + L2 coverage.
+The `derive-equation.md` workflow was user-facing with no convention defense layers. **Bug #26 (now fixed):** derive-equation.md now has convention loading via `gpd init` + `gpd --raw convention check` (pre-step), 5-point checklist with hard STOP on mismatch (Step 1b), ASSERT_CONVENTION template (Step 1b + Step 5), and cross-phase consistency check (Step 3e). Standalone derivations now have L1 + L2 coverage.
 
 ---
 
@@ -347,11 +349,10 @@ This can be implemented via the plan frontmatter: the planner tags the computati
 ## Layer 3 (Pre-commit check) — Current State and Enhancement Opportunities
 
 The pre-commit check already performs:
-- **NaN detection** in state.json (prevents state corruption)
-- **ASSERT_CONVENTION validation** — scans staged `.md` and `.tex` files for convention assertion lines and verifies them against the project lock in state.json (catches #7, #15, #33, #34, #37)
-- **Frontmatter completeness** — verifies SUMMARY and PLAN files have required fields
+- **NaN/Inf detection** in checked files
+- **Markdown frontmatter YAML parsing** — catches malformed frontmatter blocks before commit
 
-It does NOT perform physics-content checks beyond convention assertions. Enhancement opportunities:
+It does NOT currently perform ASSERT_CONVENTION validation, frontmatter completeness checks, or other physics-content checks. Enhancement opportunities:
 1. **Scan for `IDENTITY_CLAIM` tags** (from Gap 1 fix) — verify tagged identities have been numerically checked
 2. **Scan for `BOUNDARY_CONDITIONS`** (from Gap 2 fix) — verify BC count matches ODE/PDE order
 3. **Scan for `EXPANSION_ORDER`** (from Gap 3 fix) — verify order-tracking annotations are present in perturbative derivations
@@ -387,7 +388,7 @@ The consistency checker currently checks convention drift and provides/requires 
 
 | Priority | Fix | Error Classes Addressed | Cost | Layers Affected |
 |---|---|---|---|---|
-| ~~P0~~ | ~~Expand pre-commit-check to all commit-producing workflows~~ — **DONE** (bug #23 fixed, 37/59 workflows). | Convention-related: #7, 15, 33, 34, 37 | 0 (workflow edits only) | L3 |
+| ~~P0~~ | ~~Expand pre-commit-check to all commit-producing workflows~~ — **DONE** (bug #23 fixed, all 37 commit-producing workflow specs / 61 total workflow specs). | Convention-related: #7, 15, 33, 34, 37 | 0 (workflow edits only) | L3 |
 | **P0** | **Exploratory profile minimum check floor** — IMPLEMENTED: exploratory now runs 7-check floor (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). Reduces gap from 36→~16 unprotected error classes. | ~16 classes that lose coverage in exploratory mode | 0 (verifier logic change) | L5 |
 | **P0** | Executor self-check protocol (computation-type mini-checklist) | All 38 single-reliable-layer classes | ~500 tokens/step | New: L2b strengthening |
 | **P1** | IDENTITY_CLAIM tagging for hallucinated identities | #11 | ~200 tokens/identity | L4 (inter-wave gate) |

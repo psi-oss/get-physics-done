@@ -348,6 +348,7 @@ def _emit_observability_event(
             trace_id=trace_id,
             session_id=session_id,
             data=payload,
+            end_session=action == "stop",
         )
         if result is not None:
             return

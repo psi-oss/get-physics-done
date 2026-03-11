@@ -180,30 +180,30 @@ For LaTeX files, use `%` comment prefix. For Python, use `#`. For Markdown, use 
 | Key | Values | Example |
 |---|---|---|
 | `natural_units` | `natural`, `SI`, `CGS`, `lattice` | `natural_units=natural` |
-| `metric_signature` | `mostly_plus`, `mostly_minus`, `euclidean` | `metric_signature=mostly_plus` |
+| `metric_signature` | `mostly-plus`, `mostly-minus`, `euclidean` | `metric_signature=mostly-plus` |
 | `fourier_convention` | `physics`, `math`, `symmetric` | `fourier_convention=physics` |
-| `coupling_convention` | `g`, `g^2/(4pi)`, `alpha_s=g^2/(4pi)`, or explicit | `coupling_convention=alpha_s` |
+| `coupling_convention` | `g`, `g^2/(4pi)`, `alpha=g^2/(4pi)`, or explicit | `coupling_convention=alpha=g^2/(4pi)` |
 | `renormalization_scheme` | `MSbar`, `on-shell`, `MOM`, `lattice` | `renormalization_scheme=MSbar` |
 | `state_normalization` | `relativistic`, `non-relativistic` | `state_normalization=relativistic` |
 | `gauge_choice` | `Feynman`, `Lorenz`, `Coulomb`, `axial`, `light-cone` | `gauge_choice=Feynman` |
 | `time_ordering` | `normal`, `time`, `Weyl` | `time_ordering=time` |
 
-**IMPORTANT:** Keys should use the canonical convention_lock field names from state.json (use `gpd convention list --raw` to see them). Short aliases are also accepted by the pre-commit checker: `metric` → `metric_signature`, `fourier` → `fourier_convention`, `units` → `natural_units`, `coupling` → `coupling_convention`, `renorm` → `renormalization_scheme`, `gauge` → `gauge_choice`. Canonical names are preferred for clarity.
+**IMPORTANT:** Keys should use the canonical convention_lock field names from state.json (use `gpd --raw convention list` to see them). Short aliases are also accepted by the pre-commit checker: `metric` → `metric_signature`, `fourier` → `fourier_convention`, `units` → `natural_units`, `coupling` → `coupling_convention`, `renorm` → `renormalization_scheme`, `gauge` → `gauge_choice`. Canonical names are preferred for clarity.
 
-**IMPORTANT:** Values must NOT contain commas (the parser splits on commas to separate key=value pairs). Use shorthand without commas: `mostly_minus` not `(+,-,-,-)`, `mostly_plus` not `(-,+,+,+)`. Use underscores, not hyphens — the convention_lock stores `mostly_minus` and `mostly_plus` (underscores), and the pre-commit check does exact string comparison.
+**IMPORTANT:** Values must NOT contain commas (the parser splits on commas to separate key=value pairs). Prefer the canonical values shown by `gpd --raw convention list`: `mostly-minus` and `mostly-plus`, not the comma forms `(+,-,-,-)` or `(-,+,+,+)`. The parser also normalizes underscore aliases like `mostly_minus`, but the canonical lock values are hyphenated.
 
 **Examples:**
 
 ```latex
-% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_plus, fourier_convention=physics, coupling_convention=alpha_s, renormalization_scheme=MSbar, gauge_choice=Feynman
+% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-plus, fourier_convention=physics, coupling_convention=alpha=g^2/(4pi), renormalization_scheme=MSbar, gauge_choice=Feynman
 ```
 
 ```python
-# ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_plus, coupling_convention=alpha_s, renormalization_scheme=MSbar
+# ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-plus, coupling_convention=alpha=g^2/(4pi), renormalization_scheme=MSbar
 ```
 
 ```markdown
-<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_minus, fourier_convention=physics -->
+<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 ```
 
 **Important:** Values must exactly match what is stored in `state.json convention_lock`. Read them via `gpd convention list` rather than guessing. The pre-commit check (L3) does exact string comparison.
@@ -211,7 +211,7 @@ For LaTeX files, use `%` comment prefix. For Python, use `#`. For Markdown, use 
 **Verification protocol:**
 
 1. The executor writes an `ASSERT_CONVENTION` line at the top of every derivation file it creates or modifies
-2. The verifier scans for `ASSERT_CONVENTION` lines in all phase artifacts and compares each declared value against the project convention lock in STATE.md
+2. The verifier scans for `ASSERT_CONVENTION` lines in all phase artifacts and compares each declared value against the project convention lock in `state.json`
 3. A mismatch between an assertion and the lock is a **blocker** — it means the file was written under different conventions than the project standard
 4. A missing assertion in a file that contains equations is a **warning** — conventions should be declared explicitly
 
@@ -285,7 +285,7 @@ Query pattern: `"[topic]" review` on arXiv or Google Scholar, sort by citations.
 
 ## Physics Verification
 
-For the complete verification hierarchy and check procedures, see `references/verification/core/verification-core.md` (universal checks) and the domain-specific verification files (11 domains — see table below). For a compact checklist, see `references/verification/core/verification-quick-reference.md`. For HIGH-risk error class priorities, see `references/verification/audits/verification-gap-summary.md`.
+For the complete verification hierarchy and check procedures, see `references/verification/core/verification-core.md` (universal checks) and the domain-specific verification files (13 domains — see table below). For a compact checklist, see `references/verification/core/verification-quick-reference.md`. For HIGH-risk error class priorities, see `references/verification/audits/verification-gap-summary.md`.
 
 For LLM-specific physics error patterns and detection strategies, see `references/verification/errors/llm-physics-errors.md`. For a lightweight traceability matrix, see `references/verification/errors/llm-errors-traceability.md`.
 
@@ -392,10 +392,10 @@ Each protocol below provides step-by-step procedures for a specific computationa
 
 | Reference | File | When to Use |
 |---|---|---|
-| LLM Physics Error Catalog | `references/verification/errors/llm-physics-errors.md` | Index to 101 systematic error classes across 4 part files with detection strategies |
+| LLM Physics Error Catalog | `references/verification/errors/llm-physics-errors.md` | Index to 104 systematic error classes across 4 part files with detection strategies |
 | Verification Gap Summary | `references/verification/audits/verification-gap-summary.md` | HIGH-risk error classes for routine verification prioritization (~50 lines) |
 
-The LLM Physics Error Catalog documents error patterns specific to language model outputs (wrong CG coefficients, hallucinated identities, Grassmann sign errors, etc.) and should be consulted as a checklist when verifying LLM-produced calculations. The catalog is split into 4 files for context efficiency: `references/verification/errors/llm-errors-core.md` (#1-25), `references/verification/errors/llm-errors-field-theory.md` (#26-51), `references/verification/errors/llm-errors-extended.md` (#52-81), `references/verification/errors/llm-errors-deep.md` (#82-101).
+The LLM Physics Error Catalog documents error patterns specific to language model outputs (wrong CG coefficients, hallucinated identities, Grassmann sign errors, etc.) and should be consulted as a checklist when verifying LLM-produced calculations. The catalog is split into 4 files for context efficiency: `references/verification/errors/llm-errors-core.md` (#1-25), `references/verification/errors/llm-errors-field-theory.md` (#26-51), `references/verification/errors/llm-errors-extended.md` (#52-81, #102-104), `references/verification/errors/llm-errors-deep.md` (#82-101).
 
 ## Research Agent Shared Protocol
 

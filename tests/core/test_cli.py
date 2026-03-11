@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
+from gpd.adapters import list_runtimes
 from gpd.cli import app
 
 runner = CliRunner()
@@ -54,6 +55,13 @@ def test_help():
     assert "phase" in result.output
     assert "health" in result.output
     assert "paper-build" in result.output
+
+
+def test_resolve_model_help_lists_supported_runtime_ids():
+    result = runner.invoke(app, ["resolve-model", "--help"])
+    assert result.exit_code == 0
+    for runtime_name in list_runtimes():
+        assert runtime_name in result.output
 
 
 def test_state_help():
@@ -351,16 +359,38 @@ def test_trace_stop(mock_stop):
 def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
     planning = tmp_path / ".gpd" / "observability" / "sessions"
     planning.mkdir(parents=True)
-    (planning / "cli-session-1.json").write_text(
-        json.dumps(
-            {
-                "session_id": "cli-session-1",
-                "command": "timestamp",
-                "status": "ok",
-                "started_at": "2026-03-10T00:00:00+00:00",
-                "last_event_at": "2026-03-10T00:00:01+00:00",
-            }
-        ),
+    (planning / "cli-session-1.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:00+00:00",
+                        "event_id": "evt-1",
+                        "session_id": "cli-session-1",
+                        "category": "session",
+                        "name": "lifecycle",
+                        "action": "start",
+                        "status": "active",
+                        "command": "timestamp",
+                        "data": {"cwd": str(tmp_path), "source": "cli", "pid": 123, "metadata": {}},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-10T00:00:01+00:00",
+                        "event_id": "evt-2",
+                        "session_id": "cli-session-1",
+                        "category": "session",
+                        "name": "lifecycle",
+                        "action": "finish",
+                        "status": "ok",
+                        "command": "timestamp",
+                        "data": {"ended_at": "2026-03-10T00:00:01+00:00", "ended_by": {"name": "command"}},
+                    }
+                ),
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -374,15 +404,15 @@ def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
 
 
 def test_observe_show_filters_events(tmp_path: Path) -> None:
-    obs_dir = tmp_path / ".gpd" / "observability"
-    obs_dir.mkdir(parents=True)
-    events_file = obs_dir / "events.jsonl"
-    events_file.write_text(
+    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / "cli-a.jsonl").write_text(
         "\n".join(
             [
                 json.dumps(
                     {
                         "timestamp": "2026-03-10T00:00:00+00:00",
+                        "event_id": "evt-1",
                         "session_id": "cli-a",
                         "category": "cli",
                         "name": "command",
@@ -394,6 +424,7 @@ def test_observe_show_filters_events(tmp_path: Path) -> None:
                 json.dumps(
                     {
                         "timestamp": "2026-03-10T00:00:01+00:00",
+                        "event_id": "evt-2",
                         "session_id": "cli-a",
                         "category": "trace",
                         "name": "trace_start",
@@ -421,13 +452,14 @@ def test_observe_show_filters_events(tmp_path: Path) -> None:
 
 
 def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
-    """When global events file does not exist, show_events reads session logs."""
+    """show_events reads per-session logs when filtering observability data."""
     sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True)
     (sessions_dir / "cli-a.jsonl").write_text(
         json.dumps(
             {
                 "timestamp": "2026-03-10T00:00:00+00:00",
+                "event_id": "evt-1",
                 "session_id": "cli-a",
                 "category": "cli",
                 "name": "command",
@@ -482,32 +514,22 @@ def test_observe_event_appends_event(tmp_path: Path) -> None:
     assert payload["category"] == "workflow"
     assert payload["name"] == "wave-start"
     assert payload["data"]["wave"] == 2
-    events_file = tmp_path / ".gpd" / "observability" / "events.jsonl"
-    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    session_logs = sorted(sessions_dir.glob("*.jsonl"))
+    assert len(session_logs) == 1
+    events = [json.loads(line) for line in session_logs[0].read_text(encoding="utf-8").splitlines() if line.strip()]
     assert any(event["category"] == "workflow" and event["name"] == "wave-start" for event in events)
+    assert not (tmp_path / ".gpd" / "observability" / "events.jsonl").exists()
 
 
-def test_cli_invocation_writes_observability_files(tmp_path: Path) -> None:
+def test_cli_invocation_does_not_write_observability_files_without_explicit_events(tmp_path: Path) -> None:
     (tmp_path / ".gpd").mkdir()
 
     result = runner.invoke(app, ["--cwd", str(tmp_path), "timestamp"])
 
     assert result.exit_code == 0
     obs_dir = tmp_path / ".gpd" / "observability"
-    events_file = obs_dir / "events.jsonl"
-    assert events_file.exists()
-    sessions_dir = obs_dir / "sessions"
-    session_logs = sorted(sessions_dir.glob("*.jsonl"))
-    assert session_logs
-    events = [json.loads(line) for line in events_file.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert any(event["category"] == "cli" and event["action"] == "start" for event in events)
-    assert any(
-        event["category"] == "cli"
-        and event["action"] == "finish"
-        and event["status"] == "ok"
-        and event["command"] == "timestamp"
-        for event in events
-    )
+    assert not obs_dir.exists()
 
 
 # ─── suggest ────────────────────────────────────────────────────────────────

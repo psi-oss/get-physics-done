@@ -1,4 +1,10 @@
-# Repository Interdependency Graph
+# Tests
+
+This directory contains the automated test suite for GPD: core CLI and state regressions, runtime adapter coverage, hooks and MCP checks, release contracts, and fixture-based parity tests.
+
+The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
+
+## Repository Interdependency Graph
 
 Generated on `2026-03-11` from the current worktree.
 
@@ -26,7 +32,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `104`
+- `tests/**` files: `105`
 - `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
 - `.claude/get-physics-done/workflows/**/*.md`: `61`
@@ -1322,7 +1328,7 @@ They explicitly preserve:
 
 ## Test and Contract Graph
 
-- `tests/core/test_repo_interdependency_graph.py -> REPO_INTERDEPENDENCY_GRAPH.md`
+- `tests/core/test_repo_interdependency_graph.py -> tests/README.md`
   `count-contract`
 
 - `tests/core/test_prompt_wiring.py -> src/gpd/commands/**`
@@ -1334,7 +1340,7 @@ They explicitly preserve:
 - `tests/core/test_prompt_wiring.py -> src/gpd/specs/{workflows,templates,references}/**`
   `count-contract`
 
-- `tests/core/test_prompt_wiring.py -> REPO_INTERDEPENDENCY_GRAPH.md`
+- `tests/core/test_prompt_wiring.py -> tests/README.md`
   `count-contract`
 
 - `tests/core/test_prompt_cli_consistency.py -> src/gpd/cli.py`

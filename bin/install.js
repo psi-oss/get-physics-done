@@ -71,6 +71,10 @@ function runtimeSelectionFlags(runtime) {
   return runtimeRecord(runtime).selection_flags || [];
 }
 
+function runtimeSelectionFlagList(runtime) {
+  return [...new Set([runtimeInstallFlag(runtime), ...runtimeSelectionFlags(runtime)])];
+}
+
 function runtimeSelectionAliases(runtime) {
   return runtimeRecord(runtime).selection_aliases || [];
 }
@@ -786,7 +790,7 @@ function formatRuntimeCommand(runtime, action) {
 }
 
 function documentedRuntimeFlags() {
-  return RUNTIME_CATALOG.map((runtime) => runtime.install_flag);
+  return RUNTIME_CATALOG.flatMap((runtime) => runtimeSelectionFlagList(runtime.runtime_name));
 }
 
 function findRuntime(predicate, fallback = ALL_RUNTIMES[0]) {
@@ -825,9 +829,9 @@ function printHelp() {
   console.log(` ${cyan}--reinstall${reset}             Reinstall the matching GitHub source in ~/.gpd/venv`);
   console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
-    const flag = runtimeInstallFlag(runtime);
-    const padding = " ".repeat(Math.max(0, 24 - flag.length));
-    console.log(` ${cyan}${flag}${reset}${padding}Select ${runtimeDisplayName(runtime)} only`);
+    const flags = runtimeSelectionFlagList(runtime).join(", ");
+    const padding = " ".repeat(Math.max(0, 24 - flags.length));
+    console.log(` ${cyan}${flags}${reset}${padding}Select ${runtimeDisplayName(runtime)} only`);
   }
   console.log(` ${cyan}--all${reset}                  Select all supported runtimes`);
   console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local scope)`);
@@ -900,8 +904,8 @@ function parseSelectedRuntimes(args) {
   }
 
   for (const runtime of ALL_RUNTIMES) {
-    const flags = new Set([`--${runtime}`, ...runtimeSelectionFlags(runtime)]);
-    if ([...flags].some((flag) => args.includes(flag)) && !seen.has(runtime)) {
+    const flags = runtimeSelectionFlagList(runtime);
+    if (flags.some((flag) => args.includes(flag)) && !seen.has(runtime)) {
       selected.push(runtime);
       seen.add(runtime);
     }

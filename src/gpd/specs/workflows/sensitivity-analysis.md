@@ -41,7 +41,7 @@ If no project context exists (standalone usage), proceed with explicit parameter
 **Convention verification** (if project exists):
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — parameter definitions may be inconsistent"
   echo "$CONV_CHECK"

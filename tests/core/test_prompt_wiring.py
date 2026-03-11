@@ -25,7 +25,7 @@ WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
-GRAPH_PATH = REPO_ROOT / "REPO_INTERDEPENDENCY_GRAPH.md"
+GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 
 COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
@@ -548,7 +548,7 @@ def test_repo_graph_same_stem_command_inventory_matches_repo() -> None:
         r"src/gpd/commands/\{([^}]*)\}\.md -> src/gpd/specs/workflows/\{same stems\}\.md",
         graph_text,
     )
-    assert match is not None, "Missing same-stem command inventory in root graph"
+    assert match is not None, "Missing same-stem command inventory in tests README graph"
 
     graph_stems = {stem.strip() for stem in match.group(1).split(",") if stem.strip()}
     repo_stems = {path.stem for path in COMMANDS_DIR.glob("*.md")} & {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
@@ -566,7 +566,7 @@ def test_repo_graph_tracks_staged_review_panel_wiring() -> None:
     ]
 
     for agent_name in review_agents:
-        assert agent_name in graph_text, f"Root graph is missing {agent_name}"
+        assert agent_name in graph_text, f"Tests README graph is missing {agent_name}"
 
     assert (
         "src/gpd/commands/peer-review.md -> src/gpd/agents/"

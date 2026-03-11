@@ -203,21 +203,15 @@ EOF
 
 Read `.gpd/STATE.md` and check if it needs adjustment:
 
-1. If the reverted commit added a phase completion marker, remove it via file_edit tool
-2. If the reverted commit advanced the current phase, roll back the position via file_edit tool
+1. If the reverted commit added a phase completion marker, restore the affected field(s) with `gpd state update` / `gpd state patch`
+2. If the reverted commit advanced the current phase, roll back the position with `gpd state update` / `gpd state patch` rather than direct `file_edit` so `STATE.md` and `state.json` stay aligned
 3. Record the rollback decision:
 
 ```bash
 gpd state add-decision --phase "undo" --summary "Rolled back: ${TARGET_MSG}" --rationale "User requested undo (checkpoint: ${CHECKPOINT_TAG})"
 ```
 
-4. If any direct file_edit was needed (steps 1-2), force state.json re-sync:
-
-```bash
-gpd state load
-```
-
-5. Commit:
+4. Commit:
 
 ```bash
 PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true

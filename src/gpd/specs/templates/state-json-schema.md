@@ -89,13 +89,13 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 
 ```
 Not started, Planning, Researching, Ready to execute, Executing,
-Paused, Phase complete, Phase complete — ready for verification,
+Paused, Phase complete — ready for verification,
 Verifying, Complete, Blocked, Ready to plan, Milestone complete
 ```
 
-**Phase ID format:** Zero-padded segments: `"03"`, `"03.01"`. See `phase_normalize()`.
+**Phase ID format:** Top-level segment is zero-padded, sub-phases keep natural numeric width: `"03"`, `"03.1"`, `"03.1.2"`. See `phase_normalize()`.
 
-### `convention_lock` (13 standard fields + custom)
+### `convention_lock` (18 standard fields + custom)
 
 ```json
 {
@@ -112,6 +112,11 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
   "index_positioning": "covariant derivatives ∂_μ with lower index",
   "time_ordering": "T-product with Feynman iε",
   "commutation_convention": "[x_i, p_j] = iħδ_{ij}",
+  "levi_civita_sign": "ε^{0123} = +1",
+  "generator_normalization": "Tr(T^a T^b) = 1/2 δ^{ab}",
+  "covariant_derivative_sign": "D_μ = ∂_μ + i g A_μ",
+  "gamma_matrix_convention": "Dirac basis with γ^5 = iγ^0γ^1γ^2γ^3",
+  "creation_annihilation_order": "normal ordering puts a† left of a",
   "custom_conventions": {
     "lattice_spacing": "a = 1 (dimensionless)",
     "boundary_conditions": "periodic in all directions"
@@ -134,6 +139,11 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `index_positioning` | `string \| null` | `null` | Up/down index conventions |
 | `time_ordering` | `string \| null` | `null` | Time-ordering and iε prescription |
 | `commutation_convention` | `string \| null` | `null` | Commutation/anticommutation relations |
+| `levi_civita_sign` | `string \| null` | `null` | Orientation/sign convention for ε tensors |
+| `generator_normalization` | `string \| null` | `null` | Lie-algebra generator trace normalization |
+| `covariant_derivative_sign` | `string \| null` | `null` | Sign convention in covariant derivatives |
+| `gamma_matrix_convention` | `string \| null` | `null` | Gamma-matrix basis and γ⁵ convention |
+| `creation_annihilation_order` | `string \| null` | `null` | Operator ordering convention |
 | `custom_conventions` | `object` | `{}` | Project-specific conventions (key-value) |
 
 **Written by:** `gpd convention set <key> <value>`
@@ -143,27 +153,29 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 ```json
 {
-  "id": "res-0",
+  "id": "R-03-01-lxk7a2b",
   "equation": "\\omega(k) = \\sqrt{k^2 + m^2}",
   "description": "Dispersion relation",
   "units": "energy",
   "validity": "k << \\Lambda",
-  "phase": 1,
-  "depends_on": ["res-1"],
-  "verified": false
+  "phase": "03",
+  "depends_on": ["R-02-01-m1k3f9c"],
+  "verified": false,
+  "verification_records": []
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | Yes | Unique identifier (e.g., `res-0`, `res-1`) |
+| `id` | `string` | Yes | Unique identifier (auto-format: `R-{phase}-{seq}-{suffix}`) |
 | `equation` | `string \| null` | No | LaTeX equation string |
 | `description` | `string` | Yes | Human-readable description |
 | `units` | `string \| null` | No | Physical units of the result |
 | `validity` | `string \| null` | No | Validity conditions/range |
-| `phase` | `integer \| null` | No | Phase that produced this result |
+| `phase` | `string \| null` | No | Phase that produced this result (same format as `position.current_phase`) |
 | `depends_on` | `string[]` | No | IDs of results this depends on |
 | `verified` | `boolean` | No | Whether verified by gpd-verifier |
+| `verification_records` | `VerificationEvidence[]` | No | Structured provenance attached by `gpd result verify` |
 
 **Written by:** `gpd result add`
 **Read by:** gpd-executor (downstream phases), gpd-verifier, gpd-paper-writer
@@ -267,8 +279,8 @@ Run via `gpd state validate`. Current checks:
 4. **Convention lock completeness** — reports unset conventions (warning, not error)
 5. **No NaN values** — numeric fields (total_phases, total_plans_in_phase, progress_percent) must not be NaN
 6. **Schema completeness** — all fields from `default_state_dict()` must be present at top level
-7. **Status vocabulary** — status must be from VALID_STATUSES list (13 values)
-8. **Phase ID format** — current_phase must match `\d{2}(\.\d{2})?` pattern
+7. **Status vocabulary** — status must be from VALID_STATUSES list (12 values)
+8. **Phase ID format** — current_phase must match `\d{2}(\.\d+)*` pattern
 9. **Phase range** — current_phase must not exceed total_phases when both are set
 10. **Result ID uniqueness** — all `intermediate_results[].id` values must be unique
 11. **Dependency validity** — `depends_on` references must point to existing result IDs

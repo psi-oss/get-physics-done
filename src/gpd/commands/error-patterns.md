@@ -105,7 +105,7 @@ Display the full contents formatted as:
 ```bash
 gpd pattern init 2>/dev/null || true
 DOMAIN=$(grep -m1 "domain:" .gpd/PROJECT.md 2>/dev/null | sed 's/.*: *//' || echo "")
-GLOBAL=$(gpd pattern list ${DOMAIN:+--domain "$DOMAIN"} --raw 2>/dev/null)
+GLOBAL=$(gpd --raw pattern list ${DOMAIN:+--domain "$DOMAIN"} 2>/dev/null)
 ```
 
 If global patterns exist (count > 0), append:

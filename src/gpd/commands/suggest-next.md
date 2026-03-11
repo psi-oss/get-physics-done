@@ -13,7 +13,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Analyze current project state and suggest the most impactful next action. Uses `gpd suggest --raw` to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
+Analyze current project state and suggest the most impactful next action. Uses `gpd --raw suggest` to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
 
 This is the fastest way to answer "what should I do next?" without reading through progress reports.
 </objective>
@@ -28,7 +28,7 @@ This is the fastest way to answer "what should I do next?" without reading throu
 ## Step 1: Run the suggest CLI
 
 ```bash
-SUGGESTIONS=$(gpd suggest --raw)
+SUGGESTIONS=$(gpd --raw suggest)
 if [ $? -ne 0 ]; then
   echo "ERROR: suggest-next failed: $SUGGESTIONS"
   echo ""

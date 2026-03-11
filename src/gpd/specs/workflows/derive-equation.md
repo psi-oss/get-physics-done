@@ -77,7 +77,7 @@ fi
 **Convention verification** (if project exists):
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — review before deriving"
   echo "$CONV_CHECK"
@@ -309,7 +309,7 @@ When combining this derivation's results with expressions from prior phases:
 If the project has a convention lock, run the cross-phase consistency check:
 
 ```bash
-gpd convention check --raw 2>/dev/null
+gpd --raw convention check 2>/dev/null
 ```
 
 Any convention drift between phases must be resolved before combining results.

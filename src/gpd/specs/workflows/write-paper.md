@@ -66,8 +66,8 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Load mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
-RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 Mode effects on the write-paper pipeline:
@@ -121,7 +121,7 @@ The workflow continues without compilation checks — .tex file generation does 
 **Convention verification** — papers must use consistent conventions throughout:
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — review before writing paper"
   echo "$CONV_CHECK"
@@ -817,7 +817,7 @@ MISSING=$(grep -c '\\cite{MISSING:' paper/*.tex 2>/dev/null || echo 0)
 TODO=$(grep -cE 'TODO|FIXME|XXX' paper/*.tex 2>/dev/null || echo 0)
 
 # Check convention compliance
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 
 # Check verification status
 VERIF_STATUS=$(grep '^status:' .gpd/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | awk '{print $2}')

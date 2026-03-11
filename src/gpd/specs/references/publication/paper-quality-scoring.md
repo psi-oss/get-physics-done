@@ -34,14 +34,14 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | All `\cite{}` keys resolve in .bib file | 3 | Compile check — no undefined citations |
 | No `MISSING:` placeholder citations remain | 3 | Use `search_files` for `MISSING:` in .tex files |
 | Key prior work cited (not just self-citations) | 2 | Check introduction references breadth |
-| No hallucinated citations (bibliographer verified) | 2 | BIBLIOGRAPHY-AUDIT.md status |
+| No hallucinated citations (bibliographer verified) | 2 | `BIBLIOGRAPHY-AUDIT.json` clean or passing status |
 
 ### 4. Conventions (15 points)
 
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | Convention lock complete (all relevant fields set) | 5 | `gpd convention check` returns complete: true |
-| ASSERT_CONVENTION in all derivation files | 5 | `gpd pre-commit-check` passes |
+| ASSERT_CONVENTION in all derivation files | 5 | Search derivation files for `ASSERT_CONVENTION:` and compare against the convention lock; `gpd pre-commit-check` does not currently validate these assertions |
 | Notation consistent across all sections | 5 | Same symbol = same meaning throughout |
 
 ### 5. Verification (20 points)
@@ -95,7 +95,7 @@ UNDEFINED_CITES=$(grep -c 'undefined' paper/*.log 2>/dev/null || echo 0)
 CITE_SCORE=$((MISSING_CITES == 0 && UNDEFINED_CITES == 0 ? 10 : (MISSING_CITES < 3 ? 5 : 0)))
 
 # 3. Check conventions
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 CONV_COMPLETE=$(echo "$CONV_CHECK" | python3 -c "import json,sys; print(json.load(sys.stdin).get('complete',False))")
 
 # 4. Check placeholders

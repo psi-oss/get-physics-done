@@ -36,7 +36,7 @@ Convention context is critical for theory-experiment comparison: unit mismatches
 **Convention verification** (if project exists):
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — unit mismatches between theory and experiment are the #1 source of false discrepancies"
   echo "$CONV_CHECK"

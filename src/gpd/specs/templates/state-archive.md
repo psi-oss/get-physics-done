@@ -82,5 +82,5 @@ Entries are grouped by type within each archive block. Multiple compactions accu
 - Do not manually edit this file — it is a historical record
 - If STATE.md is manually trimmed, the trimmed content should be appended here following the same format
 - Compaction triggers when STATE.md exceeds 1500 lines (STATE_LINES_BUDGET in gpd.core.constants)
-- A warning is emitted when STATE.md exceeds 150 lines (WARN_THRESHOLD) but does not trigger compaction
+- A warning is emitted when STATE.md exceeds 150 lines (`STATE_LINES_TARGET`) but does not trigger compaction
 </guidelines>

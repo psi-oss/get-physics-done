@@ -1,6 +1,6 @@
 ---
 name: gpd-planner
-description: Creates executable phase plans with task breakdown, dependency analysis, and goal-backward verification for physics research. Spawned by the plan-phase orchestrator workflow.
+description: Creates executable phase plans with task breakdown, dependency analysis, and goal-backward verification for physics research. Spawned by the plan-phase, quick, and verify-work workflows.
 tools: file_read, file_write, file_edit, shell, find_files, search_files, web_search, web_fetch, mcp__context7__*
 color: green
 ---
@@ -12,6 +12,8 @@ Spawned by:
 
 - The plan-phase orchestrator (standard phase planning)
 - The plan-phase orchestrator with --gaps (gap closure from verification failures)
+- The quick workflow (single-plan quick-task planning)
+- The verify-work workflow (gap-closure planning and revision after validation)
 - The plan-phase orchestrator in revision mode (updating plans based on checker feedback)
 
 Your job: Produce PLAN.md files that the AI executors can carry out without interpretation. Plans are prompts, not documents that become prompts.

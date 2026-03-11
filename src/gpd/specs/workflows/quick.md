@@ -1,5 +1,5 @@
 <purpose>
-Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits, STATE.md tracking) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks tasks in `.gpd/quick/`, and updates STATE.md's "Quick Tasks Completed" table. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
+Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits and durable state updates) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks artifacts in `.gpd/quick/`, and records completion through the structured state commands plus the quick-task summary files. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
 </purpose>
 
 <required_reading>
@@ -183,30 +183,15 @@ gpd state add-decision --phase "quick-${next_num}" --summary "Quick task ${next_
 gpd state update "Last Activity" "${date}"
 ```
 
-**6c. Append quick task table row (file_edit + sync):**
+**6c. Do not add a custom "Quick Tasks Completed" section to STATE.md.**
 
-If the "Quick Tasks Completed" table section in STATE.md does not exist, create it using file_edit tool after the `### Blockers/Concerns` section:
+The current state schema does not round-trip arbitrary markdown-only sections when JSON-driven state commands regenerate `STATE.md`. Treat the durable record for a quick task as:
 
-```markdown
-### Quick Tasks Completed
+- the decision entry written above via `gpd state add-decision`
+- the updated `Last Activity` field
+- the artifacts in `${QUICK_DIR}` (`${next_num}-PLAN.md`, `${next_num}-SUMMARY.md`, and any committed outputs)
 
-| #   | Description | Date | Commit | Directory |
-| --- | ----------- | ---- | ------ | --------- |
-```
-
-Append new row to the table using file_edit tool:
-
-```markdown
-| ${next_num} | ${DESCRIPTION} | ${date} | ${commit_hash} | [${next_num}-${slug}](./quick/${next_num}-${slug}/) |
-```
-
-**6d. Force state.json re-sync after the file_edit:**
-
-```bash
-gpd state load
-```
-
-This ensures the table content added via file_edit is synced to state.json. Do NOT skip this step — direct file_edit of STATE.md without `state load` causes STATE.md/state.json divergence.
+If you want a human-facing index, put it in `.gpd/quick/README.md` or in the quick-task summary, not in `STATE.md`.
 
 ---
 
@@ -255,6 +240,6 @@ Ready for next task: /gpd:quick
 - [ ] Directory created at `.gpd/quick/NNN-slug/`
 - [ ] `${next_num}-PLAN.md` created by planner
 - [ ] `${next_num}-SUMMARY.md` created by executor
-- [ ] STATE.md updated with quick task row
+- [ ] Structured state updated via `gpd state` commands
 - [ ] Artifacts committed
 </success_criteria>

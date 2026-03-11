@@ -11,7 +11,7 @@ context_cost: small
 
 Compact summary of HIGH-risk and CRITICAL error classes from the full `references/verification/audits/verification-gap-analysis.md`. Load this for routine verification prioritization; load the full file only for deep audits.
 
-**101 total error classes.** 82 have single-layer coverage (L5 verifier only). See `references/verification/audits/verification-gap-analysis.md` for the full coverage matrix.
+**Current catalog:** 104 total error classes. The detailed layer-coverage counts below still come from the 2026-02-23 101-class audit snapshot in `references/verification/audits/verification-gap-analysis.md`; classes #102-104 were added afterward and are not yet folded into those aggregate counts.
 
 ## CRITICAL Risk (0-1 reliable layers)
 
@@ -38,15 +38,12 @@ Compact summary of HIGH-risk and CRITICAL error classes from the full `reference
 | 77 | Kinetic vs fluid regime mismatch | Using fluid model in collisionless regime | L0 regime check + L5 domain verification |
 | 87 | Wrong reconnection topology | Sweet-Parker vs Petschek: 5 orders of magnitude error | L5 literature + scaling check |
 
-## Uncataloged HIGH-Risk Gaps
+## Still-Uncataloged HIGH-Risk Gaps
 
-These error types are NOT yet in the 101-class catalog but are confirmed high-risk:
+These gaps remain outside the current 104-class catalog but are still worth tracking:
 
 | Gap | Description | Why Dangerous |
 |---|---|---|
-| Catastrophic cancellation | Subtraction of nearly-equal large numbers destroys significant digits | Silent precision loss in intermediate steps; final result has garbage digits |
-| Functional Jacobians | Missing functional determinant in field redefinitions | Changes path integral measure; silently drops anomalous contributions |
-| IR safety violations | Computing infrared-unsafe observables | Observable depends on IR cutoff; result is formally divergent but numerics give finite answer |
 | Cross-phase error propagation | Uncertainty from phase N not tracked into phase N+1 | Error bars on final result are underestimated; conclusions may not survive uncertainty |
 
 ## Profile-Dependent Coverage Warning
@@ -62,7 +59,7 @@ These error types are NOT yet in the 101-class catalog but are confirmed high-ri
 
 ## See Also
 
-- `references/verification/audits/verification-gap-analysis.md` — Full 101-class coverage matrix with all defense layers
+- `references/verification/audits/verification-gap-analysis.md` — 101-class audit baseline plus notes about the current 104-class catalog
 - `../errors/llm-physics-errors.md` — Index to the 4-part error catalog
 - `../core/verification-quick-reference.md` — 14-check verification checklist
 - `../core/verification-core.md` — Universal verification procedures

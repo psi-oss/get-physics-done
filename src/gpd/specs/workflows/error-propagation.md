@@ -140,20 +140,13 @@ For each node in the dependency tree, catalog all uncertainty sources.
 
 ### 3a. Input parameter uncertainties
 
-**Sync check:** STATE.md is the primary state file managed by the AI; state.json is a structured mirror used by gpd CLI. Before reading `propagated_uncertainties` from state.json, verify that state.json is current:
+**State integrity check:** `propagated_uncertainties` lives in authoritative `state.json`. Before reading it, verify the paired state files are healthy:
 
 ```bash
-# Compare modification times: state.json must not be older than STATE.md
-STATE_MD_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
-STATE_JSON_MOD=$(stat -f %m .gpd/state.json 2>/dev/null || stat -c %Y .gpd/state.json 2>/dev/null || echo 0)
-
-if [ "$STATE_JSON_MOD" -lt "$STATE_MD_MOD" ]; then
-  echo "WARNING: state.json is older than STATE.md — deleting state.json for regeneration"
-  rm -f .gpd/state.json
-fi
+gpd --raw state validate
 ```
 
-If state.json is missing, `gpd state` commands will regenerate it from STATE.md automatically. As a fallback, read uncertainty values directly from STATE.md's `## Intermediate Results` and `## Propagated Uncertainties` sections.
+If validation reports divergence or a parse error, stop here and run `/gpd:sync-state` (or the controlled backup + `gpd --raw state snapshot` recovery path) before trusting uncertainty values. If recovery is blocked, fall back to `STATE.md`'s `## Intermediate Results` and `## Propagated Uncertainties` sections, and clearly label the result as markdown-recovered rather than JSON-backed.
 
 Read `propagated_uncertainties` in state.json for existing uncertainty values on input parameters. For each leaf input:
 

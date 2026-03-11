@@ -48,7 +48,7 @@ For most verification needs, start with the quick reference:
 
 ## See Also
 
-- `../errors/llm-physics-errors.md` — Catalog of 101 LLM-specific error classes with detection strategies
+- `../errors/llm-physics-errors.md` — Catalog of 104 LLM-specific error classes with detection strategies
 - `../errors/llm-errors-traceability.md` — Compact traceability matrix mapping errors to verification checks
 - `../../physics-subfields.md` — Subfield-specific methods, tools, and pitfalls
 - `references/orchestration/checkpoints.md` — Pre-checkpoint automation and computational environment management

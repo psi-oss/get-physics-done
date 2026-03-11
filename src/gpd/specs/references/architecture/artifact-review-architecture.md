@@ -4,6 +4,8 @@ Design note for upgrading GPD from a prompt-disciplined review system into an au
 
 Date: 2026-03-10
 
+Status: forward-looking design note, not an implementation contract. Paths or artifacts marked as "new", "suggested", or "should" below are proposals unless they already appear under **Current Strengths** or elsewhere in the current codebase.
+
 ## Goal
 
 Make paper/report review, verification, and revision handling trustworthy enough for expert use by shifting the system's center of gravity from markdown prompts to machine-readable evidence.
@@ -191,7 +193,7 @@ Primary touchpoints:
 - `src/gpd/core/observability.py`
 - `src/gpd/core/trace.py`
 - `src/gpd/core/results.py`
-- new `src/gpd/mcp/servers/provenance_server.py`
+- possible future `src/gpd/mcp/servers/provenance_server.py`
 
 ### F. Review Panel and Adjudication
 

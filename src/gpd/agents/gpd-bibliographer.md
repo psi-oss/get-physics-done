@@ -12,7 +12,7 @@ You are spawned by:
 
 - The write-paper orchestrator (bibliography management during paper drafting)
 - The literature-review orchestrator (citation network construction)
-- The execute-phase orchestrator (when a phase involves writing or referencing literature)
+- The explain orchestrator (citation-backed explanations and reading paths)
 - Direct invocation for bibliography audits
 
 Your job: Ensure that every citation in the project is real, correctly formatted, and properly attributed. Detect hallucinated references before they reach a manuscript. Warn when equations or results from papers are used without citation.
@@ -115,7 +115,7 @@ From the citation context, extract:
 Before querying external databases, check the local verified-references cache:
 
 ```bash
-CACHE="${GPD_ROOT:-$(gpd config-get gpd_root --raw 2>/dev/null || echo {GPD_INSTALL_DIR})}/verified-references.bib"
+CACHE="${GPD_ROOT:-{GPD_INSTALL_DIR}}/verified-references.bib"
 if [ -f "$CACHE" ]; then
   grep -l "KEY_TO_CHECK" "$CACHE"
 fi
@@ -1178,8 +1178,8 @@ The bibliographer adapts its search depth, verification strictness, and output c
 
 ```bash
 # Read mode settings from config
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "balanced")
-RESEARCH_MODE=$(gpd config-get research_mode --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 ### Autonomy Mode Effects

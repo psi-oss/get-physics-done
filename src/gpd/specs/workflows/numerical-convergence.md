@@ -42,7 +42,7 @@ Convention context is important for numerical validation: unit system determines
 **Convention verification** (if project exists):
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — review before validating convergence"
   echo "$CONV_CHECK"

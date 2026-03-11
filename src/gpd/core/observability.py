@@ -1,21 +1,19 @@
-"""Local observability helpers for GPD.
+"""Session-focused local observability helpers for GPD.
 
 Observability is written to the project-local ``.gpd/observability/`` tree:
 
-- ``events.jsonl`` stores the append-only project-wide event stream
-- ``sessions/<session-id>.jsonl`` stores per-session event streams
-- ``sessions/<session-id>.json`` stores session metadata
-- ``current-session.json`` points at the latest active session
+- ``sessions/<session-id>.jsonl`` stores the full event stream for one session
+- ``current-session.json`` points at the latest observed session summary
 
-The public API intentionally preserves the legacy ``gpd_span`` /
-``instrument_gpd_function`` surface so existing callers do not need to care
-how the observability backend is implemented.
+Automatic low-level function/span logging is intentionally disabled. Only
+explicit session/workflow events should be recorded here.
 """
 
 from __future__ import annotations
 
 import functools
 import inspect
+import json
 import os
 import secrets
 import sys
@@ -25,7 +23,6 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from itertools import count
 from pathlib import Path
-from time import perf_counter
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,12 +52,11 @@ __all__ = [
 
 _session_id_var: ContextVar[str | None] = ContextVar("gpd_observability_session_id", default=None)
 _session_cwd_var: ContextVar[Path | None] = ContextVar("gpd_observability_session_cwd", default=None)
-_span_stack_var: ContextVar[tuple[str, ...]] = ContextVar("gpd_observability_span_stack", default=())
 _event_counter = count(1)
 
 
 class ObservabilitySession(BaseModel):
-    """Session metadata stored under ``.gpd/observability/sessions``."""
+    """Summary metadata for a local observability session."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -207,8 +203,6 @@ def _read_json(path: Path) -> dict[str, object] | None:
     if content is None:
         return None
     try:
-        import json
-
         raw = json.loads(content)
     except Exception:
         return None
@@ -216,8 +210,6 @@ def _read_json(path: Path) -> dict[str, object] | None:
 
 
 def _append_event(path: Path, payload: dict[str, object]) -> None:
-    import json
-
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(payload, default=str)
     with file_lock(path):
@@ -225,19 +217,8 @@ def _append_event(path: Path, payload: dict[str, object]) -> None:
             handle.write(line + "\n")
 
 
-def _save_session_meta(layout: ProjectLayout, session: ObservabilitySession) -> None:
-    atomic_write(layout.observability_session_meta(session.session_id), session.model_dump_json(indent=2))
+def _save_current_session(layout: ProjectLayout, session: ObservabilitySession) -> None:
     atomic_write(layout.current_observability_session, session.model_dump_json(indent=2))
-
-
-def _load_session_meta(layout: ProjectLayout, session_id: str) -> ObservabilitySession | None:
-    content = safe_read_file(layout.observability_session_meta(session_id))
-    if content is None:
-        return None
-    try:
-        return ObservabilitySession.model_validate_json(content)
-    except Exception:
-        return None
 
 
 def _current_command(argv: list[str] | None = None) -> str | None:
@@ -249,6 +230,158 @@ def _current_command(argv: list[str] | None = None) -> str | None:
     if cleaned[0] == "--cwd":
         cleaned = cleaned[2:]
     return " ".join(cleaned[:2]) if cleaned else None
+
+
+def _session_log(layout: ProjectLayout, session_id: str) -> Path:
+    return layout.observability_session_events(session_id)
+
+
+def _session_lifecycle_event(
+    session: ObservabilitySession,
+    *,
+    action: str,
+    status: str,
+    timestamp: str,
+    data: dict[str, object],
+) -> ObservabilityEvent:
+    return ObservabilityEvent(
+        event_id=_new_id("evt"),
+        timestamp=timestamp,
+        session_id=session.session_id,
+        category="session",
+        name="lifecycle",
+        action=action,
+        status=status,
+        command=session.command,
+        data=data,
+    )
+
+
+def _session_start_event(session: ObservabilitySession) -> ObservabilityEvent:
+    return _session_lifecycle_event(
+        session,
+        action="start",
+        status="active",
+        timestamp=session.started_at,
+        data={
+            "cwd": session.cwd,
+            "source": session.source,
+            "pid": session.pid,
+            "metadata": session.metadata,
+        },
+    )
+
+
+def _session_finish_event(
+    session: ObservabilitySession,
+    *,
+    status: str,
+    ended_at: str,
+    ended_by: dict[str, object],
+) -> ObservabilityEvent:
+    return _session_lifecycle_event(
+        session,
+        action="error" if status == "error" else "finish",
+        status=status,
+        timestamp=ended_at,
+        data={
+            "ended_at": ended_at,
+            "ended_by": ended_by,
+            "source": session.source,
+        },
+    )
+
+
+def _lifecycle_event_data(event: dict[str, object]) -> dict[str, object]:
+    data = event.get("data")
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _session_from_events(
+    session_id: str,
+    events: list[dict[str, object]],
+    *,
+    default_cwd: Path,
+) -> ObservabilitySession | None:
+    if not events:
+        return None
+
+    first_event = events[0]
+    last_event = events[-1]
+    started_at = str(first_event.get("timestamp") or "")
+    last_event_at = str(last_event.get("timestamp") or started_at)
+    cwd = str(default_cwd)
+    source = "python"
+    pid: int | None = None
+    command_value = last_event.get("command") or first_event.get("command")
+    command = str(command_value) if isinstance(command_value, str) and command_value else None
+    metadata: dict[str, object] = {}
+    status = "active"
+
+    start_event = next(
+        (
+            event
+            for event in events
+            if event.get("category") == "session"
+            and event.get("name") == "lifecycle"
+            and event.get("action") == "start"
+        ),
+        None,
+    )
+    if start_event is not None:
+        started_at = str(start_event.get("timestamp") or started_at)
+        start_data = _lifecycle_event_data(start_event)
+        cwd_value = start_data.get("cwd")
+        if isinstance(cwd_value, str) and cwd_value:
+            cwd = cwd_value
+        source_value = start_data.get("source")
+        if isinstance(source_value, str) and source_value:
+            source = source_value
+        pid_value = start_data.get("pid")
+        if isinstance(pid_value, int):
+            pid = pid_value
+        meta_value = start_data.get("metadata")
+        if isinstance(meta_value, dict):
+            metadata = dict(meta_value)
+        start_command = start_event.get("command")
+        if isinstance(start_command, str) and start_command:
+            command = start_command
+
+    finish_event = next(
+        (
+            event
+            for event in reversed(events)
+            if event.get("category") == "session"
+            and event.get("name") == "lifecycle"
+            and event.get("action") in {"finish", "error"}
+        ),
+        None,
+    )
+    if finish_event is not None:
+        finish_data = _lifecycle_event_data(finish_event)
+        status_value = finish_event.get("status")
+        if isinstance(status_value, str) and status_value:
+            status = status_value
+        ended_at = finish_data.get("ended_at")
+        if isinstance(ended_at, str) and ended_at:
+            metadata = {**metadata, "ended_at": ended_at}
+
+    return ObservabilitySession(
+        session_id=session_id,
+        started_at=started_at,
+        last_event_at=last_event_at,
+        cwd=cwd,
+        source=source,
+        pid=pid,
+        command=command,
+        status=status,
+        metadata=metadata,
+    )
+
+
+def _load_session_from_log(layout: ProjectLayout, session_id: str) -> ObservabilitySession | None:
+    events = _read_events(_session_log(layout, session_id))
+    return _session_from_events(session_id, events, default_cwd=layout.root)
 
 
 def get_current_session(cwd: Path | None = None) -> ObservabilitySession | None:
@@ -270,6 +403,16 @@ def get_current_session_id(cwd: Path | None = None) -> str | None:
     return current.session_id if current is not None else None
 
 
+def _active_context_session(layout: ProjectLayout) -> ObservabilitySession | None:
+    existing_id = _session_id_var.get()
+    if not existing_id or _session_cwd_var.get() != layout.root:
+        return None
+    current = get_current_session(layout.root)
+    if current is None or current.session_id != existing_id or current.status != "active":
+        return None
+    return current
+
+
 def ensure_session(
     cwd: Path | None = None,
     *,
@@ -282,58 +425,82 @@ def ensure_session(
         return None
 
     _ensure_dirs(layout)
-    resolved_cwd = layout.root
-    existing_id = _session_id_var.get()
-    if existing_id and _session_cwd_var.get() == resolved_cwd:
-        existing = _load_session_meta(layout, existing_id)
-        if existing is not None and existing.status == "active":
-            return existing
+    existing = _active_context_session(layout)
+    if existing is not None:
+        return existing
 
     now = _now_iso()
-    session_id = f"{now.replace(':', '').replace('-', '')[:15]}-{os.getpid()}-{secrets.token_hex(3)}"
     session = ObservabilitySession(
-        session_id=session_id,
+        session_id=f"{now.replace(':', '').replace('-', '')[:15]}-{os.getpid()}-{secrets.token_hex(3)}",
         started_at=now,
         last_event_at=now,
-        cwd=str(resolved_cwd),
+        cwd=str(layout.root),
         source=source,
         pid=os.getpid(),
         command=command or _current_command(),
         metadata=metadata or {},
     )
-    _save_session_meta(layout, session)
-    _session_id_var.set(session_id)
-    _session_cwd_var.set(resolved_cwd)
+    _append_event(_session_log(layout, session.session_id), _session_start_event(session).model_dump(mode="json"))
+    _save_current_session(layout, session)
+    _session_id_var.set(session.session_id)
+    _session_cwd_var.set(layout.root)
     return session
 
 
 ensure_observability_session = ensure_session
 
 
-def _update_session(
+def _resolve_session(
     layout: ProjectLayout,
-    session_id: str,
     *,
-    status: str | None = None,
-    command: str | None = None,
-    ended_at: str | None = None,
+    cwd: Path | None,
+    session_id: str | None,
+    command: str | None,
 ) -> ObservabilitySession | None:
-    existing = _load_session_meta(layout, session_id)
-    if existing is None:
-        return None
-    update_payload: dict[str, object] = {
-        "last_event_at": _now_iso(),
-        "status": status or existing.status,
-    }
-    if command:
-        update_payload["command"] = command
-    metadata = dict(existing.metadata)
+    if session_id:
+        session = _load_session_from_log(layout, session_id)
+        if session is not None:
+            return session
+    return ensure_session(cwd, source="python", command=command)
+
+
+def _updated_session(
+    session: ObservabilitySession,
+    *,
+    timestamp: str,
+    command: str | None,
+    status: str | None = None,
+    ended_at: str | None = None,
+) -> ObservabilitySession:
+    metadata = dict(session.metadata)
     if ended_at:
         metadata["ended_at"] = ended_at
-        update_payload["metadata"] = metadata
-    updated = existing.model_copy(update=update_payload)
-    _save_session_meta(layout, updated)
-    return updated
+    return session.model_copy(
+        update={
+            "last_event_at": timestamp,
+            "command": command or session.command,
+            "status": status or session.status,
+            "metadata": metadata,
+        }
+    )
+
+
+def _finalize_session(
+    layout: ProjectLayout,
+    session: ObservabilitySession,
+    *,
+    status: str,
+    ended_at: str,
+    ended_by: dict[str, object],
+) -> ObservabilitySession:
+    final_session = _updated_session(session, timestamp=ended_at, command=session.command, status=status, ended_at=ended_at)
+    finish_event = _session_finish_event(final_session, status=status, ended_at=ended_at, ended_by=ended_by)
+    _append_event(_session_log(layout, final_session.session_id), finish_event.model_dump(mode="json"))
+    _save_current_session(layout, final_session)
+    if _session_id_var.get() == final_session.session_id and _session_cwd_var.get() == layout.root:
+        _session_id_var.set(None)
+        _session_cwd_var.set(None)
+    return final_session
 
 
 def observe_event(
@@ -353,20 +520,14 @@ def observe_event(
     span_id: str | None = None,
     parent_span_id: str | None = None,
     data: dict[str, object] | None = None,
+    end_session: bool = False,
 ) -> ObserveEventResult:
     layout = _layout(cwd)
     if layout is None:
         return ObserveEventResult(recorded=False, reason="observability_unavailable")
 
     _ensure_dirs(layout)
-    session: ObservabilitySession | None
-    if session_id:
-        session = _load_session_meta(layout, session_id)
-        if session is None:
-            session = ensure_session(cwd, source="python", command=command)
-    else:
-        session = ensure_session(cwd, source="python", command=command)
-
+    session = _resolve_session(layout, cwd=cwd, session_id=session_id, command=command)
     if session is None:
         return ObserveEventResult(recorded=False, reason="session_unavailable")
 
@@ -388,17 +549,31 @@ def observe_event(
         parent_span_id=parent_span_id,
         data=data or {},
     )
-    serialized = payload.model_dump(mode="json")
-    _append_event(layout.observability_events, serialized)
-    _append_event(layout.observability_session_events(session.session_id), serialized)
-    final_status = status if action in {"finish", "error"} else ("active" if status == "active" else None)
-    _update_session(
-        layout,
-        session.session_id,
-        status=final_status,
+    _append_event(_session_log(layout, session.session_id), payload.model_dump(mode="json"))
+
+    updated = _updated_session(
+        session,
+        timestamp=payload.timestamp,
         command=payload.command,
-        ended_at=payload.timestamp if action == "finish" else None,
+        status="active" if not end_session else status,
     )
+    if end_session:
+        _finalize_session(
+            layout,
+            updated,
+            status=status,
+            ended_at=payload.timestamp,
+            ended_by={
+                "category": category,
+                "name": name,
+                "action": action,
+                "status": status,
+            },
+        )
+    else:
+        _save_current_session(layout, updated)
+        _session_id_var.set(updated.session_id)
+        _session_cwd_var.set(layout.root)
 
     return ObserveEventResult(
         recorded=True,
@@ -430,90 +605,25 @@ def _prefixed_attrs(attrs: dict[str, object]) -> dict[str, object]:
 
 @contextmanager
 def gpd_span(name: str, **attrs: object) -> Generator[LocalSpan, None, None]:
-    """Create a local observability span."""
+    """No-op local span kept for structural instrumentation boundaries."""
     prefixed = _prefixed_attrs(attrs)
-    cwd = _extract_cwd(prefixed.get("gpd.cwd"))
-    session = ensure_session(cwd, source="span")
-    span_id = _new_id("span") if session is not None else None
-    parent_stack = _span_stack_var.get()
-    parent_span_id = parent_stack[-1] if parent_stack and parent_stack[-1] else None
-    span = LocalSpan(session_id=session.session_id if session else None, span_id=span_id, name=name, attrs=prefixed)
-
-    observe_event(
-        cwd,
-        category="span",
-        name=name,
-        action="start",
-        status="active",
-        session_id=session.session_id if session else None,
-        span_id=span_id,
-        parent_span_id=parent_span_id,
-        data={"attrs": prefixed},
-    )
-
-    token = _span_stack_var.set(parent_stack + ((span_id,)))
-    started = perf_counter()
-    try:
-        yield span
-    except Exception as exc:
-        observe_event(
-            cwd,
-            category="span",
-            name=name,
-            action="error",
-            status="error",
-            session_id=session.session_id if session else None,
-            span_id=span_id,
-            parent_span_id=parent_span_id,
-            data={
-                "attrs": span.attrs,
-                "duration_ms": round((perf_counter() - started) * 1000, 3),
-                "error": {"type": exc.__class__.__name__, "message": str(exc)},
-            },
-        )
-        raise
-    else:
-        observe_event(
-            cwd,
-            category="span",
-            name=name,
-            action="finish",
-            status="ok",
-            session_id=session.session_id if session else None,
-            span_id=span_id,
-            parent_span_id=parent_span_id,
-            data={
-                "attrs": span.attrs,
-                "duration_ms": round((perf_counter() - started) * 1000, 3),
-            },
-        )
-    finally:
-        _span_stack_var.reset(token)
+    span = LocalSpan(session_id=None, span_id=None, name=name, attrs=prefixed)
+    yield span
 
 
-def _call_metadata(func: Callable, args: tuple[object, ...], kwargs: dict[str, object]) -> tuple[Path | None, dict[str, object]]:
-    cwd: Path | None = None
+def _call_cwd(func: Callable, args: tuple[object, ...], kwargs: dict[str, object]) -> Path | None:
     if "cwd" in kwargs:
-        cwd = _extract_cwd(kwargs["cwd"])
-    if cwd is None and args:
-        cwd = _extract_cwd(args[0])
-
-    metadata = {
-        "module": func.__module__,
-        "qualname": func.__qualname__,
-        "args_count": len(args),
-        "kwarg_keys": sorted(kwargs),
-    }
-    if cwd is not None:
-        metadata["cwd"] = str(cwd)
-    return cwd, metadata
+        return _extract_cwd(kwargs["cwd"])
+    if args:
+        return _extract_cwd(args[0])
+    return None
 
 
 def instrument_gpd_function(
     span_name: str | None = None,
     **default_attrs: object,
 ) -> Callable:
-    """Decorator factory for local function observability."""
+    """Decorator factory that preserves span structure without emitting events."""
 
     def decorator(func: Callable) -> Callable:
         name = span_name or f"{func.__module__}.{func.__qualname__}"
@@ -521,54 +631,25 @@ def instrument_gpd_function(
         if inspect.isgeneratorfunction(func):
             @functools.wraps(func)
             def gen_wrapper(*args: object, **kwargs: object) -> object:
-                # For generators, we can't wrap the entire execution in a span
-                # because the generator is lazily evaluated. Just pass through.
                 return func(*args, **kwargs)
+
             return gen_wrapper
 
         if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args: object, **kwargs: object) -> object:
-                cwd, metadata = _call_metadata(func, args, kwargs)
-                observe_event(cwd, category="function", name=name, action="start", status="active", data=metadata)
-                try:
-                    with gpd_span(name, cwd=str(cwd) if cwd is not None else "", **default_attrs):
-                        result = await func(*args, **kwargs)
-                except Exception as exc:
-                    observe_event(
-                        cwd,
-                        category="function",
-                        name=name,
-                        action="error",
-                        status="error",
-                        data={**metadata, "error": {"type": exc.__class__.__name__, "message": str(exc)}},
-                    )
-                    raise
-                observe_event(cwd, category="function", name=name, action="finish", status="ok", data=metadata)
-                return result
+                cwd = _call_cwd(func, args, kwargs)
+                with gpd_span(name, cwd=str(cwd) if cwd is not None else "", **default_attrs):
+                    return await func(*args, **kwargs)
 
             return async_wrapper
 
         @functools.wraps(func)
         def sync_wrapper(*args: object, **kwargs: object) -> object:
-            cwd, metadata = _call_metadata(func, args, kwargs)
-            observe_event(cwd, category="function", name=name, action="start", status="active", data=metadata)
-            try:
-                with gpd_span(name, cwd=str(cwd) if cwd is not None else "", **default_attrs):
-                    result = func(*args, **kwargs)
-            except Exception as exc:
-                observe_event(
-                    cwd,
-                    category="function",
-                    name=name,
-                    action="error",
-                    status="error",
-                    data={**metadata, "error": {"type": exc.__class__.__name__, "message": str(exc)}},
-                )
-                raise
-            observe_event(cwd, category="function", name=name, action="finish", status="ok", data=metadata)
-            return result
+            cwd = _call_cwd(func, args, kwargs)
+            with gpd_span(name, cwd=str(cwd) if cwd is not None else "", **default_attrs):
+                return func(*args, **kwargs)
 
         return sync_wrapper
 
@@ -579,14 +660,10 @@ def _iter_session_meta(layout: ProjectLayout) -> list[ObservabilitySession]:
     if not layout.observability_sessions_dir.is_dir():
         return []
     sessions: list[ObservabilitySession] = []
-    for meta_path in sorted(layout.observability_sessions_dir.glob("*.json")):
-        content = safe_read_file(meta_path)
-        if content is None:
-            continue
-        try:
-            sessions.append(ObservabilitySession.model_validate_json(content))
-        except Exception:
-            continue
+    for session_path in sorted(layout.observability_sessions_dir.glob("*.jsonl")):
+        session = _load_session_from_log(layout, session_path.stem)
+        if session is not None:
+            sessions.append(session)
     return sorted(sessions, key=lambda item: item.last_event_at, reverse=True)
 
 
@@ -614,8 +691,6 @@ def _read_events(path: Path) -> list[dict[str, object]]:
     if content is None:
         return []
     events: list[dict[str, object]] = []
-    import json
-
     for line in content.splitlines():
         line = line.strip()
         if not line:
@@ -692,7 +767,7 @@ def show_events(
 
     if session:
         events = _filter_events(
-            _read_events(layout.observability_session_events(session)),
+            _read_events(_session_log(layout, session)),
             category=category,
             name=name,
             action=action,
@@ -703,30 +778,16 @@ def show_events(
             last=last,
         )
     else:
-        global_file = layout.observability_events
-        if global_file.exists():
-            events = _filter_events(
-                _read_events(global_file),
-                category=category,
-                name=name,
-                action=action,
-                status=status,
-                command=command,
-                phase=phase,
-                plan=plan,
-                last=last,
-            )
-        else:
-            events = _filter_events(
-                _read_session_events(layout),
-                category=category,
-                name=name,
-                action=action,
-                status=status,
-                command=command,
-                phase=phase,
-                plan=plan,
-                last=last,
-            )
+        events = _filter_events(
+            _read_session_events(layout),
+            category=category,
+            name=name,
+            action=action,
+            status=status,
+            command=command,
+            phase=phase,
+            plan=plan,
+            last=last,
+        )
 
     return ObservabilityShowResult(count=len(events), events=events)

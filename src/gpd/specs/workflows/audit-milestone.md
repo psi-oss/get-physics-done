@@ -25,7 +25,7 @@ Extract from init JSON: `milestone_version`, `milestone_name`, `phase_count`, `c
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**

@@ -339,13 +339,13 @@ def test_body_one_liner_regex_ignores_mid_document_frontmatter() -> None:
     assert match.group(1) == "First line"
 
 
-def test_show_events_does_not_fallback_when_global_file_has_no_matches(tmp_path: Path) -> None:
+def test_show_events_returns_empty_when_session_logs_have_no_matches(tmp_path: Path) -> None:
     from gpd.core.observability import show_events
 
-    obs_dir = tmp_path / ".gpd" / "observability"
-    obs_dir.mkdir(parents=True)
-    (obs_dir / "events.jsonl").write_text(
-        '{"event_id": "e1", "action": "log", "category": "test"}\n',
+    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / "session-a.jsonl").write_text(
+        '{"event_id": "e1", "timestamp": "2026-03-10T00:00:00+00:00", "session_id": "session-a", "action": "log", "category": "test", "name": "demo", "status": "ok"}\n',
         encoding="utf-8",
     )
 

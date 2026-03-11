@@ -24,7 +24,7 @@ Extract: `state_exists`, `roadmap_exists`, `phases`, `current_phase`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**

@@ -73,7 +73,7 @@ This yields Eq. (M) of the main text.
 - **Hardware:** [CPU/GPU specs, cluster name]
 - **Total CPU hours:** [estimate]
 - **Memory requirements:** [per-job peak]
-- **Software versions:** See reproducibility-manifest.md
+- **Software versions:** See `reproducibility-manifest.json`
 
 ---
 
@@ -108,7 +108,7 @@ This yields Eq. (M) of the main text.
 - **Repository:** [URL]
 - **DOI:** [Zenodo/Figshare DOI for archived version]
 - **License:** [License]
-- **Requirements:** See reproducibility-manifest.md for environment specifications
+- **Requirements:** See `reproducibility-manifest.json` for environment specifications
 - **Data:** [Where raw/processed data can be obtained]
 
 ---

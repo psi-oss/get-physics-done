@@ -22,6 +22,7 @@ Useful checks:
 ```bash
 uv build
 npm_config_cache=.npm-cache npm pack --dry-run --json
+uv run pytest tests/test_metadata_consistency.py -v
 uv run pytest tests/test_release_consistency.py -v
 uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
 uv run pytest tests/core/test_cli.py -v
@@ -32,6 +33,7 @@ Cross-runtime release checks:
 
 - `tests/adapters/test_registry.py` and `tests/adapters/test_install_roundtrip.py` cover install-time translation across Claude Code, Gemini CLI, Codex, and OpenCode.
 - `tests/core/test_cli.py` covers the public `gpd` CLI surface.
+- `tests/test_metadata_consistency.py` covers public docs, inventory counts, and CLI/registry metadata alignment.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
 - `uv build` validates the published Python wheel and sdist.
 - `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release.
@@ -44,7 +46,7 @@ Cross-runtime release checks:
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
 - Keep the `tests` workflow pinned to the minimum supported Python version (`3.11`) unless we intentionally broaden CI coverage.
 - Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.
-- Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `review-preflight`, `paper-quality`, and `reproducibility-manifest`.
+- Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `consistency`, `review-preflight`, `paper-quality`, `referee-decision`, and `reproducibility-manifest`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.
 
 ## Pull Request Checklist

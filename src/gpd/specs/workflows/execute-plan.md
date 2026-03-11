@@ -47,7 +47,7 @@ If `.gpd/` missing: error.
 Before execution, verify convention lock is consistent and non-empty:
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw)
+CONV_CHECK=$(gpd --raw convention check)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — review before executing"
   echo "$CONV_CHECK"
@@ -59,7 +59,7 @@ If the project has existing phases and the convention lock is empty, this is an 
 **Load authoritative conventions** (canonical protocol from `agent-infrastructure.md`):
 
 ```bash
-CONVENTIONS=$(gpd convention list --raw 2>/dev/null)
+CONVENTIONS=$(gpd --raw convention list 2>/dev/null)
 ```
 
 Single source of truth is `state.json` convention_lock. Before using any equation from a prior phase or external source, verify conventions match the lock. See `shared-protocols.md` Convention Tracking Protocol for the 5-point checklist (metric, Fourier, normalization, coupling, renormalization scheme).

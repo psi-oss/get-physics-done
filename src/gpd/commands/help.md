@@ -59,7 +59,7 @@ Run `/gpd:help --all` for all 60 commands.
 
 ## Step 3: Full Command Reference (--all)
 
-Output the complete GPD command reference from @{GPD_INSTALL_DIR}/workflows/help.md.
+Output the complete GPD command reference from the loaded help workflow.
 Display the reference content directly — no additions or modifications.
 
 # GPD Command Reference
@@ -537,7 +537,7 @@ Usage: `/gpd:peer-review paper/`
 Structure point-by-point response to referee reports and revise the manuscript.
 
 - Parses referee comments into structured items with severity levels
-- Drafts AUTHOR-RESPONSE.md with REF-xxx issue tracking (fixed/rebutted/acknowledged)
+- Creates `.gpd/AUTHOR-RESPONSE.md` for structured issue tracking plus `.gpd/paper/REFEREE_RESPONSE.md` for the journal-facing response letter
 - Consumes `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
 - Spawns paper-writer agents for targeted section revisions
 - Tracks new calculations required by referees as revision tasks

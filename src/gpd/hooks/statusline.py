@@ -59,6 +59,25 @@ def _first_string(value: object, *keys: str) -> str:
     return ""
 
 
+def _first_value(value: object, *keys: str) -> object | None:
+    """Return the first present value for *keys* from *value* when it is a mapping."""
+    mapping = _mapping(value)
+    for key in keys:
+        if key in mapping:
+            return mapping.get(key)
+    return None
+
+
+def _hook_payload_policy(workspace_dir: str | None = None):
+    """Return hook payload metadata for the active runtime or a merged fallback."""
+    from gpd.adapters.runtime_catalog import get_hook_payload_policy
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+
+    workspace_path = Path(workspace_dir) if workspace_dir else None
+    runtime = detect_active_runtime(cwd=workspace_path)
+    return get_hook_payload_policy(None if runtime == RUNTIME_UNKNOWN else runtime)
+
+
 def _format_context_window_size(value: object) -> str:
     """Return a compact context-window label like ``1M context``."""
     if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
@@ -81,28 +100,32 @@ def _format_context_window_size(value: object) -> str:
     return f"{compact}{suffix} context"
 
 
-def _read_model_label(data: dict[str, object]) -> str:
+def _read_model_label(data: dict[str, object], hook_payload=None) -> str:
     """Return the current model label with context-window size when available."""
+    policy = hook_payload or _hook_payload_policy()
     model_value = data.get("model")
     if isinstance(model_value, str) and model_value:
         model_label = model_value
     else:
-        model_label = _first_string(model_value, "display_name", "name", "id")
+        model_label = _first_string(model_value, *policy.model_keys)
 
-    context_label = _format_context_window_size(_mapping(data.get("context_window")).get("context_window_size"))
+    context_label = _format_context_window_size(
+        _first_value(data.get("context_window"), *policy.context_window_size_keys)
+    )
     if model_label and context_label:
         return f"{model_label} ({context_label})"
     return model_label
 
 
-def _read_workspace_label(data: dict[str, object], workspace_dir: str) -> str:
+def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payload=None) -> str:
     """Return a compact workspace label, relative to the project root when possible."""
     if not workspace_dir:
         return ""
 
+    policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
     workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, "project_dir")
+    project_dir = _first_string(workspace_value, *policy.project_dir_keys)
 
     try:
         resolved_workspace = workspace_path.resolve()
@@ -209,16 +232,38 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     return ""
 
 
-def _latest_update_cache(workspace_dir: str | None = None) -> dict[str, object] | None:
-    """Return the freshest valid update cache across all runtime locations."""
-    from gpd.hooks.runtime_detect import detect_active_runtime_with_gpd_install, get_update_cache_files
+def _workspace_from_payload(data: dict[str, object]) -> str:
+    """Extract the workspace directory from a runtime hook payload."""
+    hook_payload = _hook_payload_policy()
+    workspace_value = data.get("workspace")
+    if isinstance(workspace_value, str) and workspace_value:
+        return workspace_value
+    return _first_string(workspace_value, *hook_payload.workspace_keys) or os.getcwd()
+
+
+def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:
+    """Read remaining context percentage from runtime payload aliases."""
+    remaining = _first_value(data.get("context_window"), *hook_payload.context_remaining_keys)
+    if isinstance(remaining, (int, float)) and math.isfinite(remaining):
+        return remaining
+    return None
+
+
+def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, object] | None, object | None]:
+    """Return the freshest valid update cache and its candidate metadata."""
+    from gpd.hooks.runtime_detect import (
+        detect_active_runtime_with_gpd_install,
+        get_update_cache_candidates,
+    )
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
     preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
     latest_cache: dict[str, object] | None = None
+    latest_candidate = None
     latest_checked = -1.0
 
-    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=preferred_runtime):
+    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
+        cache_file = candidate.path
         if not cache_file.exists():
             continue
         try:
@@ -235,28 +280,41 @@ def _latest_update_cache(workspace_dir: str | None = None) -> dict[str, object] 
         checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
         if latest_cache is None or checked_value > latest_checked:
             latest_cache = cache
+            latest_candidate = candidate
             latest_checked = checked_value
 
-    return latest_cache
+    return latest_cache, latest_candidate
 
 
 def _check_update(workspace_dir: str | None = None) -> str:
     """Check GPD update cache files for available updates."""
-    cache = _latest_update_cache(workspace_dir)
+    cache, cache_candidate = _latest_update_cache(workspace_dir)
     if cache and cache.get("update_available"):
         from gpd.adapters import get_adapter
         from gpd.hooks.runtime_detect import (
+            RUNTIME_UNKNOWN,
             detect_active_runtime_with_gpd_install,
             detect_install_scope,
             update_command_for_runtime,
         )
 
         workspace_path = Path(workspace_dir) if workspace_dir else None
-        runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+        runtime = getattr(cache_candidate, "runtime", None) or RUNTIME_UNKNOWN
+        scope = getattr(cache_candidate, "scope", None)
+        if runtime != RUNTIME_UNKNOWN:
+            installed_scope = detect_install_scope(runtime, cwd=workspace_path)
+            if installed_scope is None:
+                runtime = RUNTIME_UNKNOWN
+                scope = None
+            else:
+                scope = installed_scope
+        if runtime == RUNTIME_UNKNOWN:
+            runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
         try:
             command = get_adapter(runtime).format_command("update")
         except KeyError:
-            scope = detect_install_scope(runtime, cwd=workspace_path)
+            if scope is None and runtime != RUNTIME_UNKNOWN:
+                scope = detect_install_scope(runtime, cwd=workspace_path)
             command = update_command_for_runtime(runtime, scope=scope)
         return f"\x1b[33m\u2b06 {command}\x1b[0m \u2502 "
     return ""
@@ -274,26 +332,19 @@ def main() -> None:
         return
 
     try:
-        workspace_value = data.get("workspace")
-        if isinstance(workspace_value, str) and workspace_value:
-            workspace_dir = workspace_value
-        else:
-            workspace_dir = _first_string(workspace_value, "current_dir", "cwd", "path", "workspace_dir") or os.getcwd()
+        workspace_dir = _workspace_from_payload(data)
+        hook_payload = _hook_payload_policy(workspace_dir)
 
         session_value = data.get("session_id")
         session_id = session_value if isinstance(session_value, str) else ""
-        remaining = _mapping(data.get("context_window")).get("remaining_percentage")
-        if not isinstance(remaining, (int, float)):
-            remaining = _mapping(data.get("context_window")).get("remainingPercent")
-        if not isinstance(remaining, (int, float)):
-            remaining = _mapping(data.get("context_window")).get("remaining")
+        remaining = _read_context_remaining(data, hook_payload)
 
         ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
         position = _read_position(workspace_dir)
         task = _read_current_task(session_id, workspace_dir)
         gpd_update = _check_update(workspace_dir)
-        model_label = _read_model_label(data)
-        workspace_label = _read_workspace_label(data, workspace_dir)
+        model_label = _read_model_label(data, hook_payload)
+        workspace_label = _read_workspace_label(data, workspace_dir, hook_payload)
 
         segments = [f"\x1b[2m{_STATUS_LABEL}\x1b[0m"]
         if model_label:

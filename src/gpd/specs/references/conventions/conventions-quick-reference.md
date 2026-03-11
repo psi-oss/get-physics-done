@@ -74,7 +74,7 @@ Run this checklist **every time** you combine expressions from different sources
 
 At the start of every task:
 
-1. Read `convention_lock` from STATE.md/state.json
+1. Read `convention_lock` from `state.json`
 2. Read `conventions` from the plan frontmatter
 3. If using results from a prior plan: verify conventions match
 4. State explicitly at the top of every derivation file which conventions are in effect
@@ -84,10 +84,11 @@ At the start of every task:
 Every derivation file must include:
 
 ```
-% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_plus, fourier_convention=physics
+% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-plus, fourier_convention=physics
 ```
 
 For Python use `#`, for Markdown use `<!-- ASSERT_CONVENTION: ... -->`.
+Prefer the canonical hyphenated metric values reported by `gpd --raw convention list` (`mostly-plus`, `mostly-minus`); underscore aliases are normalized but are not the canonical lock spelling.
 
 ## Commutator Conventions
 

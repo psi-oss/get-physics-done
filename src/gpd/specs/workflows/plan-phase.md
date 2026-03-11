@@ -139,7 +139,7 @@ already explores that path.
 **Verify conventions before planning** — plans that depend on conventions from prior phases must use the correct ones:
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — resolve before planning"
   echo "$CONV_CHECK"
@@ -223,7 +223,7 @@ PHASE_DESC=$(gpd roadmap get-phase "${PHASE}" | gpd json get .section --default 
 # Use requirements_content from INIT (already loaded via --include requirements)
 REQUIREMENTS=$(echo "$INIT" | gpd json get .requirements_content --default "" | grep -A100 "## Requirements" | head -50)
 STATE_SNAP=$(gpd state snapshot)
-# Extract decisions from state-snapshot JSON: echo "$STATE_SNAP" | gpd json list .decisions
+# Extract decisions from gpd state snapshot JSON: echo "$STATE_SNAP" | gpd json list .decisions
 ```
 
 Research prompt:
@@ -367,7 +367,7 @@ Design the numerical experiment protocol for Phase {phase_number}: {phase_name}
 <phase_context>
 **Phase description:** {phase_description}
 **Research:** {research_content}
-**Conventions:** $(gpd convention list --raw 2>/dev/null)
+**Conventions:** $(gpd --raw convention list 2>/dev/null)
 **Context:** {context_content}
 </phase_context>
 

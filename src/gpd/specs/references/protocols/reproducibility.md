@@ -90,8 +90,9 @@ Every computational phase must record:
     "matplotlib": "3.8.3"
   },
   "mcp_servers": {
-    "code_execution": "1.2.0",
-    "sympy_server": "0.3.1"
+    "gpd-verification": "0.1.5",
+    "gpd-conventions": "0.1.5",
+    "gpd-arxiv": "0.3.2"
   },
   "platform": {
     "os": "Linux 6.1.0",
@@ -99,6 +100,8 @@ Every computational phase must record:
   }
 }
 ```
+
+If you are recording GPD-managed MCP services, prefer the public server keys from the runtime descriptors (`gpd-conventions`, `gpd-errors`, `gpd-patterns`, `gpd-protocols`, `gpd-skills`, `gpd-state`, `gpd-verification`, `gpd-arxiv`) rather than legacy local nicknames.
 
 ### Automated Version Capture
 

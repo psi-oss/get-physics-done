@@ -30,7 +30,7 @@ Active approximations from the project state directly inform which limits are mo
 **Convention verification** (if project exists):
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — review before checking limits"
   echo "$CONV_CHECK"

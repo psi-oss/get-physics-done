@@ -33,7 +33,7 @@ How the bibliographer, referee, and paper-writer agents adapt their behavior bas
 }
 ```
 
-Set via: `gpd config-set autonomy balanced` and `gpd config-set research_mode balanced`.
+Set via: `gpd config set autonomy balanced` and `gpd config set research_mode balanced`.
 
 Read via: `gpd init` includes both fields in the init JSON output.
 
@@ -167,7 +167,7 @@ See references/publication/publication-pipeline-modes.md for mode specifications
 1. Read current mode from config
 2. Check if transition conditions are met (approach validated, convergence achieved, etc.)
 3. Propose the transition to the user in babysit mode, apply it automatically in yolo mode, and in balanced mode apply it automatically only when it is a routine optimization rather than a scope change
-4. Update config via `config-set research_mode exploit`
+4. Update config via `gpd config set research_mode exploit`
 
 ---
 

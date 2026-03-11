@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.adapters import get_adapter, iter_adapters
+from gpd.adapters import get_adapter, iter_adapters, list_runtimes
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     GPD_INSTALL_DIR_NAME,
@@ -23,7 +24,14 @@ RUNTIME_UNKNOWN = "unknown"
 SCOPE_GLOBAL = "global"
 SCOPE_LOCAL = "local"
 
-ALL_RUNTIMES = [adapter.runtime_name for adapter in iter_adapters()]
+ALL_RUNTIMES = list_runtimes()
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateCacheCandidate:
+    path: Path
+    runtime: str | None = None
+    scope: str | None = None
 
 
 def _adapter(runtime: str):
@@ -168,6 +176,18 @@ def _unique_paths(paths: list[Path]) -> list[Path]:
     return unique
 
 
+def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> list[UpdateCacheCandidate]:
+    """Return update-cache candidates in order with duplicate paths removed."""
+    seen: set[Path] = set()
+    unique: list[UpdateCacheCandidate] = []
+    for candidate in candidates:
+        if candidate.path in seen:
+            continue
+        seen.add(candidate.path)
+        unique.append(candidate)
+    return unique
+
+
 def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return config directories for all known runtimes."""
     dirs: list[Path] = []
@@ -197,18 +217,54 @@ def get_update_cache_files(
     preferred_runtime: str | None = None,
 ) -> list[Path]:
     """Return all candidate update-cache files in priority scan order."""
+    return [candidate.path for candidate in get_update_cache_candidates(cwd=cwd, home=home, preferred_runtime=preferred_runtime)]
+
+
+def get_update_cache_candidates(
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    preferred_runtime: str | None = None,
+) -> list[UpdateCacheCandidate]:
+    """Return candidate update-cache files with runtime/scope attribution."""
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
     prioritized_runtime = preferred_runtime or detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
-    paths: list[Path] = []
+    candidates: list[UpdateCacheCandidate] = []
 
     if prioritized_runtime in ALL_RUNTIMES:
-        paths.append(_local_runtime_dir(prioritized_runtime, resolved_cwd) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
-        paths.append(_global_runtime_dir(prioritized_runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+        candidates.append(
+            UpdateCacheCandidate(
+                _local_runtime_dir(prioritized_runtime, resolved_cwd) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                runtime=prioritized_runtime,
+                scope=SCOPE_LOCAL,
+            )
+        )
+        candidates.append(
+            UpdateCacheCandidate(
+                _global_runtime_dir(prioritized_runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                runtime=prioritized_runtime,
+                scope=SCOPE_GLOBAL,
+            )
+        )
 
-    paths.append(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
-    paths.extend(d / UPDATE_CACHE_FILENAME for d in get_cache_dirs(cwd=resolved_cwd, home=resolved_home))
-    return _unique_paths(paths)
+    candidates.append(UpdateCacheCandidate(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME))
+    for runtime in ALL_RUNTIMES:
+        candidates.append(
+            UpdateCacheCandidate(
+                _local_runtime_dir(runtime, resolved_cwd) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                runtime=runtime,
+                scope=SCOPE_LOCAL,
+            )
+        )
+        candidates.append(
+            UpdateCacheCandidate(
+                _global_runtime_dir(runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                runtime=runtime,
+                scope=SCOPE_GLOBAL,
+            )
+        )
+    return _unique_update_cache_candidates(candidates)
 
 
 def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
@@ -246,11 +302,13 @@ __all__ = [
     "RUNTIME_UNKNOWN",
     "SCOPE_GLOBAL",
     "SCOPE_LOCAL",
+    "UpdateCacheCandidate",
     "all_runtime_dirs",
     "detect_install_scope",
     "detect_active_runtime",
     "detect_active_runtime_with_gpd_install",
     "get_cache_dirs",
+    "get_update_cache_candidates",
     "get_gpd_install_dirs",
     "get_todo_dirs",
     "get_update_cache_files",

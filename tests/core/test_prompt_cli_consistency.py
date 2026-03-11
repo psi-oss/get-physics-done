@@ -16,12 +16,14 @@ PROMPT_ROOTS = (
     REPO_ROOT / "src/gpd/specs/references",
     REPO_ROOT / "src/gpd/specs/templates",
 )
+GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 
 INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 INIT_USAGE_RE = re.compile(r"\bgpd init ([a-z0-9-]+)\b")
 VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 VALIDATE_USAGE_RE = re.compile(r"\bgpd(?:\s+--raw)?\s+validate\s+([a-z0-9-]+)\b")
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
+RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
 
 
 def _iter_prompt_sources() -> list[Path]:
@@ -90,8 +92,20 @@ def test_help_prompt_command_count_matches_live_inventory() -> None:
 def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
     suggest_prompt = (REPO_ROOT / "src/gpd/commands/suggest-next.md").read_text(encoding="utf-8")
 
-    assert "Uses `gpd suggest --raw`" in suggest_prompt
+    assert "Uses `gpd --raw suggest`" in suggest_prompt
     assert "gpd suggest-next to scan" not in suggest_prompt
+
+
+def test_doc_sources_place_global_raw_before_subcommands() -> None:
+    invalid: list[str] = []
+    doc_paths = [*(_iter_prompt_sources()), GRAPH_PATH]
+
+    for path in doc_paths:
+        content = path.read_text(encoding="utf-8")
+        for match in RAW_AFTER_SUBCOMMAND_RE.finditer(content):
+            invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
+
+    assert invalid == []
 
 
 def test_command_prompts_declare_valid_context_modes() -> None:

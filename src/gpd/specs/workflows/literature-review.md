@@ -57,8 +57,8 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
-RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**

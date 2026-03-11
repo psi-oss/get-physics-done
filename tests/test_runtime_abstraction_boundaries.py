@@ -3,11 +3,10 @@
 These tests intentionally allow runtime hardcoding only in explicit boundary
 layers:
 
-- runtime adapters and installer entrypoints
+- runtime adapters
 - runtime-detection / runtime-specific hook shims
 - checked-in runtime-owned mirrors and config snapshots
 - repo metadata that intentionally ignores runtime-owned mirrors
-- package metadata that advertises compatibility
 
 Everywhere else, shared code should stay runtime-agnostic.
 """
@@ -36,16 +35,9 @@ _RUNTIME_OWNED_PREFIXES = (
 )
 _ALLOWED_RUNTIME_FILES = {
     ".gitignore",
-    "bin/install.js",
-    "CITATION.cff",
-    "package.json",
-    "src/gpd/cli.py",
-    "src/gpd/hooks/codex_notify.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
-    "src/gpd/cli.py",
-    "src/gpd/hooks/codex_notify.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 

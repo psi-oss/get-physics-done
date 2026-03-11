@@ -349,7 +349,7 @@ If no decisions are present in the phase summaries or CONTEXT.md, skip this step
 Verify the updates are correct by reading STATE.md. If the progress bar needs updating, use:
 
 ```bash
-PROGRESS=$(gpd progress bar --raw)
+PROGRESS=$(gpd --raw progress bar)
 ```
 
 Update the progress bar line in STATE.md with the result.
@@ -439,9 +439,9 @@ if [ -f .gpd/state.json ]; then
   mv .gpd/state.json .gpd/state.json.bak
 fi
 
-gpd state snapshot --raw > /dev/null
+gpd --raw state snapshot > /dev/null
 if [ $? -ne 0 ]; then
-  echo "WARNING: state-snapshot failed — restoring backup"
+  echo "WARNING: gpd state snapshot failed — restoring backup"
   if [ -f .gpd/state.json.bak ]; then
     mv .gpd/state.json.bak .gpd/state.json
   fi
@@ -451,7 +451,7 @@ else
 fi
 ```
 
-This is the single sync point for this workflow — removing state.json forces re-parsing from STATE.md on the next read. Earlier steps deliberately skip syncing to avoid multiple writes.
+This is the single markdown-to-json sync point for this workflow. The backup + `gpd --raw state snapshot` sequence intentionally uses the loader's `STATE.md` fallback to merge the schema-backed markdown edits from this workflow into authoritative `state.json` while preserving JSON-only fields from the backup. Earlier steps deliberately skip syncing to avoid multiple writes.
 
 </step>
 
@@ -595,7 +595,7 @@ fi
 Append a `## Session:` block (same format as pause-work) capturing the phase's key results:
 
 ```bash
-timestamp=$(gpd timestamp full --raw)
+timestamp=$(gpd --raw timestamp full)
 
 cat >> .gpd/DERIVATION-STATE.md << EOF
 

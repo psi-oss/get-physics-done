@@ -106,8 +106,8 @@ If `--dry-run` flag is present, show what would be archived and deleted (milesto
 5b. **Promote patterns:**
 
    - Check INSIGHTS.md for confirmed patterns (2+ phases, clear detection/prevention)
-   - Run `pattern search` to check for duplicates
-   - Suggest `pattern add` for promotion candidates
+   - Run `gpd pattern search` to check for duplicates
+   - Suggest `gpd pattern add` for promotion candidates
    - Skip silently if no INSIGHTS.md or no candidates
 
 6. **Update PROJECT.md:**

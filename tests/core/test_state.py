@@ -610,7 +610,7 @@ def test_parse_state_to_json_structure():
     assert len(result["blockers"]) == 1
 
 
-def test_state_record_session_emits_local_observability_events(tmp_path, monkeypatch):
+def test_state_record_session_does_not_emit_local_observability_events(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     layout = ProjectLayout(tmp_path)
@@ -629,12 +629,7 @@ def test_state_record_session_emits_local_observability_events(tmp_path, monkeyp
     assert result.recorded is True
 
     observability_dir = layout.gpd / "observability"
-    events_path = observability_dir / "events.jsonl"
-    assert events_path.exists()
-
-    events = _read_jsonl(events_path)
-    event_names = {_event_name(event) for event in events}
-    assert "session.continuity.recorded" in event_names
+    assert not observability_dir.exists()
 
 
 # ─── model types ─────────────────────────────────────────────────────────────

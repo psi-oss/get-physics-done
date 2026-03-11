@@ -23,15 +23,27 @@ from gpd.adapters.install_utils import (
     ensure_update_hook,
     expand_at_includes,
     generate_manifest,
+    get_global_dir,
     parse_jsonc,
     protect_runtime_agent_prompt,
     read_settings,
+    replace_placeholders,
     write_settings,
 )
 
 # =========================================================================
 # 1. expand_at_includes
 # =========================================================================
+
+
+def test_get_global_dir_unknown_runtime_raises_keyerror() -> None:
+    with pytest.raises(KeyError, match="Unknown runtime"):
+        get_global_dir("bogus-runtime")
+
+
+def test_replace_placeholders_unknown_runtime_raises_keyerror() -> None:
+    with pytest.raises(KeyError, match="Unknown runtime"):
+        replace_placeholders("{GPD_RUNTIME_FLAG}", "/custom/", "bogus-runtime")
 
 
 class TestExpandAtIncludes:

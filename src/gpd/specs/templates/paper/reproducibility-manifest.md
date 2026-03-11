@@ -5,150 +5,150 @@ type: reproducibility-manifest
 
 # Reproducibility Manifest Template
 
-Template for documenting everything needed to reproduce computational results in a physics paper.
+Template for `paper/reproducibility-manifest.json` — the machine-readable manifest consumed by `gpd validate reproducibility-manifest` and strict review preflight checks.
 
 ---
 
 ## File Template
 
-```markdown
-# Reproducibility Manifest
-
-**Paper:** [Title]
-**Date:** [YYYY-MM-DD]
-**Contact:** [corresponding author email]
-
-## Environment Specifications
-
-### Python Environment
-
-- **Python version:** [e.g., 3.11.7]
-- **Package manager:** [pip / conda / uv]
-- **Virtual environment:** [venv / conda env name]
-
-### Required Packages
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| numpy | [e.g., 1.26.4] | Array operations, linear algebra |
-| scipy | [e.g., 1.12.0] | Optimization, integration, special functions |
-| matplotlib | [e.g., 3.8.3] | Plotting |
-| [domain-specific] | [version] | [purpose] |
-
-**Lock file:** [requirements.txt / pyproject.toml / conda environment.yml] included in repository
-
-### System Requirements
-
-- **OS:** [e.g., Linux (tested on Ubuntu 22.04), macOS 14+]
-- **Architecture:** [x86_64 / ARM64]
-- **Compiler:** [if applicable, e.g., GCC 12+ for Fortran extensions]
-- **GPU:** [if applicable, e.g., CUDA 12.x with NVIDIA A100]
-
-## Data Provenance
-
-### Input Data
-
-| Dataset | Source | Version/Date | Download URL | Checksum (SHA-256) |
-|---------|--------|-------------|-------------|-------------------|
-| [name] | [origin] | [version] | [URL] | [hash] |
-
-### Generated Data
-
-| Dataset | Script | Parameters | Size | Checksum (SHA-256) |
-|---------|--------|-----------|------|-------------------|
-| [name] | [script.py] | [key params] | [MB/GB] | [hash] |
-
-### External Dependencies
-
-| Resource | Access Method | Restrictions |
-|----------|-------------|-------------|
-| [e.g., LHAPDF grid files] | [download URL] | [open / institutional / request] |
-| [e.g., experimental data tables] | [journal supplemental] | [open access] |
-
-## Script Execution Order
-
-Run scripts in this order to reproduce all results:
-
-```bash
-# Step 1: Setup and data preparation
-python scripts/01_prepare_data.py --config config/main.yaml
-
-# Step 2: Core computation
-python scripts/02_compute.py --input data/prepared/ --output results/
-
-# Step 3: Analysis and post-processing
-python scripts/03_analyze.py --results results/ --output analysis/
-
-# Step 4: Generate figures
-python scripts/04_plot.py --analysis analysis/ --output figures/
-
-# Step 5: Generate tables for paper
-python scripts/05_tables.py --analysis analysis/ --output tables/
-```
-
-**Total runtime:** [estimate, e.g., "~2 hours on 8-core workstation"]
-
-**Parallelization:** [which steps can run in parallel, e.g., "Steps 2a and 2b are independent"]
-
-## Expected Outputs
-
-### Key Numerical Results
-
-| Quantity | Expected Value | Tolerance | Script | Figure/Table |
-|----------|---------------|-----------|--------|-------------|
-| [e.g., T_c] | [0.893] | [+/- 0.005] | [02_compute.py] | [Table I] |
-| [e.g., E_0] | [-0.4327] | [+/- 0.0003] | [02_compute.py] | [Table I] |
-
-### Output Files
-
-| File | Description | Approximate Size | Checksum (SHA-256) |
-|------|-------------|-----------------|-------------------|
-| results/spectrum.json | Energy eigenvalues | [KB] | [hash] |
-| figures/fig1.pdf | Main result figure | [KB] | [hash, approximate — font rendering may vary] |
-
-**Note:** Checksums for figures are approximate due to font rendering and floating-point differences across platforms. Numerical data checksums should match exactly.
-
-## Computational Resource Requirements
-
-| Step | CPU Cores | Memory (GB) | GPU | Wall Time | Notes |
-|------|-----------|-------------|-----|-----------|-------|
-| Data prep | 1 | [2] | No | [5 min] | |
-| Core computation | [8] | [16] | [optional] | [1.5 hrs] | [scales linearly with cores] |
-| Analysis | 1 | [4] | No | [10 min] | |
-| Plotting | 1 | [2] | No | [2 min] | |
-
-**Minimum viable:** [e.g., "4 cores, 8 GB RAM, ~3 hours"]
-**Recommended:** [e.g., "8+ cores, 16 GB RAM, ~1.5 hours"]
-
-## Random Seeds
-
-| Computation | Seed | Purpose |
-|-------------|------|---------|
-| [e.g., Monte Carlo sampling] | [42] | [Reproducible disorder realizations] |
-| [e.g., Bootstrap error estimation] | [123] | [Reproducible confidence intervals] |
-
-**Seeding strategy:** [e.g., "Base seed in config; per-sample seeds derived as hash(base_seed, sample_index)"]
-
-## Known Platform Differences
-
-| Platform | Issue | Workaround |
-|----------|-------|-----------|
-| [e.g., macOS ARM] | [LAPACK gives slightly different eigenvalue ordering] | [Sort eigenvalues after diagonalization] |
-| [e.g., Windows] | [Path separator differences in output files] | [Use pathlib throughout] |
-
-## Verification
-
-To verify a successful reproduction:
-
-1. Run the full pipeline above
-2. Compare key numerical results against Expected Outputs table (within stated tolerances)
-3. Visual comparison of figures against published versions
-4. Run `python scripts/verify_reproduction.py` for automated checks (if provided)
-
----
-
-_Manifest created: [YYYY-MM-DD]_
-_Last verified: [YYYY-MM-DD] on [platform]_
+```json
+{
+  "paper_title": "[Title]",
+  "date": "[YYYY-MM-DD]",
+  "contact": "[corresponding author email]",
+  "environment": {
+    "python_version": "3.12.1",
+    "package_manager": "uv",
+    "virtual_environment": ".venv",
+    "required_packages": [
+      {
+        "package": "numpy",
+        "version": "1.26.4",
+        "purpose": "Array operations and linear algebra"
+      },
+      {
+        "package": "scipy",
+        "version": "1.12.0",
+        "purpose": "Optimization, integration, special functions"
+      }
+    ],
+    "lock_file": "uv.lock",
+    "system_requirements": {
+      "operating_systems": ["Ubuntu 22.04", "macOS 15"],
+      "architectures": ["x86_64", "arm64"],
+      "compiler": "gcc 13",
+      "gpu": "CUDA 12.x (optional)"
+    }
+  },
+  "input_data": [
+    {
+      "name": "benchmark-dataset",
+      "source": "NIST",
+      "version_or_date": "2026-03-01",
+      "download_url": "https://example.org/data",
+      "checksum_sha256": "[64-char sha256]",
+      "license": "CC-BY-4.0",
+      "transformations": "None"
+    }
+  ],
+  "generated_data": [
+    {
+      "name": "spectrum",
+      "script": "scripts/run.py",
+      "parameters": {
+        "grid_size": "256",
+        "temperature": "0.85"
+      },
+      "size": "24 MB",
+      "checksum_sha256": "[64-char sha256]"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "resource": "LHAPDF grid files",
+      "access_method": "https://lhapdfsets.web.cern.ch/",
+      "restrictions": "open"
+    }
+  ],
+  "execution_steps": [
+    {
+      "name": "prepare-data",
+      "command": "python scripts/01_prepare_data.py --config config/main.yaml",
+      "outputs": ["data/prepared/inputs.json"],
+      "stochastic": false,
+      "expected_wall_time": "5 min",
+      "parallel_group": ""
+    },
+    {
+      "name": "run-main",
+      "command": "python scripts/02_compute.py --input data/prepared/ --output results/",
+      "outputs": ["results/spectrum.json"],
+      "stochastic": true,
+      "expected_wall_time": "90 min",
+      "parallel_group": "compute"
+    }
+  ],
+  "expected_results": [
+    {
+      "quantity": "T_c",
+      "expected_value": "0.893",
+      "tolerance": "+/- 0.005",
+      "script": "scripts/02_compute.py",
+      "figure_or_table": "Table I"
+    }
+  ],
+  "output_files": [
+    {
+      "path": "results/spectrum.json",
+      "description": "Energy eigenvalues",
+      "approximate_size": "420 KB",
+      "checksum_sha256": "[64-char sha256]",
+      "approximate_checksum": false
+    },
+    {
+      "path": "figures/fig1.pdf",
+      "description": "Main result figure",
+      "approximate_size": "180 KB",
+      "checksum_sha256": "approx:[64-char sha256]",
+      "approximate_checksum": true
+    }
+  ],
+  "resource_requirements": [
+    {
+      "step": "run-main",
+      "cpu_cores": 8,
+      "memory_gb": 16.0,
+      "gpu": "",
+      "wall_time": "90 min",
+      "notes": "Scales linearly with cores"
+    }
+  ],
+  "minimum_viable": "4 cores, 8 GB RAM, ~3 hours",
+  "recommended": "8+ cores, 16 GB RAM, ~90 minutes",
+  "random_seeds": [
+    {
+      "computation": "Monte Carlo sampling",
+      "seed": "42",
+      "purpose": "Reproducible disorder realizations"
+    }
+  ],
+  "seeding_strategy": "Base seed in config; per-sample seeds derived deterministically.",
+  "known_platform_differences": [
+    {
+      "platform": "macOS arm64",
+      "issue": "LAPACK may order degenerate eigenvalues differently.",
+      "workaround": "Sort eigenvalues before comparison."
+    }
+  ],
+  "verification_steps": [
+    "Rerun the full pipeline.",
+    "Compare key numerical results against expected tolerances.",
+    "Inspect emitted artifacts against the paper."
+  ],
+  "manifest_created": "[YYYY-MM-DDTHH:MM:SSZ]",
+  "last_verified": "[YYYY-MM-DDTHH:MM:SSZ]",
+  "last_verified_platform": "[platform string]"
+}
 ```
 
 ---
@@ -160,6 +160,10 @@ _Last verified: [YYYY-MM-DD] on [platform]_
 - System libraries if compilation is involved
 - Data file versions and checksums
 - Random seeds for stochastic computations
+
+**Current artifact path and validator:**
+- Store this file as `paper/reproducibility-manifest.json`
+- Validate with `gpd validate reproducibility-manifest paper/reproducibility-manifest.json --strict`
 
 **What can be approximate:**
 - Figure checksums (font rendering varies)

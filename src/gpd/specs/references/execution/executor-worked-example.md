@@ -17,7 +17,7 @@ spinor=Dirac (Peskin & Schroeder), gamma={γ^μ, γ^ν} = 2g^{μν}
 At the top of the derivation file, write:
 
 ```latex
-% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_plus, fourier_convention=physics, coupling_convention=alpha, renormalization_scheme=MSbar, gauge_choice=Feynman, spin_basis=Dirac-PS
+% ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics, coupling_convention=alpha=e^2/(4pi), renormalization_scheme=MSbar, gauge_choice=Feynman, spin_basis=Dirac-PS
 ```
 
 ### Step 2: Write the self-energy integral

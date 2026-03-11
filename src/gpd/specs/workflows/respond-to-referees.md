@@ -34,7 +34,7 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**
@@ -76,7 +76,7 @@ Exit.
 **Convention verification** — referee responses must use the same conventions as the paper:
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — resolve before drafting referee responses"
   echo "$CONV_CHECK"
@@ -89,6 +89,7 @@ If the check fails, resolve convention mismatches before proceeding. New calcula
 
 ```bash
 ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
+ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 If found, load as continuation context (user may be resuming an interrupted session).
@@ -173,7 +174,12 @@ Read the template:
 cat {GPD_INSTALL_DIR}/templates/paper/referee-response.md
 ```
 
-Create `.gpd/paper/REFEREE_RESPONSE.md` using the template structure, populated with:
+Create both response artifacts for the current round:
+
+- `.gpd/AUTHOR-RESPONSE{round_suffix}.md` — structured internal tracker keyed by `REF-*` issues, change locations, and staged review outcomes
+- `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md` — journal-facing response letter built from the template
+
+Populate `.gpd/paper/REFEREE_RESPONSE.md` with:
 
 - Paper metadata (journal, manuscript ID, dates)
 - Decision summary from editor
@@ -183,7 +189,14 @@ Create `.gpd/paper/REFEREE_RESPONSE.md` using the template structure, populated 
 - Empty response and changes-made fields (to be filled in subsequent steps)
 - Progress tracking table
 
-For second-round responses, create `REFEREE_RESPONSE_R2.md` instead.
+Populate `.gpd/AUTHOR-RESPONSE.md` with:
+
+- One section per `REF-*` issue
+- Classification (`fixed`, `rebutted`, `acknowledged`, `needs-calculation`)
+- Exact manuscript change locations or planned follow-up work
+- Any blocking / recommendation-floor context imported from `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json`
+
+For later rounds, use the round-specific variants (for example `REFEREE_RESPONSE_R2.md` and `AUTHOR-RESPONSE-R2.md`).
 
 ```bash
 mkdir -p .gpd/paper
@@ -192,13 +205,15 @@ mkdir -p .gpd/paper
 Commit the initial response file:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: create referee response structure" \
-  --files .gpd/paper/REFEREE_RESPONSE.md
+  --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md
 ```
+
+Keep the two files synchronized for the rest of the workflow: draft issue-by-issue substance in `.gpd/AUTHOR-RESPONSE{round_suffix}.md`, and mirror the journal-facing prose into `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md`.
 
 </step>
 
@@ -252,7 +267,7 @@ If no Group C items: skip to draft_responses.
 
 For each new calculation:
 
-1. Create an entry in the "New Calculations Summary" table in REFEREE_RESPONSE.md
+1. Create matching entries in the "New Calculations Summary" sections of `REFEREE_RESPONSE.md` and `AUTHOR-RESPONSE.md`
 2. Suggest a research phase to execute the calculation:
 
 ```
@@ -296,7 +311,7 @@ WRITER_MODEL=$(gpd resolve-model gpd-paper-writer)
 
 **For Group A (response-only) items:**
 
-Draft each response directly in REFEREE_RESPONSE.md. For each comment:
+Draft each response in `AUTHOR-RESPONSE.md`, then mirror the polished journal-facing wording into `REFEREE_RESPONSE.md`. For each comment:
 
 - Quote the referee's exact words
 - Write the assessment (is the referee correct, partially correct, or mistaken?)
@@ -328,7 +343,7 @@ Each revision agent receives:
 
 **If a revision agent fails to spawn or returns an error:** Note the failure for that section. Continue with other sections. After all agents complete, report which sections failed and offer: 1) Retry failed sections, 2) Apply revisions manually in the main context, 3) Skip failed sections and proceed. Do not block the entire referee response on a single section failure.
 
-After each agent returns, update REFEREE_RESPONSE.md:
+After each agent returns, update both `AUTHOR-RESPONSE.md` and `REFEREE_RESPONSE.md`:
 - Fill in "Changes made" with specific locations (section, page, equation)
 - Set status to "Response drafted"
 
@@ -378,7 +393,7 @@ Options:
 <step name="generate_response_letter">
 **Generate the response letter to the editor:**
 
-Read the completed REFEREE_RESPONSE.md (all comments should have status "Response drafted" or "Final").
+Read the completed `AUTHOR-RESPONSE.md` and `REFEREE_RESPONSE.md` (all comments should have status "Response drafted" or "Final").
 
 **If any Group C items are still pending:** Warn the user before generating:
 
@@ -450,12 +465,12 @@ raised. Below we provide point-by-point responses.
 **Commit all revision artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: referee response and manuscript revisions" \
-  --files .gpd/paper/REFEREE_RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
+  --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md paper/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
 ```
 
 **Present completion summary:**
@@ -478,7 +493,8 @@ gpd commit \
 
 ### Files
 
-- Response tracking: .gpd/paper/REFEREE_RESPONSE.md
+- Structured response tracking: .gpd/AUTHOR-RESPONSE.md
+- Journal-facing response letter source: .gpd/paper/REFEREE_RESPONSE.md
 - Response letter: paper/response-letter.tex
 - Revised manuscript: {paper_dir}/*.tex
 
@@ -498,7 +514,7 @@ gpd commit \
    /gpd:plan-phase {N}
    /gpd:execute-phase {N}
 2. Return here to incorporate results:
-   /gpd:respond-to-referees (will detect existing REFEREE_RESPONSE.md)
+   /gpd:respond-to-referees (will detect existing REFEREE_RESPONSE.md / AUTHOR-RESPONSE.md)
 
 Recommend `/gpd:peer-review` as the standalone re-review command once the revised manuscript compiles cleanly. This keeps revision rounds aligned with the referee agent's `REFEREE-REPORT-R{N}.md` protocol.
 
@@ -524,7 +540,7 @@ Recommend `/gpd:peer-review` as the standalone re-review command once the revise
 
 - [ ] Referee reports parsed and structured
 - [ ] All comments categorized (physics concern, clarity, etc.) and prioritized
-- [ ] REFEREE_RESPONSE.md created with complete point-by-point structure
+- [ ] REFEREE_RESPONSE.md and AUTHOR-RESPONSE.md created with complete point-by-point structure
 - [ ] Comments triaged into Groups A (response-only), B (revision), C (new calculation)
 - [ ] Group C items routed to research phases (if any)
 - [ ] All Group A responses drafted

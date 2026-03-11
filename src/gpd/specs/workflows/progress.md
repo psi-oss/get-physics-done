@@ -162,7 +162,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 
 ```bash
 # Get formatted progress bar
-PROGRESS_BAR=$(gpd progress bar --raw)
+PROGRESS_BAR=$(gpd --raw progress bar)
 ```
 
 Present:

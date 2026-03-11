@@ -158,7 +158,7 @@ This is the same cap enforcement logic used by pause-work.md. It keeps the 5 mos
 **Convention verification** — after days away, convention drift is the most common source of silent errors when resuming:
 
 ```bash
-CONV_CHECK=$(gpd convention check --raw 2>/dev/null)
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
 if [ $? -ne 0 ]; then
   echo "WARNING: Convention verification failed — conventions may have drifted since last session"
   echo "$CONV_CHECK"
