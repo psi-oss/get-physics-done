@@ -26,13 +26,21 @@ Install GPD:
 npx -y get-physics-done
 ```
 
-Then open your runtime and start a project:
+Then choose the path that matches your starting point:
 
-- Claude Code / Gemini CLI: `/gpd:new-project`
-- Codex: `$gpd-new-project`
-- OpenCode: `/gpd-new-project`
+| Starting point | First command |
+|----------------|---------------|
+| New research project | `new-project` |
+| Existing research folder or codebase | `map-theory` |
 
-A typical workflow is:
+Runtime syntax:
+- Claude Code / Gemini CLI: `/gpd:...`
+- Codex: `$gpd-...`
+- OpenCode: `/gpd-...`
+
+If you are starting from existing work, run `map-theory` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
+
+Typical new-project workflow:
 
 `new-project -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
 
