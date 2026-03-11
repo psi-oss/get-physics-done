@@ -11,7 +11,13 @@ import os
 from pathlib import Path
 
 from gpd.adapters import get_adapter, iter_adapters
-from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, MANIFEST_NAME, TODOS_DIR_NAME, UPDATE_CACHE_FILENAME
+from gpd.adapters.install_utils import (
+    CACHE_DIR_NAME,
+    GPD_INSTALL_DIR_NAME,
+    MANIFEST_NAME,
+    TODOS_DIR_NAME,
+    UPDATE_CACHE_FILENAME,
+)
 from gpd.core.constants import PLANNING_DIR_NAME
 
 RUNTIME_UNKNOWN = "unknown"

@@ -5,13 +5,9 @@ Covers every bug fix applied across the codebase to prevent regressions.
 
 from __future__ import annotations
 
-import json
-import os
 import re
-import shutil
 import subprocess
 import textwrap
-from unittest.mock import patch
 
 # ─── 1. utils.py: os.replace and None guards ───────────────────────────────
 
@@ -22,6 +18,7 @@ class TestUtilsOsReplace:
     def test_atomic_write_uses_os_replace(self):
         """Source code must call os.replace, not os.rename."""
         import inspect
+
         import gpd.core.utils as utils_mod
 
         source = inspect.getsource(utils_mod.atomic_write)
@@ -226,6 +223,7 @@ class TestContextUsesConstants:
 
     def test_no_hardcoded_research_map(self):
         import inspect
+
         import gpd.core.context as ctx
 
         source = inspect.getsource(ctx)
@@ -236,6 +234,7 @@ class TestContextUsesConstants:
 
     def test_no_hardcoded_todos_in_paths(self):
         import inspect
+
         import gpd.core.context as ctx
 
         source = inspect.getsource(ctx)
@@ -244,6 +243,7 @@ class TestContextUsesConstants:
 
     def test_no_hardcoded_milestones_in_paths(self):
         import inspect
+
         import gpd.core.context as ctx
 
         source = inspect.getsource(ctx)
@@ -252,6 +252,7 @@ class TestContextUsesConstants:
 
     def test_no_hardcoded_requirements_in_paths(self):
         import inspect
+
         import gpd.core.context as ctx
 
         source = inspect.getsource(ctx)
@@ -267,6 +268,7 @@ class TestSuggestUsesConstants:
 
     def test_no_hardcoded_todos_in_paths(self):
         import inspect
+
         import gpd.core.suggest as sug
 
         source = inspect.getsource(sug)
@@ -275,6 +277,7 @@ class TestSuggestUsesConstants:
 
     def test_no_hardcoded_literature_in_paths(self):
         import inspect
+
         import gpd.core.suggest as sug
 
         source = inspect.getsource(sug)
@@ -309,6 +312,7 @@ class TestStateArchiveConstant:
 
     def test_no_hardcoded_state_archive(self):
         import inspect
+
         import gpd.core.state as state_mod
 
         source = inspect.getsource(state_mod)
@@ -324,6 +328,7 @@ class TestPhasesBfsDeque:
 
     def test_bfs_uses_deque(self):
         import inspect
+
         import gpd.core.phases as phases_mod
 
         source = inspect.getsource(phases_mod.validate_waves)
@@ -337,6 +342,7 @@ class TestMilestoneCompleteUsesHelper:
 
     def test_no_raw_re_sub_for_state_fields(self):
         import inspect
+
         import gpd.core.phases as phases_mod
 
         source = inspect.getsource(phases_mod.milestone_complete)
@@ -429,6 +435,7 @@ class TestStateServerUsesUtility:
 
     def test_imports_is_phase_complete(self):
         import inspect
+
         import gpd.mcp.servers.state_server as srv
 
         source = inspect.getsource(srv)
@@ -460,6 +467,7 @@ class TestCompilerNoDeadCode:
 
     def test_no_figures_dir_none_check(self):
         import inspect
+
         import gpd.mcp.paper.compiler as compiler_mod
 
         source = inspect.getsource(compiler_mod.build_paper)
@@ -474,6 +482,7 @@ class TestLatexNarrowedException:
 
     def test_no_broad_exception_catch(self):
         import inspect
+
         import gpd.utils.latex as latex_mod
 
         source = inspect.getsource(latex_mod.try_autofix)
@@ -507,6 +516,7 @@ class TestOpenCodeSubTagStripping:
 
     def test_copy_dir_contents_strips_sub_tags(self):
         import inspect
+
         import gpd.adapters.opencode as oc
 
         source = inspect.getsource(oc)
@@ -521,6 +531,7 @@ class TestInstallUtilsNoDuplicateConstant:
 
     def test_todos_dir_name_not_locally_defined(self):
         import inspect
+
         import gpd.adapters.install_utils as iu
 
         source = inspect.getsource(iu)

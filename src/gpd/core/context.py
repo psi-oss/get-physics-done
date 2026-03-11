@@ -29,7 +29,6 @@ from gpd.core.constants import (
     AGENT_ID_FILENAME,
     CONFIG_FILENAME,
     CONTEXT_SUFFIX,
-    LITERATURE_DIR_NAME,
     MILESTONES_DIR_NAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
