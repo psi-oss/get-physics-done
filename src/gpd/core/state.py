@@ -587,7 +587,7 @@ def parse_state_md(content: str) -> dict:
     # Decisions — canonical bullet format
     decisions: list[dict] = []
     dec_bullet_match = re.search(
-        r"###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+        r"###?\s*Decisions\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
         content,
         re.IGNORECASE,
     )
@@ -616,7 +616,7 @@ def parse_state_md(content: str) -> dict:
     # Blockers
     blockers: list[str] = []
     blockers_match = re.search(
-        r"###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+        r"###?\s*Blockers/Concerns\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
         content,
         re.IGNORECASE,
     )
@@ -630,7 +630,7 @@ def parse_state_md(content: str) -> dict:
     # Session
     session = {"last_date": None, "stopped_at": None, "resume_file": None}
     session_match = re.search(
-        r"##\s*Session(?:\s+Continuity)?\s*\n([\s\S]*?)(?=\n##|$)",
+        r"##\s*Session Continuity\s*\n([\s\S]*?)(?=\n##|$)",
         content,
         re.IGNORECASE,
     )
@@ -645,18 +645,6 @@ def parse_state_md(content: str) -> dict:
             session["stopped_at"] = sa.group(1).strip()
         if rf:
             session["resume_file"] = rf.group(1).strip()
-    if not session["last_date"]:
-        ls = state_extract_field(content, "Last session")
-        if ls:
-            session["last_date"] = ls
-    if not session["stopped_at"]:
-        sa = state_extract_field(content, "Stopped at")
-        if sa:
-            session["stopped_at"] = sa
-    if not session["resume_file"]:
-        rf = state_extract_field(content, "Resume file")
-        if rf:
-            session["resume_file"] = rf
 
     # Performance metrics table
     metrics: list[dict] = []
@@ -698,11 +686,11 @@ def parse_state_md(content: str) -> dict:
 
 
 def _strip_placeholder(value: str | None) -> str | None:
-    """Return None if *value* is a markdown placeholder (EM_DASH, '[Not set]', literal 'None')."""
+    """Return None if *value* is a markdown placeholder (EM_DASH or '[Not set]')."""
     if value is None:
         return None
     stripped = value.strip()
-    if stripped in ("\u2014", "None") or stripped.lower() == "[not set]":
+    if stripped == "\u2014" or stripped.lower() == "[not set]":
         return None
     return stripped
 
@@ -1732,7 +1720,7 @@ def state_add_decision(
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
-            r"(###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+            r"(###?\s*Decisions\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
             re.IGNORECASE,
         )
         match = pattern.search(content)
@@ -1742,7 +1730,6 @@ def state_add_decision(
 
         section_body = match.group(2)
         section_body = re.sub(r"^None yet\.?\s*$", "", section_body, flags=re.MULTILINE | re.IGNORECASE)
-        section_body = re.sub(r"^No decisions yet\.?\s*$", "", section_body, flags=re.MULTILINE | re.IGNORECASE)
         section_body = section_body.rstrip() + "\n" + entry + "\n"
 
         new_content = pattern.sub(lambda _: f"{match.group(1)}{section_body}", content, count=1)
@@ -1765,7 +1752,7 @@ def state_add_blocker(cwd: Path, text: str) -> AddBlockerResult:
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
-            r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+            r"(###?\s*Blockers/Concerns\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
             re.IGNORECASE,
         )
         match = pattern.search(content)
@@ -1799,7 +1786,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         pattern = re.compile(
-            r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+            r"(###?\s*Blockers/Concerns\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
             re.IGNORECASE,
         )
         match = pattern.search(content)
@@ -2199,7 +2186,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
         # 1. Archive decisions older than keep threshold
         if keep_phase_min is not None:
             dec_pattern = re.compile(
-                r"(###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+                r"(###?\s*Decisions\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
                 re.IGNORECASE,
             )
             dec_match = dec_pattern.search(working)
@@ -2222,7 +2209,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
 
         # 2. Archive resolved blockers
         blk_pattern = re.compile(
-            r"(###?\s*(?:Blockers|Blockers/Concerns|Concerns)\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+            r"(###?\s*Blockers/Concerns\s*\n)([\s\S]*?)(?=\n###?|\n##[^#]|$)",
             re.IGNORECASE,
         )
         blk_match = blk_pattern.search(working)
@@ -2274,7 +2261,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
         # 4. Archive session records (full mode only, keep last 3)
         if not soft_mode:
             sess_pattern = re.compile(
-                r"(##\s*Session(?:\s+Continuity)?\s*\n)([\s\S]*?)(?=\n##|$)",
+                r"(##\s*Session Continuity\s*\n)([\s\S]*?)(?=\n##|$)",
                 re.IGNORECASE,
             )
             sess_match = sess_pattern.search(working)

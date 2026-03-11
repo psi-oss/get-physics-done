@@ -51,8 +51,8 @@ The workflow handles all logic including:
    - **Git branching**: none / per-phase / per-milestone
 4. Runtime-aware model guidance when explicit tier models are requested:
    - **Claude Code**: aliases like `opus`, `sonnet`, `haiku` or pinned full names
-   - **Codex**: the exact Codex model string, e.g. `gpt-5.4`
-   - **Gemini CLI**: the exact Gemini model name, e.g. `gemini-2.5-pro`
+   - **Codex**: the exact Codex model string accepted by the active runtime
+   - **Gemini CLI**: the exact Gemini model name accepted by the active runtime
    - **OpenCode**: a full `provider/model` id
 5. Answer parsing and config merging
 6. File writing

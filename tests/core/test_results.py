@@ -40,7 +40,7 @@ def test_result_add_auto_id():
 def test_result_add_auto_id_ignores_string_entries():
     state: dict = {
         "position": {"current_phase": "3"},
-        "intermediate_results": ["legacy markdown bullet", {"id": "R-03-01-abcd", "phase": "3"}],
+        "intermediate_results": ["markdown bullet", {"id": "R-03-01-abcd", "phase": "3"}],
     }
     result = result_add(state, description="auto-id test")
     assert result.id.startswith("R-03-02-")
@@ -90,7 +90,7 @@ def test_result_list_all():
 def test_result_list_ignores_string_entries():
     state: dict = {
         "intermediate_results": [
-            "legacy markdown bullet",
+            "markdown bullet",
             {"id": "R-01", "phase": "1", "verified": False, "verification_records": []},
         ]
     }
@@ -172,7 +172,7 @@ def test_result_deps_missing_dep():
 def test_result_deps_ignores_string_entries():
     state: dict = {
         "intermediate_results": [
-            "legacy markdown bullet",
+            "markdown bullet",
             {"id": "R-01", "depends_on": [], "verified": False, "verification_records": []},
             {"id": "R-02", "depends_on": ["R-01"], "verified": False, "verification_records": []},
         ]

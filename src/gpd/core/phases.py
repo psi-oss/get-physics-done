@@ -416,7 +416,7 @@ class PhaseProgress(BaseModel):
 class ProgressJsonResult(BaseModel):
     """Progress data in JSON format."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     milestone_version: str
     milestone_name: str

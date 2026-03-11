@@ -326,7 +326,7 @@ None yet.
 
 **Last session:** [today's date]
 **Stopped at:** Project initialized (minimal)
-**Resume file:** None
+**Resume file:** —
 ```
 
 **config.json** — Create with sensible defaults (no config questions asked):

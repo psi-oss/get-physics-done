@@ -654,14 +654,14 @@ Update Session Continuity section in STATE.md to reflect transition completion.
 ```markdown
 Last session: [today]
 Stopped at: Phase [X] complete, ready to plan Phase [X+1]
-Resume file: None
+Resume file: —
 ```
 
 **Step complete when:**
 
 - [ ] Last session timestamp updated to current date and time
 - [ ] Stopped at describes phase completion and next phase
-- [ ] Resume file confirmed as None (transitions don't use resume files)
+- [ ] Resume file confirmed as `—` (transitions don't use resume files)
 
 **Commit the session continuity update** (commit_transition already ran, so this is a follow-up commit):
 

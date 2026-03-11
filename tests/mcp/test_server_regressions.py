@@ -1,4 +1,4 @@
-"""Behavior-focused MCP server regressions curated from historical audit rounds."""
+"""Behavior-focused MCP server regression coverage."""
 
 from __future__ import annotations
 

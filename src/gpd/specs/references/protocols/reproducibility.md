@@ -101,7 +101,7 @@ Every computational phase must record:
 }
 ```
 
-If you are recording GPD-managed MCP services, prefer the public server keys from the runtime descriptors (`gpd-conventions`, `gpd-errors`, `gpd-patterns`, `gpd-protocols`, `gpd-skills`, `gpd-state`, `gpd-verification`, `gpd-arxiv`) rather than legacy local nicknames.
+If you are recording GPD-managed MCP services, use the public server keys from the runtime descriptors (`gpd-conventions`, `gpd-errors`, `gpd-patterns`, `gpd-protocols`, `gpd-skills`, `gpd-state`, `gpd-verification`, `gpd-arxiv`).
 
 ### Automated Version Capture
 

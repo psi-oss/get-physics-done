@@ -1,4 +1,4 @@
-"""Behavior-focused state regressions curated from historical audit rounds."""
+"""Behavior-focused state regression coverage."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ None yet.
 
 **Last session:** 2026-03-08T14:00:00+00:00
 **Stopped at:** Phase 2 P1
-**Resume file:** None
+**Resume file:** —
 """
 
 
@@ -87,7 +87,7 @@ def _make_state_md(tmp_path: Path) -> Path:
         "## Current Position\n\n"
         "**Status:** Active\n\n"
         "### Decisions\nNone yet.\n\n"
-        "### Blockers\nNone.\n",
+        "### Blockers/Concerns\nNone.\n",
         encoding="utf-8",
     )
     (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
@@ -175,7 +175,6 @@ def test_strip_placeholder_returns_stripped_value() -> None:
 
     assert _strip_placeholder("  some_value  ") == "some_value"
     assert _strip_placeholder("—") is None
-    assert _strip_placeholder("None") is None
     assert _strip_placeholder("[Not set]") is None
     assert _strip_placeholder(None) is None
 

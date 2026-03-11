@@ -141,7 +141,7 @@ None yet.
 
 **Last session:** —
 **Stopped at:** —
-**Resume file:** None
+**Resume file:** —
 ```
 
 <purpose>

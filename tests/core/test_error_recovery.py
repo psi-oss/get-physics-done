@@ -112,7 +112,9 @@ See: .gpd/PROJECT.md
 
 - Question 1
 
-## Decisions Made
+## Accumulated Context
+
+### Decisions
 
 - [Phase 01]: Used method A \u2014 faster convergence
 

@@ -1,4 +1,4 @@
-"""Behavior-focused adapter regressions curated from historical audit rounds."""
+"""Behavior-focused adapter regression coverage."""
 
 from __future__ import annotations
 

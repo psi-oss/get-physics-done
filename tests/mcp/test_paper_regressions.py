@@ -1,4 +1,4 @@
-"""Behavior-focused paper regressions curated from historical audit rounds."""
+"""Behavior-focused paper regression coverage."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Behavior-focused phase regressions curated from historical audit rounds."""
+"""Behavior-focused phase regression coverage."""
 
 from __future__ import annotations
 

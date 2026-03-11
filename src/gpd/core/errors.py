@@ -31,8 +31,8 @@ Errors defined in their owning modules (inherit GPDError):
     └── FrontmatterValidationError(ValueError) # frontmatter.py
 
 Domain error classes also inherit from their stdlib counterpart (KeyError,
-ValueError) where applicable, preserving backwards compatibility with existing
-``except KeyError`` / ``except ValueError`` handlers.
+ValueError) where applicable so existing generic exception handling still
+behaves as expected.
 """
 
 from __future__ import annotations
@@ -64,33 +64,19 @@ class GPDError(Exception):
 
 
 class StateError(GPDError, ValueError):
-    """Error in GPD state management.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """Error in GPD state management."""
 
 
 class ConventionError(GPDError, ValueError):
-    """Error in convention lock operations.
-
-    Inherits from ValueError for backwards compatibility with existing
-    ``except ValueError`` handlers.
-    """
+    """Error in convention lock operations."""
 
 
 class ResultError(GPDError, ValueError):
-    """Error in intermediate result tracking.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """Error in intermediate result tracking."""
 
 
 class ResultNotFoundError(ResultError, KeyError):
-    """Requested result ID does not exist in state.
-
-    Inherits from KeyError for backwards compatibility with existing
-    ``except KeyError`` handlers.
-    """
+    """Requested result ID does not exist in state."""
 
     def __init__(self, result_id: str) -> None:
         self.result_id = result_id
@@ -101,10 +87,7 @@ class ResultNotFoundError(ResultError, KeyError):
 
 
 class DuplicateResultError(ResultError, ValueError):
-    """A result with the given ID already exists.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """A result with the given ID already exists."""
 
     def __init__(self, result_id: str) -> None:
         self.result_id = result_id
@@ -112,17 +95,11 @@ class DuplicateResultError(ResultError, ValueError):
 
 
 class QueryError(GPDError, ValueError):
-    """Error in cross-phase query operations.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """Error in cross-phase query operations."""
 
 
 class ExtrasError(GPDError, ValueError):
-    """Error in approximation/uncertainty/question/calculation tracking.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """Error in approximation/uncertainty/question/calculation tracking."""
 
 
 class DuplicateApproximationError(ExtrasError, ValueError):
@@ -142,10 +119,7 @@ class TraceError(GPDError):
 
 
 class ConfigError(GPDError, ValueError):
-    """Error loading or validating GPD configuration.
-
-    Inherits from ValueError for backwards compatibility.
-    """
+    """Error loading or validating GPD configuration."""
 
 
 class ValidationError(GPDError, ValueError):
@@ -153,5 +127,4 @@ class ValidationError(GPDError, ValueError):
 
     Use domain-specific errors when possible. This is for cross-cutting
     validation that doesn't belong to a specific module.
-    Inherits from ValueError for backwards compatibility.
     """

@@ -244,15 +244,15 @@ After the main settings answers are collected, handle concrete tier model overri
 Runtime-specific guidance for that follow-up:
 
 - `claude-code`: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full model names like `claude-opus-4-6` and `claude-sonnet-4-6`.
-- `codex`: the exact string Codex accepts for its `model` setting, commonly `gpt-5.4`. If the user configured a non-default Codex `model_provider`, preserve that provider's exact model ID format.
-- `gemini`: an exact Gemini model name such as `gemini-3.1-pro` or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
-- `opencode`: a full `provider/model` id such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
+- `codex`: the exact string Codex accepts for its `model` setting. If the user configured a non-default Codex `model_provider`, preserve that provider's exact model ID format.
+- `gemini`: an exact Gemini model name accepted by the installed Gemini runtime. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- `opencode`: a full `provider/model` id such as `anthropic/<model>`, `openai/<model>`, or `google/<model>`.
 
 Suggested defaults when the user wants a recommendation:
 
 - `claude-code`: `tier-1 = opus`, `tier-2 = sonnet`, `tier-3 = haiku`
-- `codex`: default to `gpt-5.4` for all tiers. If the user wants a lighter `tier-3`, suggest `gpt-5-mini`.
-- `gemini`: `tier-1 = gemini-3.1-pro`, `tier-2 = gemini-3.1-flash-lite`, `tier-3 = gemini-2.5-flash`
+- `codex`: prefer leaving overrides unset unless the user asks for explicit model IDs; if they do, use exact IDs already known to work in that runtime.
+- `gemini`: prefer leaving overrides unset unless the user asks for explicit model IDs; if they do, use exact IDs already known to work in that runtime.
 - `opencode`: first confirm the provider the user wants to route through, then suggest provider-native `provider/model` ids
 
 Normalization rules:

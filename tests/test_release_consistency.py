@@ -141,7 +141,7 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     assert "Physical Superintelligence PBC" in readme
     assert "GSD" in readme
     assert "get-shit-done" in readme
-    assert "[Physical Superintelligence PBC](https://www.psi.inc)" in readme
+    assert "[Physical Superintelligence PBC (PSI)](https://www.psi.inc)" in readme
 
 
 def test_public_metadata_records_psi_affiliation() -> None:
@@ -278,11 +278,12 @@ def test_readme_documents_runtime_specific_tier_model_formats() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
-    assert "## Tier Setup" in readme
+    assert "## Optional: Model Profiles And Tier Overrides" in readme
+    assert "Runtime-specific model string examples" in readme
     assert "`opus`, `sonnet`, `haiku`" in readme
-    assert "`gpt-5.4`" in readme
-    assert "`gpt-5-mini`" in readme
-    assert "`gemini-2.5-pro`" in readme
+    assert "the exact string Codex accepts" in readme
+    assert '"your-tier-1-codex-model"' in readme
+    assert '"your-tier-1-gemini-model"' in readme
     assert "`provider/model`" in readme
 
 
@@ -358,24 +359,27 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
+    assert "## Supported Runtimes" in readme
+    assert "## Advanced CLI Utilities" in readme
+    assert readme.index("## Supported Runtimes") < readme.index("## Advanced CLI Utilities")
     assert "## Known Limitations" in readme
     assert "After installing GPD, open your chosen runtime normally" in readme
-    assert "## Local Observability" in readme
+    assert "Observability and trace inspection" in readme
     assert ".gpd/observability/" in readme
-    assert "STATE.md: concise human-readable continuity state" in readme
-    assert "fabricate opaque provider internals" in readme
+    assert "`STATE.md` | Concise human-readable continuity state" in readme
+    assert "does not fabricate opaque provider internals" in readme
 
 
 def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
-    assert "Claude Code and Gemini CLI use `/gpd:...`" in readme
-    assert "Codex installs `$gpd-...` skills" in readme
-    assert "OpenCode uses `/gpd-...`" in readme
-    assert "> /gpd:new-project        # Claude Code / Gemini CLI" in readme
-    assert "> $gpd-new-project        # Codex" in readme
-    assert "> /gpd-new-project        # OpenCode" in readme
+    assert "## Supported Runtimes" in readme
+    assert "| Claude Code | `--claude` | `/gpd:help` | `/gpd:new-project` |" in readme
+    assert "| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:new-project` |" in readme
+    assert "| Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |" in readme
+    assert "| OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |" in readme
+    assert "Each runtime uses its own command prefix" in readme
 
 
 def test_public_runtime_command_table_has_unique_entries() -> None:

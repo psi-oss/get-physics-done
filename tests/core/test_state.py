@@ -141,7 +141,7 @@ None yet.
 
 **Last session:** 2026-03-01T10:00:00+00:00
 **Stopped at:** Phase 3 P2
-**Resume file:** None
+**Resume file:** —
 """
 
 
@@ -194,7 +194,7 @@ def test_parse_state_md_session():
     sess = parsed["session"]
     assert sess["last_date"] is not None
     assert "Phase 3 P2" in sess["stopped_at"]
-    assert sess["resume_file"] == "None"
+    assert sess["resume_file"] == "—"
 
 
 def test_parse_state_md_bullets():

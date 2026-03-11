@@ -81,7 +81,7 @@ ls .gpd/phases/${PHASE}-*/RESEARCH.md 2>/dev/null
 echo "$PHASE_INFO" | gpd json get .section --default ""
 cat .gpd/REQUIREMENTS.md 2>/dev/null
 cat .gpd/phases/${PHASE}-*/*-CONTEXT.md 2>/dev/null
-grep -A30 "### Decisions Made" .gpd/STATE.md 2>/dev/null
+grep -A30 "### Decisions" .gpd/STATE.md 2>/dev/null
 ```
 
 Present summary with phase description, requirements, prior decisions.

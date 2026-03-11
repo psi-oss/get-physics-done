@@ -9,12 +9,23 @@ authors = [
     { name = "Physical Superintelligence PBC (PSI)" },
 ]
 maintainers = [
-    { name = "Physical Superintelligence PBC", email = "gpd@psi.inc" },
+    { name = "Physical Superintelligence PBC" },
+]
+keywords = [
+    "physical superintelligence",
+    "psi",
+    "physics",
+    "research",
+    "ai",
+    "agentic",
+    "claude",
+    "codex",
+    "gemini",
+    "opencode",
 ]
 classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

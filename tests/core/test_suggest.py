@@ -367,7 +367,7 @@ def test_invalid_config_raises(tmp_path: Path) -> None:
     _create_roadmap(root)
     (root / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
 
-    with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+    with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `mode`"):
         suggest_next(root)
 
 

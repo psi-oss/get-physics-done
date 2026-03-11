@@ -25,7 +25,11 @@
     "physics",
     "research",
     "ai",
-    "agentic"
+    "agentic",
+    "claude",
+    "codex",
+    "gemini",
+    "opencode"
   ],
   "license": "Apache-2.0"
 }

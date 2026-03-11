@@ -404,10 +404,10 @@ Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and 
 
 When you set explicit tier overrides, the model string is runtime-native. GPD passes it through unchanged, so it must match what that runtime already accepts:
 
-- **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
-- **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
-- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro`, `gemini-3.1-pro`, or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
-- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
+- **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or a provider-native pinned model ID. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier.
+- **Codex**: the exact string Codex accepts for its `model` setting. If you configured a non-default Codex `model_provider`, keep that provider's exact model ID format.
+- **Gemini CLI**: an exact Gemini model name accepted by your installed Gemini runtime. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- **OpenCode**: a full `provider/model` string such as `anthropic/<model>`, `openai/<model>`, or `google/<model>`.
 
 </details>
 
@@ -421,9 +421,9 @@ Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
   "model_profile": "review",
   "model_overrides": {
     "codex": {
-      "tier-1": "gpt-5.4",
-      "tier-2": "gpt-5.4",
-      "tier-3": "gpt-5-mini"
+      "tier-1": "your-tier-1-codex-model",
+      "tier-2": "your-tier-2-codex-model",
+      "tier-3": "your-tier-3-codex-model"
     },
     "claude-code": {
       "tier-1": "opus",
@@ -431,9 +431,9 @@ Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
       "tier-3": "haiku"
     },
     "gemini": {
-      "tier-1": "gemini-3.1-pro",
-      "tier-2": "gemini-3.1-flash-lite",
-      "tier-3": "gemini-2.5-flash"
+      "tier-1": "your-tier-1-gemini-model",
+      "tier-2": "your-tier-2-gemini-model",
+      "tier-3": "your-tier-3-gemini-model"
     }
   }
 }

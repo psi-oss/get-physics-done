@@ -120,7 +120,7 @@ class TestLoadConfig:
     def test_removed_mode_key_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_config(tmp_path, {"mode": "yolo"})
-        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `mode`"):
             load_config(tmp_path)
 
     def test_removed_parallelization_object_raises(self, tmp_path: Path) -> None:
@@ -128,7 +128,7 @@ class TestLoadConfig:
         _create_config(tmp_path, {"parallelization": {"enabled": False}})
         with pytest.raises(
             ConfigError,
-            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+            match=r"Unsupported config\.json keys: `parallelization\.enabled`",
         ):
             load_config(tmp_path)
 

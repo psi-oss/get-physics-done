@@ -146,13 +146,13 @@ class TestLoadConfig:
     def test_removed_mode_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
-        with pytest.raises(ConfigError, match="`mode` was removed; use `autonomy`"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `mode`"):
             load_config(tmp_path)
 
     def test_removed_depth_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"depth": "standard"}))
-        with pytest.raises(ConfigError, match="`depth` was removed; use `research_mode` and `model_profile`"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `depth`"):
             load_config(tmp_path)
 
     def test_parallelization_must_be_bool(self, tmp_path: Path):
@@ -160,26 +160,26 @@ class TestLoadConfig:
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"parallelization": {"enabled": False}}))
         with pytest.raises(
             ConfigError,
-            match="`parallelization.enabled` object form was removed; set `parallelization` to true or false",
+            match=r"Unsupported config\.json keys: `parallelization\.enabled`",
         ):
             load_config(tmp_path)
 
     def test_plan_checker_requires_current_key(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"workflow": {"plan_check": False}}))
-        with pytest.raises(ConfigError, match="`workflow.plan_check` was removed; use `workflow.plan_checker`"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `workflow\.plan_check`"):
             load_config(tmp_path)
 
     def test_removed_search_gitignored_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"planning": {"search_gitignored": True}}))
-        with pytest.raises(ConfigError, match="`planning.search_gitignored` was removed"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `planning\.search_gitignored`"):
             load_config(tmp_path)
 
     def test_removed_brave_search_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"brave_search": True}))
-        with pytest.raises(ConfigError, match="`brave_search` was removed"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `brave_search`"):
             load_config(tmp_path)
 
     def test_malformed_json_raises(self, tmp_path: Path):
@@ -209,7 +209,7 @@ class TestLoadConfig:
     def test_removed_model_map_key_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"model_map": {"tier-1": "opus"}}))
-        with pytest.raises(ConfigError, match="`model_map` was removed; use `model_overrides.<runtime>.<tier>`"):
+        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `model_map`"):
             load_config(tmp_path)
 
     def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):

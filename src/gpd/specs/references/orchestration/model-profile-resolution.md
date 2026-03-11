@@ -40,9 +40,9 @@ task(
 Model override strings are runtime-native and are not normalized by GPD:
 
 - `claude-code`: aliases like `opus`, `sonnet`, `haiku`, or full provider-native model identifiers
-- `codex`: the same string Codex accepts for its `model` setting, e.g. `gpt-5.4`; a common lighter `tier-3` choice is `gpt-5-mini`
-- `gemini`: an exact Gemini model name such as `gemini-2.5-pro`
-- `opencode`: a full `provider/model` string such as `openai/gpt-5`
+- `codex`: the same string Codex accepts for its `model` setting
+- `gemini`: an exact Gemini model name accepted by the installed Gemini runtime
+- `opencode`: a full `provider/model` string such as `openai/<model>`
 
 ## Profile Selection Heuristic
 

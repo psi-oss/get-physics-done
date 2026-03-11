@@ -1,4 +1,4 @@
-"""Edge case tests ported from the historical integration suite.
+"""Edge case tests covering multi-module boundary conditions.
 
 Covers the 5 deep edge cases:
 1. Empty .gpd/phases/ directory but state references a phase

@@ -373,34 +373,60 @@ def _get_nested(parsed: dict, key: str, section: str | None = None, field: str |
     return None
 
 
-def _removed_config_messages(parsed: dict) -> list[str]:
-    """Return migration messages for config keys that are no longer supported."""
-    messages: list[str] = []
+_ALLOWED_CONFIG_ROOT_KEYS = frozenset(
+    {
+        "autonomy",
+        "branching_strategy",
+        "commit_docs",
+        "git",
+        "milestone_branch_template",
+        "model_overrides",
+        "model_profile",
+        "parallelization",
+        "phase_branch_template",
+        "plan_checker",
+        "planning",
+        "research",
+        "research_mode",
+        "verifier",
+        "workflow",
+    }
+)
 
-    if "mode" in parsed:
-        messages.append("`mode` was removed; use `autonomy`")
-    if "depth" in parsed:
-        messages.append("`depth` was removed; use `research_mode` and `model_profile`")
-    if "brave_search" in parsed:
-        messages.append("`brave_search` was removed")
+_ALLOWED_CONFIG_SECTION_KEYS = {
+    "git": frozenset({"branching_strategy", "milestone_branch_template", "phase_branch_template"}),
+    "planning": frozenset({"commit_docs"}),
+    "workflow": frozenset({"plan_checker", "research", "verifier"}),
+}
 
-    workflow = parsed.get("workflow")
-    if isinstance(workflow, dict) and "plan_check" in workflow:
-        messages.append("`workflow.plan_check` was removed; use `workflow.plan_checker`")
 
-    planning = parsed.get("planning")
-    if isinstance(planning, dict) and "search_gitignored" in planning:
-        messages.append("`planning.search_gitignored` was removed")
-    if "search_gitignored" in parsed:
-        messages.append("`search_gitignored` was removed")
+def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
+    """Return unsupported config.json keys using the current schema only."""
+    unsupported: list[str] = []
 
-    if isinstance(parsed.get("parallelization"), dict):
-        messages.append("`parallelization.enabled` object form was removed; set `parallelization` to true or false")
+    for key, value in parsed.items():
+        if key not in _ALLOWED_CONFIG_ROOT_KEYS:
+            unsupported.append(key)
+            continue
 
-    if "model_map" in parsed:
-        messages.append("`model_map` was removed; use `model_overrides.<runtime>.<tier>`")
+        if key == "parallelization" and isinstance(value, dict):
+            if value:
+                unsupported.extend(f"parallelization.{nested_key}" for nested_key in value)
+            else:
+                unsupported.append("parallelization")
+            continue
 
-    return messages
+        allowed_nested = _ALLOWED_CONFIG_SECTION_KEYS.get(key)
+        if allowed_nested is None or not isinstance(value, dict):
+            continue
+
+        unsupported.extend(
+            f"{key}.{nested_key}"
+            for nested_key in value
+            if nested_key not in allowed_nested
+        )
+
+    return sorted(unsupported)
 
 
 @instrument_gpd_function("config.load")
@@ -425,11 +451,11 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
 
-    removed_messages = _removed_config_messages(parsed)
-    if removed_messages:
+    unsupported_keys = _unsupported_config_keys(parsed)
+    if unsupported_keys:
         raise ConfigError(
-            "Removed config.json keys: "
-            + "; ".join(removed_messages)
+            "Unsupported config.json keys: "
+            + ", ".join(f"`{key}`" for key in unsupported_keys)
             + f". Update {PLANNING_DIR_NAME}/config.json to the current schema."
         )
 

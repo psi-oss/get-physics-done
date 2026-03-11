@@ -212,7 +212,7 @@ def check_compaction_needed(cwd: Path) -> HealthCheck:
 
     # Count decisions
     dec_match = re.search(
-        r"###?\s*(?:Decisions|Decisions Made|Accumulated.*Decisions)\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
+        r"###?\s*Decisions\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)",
         content,
         re.IGNORECASE,
     )
