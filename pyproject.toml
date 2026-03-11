@@ -51,7 +51,6 @@ Homepage = "https://github.com/physicalsuperintelligence/get-physics-done"
 Documentation = "https://github.com/physicalsuperintelligence/get-physics-done#readme"
 Repository = "https://github.com/physicalsuperintelligence/get-physics-done"
 Issues = "https://github.com/physicalsuperintelligence/get-physics-done/issues"
-Security = "mailto:security@getphysicsdone.com"
 
 [build-system]
 requires = ["hatchling"]

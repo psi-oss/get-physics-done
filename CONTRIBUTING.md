@@ -53,7 +53,3 @@ Cross-runtime release checks:
 - Add or update tests when behavior changes.
 - Update public docs when install flow, commands, or release messaging changes.
 - Keep commit messages concise and descriptive.
-
-## Security
-
-If you find a security issue, do not open a public issue. Email [security@getphysicsdone.com](mailto:security@getphysicsdone.com).
