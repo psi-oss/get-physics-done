@@ -132,7 +132,7 @@ This runs in parallel - all issues investigated simultaneously.
 **Resolve debugger model and mode settings:**
 
 ```bash
-DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger --raw)
+DEBUGGER_MODEL=$(gpd --raw resolve-model gpd-debugger)
 AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
 ```
 

@@ -178,7 +178,7 @@ If phases disagree, this is a potential error source.
 **For thorough validation, spawn gpd-consistency-checker in rapid mode:**
 
 ```bash
-CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker --raw)
+CONSISTENCY_MODEL=$(gpd --raw resolve-model gpd-consistency-checker)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
@@ -268,7 +268,7 @@ may be incorrect.
 **Spawn gpd-notation-coordinator to resolve conflicts:**
 
 ```bash
-NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
+NOTATION_MODEL=$(gpd --raw resolve-model gpd-notation-coordinator)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

@@ -60,7 +60,7 @@ INIT=$(gpd init progress --include state,roadmap,config)
 Extract `commit_docs` from init JSON. Resolve reviewer model:
 
 ```bash
-REVIEWER_MODEL=$(gpd resolve-model gpd-literature-reviewer --raw)
+REVIEWER_MODEL=$(gpd --raw resolve-model gpd-literature-reviewer)
 ```
 
 ## 1. Scope the Review

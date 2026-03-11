@@ -292,7 +292,7 @@ If the staged decision artifacts indicate that the main problem is overclaiming 
 Resolve writer model:
 
 ```bash
-WRITER_MODEL=$(gpd resolve-model gpd-paper-writer --raw)
+WRITER_MODEL=$(gpd --raw resolve-model gpd-paper-writer)
 ```
 
 **For Group A (response-only) items:**

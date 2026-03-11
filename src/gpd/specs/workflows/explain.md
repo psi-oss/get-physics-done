@@ -77,7 +77,7 @@ mkdir -p .gpd/explanations
 Resolve the explainer model:
 
 ```bash
-EXPLAINER_MODEL=$(gpd resolve-model gpd-explainer --raw)
+EXPLAINER_MODEL=$(gpd --raw resolve-model gpd-explainer)
 ```
 
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
@@ -148,7 +148,7 @@ After the explanation is written, run the bibliographer on the produced explanat
 Resolve bibliographer model:
 
 ```bash
-BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer --raw)
+BIBLIO_MODEL=$(gpd --raw resolve-model gpd-bibliographer)
 ```
 
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, perform the audit in the main context.

@@ -49,7 +49,7 @@ INIT=$(gpd init progress --include state,roadmap,config)
 Extract `commit_docs` from init JSON. Resolve debugger model:
 
 ```bash
-DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger --raw)
+DEBUGGER_MODEL=$(gpd --raw resolve-model gpd-debugger)
 ```
 
 ## 1. Check Active Sessions

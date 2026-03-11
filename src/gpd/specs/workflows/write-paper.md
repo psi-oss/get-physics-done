@@ -481,7 +481,7 @@ Before drafting sections, generate all planned figures:
 Resolve paper-writer model:
 
 ```bash
-WRITER_MODEL=$(gpd resolve-model gpd-paper-writer --raw)
+WRITER_MODEL=$(gpd --raw resolve-model gpd-paper-writer)
 ```
 
 Spawn gpd-paper-writer agents for section drafting.
@@ -718,7 +718,7 @@ Spawn the bibliographer agent to verify all references before final review. This
 Resolve bibliographer model:
 
 ```bash
-BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer --raw)
+BIBLIO_MODEL=$(gpd --raw resolve-model gpd-bibliographer)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

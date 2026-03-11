@@ -354,7 +354,7 @@ Display banner:
 ### Spawn gpd-experiment-designer
 
 ```bash
-EXPERIMENT_MODEL=$(gpd resolve-model gpd-experiment-designer --raw)
+EXPERIMENT_MODEL=$(gpd --raw resolve-model gpd-experiment-designer)
 ```
 
 Experiment design prompt:
