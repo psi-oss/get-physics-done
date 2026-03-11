@@ -2,7 +2,7 @@
 """Runtime-agnostic statusline hook for GPD.
 
 Reads JSON from stdin, outputs an ANSI-formatted statusline to stdout.
-Shows: GPD | current task | research position | context usage.
+Shows: GPD | model | path | current task | research position | context usage.
 """
 
 import json
@@ -57,6 +57,72 @@ def _first_string(value: object, *keys: str) -> str:
         if isinstance(candidate, str) and candidate:
             return candidate
     return ""
+
+
+def _format_context_window_size(value: object) -> str:
+    """Return a compact context-window label like ``1M context``."""
+    if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        return ""
+
+    size = int(value)
+    if size >= 1_000_000:
+        scaled = size / 1_000_000
+        suffix = "M"
+    elif size >= 1_000:
+        scaled = size / 1_000
+        suffix = "k"
+    else:
+        return f"{size} context"
+
+    if scaled.is_integer() or scaled >= 100:
+        compact = f"{scaled:.0f}"
+    else:
+        compact = f"{scaled:.1f}".rstrip("0").rstrip(".")
+    return f"{compact}{suffix} context"
+
+
+def _read_model_label(data: dict[str, object]) -> str:
+    """Return the current model label with context-window size when available."""
+    model_value = data.get("model")
+    if isinstance(model_value, str) and model_value:
+        model_label = model_value
+    else:
+        model_label = _first_string(model_value, "display_name", "name", "id")
+
+    context_label = _format_context_window_size(_mapping(data.get("context_window")).get("context_window_size"))
+    if model_label and context_label:
+        return f"{model_label} ({context_label})"
+    return model_label
+
+
+def _read_workspace_label(data: dict[str, object], workspace_dir: str) -> str:
+    """Return a compact workspace label, relative to the project root when possible."""
+    if not workspace_dir:
+        return ""
+
+    workspace_path = Path(workspace_dir).expanduser()
+    workspace_value = data.get("workspace")
+    project_dir = _first_string(workspace_value, "project_dir")
+
+    try:
+        resolved_workspace = workspace_path.resolve()
+    except OSError:
+        resolved_workspace = workspace_path
+
+    if project_dir:
+        project_path = Path(project_dir).expanduser()
+        try:
+            resolved_project = project_path.resolve()
+            relative = resolved_workspace.relative_to(resolved_project)
+            project_name = resolved_project.name or str(resolved_project)
+            if relative.parts:
+                return f"[{project_name}/{relative.as_posix()}]"
+            return f"[{project_name}]"
+        except (OSError, ValueError):
+            pass
+
+    display_name = resolved_workspace.name or workspace_dir
+    return f"[{display_name}]"
 
 
 def _read_position(workspace_dir: str) -> str:
@@ -226,8 +292,14 @@ def main() -> None:
         position = _read_position(workspace_dir)
         task = _read_current_task(session_id, workspace_dir)
         gpd_update = _check_update(workspace_dir)
+        model_label = _read_model_label(data)
+        workspace_label = _read_workspace_label(data, workspace_dir)
 
         segments = [f"\x1b[2m{_STATUS_LABEL}\x1b[0m"]
+        if model_label:
+            segments.append(model_label)
+        if workspace_label:
+            segments.append(f"\x1b[2m{workspace_label}\x1b[0m")
         if task:
             segments.append(f"\x1b[1m{task}\x1b[0m")
         if position:

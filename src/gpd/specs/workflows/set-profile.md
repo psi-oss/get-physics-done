@@ -170,6 +170,8 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 
 Override with `/gpd:settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
 
+If you also want to pin concrete runtime model strings for `tier-1`, `tier-2`, or `tier-3`, use `/gpd:settings`. `set-profile` changes the abstract tier assignments, not the runtime-native model IDs.
+
 For full agent tier assignments across all 23 agents, see `references/orchestration/model-profiles.md`.
 For detailed behavioral effect descriptions per agent per profile, see the "Behavioral Effects" section in `references/orchestration/model-profiles.md`.
 

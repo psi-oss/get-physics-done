@@ -14,8 +14,11 @@ from unittest.mock import patch
 from gpd.hooks.statusline import (
     _check_update,
     _context_bar,
+    _format_context_window_size,
     _read_current_task,
+    _read_model_label,
     _read_position,
+    _read_workspace_label,
     main,
 )
 
@@ -74,6 +77,35 @@ class TestContextBar:
         # raw_used = 70, used = round(70/80*100) = 88, 81 <= 88 < 95 → orange
         bar = _context_bar(30)  # raw_used=70
         assert "\x1b[38;5;208m" in bar  # Orange
+
+
+class TestStatusMetadata:
+    """Tests for model and workspace metadata rendered by the statusline."""
+
+    def test_format_context_window_size_uses_m_suffix(self) -> None:
+        assert _format_context_window_size(1_000_000) == "1M context"
+
+    def test_format_context_window_size_uses_k_suffix(self) -> None:
+        assert _format_context_window_size(200_000) == "200k context"
+
+    def test_read_model_label_combines_display_name_and_context_size(self) -> None:
+        label = _read_model_label({"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}})
+        assert label == "Opus 4.6 (1M context)"
+
+    def test_read_workspace_label_prefers_project_relative_path(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        current = project / "src" / "gpd"
+        current.mkdir(parents=True)
+
+        label = _read_workspace_label({"workspace": {"project_dir": str(project)}}, str(current))
+        assert label == "[project/src/gpd]"
+
+    def test_read_workspace_label_falls_back_to_directory_name(self, tmp_path: Path) -> None:
+        current = tmp_path / "workspace"
+        current.mkdir()
+
+        label = _read_workspace_label({}, str(current))
+        assert label == "[workspace]"
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
@@ -438,20 +470,19 @@ class TestMain:
         output = self._run_main({"model": None})
         assert "GPD" in output
 
-    def test_model_mapping_is_ignored(self) -> None:
-        """Model metadata should not be surfaced in the statusline."""
+    def test_empty_model_mapping_keeps_gpd_label(self) -> None:
         output = self._run_main({"model": {}})
         assert "GPD" in output
 
-    def test_with_valid_model_does_not_override_gpd_label(self) -> None:
-        output = self._run_main({"model": {"display_name": "GPT-4o"}})
+    def test_with_valid_model_renders_model_label(self) -> None:
+        output = self._run_main({"model": {"display_name": "GPT-4o"}, "context_window": {"context_window_size": 200_000}})
         assert "GPD" in output
-        assert "GPT-4o" not in output
+        assert "GPT-4o (200k context)" in output
 
-    def test_model_name_field_is_ignored(self) -> None:
+    def test_model_name_field_is_used_as_fallback(self) -> None:
         output = self._run_main({"model": {"name": "Claude Sonnet"}})
         assert "GPD" in output
-        assert "Claude Sonnet" not in output
+        assert "Claude Sonnet" in output
 
     def test_context_window_remaining_zero(self) -> None:
         """remaining_percentage=0 → shows 100% usage."""
@@ -467,6 +498,7 @@ class TestMain:
         """Missing context_window → no bar in output."""
         output = self._run_main({"model": {"display_name": "Test"}})
         assert "GPD" in output
+        assert "Test" in output
         # No percentage should appear
         assert "%" not in output
 
@@ -489,7 +521,8 @@ class TestMain:
             }
         )
         assert "GPD" in output
-        assert "gpt-5" not in output
+        assert "gpt-5" in output
+        assert "[research-project]" in output
 
     def test_string_workspace_is_forwarded_to_helpers(self) -> None:
         captured = io.StringIO()

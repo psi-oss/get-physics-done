@@ -684,18 +684,19 @@ Usage: `/gpd:plan-milestone-gaps`
 ### Configuration
 
 **`/gpd:settings`**
-Configure workflow toggles and model profile interactively.
+Configure workflow toggles, model profile, and runtime-specific tier model overrides interactively.
 
-- Toggle literature scout, plan checker, verification verifier agents
+- Toggle plan researcher, plan checker, and execution verifier agents
 - Configure inter-wave verification gates (auto/always/never)
 - Toggle parallel execution of wave plans
 - Select model profile (deep-theory/numerical/exploratory/review/paper-writing)
+- Optionally pin concrete runtime model strings for `tier-1`, `tier-2`, and `tier-3`
 - Updates `.gpd/config.json`
 
 Usage: `/gpd:settings`
 
 **`/gpd:set-profile <profile>`**
-Quick switch model profile for GPD agents.
+Quick switch model profile for GPD agents. Use `/gpd:settings` to pin concrete runtime model IDs per tier.
 
 - `deep-theory` — tier-1 (highest capability) for all reasoning-intensive agents (formal derivations, proofs)
 - `numerical` — tier-1 for planning/verification, tier-2 for execution (simulations, numerics)

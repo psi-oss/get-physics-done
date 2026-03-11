@@ -108,24 +108,47 @@ GPD uses abstract capability tiers instead of hard-coding model names:
 - `tier-2`: balanced default
 - `tier-3`: fastest/most economical
 
-Per-project tier settings live in `.gpd/config.json`. First choose a profile, which decides which agents get `tier-1`, `tier-2`, or `tier-3`:
+First choose a profile, which decides which agents get `tier-1`, `tier-2`, or `tier-3`:
 
 - Claude Code / Gemini CLI: `/gpd:set-profile review`
 - Codex: `$gpd-set-profile review`
 - OpenCode: `/gpd-set-profile review`
 
-Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`. If you prefer a prompt instead of a direct command, use the matching `settings` command for your runtime.
+Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`.
 
-If you want to pin concrete model IDs for a runtime, add `model_overrides` to `.gpd/config.json`:
+For most users, the easiest way to set concrete tier models is the interactive settings command, which can keep runtime defaults or walk you through explicit `tier-1` / `tier-2` / `tier-3` overrides without editing JSON by hand:
+
+- Claude Code / Gemini CLI: `/gpd:settings`
+- Codex: `$gpd-settings`
+- OpenCode: `/gpd-settings`
+
+When you do set explicit model overrides, the model string is runtime-native. GPD passes it through unchanged, so it must match what that runtime already accepts:
+
+- **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
+- **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
+- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro` or `gemini-2.5-flash`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-5`, `openai/gpt-5`, or `google/gemini-2.5-pro`.
+
+Manual config is still available as an advanced fallback. Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
 
 ```json
 {
   "model_profile": "review",
   "model_overrides": {
     "codex": {
-      "tier-1": "your-tier-1-model",
-      "tier-2": "your-tier-2-model",
-      "tier-3": "your-tier-3-model"
+      "tier-1": "gpt-5.4",
+      "tier-2": "gpt-5.4",
+      "tier-3": "gpt-5-mini"
+    },
+    "claude-code": {
+      "tier-1": "opus",
+      "tier-2": "sonnet",
+      "tier-3": "haiku"
+    },
+    "gemini": {
+      "tier-1": "gemini-2.5-pro",
+      "tier-2": "gemini-2.5-flash",
+      "tier-3": "gemini-2.5-flash"
     }
   }
 }
@@ -337,7 +360,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 
 #### Configuration
 
-- `/gpd:settings` — Configure GPD workflow toggles and physics research preferences
+- `/gpd:settings` — Configure GPD workflow toggles, physics research preferences, and runtime-specific tier model overrides
 - `/gpd:set-profile <profile>` — Switch research profile for GPD agents (`deep-theory`, `numerical`, `exploratory`, `review`, `paper-writing`)
 
 #### Utility Commands

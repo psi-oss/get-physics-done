@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, and physics-specific settings via multi-question prompt. Updates .gpd/config.json with user preferences including unit systems, conventions, precision, and preferred computational tools.
+Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, runtime-specific tier model overrides, and physics-specific settings via multi-question prompt. Updates `.gpd/config.json` with user preferences including model profile, optional `model_overrides`, unit systems, conventions, precision, and preferred computational tools.
 </purpose>
 
 <required_reading>
@@ -32,6 +32,7 @@ Parse current values (default to `true` / first option if not present):
 
 - `autonomy` -- human-in-the-loop level: `"supervised"`, `"guided"` (default), `"autonomous"`, `"yolo"`
 - `research_mode` -- research strategy: `"explore"`, `"balanced"` (default), `"exploit"`, `"adaptive"`
+- `model_overrides` -- optional runtime-scoped concrete model mapping for `tier-1`, `tier-2`, `tier-3`
 - `workflow.research` -- spawn researcher during plan-phase
 - `workflow.plan_checker` -- spawn plan checker during plan-phase
 - `workflow.verifier` -- spawn verifier during execute-phase
@@ -45,6 +46,16 @@ Parse current values (default to `true` / first option if not present):
 - `physics.preferred_tools` -- computational tools (default: `["python", "numpy", "scipy"]`)
 - `physics.fourier_convention` -- Fourier transform sign (default: `"physics"`)
   </step>
+
+<step name="determine_runtime_for_model_overrides">
+Infer the active runtime before prompting for explicit model IDs.
+
+Use the current command syntax, tool names, environment, and local runtime config directories to determine whether the user is in `claude-code`, `codex`, `gemini`, or `opencode`.
+
+If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
+
+If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `tier-2` / `tier-3` values when presenting the settings form.
+</step>
 
 <step name="present_settings">
 
@@ -86,6 +97,16 @@ ask_user([
       { label: "Exploratory (Recommended)", description: "Rapid prototyping, hypothesis testing, parameter scanning" },
       { label: "Review", description: "Critical assessment, error checking, literature comparison (highest cost)" },
       { label: "Paper Writing", description: "LaTeX production, figures, narrative flow" }
+    ]
+  },
+  {
+    question: "How should GPD handle concrete tier models for the active runtime?",
+    header: "Tier Models",
+    multiSelect: false,
+    options: [
+      { label: "Leave current setting unchanged", description: "Keep the current runtime-specific tier override map exactly as-is" },
+      { label: "Use runtime defaults", description: "Do not pin model IDs for this runtime; GPD will omit the model parameter unless another override exists" },
+      { label: "Configure explicit tier models", description: "Guided setup for runtime-specific tier-1, tier-2, and tier-3 model strings" }
     ]
   },
   {
@@ -214,6 +235,35 @@ ask_user([
 
 </step>
 
+<step name="configure_model_overrides">
+After the main settings answers are collected, handle concrete tier model overrides for the active runtime:
+
+- If the user chose **Leave current setting unchanged**, preserve `model_overrides.<active_runtime>` exactly as it already exists.
+- If the user chose **Use runtime defaults**, clear `model_overrides.<active_runtime>` so GPD falls back to the runtime's default model behavior.
+- If the user chose **Configure explicit tier models**, ask one compact freeform follow-up for the active runtime and capture values for `tier-1`, `tier-2`, and `tier-3`.
+
+Runtime-specific guidance for that follow-up:
+
+- `claude-code`: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full model names like `claude-opus-4-6` and `claude-sonnet-4-6`.
+- `codex`: the exact string Codex accepts for its `model` setting, commonly `gpt-5.4`. If the user configured a non-default Codex `model_provider`, preserve that provider's exact model ID format.
+- `gemini`: an exact Gemini model name such as `gemini-3.1-pro` or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- `opencode`: a full `provider/model` id such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
+
+Suggested defaults when the user wants a recommendation:
+
+- `claude-code`: `tier-1 = opus`, `tier-2 = sonnet`, `tier-3 = haiku`
+- `codex`: default to `gpt-5.4` for all tiers. If the user wants a lighter `tier-3`, suggest `gpt-5-mini`.
+- `gemini`: `tier-1 = gemini-3.1-pro`, `tier-2 = gemini-3.1-flash-lite`, `tier-3 = gemini-2.5-flash`
+- `opencode`: first confirm the provider the user wants to route through, then suggest provider-native `provider/model` ids
+
+Normalization rules:
+
+- Trim surrounding whitespace only.
+- Preserve case, slashes, brackets, colons, and punctuation inside custom model IDs.
+- Treat blank / `runtime default` / `none` as "no override for this tier".
+- Treat literal `default` as a real model alias only when the runtime supports it and the user explicitly intends that alias, not as shorthand for "clear override".
+</step>
+
 <step name="update_config">
 Merge new settings into existing config.json:
 
@@ -224,6 +274,14 @@ Merge new settings into existing config.json:
   "research_mode": "explore" | "balanced" | "exploit" | "adaptive",
   "model_profile": "deep-theory" | "numerical" | "exploratory" | "review" | "paper-writing",
   "parallelization": true/false,
+  "model_overrides": {
+    ...existing_model_overrides_for_other_runtimes,
+    "<active_runtime>": {
+      "tier-1": "runtime-native model string",
+      "tier-2": "runtime-native model string",
+      "tier-3": "runtime-native model string"
+    }
+  }, // include only non-empty tier values; omit or clear <active_runtime> when using runtime defaults
   "workflow": {
     "research": true/false,
     "plan_checker": true/false,
@@ -256,7 +314,9 @@ Display:
 
 | Setting              | Value |
 |----------------------|-------|
+| Active Runtime       | {claude-code/codex/gemini/opencode} |
 | Research Profile     | {deep-theory/numerical/exploratory/review/paper-writing} |
+| Tier Models          | {runtime default / tier-1=..., tier-2=..., tier-3=...} |
 | Unit System          | {natural/SI/CGS/atomic/lattice/custom} |
 | Metric Signature     | {(+,-,-,-) / (-,+,+,+) / Euclidean / N/A} |
 | Fourier Convention   | {physics/math/symmetric/N/A} |
@@ -271,8 +331,11 @@ Display:
 
 These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 
+Concrete tier model strings are passed through to the active runtime unchanged, so they should always use that runtime's native model syntax.
+
 Quick commands:
 - /gpd:set-profile <profile> -- switch research profile
+- /gpd:settings -- revisit interactive model/tier setup
 - /gpd:plan-phase --research -- force research
 - /gpd:plan-phase --skip-research -- skip research
 - /gpd:plan-phase --skip-verify -- skip plan check
@@ -296,9 +359,11 @@ These settings propagate via the `<context>` sections in PLAN.md files, where co
 <success_criteria>
 
 - [ ] Current config read
-- [ ] User presented with 12 settings (profile + 5 physics conventions + 5 workflow toggles + git branching)
-- [ ] Config updated with model_profile, workflow, physics, and git sections
+- [ ] Active runtime inferred or explicitly confirmed before model override guidance
+- [ ] User presented with profile, runtime-specific tier-model handling, physics conventions, workflow toggles, and git branching
+- [ ] Config updated with model_profile, optional model_overrides, workflow, physics, and git sections
 - [ ] Physics conventions (units, metric, Fourier, precision, tools) stored for consistent use across all agents
+- [ ] Concrete tier model strings stored in runtime-native format when the user chooses explicit overrides
 - [ ] Changes confirmed to user
 
 </success_criteria>

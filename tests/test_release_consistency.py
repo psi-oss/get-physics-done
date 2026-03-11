@@ -248,6 +248,18 @@ def test_public_bootstrap_installer_documents_uninstall_path() -> None:
     assert '--uninstall ${primaryFlag} --global' in content
 
 
+def test_readme_documents_runtime_specific_tier_model_formats() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "## Tier Setup" in readme
+    assert "`opus`, `sonnet`, `haiku`" in readme
+    assert "`gpt-5.4`" in readme
+    assert "`gpt-5-mini`" in readme
+    assert "`gemini-2.5-pro`" in readme
+    assert "`provider/model`" in readme
+
+
 def test_export_workflow_uses_release_attribution_footer() -> None:
     repo_root = _repo_root()
     content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")

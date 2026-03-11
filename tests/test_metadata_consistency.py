@@ -199,6 +199,18 @@ def test_agent_count_matches_prompts_and_user_docs() -> None:
     assert f"across all {agents_count} agents" in _read("src/gpd/specs/workflows/set-profile.md")
 
 
+def test_settings_workflow_documents_runtime_specific_model_override_guidance() -> None:
+    workflow = _read("src/gpd/specs/workflows/settings.md")
+
+    assert "model_overrides" in workflow
+    assert "claude-code" in workflow
+    assert "codex" in workflow
+    assert "gemini" in workflow
+    assert "opencode" in workflow
+    assert "tier-1" in workflow
+    assert "gpt-5-mini" in workflow
+
+
 def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
     assert health_check_count == 12

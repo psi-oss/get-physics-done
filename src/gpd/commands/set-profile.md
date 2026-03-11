@@ -29,6 +29,7 @@ Routes to the set-profile workflow which handles:
 - Config file creation if missing
 - Profile update in config.json
 - Confirmation with profile description display
+- Reminder that `/gpd:settings` handles concrete runtime model IDs per tier
   </objective>
 
 <execution_context>

@@ -1,6 +1,6 @@
 ---
 name: gpd:settings
-description: Configure GPD workflow toggles and physics research preferences
+description: Configure GPD workflow toggles, tier models, and physics research preferences
 context_mode: projectless
 allowed-tools:
   - file_read
@@ -13,13 +13,13 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Interactive configuration of GPD workflow agents and physics research preferences via multi-question prompt.
+Interactive configuration of GPD workflow agents, runtime-specific tier model overrides, and physics research preferences via multi-question prompt.
 
 Routes to the settings workflow which handles:
 
 - Config existence ensuring
 - Current settings reading and parsing
-- Interactive prompt covering research profile, physics conventions, and workflow toggles
+- Interactive prompt covering research profile, runtime-specific tier models, physics conventions, and workflow toggles
 - Config merging and writing
 - Confirmation display with quick command references
   </objective>
@@ -37,18 +37,24 @@ The workflow handles all logic including:
 2. Current config reading
 3. Interactive settings presentation with pre-selection, covering:
    - **Research profile**: deep-theory / numerical / exploratory / review / paper-writing
-   - **Coordinate system default**: Cartesian / spherical / cylindrical / covariant (user can always override per-problem)
-   - **Unit conventions**: SI / natural (hbar=c=1) / Gaussian / geometric (G=c=1) / custom
-   - **Metric signature**: mostly-plus (-,+,+,+) / mostly-minus (+,-,-,-)
-   - **Numerical precision**: float32 / float64 / float128 / arbitrary
-   - **Notation style**: index / abstract-index / coordinate-free / mixed
-   - **Plan checker**: on / off (validates plans before execution)
-   - **Verification agent**: on / off (cross-checks derivations with independent methods)
-   - **Inter-wave verification**: auto / always / never (dimensional + convention checks between waves)
-   - **Parallel execution**: on / off (execute wave plans in parallel)
-   - **Literature agent**: on / off (auto-searches for relevant references)
-   - **Dimensional analysis check**: on / off (validates dimensions at each step)
-4. Answer parsing and config merging
-5. File writing
-6. Confirmation display with current settings summary and quick command references
+   - **Tier models for the active runtime**: leave unchanged / use runtime defaults / configure explicit tier-1, tier-2, tier-3 model strings
+   - **Unit conventions**: natural / natural thermal / SI / CGS / atomic / lattice / custom
+   - **Metric signature**: mostly-minus / mostly-plus / Euclidean / N/A
+   - **Fourier convention**: physics / mathematics / symmetric / N/A
+   - **Numerical precision**: single / double / quad / arbitrary
+   - **Preferred tools**: Python, Mathematica, Julia, C/C++, Fortran, MATLAB, SymPy, Maple, FORM, Cadabra, xAct
+   - **Plan researcher**: on / off
+   - **Plan checker**: on / off
+   - **Execution verifier**: on / off
+   - **Inter-wave verification**: auto / always / never
+   - **Parallel execution**: on / off
+   - **Git branching**: none / per-phase / per-milestone
+4. Runtime-aware model guidance when explicit tier models are requested:
+   - **Claude Code**: aliases like `opus`, `sonnet`, `haiku` or pinned full names
+   - **Codex**: the exact Codex model string, e.g. `gpt-5.4`
+   - **Gemini CLI**: the exact Gemini model name, e.g. `gemini-2.5-pro`
+   - **OpenCode**: a full `provider/model` id
+5. Answer parsing and config merging
+6. File writing
+7. Confirmation display with current settings summary and quick command references
    </process>

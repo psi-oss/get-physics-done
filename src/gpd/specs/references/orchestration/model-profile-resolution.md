@@ -37,6 +37,13 @@ task(
 
 `gpd resolve-model` prints a concrete model name only when `.gpd/config.json` contains a matching `model_overrides.<runtime>.<tier>` entry for the active runtime. Otherwise it prints nothing so the runtime's own default model is used.
 
+Model override strings are runtime-native and are not normalized by GPD:
+
+- `claude-code`: aliases like `opus`, `sonnet`, `haiku`, or full provider-native model identifiers
+- `codex`: the same string Codex accepts for its `model` setting, e.g. `gpt-5.4`; a common lighter `tier-3` choice is `gpt-5-mini`
+- `gemini`: an exact Gemini model name such as `gemini-2.5-pro`
+- `opencode`: a full `provider/model` string such as `openai/gpt-5`
+
 ## Profile Selection Heuristic
 
 When the user does not explicitly set a profile, the orchestrator may infer the appropriate profile from the research context:
