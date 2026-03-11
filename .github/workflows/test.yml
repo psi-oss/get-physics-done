@@ -1,4 +1,4 @@
-name: merge-gate
+name: tests
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: merge-gate-${{ github.event.pull_request.number || github.ref }}
+  group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

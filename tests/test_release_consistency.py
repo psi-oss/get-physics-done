@@ -303,7 +303,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_matrix() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
 
-    assert "name: merge-gate" in workflow
+    assert "name: tests" in workflow
     assert "pull_request:" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
@@ -423,7 +423,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "Public install docs should use `npx -y get-physics-done@latest`." in content
     assert "Keep public artifacts present and up to date" in content
     assert "direct pushes are blocked" in content
-    assert "required `merge-gate` workflow" in content
+    assert "required `tests` workflow" in content
 
 
 

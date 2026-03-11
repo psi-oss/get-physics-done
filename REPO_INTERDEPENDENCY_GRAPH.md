@@ -16,8 +16,8 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `971`
-- Python files under `src/` and `tests/`: `181`
+- Live repo files analyzed in the current tree: `972`
+- Python files under `src/` and `tests/`: `182`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `61`
@@ -26,7 +26,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `116`
+- `tests/**` files: `117`
 - `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
 - `.claude/get-physics-done/workflows/**/*.md`: `61`

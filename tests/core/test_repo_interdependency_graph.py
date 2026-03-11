@@ -71,8 +71,13 @@ def test_graph_scope_counts_match_live_prompt_inventory() -> None:
         ),
     }
 
-    for label, count in expected.items():
-        assert _scope_count(label) == count, label
+    mismatches = [
+        f"{label}: graph={_scope_count(label)} live={count}"
+        for label, count in expected.items()
+        if _scope_count(label) != count
+    ]
+
+    assert not mismatches, "Graph scope counts are stale:\n" + "\n".join(mismatches)
 
 
 def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
@@ -100,6 +105,22 @@ def test_graph_captures_staged_review_prompt_edges() -> None:
         "`src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/workflows/peer-review.md`",
         "`src/gpd/specs/workflows/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
         "`src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md -> src/gpd/specs/references/publication/peer-review-panel.md`",
+    ]
+
+    for edge in expected_edges:
+        assert edge in graph
+
+
+def test_graph_captures_paper_build_prompt_edges() -> None:
+    graph = _graph_text()
+    expected_edges = [
+        "`src/gpd/commands/write-paper.md -> gpd paper-build paper/PAPER-CONFIG.json`",
+        "`src/gpd/commands/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`",
+        "`src/gpd/commands/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`",
+        "`src/gpd/specs/workflows/write-paper.md -> src/gpd/cli.py::paper_build`",
+        "`src/gpd/specs/workflows/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`",
+        "`src/gpd/specs/workflows/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`",
+        "`src/gpd/specs/workflows/peer-review.md -> paper/{PAPER-CONFIG.json,ARTIFACT-MANIFEST.json,BIBLIOGRAPHY-AUDIT.json}`",
     ]
 
     for edge in expected_edges:
