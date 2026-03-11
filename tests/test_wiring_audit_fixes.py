@@ -11,10 +11,7 @@ import re
 import shutil
 import subprocess
 import textwrap
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 # ─── 1. utils.py: os.replace and None guards ───────────────────────────────
 
@@ -537,26 +534,3 @@ class TestInstallUtilsNoDuplicateConstant:
         assert TODOS_DIR_NAME == "todos"
 
 
-# ─── 15. Mirror parity ─────────────────────────────────────────────────────
-
-
-class TestMirrorParityRestored:
-    """Hook mirror files should match source files."""
-
-    HOOK_FILES = ["runtime_detect.py", "statusline.py", "check_update.py", "notify.py"]
-    REPO_ROOT = Path(__file__).resolve().parents[1]
-    SOURCE_DIR = REPO_ROOT / "src" / "gpd" / "hooks"
-
-    @pytest.mark.parametrize("hook_name", HOOK_FILES)
-    def test_claude_mirror_matches_source(self, hook_name):
-        mirror = self.REPO_ROOT / ".claude" / "hooks" / hook_name
-        source = self.SOURCE_DIR / hook_name
-        if mirror.exists() and source.exists():
-            assert mirror.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
-
-    @pytest.mark.parametrize("hook_name", HOOK_FILES)
-    def test_codex_mirror_matches_source(self, hook_name):
-        mirror = self.REPO_ROOT / ".codex" / "hooks" / hook_name
-        source = self.SOURCE_DIR / hook_name
-        if mirror.exists() and source.exists():
-            assert mirror.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")

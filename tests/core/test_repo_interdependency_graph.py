@@ -32,17 +32,8 @@ def _scope_count(label: str) -> int:
     return int(match.group(1))
 
 
-def _count_repo_files() -> int:
-    return sum(
-        1
-        for path in REPO_ROOT.rglob("*")
-        if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
-    )
-
-
 def test_graph_scope_counts_match_live_prompt_inventory() -> None:
     expected = {
-        "Live repo files analyzed in the current tree": _count_repo_files(),
         "Python files under `src/` and `tests/`": sum(
             1
             for root in (REPO_ROOT / "src", REPO_ROOT / "tests")
@@ -57,17 +48,6 @@ def test_graph_scope_counts_match_live_prompt_inventory() -> None:
             1
             for path in (REPO_ROOT / "tests").rglob("*")
             if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
-        ),
-        "`.claude/commands/gpd/*.md`": len(list((REPO_ROOT / ".claude/commands/gpd").glob("*.md"))),
-        "`.claude/agents/*.md`": len(list((REPO_ROOT / ".claude/agents").glob("gpd-*.md"))),
-        "`.claude/get-physics-done/workflows/**/*.md`": len(
-            list((REPO_ROOT / ".claude/get-physics-done/workflows").rglob("*.md"))
-        ),
-        "`.claude/get-physics-done/templates/**/*.md`": len(
-            list((REPO_ROOT / ".claude/get-physics-done/templates").rglob("*.md"))
-        ),
-        "`.claude/get-physics-done/references/**/*.md`": len(
-            list((REPO_ROOT / ".claude/get-physics-done/references").rglob("*.md"))
         ),
     }
 

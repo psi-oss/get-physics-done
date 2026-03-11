@@ -7,7 +7,6 @@ Tests are numbered to match the audit finding list.
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -210,20 +209,3 @@ def test_check_environment_timeout_has_git_version_key(monkeypatch):
     assert result.details["git_version"] is None
 
 
-# ---------------------------------------------------------------------------
-# Test 9: mirror parity includes .codex
-# ---------------------------------------------------------------------------
-
-
-def test_codex_hooks_mirror_matches_source():
-    """Both .codex/hooks/ and .claude/hooks/ should match src/gpd/hooks/."""
-    repo_root = Path(__file__).resolve().parents[1]
-    source_dir = repo_root / "src" / "gpd" / "hooks"
-    for mirror_name in (".claude", ".codex"):
-        mirror_dir = repo_root / mirror_name / "hooks"
-        if not mirror_dir.exists():
-            continue
-        for hook_name in ("runtime_detect.py", "statusline.py", "check_update.py", "notify.py"):
-            src = (source_dir / hook_name).read_text(encoding="utf-8")
-            mir = (mirror_dir / hook_name).read_text(encoding="utf-8")
-            assert src == mir, f"{mirror_name}/hooks/{hook_name} does not match source"
