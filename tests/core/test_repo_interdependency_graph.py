@@ -18,6 +18,7 @@ EXCLUDED_GRAPH_DIRS = {
     ".codex",
     ".gemini",
     ".opencode",
+    "dist",
 }
 
 

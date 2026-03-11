@@ -9,7 +9,7 @@ import json
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
 from gpd.core.errors import ConfigError
@@ -27,6 +27,7 @@ __all__ = [
     "ResearchMode",
     "load_config",
     "resolve_agent_tier",
+    "resolve_tier",
     "resolve_model",
 ]
 
@@ -67,6 +68,10 @@ class ModelTier(StrEnum):
     TIER_1 = "tier-1"
     TIER_2 = "tier-2"
     TIER_3 = "tier-3"
+
+
+_VALID_MODEL_TIER_VALUES = frozenset(tier.value for tier in ModelTier)
+_VALID_RUNTIME_NAMES = frozenset({"claude-code", "codex", "gemini", "opencode"})
 
 
 class BranchingStrategy(StrEnum):
@@ -299,7 +304,45 @@ class GPDProjectConfig(BaseModel):
     milestone_branch_template: str = "gpd/{milestone}-{slug}"
 
     # Optional overrides
-    model_map: dict[str, str] | None = Field(default=None)
+    model_overrides: dict[str, dict[str, str]] | None = Field(default=None)
+
+    @field_validator("model_overrides")
+    @classmethod
+    def _validate_model_overrides(cls, value: dict[str, dict[str, str]] | None) -> dict[str, dict[str, str]] | None:
+        """Validate runtime-scoped tier override mappings."""
+        if value is None:
+            return None
+
+        normalized: dict[str, dict[str, str]] = {}
+        supported_runtimes = ", ".join(sorted(_VALID_RUNTIME_NAMES))
+        supported_tiers = ", ".join(sorted(_VALID_MODEL_TIER_VALUES))
+
+        for runtime, tier_map in value.items():
+            if runtime not in _VALID_RUNTIME_NAMES:
+                raise ValueError(
+                    f"model_overrides contains unknown runtime {runtime!r}; "
+                    f"expected one of: {supported_runtimes}"
+                )
+            if not isinstance(tier_map, dict):
+                raise TypeError(f"model_overrides[{runtime!r}] must be an object mapping tiers to model ids")
+
+            normalized_runtime: dict[str, str] = {}
+            for tier, model in tier_map.items():
+                if tier not in _VALID_MODEL_TIER_VALUES:
+                    raise ValueError(
+                        f"model_overrides[{runtime!r}] contains unknown tier {tier!r}; "
+                        f"expected one of: {supported_tiers}"
+                    )
+                if not isinstance(model, str) or not model.strip():
+                    raise ValueError(
+                        f"model_overrides[{runtime!r}][{tier!r}] must be a non-empty string"
+                    )
+                normalized_runtime[tier] = model.strip()
+
+            if normalized_runtime:
+                normalized[runtime] = normalized_runtime
+
+        return normalized or None
 
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
@@ -340,6 +383,9 @@ def _removed_config_messages(parsed: dict) -> list[str]:
 
     if isinstance(parsed.get("parallelization"), dict):
         messages.append("`parallelization.enabled` object form was removed; set `parallelization` to true or false")
+
+    if "model_map" in parsed:
+        messages.append("`model_map` was removed; use `model_overrides.<runtime>.<tier>`")
 
     return messages
 
@@ -420,8 +466,8 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
                 _get_nested(parsed, "parallelization"),
                 _CONFIG_DEFAULTS.parallelization,
             ),
-            model_map=_coalesce(
-                _get_nested(parsed, "model_map"),
+            model_overrides=_coalesce(
+                _get_nested(parsed, "model_overrides"),
                 None,
             ),
         )
@@ -458,15 +504,28 @@ def resolve_agent_tier(agent_name: str, profile: ModelProfile | str) -> ModelTie
     return AGENT_DEFAULT_TIERS.get(agent_name, ModelTier.TIER_2)
 
 
-@instrument_gpd_function("config.resolve_model")
-def resolve_model(project_dir: Path, agent_name: str) -> str:
-    """Resolve the model identifier for an agent in a project.
-
-    Loads config, resolves tier via profile, then applies model_map override.
-    Returns the tier string (e.g., "tier-1") or mapped model name.
-    """
+@instrument_gpd_function("config.resolve_project_tier")
+def resolve_tier(project_dir: Path, agent_name: str) -> ModelTier:
+    """Resolve the abstract model tier for an agent in a project."""
     config = load_config(project_dir)
-    tier = resolve_agent_tier(agent_name, config.model_profile)
-    if config.model_map and tier.value in config.model_map:
-        return config.model_map[tier.value]
-    return tier.value
+    return resolve_agent_tier(agent_name, config.model_profile)
+
+
+@instrument_gpd_function("config.resolve_model")
+def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None) -> str | None:
+    """Resolve the runtime-specific model override for an agent in a project.
+
+    Returns the concrete model name when the current runtime has an explicit
+    override for the agent's resolved tier. Returns ``None`` when no override is
+    configured so the caller can omit the runtime model parameter and let the
+    platform use its own default model.
+    """
+    if not runtime:
+        return None
+
+    config = load_config(project_dir)
+    tier = resolve_agent_tier(agent_name, config.model_profile).value
+    runtime_overrides = (config.model_overrides or {}).get(runtime)
+    if not runtime_overrides:
+        return None
+    return runtime_overrides.get(tier)

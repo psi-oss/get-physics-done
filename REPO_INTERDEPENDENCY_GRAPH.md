@@ -16,21 +16,21 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `1227`
-- Python files under `src/` and `tests/`: `180`
+- Live repo files analyzed in the current tree: `1230`
+- Python files under `src/` and `tests/`: `181`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `61`
 - `src/gpd/specs/templates/**/*.md`: `69`
 - `src/gpd/specs/references/**/*.md`: `156`
-- `src/gpd/adapters/*.py`: `8`
+- `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `115`
+- `tests/**` files: `116`
 - `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
 - `.claude/get-physics-done/workflows/**/*.md`: `61`
-- `.claude/get-physics-done/templates/**/*.md`: `65`
+- `.claude/get-physics-done/templates/**/*.md`: `69`
 - `.claude/get-physics-done/references/**/*.md`: `156`
 - `infra/gpd-*.json`: `8`
 
@@ -46,6 +46,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.codex/**`
 - `.gemini/**`
 - `.opencode/**`
+- `dist/**`
 
 Generated-output families are modeled when code or tests depend on them:
 
@@ -132,9 +133,13 @@ flowchart TD
 - `bin/install.js -> package.json`
   `package-data-load`
 
+- `bin/install.js -> src/gpd/adapters/runtime_catalog.json`
+  `package-data-load`
+  Bootstrap runtime selection and CLI help text are driven by the shared runtime catalog shipped in the npm tarball.
+
 - `bin/install.js -> src/gpd/cli.py`
   `spawn`
-  The Node installer ultimately hands off to `python -m gpd.cli install ...`.
+  The Node installer ultimately hands off to `python -m gpd.cli {install,uninstall} ...`.
 
 - `bin/install.js -> external Python package {get-physics-done}`
   `external-package`
@@ -145,9 +150,13 @@ flowchart TD
 - `bin/install.js -> GitHub git candidate family {git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> ordered install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
+- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout, PyPI release get-physics-done==<version>}`
   `ordering-contract`
-  Source fallback resolution is precedence-driven, not an unordered set.
+  Normal install and `--reinstall` try source candidates in precedence order and only then fall back to the matching PyPI release.
+
+- `bin/install.js -> ordered upgrade candidate chain {main archive, ssh main checkout, https main checkout, PyPI release get-physics-done==<version>}`
+  `ordering-contract`
+  `--upgrade` prefers the latest `main` branch source and only then falls back to the matching PyPI release.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`
@@ -294,10 +303,10 @@ flowchart TD
 - `src/gpd/cli.py -> src/gpd/core/patterns.py -> {GPD_PATTERNS_ROOT, GPD_DATA_DIR, ~/.gpd/learned-patterns}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
   `candidate-set`
 
-- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,current-session.json}`
+- `src/gpd/cli.py -> effective observability roots <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
   `ordering-contract`
   `events.jsonl` is preferred before falling back to per-session event streams and session metadata.
 
@@ -333,6 +342,10 @@ flowchart TD
 
 - `src/gpd/core/state.py -> state.json.bak`
   `generated-output`
+
+- `src/gpd/core/state.py -> <cwd>/.gpd/state.intent`
+  `generated-output`
+  Dual-write recovery marker for interrupted `state.json` and `STATE.md` writes.
 
 - `src/gpd/core/results.py -> src/gpd/contracts.py`
   `schema-contains`
@@ -402,6 +415,10 @@ flowchart TD
 - `src/gpd/core/observability.py -> src/gpd/mcp/servers/*.py`
   `span-context`
 
+- `src/gpd/core/observability.py -> <cwd>/.gpd/observability/{events.jsonl,sessions/*.jsonl,sessions/*.json,current-session.json}`
+  `generated-output`
+  Observability writes and rereads the project-wide event stream, per-session event streams, and session metadata from this tree.
+
 - `src/gpd/core/context.py -> import-time platform snapshot _PLATFORM`
   `selector-input`
   `init_*` context helpers reuse a cached platform classification chosen at module import.
@@ -410,9 +427,13 @@ flowchart TD
   `selector-input`
   New-project detection is gated by this scan envelope rather than by a raw recursive walk.
 
-- `src/gpd/core/query.py -> dependency frontmatter precedence {nested dependency-graph fields over top-level requires}`
+- `src/gpd/core/query.py -> dependency frontmatter precedence {nested dependency-graph.{provides,requires,affects} over top-level counterparts}`
   `ordering-contract`
   Query-time dependency semantics follow parser precedence, not simple field union.
+
+- `src/gpd/core/query.py -> .gpd/phases/**/{*-SUMMARY.md,SUMMARY.md}`
+  `candidate-set`
+  Query walks both plan-scoped `*-SUMMARY.md` files and standalone `SUMMARY.md` files under each phase directory.
 
 ## Registry, Commands, Agents, Workflows, Templates, and References
 
@@ -845,6 +866,10 @@ flowchart TD
 - `src/gpd/adapters/base.py -> src/gpd/adapters/install_utils.py`
   `hard-import`
 
+- `src/gpd/adapters/runtime_catalog.py -> src/gpd/adapters/runtime_catalog.json`
+  `package-data-load`
+  The adapter layer loads its shared runtime descriptor catalog from package data.
+
 - `src/gpd/adapters/base.py -> src/gpd/adapters/install_utils.py::pre_install_cleanup`
   `spawn`
 
@@ -905,17 +930,11 @@ flowchart TD
 - `src/gpd/adapters/claude_code.py -> .claude/settings.json`
   `config-mutation`
 
-- `src/gpd/adapters/claude_code.py -> <workspace>/.mcp.json["mcpServers"]`
+- `src/gpd/adapters/claude_code.py -> target_dir.parent/{.mcp.json,.claude.json}["mcpServers"]`
   `config-mutation`
+  Claude MCP wiring stays scoped to the selected install target root; local installs mutate the paired project `.mcp.json`, global installs mutate the paired `.claude.json`.
 
-- `src/gpd/adapters/claude_code.py -> .mcp.json["mcpServers"][GPD_MCP_SERVER_KEYS]`
-  `partial-ownership`
-
-- `src/gpd/adapters/claude_code.py -> ~/.claude.json`
-  `config-mutation`
-  Global MCP wiring for Claude.
-
-- `src/gpd/adapters/claude_code.py -> ~/.claude.json["mcpServers"][GPD_MCP_SERVER_KEYS]`
+- `src/gpd/adapters/claude_code.py -> target_dir.parent/{.mcp.json,.claude.json}["mcpServers"][GPD_MCP_SERVER_KEYS]`
   `partial-ownership`
 
 - `src/gpd/adapters/gemini.py -> settings.json["experimental.enableAgents"]`
@@ -985,13 +1004,9 @@ flowchart TD
   `generated-output`
   Checked-in installed snapshot; currently host-shaped because it contains a machine-local interpreter path.
 
-- `.claude/settings.local.json -> src/gpd/mcp/builtin_servers.py`
-  `config-mutation`
-  Local runtime config enabling GPD MCP behavior.
-
-- `.claude/settings.local.json -> .mcp.json["mcpServers"]`
-  `authority`
-  `enabledMcpjsonServers[*]` selects which project-level MCP servers Claude should enable.
+- `.claude/settings.local.json`
+  `generated-output`
+  Checked-in project-local Claude snapshot artifact; parity-tested as a fixture, but not adapter-managed at runtime.
 
 ### Selective Ownership Statement
 
@@ -1382,6 +1397,10 @@ They explicitly preserve:
 - `tests/test_release_consistency.py -> bin/install.js`
   `manifest-contract`
 
+- `tests/test_release_consistency.py -> src/gpd/adapters/runtime_catalog.json`
+  `manifest-contract`
+  The npm bootstrap surface must keep shipping and requiring the shared runtime catalog.
+
 - `tests/test_release_consistency.py -> src/gpd/specs/workflows/export.md`
   `manifest-contract`
 
@@ -1397,7 +1416,7 @@ They explicitly preserve:
 - `tests/test_release_consistency.py -> dist/*.tar.gz`
   `generated-output`
 
-- `tests/test_release_consistency.py -> src/gpd/mcp/viewer/cli.py`
+- `tests/test_release_consistency.py -> dist/*.whl::!gpd/mcp/viewer/cli.py`
   `negative-packaging-contract`
 
 - `tests/test_release_consistency.py -> docs/USER-GUIDE.md`

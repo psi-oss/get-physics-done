@@ -214,13 +214,27 @@ class TestPublicAPI:
         from gpd.mcp.paper import (
             ArtifactManifest,
             Author,
+            ClaimIndex,
+            ClaimRecord,
+            ClaimType,
             BibliographyAudit,
             CitationAuditRecord,
             CitationSource,
             FigureRef,
             PaperConfig,
             PaperOutput,
+            ReviewConfidence,
+            ReviewFinding,
+            ReviewIssue,
+            ReviewIssueSeverity,
+            ReviewIssueStatus,
+            ReviewLedger,
+            ReviewPanelBundle,
+            ReviewRecommendation,
+            ReviewStageKind,
+            ReviewSupportStatus,
             Section,
+            StageReviewReport,
             build_bibliography,
             build_bibliography_with_audit,
             build_paper,
@@ -228,7 +242,15 @@ class TestPublicAPI:
             get_journal_for_domain,
             get_journal_spec,
             list_journals,
+            read_claim_index,
+            read_review_ledger,
+            read_review_panel_bundle,
+            read_stage_review_report,
             write_bibliography_audit,
+            write_claim_index,
+            write_review_ledger,
+            write_review_panel_bundle,
+            write_stage_review_report,
         )
 
         assert callable(build_paper)
@@ -241,13 +263,133 @@ class TestPublicAPI:
         assert callable(write_bibliography_audit)
         assert ArtifactManifest is not None
         assert Author is not None
+        assert ClaimIndex is not None
+        assert ClaimRecord is not None
+        assert ClaimType is not None
         assert BibliographyAudit is not None
         assert CitationAuditRecord is not None
         assert FigureRef is not None
         assert PaperConfig is not None
         assert PaperOutput is not None
+        assert ReviewConfidence is not None
+        assert ReviewFinding is not None
+        assert ReviewIssue is not None
+        assert ReviewIssueSeverity is not None
+        assert ReviewIssueStatus is not None
+        assert ReviewLedger is not None
+        assert ReviewPanelBundle is not None
+        assert ReviewRecommendation is not None
+        assert ReviewStageKind is not None
+        assert ReviewSupportStatus is not None
         assert Section is not None
+        assert StageReviewReport is not None
         assert CitationSource is not None
+        assert callable(read_claim_index)
+        assert callable(read_review_ledger)
+        assert callable(read_review_panel_bundle)
+        assert callable(read_stage_review_report)
+        assert callable(write_claim_index)
+        assert callable(write_review_ledger)
+        assert callable(write_review_panel_bundle)
+        assert callable(write_stage_review_report)
+
+    def test_public_api_review_artifact_helpers_round_trip(self, tmp_path):
+        from gpd.mcp.paper import (
+            ClaimIndex,
+            ClaimRecord,
+            ClaimType,
+            ReviewConfidence,
+            ReviewFinding,
+            ReviewIssue,
+            ReviewIssueSeverity,
+            ReviewLedger,
+            ReviewPanelBundle,
+            ReviewRecommendation,
+            ReviewStageKind,
+            ReviewSupportStatus,
+            StageReviewReport,
+            read_claim_index,
+            read_review_ledger,
+            read_review_panel_bundle,
+            read_stage_review_report,
+            write_claim_index,
+            write_review_ledger,
+            write_review_panel_bundle,
+            write_stage_review_report,
+        )
+
+        claim_index = ClaimIndex(
+            manuscript_path="paper/main.tex",
+            manuscript_sha256="a" * 64,
+            claims=[
+                ClaimRecord(
+                    claim_id="CLM-001",
+                    claim_type=ClaimType.main_result,
+                    text="A bounded result is established.",
+                    artifact_path="paper/main.tex",
+                    section="Results",
+                )
+            ],
+        )
+        stage_report = StageReviewReport(
+            stage_id="physics",
+            stage_kind=ReviewStageKind.physics,
+            manuscript_path="paper/main.tex",
+            manuscript_sha256="a" * 64,
+            claims_reviewed=["CLM-001"],
+            summary="Physics support is adequate.",
+            findings=[
+                ReviewFinding(
+                    issue_id="REF-001",
+                    claim_ids=["CLM-001"],
+                    severity=ReviewIssueSeverity.minor,
+                    summary="Clarify the regime of validity.",
+                    support_status=ReviewSupportStatus.partially_supported,
+                    required_action="Add one sentence narrowing the claim.",
+                )
+            ],
+            confidence=ReviewConfidence.medium,
+            recommendation_ceiling=ReviewRecommendation.minor_revision,
+        )
+        ledger = ReviewLedger(
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.minor,
+                    claim_ids=["CLM-001"],
+                    summary="Clarify the regime of validity.",
+                    required_action="Add one sentence narrowing the claim.",
+                )
+            ],
+        )
+        bundle = ReviewPanelBundle(
+            manuscript_path="paper/main.tex",
+            claim_index_path=".gpd/review/CLAIMS.json",
+            stage_reports=[".gpd/review/STAGE-physics.json"],
+            review_ledger_path=".gpd/review/REVIEW-LEDGER.json",
+            decision_path=".gpd/review/REFEREE-DECISION.json",
+            final_recommendation=ReviewRecommendation.minor_revision,
+            final_confidence=ReviewConfidence.medium,
+            final_report_path=".gpd/REFEREE-REPORT.md",
+            final_report_tex_path=".gpd/REFEREE-REPORT.tex",
+        )
+
+        claims_path = tmp_path / "CLAIMS.json"
+        stage_path = tmp_path / "STAGE-physics.json"
+        ledger_path = tmp_path / "REVIEW-LEDGER.json"
+        bundle_path = tmp_path / "PANEL-BUNDLE.json"
+
+        write_claim_index(claim_index, claims_path)
+        write_stage_review_report(stage_report, stage_path)
+        write_review_ledger(ledger, ledger_path)
+        write_review_panel_bundle(bundle, bundle_path)
+
+        assert read_claim_index(claims_path) == claim_index
+        assert read_stage_review_report(stage_path) == stage_report
+        assert read_review_ledger(ledger_path) == ledger
+        assert read_review_panel_bundle(bundle_path) == bundle
 
 
 # ---- Class file check fallback ----
