@@ -77,62 +77,6 @@ Claude Code and Gemini CLI use `/gpd:...`, Codex installs `$gpd-...` skills, and
 Gemini-specific note:
 - GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
 
-## Tier Setup
-
-GPD uses abstract capability tiers instead of hard-coding model names:
-
-- `tier-1`: highest capability
-- `tier-2`: balanced default
-- `tier-3`: fastest/most economical
-
-First choose a profile, which decides which agents get `tier-1`, `tier-2`, or `tier-3`:
-
-- Claude Code / Gemini CLI: `/gpd:set-profile review`
-- Codex: `$gpd-set-profile review`
-- OpenCode: `/gpd-set-profile review`
-
-Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`.
-
-For most users, the easiest way to set concrete tier models is the interactive settings command, which can keep runtime defaults or walk you through explicit `tier-1` / `tier-2` / `tier-3` overrides without editing JSON by hand:
-
-- Claude Code / Gemini CLI: `/gpd:settings`
-- Codex: `$gpd-settings`
-- OpenCode: `/gpd-settings`
-
-When you do set explicit model overrides, the model string is runtime-native. GPD passes it through unchanged, so it must match what that runtime already accepts:
-
-- **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
-- **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
-- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro`, `gemini-3.1-pro`, or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
-- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
-
-Manual config is still available as an advanced fallback. Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
-
-```json
-{
-  "model_profile": "review",
-  "model_overrides": {
-    "codex": {
-      "tier-1": "gpt-5.4",
-      "tier-2": "gpt-5.4",
-      "tier-3": "gpt-5-mini"
-    },
-    "claude-code": {
-      "tier-1": "opus",
-      "tier-2": "sonnet",
-      "tier-3": "haiku"
-    },
-    "gemini": {
-      "tier-1": "gemini-3.1-pro",
-      "tier-2": "gemini-3.1-flash-lite",
-      "tier-3": "gemini-2.5-flash"
-    }
-  }
-}
-```
-
-Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no override is set for the active runtime, GPD uses that runtime's default model.
-
 ## What GPD Does
 
 GPD guides research in four stages:
@@ -352,6 +296,68 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 - `/gpd:help` — Show available GPD commands and usage guide
 
 For full per-command detail and examples inside your runtime, run `/gpd:help --all` or the equivalent runtime-specific help command.
+
+## Optional: Model Profiles And Tier Overrides
+
+GPD maps runtime-specific model names onto three capability tiers. Most users can leave this at the runtime default and only adjust it if they want to tune planning, execution, or verification behavior.
+
+| Tier | Meaning |
+|------|---------|
+| `tier-1` | Highest capability |
+| `tier-2` | Balanced default |
+| `tier-3` | Fastest / most economical |
+
+Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`.
+
+| Runtime | Set profile | Open settings |
+|---------|-------------|---------------|
+| Claude Code / Gemini CLI | `/gpd:set-profile review` | `/gpd:settings` |
+| Codex | `$gpd-set-profile review` | `$gpd-settings` |
+| OpenCode | `/gpd-set-profile review` | `/gpd-settings` |
+
+<details>
+<summary><strong>Runtime-specific model string examples</strong></summary>
+
+When you set explicit tier overrides, the model string is runtime-native. GPD passes it through unchanged, so it must match what that runtime already accepts:
+
+- **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
+- **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
+- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro`, `gemini-3.1-pro`, or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
+
+</details>
+
+<details>
+<summary><strong>Manual config example</strong></summary>
+
+Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
+
+```json
+{
+  "model_profile": "review",
+  "model_overrides": {
+    "codex": {
+      "tier-1": "gpt-5.4",
+      "tier-2": "gpt-5.4",
+      "tier-3": "gpt-5-mini"
+    },
+    "claude-code": {
+      "tier-1": "opus",
+      "tier-2": "sonnet",
+      "tier-3": "haiku"
+    },
+    "gemini": {
+      "tier-1": "gemini-3.1-pro",
+      "tier-2": "gemini-3.1-flash-lite",
+      "tier-3": "gemini-2.5-flash"
+    }
+  }
+}
+```
+
+Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no override is set for the active runtime, GPD uses that runtime's default model.
+
+</details>
 
 ## Validation Commands
 
