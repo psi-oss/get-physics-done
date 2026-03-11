@@ -1530,7 +1530,7 @@ Display stage banner:
 ```
 
 ```bash
-NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator --raw)
+NOTATION_MODEL=$(gpd --raw resolve-model gpd-notation-coordinator)
 ```
 
 Spawn gpd-notation-coordinator:

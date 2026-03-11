@@ -48,7 +48,7 @@ Exit.
 Resolve consistency checker model:
 
 ```bash
-CHECKER_MODEL=$(gpd resolve-model gpd-consistency-checker --raw)
+CHECKER_MODEL=$(gpd --raw resolve-model gpd-consistency-checker)
 ```
 
 ## 1. Determine Milestone Scope
@@ -193,7 +193,7 @@ except Exception:
 Resolve referee model:
 
 ```bash
-REFEREE_MODEL=$(gpd resolve-model gpd-referee --raw)
+REFEREE_MODEL=$(gpd --raw resolve-model gpd-referee)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

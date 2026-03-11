@@ -262,7 +262,7 @@ The user should run `$gpd-plan-phase` and `$gpd-execute-phase` for each new phas
 Resolve writer model:
 
 ```bash
-WRITER_MODEL=$(gpd resolve-model gpd-paper-writer --raw)
+WRITER_MODEL=$(gpd --raw resolve-model gpd-paper-writer)
 ```
 
 **For Group A (response-only) items:**

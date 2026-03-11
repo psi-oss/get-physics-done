@@ -376,7 +376,7 @@ Spawn the bibliographer agent to verify all citations collected during the revie
 Resolve bibliographer model:
 
 ```bash
-BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer --raw)
+BIBLIO_MODEL=$(gpd --raw resolve-model gpd-bibliographer)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

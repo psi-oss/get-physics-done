@@ -98,7 +98,7 @@ Infer the target journal from `PAPER-CONFIG.json` when available; otherwise use 
 Resolve referee model:
 
 ```bash
-REFEREE_MODEL=$(gpd resolve-model gpd-referee --raw)
+REFEREE_MODEL=$(gpd --raw resolve-model gpd-referee)
 ```
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolved to `null`, omit it. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

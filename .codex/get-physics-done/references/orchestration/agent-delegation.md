@@ -8,7 +8,7 @@ Every agent spawn in a workflow uses this pattern:
 
 ```
 # Resolve model for this agent role
-AGENT_MODEL=$(gpd resolve-model gpd-{agent} --raw)
+AGENT_MODEL=$(gpd --raw resolve-model gpd-{agent})
 
 # Spawn agent
 task(
@@ -32,7 +32,7 @@ task(
 
 ## Rules
 
-1. **Always resolve model first:** `gpd resolve-model gpd-{agent} --raw`
+1. **Always resolve model first:** `gpd --raw resolve-model gpd-{agent}`
 2. **If model is null or empty:** Omit the `model` parameter from task(). The runtime will use its default model.
 3. **Agent instructions path:** `./.codex/agents/gpd-{agent}.md` (resolved by installer per runtime)
 4. **gpd path:** `bin/gpd CLI` (relative to project root, runtime-agnostic)

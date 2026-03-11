@@ -32,7 +32,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 @./.codex/get-physics-done/references/orchestration/model-profile-resolution.md
 
 ```bash
-RESEARCHER_MODEL=$(gpd resolve-model gpd-phase-researcher --raw)
+RESEARCHER_MODEL=$(gpd --raw resolve-model gpd-phase-researcher)
 ```
 
 ## Step 1: Validate Phase
