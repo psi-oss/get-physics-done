@@ -478,7 +478,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
         issues.append(f"{summary_name}: cannot read file")
         return HealthCheck(status=CheckStatus.FAIL, label="Latest Return Envelope", details=details, issues=issues)
 
-    return_match = re.search(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```", content)
+    return_match = re.search(r"```ya?ml\s*\n(\s*gpd_return:\s*\n[\s\S]*?)```", content)
     if not return_match:
         warnings.append(f"{summary_name}: no gpd_return YAML block")
         return HealthCheck(
@@ -652,6 +652,9 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
                 "parallelization": defaults.parallelization,
             }
             config_path.parent.mkdir(parents=True, exist_ok=True)
+            if config_path.exists():
+                import shutil
+                shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
             atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
             fixes.append("Created default config.json")
             config_check.warnings = []

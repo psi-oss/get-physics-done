@@ -17,6 +17,7 @@ from pathlib import Path
 
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map, translate_for_runtime
+from gpd.core.constants import TODOS_DIR_NAME
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -30,7 +31,6 @@ FLAT_COMMANDS_DIR_NAME = "command"
 AGENTS_DIR_NAME = "agents"
 HOOKS_DIR_NAME = "hooks"
 GPD_INSTALL_DIR_NAME = "get-physics-done"
-TODOS_DIR_NAME = "todos"
 CACHE_DIR_NAME = "cache"
 UPDATE_CACHE_FILENAME = "gpd-update-check.json"
 

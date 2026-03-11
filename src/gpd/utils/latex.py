@@ -183,7 +183,7 @@ def try_autofix(tex_content: str, log: str) -> AutoFixResult:
                     current_content = fixed
                     if description not in fixes_applied:
                         fixes_applied.append(description)
-            except Exception as e:
+            except (ValueError, re.error, IndexError, TypeError, AttributeError) as e:
                 logger.warning("autofix rule failed: pattern=%s error=%s", pattern, e)
                 continue
 
@@ -404,6 +404,9 @@ def clean_latex_fences(raw: str) -> str:
         # parts[0] is before first fence, parts[1] is first block content,
         # parts[2] is between blocks, parts[3] is second block content, etc.
         # Odd-indexed parts are inside fences.
+        # If len(parts) is even, fences are unmatched — return unchanged.
+        if len(parts) % 2 == 0:
+            return latex
         collected: list[str] = []
         for i in range(1, len(parts), 2):
             content = parts[i]

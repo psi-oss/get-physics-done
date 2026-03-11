@@ -30,6 +30,7 @@ from gpd.core.constants import (
     PROJECT_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_SUMMARY,
+    STATE_ARCHIVE_FILENAME,
     STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_BUDGET,
     STATE_LINES_TARGET,
@@ -486,13 +487,17 @@ def validate_state_transition(current_status: str, new_status: str) -> str | Non
 # ─── STATE.md Field Helpers ────────────────────────────────────────────────────
 
 
-
 def state_extract_field(content: str, field_name: str) -> str | None:
     """Extract a **Field:** value from STATE.md content."""
     escaped = re.escape(field_name)
     pattern = re.compile(rf"\*\*{escaped}:\*\*[ \t]*(.+)", re.IGNORECASE)
     match = pattern.search(content)
-    return match.group(1).strip() if match else None
+    if not match:
+        return None
+    value = match.group(1).strip()
+    if value == "\u2014":
+        return None
+    return value
 
 
 def state_replace_field(content: str, field_name: str, new_value: str) -> str:
@@ -2186,7 +2191,7 @@ def state_compact(cwd: Path) -> StateCompactResult:
                 pass
 
         planning = _planning_dir(cwd)
-        archive_path = planning / "STATE-ARCHIVE.md"
+        archive_path = planning / STATE_ARCHIVE_FILENAME
         archive_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         archive_entries: list[str] = []
         working = content

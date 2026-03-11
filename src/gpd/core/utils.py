@@ -39,6 +39,8 @@ def phase_normalize(name: str) -> str:
     Sub-levels are NOT padded: "3.1.2" -> "03.1.2", "12" -> "12".
     Non-numeric prefixes are returned as-is.
     """
+    if name is None:
+        return ""
     match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
@@ -60,6 +62,8 @@ def phase_unpad(name: str) -> str:
     Returns the "display" form: "08.1.1" -> "8.1.1".
     Preserves all decimal levels.
     """
+    if name is None:
+        return ""
     match = re.match(r"^(\d+(?:\.\d+)*)(.*)", name)
     if not match:
         return name
@@ -80,6 +84,10 @@ def compare_phase_numbers(a: str, b: str) -> int:
     Handles multi-level decimals: "2.1.2" < "2.1.10".
     Returns negative if a < b, 0 if equal, positive if a > b.
     """
+    if a is None:
+        a = ""
+    if b is None:
+        b = ""
     a_match = re.match(r"^(\d+(?:\.\d+)*)", a)
     b_match = re.match(r"^(\d+(?:\.\d+)*)", b)
     a_parts = (a_match.group(1) if a_match else "0").split(".")
@@ -110,6 +118,8 @@ def phase_sort_key(name: str) -> list[int]:
 
     "03-setup" -> [3], "2.1-derive" -> [2, 1].
     """
+    if name is None:
+        return [999999]
     match = re.match(r"^(\d+(?:\.\d+)*)", name)
     if not match:
         return [999999]
@@ -200,7 +210,7 @@ def atomic_write(filepath: Path, content: str) -> None:
         os.fsync(fd.fileno())
         fd.close()
         fd = None
-        os.rename(tmp_path, filepath)
+        os.replace(tmp_path, filepath)
         tmp_path = None
     finally:
         if fd is not None:

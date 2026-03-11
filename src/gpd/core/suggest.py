@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.constants import (
+    LITERATURE_DIR_NAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
@@ -26,6 +27,7 @@ from gpd.core.constants import (
     STANDALONE_VERIFICATION,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
+    TODOS_DIR_NAME,
     VERIFICATION_SUFFIX,
 )
 from gpd.core.utils import (
@@ -285,7 +287,7 @@ def _item_text(item: object, fallback_keys: tuple[str, ...] = ("text",)) -> str:
 
 def _count_pending_todos(cwd: Path) -> int:
     """Count .md files in .gpd/todos/pending/."""
-    pending_dir = _planning_dir(cwd) / "todos" / "pending"
+    pending_dir = _planning_dir(cwd) / TODOS_DIR_NAME / "pending"
     if not pending_dir.is_dir():
         return 0
     return sum(1 for f in pending_dir.iterdir() if f.is_file() and f.suffix == ".md")
@@ -293,7 +295,7 @@ def _count_pending_todos(cwd: Path) -> int:
 
 def _has_literature_review(cwd: Path) -> bool:
     """Check if any literature review files exist."""
-    lit_dir = _planning_dir(cwd) / "literature"
+    lit_dir = _planning_dir(cwd) / LITERATURE_DIR_NAME
     if not lit_dir.is_dir():
         return False
     return any(f.name.endswith("-REVIEW.md") for f in lit_dir.iterdir() if f.is_file())

@@ -34,6 +34,7 @@ from gpd.adapters.install_utils import (
     protect_runtime_agent_prompt,
     remove_stale_agents,
     replace_placeholders,
+    strip_sub_tags,
 )
 from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
 
@@ -469,6 +470,7 @@ def _copy_dir_contents(
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix, "opencode", install_scope)
             content = convert_claude_to_opencode_frontmatter(content, path_prefix)
+            content = strip_sub_tags(content)
             dest_path.write_text(content, encoding="utf-8")
         else:
             shutil.copy2(entry, dest_path)

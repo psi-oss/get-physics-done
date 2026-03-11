@@ -148,11 +148,13 @@ def json_pluck(stdin_text: str, key: str, field: str) -> str:
 def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     """Set a key in a JSON file (creates file if needed)."""
     fp = Path(file_path)
+    corrupted = False
     if fp.exists():
         try:
             data = json.loads(fp.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             data = {}
+            corrupted = True
     else:
         data = {}
 
@@ -224,6 +226,8 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         fp.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(fp, json.dumps(working, indent=2) + "\n")
     result: dict[str, object] = {"file": str(fp), "path": path, "updated": updated}
+    if corrupted:
+        result["warning"] = "existing file had invalid JSON, reset to empty"
     if not updated:
         result["error"] = "type mismatch at final path element"
     return result
@@ -232,6 +236,7 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
 def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, object]:
     """Merge multiple JSON files into one (shallow dict merge)."""
     merged: dict[str, object] = {}
+    skipped = 0
     for fp_str in file_paths:
         fp = Path(fp_str)
         if fp.exists():
@@ -239,12 +244,19 @@ def json_merge_files(out_path: str, file_paths: list[str]) -> dict[str, object]:
                 obj = json.loads(fp.read_text(encoding="utf-8"))
                 if isinstance(obj, dict):
                     merged.update(obj)
-            except json.JSONDecodeError:
-                pass
+                else:
+                    skipped += 1
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                skipped += 1
+        else:
+            skipped += 1
 
     out = Path(out_path)
     atomic_write(out, json.dumps(merged, indent=2) + "\n")
-    return {"file": str(out), "merged": len(file_paths), "keys": len(merged)}
+    result: dict[str, object] = {"file": str(out), "merged": len(file_paths) - skipped, "keys": len(merged)}
+    if skipped:
+        result["skipped"] = skipped
+    return result
 
 
 def json_sum_lengths(stdin_text: str, keys: list[str]) -> str:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+from collections import deque
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -813,10 +814,10 @@ def validate_waves(plans: list[PlanEntry]) -> WaveValidation:
                     adj_list[dep].append(plan.id)
                     in_degree[plan.id] += 1
 
-        queue = [pid for pid, deg in in_degree.items() if deg == 0]
+        queue = deque(pid for pid, deg in in_degree.items() if deg == 0)
         visited = 0
         while queue:
-            node = queue.pop(0)
+            node = queue.popleft()
             visited += 1
             for neighbor in adj_list[node]:
                 in_degree[neighbor] -= 1
@@ -2013,20 +2014,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     state_content = state_path.read_text(encoding="utf-8")
                     current_status = _extract_state_field(state_content, "Status") or ""
                     _validate_transition(current_status, "Milestone complete")
-                    state_content = re.sub(
-                        r"(\*\*Status:\*\*\s*).*",
-                        r"\g<1>Milestone complete",
-                        state_content,
-                    )
-                    state_content = re.sub(
-                        r"(\*\*Last Activity:\*\*\s*).*",
-                        rf"\g<1>{today}",
-                        state_content,
-                    )
-                    state_content = re.sub(
-                        r"(\*\*Last Activity Description:\*\*\s*).*",
-                        rf"\g<1>{version} milestone completed and archived",
-                        state_content,
+                    state_content = _replace_state_field(state_content, "Status", "Milestone complete")
+                    state_content = _replace_state_field(state_content, "Last Activity", today)
+                    state_content = _replace_state_field(
+                        state_content, "Last Activity Description", f"{version} milestone completed and archived"
                     )
                     _save_state_markdown(cwd, state_content)
 

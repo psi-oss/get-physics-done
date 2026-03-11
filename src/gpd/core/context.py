@@ -29,10 +29,14 @@ from gpd.core.constants import (
     AGENT_ID_FILENAME,
     CONFIG_FILENAME,
     CONTEXT_SUFFIX,
+    LITERATURE_DIR_NAME,
+    MILESTONES_DIR_NAME,
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
+    REQUIREMENTS_FILENAME,
+    RESEARCH_MAP_DIR_NAME,
     RESEARCH_SUFFIX,
     ROADMAP_FILENAME,
     STANDALONE_CONTEXT,
@@ -43,6 +47,7 @@ from gpd.core.constants import (
     STANDALONE_VERIFICATION,
     STATE_MD_FILENAME,
     SUMMARY_SUFFIX,
+    TODOS_DIR_NAME,
     VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
 )
@@ -426,7 +431,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
     if "roadmap" in includes:
         result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
     if "requirements" in includes:
-        result["requirements_content"] = _safe_read_file_truncated(planning / "REQUIREMENTS.md")
+        result["requirements_content"] = _safe_read_file_truncated(planning / REQUIREMENTS_FILENAME)
     if "context" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
         result["context_content"] = _find_phase_artifact(phase_dir, CONTEXT_SUFFIX, STANDALONE_CONTEXT)
@@ -490,14 +495,14 @@ def init_new_project(cwd: Path) -> dict:
         "research_mode": config["research_mode"],
         # Existing state
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "has_theory_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
+        "has_theory_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
         "has_project_manifest": has_project_manifest,
         "has_existing_project": has_research_files or has_project_manifest,
         "needs_theory_map": (has_research_files or has_project_manifest)
-        and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
+        and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Git state
         "has_git": _path_exists(cwd, ".git"),
         # Platform
@@ -696,7 +701,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
     config = load_config(cwd)
     now = datetime.now(UTC)
 
-    pending_dir = cwd / PLANNING_DIR_NAME / "todos" / "pending"
+    pending_dir = cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
     todos: list[dict[str, str]] = []
 
     try:
@@ -720,7 +725,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
                     "created": created,
                     "title": title,
                     "area": todo_area,
-                    "path": f"{PLANNING_DIR_NAME}/todos/pending/{f.name}",
+                    "path": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending/{f.name}",
                 }
             )
     except (FileNotFoundError, PermissionError):
@@ -740,12 +745,12 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "pending_todos": todos,
         "area_filter": area,
         # Paths
-        "pending_dir": f"{PLANNING_DIR_NAME}/todos/pending",
-        "done_dir": f"{PLANNING_DIR_NAME}/todos/done",
+        "pending_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending",
+        "done_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/done",
         # File existence
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos"),
-        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/todos/pending"),
+        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}"),
+        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending"),
         # Platform
         "platform": _detect_platform(cwd),
     }
@@ -774,7 +779,7 @@ def init_milestone_op(cwd: Path) -> dict:
         pass
 
     # Check archived milestones
-    milestones_dir = cwd / PLANNING_DIR_NAME / "milestones"
+    milestones_dir = cwd / PLANNING_DIR_NAME / MILESTONES_DIR_NAME
     archived_milestones: list[str] = []
     try:
         archived_milestones = sorted(d.name for d in milestones_dir.iterdir() if d.is_dir())
@@ -804,8 +809,8 @@ def init_milestone_op(cwd: Path) -> dict:
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
-        "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/milestones"),
-        "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/phases"),
+        "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{MILESTONES_DIR_NAME}"),
+        "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}"),
         # Platform
         "platform": _detect_platform(cwd),
     }
@@ -816,7 +821,7 @@ def init_map_theory(cwd: Path) -> dict:
     config = load_config(cwd)
 
     # Check for existing research maps
-    research_map_dir = cwd / PLANNING_DIR_NAME / "research-map"
+    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
     existing_maps: list[str] = []
     try:
         existing_maps = sorted(f.name for f in research_map_dir.iterdir() if f.is_file() and f.name.endswith(".md"))
@@ -832,13 +837,13 @@ def init_map_theory(cwd: Path) -> dict:
         "research_mode": config["research_mode"],
         "parallelization": config["parallelization"],
         # Paths
-        "research_map_dir": f"{PLANNING_DIR_NAME}/research-map",
+        "research_map_dir": f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}",
         # Existing maps
         "existing_maps": existing_maps,
         "has_maps": len(existing_maps) > 0,
         # File existence
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/research-map"),
+        "research_map_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Platform
         "platform": _detect_platform(cwd),
     }

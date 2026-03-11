@@ -222,7 +222,7 @@ def cmd_commit(
 
     # Determine files to stage
     files_to_stage: list[str]
-    if files:
+    if files is not None:
         files_to_stage = list(files)
     else:
         files_to_stage = [f"{PLANNING_DIR_NAME}/"]

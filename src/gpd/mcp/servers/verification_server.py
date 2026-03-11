@@ -188,7 +188,7 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
             if "hbar" not in artifact_content and "\\hbar" not in artifact_content:
                 if any(kw in artifact_content.lower() for kw in ["quantum", "planck", "commutator"]):
                     issues.append("Quantum context detected but no hbar found -- check natural unit conventions")
-            if re.search(r"exp\s*\([^)]*\[", artifact_content):
+            if re.search(r"exp\s*\([^)]*\[(?:M|L|T|Q|Theta)\]", artifact_content):
                 issues.append("Possible dimensionful argument to exponential")
 
         elif check_id == "5.3":
