@@ -441,6 +441,59 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
     assert captured_calls[0]["target_dir"] == target
 
 
+@pytest.mark.parametrize(
+    ("argv_suffix", "supported_runtimes", "expected_runtimes", "uses_target_dir"),
+    [
+        (["claude-code", "--local"], ["claude-code"], ["claude-code"], False),
+        (["--all", "--local"], ["claude-code", "gemini"], ["claude-code", "gemini"], False),
+        (["claude-code", "--local", "--force-statusline"], ["claude-code"], ["claude-code"], False),
+        (["claude-code", "--local", "--target-dir", "__TARGET__"], ["claude-code"], ["claude-code"], True),
+    ],
+)
+def test_install_local_option_never_forwards_global_scope(
+    tmp_path: Path,
+    argv_suffix: list[str],
+    supported_runtimes: list[str],
+    expected_runtimes: list[str],
+    uses_target_dir: bool,
+):
+    """Every local install variant must forward is_global=False."""
+
+    captured_calls: list[dict[str, object]] = []
+    explicit_target = tmp_path / "custom-runtime-dir"
+    argv = ["install", *[str(explicit_target) if token == "__TARGET__" else token for token in argv_suffix]]
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+        patch("gpd.adapters.list_runtimes", return_value=supported_runtimes),
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Test"
+        mock_adapter.help_command = "/gpd:help"
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, argv)
+
+    assert result.exit_code == 0
+    assert [call["runtime"] for call in captured_calls] == expected_runtimes
+    assert all(call["is_global"] is False for call in captured_calls)
+    if uses_target_dir:
+        assert captured_calls[0]["target_dir_override"] == str(explicit_target)
+    else:
+        assert all(call["target_dir_override"] is None for call in captured_calls)
+
+
 # ─── Validation edge cases ───────────────────────────────────────────────────
 
 

@@ -363,7 +363,7 @@ class _GPDTyper(typer.Typer):
             else:
                 err_console.print(f"[bold red]Error:[/] {exc}", highlight=False)
             raise SystemExit(1) from None
-        except SystemExit as exc:
+        except SystemExit:
             raise
         except Exception:
             raise
@@ -1606,12 +1606,12 @@ def init_progress(
     _output(init_progress(_get_cwd(), includes=includes))
 
 
-@init_app.command("map-theory")
-def init_map_theory() -> None:
-    """Assemble context for theory mapping."""
-    from gpd.core.context import init_map_theory
+@init_app.command("map-research")
+def init_map_research() -> None:
+    """Assemble context for research mapping."""
+    from gpd.core.context import init_map_research
 
-    _output(init_map_theory(_get_cwd()))
+    _output(init_map_research(_get_cwd()))
 
 
 @init_app.command("todos")
@@ -2062,7 +2062,6 @@ def _first_existing_path(*candidates: Path) -> Path | None:
 
 def _load_json_document(input_path: str) -> object:
     """Load a JSON document from a file path or stdin marker ``-``."""
-    import sys
 
     if input_path == "-":
         raw = sys.stdin.read()
@@ -2230,18 +2229,30 @@ def _build_project_aware_guidance(explicit_inputs: list[str]) -> str:
     return f"Either provide {requirement_text} explicitly, or run `gpd new-project`."
 
 
+def _canonical_command_name(command_name: str) -> str:
+    """Normalize a CLI command name to the registry's public gpd:name form."""
+    return command_name if command_name.startswith("gpd:") else f"gpd:{command_name}"
+
+
+def _resolve_registry_command(command_name: str) -> tuple[object, str]:
+    """Resolve a command name through the registry and preserve its public name."""
+    from gpd import registry as content_registry
+
+    command = content_registry.get_command(command_name)
+    return command, _canonical_command_name(command_name)
+
+
 def _build_command_context_preflight(
     command_name: str,
     *,
     arguments: str | None = None,
 ) -> CommandContextPreflightResult:
     """Evaluate whether a command can run in the current workspace context."""
-    from gpd import registry as content_registry
     from gpd.core.constants import ProjectLayout
 
     cwd = _get_cwd()
     layout = ProjectLayout(cwd)
-    command = content_registry.get_command(command_name)
+    command, public_command_name = _resolve_registry_command(command_name)
     project_exists = layout.project_md.exists()
 
     checks: list[CommandContextCheck] = []
@@ -2254,7 +2265,7 @@ def _build_command_context_preflight(
     if command.context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)
         return CommandContextPreflightResult(
-            command=command.name,
+            command=public_command_name,
             context_mode=command.context_mode,
             passed=True,
             project_exists=project_exists,
@@ -2275,7 +2286,7 @@ def _build_command_context_preflight(
             blocking=False,
         )
         return CommandContextPreflightResult(
-            command=command.name,
+            command=public_command_name,
             context_mode=command.context_mode,
             passed=True,
             project_exists=project_exists,
@@ -2296,7 +2307,7 @@ def _build_command_context_preflight(
         )
         guidance = "" if project_exists else "This command requires an initialized GPD project. Run `gpd new-project`."
         return CommandContextPreflightResult(
-            command=command.name,
+            command=public_command_name,
             context_mode=command.context_mode,
             passed=project_exists,
             project_exists=project_exists,
@@ -2333,7 +2344,7 @@ def _build_command_context_preflight(
     passed = project_exists or explicit_inputs_ok
     guidance = "" if passed else _build_project_aware_guidance(explicit_inputs)
     return CommandContextPreflightResult(
-        command=command.name,
+        command=public_command_name,
         context_mode=command.context_mode,
         passed=passed,
         project_exists=project_exists,
@@ -2350,17 +2361,16 @@ def _build_review_preflight(
     strict: bool = False,
 ) -> ReviewPreflightResult:
     """Evaluate lightweight filesystem/state prerequisites for a review command."""
-    from gpd import registry as content_registry
     from gpd.core.constants import ProjectLayout
     from gpd.core.phases import find_phase
     from gpd.core.state import state_validate
 
     cwd = _get_cwd()
     layout = ProjectLayout(cwd)
-    command = content_registry.get_command(command_name)
+    command, public_command_name = _resolve_registry_command(command_name)
     contract = command.review_contract
     if contract is None:
-        raise GPDError(f"Command {command.name} does not expose a review contract")
+        raise GPDError(f"Command {public_command_name} does not expose a review contract")
 
     checks: list[ReviewPreflightCheck] = []
 
@@ -2581,7 +2591,7 @@ def _build_review_preflight(
 
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(
-        command=command.name,
+        command=public_command_name,
         review_mode=contract.review_mode,
         strict=strict,
         passed=passed,
@@ -2621,14 +2631,12 @@ def validate_review_contract(
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
 ) -> None:
     """Show the typed review contract for a review-grade command."""
-    from gpd import registry as content_registry
-
-    command = content_registry.get_command(command_name)
+    command, public_command_name = _resolve_registry_command(command_name)
     if command.review_contract is None:
-        _error(f"Command {command.name} has no review contract")
+        _error(f"Command {public_command_name} has no review contract")
     _output(
         {
-            "command": command.name,
+            "command": public_command_name,
             "context_mode": command.context_mode,
             "review_contract": dataclasses.asdict(command.review_contract),
         }
@@ -2981,7 +2989,6 @@ def json_get_cmd(
     default: str | None = typer.Option(None, "--default", help="Default value if key is missing"),
 ) -> None:
     """Read a value from stdin JSON at the given dot-path key."""
-    import sys
 
     from gpd.core.json_utils import json_get
 
@@ -2998,7 +3005,6 @@ def json_keys_cmd(
     key: str = typer.Argument(..., help="Dot-path to object (e.g. .waves)"),
 ) -> None:
     """List top-level keys of the object at the given path from stdin JSON."""
-    import sys
 
     from gpd.core.json_utils import json_keys
 
@@ -3013,7 +3019,6 @@ def json_list_cmd(
     key: str = typer.Argument(..., help="Dot-path to array or object"),
 ) -> None:
     """List items from the array at the given path from stdin JSON."""
-    import sys
 
     from gpd.core.json_utils import json_list
 
@@ -3029,7 +3034,6 @@ def json_pluck_cmd(
     field: str = typer.Argument(..., help="Field name to extract from each object"),
 ) -> None:
     """Extract a field from each object in the array at the given path."""
-    import sys
 
     from gpd.core.json_utils import json_pluck
 
@@ -3068,7 +3072,6 @@ def json_sum_lengths_cmd(
     keys: list[str] = typer.Argument(..., help="Dot-path keys to arrays"),
 ) -> None:
     """Sum the lengths of arrays at the given paths from stdin JSON."""
-    import sys
 
     from gpd.core.json_utils import json_sum_lengths
 

@@ -53,7 +53,7 @@ literature:
 
 formulation:
   ALWAYS:  phase-researcher → planner → plan-checker → executor
-  IF explore: + theory-mapper (map alternative formulations)
+  IF explore: + research-mapper (map alternative formulations)
   POST:    verifier (dimensional + limiting cases), consistency-checker
 
 derivation:
@@ -82,12 +82,12 @@ writing:
 
 | Setting | Effect on Agent Selection |
 |---|---|
-| `research_mode: explore` | Add phase-researcher and theory-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verifier uses 7-check floor (feasibility, not perfection). |
+| `research_mode: explore` | Add phase-researcher and research-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verifier uses 7-check floor (feasibility, not perfection). |
 | `research_mode: exploit` | Skip phase-researcher for well-known methods. Bibliographer uses narrow search (5-10 refs). Planner creates single focused plan. Verifier uses full 15-check with strict thresholds. |
 | `research_mode: adaptive` | Start with explore selection for phases 1-3, auto-switch to exploit after first verification pass with >= 3 INDEPENDENTLY CONFIRMED results. |
 | `autonomy: babysit` | All agents produce detailed explanations. Orchestrator pauses for user review at every major phase transition and key decision. |
 | `autonomy: balanced` | Standard depth. Orchestrator auto-runs routine work and pauses at major decision points, ambiguities, or blocker states. |
-| `autonomy: yolo` | Maximum speed. Skip optional agents (theory-mapper, experiment-designer). Reduce verification to 7-check floor. Still maintain physics correctness. |
+| `autonomy: yolo` | Maximum speed. Skip optional agents (research-mapper, experiment-designer). Reduce verification to 7-check floor. Still maintain physics correctness. |
 
 ---
 

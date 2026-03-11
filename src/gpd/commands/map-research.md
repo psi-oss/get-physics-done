@@ -1,5 +1,5 @@
 ---
-name: gpd:map-theory
+name: gpd:map-research
 description: Map existing research project — theoretical framework, computations, conventions, and open questions
 argument-hint: "[optional: specific area to map, e.g., 'hamiltonian' or 'numerics' or 'perturbation-theory']"
 context_mode: projectless
@@ -16,7 +16,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Map an existing physics research project using parallel gpd-theory-mapper agents.
+Map an existing physics research project using parallel gpd-research-mapper agents.
 
 Each mapper agent explores a focus area and **writes documents directly** to `.gpd/research-map/`. The orchestrator only receives confirmations, keeping context usage minimal.
 
@@ -26,7 +26,7 @@ Output: .gpd/research-map/ folder with 7 structured documents about the research
 </objective>
 
 <execution_context>
-@{GPD_INSTALL_DIR}/workflows/map-theory.md
+@{GPD_INSTALL_DIR}/workflows/map-research.md
 </execution_context>
 
 <context>
@@ -43,7 +43,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
   </context>
 
 <when_to_use>
-**Use map-theory for:**
+**Use map-research for:**
 
 - Existing research projects before initialization (understand prior derivations, computations, and data)
 - Refreshing the research map after significant theoretical or computational progress
@@ -51,7 +51,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
 - Before major theoretical pivots (understand current state of all components)
 - When STATE.md references outdated research context
 
-**Skip map-theory for:**
+**Skip map-research for:**
 
 - Brand new research directions with no prior work (nothing to map)
 - Trivial calculations (<5 files)
@@ -60,7 +60,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
 <process>
 1. Check if .gpd/research-map/ already exists (offer to refresh or skip)
 2. Create .gpd/research-map/ directory structure
-3. Spawn 4 parallel gpd-theory-mapper agents:
+3. Spawn 4 parallel gpd-research-mapper agents:
    - Agent 1: theory focus -> writes FORMALISM.md, REFERENCES.md
      - FORMALISM.md: Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes
      - REFERENCES.md: Papers cited, textbooks used, key results relied upon, open questions from literature

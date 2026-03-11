@@ -408,7 +408,7 @@ Which agents commit their own work vs. return `files_written` for the orchestrat
 | gpd-literature-reviewer | No | Returns `files_written`; orchestrator commits |
 | gpd-experiment-designer | No | Returns `files_written`; orchestrator commits |
 | gpd-notation-coordinator | No | Returns `files_written`; orchestrator commits |
-| gpd-theory-mapper | No | Returns `files_written`; orchestrator commits |
+| gpd-research-mapper | No | Returns `files_written`; orchestrator commits |
 | gpd-roadmapper | No | Returns `files_written`; orchestrator commits |
 
 **Rule:** Only 3 agents (executor, planner, debugger) call `gpd commit` directly. All other agents write files and report them in the `gpd_return.files_written` array. The orchestrating workflow commits after the agent returns.
@@ -642,7 +642,7 @@ Not every phase needs every agent. Spawning unnecessary agents wastes tokens and
 
 | Phase Class | Indicators (in goal/tasks) | Required Agents | Optional Agents | Skip |
 |---|---|---|---|---|
-| **Derivation** | derive, prove, show that, analytical, closed-form, exact result | executor, verifier | planner, plan-checker | experiment-designer, theory-mapper |
+| **Derivation** | derive, prove, show that, analytical, closed-form, exact result | executor, verifier | planner, plan-checker | experiment-designer, research-mapper |
 | **Numerical** | simulate, compute, discretize, grid, convergence, benchmark, finite-element, Monte Carlo | executor, verifier, experiment-designer | planner, plan-checker | bibliographer, notation-coordinator |
 | **Literature** | survey, review, compare approaches, what is known, prior work | phase-researcher, research-synthesizer | bibliographer | executor, verifier, experiment-designer |
 | **Paper-writing** | write paper, draft, manuscript, submit, LaTeX | paper-writer, bibliographer, referee | notation-coordinator | executor, phase-researcher, experiment-designer |

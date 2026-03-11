@@ -102,7 +102,7 @@ _IGNORE_DIRS = frozenset(
 
 __all__ = [
     "init_execute_phase",
-    "init_map_theory",
+    "init_map_research",
     "init_milestone_op",
     "init_new_milestone",
     "init_new_project",
@@ -494,13 +494,13 @@ def init_new_project(cwd: Path) -> dict:
         "research_mode": config["research_mode"],
         # Existing state
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "has_theory_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
+        "has_research_map": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Existing project detection
         "has_research_files": has_research_files,
         "has_project_manifest": has_project_manifest,
         "has_existing_project": has_research_files or has_project_manifest,
-        "needs_theory_map": (has_research_files or has_project_manifest)
+        "needs_research_map": (has_research_files or has_project_manifest)
         and not _path_exists(cwd, f"{PLANNING_DIR_NAME}/{RESEARCH_MAP_DIR_NAME}"),
         # Git state
         "has_git": _path_exists(cwd, ".git"),
@@ -815,8 +815,8 @@ def init_milestone_op(cwd: Path) -> dict:
     }
 
 
-def init_map_theory(cwd: Path) -> dict:
-    """Assemble context for theory mapping."""
+def init_map_research(cwd: Path) -> dict:
+    """Assemble context for research mapping."""
     config = load_config(cwd)
 
     # Check for existing research maps
@@ -829,7 +829,7 @@ def init_map_theory(cwd: Path) -> dict:
 
     return {
         # Models
-        "mapper_model": _resolve_model(cwd, "gpd-theory-mapper", config),
+        "mapper_model": _resolve_model(cwd, "gpd-research-mapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],

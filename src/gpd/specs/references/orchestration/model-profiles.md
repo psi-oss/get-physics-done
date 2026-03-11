@@ -25,7 +25,7 @@ If no override is configured for the active runtime, `gpd resolve-model` returns
 | gpd-project-researcher   | tier-1        | tier-2      | tier-1        | tier-2   | tier-3          |
 | gpd-research-synthesizer | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-debugger             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
-| gpd-theory-mapper        | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
+| gpd-research-mapper      | tier-2        | tier-3      | tier-3        | tier-3   | tier-3          |
 | gpd-verifier             | tier-1        | tier-1      | tier-2        | tier-1   | tier-2          |
 | gpd-plan-checker         | tier-2        | tier-2      | tier-2        | tier-1   | tier-2          |
 | gpd-consistency-checker  | tier-1        | tier-2      | tier-2        | tier-1   | tier-2          |
@@ -272,8 +272,8 @@ Verification in physics requires checking dimensional consistency, limiting case
 **Why tier-1 for gpd-research-synthesizer in paper-writing?**
 Synthesizing research into a coherent narrative requires understanding which results are important, how they connect, and what story they tell. This is high-level reasoning about physics, not just summarization.
 
-**Why tier-3 for gpd-theory-mapper?**
-Read-only exploration of code structure (simulation configs, data files, existing notebooks). No physics reasoning required, just structured output from file contents.
+**Why tier-3 for gpd-research-mapper?**
+Read-only exploration of project artifacts (simulation configs, data files, existing notebooks). No heavy physics derivation required, just structured output from file contents.
 
 **Why tier-1 for gpd-paper-writer in deep-theory and paper-writing?**
 Writing physics papers requires understanding the narrative arc, choosing which intermediate steps to include, and presenting results clearly. In deep-theory mode, mathematical exposition must be precise. In paper-writing mode, narrative quality is paramount.

@@ -225,6 +225,9 @@ class TestInitCommands:
     def test_new_project(self) -> None:
         _invoke("init", "new-project")
 
+    def test_map_research(self) -> None:
+        _invoke("init", "map-research")
+
     def test_plan_phase(self) -> None:
         _invoke("init", "plan-phase", "1")
 
@@ -478,13 +481,13 @@ class TestReviewValidationCommands:
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "command-context", "map-theory"],
+            ["--raw", "validate", "command-context", "map-research"],
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["command"] == "gpd:map-theory"
+        assert payload["command"] == "gpd:map-research"
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is True
 

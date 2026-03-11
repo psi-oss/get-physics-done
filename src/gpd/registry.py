@@ -484,7 +484,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-revise-phase": "management",
     "gpd-roadmapper": "planning",
     "gpd-slides": "output",
-    "gpd-theory-mapper": "exploration",
+    "gpd-research-mapper": "exploration",
     "gpd-verifier": "verification",
 }
 

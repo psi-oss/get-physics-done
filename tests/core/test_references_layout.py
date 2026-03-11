@@ -35,7 +35,7 @@ EXPECTED_REFERENCE_DIRS = {
 }
 
 EXPECTED_TEMPLATE_DIRS = {
-    "theory-mapper",
+    "research-mapper",
 }
 
 EXPECTED_VERIFICATION_DIRS = {
@@ -161,13 +161,6 @@ MOVED_REFERENCE_FILES = [
     ("verification-quick-reference.md", "verification/core/verification-quick-reference.md"),
     ("verifier-profile-checks.md", "verification/meta/verifier-profile-checks.md"),
     ("verifier-worked-examples.md", "verification/examples/verifier-worked-examples.md"),
-    ("theory-mapper-templates/ARCHITECTURE.md", "templates/theory-mapper/ARCHITECTURE.md"),
-    ("theory-mapper-templates/CONCERNS.md", "templates/theory-mapper/CONCERNS.md"),
-    ("theory-mapper-templates/CONVENTIONS.md", "templates/theory-mapper/CONVENTIONS.md"),
-    ("theory-mapper-templates/FORMALISM.md", "templates/theory-mapper/FORMALISM.md"),
-    ("theory-mapper-templates/REFERENCES.md", "templates/theory-mapper/REFERENCES.md"),
-    ("theory-mapper-templates/STRUCTURE.md", "templates/theory-mapper/STRUCTURE.md"),
-    ("theory-mapper-templates/VALIDATION.md", "templates/theory-mapper/VALIDATION.md"),
 ]
 
 
@@ -185,7 +178,7 @@ def test_references_nested_directories_exist() -> None:
     template_dirs = {path.name for path in (REFERENCES_DIR / "templates").iterdir() if path.is_dir()}
     verification_dirs = {path.name for path in (REFERENCES_DIR / "verification").iterdir() if path.is_dir()}
 
-    assert EXPECTED_TEMPLATE_DIRS <= template_dirs
+    assert template_dirs == EXPECTED_TEMPLATE_DIRS
     assert EXPECTED_VERIFICATION_DIRS <= verification_dirs
 
 
@@ -206,14 +199,22 @@ def test_insert_phase_workflow_points_to_merged_decimal_phase_section() -> None:
     assert "Decimal Phase Calculation" in content
 
 
-def test_theory_mapper_references_use_new_template_tree() -> None:
-    agent = (REPO_ROOT / "src/gpd/agents/gpd-theory-mapper.md").read_text(encoding="utf-8")
-    workflow = (REPO_ROOT / "src/gpd/specs/workflows/map-theory.md").read_text(encoding="utf-8")
+def test_research_mapper_references_use_renamed_template_tree() -> None:
+    agent = (REPO_ROOT / "src/gpd/agents/gpd-research-mapper.md").read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/map-research.md").read_text(encoding="utf-8")
 
-    assert "references/theory-mapper-templates/" not in agent
-    assert "references/theory-mapper-templates/" not in workflow
-    assert "references/templates/theory-mapper/" in agent
-    assert "references/templates/theory-mapper/" in workflow
+    expected_paths = [
+        "references/templates/research-mapper/FORMALISM.md",
+        "references/templates/research-mapper/REFERENCES.md",
+        "references/templates/research-mapper/ARCHITECTURE.md",
+        "references/templates/research-mapper/STRUCTURE.md",
+        "references/templates/research-mapper/CONVENTIONS.md",
+        "references/templates/research-mapper/VALIDATION.md",
+        "references/templates/research-mapper/CONCERNS.md",
+    ]
+    for token in expected_paths:
+        assert token in agent
+    assert "references/templates/research-mapper/" in workflow
 
 
 def test_source_files_only_reference_existing_reference_markdown_files() -> None:
@@ -259,7 +260,6 @@ def test_no_stale_root_reference_paths_remain_in_prompt_sources() -> None:
     ]
     stale_tokens = [
         "references/decimal-phase-calculation.md",
-        "references/theory-mapper-templates/",
         "references/agent-delegation.md",
         "references/verification-core.md",
         "references/publication-pipeline-modes.md",

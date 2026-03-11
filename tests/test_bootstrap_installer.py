@@ -248,6 +248,8 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     assert len(managed_runtime_uninstalls) == 1
 
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert f"Preparing managed GPD CLI from GitHub source archive for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
+    assert "Installing GPD from GitHub source archive" not in result.stdout
     assert "Uninstalling GPD from Codex (local)..." in result.stdout
     assert "runtime uninstall ok" in result.stdout
 

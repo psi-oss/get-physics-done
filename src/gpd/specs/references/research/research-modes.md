@@ -131,7 +131,7 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 | **exploit** | Minimal roadmap. Shortest path from problem to result. 3-6 phases. No exploratory or comparison phases. Pure execution. |
 | **adaptive** | Branching roadmap for first milestone (explore), linear for subsequent milestones (exploit). |
 
-### gpd-theory-mapper
+### gpd-research-mapper
 
 | Mode | Behavior |
 |---|---|

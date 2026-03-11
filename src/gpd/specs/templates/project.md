@@ -209,7 +209,7 @@ PROJECT.md evolves throughout the research lifecycle.
 
 For ongoing research projects:
 
-1. **Map existing work first** via `/gpd:map-theory`
+1. **Map existing work first** via `/gpd:map-research`
 
 2. **Infer Validated requirements** from existing calculations:
 

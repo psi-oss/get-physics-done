@@ -1,5 +1,5 @@
 <purpose>
-Orchestrate parallel theory-mapper agents to analyze a physics research project and produce structured documents in .gpd/research-map/
+Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents in .gpd/research-map/
 
 Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator only receives confirmation + line counts, then writes a summary.
 
@@ -16,7 +16,7 @@ Output: .gpd/research-map/ folder with 7 structured documents covering theoretic
 **Document quality over length:**
 Include enough detail to be useful as reference. Prioritize practical examples (key equations, code patterns, data formats) over arbitrary brevity.
 
-**Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/templates/theory-mapper/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). These paths are deterministic across runtimes after install; if they are missing, treat that as a broken install and fall back to the agent's built-in structural guidance rather than searching alternate runtime-specific locations.
+**Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/templates/research-mapper/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). These paths are deterministic across runtimes after install; if they are missing, treat that as a broken install and fall back to the agent's built-in structural guidance rather than searching alternate runtime-specific locations.
 
 **Always include file paths:**
 Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/main.tex`.
@@ -39,8 +39,8 @@ A physics research project typically contains:
 Load research mapping context:
 
 ```bash
-# Theory-specific initialization.
-INIT=$(gpd init map-theory)
+# Research-mapping initialization.
+INIT=$(gpd init map-research)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
@@ -113,19 +113,19 @@ Continue to spawn_agents.
 </step>
 
 <step name="spawn_agents">
-Spawn 4 parallel gpd-theory-mapper agents.
+Spawn 4 parallel gpd-research-mapper agents.
 
-Use task tool with `subagent_type="gpd-theory-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
+Use task tool with `subagent_type="gpd-research-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
 > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
-**CRITICAL:** Use the dedicated `gpd-theory-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
+**CRITICAL:** Use the dedicated `gpd-research-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 
 **Agent 1: Theory Focus**
 
 task tool parameters:
 
 ```
-subagent_type="gpd-theory-mapper"
+subagent_type="gpd-research-mapper"
 model: "{mapper_model}"
 run_in_background: true
 description: "Map research project theoretical content"
@@ -134,7 +134,7 @@ description: "Map research project theoretical content"
 Prompt:
 
 ```
-First, read {GPD_AGENTS_DIR}/gpd-theory-mapper.md for your role and instructions.
+First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: theory
 
@@ -152,7 +152,7 @@ Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings,
 task tool parameters:
 
 ```
-subagent_type="gpd-theory-mapper"
+subagent_type="gpd-research-mapper"
 model: "{mapper_model}"
 run_in_background: true
 description: "Map research project computational methods"
@@ -161,7 +161,7 @@ description: "Map research project computational methods"
 Prompt:
 
 ```
-First, read {GPD_AGENTS_DIR}/gpd-theory-mapper.md for your role and instructions.
+First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: computation
 
@@ -179,7 +179,7 @@ Explore thoroughly: read Python/Julia/C++/Fortran files, Jupyter notebooks, Make
 task tool parameters:
 
 ```
-subagent_type="gpd-theory-mapper"
+subagent_type="gpd-research-mapper"
 model: "{mapper_model}"
 run_in_background: true
 description: "Map research project conventions and validation"
@@ -188,7 +188,7 @@ description: "Map research project conventions and validation"
 Prompt:
 
 ```
-First, read {GPD_AGENTS_DIR}/gpd-theory-mapper.md for your role and instructions.
+First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: methodology
 
@@ -206,7 +206,7 @@ Explore thoroughly: read LaTeX preambles for notation macros, code variable nami
 task tool parameters:
 
 ```
-subagent_type="gpd-theory-mapper"
+subagent_type="gpd-research-mapper"
 model: "{mapper_model}"
 run_in_background: true
 description: "Map research project concerns and open questions"
@@ -215,7 +215,7 @@ description: "Map research project concerns and open questions"
 Prompt:
 
 ```
-First, read {GPD_AGENTS_DIR}/gpd-theory-mapper.md for your role and instructions.
+First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructions.
 
 Focus: status
 
@@ -360,7 +360,7 @@ Created .gpd/research-map/:
 ---
 
 **Also available:**
-- Re-run mapping: `/gpd:map-theory`
+- Re-run mapping: `/gpd:map-research`
 - Review specific file: `cat .gpd/research-map/FORMALISM.md`
 - Edit any document before proceeding
 
@@ -375,7 +375,7 @@ End workflow.
 <success_criteria>
 
 - .gpd/research-map/ directory created
-- 4 parallel gpd-theory-mapper agents spawned with run_in_background=true
+- 4 parallel gpd-research-mapper agents spawned with run_in_background=true
 - Agents write documents directly (orchestrator doesn't receive document contents)
 - Read agent output files to collect confirmations
 - All 7 research map documents exist covering theory, computation, methodology, and status

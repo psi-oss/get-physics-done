@@ -70,8 +70,8 @@ class TestModelProfiles:
         for profile, tier in MODEL_PROFILES["gpd-planner"].items():
             assert tier == ModelTier.TIER_1, f"planner {profile} should be tier-1"
 
-    def test_theory_mapper_mostly_tier_3(self):
-        tiers = MODEL_PROFILES["gpd-theory-mapper"]
+    def test_research_mapper_mostly_tier_3(self):
+        tiers = MODEL_PROFILES["gpd-research-mapper"]
         assert tiers["deep-theory"] == ModelTier.TIER_2
         assert tiers["numerical"] == ModelTier.TIER_3
 

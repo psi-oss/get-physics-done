@@ -109,7 +109,7 @@ Key papers and results organized by relevance:
 ## Methods and Approaches
 
 > This is the **primary methods template** for phase-level research. For analyzing an existing project's
-> methods (via `map-theory`), see `analysis/methods.md`. For the raw new-project survey template consumed
+> methods (via `map-research`), see `analysis/methods.md`. For the raw new-project survey template consumed
 > by workflows, see `research-project/METHODS.md` — do NOT use it directly; its content is incorporated here.
 
 ### Standard Analytical Methods

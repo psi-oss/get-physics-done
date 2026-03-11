@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,22 @@ def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
     assert "{GPD_GLOBAL_CONFIG_DIR}" in content
     assert "~/.claude/gpd-local-patches" not in content
     assert "./.claude/gpd-local-patches" not in content
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_default_local_install_keeps_local_update_scope_and_manifest(tmp_path: Path, runtime: str) -> None:
+    adapter = get_adapter(runtime)
+    target = tmp_path / adapter.config_dir_name
+    target.mkdir(parents=True)
+
+    adapter.install(GPD_ROOT, target, is_global=False)
+
+    content = (target / "get-physics-done" / "workflows" / "update.md").read_text(encoding="utf-8")
+    manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+    assert 'INSTALL_SCOPE="--local"' in content
+    assert 'INSTALL_SCOPE="--global"' not in content
+    assert manifest["install_scope"] == "local"
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])

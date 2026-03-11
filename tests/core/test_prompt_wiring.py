@@ -31,7 +31,7 @@ COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
     "literature-review.md": ["gpd-literature-reviewer"],
     "debug.md": ["gpd-debugger"],
-    "map-theory.md": ["gpd-theory-mapper"],
+    "map-research.md": ["gpd-research-mapper"],
     "plan-phase.md": ["gpd-planner", "gpd-plan-checker"],
     "quick.md": ["gpd-planner", "gpd-executor"],
     "research-phase.md": ["gpd-phase-researcher"],
@@ -246,17 +246,17 @@ AGENT_REFERENCE_TOKENS = {
         "templates/roadmap.md",
         "templates/state.md",
     ],
-    "gpd-theory-mapper.md": [
+    "gpd-research-mapper.md": [
         "references/shared/shared-protocols.md",
         "references/orchestration/agent-infrastructure.md",
         "references/physics-subfields.md",
-        "references/templates/theory-mapper/FORMALISM.md",
-        "references/templates/theory-mapper/REFERENCES.md",
-        "references/templates/theory-mapper/ARCHITECTURE.md",
-        "references/templates/theory-mapper/STRUCTURE.md",
-        "references/templates/theory-mapper/CONVENTIONS.md",
-        "references/templates/theory-mapper/VALIDATION.md",
-        "references/templates/theory-mapper/CONCERNS.md",
+        "references/templates/research-mapper/FORMALISM.md",
+        "references/templates/research-mapper/REFERENCES.md",
+        "references/templates/research-mapper/ARCHITECTURE.md",
+        "references/templates/research-mapper/STRUCTURE.md",
+        "references/templates/research-mapper/CONVENTIONS.md",
+        "references/templates/research-mapper/VALIDATION.md",
+        "references/templates/research-mapper/CONCERNS.md",
     ],
     "gpd-verifier.md": [
         "references/shared/shared-protocols.md",
@@ -454,7 +454,7 @@ def test_review_commands_expose_typed_contracts() -> None:
 
 def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("help").context_mode == "global"
-    assert registry.get_command("map-theory").context_mode == "projectless"
+    assert registry.get_command("map-research").context_mode == "projectless"
     assert registry.get_command("slides").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
     assert registry.get_command("explain").context_mode == "project-aware"

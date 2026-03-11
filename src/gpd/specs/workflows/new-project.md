@@ -423,7 +423,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_theory_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_theory_map`, `has_git`.
+Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_research_map`, `has_git`.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation after each major step (questioning, research, roadmap). Show summaries and wait for approval before proceeding.
@@ -485,7 +485,7 @@ If start fresh: delete `init-progress.json` and proceed normally.
 
 **If auto mode:** Skip to Step 4 (assume fresh project, synthesize PROJECT.md from provided document).
 
-**If `needs_theory_map` is true** (from init — existing research artifacts detected but no work map):
+**If `needs_research_map` is true** (from init — existing research artifacts detected but no research map):
 
 > **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
@@ -494,18 +494,18 @@ Use ask_user:
 - header: "Existing Research"
 - question: "I detected existing research artifacts in this directory. Would you like to map the existing work first?"
 - options:
-  - "Map existing work first" — Run /gpd:map-theory to understand current research state (Recommended)
+  - "Map existing work first" — Run /gpd:map-research to understand current research state (Recommended)
   - "Skip mapping" — Proceed with fresh project initialization
 
 **If "Map existing work first":**
 
 ```
-Run `/gpd:map-theory` first, then return to `/gpd:new-project`
+Run `/gpd:map-research` first, then return to `/gpd:new-project`
 ```
 
 Exit command.
 
-**If "Skip mapping" OR `needs_theory_map` is false:** Continue to Step 3.
+**If "Skip mapping" OR `needs_research_map` is false:** Continue to Step 3.
 
 ## 3. Deep Questioning
 

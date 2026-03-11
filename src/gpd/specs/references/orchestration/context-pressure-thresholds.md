@@ -37,7 +37,7 @@ Agents override defaults based on their context consumption patterns. Agents tha
 | gpd-research-synthesizer | < 40% | 40-60% | 60-70% | > 70% | synthesis section | Loading 4-5 researcher outputs consumes ~20-30% before synthesis |
 | gpd-paper-writer | < 40% | 40-55% | 55-65% | > 65% | paper section | Each section ~5-10%; focus on assigned sections only |
 | gpd-roadmapper | < 40% | 40-60% | 60-75% | > 75% | phase design | Standard consumption; for 8+ phases use concise descriptions |
-| gpd-theory-mapper | < 40% | 40-60% | 60-75% | > 75% | focus area document | Each focus area ~5-8%; limit exploration depth |
+| gpd-research-mapper | < 40% | 40-60% | 60-75% | > 75% | focus area document | Each focus area ~5-8%; limit exploration depth |
 | gpd-notation-coordinator | < 45% | 45-60% | 60-75% | > 75% | convention category | Produces shorter outputs; process one category at a time |
 | gpd-verifier | -- | -- | -- | ~75% | verification check | Single trigger only; no graduated levels |
 
@@ -49,7 +49,7 @@ Three clusters based on how aggressively agents must manage context:
 - consistency-checker, debugger, literature-reviewer, phase-researcher, project-researcher, planner, plan-checker
 
 **Standard (GREEN < 40%):** Agents with typical read/write patterns.
-- executor, referee, bibliographer, experiment-designer, research-synthesizer, paper-writer, roadmapper, theory-mapper
+- executor, referee, bibliographer, experiment-designer, research-synthesizer, paper-writer, roadmapper, research-mapper
 
 **Lenient (GREEN 40-45%):** Agents that produce short outputs or work with focused inputs.
 - notation-coordinator

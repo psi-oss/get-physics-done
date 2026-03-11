@@ -451,7 +451,7 @@ flowchart TD
   `authority`
   Canonical parser for agent prompt definitions.
 
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,slides,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,slides,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
 
@@ -464,7 +464,7 @@ flowchart TD
 - `src/gpd/commands/debug.md -> src/gpd/agents/gpd-debugger.md`
   `spawn`
 
-- `src/gpd/commands/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
+- `src/gpd/commands/map-research.md -> src/gpd/agents/gpd-research-mapper.md`
   `spawn`
 
 - `src/gpd/commands/plan-phase.md -> src/gpd/agents/{gpd-planner,gpd-plan-checker}.md`
@@ -580,19 +580,19 @@ flowchart TD
 - `src/gpd/agents/gpd-planner.md -> src/gpd/specs/templates/planner-subagent-prompt.md`
   `include`
 
-- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/shared/shared-protocols.md`
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-research-mapper,gpd-verifier}.md -> src/gpd/specs/references/shared/shared-protocols.md`
   `include`
 
 - `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance}.md -> src/gpd/specs/references/shared/shared-protocols.md`
   `include`
 
-- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-explainer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-explainer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-research-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
   `include`
 
 - `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-significance}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
   `include`
 
-- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-explainer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-explainer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-research-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
   `include`
 
 - `src/gpd/agents/{gpd-review-math,gpd-review-physics}.md -> src/gpd/specs/references/physics-subfields.md`
@@ -847,7 +847,7 @@ flowchart TD
 - `src/gpd/specs/workflows/new-milestone.md -> selector set {major mode, approval gates, existing file checks}`
   `selector-input`
 
-- `src/gpd/specs/workflows/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
+- `src/gpd/specs/workflows/map-research.md -> src/gpd/agents/gpd-research-mapper.md`
   `spawn`
 
 - `src/gpd/specs/workflows/explain.md -> src/gpd/agents/{gpd-explainer,gpd-bibliographer}.md`
@@ -889,7 +889,7 @@ flowchart TD
 - `src/gpd/specs/references/execution/execute-plan-recovery.md -> src/gpd/specs/templates/recovery-plan.md`
   `include`
 
-- `src/gpd/agents/gpd-theory-mapper.md -> src/gpd/specs/references/templates/theory-mapper/{FORMALISM,REFERENCES,ARCHITECTURE,STRUCTURE,CONVENTIONS,VALIDATION,CONCERNS}.md`
+- `src/gpd/agents/gpd-research-mapper.md -> src/gpd/specs/references/templates/research-mapper/{FORMALISM,REFERENCES,ARCHITECTURE,STRUCTURE,CONVENTIONS,VALIDATION,CONCERNS}.md`
   `include`
 
 ## Adapters, Manifests, Installed Artifacts, and Selective Ownership

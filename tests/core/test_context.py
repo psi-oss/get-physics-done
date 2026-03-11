@@ -12,7 +12,7 @@ from gpd.core.context import (
     _is_phase_complete,
     _normalize_phase_name,
     init_execute_phase,
-    init_map_theory,
+    init_map_research,
     init_milestone_op,
     init_new_milestone,
     init_new_project,
@@ -376,13 +376,13 @@ class TestInitMilestoneOp:
         assert ctx["all_phases_complete"] is False
 
 
-# ─── init_map_theory ──────────────────────────────────────────────────────────
+# ─── init_map_research ────────────────────────────────────────────────────────
 
 
-class TestInitMapTheory:
+class TestInitMapResearch:
     def test_no_maps(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        ctx = init_map_theory(tmp_path)
+        ctx = init_map_research(tmp_path)
         assert ctx["has_maps"] is False
         assert ctx["existing_maps"] == []
 
@@ -392,7 +392,7 @@ class TestInitMapTheory:
         map_dir.mkdir()
         (map_dir / "theory.md").write_text("# Theory Map")
 
-        ctx = init_map_theory(tmp_path)
+        ctx = init_map_research(tmp_path)
         assert ctx["has_maps"] is True
         assert "theory.md" in ctx["existing_maps"]
 

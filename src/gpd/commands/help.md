@@ -109,15 +109,15 @@ Usage: `/gpd:new-project`
 Usage: `/gpd:new-project --minimal`
 Usage: `/gpd:new-project --minimal @plan.md`
 
-**`/gpd:map-theory`**
+**`/gpd:map-research`**
 Map an existing research project — theoretical framework, computations, conventions, and open questions.
 
-- Spawns 4 parallel theory-mapper agents to analyze project artifacts
+- Spawns 4 parallel research-mapper agents to analyze project artifacts
 - Creates `.gpd/research-map/` with 7 structured documents
 - Covers formalism, references, computational architecture, structure, conventions, validation, concerns
 - Use before `/gpd:new-project` on existing research projects
 
-Usage: `/gpd:map-theory`
+Usage: `/gpd:map-research`
 
 ### Phase Planning
 
