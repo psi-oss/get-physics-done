@@ -31,14 +31,14 @@ Then choose the path that matches your starting point:
 | Starting point | First command |
 |----------------|---------------|
 | New research project | `new-project` |
-| Existing research folder or codebase | `map-theory` |
+| Existing research folder or codebase | `map-research` |
 
 Runtime syntax:
 - Claude Code / Gemini CLI: `/gpd:...`
 - Codex: `$gpd-...`
 - OpenCode: `/gpd-...`
 
-If you are starting from existing work, run `map-theory` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
+If you are starting from existing work, run `map-research` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
 
 Typical new-project workflow:
 
@@ -126,20 +126,36 @@ Wave 3: plans that depend on earlier waves
 
 Phase numbers continue across the whole project, so a new milestone may start at `Phase 6` rather than resetting to `Phase 1`.
 
-## Example
+## Worked Example
+
+<details>
+<summary><strong>Conformal bootstrap workflow</strong></summary>
+
+The example below uses Claude Code / Gemini CLI syntax. For Codex, replace `/gpd:` with `$gpd-`. For OpenCode, use `/gpd-...`.
+
+Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
 ```text
-> /gpd:new-project        # Claude Code / Gemini CLI
-> $gpd-new-project        # Codex
-> /gpd-new-project        # OpenCode
-> Derive the equations of motion for a double pendulum using Lagrangian mechanics
+/gpd:new-project
+> Use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
+```
 
 GPD will:
-- Ask clarifying questions about scope, notation, and verification targets
-- Create PROJECT.md, REQUIREMENTS.md, ROADMAP.md, and STATE.md
-- Break the work into phases such as kinematics, Euler-Lagrange equations, and numerical checks
-- Produce derivations and Python verification scripts as artifacts
+- ask clarifying questions about the correlator sector, conventions, target observables, numerical precision, and verification strategy
+- create `.gpd/PROJECT.md`, `.gpd/REQUIREMENTS.md`, `.gpd/ROADMAP.md`, and `.gpd/STATE.md`
+- break the work into phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds
+
+Then continue with:
+
+```text
+/gpd:plan-phase 1
+/gpd:execute-phase 1
+/gpd:verify-work 1
 ```
+
+Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `.gpd/`.
+
+</details>
 
 ## Key In-Runtime Commands
 
@@ -171,7 +187,7 @@ Not every GPD command needs the same amount of project state.
 
 | Command type | Meaning | Examples |
 |--------------|---------|----------|
-| `Projectless` | Can run before `.gpd/PROJECT.md` exists | `/gpd:new-project`, `/gpd:map-theory`, `/gpd:add-todo` |
+| `Projectless` | Can run before `.gpd/PROJECT.md` exists | `/gpd:new-project`, `/gpd:map-research`, `/gpd:add-todo` |
 | `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs | `/gpd:discover "finite-temperature RG flow"`, `/gpd:explain "Ward identity"`, `/gpd:literature-review "axion monodromy"` |
 | `Project-required` | Requires initialized GPD project state | `/gpd:progress`, `/gpd:plan-phase`, `/gpd:write-paper`, `/gpd:peer-review` |
 
@@ -183,7 +199,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 #### Project Initialization
 
 - `/gpd:new-project` — Initialize a new physics research project with deep context gathering and PROJECT.md
-- `/gpd:map-theory` — Map existing research project — theoretical framework, computations, conventions, and open questions
+- `/gpd:map-research` — Map existing research project — theoretical framework, computations, conventions, and open questions
 
 #### Phase Planning
 
