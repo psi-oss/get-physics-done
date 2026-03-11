@@ -1,11 +1,22 @@
-name: test
+name: merge-gate
 
 on:
-  push:
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   pytest:
+    name: pytest (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

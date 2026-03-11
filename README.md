@@ -8,7 +8,7 @@ Get Physics Done is an open-source AI copilot for physics research from [Physica
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](https://github.com/physicalsuperintelligence/get-physics-done/blob/main/CONTRIBUTING.md).
 
-If GPD is useful in your work, please star the repo and share it with other physicists who might benefit from it.
+We welcome contributions and feedback via GitHub issues or pull requests; if GPD is useful in your work, please star the repo, share it with colleagues who might benefit, and reach us at [gpd@psi.inc](mailto:gpd@psi.inc).
 
 ## Inspiration
 

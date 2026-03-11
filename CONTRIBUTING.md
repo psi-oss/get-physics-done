@@ -44,6 +44,7 @@ Cross-runtime release checks:
 
 ## Pull Request Checklist
 
+- `main` is protected: direct pushes are blocked, and pull requests must pass the required `merge-gate` workflow before merge.
 - Add or update tests when behavior changes.
 - Update public docs when install flow, commands, or release messaging changes.
 - Keep commit messages concise and descriptive.
