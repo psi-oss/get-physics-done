@@ -438,3 +438,32 @@ def test_convention_set_custom_force_overwrite():
     result = convention_set(lock, "my_custom", "value2", force=True)
     assert result.updated is True
     assert lock.custom_conventions["my_custom"] == "value2"
+
+
+# ─── convention_diff_phases ──────────────────────────────────────────────────
+
+
+class TestConventionDiffPhases:
+    """Tests for convention_diff_phases."""
+
+    def test_missing_phase_ids_returns_empty(self, tmp_path):
+        """convention_diff_phases with missing phase IDs returns empty result."""
+        from gpd.core.conventions import convention_diff_phases
+        gpd_dir = tmp_path / ".gpd"
+        gpd_dir.mkdir()
+
+        result = convention_diff_phases(tmp_path, phase1=None, phase2="1")
+        assert result.changed == []
+        assert result.added == []
+        assert result.removed == []
+
+    def test_nonexistent_phases_returns_empty(self, tmp_path):
+        """convention_diff_phases with nonexistent phases returns empty result."""
+        from gpd.core.conventions import convention_diff_phases
+        gpd_dir = tmp_path / ".gpd" / "phases"
+        gpd_dir.mkdir(parents=True)
+
+        result = convention_diff_phases(tmp_path, phase1="99", phase2="98")
+        assert result.changed == []
+        assert result.added == []
+        assert result.removed == []

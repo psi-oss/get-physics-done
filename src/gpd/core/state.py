@@ -699,7 +699,7 @@ def _strip_placeholder(value: str | None) -> str | None:
     stripped = value.strip()
     if stripped in ("\u2014", "None") or stripped.lower() == "[not set]":
         return None
-    return value
+    return stripped
 
 
 def parse_state_to_json(content: str) -> dict:
@@ -1106,7 +1106,7 @@ def generate_state_markdown(raw: dict) -> str:
     sess = s.get("session") or {}
     p(f"**Last session:** {sess.get('last_date') or EM_DASH}")
     p(f"**Stopped at:** {sess.get('stopped_at') or EM_DASH}")
-    p(f"**Resume file:** {sess.get('resume_file') or 'None'}")
+    p(f"**Resume file:** {sess.get('resume_file') or EM_DASH}")
     p("")
 
     return "\n".join(lines)
@@ -1855,7 +1855,7 @@ def state_record_session(
             "session.continuity.missing_state",
             cwd=str(cwd),
             stopped_at=stopped_at or "",
-            resume_file=resume_file or "None",
+            resume_file=resume_file or EM_DASH,
         ):
             pass
         return RecordSessionResult(recorded=False, error="STATE.md not found")
@@ -1876,7 +1876,7 @@ def state_record_session(
                 content = new_content
                 updated.append("Stopped at")
 
-        resume = resume_file or "None"
+        resume = resume_file or EM_DASH
         new_content = state_replace_field(content, "Resume file", resume)
         if new_content != content:
             content = new_content

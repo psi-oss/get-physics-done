@@ -3211,7 +3211,7 @@ def json_set_cmd(
     """Set a key in a JSON file (creates file if needed)."""
     from gpd.core.json_utils import json_set
 
-    _output(json_set(file, path, value))
+    _json_cli_output(json_set(str(_get_cwd() / file), path, value))
 
 
 @json_app.command("merge-files")
@@ -3222,7 +3222,7 @@ def json_merge_files_cmd(
     """Merge multiple JSON files into one (shallow dict merge)."""
     from gpd.core.json_utils import json_merge_files
 
-    _output(json_merge_files(out, files))
+    cwd = _get_cwd(); _json_cli_output(json_merge_files(str(cwd / out), [str(cwd / f) for f in files]))
 
 
 @json_app.command("sum-lengths")

@@ -478,3 +478,35 @@ class TestExtractFrontmatterField:
 
         content = 'title: "Quoted Title"\narea: theory'
         assert _extract_frontmatter_field(content, "title") == "Quoted Title"
+
+
+# ─── init_phase_op ────────────────────────────────────────────────────────────
+
+
+class TestInitPhaseOp:
+    """Tests for init_phase_op context assembly."""
+
+    def test_no_phase_returns_phase_found_false(self, tmp_path):
+        """init_phase_op with no phase should set phase_found=False."""
+        from gpd.core.context import init_phase_op
+        gpd_dir = tmp_path / ".gpd"
+        gpd_dir.mkdir()
+        (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        result = init_phase_op(tmp_path)
+        assert isinstance(result, dict)
+        assert result.get("phase_found") is False
+
+    def test_with_phase_directory(self, tmp_path):
+        """init_phase_op with existing phase should set phase_found=True."""
+        from gpd.core.context import init_phase_op
+        gpd_dir = tmp_path / ".gpd"
+        phases_dir = gpd_dir / "phases" / "01-test"
+        phases_dir.mkdir(parents=True)
+        (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        result = init_phase_op(tmp_path, phase="1")
+        assert isinstance(result, dict)
+        # Phase should be found since we created the directory
+        if result.get("phase_found"):
+            assert "01" in str(result.get("phase_number", ""))

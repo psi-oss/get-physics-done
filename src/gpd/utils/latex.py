@@ -69,7 +69,8 @@ def _fix_unescaped_underscores(tex: str) -> str:
                 r"|includegraphics|input|include|bibliography|bibliographystyle"
                 r"|hyperref|nameref|pageref"
                 r"|citep|citet|citealp|citeauthor|citeyear"
-                r"|parencite|textcite)(?:\[[^\]]*\])*\{[^}]*\})",
+                r"|parencite|textcite"
+                r"|texttt|textbf|textit|emph|path|lstinline)(?:\[[^\]]*\])*\{[^}]*\})",
                 lambda m: m.group(0).replace("_", "\x00"),
                 content,
             )
@@ -138,7 +139,13 @@ def _fix_unbalanced_braces(tex: str) -> str:
         tex = tex.rstrip() + ("}" * missing)
     elif close_count > open_count:
         missing = close_count - open_count
-        tex = ("{" * missing) + tex
+        # Insert missing open braces after \begin{document} if possible
+        begin_doc = tex.find("\\begin{document}")
+        if begin_doc != -1:
+            insert_pos = tex.index("\n", begin_doc) + 1 if "\n" in tex[begin_doc:] else begin_doc + len("\\begin{document}")
+            tex = tex[:insert_pos] + ("{" * missing) + tex[insert_pos:]
+        else:
+            tex = ("{" * missing) + tex
     return tex
 
 
@@ -148,11 +155,11 @@ def _fix_unescaped_underscores_and_carets(tex: str) -> str:
 
 
 _AUTO_FIX_RULES: list[tuple[str, Callable[[str], str], str]] = [
-    (r"Missing \$ inserted", _fix_unescaped_underscores_and_carets, "Escaped underscores and carets outside math mode"),
     (r"Missing \\begin\{document\}", _fix_missing_document_begin, "Added missing \\begin{document}"),
     (r"LaTeX Error: \\begin\{document\} ended", _fix_missing_document_end, "Added missing \\end{document}"),
     (r"Runaway argument", _fix_unbalanced_braces, "Balanced unmatched braces"),
     (r"Too many \}'s", _fix_unbalanced_braces, "Attempted to balance braces"),
+    (r"Missing \$ inserted", _fix_unescaped_underscores_and_carets, "Escaped underscores and carets outside math mode"),
 ]
 
 

@@ -212,3 +212,41 @@ def test_gpd_span_cwd_with_prefixed_key(tmp_path: Path, monkeypatch) -> None:
     assert events_path.exists()
     events = _read_jsonl(events_path)
     assert any(_event_name(e) == "test.prefixed_cwd" for e in events)
+
+
+def test_list_sessions_empty_project(tmp_path: Path) -> None:
+    """list_sessions returns empty result for project with no sessions."""
+    project = _bootstrap_project(tmp_path)
+    from gpd.core.observability import list_sessions
+    result = list_sessions(project)
+    assert result.count == 0
+    assert result.sessions == []
+
+
+def test_list_sessions_returns_sessions(tmp_path: Path) -> None:
+    """list_sessions returns sessions from the sessions directory."""
+    project = _bootstrap_project(tmp_path)
+    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+
+    import json
+    meta = {
+        "session_id": "test-session",
+        "started_at": "2026-03-10T00:00:00+00:00",
+        "last_event_at": "2026-03-10T00:01:00+00:00",
+        "command": "execute-phase",
+        "status": "active",
+        "event_count": 5,
+    }
+    (sessions_dir / "test-session.json").write_text(json.dumps(meta), encoding="utf-8")
+
+    from gpd.core.observability import list_sessions
+    result = list_sessions(project)
+    assert result.count >= 1
+
+
+def test_list_sessions_no_gpd_dir(tmp_path: Path) -> None:
+    """list_sessions with no .gpd directory returns empty result."""
+    from gpd.core.observability import list_sessions
+    result = list_sessions(tmp_path)
+    assert result.count == 0

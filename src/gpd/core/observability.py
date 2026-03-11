@@ -518,6 +518,14 @@ def instrument_gpd_function(
     def decorator(func: Callable) -> Callable:
         name = span_name or f"{func.__module__}.{func.__qualname__}"
 
+        if inspect.isgeneratorfunction(func):
+            @functools.wraps(func)
+            def gen_wrapper(*args: object, **kwargs: object) -> object:
+                # For generators, we can't wrap the entire execution in a span
+                # because the generator is lazily evaluated. Just pass through.
+                return func(*args, **kwargs)
+            return gen_wrapper
+
         if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
