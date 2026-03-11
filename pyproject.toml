@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Sergio Hernandez-Cuenca" },
+    { name = "Physical Superintelligence PBC (PSI)" },
 ]
 maintainers = [
     { name = "Physical Superintelligence PBC", email = "gpd@psi.inc" },

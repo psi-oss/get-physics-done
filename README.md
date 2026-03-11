@@ -391,7 +391,7 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 
 ```bibtex
 @software{physical_superintelligence_2026_gpd,
-  author = {Hernandez-Cuenca, Sergio},
+  author = {{Physical Superintelligence PBC}},
   title = {Get Physics Done (GPD)},
   version = {0.1.5},
   year = {2026},
@@ -401,12 +401,12 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 ```
 
 ```text
-Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.5) [Computer software]. https://github.com/physicalsuperintelligence/get-physics-done
+Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 0.1.5). https://github.com/physicalsuperintelligence/get-physics-done
 ```
 
 ## Inspiration
 
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done-cc), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
 
 ## License
 
