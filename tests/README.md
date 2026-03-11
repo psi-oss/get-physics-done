@@ -495,13 +495,13 @@ flowchart TD
 - `src/gpd/commands/health.md -> .gpd/{STATE.md,state.json,config.json}`
   `include`
 
-- `src/gpd/commands/health.md -> gpd health {--raw,--fix --raw}`
+- `src/gpd/commands/health.md -> gpd --raw health {,--fix}`
   `spawn`
 
 - `src/gpd/commands/suggest-next.md -> .gpd/{STATE.md,ROADMAP.md}`
   `include`
 
-- `src/gpd/commands/suggest-next.md -> gpd suggest --raw`
+- `src/gpd/commands/suggest-next.md -> gpd --raw suggest`
   `spawn`
 
 - `src/gpd/commands/new-project.md -> src/gpd/specs/workflows/new-project.md`

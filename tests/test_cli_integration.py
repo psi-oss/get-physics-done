@@ -251,15 +251,41 @@ class TestHistoryDigest:
 
 class TestObserve:
     def test_observe_sessions_filters_by_command(self) -> None:
-        _invoke("timestamp")
+        _invoke(
+            "--raw",
+            "observe",
+            "event",
+            "cli",
+            "command",
+            "--action",
+            "start",
+            "--status",
+            "active",
+            "--command",
+            "timestamp",
+        )
         result = _invoke("--raw", "observe", "sessions", "--command", "timestamp")
         parsed = json.loads(result.output)
         assert parsed["count"] >= 1
         assert all(session["command"] == "timestamp" for session in parsed["sessions"])
 
     def test_observe_show_filters_by_session(self) -> None:
-        _invoke("timestamp")
+        event_result = _invoke(
+            "--raw",
+            "observe",
+            "event",
+            "cli",
+            "command",
+            "--action",
+            "start",
+            "--status",
+            "active",
+            "--command",
+            "timestamp",
+        )
+        event_payload = json.loads(event_result.output)
         sessions = json.loads(_invoke("--raw", "observe", "sessions", "--command", "timestamp").output)
+        assert any(session["session_id"] == event_payload["session_id"] for session in sessions["sessions"])
         session_id = sessions["sessions"][0]["session_id"]
         result = _invoke("--raw", "observe", "show", "--session", session_id, "--category", "cli")
         parsed = json.loads(result.output)

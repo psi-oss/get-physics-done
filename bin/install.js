@@ -625,7 +625,7 @@ function ensureManagedEnvironment(basePython) {
 }
 
 async function installManagedPackage(python, pythonVersion, options = {}) {
-  const { forceReinstall = false, preferMain = false } = options;
+  const { forceReinstall = false, preferMain = false, purpose = "install" } = options;
   const requestedVersion = pythonVersion;
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
@@ -670,7 +670,11 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
     }
   }
 
-  const action = forceReinstall ? "Reinstalling" : "Installing";
+  const action = purpose === "uninstall"
+    ? "Preparing managed GPD CLI"
+    : forceReinstall
+      ? "Reinstalling GPD"
+      : "Installing GPD";
 
   // Try GitHub source candidates in precedence order.
   const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
@@ -679,7 +683,7 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
 
   let installResult = null;
   if (sourceCandidates.length > 0) {
-    log(`${action} GPD from ${sourceCandidates[0].label} into the managed environment...`);
+    log(`${action} from ${sourceCandidates[0].label} into the managed environment...`);
     installResult = runPipInstall(python, sourceCandidates[0].spec, pipInstallEnv, {
       forceReinstall,
       noCache: sourceCandidates[0].noCache,
@@ -1105,21 +1109,14 @@ async function main() {
 
   const managedEnv = ensureManagedEnvironment(basePython);
 
-  let skipPackageInstall = false;
-  if (isUninstall) {
-    const check = spawnSync(managedEnv.python, ["-c", "import gpd.cli"], { encoding: "utf-8" });
-    skipPackageInstall = check.status === 0;
-  }
-
-  if (!skipPackageInstall) {
-    const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
-      forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
-      preferMain: upgradeManagedPackage,
-    });
-    if (!packageInstall.ok) {
-      error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
-      process.exit(1);
-    }
+  const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
+    forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
+    preferMain: upgradeManagedPackage,
+    purpose: isUninstall ? "uninstall" : "install",
+  });
+  if (!packageInstall.ok) {
+    error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
+    process.exit(1);
   }
 
   const actionMessage = isUninstall ? "Uninstalling GPD from" : "Installing GPD for";
