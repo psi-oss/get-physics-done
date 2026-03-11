@@ -18,7 +18,7 @@ type: execute | tdd | gap_closure
 wave: N
 depends_on: []
 files_modified: []
-autonomous: true
+checkpoint_free: true
 researcher_setup: [] # Optional. Omit if empty.
 
 conventions:
@@ -114,7 +114,7 @@ These fields must always be present:
 - `wave`
 - `depends_on`
 - `files_modified`
-- `autonomous`
+- `checkpoint_free`
 - `conventions`
 - `must_haves`
 
@@ -155,7 +155,7 @@ type: execute
 wave: 1
 depends_on: []
 files_modified: [derivations/vacuum-polarization.tex, code/vac_pol_numerical.py]
-autonomous: true
+checkpoint_free: true
 
 conventions:
   units: "natural"

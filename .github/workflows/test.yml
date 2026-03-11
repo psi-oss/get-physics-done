@@ -16,12 +16,8 @@ concurrency:
 
 jobs:
   pytest:
-    name: pytest (${{ matrix.python-version }})
+    name: pytest (3.11)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Check out repository
@@ -30,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4

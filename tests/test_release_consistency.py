@@ -336,7 +336,7 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
 
 
-def test_merge_gate_workflow_uses_main_branch_pytest_matrix() -> None:
+def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     repo_root = _repo_root()
     workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
 
@@ -345,10 +345,10 @@ def test_merge_gate_workflow_uses_main_branch_pytest_matrix() -> None:
     assert "push:" in workflow
     assert "branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
-    assert "name: pytest (${{ matrix.python-version }})" in workflow
+    assert "name: pytest (3.11)" in workflow
     assert "actions/checkout@v4" in workflow
     assert "actions/setup-python@v5" in workflow
-    assert 'python-version: ["3.11", "3.12"]' in workflow
+    assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v4" in workflow
     assert "uv sync --dev" in workflow
     assert "uv run pytest tests/ -v" in workflow

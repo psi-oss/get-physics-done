@@ -1029,7 +1029,7 @@ class TestStateServer:
         from gpd.mcp.servers.state_server import get_config
 
         mock_config = MagicMock()
-        mock_config.model_dump.return_value = {"model_profile": "deep-theory", "autonomy_mode": "full"}
+        mock_config.model_dump.return_value = {"model_profile": "deep-theory", "autonomy": "balanced"}
 
         with patch("gpd.mcp.servers.state_server.load_config", return_value=mock_config):
             result = get_config("/fake/project")

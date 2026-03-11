@@ -282,7 +282,7 @@ Use the cross-convention interaction table from `<convention_validation>` to ide
 
 **Step 3: Resolve**
 
-**If the plan is checkpoint-free (plan frontmatter `autonomous: true`):**
+**If the plan is checkpoint-free (plan frontmatter `checkpoint_free: true`):**
 1. Choose the convention that (a) is compatible with existing locks, (b) follows the subfield default from the table above, (c) matches the primary reference being followed
 2. Lock it immediately via `gpd convention set`
 3. Document in the research log with rationale

@@ -194,7 +194,7 @@ class TestValidateFrontmatter:
             "wave: 1\n"
             "depends_on: []\n"
             "files_modified: []\n"
-            "autonomous: true\n"
+            "checkpoint_free: true\n"
             "must_haves: {}\n"
             "---\n\nBody."
         )
@@ -220,7 +220,7 @@ class TestValidateFrontmatter:
             "wave: 1\n"
             "depends-on: []\n"
             "files-modified: []\n"
-            "autonomous: true\n"
+            "checkpoint_free: true\n"
             "must-haves: {}\n"
             "---\n\nBody."
         )
@@ -332,9 +332,9 @@ class TestExtractFrontmatterEdgeCases:
         assert body == ""
 
     def test_yaml_with_boolean_values(self):
-        content = "---\nautonomous: true\nblocked: false\n---\n\nBody."
+        content = "---\ncheckpoint_free: true\nblocked: false\n---\n\nBody."
         meta, body = extract_frontmatter(content)
-        assert meta["autonomous"] is True
+        assert meta["checkpoint_free"] is True
         assert meta["blocked"] is False
 
     def test_yaml_with_integer_values(self):
@@ -557,7 +557,7 @@ class TestVerifyPlanStructure:
             "wave: 1\n"
             "depends_on: []\n"
             "files_modified: []\n"
-            "autonomous: true\n"
+            "checkpoint_free: true\n"
             "must_haves: {}\n"
             "---\n\n"
             '<task type="code">\n'
@@ -591,7 +591,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncheckpoint_free: true\nmust_haves: {}\n"
             "---\n\n"
             '<task type="code">\n'
             "  <action>Do something</action>\n"
@@ -608,7 +608,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 2\n"
-            "depends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncheckpoint_free: true\nmust_haves: {}\n"
             "---\n\nBody.\n"
         )
         f = tmp_path / "plan.md"
@@ -616,13 +616,13 @@ class TestVerifyPlanStructure:
         result = verify_plan_structure(tmp_path, f)
         assert any("Wave > 1" in w for w in result.warnings)
 
-    def test_checkpoint_autonomous_mismatch(self, tmp_path):
+    def test_checkpoint_checkpoint_free_mismatch(self, tmp_path):
         from gpd.core.frontmatter import verify_plan_structure
 
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\nautonomous: true\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncheckpoint_free: true\nmust_haves: {}\n"
             "---\n\n"
             '<task type="checkpoint">\n'
             "  <name>Review</name>\n"

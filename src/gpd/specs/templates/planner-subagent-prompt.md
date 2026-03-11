@@ -71,7 +71,7 @@ See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed 
 <downstream_consumer>
 Output consumed by /gpd:execute-phase. Plans need:
 
-- Frontmatter (`wave`, `depends_on`, `files_modified`, `autonomous`, `conventions`, `must_haves`)
+- Frontmatter (`wave`, `depends_on`, `files_modified`, `checkpoint_free`, `conventions`, `must_haves`)
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
 - must_haves derived from the phase goal

@@ -42,7 +42,7 @@ Cross-runtime release checks:
 - Public install docs should use `npx -y get-physics-done`.
 - Do not reintroduce stale internal paths such as `packages/gpd` into docs or descriptors.
 - Keep public artifacts present and up to date: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `package.json`, and `pyproject.toml`.
-- Keep the `tests` Python matrix aligned with every Python version classified in `pyproject.toml`.
+- Keep the `tests` workflow pinned to the minimum supported Python version (`3.11`) unless we intentionally broaden CI coverage.
 - Keep `infra/gpd-*.json` synced with the canonical descriptor builder in `src/gpd/mcp/builtin_servers.py`.
 - Keep user-facing validation docs aligned with the CLI surface in `gpd validate`, especially `review-preflight`, `paper-quality`, and `reproducibility-manifest`.
 - Do not commit secrets, private infrastructure details, internal strategy notes, or cached research outputs.

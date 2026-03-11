@@ -217,7 +217,7 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "wave",
             "depends_on",
             "files_modified",
-            "autonomous",
+            "checkpoint_free",
             "must_haves",
         ],
     },
@@ -567,11 +567,11 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
         if wave_int > 1 and (not deps or (isinstance(deps, list) and len(deps) == 0)):
             warnings.append("Wave > 1 but depends_on is empty")
 
-    # Autonomous/checkpoint consistency
+    # Checkpoint-free/checkpoint consistency
     has_checkpoints = bool(_CHECKPOINT_TASK_RE.search(content))
-    autonomous = meta.get("autonomous")
-    if has_checkpoints and autonomous not in ("false", False):
-        errors.append("Has checkpoint tasks but autonomous is not false")
+    checkpoint_free = meta.get("checkpoint_free")
+    if has_checkpoints and checkpoint_free not in ("false", False):
+        errors.append("Has checkpoint tasks but checkpoint_free is not false")
 
     return PlanValidation(
         valid=len(errors) == 0,

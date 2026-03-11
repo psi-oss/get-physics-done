@@ -116,7 +116,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 | Autonomy | Plan Checker Behavior |
 |---|---|
 | **babysit** | **Light check.** Focus on blockers only (Dim 1, 2, 9, 10). The human will catch detail issues. Reduce the 16 dimensions to 8 critical ones. |
-| **balanced** (default) | **Standard+ check.** Run the full dimension check per profile. Flag any plan with `autonomous: true` that lacks explicit verification criteria, and verify that every approximation has a validity check somewhere in the phase. Warn if any task exceeds a 60-minute estimate without an intermediate checkpoint. |
+| **balanced** (default) | **Standard+ check.** Run the full dimension check per profile. Flag any plan with `checkpoint_free: true` that lacks explicit verification criteria, and verify that every approximation has a validity check somewhere in the phase. Warn if any task exceeds a 60-minute estimate without an intermediate checkpoint. |
 | **yolo** | **Maximum scrutiny.** Everything in balanced mode PLUS: verify all must-haves are independently testable (not circular). Check that scope extensions are bounded. Require at least one limiting-case check per plan. Flag plans that combine derivation + numerical validation (they should be separate plans for independent failure). |
 
 **Key interaction:** In `balanced + exploratory`, the profile can reduce detail, but autonomy still requires explicit validation on checkpoint-free plans. In `yolo`, autonomy wins even harder — with minimal human oversight, plan quality is the first and last chance to catch design errors.
