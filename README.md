@@ -33,6 +33,24 @@ Install GPD with `npx`:
 npx -y get-physics-done
 ```
 
+## Quick Start
+
+Install GPD:
+
+```bash
+npx -y get-physics-done
+```
+
+Then open your runtime and start a project:
+
+- Claude Code / Gemini CLI: `/gpd:new-project`
+- Codex: `$gpd-new-project`
+- OpenCode: `/gpd-new-project`
+
+A typical workflow is:
+
+`new-project -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
+
 Pass flags to skip prompts or change the action:
 
 | Flag | Meaning |
