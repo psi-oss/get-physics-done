@@ -1104,13 +1104,22 @@ async function main() {
   }
 
   const managedEnv = ensureManagedEnvironment(basePython);
-  const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
-    forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
-    preferMain: upgradeManagedPackage,
-  });
-  if (!packageInstall.ok) {
-    error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
-    process.exit(1);
+
+  let skipPackageInstall = false;
+  if (isUninstall) {
+    const check = spawnSync(managedEnv.python, ["-c", "import gpd.cli"], { encoding: "utf-8" });
+    skipPackageInstall = check.status === 0;
+  }
+
+  if (!skipPackageInstall) {
+    const packageInstall = await installManagedPackage(managedEnv.python, pythonPackageVersion, {
+      forceReinstall: reinstallManagedPackage || upgradeManagedPackage,
+      preferMain: upgradeManagedPackage,
+    });
+    if (!packageInstall.ok) {
+      error(`Failed to install GPD v${packageInstall.requestedVersion} from GitHub sources.`);
+      process.exit(1);
+    }
   }
 
   const actionMessage = isUninstall ? "Uninstalling GPD from" : "Installing GPD for";
