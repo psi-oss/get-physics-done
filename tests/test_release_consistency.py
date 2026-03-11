@@ -34,8 +34,12 @@ def _python_release_version(repo_root: Path) -> str:
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert package_json["gpdPythonVersion"] == pyproject["project"]["version"]
-    return str(pyproject["project"]["version"])
+    package_version = str(package_json["version"])
+    python_version = str(package_json["gpdPythonVersion"])
+    pyproject_version = str(pyproject["project"]["version"])
+
+    assert package_version == python_version == pyproject_version
+    return pyproject_version
 
 
 def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Path, Path]:
@@ -80,6 +84,17 @@ def test_public_citation_metadata_uses_launch_date() -> None:
     citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
 
     assert "date-released: '2026-03-15'" in citation
+
+
+def test_public_citation_and_readme_versions_match_release_version() -> None:
+    repo_root = _repo_root()
+    version = _python_release_version(repo_root)
+    citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert f"version: {version}" in citation
+    assert f"version = {{{version}}}" in readme
+    assert f"(Version {version}) [Computer software]" in readme
 
 
 def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:

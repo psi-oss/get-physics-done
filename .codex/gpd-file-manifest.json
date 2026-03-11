@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.5",
   "timestamp": "2026-03-10T22:03:51.421921+00:00",
   "files": {
-    "get-physics-done/VERSION": "6ad9613a455798d6d92e5f5f390ab4baa70596bc869ed6b17f5cdd2b28635f06",
+    "get-physics-done/VERSION": "41709813c4666241d5ac7bd5aef08960c90632aa4e6b06cdad9389e163837336",
     "get-physics-done/references/README.md": "0a62dc9df47ebbb50346f71b8fb882153f5545d02a1b306e5b5f3111b12506e8",
     "get-physics-done/references/architecture/artifact-review-architecture.md": "8ce9905ff3246a6076e23034faab87a898ec7075e7637303fd6e6e4113444a23",
     "get-physics-done/references/conventions/conventions-quick-reference.md": "28e45e4e2f9ac5601042e5991a556b0839ff687aca2c9930b4a404230414fa94",

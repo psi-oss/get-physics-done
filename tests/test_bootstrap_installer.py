@@ -14,6 +14,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_JSON = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
 PYPROJECT = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+PACKAGE_VERSION = str(PACKAGE_JSON["version"])
 PYTHON_PACKAGE_VERSION = str(PACKAGE_JSON["gpdPythonVersion"])
 
 REPO_GIT_URL = str(PACKAGE_JSON["repository"]["url"]).removeprefix("git+").rstrip("/")
@@ -32,8 +33,8 @@ MAIN_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@main"
 
 
 def test_version_consistency():
-    """Package.json and pyproject.toml versions must match."""
-    assert PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
+    """Release metadata and the bootstrap's Python pin must match."""
+    assert PACKAGE_VERSION == PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
 
 
 def _write_fake_python(script_path: Path, log_path: Path) -> None:

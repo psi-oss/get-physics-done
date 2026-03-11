@@ -361,7 +361,7 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 @software{physical_superintelligence_2026_gpd,
   author = {Hernandez-Cuenca, Sergio},
   title = {Get Physics Done (GPD)},
-  version = {0.1.0},
+  version = {0.1.5},
   year = {2026},
   url = {https://github.com/physicalsuperintelligence/get-physics-done},
   license = {Apache-2.0}
@@ -369,7 +369,7 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 ```
 
 ```text
-Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.0) [Computer software]. https://github.com/physicalsuperintelligence/get-physics-done
+Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.5) [Computer software]. https://github.com/physicalsuperintelligence/get-physics-done
 ```
 
 ## License
