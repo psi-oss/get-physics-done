@@ -100,6 +100,39 @@ Claude Code and Gemini CLI use `/gpd:...`, Codex installs `$gpd-...` skills, and
 Gemini-specific note:
 - GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
 
+## Tier Setup
+
+GPD uses abstract capability tiers instead of hard-coding model names:
+
+- `tier-1`: highest capability
+- `tier-2`: balanced default
+- `tier-3`: fastest/most economical
+
+Per-project tier settings live in `.gpd/config.json`. First choose a profile, which decides which agents get `tier-1`, `tier-2`, or `tier-3`:
+
+- Claude Code / Gemini CLI: `/gpd:set-profile review`
+- Codex: `$gpd-set-profile review`
+- OpenCode: `/gpd-set-profile review`
+
+Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and `paper-writing`. If you prefer a prompt instead of a direct command, use the matching `settings` command for your runtime.
+
+If you want to pin concrete model IDs for a runtime, add `model_overrides` to `.gpd/config.json`:
+
+```json
+{
+  "model_profile": "review",
+  "model_overrides": {
+    "codex": {
+      "tier-1": "your-tier-1-model",
+      "tier-2": "your-tier-2-model",
+      "tier-3": "your-tier-3-model"
+    }
+  }
+}
+```
+
+Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no override is set for the active runtime, GPD uses that runtime's default model.
+
 ## What GPD Does
 
 GPD guides research in four stages:

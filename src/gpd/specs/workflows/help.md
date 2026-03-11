@@ -830,21 +830,31 @@ Show this command reference.
 
 ## Workflow Modes
 
-Set during `/gpd:new-project`:
+Set during `/gpd:new-project` or changed later with `/gpd:settings`:
 
-**Interactive Mode**
+**Supervised**
 
-- Confirms each major decision
-- Pauses at checkpoints for approval
-- More guidance throughout
+- Confirms each major step
+- Uses the most checkpoints
+- Best for high-stakes work or learning the workflow
 
-**YOLO Mode**
+**Guided (Recommended)**
 
-- Auto-approves most decisions
-- Executes plans without confirmation
-- Only stops for critical checkpoints (e.g., sign convention choices)
+- Handles routine work automatically
+- Pauses on physics decisions, ambiguities, or blockers
+- Best default for most projects
 
-Change anytime by editing `.gpd/config.json`
+**Autonomous**
+
+- Runs most of the workflow end-to-end
+- You mainly review at phase boundaries
+- Fewer pauses than guided mode
+
+**YOLO**
+
+- Fastest and least interactive
+- Auto-approves checkpoints and keeps going unless a hard stop fires
+- Best when you want maximum speed and minimal interruptions
 
 ## Planning Configuration
 
