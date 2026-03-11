@@ -190,6 +190,8 @@ class TestProtectRuntimeAgentPrompt:
             "description: test\n"
             "---\n"
             "Use ${PHASE_ARG} for planning.\n"
+            "Also inspect $ARGUMENTS and store cache metadata in $CACHE.\n"
+            'Use `file_read("$artifact_path")` to inspect the artifact.\n'
             "\n"
             "```bash\n"
             'echo "$phase_dir" "${PHASE_ARG}" "$file"\n'
@@ -197,21 +199,30 @@ class TestProtectRuntimeAgentPrompt:
             "echo $phase_number\n"
             "```\n"
             "\n"
-            "Physics prose keeps $T$ untouched outside shell examples.\n"
+            "Physics prose keeps $T$ and $T_N = 0.17(1)$ untouched outside shell examples.\n"
+            'Inline math examples like `$sin(x)$` stay intact.\n'
         )
 
         for runtime in ("gemini", "opencode"):
             result = protect_runtime_agent_prompt(content, runtime)
             assert "${PHASE_ARG}" not in result
+            assert "$ARGUMENTS" not in result
+            assert "$CACHE" not in result
             assert "$phase_dir" not in result
             assert "$file" not in result
             assert "$phase_number" not in result
+            assert "$artifact_path" not in result
             assert "<PHASE_ARG>" in result
+            assert "<ARGUMENTS>" in result
+            assert "<CACHE>" in result
             assert "<phase_dir>" in result
             assert "<file>" in result
             assert "<phase_number>" in result
+            assert "<artifact_path>" in result
             assert "$gpd-help" in result
-            assert "Physics prose keeps $T$ untouched" in result
+            assert "Physics prose keeps $T$ and $T_N = 0.17(1)$ untouched" in result
+            assert "$T_N = 0.17(1)$" in result
+            assert "`$sin(x)$`" in result
 
     def test_noop_for_runtimes_without_dollar_template_collision(self) -> None:
         content = (
@@ -219,7 +230,7 @@ class TestProtectRuntimeAgentPrompt:
             "name: gpd:test\n"
             "description: test\n"
             "---\n"
-            "Use ${PHASE_ARG}.\n"
+            "Use ${PHASE_ARG} and $ARGUMENTS.\n"
             "```bash\n"
             'echo "$phase_dir"\n'
             "```\n"

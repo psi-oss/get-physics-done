@@ -462,10 +462,12 @@ class TestInstall:
     ) -> None:
         (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
             "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
-            "Use ${PHASE_ARG} in prose.\n"
+            "Use ${PHASE_ARG} and $ARGUMENTS in prose.\n"
+            'Inspect with `file_read("$artifact_path")`.\n'
             "```bash\n"
             'echo "$phase_dir" "$file"\n'
-            "```\n",
+            "```\n"
+            "Math stays $T$.\n",
             encoding="utf-8",
         )
         target = tmp_path / ".gemini"
@@ -474,11 +476,16 @@ class TestInstall:
 
         checker = (target / "agents" / "gpd-shell-vars.md").read_text(encoding="utf-8")
         assert "${PHASE_ARG}" not in checker
+        assert "$ARGUMENTS" not in checker
         assert "$phase_dir" not in checker
         assert "$file" not in checker
+        assert "$artifact_path" not in checker
         assert "<PHASE_ARG>" in checker
+        assert "<ARGUMENTS>" in checker
         assert "<phase_dir>" in checker
         assert "<file>" in checker
+        assert "<artifact_path>" in checker
+        assert "Math stays $T$." in checker
 
     def test_install_does_not_call_finalize_internally(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

@@ -372,10 +372,12 @@ class TestInstall:
     ) -> None:
         (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
             "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
-            "Use ${PHASE_ARG} in prose.\n"
+            "Use ${PHASE_ARG} and $ARGUMENTS in prose.\n"
+            'Inspect with `file_read("$artifact_path")`.\n'
             "```bash\n"
             'echo "$phase_dir" "$file"\n'
-            "```\n",
+            "```\n"
+            "Math stays $T$.\n",
             encoding="utf-8",
         )
         target = tmp_path / "target" / ".claude"
@@ -383,8 +385,10 @@ class TestInstall:
         adapter.install(gpd_root, target)
 
         checker = (target / "agents" / "gpd-shell-vars.md").read_text(encoding="utf-8")
-        assert "Use ${PHASE_ARG} in prose." in checker
+        assert "Use ${PHASE_ARG} and $ARGUMENTS in prose." in checker
+        assert "$artifact_path" in checker
         assert 'echo "$phase_dir" "$file"' in checker
+        assert "Math stays $T$." in checker
 
 
 class TestUninstall:

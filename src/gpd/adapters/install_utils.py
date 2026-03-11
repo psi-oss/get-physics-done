@@ -132,9 +132,31 @@ def replace_placeholders(
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
-_BRACED_PROMPT_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-_PLAIN_SHELL_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
-_SHELL_FENCE_LANGS = frozenset({"bash", "sh", "shell"})
+_BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_PLAIN_SHELL_VAR_RE = re.compile(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
+_INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9_])")
+_COMMON_INLINE_MATH_NAMES = frozenset(
+    {
+        "sin",
+        "cos",
+        "tan",
+        "cot",
+        "sec",
+        "csc",
+        "sinh",
+        "cosh",
+        "tanh",
+        "exp",
+        "log",
+        "ln",
+        "det",
+        "tr",
+        "min",
+        "max",
+        "sup",
+        "inf",
+    }
+)
 
 
 def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
@@ -143,14 +165,15 @@ def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
     Some runtimes interpret ``$name``/``${NAME}`` inside agent bodies as prompt
     template inputs. GPD agent prompts use those forms as instructional shell
     examples, so convert them to neutral placeholders only for runtimes whose
-    agent prompt engines reserve ``$``.
+    agent prompt engines reserve ``$``. Commands intentionally keep runtime
+    placeholders such as ``$ARGUMENTS`` and should not call this helper.
     """
     if not get_runtime_descriptor(runtime).agent_prompt_uses_dollar_templates:
         return content
 
     frontmatter, body = _split_frontmatter(content)
     body = _BRACED_PROMPT_VAR_RE.sub(_shell_var_placeholder, body)
-    body = _protect_shell_code_fences(body)
+    body = "".join(_protect_shell_vars(line) for line in body.splitlines(keepends=True))
     return frontmatter + body
 
 
@@ -170,51 +193,37 @@ def _shell_var_placeholder(match: re.Match[str]) -> str:
     return f"<{match.group(1)}>"
 
 
-def _protect_shell_code_fences(body: str) -> str:
-    """Replace shell-style variable references inside fenced shell examples."""
-    lines = body.splitlines(keepends=True)
-    if not lines:
-        return body
-
-    result: list[str] = []
-    fence_lines: list[str] = []
-    in_fence = False
-    is_shell_fence = False
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("```"):
-            if in_fence:
-                if is_shell_fence:
-                    result.append(_protect_shell_vars("".join(fence_lines)))
-                else:
-                    result.extend(fence_lines)
-                fence_lines = []
-                in_fence = False
-                is_shell_fence = False
-            else:
-                in_fence = True
-                is_shell_fence = stripped[3:].strip().lower() in _SHELL_FENCE_LANGS
-            result.append(line)
-            continue
-
-        if in_fence:
-            fence_lines.append(line)
-            continue
-
-        result.append(line)
-
-    if fence_lines:
-        if is_shell_fence:
-            result.append(_protect_shell_vars("".join(fence_lines)))
-        else:
-            result.extend(fence_lines)
-
-    return "".join(result)
-
-
 def _protect_shell_vars(content: str) -> str:
-    return _PLAIN_SHELL_VAR_RE.sub(_shell_var_placeholder, content)
+    math_spans = [match.span() for match in _INLINE_MATH_RE.finditer(content)]
+
+    def _replace(match: re.Match[str]) -> str:
+        if any(start <= match.start() < end for start, end in math_spans):
+            return match.group(0)
+
+        name = match.group(1)
+        if not _looks_like_shell_placeholder(name):
+            return match.group(0)
+        return _shell_var_placeholder(match)
+
+    return _PLAIN_SHELL_VAR_RE.sub(_replace, content)
+
+
+def _looks_like_shell_placeholder(name: str) -> bool:
+    if name in _COMMON_INLINE_MATH_NAMES:
+        return False
+
+    if "_" in name:
+        alpha_segments = [re.sub(r"\d", "", segment) for segment in name.split("_") if segment]
+        if alpha_segments and all(len(segment) <= 1 for segment in alpha_segments):
+            return False
+        return True
+
+    alpha_only = re.sub(r"\d", "", name)
+    if name.isupper():
+        return len(alpha_only) > 1
+    if name.islower():
+        return len(alpha_only) > 1
+    return False
 
 
 def get_opencode_global_dir() -> str:
