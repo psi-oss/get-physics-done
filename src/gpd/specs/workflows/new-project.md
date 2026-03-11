@@ -333,7 +333,7 @@ None yet.
 
 ```json
 {
-  "autonomy": "yolo",
+  "autonomy": "guided",
   "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
@@ -722,16 +722,16 @@ CHECKPOINT
 Use ask_user:
 
 - header: "Workflow Setup"
-- question: "How would you like to configure the project? Recommended defaults use YOLO autonomy for the fastest, lowest-interaction setup."
+- question: "How would you like to configure the project? Recommended defaults use Guided autonomy, the standard default with routine automation and pauses on important decisions."
 - options:
-  - "Use recommended defaults (Recommended)" — YOLO autonomy (fastest, fewest confirmations), balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
+  - "Use recommended defaults (Recommended)" — Guided autonomy (standard default), balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
   - "Customize settings" — Choose autonomy, research mode, agents, and model profile individually
 
 **If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
 
 ```json
 {
-  "autonomy": "yolo",
+  "autonomy": "guided",
   "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
@@ -747,7 +747,7 @@ Use ask_user:
 Display confirmation:
 
 ```
-Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile
+Config: Guided autonomy | Balanced research mode | Parallel | All agents | Review profile
 (Change anytime with /gpd:settings)
 ```
 

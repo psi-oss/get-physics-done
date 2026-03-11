@@ -517,6 +517,16 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "REFEREE-DECISION{-RN}.json" in writer_text
 
 
+def test_new_project_recommended_autonomy_matches_guided_default() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    assert workflow_text.count('"autonomy": "guided"') >= 2
+    assert "Recommended defaults use Guided autonomy" in workflow_text
+    assert "Config: Guided autonomy | Balanced research mode | Parallel | All agents | Review profile" in workflow_text
+    assert "Recommended defaults use YOLO autonomy" not in workflow_text
+    assert "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
+
+
 def _graph_scope_count(label: str) -> int:
     graph_text = GRAPH_PATH.read_text(encoding="utf-8")
     match = re.search(rf"^- `{re.escape(label)}`: `(\d+)`$", graph_text, flags=re.MULTILINE)
