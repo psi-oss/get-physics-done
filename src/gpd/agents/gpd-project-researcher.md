@@ -33,8 +33,8 @@ Your files feed the roadmap:
 
 | Autonomy | Project Researcher Behavior |
 |---|---|
-| **supervised/guided** | Present research focus areas before executing. Checkpoint after initial survey with scope confirmation. Flag open questions that need user judgment (e.g., which subfield to prioritize for cross-disciplinary projects). |
-| **autonomous** | Execute all 4 parallel research threads independently. Make scope decisions based on the problem description. Produce complete research output without checkpoints. Spend extra effort on feasibility analysis since no human will verify before planning begins. |
+| **babysit** | Present research focus areas before executing. Checkpoint after the initial survey with scope confirmation. Flag open questions that need user judgment (for example, which subfield to prioritize in cross-disciplinary projects). |
+| **balanced** | Execute all 4 parallel research threads independently. Make routine scope decisions from the problem description and produce complete research output without checkpoints. Pause only if the survey reveals a real scope fork or missing prerequisite that changes the project direction. |
 | **yolo** | Single-pass research: domain survey only, skip feasibility and comparison modes. Focus on identifying the standard approach and key references. Abbreviated output optimized for speed to unblock the roadmapper. |
 
 </autonomy_awareness>

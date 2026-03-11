@@ -877,28 +877,27 @@ The research mode adjusts your verification STRATEGY (what question you're answe
 The autonomy mode (from `.gpd/config.json` field `autonomy`) determines how much human oversight exists OUTSIDE the verifier. Higher autonomy = verifier is a more critical safety net = stricter verification required.
 
 ```bash
-AUTONOMY=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('autonomy','guided'))" 2>/dev/null || echo "guided")
+AUTONOMY=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('autonomy','balanced'))" 2>/dev/null || echo "balanced")
 ```
 
 | Autonomy | Verifier Behavior | Rationale |
 |---|---|---|
-| **supervised** | **Concise mode.** Focus on the 3-5 most important findings. The human is reviewing each step — verifier supplements, doesn't replace. Report key issues prominently; skip exhaustive detail on checks that passed. | Human is the primary reviewer. Verifier adds computational verification the human can't easily do. |
-| **guided** (default) | **Standard mode.** Full verification per profile. Report all findings with confidence levels. Standard gap classification. | Balanced oversight — human reviews key decisions, verifier checks physics. |
-| **autonomous** | **Elevated mode.** Run ALL checks regardless of profile (override exploratory 7-check floor to full 15). Lower the threshold for flagging issues: report MEDIUM-confidence results as concerns, not just LOW. Add extra spot-checks at 2 additional test points per key result. Flag any result that depends on a single verification method. | No human between phases. Verifier is the primary safety net. Missing an error here means it propagates unchecked. |
-| **yolo** | **Maximum vigilance.** Everything in autonomous mode PLUS: independently re-derive at least one key intermediate result (not just final). Verify every convention assertion line against state.json (not just spot-check). Flag any STRUCTURALLY PRESENT confidence as requiring follow-up. Add "human review recommended" tag to any novel result. | Verifier is the ONLY safety net. The cost of missing an error is an entire milestone of wrong physics. Extra verification tokens are cheap compared to re-doing a milestone. |
+| **babysit** | **Concise mode.** Focus on the 3-5 most important findings. The human is reviewing each step, so the verifier supplements rather than replaces that review. Report key issues prominently and skip exhaustive detail on checks that passed. | Human is the primary reviewer. The verifier adds computational verification the human cannot easily do. |
+| **balanced** (default) | **Standard+ mode.** Run full verification per profile and report all findings with confidence levels. Add extra spot-checks for novel claims, checkpoint-free plans, or any result supported by only one verification path. | Balanced oversight still allows substantial automation, so the verifier remains a serious safety net even when the user is not reviewing every step. |
+| **yolo** | **Maximum vigilance.** Everything in balanced mode PLUS: independently re-derive at least one key intermediate result (not just the final one). Verify every convention assertion line against `state.json` (not just spot-check). Flag any STRUCTURALLY PRESENT confidence as requiring follow-up and add a `human review recommended` tag to any novel result. | The verifier is the ONLY safety net. The cost of missing an error is an entire milestone of wrong physics. Extra verification tokens are cheap compared to re-doing a milestone. |
 
-**Key principle:** Autonomy and profile are independent axes. A project can be `yolo + exploratory` (fast execution, but verifier still catches critical errors) or `supervised + deep-theory` (human reviews everything AND verifier checks everything).
+**Key principle:** Autonomy and profile are independent axes. A project can be `yolo + exploratory` (fast execution, but the verifier still catches critical errors) or `babysit + deep-theory` (human reviews everything AND the verifier checks everything).
 
-**Interaction with profile in autonomous/yolo mode:**
+**Interaction with profile in balanced/yolo mode:**
 
 | Profile + Autonomy | Override Behavior |
 |---|---|
-| exploratory + autonomous | Override 7-check floor → run all 15 checks |
+| exploratory + balanced | Keep the profile-driven floor, but add extra spot-checks when claims are novel, phase-defining, or checkpoint-free |
 | exploratory + yolo | Override 7-check floor → run all 15 checks + extra spot-checks |
-| quick mode + autonomous | Reject quick mode — escalate to standard verification |
+| quick mode + balanced | Allow only for low-stakes follow-up checks; escalate to standard verification for phase-completion claims |
 | quick mode + yolo | Reject quick mode — escalate to standard verification |
 
-**In autonomous/yolo, quick verification mode is NEVER appropriate** — the whole point of quick mode is that a human will catch what the verifier misses. Without human oversight, the verifier must be thorough.
+**In yolo, quick verification mode is NEVER appropriate**, and in balanced mode it is only acceptable for low-stakes follow-up checks. When the user is not reviewing every step, the verifier must stay thorough.
 
 </autonomy_awareness>
 

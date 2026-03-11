@@ -26,8 +26,8 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 - `research_mode=explore`: Comprehensive research — survey all viable methods, include failed approaches from literature, 10+ papers.
 - `research_mode=exploit`: Focused research — direct methods only, 3-5 key papers, skip speculative approaches.
 - `research_mode=adaptive`: Start focused, expand if initial search reveals unexpected complexity or multiple competing methods.
-- `autonomy=supervised`: Present RESEARCH.md draft for user review before committing.
-- `autonomy=guided/autonomous/yolo`: Auto-commit RESEARCH.md.
+- `autonomy=babysit`: Present the `RESEARCH.md` draft for user review before committing.
+- `autonomy=balanced/yolo`: Auto-commit `RESEARCH.md`.
 
 @{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 

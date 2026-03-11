@@ -8,6 +8,9 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Sergio Hernandez-Cuenca" },
 ]
+maintainers = [
+    { name = "Physical Superintelligence PBC", email = "gpd@psi.inc" },
+]
 classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",

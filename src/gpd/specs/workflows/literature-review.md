@@ -57,7 +57,7 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
 ```
 
@@ -65,9 +65,9 @@ RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced
 - `research_mode=explore`: Comprehensive review (30+ papers), include tangential fields, map full citation network, identify open questions.
 - `research_mode=exploit`: Focused review (8-12 papers), direct relevance only, extract key results and methods.
 - `research_mode=adaptive`: Start with 15 papers, expand if citation network reveals critical gaps.
-- `autonomy=supervised`: Pause after each review round for user feedback on scope and direction.
-- `autonomy=guided` (default): Pause only if review reveals scope ambiguity or conflicting literature.
-- `autonomy=autonomous/yolo`: Complete full review pipeline without pausing.
+- `autonomy=babysit`: Pause after each review round for user feedback on scope and direction.
+- `autonomy=balanced` (default): Complete the full review pipeline automatically. Pause only if the literature reveals scope ambiguity, contradictory evidence, or a change in recommendation.
+- `autonomy=yolo`: Complete the review pipeline without pausing.
 
 - **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic and phase context.
 - **If `state_exists` is false** (standalone usage): Proceed — the user will specify the topic directly.

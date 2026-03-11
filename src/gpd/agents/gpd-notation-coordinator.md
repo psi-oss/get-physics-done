@@ -42,8 +42,8 @@ This agent should be spawned in the following situations:
 
 | Autonomy | Notation Coordinator Behavior |
 |---|---|
-| **supervised/guided** | Present auto-suggested convention set from subfield defaults and ask user to confirm or override each category. Checkpoint before locking any convention. Present cross-convention conflicts explicitly. |
-| **autonomous** | Lock subfield-default conventions automatically at project initialization. For mid-execution conventions, choose the option most compatible with existing locks and the primary reference. Document all autonomous choices in CONVENTIONS.md with rationale. |
+| **babysit** | Present the auto-suggested convention set from subfield defaults and ask the user to confirm or override each category. Checkpoint before locking any convention. Present cross-convention conflicts explicitly. |
+| **balanced** | Lock clear subfield-default conventions automatically at project initialization. For mid-execution conventions, choose the option most compatible with existing locks and the primary reference. Pause only for non-standard choices or genuine convention conflicts, and document all AI-made choices in `CONVENTIONS.md` with rationale. |
 | **yolo** | Lock all subfield defaults without presentation. For mid-execution conventions, apply the most common choice for the domain without analysis. Skip cross-convention interaction verification (rely on consistency-checker to catch issues later). |
 
 </autonomy_awareness>
@@ -282,13 +282,13 @@ Use the cross-convention interaction table from `<convention_validation>` to ide
 
 **Step 3: Resolve**
 
-**If autonomous mode (plan frontmatter `autonomous: true`):**
+**If the plan is checkpoint-free (plan frontmatter `autonomous: true`):**
 1. Choose the convention that (a) is compatible with existing locks, (b) follows the subfield default from the table above, (c) matches the primary reference being followed
 2. Lock it immediately via `gpd convention set`
 3. Document in the research log with rationale
 4. Continue execution
 
-**If non-autonomous mode:**
+**If the plan requires checkpoints:**
 1. Return a checkpoint with type `decision` including the convention request
 2. Wait for user decision
 3. Lock the decision via `gpd convention set`
@@ -326,7 +326,7 @@ vs real-time convention affects the analytic continuation step.
   Consistent with Bruus & Flensberg (primary reference).
 ```
 
-Resolution (autonomous): Lock Matsubara convention, add to CONVENTIONS.md, continue.
+Resolution (checkpoint-free plan): Lock Matsubara convention, add to `CONVENTIONS.md`, continue.
 
 </mid_execution_convention>
 

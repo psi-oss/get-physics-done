@@ -91,7 +91,7 @@ class TestLoadConfig:
     def test_defaults_when_no_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         config = load_config(tmp_path)
-        assert config["autonomy"] == "guided"
+        assert config["autonomy"] == "balanced"
         assert config["research_mode"] == "balanced"
         assert config["commit_docs"] is True
         assert config["parallelization"] is True

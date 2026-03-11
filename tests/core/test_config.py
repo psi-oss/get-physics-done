@@ -26,9 +26,8 @@ from gpd.core.errors import ConfigError
 
 class TestEnums:
     def test_autonomy_values(self):
-        assert AutonomyMode.SUPERVISED.value == "supervised"
-        assert AutonomyMode.GUIDED.value == "guided"
-        assert AutonomyMode.AUTONOMOUS.value == "autonomous"
+        assert AutonomyMode.BABYSIT.value == "babysit"
+        assert AutonomyMode.BALANCED.value == "balanced"
         assert AutonomyMode.YOLO.value == "yolo"
 
     def test_research_mode_values(self):
@@ -87,7 +86,7 @@ class TestGPDProjectConfigDefaults:
     def test_defaults(self):
         cfg = GPDProjectConfig()
         assert cfg.model_profile == ModelProfile.REVIEW
-        assert cfg.autonomy == AutonomyMode.GUIDED
+        assert cfg.autonomy == AutonomyMode.BALANCED
         assert cfg.research_mode == ResearchMode.BALANCED
         assert cfg.commit_docs is True
         assert cfg.parallelization is True
@@ -115,7 +114,7 @@ class TestLoadConfig:
             json.dumps(
                 {
                     "model_profile": "deep-theory",
-                    "autonomy": "autonomous",
+                    "autonomy": "yolo",
                     "research_mode": "explore",
                     "commit_docs": False,
                 }
@@ -123,7 +122,7 @@ class TestLoadConfig:
         )
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.DEEP_THEORY
-        assert cfg.autonomy == AutonomyMode.AUTONOMOUS
+        assert cfg.autonomy == AutonomyMode.YOLO
         assert cfg.research_mode == ResearchMode.EXPLORE
         assert cfg.commit_docs is False
 

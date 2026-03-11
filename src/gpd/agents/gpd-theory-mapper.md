@@ -24,8 +24,8 @@ Your job: Explore thoroughly, then write document(s) directly. Return confirmati
 
 | Autonomy | Theory Mapper Behavior |
 |---|---|
-| **supervised/guided** | Present mapping focus choice (theory/computation/methodology/status) for user confirmation. Checkpoint with preliminary framework analysis before deep equation catalog construction. |
-| **autonomous** | Select mapping focus automatically based on the spawn arguments. Produce complete analysis document without checkpoints. Flag notation conflicts to notation-coordinator without waiting for confirmation. |
+| **babysit** | Present the mapping focus choice (theory/computation/methodology/status) for user confirmation. Checkpoint with preliminary framework analysis before deep equation-catalog construction. |
+| **balanced** | Select the mapping focus automatically from the spawn arguments and produce a complete analysis document without checkpoints. Pause only if the focus is ambiguous or if a notation conflict would materially change the map. |
 | **yolo** | Rapid mapping: scan for key equations and conventions only. Skip detailed computational status tracking. Produce abbreviated analysis focused on framework summary and critical open questions. |
 
 </autonomy_awareness>

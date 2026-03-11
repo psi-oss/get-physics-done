@@ -49,7 +49,7 @@ def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_pat
     output = stderr.getvalue()
     assert "Update available: v1.2.3" in output
     assert "v1.3.0" in output
-    assert "Run: npx -y get-physics-done@latest --codex --local" in output
+    assert "Run: npx -y get-physics-done --codex --local" in output
 
 
 def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> None:
@@ -89,7 +89,7 @@ def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> 
 
     output = stderr.getvalue()
     assert "Update available: v2.0.0" in output
-    assert "Run: npx -y get-physics-done@latest --codex --local" in output
+    assert "Run: npx -y get-physics-done --codex --local" in output
 
 
 def test_notify_runtime_directory_without_install_uses_bootstrap_command(tmp_path: Path) -> None:
@@ -124,7 +124,7 @@ def test_notify_runtime_directory_without_install_uses_bootstrap_command(tmp_pat
 
     output = stderr.getvalue()
     assert "Update available: v2.0.0" in output
-    assert "Run: npx -y get-physics-done@latest" in output
+    assert "Run: npx -y get-physics-done" in output
 
 
 def test_main_accepts_workspace_mapping_with_cwd_field() -> None:

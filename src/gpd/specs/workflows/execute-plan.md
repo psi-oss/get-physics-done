@@ -111,16 +111,15 @@ gpd trace start "${phase}" "${plan}" 2>/dev/null || true
 Read autonomy mode from init JSON to control checkpoint frequency throughout execution:
 
 ```bash
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default guided)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 ```
 
 **Checkpoint behavior by mode:**
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **supervised** | After EVERY task | Always | Always stop |
-| **guided** (default) | None (auto tasks flow) | On physics choices (deviation rules 5-6, approximation selection, convention conflict) | Always stop |
-| **autonomous** | None | Only on deviation rules 5-6 and convergence failure after 3 attempts | Always stop |
+| **babysit** | After EVERY task | Always | Always stop |
+| **balanced** (default) | None (auto tasks flow) | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | None | None (attempt one alternative before escalating) | Stop only on unrecoverable errors |
 
 </step>
@@ -153,7 +152,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 
 | Checkpoints | Pattern        | Execution                                                                                              |
 | ----------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| None        | A (autonomous) | Single subagent: full plan + SUMMARY + commit                                                          |
+| None        | A (checkpoint-free) | Single subagent: full plan + SUMMARY + commit                                                     |
 | Verify-only | B (segmented)  | Segments between checkpoints. After none/human-verify -> SUBAGENT. After decision/human-action -> MAIN |
 | Decision    | C (main)       | Execute entirely in main context                                                                       |
 
@@ -161,7 +160,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 
 **If the executor agent fails to spawn or returns an error (Pattern A):** Check if any work was committed (`git log --oneline -3`). If commits with the plan's work exist, the executor may have completed but failed to report — verify output files and proceed to post-execution checks. If no work was done, offer: 1) Retry executor spawn, 2) Fall back to Pattern C (execute in main context), 3) Abort. Update agent tracking status to "failed" with error details.
 
-**Pattern B:** Execute segment-by-segment. Autonomous segments: spawn subagent for assigned tasks only (no SUMMARY/commit). Checkpoints: main context. After all segments: aggregate, create SUMMARY, commit. See segment_execution.
+**Pattern B:** Execute segment-by-segment. Checkpoint-free segments: spawn subagent for assigned tasks only (no SUMMARY/commit). Checkpoints: main context. After all segments: aggregate, create SUMMARY, commit. See segment_execution.
 
 **If a segment executor fails to spawn or returns an error (Pattern B):** Check if the segment's tasks produced any output files. If work exists, proceed to the next segment. If no work, offer: 1) Retry this segment, 2) Execute the segment's tasks in the main context, 3) Skip this segment and continue. Do not abort the entire plan for a single segment failure. Record the failure in agent tracking.
 
@@ -232,10 +231,10 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      gpd observe event task task-complete --phase "${phase}" --plan "${plan}" --data "{\"task\":\"${TASK_NUM}\",\"description\":\"${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      gpd trace log checkpoint --data "{\"description\":\"Task ${TASK_NUM} done: ${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      ```
-     **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
+     **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
-     - **supervised/guided:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
-     - **autonomous:** Skip `checkpoint:human-verify` types. Stop only for `checkpoint:decision` if it involves deviation rules 5-6 or convergence failure. All other checkpoints are logged but execution continues.
+     - **babysit:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
+     - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, and any checkpoint tied to deviation rules 5-6 or unresolved convergence failure. Log routine checkpoint markers and continue when no judgment is needed.
      - **yolo:** Skip ALL checkpoint types. Log checkpoint events to trace but never stop. Only hard stops: unrecoverable computation error, context pressure RED, or explicit STOP in plan.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
@@ -263,9 +262,8 @@ After completing each task, check context usage. Checkpoint frequency varies by 
 
 | Mode | Context checkpoint at 60% | Context checkpoint at 75% | Verification failure |
 |------|--------------------------|--------------------------|---------------------|
-| **supervised** | Yes + present to user | Yes + force pause + user approval | Always stop, present details |
-| **guided** | Yes (write silently) | Yes + proactive pause | Always stop, present details |
-| **autonomous** | Yes (write silently) | Yes + proactive pause (no user prompt, auto-resume if possible) | Stop only on deviation rules 5-6 |
+| **babysit** | Yes + present to user | Yes + force pause + user approval | Always stop, present details |
+| **balanced** | Yes (write silently) | Yes + proactive pause | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | Write checkpoint file only | Auto-pause only at context RED (>85%) | Stop only on unrecoverable error |
 
 1. Write auto-checkpoint to phase directory:
@@ -284,8 +282,8 @@ CHECKPOINT
    - Commit all current work
    - Create `.continue-here.md` with full derivation state
    - Update STATE.md session info
-   - **supervised/guided:** Suggest `/clear` + `/gpd:resume-work`
-   - **autonomous/yolo:** Auto-trigger `/gpd:resume-work` if context allows (otherwise suggest `/clear`)
+  - **babysit/balanced:** Suggest `/clear` + `/gpd:resume-work`
+  - **yolo:** Auto-trigger `/gpd:resume-work` if context allows (otherwise suggest `/clear`)
 
 This prevents quality degradation and ensures no work is lost if the session ends unexpectedly.
 </step>
@@ -370,8 +368,8 @@ See `execute-plan-validation.md` for physics-specific verification failure handl
 
 Verification failure handling by autonomy mode:
 
-- **supervised/guided:** STOP. Present failure details. Options: Retry | Skip (mark incomplete) | Stop (investigate). If skipped -> SUMMARY "Issues Encountered".
-- **autonomous:** Attempt ONE automated fix (re-derive with corrected step, adjust numerical parameters). If fix succeeds, log and continue. If fix fails, STOP and return to orchestrator with failure details.
+- **babysit:** STOP. Present failure details. Options: Retry | Skip (mark incomplete) | Stop (investigate). If skipped -> SUMMARY "Issues Encountered".
+- **balanced:** Attempt ONE automated fix (re-derive with corrected step, adjust numerical parameters) when the remedy is local and verifiable. If the fix succeeds, log it and continue. If it fails or requires a judgment call, STOP and return to the orchestrator with failure details.
 - **yolo:** Attempt ONE alternative approach before escalating. If the alternative works, continue. If the original AND alternative both fail, STOP (this is a hard stop even in yolo mode — physics correctness is non-negotiable).
 </step>
 
@@ -494,9 +492,8 @@ Keep STATE.md under 150 lines.
 <step name="issues_review_gate">
 If SUMMARY "Issues Encountered" != "None", route by autonomy mode:
 
-- **supervised:** Present ALL issues with full details. Wait for user acknowledgment before proceeding.
-- **guided:** Present issues. Wait for acknowledgment only if any issue is physics-critical (dimensional error, limiting case failure, conservation violation). Log-only for minor issues.
-- **autonomous:** Log issues to trace. Continue automatically. Issues appear in SUMMARY.md for review at phase boundary.
+- **babysit:** Present ALL issues with full details. Wait for user acknowledgment before proceeding.
+- **balanced:** Present issues. Wait for acknowledgment only if any issue is physics-critical (dimensional error, limiting case failure, conservation violation) or changes interpretation. Log-only for minor issues.
 - **yolo:** Log and continue immediately. Issues visible only in SUMMARY.md.
 </step>
 
@@ -552,7 +549,7 @@ ls -1 "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l
 
 | Condition                                  | Route                 | Action                                                                                                                                                  |
 | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **yolo/autonomous:** auto-continue to next plan. **guided:** show next plan, suggest `/gpd:execute-phase {phase}` + `/gpd:verify-work`. **supervised:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
+| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **balanced/yolo:** auto-continue to next plan when no blockers remain. **babysit:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
 | summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `/gpd:plan-phase {Z+1}` + `/gpd:verify-work {Z}` + `/gpd:discuss-phase {Z+1}`                                                  |
 | summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `/gpd:complete-milestone` + `/gpd:verify-work` + `/gpd:add-phase`                                                                  |
 

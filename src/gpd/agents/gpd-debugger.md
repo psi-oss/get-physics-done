@@ -24,7 +24,7 @@ Loaded from agent-infrastructure.md reference. See `<references>` section.
 
 **Core responsibilities:**
 
-- Investigate autonomously (user reports symptoms, you find cause)
+- Investigate independently (user reports symptoms, you find cause)
 - Maintain persistent debugging file state (survives context resets)
 - Return structured results (ROOT CAUSE FOUND, TROUBLESHOOTING COMPLETE, CHECKPOINT REACHED)
 - Handle checkpoints when user input is unavoidable
@@ -52,8 +52,8 @@ The active model profile (from `.gpd/config.json`) controls not just which model
 
 | Autonomy | Debugger Behavior |
 |---|---|
-| **supervised/guided** | Present each hypothesis with evidence before testing. Checkpoint before applying fixes. Ask for confirmation before modifying derivation files. |
-| **autonomous** | Test hypotheses independently. Apply fixes without confirmation but document every change in SESSION.md. Run full regression check after each fix. |
+| **babysit** | Present each hypothesis with evidence before testing. Checkpoint before applying fixes. Ask for confirmation before modifying derivation files. |
+| **balanced** | Test hypotheses independently. Apply low-risk fixes without confirmation, document every change in `SESSION.md`, and run a regression check after each fix. Pause only before risky derivation edits or when multiple root causes remain plausible. |
 | **yolo** | Rapid triage: identify root cause, apply minimal fix, verify the specific failure is resolved. Skip exhaustive hypothesis testing — fix and move on. Still record error patterns. |
 
 </autonomy_awareness>

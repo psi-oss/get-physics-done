@@ -1,7 +1,7 @@
 <purpose>
 Orchestrate parallel investigation agents to diagnose research problems and find root causes.
 
-After verification finds issues, spawn one investigation agent per issue. Each agent investigates autonomously with symptoms pre-filled from verification. Collect root causes, update VERIFICATION.md gaps with diagnosis, then hand off to plan-phase --gaps with actual diagnoses.
+After verification finds issues, spawn one investigation agent per issue. Each agent investigates independently with symptoms pre-filled from verification. Collect root causes, update `VERIFICATION.md` gaps with diagnosis, then hand off to `plan-phase --gaps` with actual diagnoses.
 
 Research problems include: calculation errors, numerical instabilities, theoretical inconsistencies, missing physics, wrong approximations, sign errors, convergence failures, unphysical results.
 
@@ -120,7 +120,7 @@ Spawning parallel investigation agents to find root causes:
 
 Each agent will:
 1. Create DEBUG-{slug}.md with symptoms pre-filled
-2. Investigate autonomously (read code/derivations, form hypotheses, test)
+2. Investigate independently (read code/derivations, form hypotheses, test)
 3. Return root cause
 
 This runs in parallel - all issues investigated simultaneously.
@@ -133,13 +133,12 @@ This runs in parallel - all issues investigated simultaneously.
 
 ```bash
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each debugger agent returns findings. Present diagnosis to user before proceeding to fix.
-- `autonomy=guided` (default): Pause only if debugger identifies multiple possible root causes requiring user judgment.
-- `autonomy=autonomous`: Spawn all debugger agents, collect findings, apply fixes, report at end.
+- `autonomy=babysit`: Pause after each debugger agent returns findings. Present the diagnosis to the user before proceeding to a fix.
+- `autonomy=balanced` (default): Spawn the debugger agents, collect findings, and apply routine fixes automatically. Pause only if there are multiple plausible root causes or the fix changes assumptions or scope.
 - `autonomy=yolo`: Spawn debuggers, apply first plausible fix immediately without detailed diagnosis.
 
 **Spawn investigation agents in parallel:**

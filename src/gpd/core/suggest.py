@@ -107,7 +107,7 @@ class SuggestContext:
     has_paper: bool = False
     has_literature_review: bool = False
     has_referee_report: bool = False
-    autonomy: str = "guided"
+    autonomy: str = "balanced"
     research_mode: str = "balanced"
 
 
@@ -325,7 +325,7 @@ def _apply_mode_adjustments(
 ) -> None:
     """Adjust priorities based on research_mode and autonomy settings."""
     research_mode = config.get("research_mode", "balanced")
-    autonomy = config.get("autonomy", "guided")
+    autonomy = config.get("autonomy", "balanced")
 
     for s in suggestions:
         # Research mode adjustments
@@ -350,9 +350,9 @@ def _apply_mode_adjustments(
                     s.priority = max(1, s.priority - 1)
 
         # Autonomy adjustments
-        if autonomy == "supervised" and s.action in ("execute-phase", "continue-calculations"):
+        if autonomy == "babysit" and s.action in ("execute-phase", "continue-calculations"):
             s.priority += 1
-        if autonomy in ("autonomous", "yolo") and s.action == "execute-phase":
+        if autonomy == "yolo" and s.action == "execute-phase":
             s.priority = max(1, s.priority - 1)
 
 
@@ -701,7 +701,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── Mode-aware priority adjustments ─────────────────────────────────
-    autonomy_val = str(config.get("autonomy", "guided"))
+    autonomy_val = str(config.get("autonomy", "balanced"))
     research_mode_val = str(config.get("research_mode", "balanced"))
     ctx_kwargs["autonomy"] = autonomy_val
     ctx_kwargs["research_mode"] = research_mode_val

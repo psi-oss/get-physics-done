@@ -30,9 +30,9 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `validation_content`. These are null if files don't exist.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Present plan draft for user review before writing to disk.
-- `autonomy=guided` (default): Write plan, pause only if plan-checker raises issues.
-- `autonomy=autonomous/yolo`: Write plan and proceed without pausing.
+- `autonomy=babysit`: Present the plan draft for user review before writing it to disk.
+- `autonomy=balanced` (default): Write the plan and pause only if the plan-checker raises issues or the planning choices need user judgment.
+- `autonomy=yolo`: Write the plan and proceed without pausing.
 - `research_mode=explore`: Always run research step even if research exists. Expand wave count for thorough coverage.
 - `research_mode=exploit`: Skip research if any prior research exists. Produce minimal wave structure.
 - `research_mode=adaptive`: Run research only if phase complexity score > 3 (heuristic from plan-checker).
@@ -42,7 +42,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 ```bash
 PHASE="${phase_number}"
 PHASE_DIR="${phase_dir}"
-AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default guided)
+AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
 

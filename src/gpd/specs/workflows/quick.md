@@ -45,9 +45,9 @@ fi
 Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `next_num`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after plan for user approval before execution.
-- `autonomy=guided` (default): Execute without pausing (quick tasks are inherently lightweight).
-- `autonomy=autonomous/yolo`: Execute and commit without pausing.
+- `autonomy=babysit`: Pause after the plan for user approval before execution.
+- `autonomy=balanced` (default): Execute without pausing unless the quick task reveals a real decision point.
+- `autonomy=yolo`: Execute and commit without pausing.
 
 **If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `/gpd:new-project` first.
 

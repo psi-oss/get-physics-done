@@ -25,9 +25,8 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation after requirements gathering and before roadmap generation.
-- `autonomy=guided` (default): Pause only if milestone scope is ambiguous or requirements conflict with prior work.
-- `autonomy=autonomous`: Execute full pipeline — gather requirements, run research, generate roadmap — without pausing.
+- `autonomy=babysit`: Pause for user confirmation after requirements gathering and before roadmap generation.
+- `autonomy=balanced` (default): Execute the full pipeline automatically and pause only if milestone scope is ambiguous or requirements conflict with prior work.
 - `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap.
 - `research_mode=explore`: Broader research survey for new milestone, consider alternative approaches, include speculative phases.
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.

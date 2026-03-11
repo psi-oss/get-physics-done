@@ -8,7 +8,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 "planning": {
   "commit_docs": true
 },
-"autonomy": "guided",
+"autonomy": "balanced",
 "research_mode": "balanced",
 "parallelization": true,
 "model_profile": "review",
@@ -35,7 +35,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | Option                          | Default                      | Description                                                                                    |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
-| `autonomy`                      | `"guided"`                   | Human-in-the-loop level: `"supervised"`, `"guided"`, `"autonomous"`, `"yolo"`                  |
+| `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"babysit"`, `"balanced"`, `"yolo"`                                    |
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
 | `parallelization`               | `true`                       | Execute plans within a wave in parallel (`true`) or sequentially (`false`)                     |
 | `model_profile`                 | `"review"`                   | Research profile: `"deep-theory"`, `"numerical"`, `"exploratory"`, `"review"`, `"paper-writing"` |

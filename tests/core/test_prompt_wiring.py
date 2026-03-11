@@ -517,12 +517,12 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "REFEREE-DECISION{-RN}.json" in writer_text
 
 
-def test_new_project_recommended_autonomy_matches_guided_default() -> None:
+def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert workflow_text.count('"autonomy": "guided"') >= 2
-    assert "Recommended defaults use Guided autonomy" in workflow_text
-    assert "Config: Guided autonomy | Balanced research mode | Parallel | All agents | Review profile" in workflow_text
+    assert workflow_text.count('"autonomy": "balanced"') >= 2
+    assert "Recommended defaults use Balanced autonomy" in workflow_text
+    assert "Config: Balanced autonomy | Balanced research mode | Parallel | All agents | Review profile" in workflow_text
     assert "Recommended defaults use YOLO autonomy" not in workflow_text
     assert "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
 

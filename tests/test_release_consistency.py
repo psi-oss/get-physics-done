@@ -138,10 +138,24 @@ def test_public_docs_acknowledge_psi_and_gsd_inspiration() -> None:
     repo_root = _repo_root()
 
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    assert "Physical Superintelligence" in readme
+    assert "Physical Superintelligence PBC" in readme
     assert "GSD" in readme
     assert "get-shit-done-cc" in readme
-    assert "[Physical Superintelligence](https://github.com/physicalsuperintelligence)" in readme
+    assert "[Physical Superintelligence PBC](https://www.psi.inc)" in readme
+
+
+def test_public_metadata_records_psi_affiliation() -> None:
+    repo_root = _repo_root()
+
+    citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert 'affiliation: "Physical Superintelligence PBC"' in citation
+    assert "Physical Superintelligence PBC (PSI)" in contributing
+    assert pyproject["project"]["maintainers"] == [
+        {"name": "Physical Superintelligence PBC", "email": "gpd@psi.inc"}
+    ]
 
 
 def test_public_release_surfaces_share_copilot_positioning() -> None:
@@ -198,17 +212,27 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "GitHub sources" in content
 
 
-def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None:
+def test_public_bootstrap_installer_documents_public_flags_and_runtime_aliases() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
+    assert "npx -y get-physics-done" in readme
     assert "`--claude`" in readme
+    assert "`--claude-code`" in readme
     assert "`--gemini`" in readme
+    assert "`--gemini-cli`" in readme
     assert "`--codex`" in readme
     assert "`--opencode`" in readme
     assert "`--all`" in readme
-    assert "npx -y get-physics-done@latest --all --global" in readme
+    assert "`--global`" in readme
+    assert "`--local`" in readme
+    assert "`-g`" in readme
+    assert "`-l`" in readme
+    assert "`--target-dir <path>`" in readme
+    assert "`--force-statusline`" in readme
+    assert "`--help`" in readme
+    assert "`-h`" in readme
     assert 'require("../src/gpd/adapters/runtime_catalog.json")' in content
     assert "runtimeInstallFlag(dollarCommandRuntime)" in content
     assert "runtimeConfigDirName(dollarCommandRuntime)" in content
@@ -225,8 +249,8 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
 
     assert "`--reinstall`" in readme
     assert "`--upgrade`" in readme
-    assert "npx -y get-physics-done@latest --reinstall --claude --local" in readme
-    assert "npx -y get-physics-done@latest --upgrade --claude --local" in readme
+    assert "~/.gpd/venv" in readme
+    assert "latest GitHub `main` source" in readme
     assert "--reinstall" in content
     assert "--upgrade" in content
     assert "Reinstall the matching GitHub source in ~/.gpd/venv" in content
@@ -239,9 +263,11 @@ def test_public_bootstrap_installer_documents_uninstall_path() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert "## Uninstall" in readme
-    assert "npx -y get-physics-done@latest --uninstall" in readme
-    assert "npx -y get-physics-done@latest --uninstall --claude --global" in readme
-    assert "npx -y get-physics-done@latest --uninstall --all --global" in readme
+    assert "Run `npx -y get-physics-done --uninstall`" in readme
+    assert "`--uninstall`" in readme
+    assert "non-interactive uninstall" in readme
+    assert "`--global`" in readme
+    assert "`--local`" in readme
     assert "~/.gpd/venv/bin/gpd uninstall" not in readme
     assert "--uninstall" in content
     assert "Uninstall from selected runtime config" in content
@@ -282,7 +308,7 @@ def test_public_cli_surface_is_unified() -> None:
 
 def test_install_docs_use_only_public_npx_flow() -> None:
     repo_root = _repo_root()
-    npx_command = "npx -y get-physics-done@latest"
+    npx_command = "npx -y get-physics-done"
     disallowed_markers = (
         "uv tool install",
         "python3 -m pip install",
@@ -404,7 +430,7 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
 
     repo_root = _repo_root()
-    expected = "npx -y get-physics-done@latest"
+    expected = "npx -y get-physics-done"
     stale_markers = (
         "packages/gpd",
         "uv pip install -e",
@@ -431,7 +457,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "uv run pytest tests/test_release_consistency.py -v" in content
     assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
     assert "Cross-runtime release checks:" in content
-    assert "Public install docs should use `npx -y get-physics-done@latest`." in content
+    assert "Public install docs should use `npx -y get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
     assert "direct pushes are blocked" in content
     assert "required `tests` workflow" in content

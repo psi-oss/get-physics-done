@@ -38,9 +38,8 @@ __all__ = [
 class AutonomyMode(StrEnum):
     """How much human oversight the system requires."""
 
-    SUPERVISED = "supervised"
-    GUIDED = "guided"
-    AUTONOMOUS = "autonomous"
+    BABYSIT = "babysit"
+    BALANCED = "balanced"
     YOLO = "yolo"
 
 
@@ -301,7 +300,7 @@ class GPDProjectConfig(BaseModel):
     """
 
     model_profile: ModelProfile = ModelProfile.REVIEW
-    autonomy: AutonomyMode = AutonomyMode.GUIDED
+    autonomy: AutonomyMode = AutonomyMode.BALANCED
     research_mode: ResearchMode = ResearchMode.BALANCED
 
     # Workflow toggles

@@ -66,15 +66,16 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Load mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 RESEARCH_MODE=$(gpd config get research_mode --raw 2>/dev/null || echo "balanced")
 ```
 
 Mode effects on the write-paper pipeline:
 - **Explore mode**: Paper structured as a comparison/survey; broader literature review; more figures; comprehensive related-work section
 - **Exploit mode**: Paper structured as a focused result; streamlined introduction; minimal related-work; optimized for tight prose
-- **Supervised autonomy**: Checkpoints after outline, after each section draft, before referee review
-- **Autonomous/YOLO**: Auto-generate outline from research digest, draft all sections, run referee, present final result
+- **Babysit autonomy**: Checkpoints after the outline, after each section draft, and before referee review.
+- **Balanced autonomy**: Auto-generate the outline from the research digest, draft all sections, and pause only for claim-level decisions, major structural changes, or referee conflicts.
+- **YOLO autonomy**: Draft all sections, run referee, and present the final result with only hard-stop interruptions.
 
 For detailed mode adaptation specifications (bibliographer search breadth, referee strictness, paper-writer style by mode), see `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`.
 

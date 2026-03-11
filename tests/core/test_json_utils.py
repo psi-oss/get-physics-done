@@ -27,9 +27,9 @@ runner = CliRunner()
 
 
 def test_json_get_simple_key():
-    data = json.dumps({"section": "Phase 1 overview", "autonomy": "guided"})
+    data = json.dumps({"section": "Phase 1 overview", "autonomy": "balanced"})
     assert json_get(data, ".section") == "Phase 1 overview"
-    assert json_get(data, ".autonomy") == "guided"
+    assert json_get(data, ".autonomy") == "balanced"
 
 
 def test_json_get_missing_key_with_default():

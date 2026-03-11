@@ -1178,7 +1178,7 @@ The bibliographer adapts its search depth, verification strictness, and output c
 
 ```bash
 # Read mode settings from config
-AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config-get autonomy --raw 2>/dev/null || echo "balanced")
 RESEARCH_MODE=$(gpd config-get research_mode --raw 2>/dev/null || echo "balanced")
 ```
 

@@ -29,9 +29,9 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `
 - `research_mode=explore`: Broad parameter ranges, fine grid resolution, include secondary parameters. Spawn experiment-designer agent to validate sweep design.
 - `research_mode=exploit`: Tight ranges around known values, coarse grid, primary parameters only.
 - `research_mode=adaptive`: Start with coarse grid, refine adaptively around interesting regions.
-- `autonomy=supervised`: Pause after sweep design for user approval before execution.
-- `autonomy=guided` (default): Pause only if sweep design exceeds context budget or has > 100 grid points.
-- `autonomy=autonomous/yolo`: Execute sweep without pausing.
+- `autonomy=babysit`: Pause after the sweep design for user approval before execution.
+- `autonomy=balanced` (default): Execute the sweep automatically and pause only if the design exceeds context budget, has more than 100 grid points, or changes scope materially.
+- `autonomy=yolo`: Execute the sweep without pausing.
 
 Read STATE.md for project conventions, unit system, and active approximations.
 

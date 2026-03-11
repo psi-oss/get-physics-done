@@ -89,14 +89,13 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → checkpoint:human-verify → wait. Never proceed without approval. |
-| **guided** (default) | Standard research. User sets direction, AI executes. | AI makes routine decisions (numerical parameters, code structure, plot formatting). Checkpoints on physics choices (approximation selection, convention changes, scope decisions). | Execute until physics decision or task block → checkpoint. Routine execution flows without interruption. |
-| **autonomous** | Experienced user, well-defined research program, known methodology | AI makes all decisions including approximation selection and convention establishment. User reviews at phase boundaries only. Circuit breakers still active. | Execute full plan without checkpoints unless circuit breaker fires (verification failure, deviation rule 5-6, convergence failure after 3 attempts). |
+| **babysit** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
+| **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy. AI makes all decisions including scope changes within the phase. Only hard stops on verification failures. | Execute all plans in phase without pausing. Only stop on: unrecoverable error, context pressure RED, or explicit STOP in plan. |
 
 ### Executor Behavior by Autonomy Mode
 
-**supervised:**
+**babysit:**
 - After each task completion, create a `checkpoint:human-verify` return with full research state
 - Present all intermediate results for inspection before proceeding
 - When encountering any ambiguity (which limit to check first, which gauge to use, which sign convention for a new expression): checkpoint:decision
@@ -104,36 +103,30 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 - Approximation validity concerns: always checkpoint:decision
 - Scope: strictly follow the plan — any deviation triggers checkpoint
 
-**guided (default):**
+**balanced (default):**
 - Execute auto tasks without pausing
 - Checkpoint on physics choices that affect downstream results:
   - Approximation scheme selection or change → checkpoint:decision
   - Convention conflict between sources → checkpoint:decision
   - Result contradicts expectations (deviation rule 5) → checkpoint
   - Scope change needed (deviation rule 6) → checkpoint
-- Routine decisions made autonomously:
+- Routine decisions made automatically:
   - Numerical parameters (grid size, tolerance, iteration count)
   - Code organization and file structure
   - Plot formatting and figure layout
   - Order of independent subtasks within a task
   - Choice of textbook identity (when multiple equivalent forms exist)
-- Document autonomous decisions in research log
-
-**autonomous:**
-- Execute full plan without checkpoints
-- Make physics decisions using best judgment:
-  - Select approximation schemes based on research context and literature
-  - Establish conventions following subfield defaults
-  - Adjust scope within plan boundaries (can add verification tasks, not new physics)
-- Circuit breakers (hard stops that override autonomous mode):
+- If the standard approximation or convention is clear, choose it and document the rationale
+- Attempt one bounded recovery for local verification or convergence issues before escalating
+- Circuit breakers (hard stops that override balanced mode):
   - Deviation rule 5 or 6 (physics redirect or scope change) → return to orchestrator
-  - Verification failure after correction attempt → return to orchestrator
+  - Verification failure after a bounded correction attempt → return to orchestrator
   - 3× convergence failure (escalation protocol) → return to orchestrator
   - Convention conflict with prior phases → return to orchestrator
-- Document all autonomous decisions with rationale in SUMMARY.md
+- Document AI-made decisions with rationale in the research log or `SUMMARY.md`
 
 **yolo:**
-- Execute like autonomous but with relaxed circuit breakers:
+- Execute like balanced mode but with relaxed circuit breakers:
   - Deviation rule 5: attempt one alternative approach before escalating
   - Deviation rule 6: proceed with researcher's discretion if effort estimate < 2x original
   - Convention conflict: adopt the convention that matches the majority of prior phases
@@ -144,10 +137,10 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 
 ```bash
 # During load_project_state, extract from init JSON:
-AUTONOMY=$(echo "$INIT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('autonomy','guided'))")
+AUTONOMY=$(echo "$INIT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('autonomy','balanced'))")
 ```
 
-If not set in config.json, default to `guided`.
+If not set in config.json, default to `balanced`.
 
 ### Research Mode Effects on Execution
 
@@ -531,7 +524,7 @@ Observability and trace logging are best-effort (the `|| true` ensures failures 
 grep -n "type=\"checkpoint" [plan-path]
 ```
 
-**Pattern A: Fully autonomous (no checkpoints)** --- Execute all tasks, create SUMMARY, checkpoint.
+**Pattern A: Checkpoint-free (no checkpoints)** --- Execute all tasks, create SUMMARY, checkpoint.
 
 **Pattern B: Has checkpoints** --- Execute until checkpoint, STOP, return structured message. You will NOT be resumed.
 

@@ -1,5 +1,5 @@
 <overview>
-Research plans execute autonomously. Checkpoints formalize interaction points where human verification, physical judgment, or decisions are needed.
+Research plans execute automatically when no checkpoint is required. Checkpoints formalize interaction points where human verification, physical judgment, or decisions are needed.
 
 **Core principle:** The assistant automates all computation, derivation, and analysis. Checkpoints are for verification of physical reasoning and decisions about research direction, not manual calculation.
 

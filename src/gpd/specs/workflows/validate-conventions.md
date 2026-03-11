@@ -24,13 +24,12 @@ Extract: `state_exists`, `roadmap_exists`, `phases`, `current_phase`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Present each convention conflict for user resolution before applying fixes.
-- `autonomy=guided` (default): Auto-fix trivial conflicts (e.g., missing locks). Pause for ambiguous conflicts requiring physics judgment.
-- `autonomy=autonomous`: Auto-fix all resolvable conflicts, report unresolvable ones at end.
+- `autonomy=babysit`: Present each convention conflict for user resolution before applying fixes.
+- `autonomy=balanced` (default): Auto-fix trivial conflicts and clear lock-consistency issues. Pause for ambiguous conflicts requiring physics judgment.
 - `autonomy=yolo`: Auto-fix all conflicts using most recent convention as authoritative.
 
 Run centralized context preflight before continuing:

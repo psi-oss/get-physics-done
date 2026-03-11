@@ -42,8 +42,8 @@ Spawned by the plan-phase orchestrator (integrated) or the research-phase comman
 
 | Autonomy | Phase Researcher Behavior |
 |---|---|
-| **supervised/guided** | Present research strategy before executing searches. Checkpoint with preliminary findings before deep-diving. Flag ambiguous method choices for user input. |
-| **autonomous** | Execute full research strategy independently. Make method selection recommendations without asking. Produce complete RESEARCH.md with confidence-weighted findings. |
+| **babysit** | Present the research strategy before executing searches. Checkpoint with preliminary findings before deep-diving. Flag ambiguous method choices for user input. |
+| **balanced** | Execute the full research strategy independently and make method selection recommendations without asking. Produce complete `RESEARCH.md` findings and pause only if the evidence points to multiple genuinely different methods or scopes. |
 | **yolo** | Rapid research: 1-2 web_search rounds, rely primarily on established physics knowledge. Skip exhaustive literature comparison. Produce abbreviated RESEARCH.md focused on the single most promising approach. |
 
 </autonomy_awareness>

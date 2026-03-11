@@ -9,6 +9,7 @@ abstract: "An open-source AI copilot for physics research that structures, execu
 authors:
   - family-names: "Hernandez-Cuenca"
     given-names: "Sergio"
+    affiliation: "Physical Superintelligence PBC"
 repository-code: "https://github.com/physicalsuperintelligence/get-physics-done"
 url: "https://github.com/physicalsuperintelligence/get-physics-done"
 keywords:

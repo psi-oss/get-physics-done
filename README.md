@@ -4,15 +4,12 @@
 
 [![CI](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/physicalsuperintelligence/get-physics-done/actions/workflows/test.yml)
 
-Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence](https://github.com/physicalsuperintelligence) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
+Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence PBC](https://www.psi.inc) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 This README is the primary public guide for installing and using GPD. Contributor notes live in [`CONTRIBUTING.md`](https://github.com/physicalsuperintelligence/get-physics-done/blob/main/CONTRIBUTING.md).
 
 We welcome contributions and feedback via GitHub issues or pull requests; if GPD is useful in your work, please star the repo, share it with colleagues who might benefit, and reach us at [gpd@psi.inc](mailto:gpd@psi.inc).
 
-## Inspiration
-
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption and companion packages such as `get-shit-done-cc` helped show that AI-native command workflows can be genuinely useful in practice. GPD takes inspiration from that workflow success while focusing the system specifically on physics research.
 
 ## Install
 
@@ -25,8 +22,28 @@ Bootstrap prerequisites:
 Install GPD with `npx`:
 
 ```bash
-npx -y get-physics-done@latest
+npx -y get-physics-done
 ```
+
+Pass flags to skip prompts or change the action:
+
+| Flag | Meaning |
+|------|---------|
+| `--claude`, `--gemini`, `--codex`, `--opencode` | Select one runtime. `--claude-code` and `--gemini-cli` also work. |
+| `--all` | Select all supported runtimes. |
+| `--global`, `-g` | Use the global runtime config dir. |
+| `--local`, `-l` | Use the current project only. |
+| `--uninstall` | Uninstall from the selected runtime config instead of installing. |
+| `--reinstall` | Reinstall the matching tagged GitHub source into `~/.gpd/venv`. |
+| `--upgrade` | Upgrade `~/.gpd/venv` from the latest GitHub `main` source. |
+| `--target-dir <path>` | Override the runtime config directory; implies local scope. |
+| `--force-statusline` | Replace an existing runtime statusline during install. |
+| `--help`, `-h` | Show bootstrap help. |
+
+Notes:
+- Omit runtime and scope flags to use the interactive installer.
+- For non-interactive uninstall, pass a runtime flag or `--all`, plus `--global` or `--local`.
+- `--reinstall`, `--upgrade`, and `--force-statusline` are install-only.
 
 Or install directly from GitHub:
 
@@ -34,52 +51,11 @@ Or install directly from GitHub:
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
 
-The `-y` skips npm's package-install confirmation prompt. That command checks for Python 3.11+, creates or reuses a managed environment under `~/.gpd/venv`, installs the companion `get-physics-done` Python package from GitHub sources targeted by the current bootstrap package, and then runs the runtime installer.
-
-If you want to skip the prompts, pass the runtime selection and scope directly:
-
-```bash
-npx -y get-physics-done@latest --claude --global
-```
-
-To install every supported runtime in one pass:
-
-```bash
-npx -y get-physics-done@latest --all --global
-```
-
-For a project-local install instead of a global one:
-
-```bash
-npx -y get-physics-done@latest --codex --local
-```
-
-To refresh an existing managed environment, you can either reinstall the matching tagged GitHub source or upgrade directly from the latest GitHub `main` source:
-
-```bash
-npx -y get-physics-done@latest --reinstall --claude --local
-npx -y get-physics-done@latest --upgrade --claude --local
-```
-
-`--reinstall` force-reinstalls the matching tagged GitHub source into `~/.gpd/venv`. `--upgrade` force-reinstalls from the latest GitHub `main` branch, which is useful when you want the newest GitHub changes before the next tagged release.
-
 ## Uninstall
 
-Use the same `npx` bootstrap entrypoint to remove GPD:
+Run `npx -y get-physics-done --uninstall` for interactive uninstall, or add the runtime and scope flags above for a non-interactive uninstall.
 
-```bash
-npx -y get-physics-done@latest --uninstall
-```
-
-That opens the uninstall flow, lets you choose the runtime and scope, and asks for a final confirmation before removing anything. You can also preselect the runtime and scope directly:
-
-```bash
-npx -y get-physics-done@latest --uninstall --claude --global
-npx -y get-physics-done@latest --uninstall --codex --local
-npx -y get-physics-done@latest --uninstall --all --global
-```
-
-This removes GPD from the selected runtime config. It does not delete your project's `.gpd/` research artifacts or the shared files under `~/.gpd`. If you want a full wipe after uninstalling from all runtimes, remove `~/.gpd/` manually, or use `GPD_HOME` if you installed GPD there.
+Uninstall removes GPD from the selected runtime config only. It does not delete project `.gpd/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
 
 ## Supported Runtimes
 
@@ -126,8 +102,8 @@ When you do set explicit model overrides, the model string is runtime-native. GP
 
 - **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
 - **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
-- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro` or `gemini-2.5-flash`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
-- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-5`, `openai/gpt-5`, or `google/gemini-2.5-pro`.
+- **Gemini CLI**: an exact Gemini model name such as `gemini-3.1-pro` or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
 
 Manual config is still available as an advanced fallback. Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
 
@@ -146,8 +122,8 @@ Manual config is still available as an advanced fallback. Per-project tier setti
       "tier-3": "haiku"
     },
     "gemini": {
-      "tier-1": "gemini-2.5-pro",
-      "tier-2": "gemini-2.5-flash",
+      "tier-1": "gemini-3.1-pro",
+      "tier-2": "gemini-3.1-flash-lite",
       "tier-3": "gemini-2.5-flash"
     }
   }
@@ -431,6 +407,10 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 ```text
 Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.5) [Computer software]. https://github.com/physicalsuperintelligence/get-physics-done
 ```
+
+## Inspiration
+
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically desigened for physics research.
 
 ## License
 

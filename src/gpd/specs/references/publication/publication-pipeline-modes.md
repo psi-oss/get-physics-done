@@ -28,12 +28,12 @@ How the bibliographer, referee, and paper-writer agents adapt their behavior bas
 
 ```json
 {
-  "autonomy": "guided",
+  "autonomy": "balanced",
   "research_mode": "balanced"
 }
 ```
 
-Set via: `gpd config-set autonomy guided` and `gpd config-set research_mode balanced`.
+Set via: `gpd config-set autonomy balanced` and `gpd config-set research_mode balanced`.
 
 Read via: `gpd init` includes both fields in the init JSON output.
 
@@ -56,11 +56,11 @@ The bibliographer's search breadth, verification depth, and citation completenes
 
 ### By Autonomy Mode
 
-| Behavior | Supervised | Guided | Autonomous | YOLO |
-|---|---|---|---|---|
-| **Citation addition** | Propose additions, wait for user approval before modifying .bib | Add verified citations automatically, checkpoint on uncertain matches | Fully automatic: add, verify, format without checkpoints | Fully automatic, skip verification of well-known references |
-| **Conflicting sources** | Present both sources and ask user which to cite | Present conflict and recommend based on citation count + recency | Auto-resolve: cite the more cited/recent source, note the conflict in comments | Auto-resolve without noting |
-| **Bibliography restructuring** | Never restructure without explicit request | Suggest restructuring when .bib exceeds 100 entries | Auto-restructure: group by topic, remove duplicates, standardize keys | Auto-restructure aggressively |
+| Behavior | Babysit | Balanced | YOLO |
+|---|---|---|---|
+| **Citation addition** | Propose additions and wait for approval before modifying `.bib`. | Add verified citations automatically. Pause only for uncertain matches, borderline relevance, or citation-scope changes. | Fully automatic; skip verification of canonical references when confidence is already high. |
+| **Conflicting sources** | Present both sources and ask the user which to cite. | Recommend based on citation count, recency, and venue fit. Auto-resolve routine metadata conflicts; pause on substantive source disagreements. | Auto-resolve without pausing unless the conflict changes the paper's claim. |
+| **Bibliography restructuring** | Never restructure without explicit request. | Auto-clean duplicates and normalize keys when the change is mechanical. Suggest larger restructures before applying them. | Auto-restructure aggressively for speed and consistency. |
 
 ---
 
@@ -88,11 +88,11 @@ In manuscript review:
 
 ### By Autonomy Mode
 
-| Behavior | Supervised | Guided | Autonomous | YOLO |
-|---|---|---|---|---|
-| **Report delivery** | Full report with line-by-line comments. Present to user for discussion before any action. | Summary report with prioritized issues. User reviews before executor acts on feedback. | Report goes directly to paper-writer for revision. User sees revised version. | Report triggers automatic revision cycle. User sees final product only. |
-| **Revision authority** | Referee identifies issues; user decides which to address. | Referee identifies issues; AI addresses critical/major automatically, presents minor for user decision. | Referee identifies issues; AI addresses all, including scope adjustments within bounds. | Referee + AI iterate until all issues resolved or circuit breaker triggers. |
-| **Dispute resolution** | User arbitrates any disagreement between referee assessment and research results. | AI attempts resolution for technical issues; escalates physics judgment calls to user. | AI resolves all disputes using verification evidence. Escalates only genuine contradictions. | No escalation — AI makes final call on all disputes. |
+| Behavior | Babysit | Balanced | YOLO |
+|---|---|---|---|
+| **Report delivery** | Full report with line-by-line comments. Present to the user for discussion before any action. | Summary report with prioritized issues. AI can draft follow-up fixes immediately, but the user still sees the report before claim-level changes land. | Report triggers an automatic revision cycle. User sees the final product unless a hard stop fires. |
+| **Revision authority** | Referee identifies issues; user decides which to address. | Referee identifies issues; AI addresses technical and presentation fixes automatically, but pauses on claim narrowing, scope shifts, or new calculations that change the paper's story. | Referee + AI iterate until all issues are resolved or a circuit breaker triggers. |
+| **Dispute resolution** | User arbitrates any disagreement between referee assessment and research results. | AI resolves routine technical disputes using verification evidence and escalates genuine physics judgment calls. | No routine escalation. AI makes the final call unless a hard contradiction or safety gate appears. |
 
 ---
 
@@ -112,11 +112,11 @@ The paper-writer's style, detail level, and structural choices change with resea
 
 ### By Autonomy Mode
 
-| Behavior | Supervised | Guided | Autonomous | YOLO |
-|---|---|---|---|---|
-| **Section drafting** | Draft one section at a time. Present to user for review before next section. | Draft a full first draft. Present for review. Iterate on feedback. | Draft, self-review (via referee agent), revise, present polished draft. | Complete paper autonomously. Present only when ready for submission. |
-| **Notation decisions** | Ask user for notation preferences before writing. | Use project conventions. Flag any notation choices not covered by convention lock. | Make notation choices following conventions. Resolve ambiguities by consistency with the most-cited reference. | Make all notation choices. |
-| **Abstract writing** | Draft abstract, present for user editing. Abstract is the most user-visible text. | Draft abstract and suggest 2-3 alternatives with different emphasis. | Write abstract optimized for search visibility and citation. | Write and finalize abstract. |
+| Behavior | Babysit | Balanced | YOLO |
+|---|---|---|---|
+| **Section drafting** | Draft one section at a time. Present each section for review before moving on. | Draft a full manuscript pass, self-review it, and present a polished draft. Pause only if the narrative or claims need user judgment. | Complete the paper end-to-end and present it only when it is ready for submission review. |
+| **Notation decisions** | Ask the user for notation preferences before writing. | Use project conventions and resolve routine ambiguities by internal consistency or the dominant reference. Pause only when a notation choice changes interpretation. | Make all notation choices without pausing. |
+| **Abstract writing** | Draft the abstract and present it for user editing. | Draft the abstract and suggest a few emphasis variants when the framing is ambiguous. | Write and finalize the abstract automatically. |
 
 ---
 
@@ -126,12 +126,10 @@ When autonomy and research modes combine, the publication pipeline exhibits emer
 
 | Combination | Pipeline Behavior |
 |---|---|
-| **Supervised + Explore** | Maximum user involvement in a discovery-oriented project. User guides literature search, approves every citation, discusses referee feedback interactively. Best for: student mentoring, unfamiliar territory. |
-| **Supervised + Exploit** | User closely controls a focused calculation. Every result checked by user before paper. Best for: high-stakes publications, experimental theory comparisons. |
-| **Guided + Balanced** | **DEFAULT.** Standard research workflow. AI handles routine tasks, user makes physics decisions. Best for: most research projects. |
-| **Guided + Explore** | AI-assisted exploration with user oversight on direction. Good for: new research directions, literature surveys, methodology comparisons. |
-| **Autonomous + Exploit** | Maximum efficiency for well-defined calculations. AI drives the full pipeline from derivation to paper draft. User reviews at milestone boundaries. Best for: production calculations (lattice QCD, DFT parameter sweeps). |
-| **Autonomous + Explore** | AI-driven research exploration. Multiple hypothesis branches pursued in parallel. Risk of scope creep — circuit breakers essential. Best for: preliminary studies, parameter space scans. |
+| **Babysit + Explore** | Maximum user involvement in a discovery-oriented project. User guides literature search, approves every citation, and discusses referee feedback interactively. Best for: student mentoring, unfamiliar territory. |
+| **Babysit + Exploit** | User closely controls a focused calculation. Every important result is checked by the user before paper writing proceeds. Best for: high-stakes publications, experiment-theory comparisons. |
+| **Balanced + Balanced** | **DEFAULT.** Standard research workflow. AI handles routine tasks, drafts the paper, and pauses only on major physics or claim decisions. Best for: most research projects. |
+| **Balanced + Explore** | AI-assisted exploration with user oversight on direction changes and novelty claims. Good for: new research directions, literature surveys, methodology comparisons. |
 | **YOLO + Exploit** | Fastest possible execution. Full automation from calculation to submission-ready paper. Circuit breakers on verification failures only. Best for: well-tested calculations with established methodology. |
 | **YOLO + Explore** | **DANGER ZONE.** Maximum autonomy in uncharted territory. High risk of pursuing dead ends without user correction. Recommended only for low-stakes exploratory work. |
 
@@ -146,10 +144,10 @@ Regardless of autonomy mode, these conditions ALWAYS trigger a hard stop and use
 | Verification check 5.1 (dimensional analysis) fails | Hard stop. Derivation has fundamental error. | All modes |
 | Variational bound violated (E_trial < E_exact) | Hard stop. Calculation is wrong. | All modes |
 | Convention lock mismatch detected | Hard stop. Convention drift will corrupt all downstream results. | All modes |
-| Hallucinated citation detected (title/authors don't match any database) | Hard stop in supervised/guided. Auto-remove in autonomous/YOLO. | All modes (severity varies) |
+| Hallucinated citation detected (title/authors don't match any database) | Hard stop in babysit. Auto-remove with warning in balanced/yolo. | All modes (severity varies) |
 | Referee report: "reject" recommendation | Hard stop in all modes. Major issues must be addressed before proceeding. | All modes |
 | 3 consecutive verification failures on same result | Hard stop. Systematic problem requiring human judgment. | All modes |
-| Cost budget exceeded (>2x estimated) | Pause and notify in supervised/guided. Continue with warning in autonomous/YOLO. | All modes |
+| Cost budget exceeded (>2x estimated) | Pause and notify in babysit/balanced. Continue with warning in yolo. | All modes |
 
 ---
 
@@ -168,7 +166,7 @@ See references/publication/publication-pipeline-modes.md for mode specifications
 **For the orchestrator:** Mode transitions (explore → exploit) should be triggered by the `suggest-next` command or by the planner when a viable approach is validated. The orchestrator should:
 1. Read current mode from config
 2. Check if transition conditions are met (approach validated, convergence achieved, etc.)
-3. Propose transition to user (guided mode) or execute it (autonomous mode)
+3. Propose the transition to the user in babysit mode, apply it automatically in yolo mode, and in balanced mode apply it automatically only when it is a routine optimization rather than a scope change
 4. Update config via `config-set research_mode exploit`
 
 ---

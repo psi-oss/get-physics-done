@@ -333,7 +333,7 @@ None yet.
 
 ```json
 {
-  "autonomy": "guided",
+  "autonomy": "balanced",
   "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
@@ -426,9 +426,8 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_theory_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_theory_map`, `has_git`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation after each major step (questioning, research, roadmap). Show summaries and wait for approval before proceeding.
-- `autonomy=guided` (default): Pause only if research results are ambiguous or roadmap has gaps. Auto-proceed through clear steps.
-- `autonomy=autonomous`: Execute full pipeline without pausing. Present final PROJECT.md + ROADMAP.md at end.
+- `autonomy=babysit`: Pause for user confirmation after each major step (questioning, research, roadmap). Show summaries and wait for approval before proceeding.
+- `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment.
 - `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
@@ -722,16 +721,16 @@ CHECKPOINT
 Use ask_user:
 
 - header: "Workflow Setup"
-- question: "How would you like to configure the project? Recommended defaults use Guided autonomy, the standard default with routine automation and pauses on important decisions."
+- question: "How would you like to configure the project? Recommended defaults use Balanced autonomy, the standard default with routine automation and pauses on important decisions."
 - options:
-  - "Use recommended defaults (Recommended)" — Guided autonomy (standard default), balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
+  - "Use recommended defaults (Recommended)" — Balanced autonomy (standard default), balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
   - "Customize settings" — Choose autonomy, research mode, agents, and model profile individually
 
 **If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
 
 ```json
 {
-  "autonomy": "guided",
+  "autonomy": "balanced",
   "research_mode": "balanced",
   "parallelization": true,
   "commit_docs": true,
@@ -747,7 +746,7 @@ Use ask_user:
 Display confirmation:
 
 ```
-Config: Guided autonomy | Balanced research mode | Parallel | All agents | Review profile
+Config: Balanced autonomy | Balanced research mode | Parallel | All agents | Review profile
 (Change anytime with /gpd:settings)
 ```
 
@@ -766,10 +765,9 @@ questions: [
     question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "Guided (Recommended)", description: "Routine work is automatic; pause on physics decisions, ambiguities, or blockers" },
+      { label: "Balanced (Recommended)", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
       { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints and keep going unless a hard stop fires" },
-      { label: "Autonomous", description: "Run end-to-end with minimal pauses; you mainly review at phase boundaries" },
-      { label: "Supervised", description: "Confirm each major step before proceeding" }
+      { label: "Babysit", description: "Confirm each major step before proceeding" }
     ]
   },
   {
@@ -864,7 +862,7 @@ Create `.gpd/config.json` with all settings:
 
 ```json
 {
-  "autonomy": "supervised|guided|autonomous|yolo",
+  "autonomy": "babysit|balanced|yolo",
   "research_mode": "explore|balanced|exploit|adaptive",
   "parallelization": true|false,
   "commit_docs": true|false,

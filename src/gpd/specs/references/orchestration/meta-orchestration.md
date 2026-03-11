@@ -85,9 +85,8 @@ writing:
 | `research_mode: explore` | Add phase-researcher and theory-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verifier uses 7-check floor (feasibility, not perfection). |
 | `research_mode: exploit` | Skip phase-researcher for well-known methods. Bibliographer uses narrow search (5-10 refs). Planner creates single focused plan. Verifier uses full 15-check with strict thresholds. |
 | `research_mode: adaptive` | Start with explore selection for phases 1-3, auto-switch to exploit after first verification pass with >= 3 INDEPENDENTLY CONFIRMED results. |
-| `autonomy: supervised` | All agents produce detailed explanations. Orchestrator pauses for user review at every phase boundary. |
-| `autonomy: guided` | Standard depth. Orchestrator pauses at major decision points (approach selection, method choice). |
-| `autonomy: autonomous` | Agents self-validate more thoroughly. No pauses between phases. Explicit assumption documentation at each step. |
+| `autonomy: babysit` | All agents produce detailed explanations. Orchestrator pauses for user review at every major phase transition and key decision. |
+| `autonomy: balanced` | Standard depth. Orchestrator auto-runs routine work and pauses at major decision points, ambiguities, or blocker states. |
 | `autonomy: yolo` | Maximum speed. Skip optional agents (theory-mapper, experiment-designer). Reduce verification to 7-check floor. Still maintain physics correctness. |
 
 ---

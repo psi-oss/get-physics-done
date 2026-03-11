@@ -3,12 +3,12 @@
  * GPD bootstrap installer — installs or uninstalls Get Physics Done.
  *
  * Usage:
- *   npx -y get-physics-done@latest
- *   npx -y get-physics-done@latest --<runtime-flag> --global
- *   npx -y get-physics-done@latest --<runtime-flag> --local
- *   npx -y get-physics-done@latest --all --global
- *   npx -y get-physics-done@latest --uninstall
- *   npx -y get-physics-done@latest --uninstall --<runtime-flag> --global
+ *   npx -y get-physics-done
+ *   npx -y get-physics-done --<runtime-flag> --global
+ *   npx -y get-physics-done --<runtime-flag> --local
+ *   npx -y get-physics-done --all --global
+ *   npx -y get-physics-done --uninstall
+ *   npx -y get-physics-done --uninstall --<runtime-flag> --global
  */
 
 const fs = require("fs");
@@ -810,7 +810,7 @@ function printBanner() {
 }
 
 function printHelp() {
-  const installCommand = "npx -y get-physics-done@latest";
+  const installCommand = "npx -y get-physics-done";
   const primaryRuntime = ALL_RUNTIMES[0];
   const dollarCommandRuntime = findRuntime((runtime) => runtime.command_prefix.startsWith("$"), primaryRuntime);
   const primaryFlag = runtimeInstallFlag(primaryRuntime);

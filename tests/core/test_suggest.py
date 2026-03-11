@@ -399,11 +399,11 @@ def test_exploit_mode_boosts_execution(tmp_path: Path) -> None:
     assert execute.priority <= 3  # boosted from 3 → 2
 
 
-def test_supervised_mode_penalizes_execution(tmp_path: Path) -> None:
-    """Supervised autonomy mode should increase execution priority (penalize)."""
+def test_babysit_mode_penalizes_execution(tmp_path: Path) -> None:
+    """Babysit autonomy mode should increase execution priority (penalize)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "babysit"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -411,11 +411,11 @@ def test_supervised_mode_penalizes_execution(tmp_path: Path) -> None:
     assert execute.priority >= 4  # penalized from 3 → 4
 
 
-def test_autonomous_mode_boosts_execution(tmp_path: Path) -> None:
-    """Autonomous mode should lower execution priority (boost)."""
+def test_yolo_mode_boosts_execution(tmp_path: Path) -> None:
+    """YOLO mode should lower execution priority (boost)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "autonomous"}))
+    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "yolo"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -456,7 +456,7 @@ def test_suggest_context_defaults() -> None:
     assert ctx.current_phase is None
     assert ctx.progress_percent == 0.0
     assert ctx.phase_count == 0
-    assert ctx.autonomy == "guided"
+    assert ctx.autonomy == "balanced"
     assert ctx.research_mode == "balanced"
 
 

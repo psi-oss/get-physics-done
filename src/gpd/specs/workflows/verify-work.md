@@ -56,9 +56,8 @@ fi
 Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each verification round for user review. Present findings and wait for confirmation before writing VERIFICATION.md.
-- `autonomy=guided` (default): Pause only if verification reveals critical issues requiring user judgment.
-- `autonomy=autonomous`: Run full verification pipeline. Present final VERIFICATION.md at end.
+- `autonomy=babysit`: Pause after each verification round for user review. Present findings and wait for confirmation before writing `VERIFICATION.md`.
+- `autonomy=balanced` (default): Run the full verification pipeline. Pause only if verification reveals critical issues that require user judgment or claim-level decisions.
 - `autonomy=yolo`: Run verification but skip optional cross-checks and literature comparison.
 - `research_mode=explore`: Thorough verification — run all check types, compare against literature, verify intermediate steps. More spawned verifier agents.
 - `research_mode=exploit`: Focused verification — run priority checks only, verify final results. Minimal agent spawning.

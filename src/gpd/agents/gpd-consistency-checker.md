@@ -45,13 +45,13 @@ The active model profile (from `.gpd/config.json`) controls how many cross-phase
 
 ## Autonomy-Aware Consistency Checking
 
-In autonomous/yolo mode, no human reviews between phases — convention drift and value mismatches across phases go undetected until the consistency checker runs. Higher autonomy = more thorough cross-phase checking.
+In balanced/yolo mode, more work is allowed to run without immediate human review, so convention drift and value mismatches across phases can go undetected until the consistency checker runs. Higher autonomy still means more thorough cross-phase checking.
 
 | Autonomy | Consistency Checker Behavior |
 |---|---|
-| **supervised/guided** | Standard: check convention drift, provides/consumes chains, sign/factor spot-checks at phase boundaries. |
-| **autonomous** | Elevated: additionally verify numerical values match exactly across phase boundaries (not just that symbols are defined). Re-evaluate key expressions from prior phases with current conventions to catch silent drift. |
-| **yolo** | Maximum: everything in autonomous PLUS check approximation validity propagation (if Phase N establishes validity for g<0.3, verify Phase N+k doesn't use g=0.5). Flag any consumed value that wasn't independently verified by the verifier. |
+| **babysit** | Standard: check convention drift, provides/consumes chains, and sign/factor spot-checks at phase boundaries. |
+| **balanced** | Elevated: also verify numerical values match across phase boundaries and re-evaluate key expressions from prior phases with current conventions to catch silent drift. |
+| **yolo** | Maximum: everything in balanced mode PLUS check approximation-validity propagation (if Phase N establishes validity for `g < 0.3`, verify Phase N+k doesn't use `g = 0.5`). Flag any consumed value that was not independently verified by the verifier. |
 
 </autonomy_awareness>
 

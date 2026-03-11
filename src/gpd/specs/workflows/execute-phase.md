@@ -33,9 +33,8 @@ Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `
 When `parallelization` is false, plans within a wave execute sequentially.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause for user confirmation before each wave. Show plan summary and wait for approval.
-- `autonomy=guided` (default): Pause only at wave boundaries if errors or ambiguities arise.
-- `autonomy=autonomous`: Execute all waves without pausing. Report results at end.
+- `autonomy=babysit`: Pause for user confirmation before each wave. Show the plan summary and wait for approval.
+- `autonomy=balanced` (default): Execute waves automatically and pause only if errors, ambiguities, or scope-changing decisions arise at a wave boundary.
 - `autonomy=yolo`: Execute all waves, skip optional verification steps, commit immediately.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
 - `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget.

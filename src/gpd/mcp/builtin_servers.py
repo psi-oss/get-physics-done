@@ -64,7 +64,7 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
     },
 }
 
-_PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD first: npx -y get-physics-done@latest"
+_PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD first: npx -y get-physics-done"
 _ENTRY_POINT_NOTES = "Requires gpd package installed"
 
 _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {

@@ -20,7 +20,7 @@
   ],
   "registry_prefix": "gpd_conventions",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done@latest"
+    "Install GPD first: npx -y get-physics-done"
   ],
   "health_check": {
     "tool": "subfield_defaults",

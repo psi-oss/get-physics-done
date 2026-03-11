@@ -30,7 +30,7 @@ cat .gpd/config.json
 
 Parse current values (default to `true` / first option if not present):
 
-- `autonomy` -- human-in-the-loop level: `"supervised"`, `"guided"` (default), `"autonomous"`, `"yolo"`
+- `autonomy` -- human-in-the-loop level: `"babysit"`, `"balanced"` (default), `"yolo"`
 - `research_mode` -- research strategy: `"explore"`, `"balanced"` (default), `"exploit"`, `"adaptive"`
 - `model_overrides` -- optional runtime-scoped concrete model mapping for `tier-1`, `tier-2`, `tier-3`
 - `workflow.research` -- spawn researcher during plan-phase
@@ -66,13 +66,12 @@ Use ask_user with current values pre-selected:
 ```
 ask_user([
   {
-    question: "How much autonomy should the AI have? Supervised pauses constantly, Guided pauses on physics decisions, Autonomous mostly waits until phase boundaries, and YOLO only stops on hard failures.",
+    question: "How much autonomy should the AI have? Babysit pauses constantly, Balanced handles routine work but still pauses on important physics or scope decisions, and YOLO only stops on hard failures.",
     header: "Autonomy",
     multiSelect: false,
     options: [
-      { label: "Supervised", description: "Checkpoint after every task. You approve each step." },
-      { label: "Guided (Recommended)", description: "AI handles routine work and pauses on physics decisions, ambiguities, or blockers." },
-      { label: "Autonomous", description: "AI runs the workflow end-to-end; you mainly review at phase boundaries." },
+      { label: "Babysit", description: "Checkpoint after every important step. You approve each physics-bearing move." },
+      { label: "Balanced (Recommended)", description: "AI handles routine work and pauses on important physics decisions, ambiguities, blockers, or scope changes." },
       { label: "YOLO", description: "Fastest mode. AI auto-approves checkpoints and only stops on hard failures." }
     ]
   },
@@ -270,7 +269,7 @@ Merge new settings into existing config.json:
 ```json
 {
   ...existing_config,
-  "autonomy": "supervised" | "guided" | "autonomous" | "yolo",
+  "autonomy": "babysit" | "balanced" | "yolo",
   "research_mode": "explore" | "balanced" | "exploit" | "adaptive",
   "model_profile": "deep-theory" | "numerical" | "exploratory" | "review" | "paper-writing",
   "parallelization": true/false,

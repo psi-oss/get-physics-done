@@ -75,58 +75,49 @@ The active model profile (from `.gpd/config.json`) controls planning thoroughnes
 
 ## Autonomy-Aware Planning
 
-The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"guided"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
+The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced"`) controls how much human involvement the planner builds into plans. This is ORTHOGONAL to the model profile — profile controls physics depth, autonomy controls decision authority.
 
 ### Mode Effects on Planning
 
-**Supervised mode** (`autonomy: "supervised"`):
+**Babysit mode** (`autonomy: "babysit"`):
 
 - **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
-- **Conventions:** Every convention choice is a `checkpoint:decision`. No autonomous convention selection.
+- **Conventions:** Every convention choice is a `checkpoint:decision`. No automatic convention selection.
 - **Approximations:** Present 2-3 options with tradeoffs for every approximation, let user choose.
 - **Task autonomy:** Set `autonomous: false` on all plans.
 - **Use when:** First-time user, critical calculation for a paper, unfamiliar physics domain.
 
-**Guided mode** (`autonomy: "guided"`) — DEFAULT:
+**Balanced mode** (`autonomy: "balanced"`) — DEFAULT:
 
-- **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks are autonomous.
+- **Checkpoints:** Insert checkpoints at phase boundaries and key physics decisions (approximation scheme, gauge choice, renormalization scheme). Routine tasks stay checkpoint-free.
 - **Scope:** Follow CONTEXT.md locked decisions. Use your discretion for standard choices.
 - **Conventions:** Follow subfield defaults from notation-coordinator. Checkpoint only for non-standard choices.
-- **Approximations:** Select the standard approximation for the regime. Checkpoint if the choice is non-obvious or the regime is borderline.
-- **Task autonomy:** `autonomous: true` for standard tasks, `false` for plans with physics decision points.
-- **Use when:** Standard research workflow, experienced user who wants oversight on key decisions.
-
-**Autonomous mode** (`autonomy: "autonomous"`):
-
-- **Checkpoints:** Only at milestone boundaries (`/gpd:audit-milestone`). Within a phase, the system executes without stopping.
-- **Scope:** Follow CONTEXT.md but make reasonable scope adjustments (add a limiting case check, extend a parameter range) without asking. Document decisions in SUMMARY.md.
-- **Conventions:** Select conventions autonomously following subfield defaults. Lock without asking.
-- **Approximations:** Select the best approximation for the regime. If validity is borderline, add a validity check task instead of asking.
-- **Task autonomy:** `autonomous: true` on all plans. Circuit breaker still active (Rule 5/6 deviations still escalate).
-- **Use when:** Well-defined research program, experienced user who trusts the system, multi-phase projects where stopping between phases is inefficient.
+- **Approximations:** Select the standard approximation for the regime. If validity is borderline, add a validity check task or checkpoint depending on how much the choice could change downstream results.
+- **Task autonomy:** Set `autonomous: true` for standard tasks and `false` for plans with physics decision points or structural uncertainty.
+- **Use when:** Standard research workflow where the user wants meaningful oversight but not constant interruption.
 
 **YOLO mode** (`autonomy: "yolo"`):
 
 - **Checkpoints:** NONE within milestones. Only hard stops: verification failure with confidence UNRELIABLE, circuit breaker (3+ Rule 3 escalations), or context RED.
 - **Scope:** Make all decisions including scope changes. Add phases if needed. Modify roadmap within the current milestone's objectives.
-- **Conventions:** Autonomous. Change conventions mid-project if physics demands it (with documented conversion).
+- **Conventions:** Automatic. Change conventions mid-project if physics demands it (with documented conversion).
 - **Approximations:** Select and switch approximations freely. If perturbation theory diverges, switch to non-perturbative without asking.
-- **Task autonomy:** Everything autonomous. No checkpoints except hard failures.
+- **Task autonomy:** Everything checkpoint-free. No checkpoints except hard failures.
 - **Use when:** Quick exploratory calculations, experienced researcher who will review the final result, time-critical work.
 - **WARNING:** YOLO mode with an incorrect starting assumption can waste an entire milestone before anyone notices. The circuit breaker is the only safety net.
 
 ### Planning Decision Matrix
 
-| Decision | Supervised | Guided | Autonomous | YOLO |
-|----------|-----------|--------|-----------|------|
-| Convention selection | Checkpoint | Auto (standard) / Checkpoint (non-standard) | Auto | Auto |
-| Approximation choice | Checkpoint with options | Auto (standard) / Checkpoint (borderline) | Auto + validity task | Auto |
-| Scope adjustment | Never (exact CONTEXT.md) | Never (exact CONTEXT.md) | Allowed (documented) | Allowed (any) |
-| Method selection | Checkpoint with options | Auto if RESEARCH.md recommends, else checkpoint | Auto | Auto |
-| Limiting case selection | Checkpoint (which limits?) | Auto (standard limits) | Auto (comprehensive) | Auto (minimal) |
-| Gap closure approach | Checkpoint per gap | Auto for targeted fix, checkpoint for diagnostic | Auto for all types | Auto for all types |
-| Phase revision | Always checkpoint | Checkpoint for structural, auto for targeted | Auto except structural | Auto for all |
+| Decision | Babysit | Balanced | YOLO |
+|----------|----------|----------|------|
+| Convention selection | Checkpoint | Auto (standard) / Checkpoint (non-standard or conflicting) | Auto |
+| Approximation choice | Checkpoint with options | Auto (standard) / Add validity task or checkpoint if borderline | Auto |
+| Scope adjustment | Never (exact CONTEXT.md) | Limited, documented adjustments inside the current scope; checkpoint structural changes | Allowed within current milestone objectives |
+| Method selection | Checkpoint with options | Auto if `RESEARCH.md` recommends it or the literature is clear; otherwise checkpoint | Auto |
+| Limiting case selection | Checkpoint (which limits?) | Auto (standard + obviously missing safeguards) | Auto (minimal) |
+| Gap closure approach | Checkpoint per gap | Auto for targeted fixes, checkpoint for diagnostic or structural changes | Auto for all types |
+| Phase revision | Always checkpoint | Checkpoint for structural, auto for targeted | Auto for all |
 
 ### Interaction with Research Mode
 
@@ -542,7 +533,7 @@ Every task has four required fields:
 
 | Type                      | Use For                                       | Autonomy              |
 | ------------------------- | --------------------------------------------- | --------------------- |
-| `auto`                    | Everything the assistant can do independently | Fully autonomous      |
+| `auto`                    | Everything the assistant can do independently | Checkpoint-free       |
 | `checkpoint:human-verify` | Physical intuition checks, plot inspection    | Pauses for researcher |
 | `checkpoint:decision`     | Approach selection, approximation choices     | Pauses for researcher |
 | `checkpoint:human-action` | Truly unavoidable manual steps (rare)         | Pauses for researcher |
@@ -1755,7 +1746,7 @@ When verification finds problems after execution, the planner must classify the 
 **Plan structure:**
 - **Tasks:** 1 (fix + re-verify in same task)
 - **Agents:** Executor only — no planner iteration, no checker needed
-- **Wave:** Single wave, autonomous
+- **Wave:** Single wave, checkpoint-free
 - **Scope limit:** Fix ONLY the identified error. Do not "improve" surrounding code or derivations.
 - **Escalation:** None needed unless the fix cascades to >3 downstream equations
 

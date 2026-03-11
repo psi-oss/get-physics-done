@@ -34,13 +34,12 @@ Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each referee point for user review of proposed response.
-- `autonomy=guided` (default): Pause only for major revision requests requiring new calculations or significant changes.
-- `autonomy=autonomous`: Draft complete response document, present for review at end.
+- `autonomy=babysit`: Pause after each referee point for user review of the proposed response.
+- `autonomy=balanced` (default): Draft the full response and apply routine manuscript changes. Pause only for claim-level changes, new calculations, or unresolved referee disagreements.
 - `autonomy=yolo`: Draft response and apply manuscript changes without pausing.
 
 Run centralized context preflight before continuing:

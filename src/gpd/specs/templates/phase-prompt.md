@@ -127,7 +127,7 @@ Add `dimensional_check` whenever the plan produces quantitative results. Add `ap
 - Use XML `<task>` blocks inside `<tasks>`.
 - Each task should produce one verifiable result.
 - Every task must include an explicit physics verification step.
-- Use checkpoint task types when the plan is not fully autonomous.
+- Use checkpoint task types when the plan is not checkpoint-free.
 - Reference only the prior summaries or artifacts the executor genuinely needs.
 
 ---

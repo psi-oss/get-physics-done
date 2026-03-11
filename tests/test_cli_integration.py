@@ -488,7 +488,7 @@ class TestConfigCommands:
         config_path = gpd_project / ".gpd" / "config.json"
         assert config_path.exists()
         config = json.loads(config_path.read_text())
-        assert config["autonomy"] == "guided"
+        assert config["autonomy"] == "balanced"
         assert config["research_mode"] == "balanced"
         assert config["parallelization"] is True
         assert config["workflow"]["plan_checker"] is True

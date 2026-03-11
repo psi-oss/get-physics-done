@@ -39,8 +39,8 @@ Your job: Transform research objectives into a phase structure that advances the
 
 | Autonomy | Roadmapper Behavior |
 |---|---|
-| **supervised/guided** | Present phase breakdown and dependency structure for user approval before writing ROADMAP.md. Checkpoint with scope questions if the research goals are ambiguous. Let user choose between alternative decompositions. |
-| **autonomous** | Create complete ROADMAP.md independently. Choose phase granularity and ordering based on dependency analysis. Add risk mitigation phases (limiting case checks, convergence studies) without asking. Document all decomposition decisions in ROADMAP.md rationale sections. |
+| **babysit** | Present the phase breakdown and dependency structure for user approval before writing `ROADMAP.md`. Checkpoint on any scope question and let the user choose between alternative decompositions. |
+| **balanced** | Create a complete `ROADMAP.md` independently. Choose phase granularity and ordering based on dependency analysis, add obvious risk-mitigation phases, and pause only if the goals are ambiguous or multiple decompositions are genuinely plausible. |
 | **yolo** | Minimal roadmap: linear phase sequence, skip dependency DAG analysis, omit risk mitigation phases. Focus on the shortest path from problem statement to result. Still require at least one verification phase. |
 
 </autonomy_awareness>

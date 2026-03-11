@@ -25,13 +25,12 @@ Extract from init JSON: `milestone_version`, `milestone_name`, `phase_count`, `c
 **Read mode settings:**
 
 ```bash
-AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "guided")
+AUTONOMY=$(gpd config get autonomy --raw 2>/dev/null || echo "balanced")
 ```
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each audit criterion for user discussion of gaps.
-- `autonomy=guided` (default): Present full audit report, pause only if critical gaps found.
-- `autonomy=autonomous`: Complete audit, generate gap-closure plan if needed.
+- `autonomy=babysit`: Pause after each audit criterion for user discussion of gaps.
+- `autonomy=balanced` (default): Complete the full audit and generate a gap-closure plan when needed. Pause only if critical gaps or milestone-scope questions need user judgment.
 - `autonomy=yolo`: Complete audit, auto-approve milestone if > 80% criteria met.
 
 Run centralized context preflight before continuing:

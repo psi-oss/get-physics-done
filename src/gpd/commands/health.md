@@ -2,7 +2,6 @@
 name: gpd:health
 description: Run project health checks and optionally auto-fix issues
 argument-hint: "[--fix]"
-context_mode: project-required
 allowed-tools:
   - file_read
   - file_write
@@ -15,9 +14,9 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Run comprehensive project health checks (12 checks) and optionally auto-fix detected issues.
+Run comprehensive project health checks and optionally auto-fix detected issues.
 
-Checks include: environment, project structure, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, checkpoint-tag hygiene, and git status.
+Checks include: environment, project structure, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, and git status.
 
 Use `--fix` to automatically repair detected issues.
 </objective>
@@ -93,3 +92,4 @@ All {total} health checks passed.
 - [ ] Auto-fix applied if --fix flag present
 - [ ] Clear guidance on how to fix remaining issues
       </success_criteria>
+</output>

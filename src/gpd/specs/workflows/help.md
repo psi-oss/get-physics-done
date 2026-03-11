@@ -833,23 +833,17 @@ Show this command reference.
 
 Set during `/gpd:new-project` or changed later with `/gpd:settings`:
 
-**Supervised**
+**Babysit**
 
 - Confirms each major step
 - Uses the most checkpoints
 - Best for high-stakes work or learning the workflow
 
-**Guided (Recommended)**
+**Balanced (Recommended)**
 
 - Handles routine work automatically
-- Pauses on physics decisions, ambiguities, or blockers
+- Pauses on physics decisions, ambiguities, blockers, or scope changes
 - Best default for most projects
-
-**Autonomous**
-
-- Runs most of the workflow end-to-end
-- You mainly review at phase boundaries
-- Fewer pauses than guided mode
 
 **YOLO**
 

@@ -115,12 +115,11 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 
 | Autonomy | Plan Checker Behavior |
 |---|---|
-| **supervised** | **Light check.** Focus on blockers only (Dim 1, 2, 9, 10). Human will catch detail issues. Reduce 16 dimensions to 8 critical ones. |
-| **guided** (default) | **Standard check.** Full dimension check per profile. Standard severity classification. |
-| **autonomous** | **Elevated check.** All 16 dimensions regardless of profile. Flag any plan with `autonomous: true` that lacks explicit verification criteria. Verify every approximation has a validity check somewhere in the phase. Warn if any task exceeds 60-minute estimate without a mid-task checkpoint. |
-| **yolo** | **Maximum scrutiny.** Everything in autonomous mode PLUS: verify all must_haves are independently testable (not circular). Check that scope extensions are bounded. Require at least one limiting case check per plan. Flag plans that combine derivation + numerical validation (should be separate plans for independent failure). |
+| **babysit** | **Light check.** Focus on blockers only (Dim 1, 2, 9, 10). The human will catch detail issues. Reduce the 16 dimensions to 8 critical ones. |
+| **balanced** (default) | **Standard+ check.** Run the full dimension check per profile. Flag any plan with `autonomous: true` that lacks explicit verification criteria, and verify that every approximation has a validity check somewhere in the phase. Warn if any task exceeds a 60-minute estimate without an intermediate checkpoint. |
+| **yolo** | **Maximum scrutiny.** Everything in balanced mode PLUS: verify all must-haves are independently testable (not circular). Check that scope extensions are bounded. Require at least one limiting-case check per plan. Flag plans that combine derivation + numerical validation (they should be separate plans for independent failure). |
 
-**Key interaction:** In `autonomous + exploratory`, the profile says "reduce to 9 dimensions" but autonomy says "check all 16." Autonomy wins — with no human oversight, plan quality is the first and last chance to catch design errors.
+**Key interaction:** In `balanced + exploratory`, the profile can reduce detail, but autonomy still requires explicit validation on checkpoint-free plans. In `yolo`, autonomy wins even harder — with minimal human oversight, plan quality is the first and last chance to catch design errors.
 
 </autonomy_awareness>
 
@@ -1086,7 +1085,7 @@ If BLOCKER-level issues persist after 3 revision rounds, return PLAN_BLOCKED wit
 
 For each persistent blocker, classify WHY it persists:
 
-**Stuck** — Planner returns same plan with cosmetic changes. The blocker likely reflects a fundamental constraint the planner cannot resolve autonomously.
+**Stuck** — Planner returns the same plan with cosmetic changes. The blocker likely reflects a fundamental constraint the planner cannot resolve independently.
 
 **Oscillating** — Planner fixes issue A but reintroduces issue B, then fixes B but reintroduces A. The issues are coupled and require a design decision.
 
