@@ -1,0 +1,13 @@
+{
+  "session_id": "20260311T142939-90878-8564ea",
+  "started_at": "2026-03-11T14:29:39.258277+00:00",
+  "last_event_at": "2026-03-11T14:29:39.258780+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "python",
+  "pid": 90878,
+  "command": "tests/core/test_repo_interdependency_graph.py tests/test_audit_round9_fixes.py",
+  "status": "ok",
+  "metadata": {
+    "ended_at": "2026-03-11T14:29:39.258537+00:00"
+  }
+}

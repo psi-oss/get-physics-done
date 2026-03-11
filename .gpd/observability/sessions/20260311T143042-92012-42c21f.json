@@ -1,0 +1,13 @@
+{
+  "session_id": "20260311T143042-92012-42c21f",
+  "started_at": "2026-03-11T14:30:42.817860+00:00",
+  "last_event_at": "2026-03-11T14:30:42.819192+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "span",
+  "pid": 92012,
+  "command": null,
+  "status": "ok",
+  "metadata": {
+    "ended_at": "2026-03-11T14:30:42.818966+00:00"
+  }
+}

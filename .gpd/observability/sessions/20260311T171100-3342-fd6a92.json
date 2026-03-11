@@ -1,0 +1,13 @@
+{
+  "session_id": "20260311T171100-3342-fd6a92",
+  "started_at": "2026-03-11T17:11:00.707887+00:00",
+  "last_event_at": "2026-03-11T17:11:01.220209+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "span",
+  "pid": 3342,
+  "command": "tests/adapters/test_claude_snapshot_parity.py tests/adapters/test_claude_code.py",
+  "status": "ok",
+  "metadata": {
+    "ended_at": "2026-03-11T17:11:01.219877+00:00"
+  }
+}

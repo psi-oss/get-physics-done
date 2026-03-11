@@ -1,0 +1,11 @@
+{
+  "session_id": "20260311T173233-21408-8d4b07",
+  "started_at": "2026-03-11T17:32:33.253725+00:00",
+  "last_event_at": "2026-03-11T17:32:33.256309+00:00",
+  "cwd": ".",
+  "source": "python",
+  "pid": 21408,
+  "command": "-q",
+  "status": "error",
+  "metadata": {}
+}

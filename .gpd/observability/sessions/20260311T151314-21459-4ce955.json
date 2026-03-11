@@ -1,0 +1,11 @@
+{
+  "session_id": "20260311T151314-21459-4ce955",
+  "started_at": "2026-03-11T15:13:14.963406+00:00",
+  "last_event_at": "2026-03-11T15:13:14.965475+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "span",
+  "pid": 21459,
+  "command": "tests/test_wiring_fixes.py -v",
+  "status": "error",
+  "metadata": {}
+}

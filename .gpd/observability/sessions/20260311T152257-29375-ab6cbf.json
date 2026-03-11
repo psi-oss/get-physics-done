@@ -1,0 +1,13 @@
+{
+  "session_id": "20260311T152257-29375-ab6cbf",
+  "started_at": "2026-03-11T15:22:57.576005+00:00",
+  "last_event_at": "2026-03-11T15:22:57.576721+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "python",
+  "pid": 29375,
+  "command": "resolve-model gpd-explainer",
+  "status": "ok",
+  "metadata": {
+    "ended_at": "2026-03-11T15:22:57.576335+00:00"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "session_id": "20260311T152325-30232-df9f41",
+  "started_at": "2026-03-11T15:23:25.863946+00:00",
+  "last_event_at": "2026-03-11T15:23:25.865624+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "cli",
+  "pid": 30232,
+  "command": "regression-check",
+  "status": "ok",
+  "metadata": {
+    "argv": [
+      "regression-check"
+    ],
+    "raw": false,
+    "ended_at": "2026-03-11T15:23:25.865338+00:00"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "session_id": "20260311T144619-4451-87c024",
+  "started_at": "2026-03-11T14:46:19.514740+00:00",
+  "last_event_at": "2026-03-11T14:46:20.465418+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "span",
+  "pid": 4451,
+  "command": "tests/core/test_prompt_cli_consistency.py tests/core/test_prompt_wiring.py",
+  "status": "ok",
+  "metadata": {
+    "ended_at": "2026-03-11T14:46:20.465103+00:00"
+  }
+}

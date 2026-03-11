@@ -1,0 +1,17 @@
+{
+  "session_id": "20260311T171811-13866-a26b4c",
+  "started_at": "2026-03-11T17:18:11.655905+00:00",
+  "last_event_at": "2026-03-11T17:18:11.657856+00:00",
+  "cwd": "/Users/sergio/GitHub/get-physics-done",
+  "source": "cli",
+  "pid": 13866,
+  "command": "uninstall",
+  "status": "ok",
+  "metadata": {
+    "argv": [
+      "uninstall"
+    ],
+    "raw": false,
+    "ended_at": "2026-03-11T17:18:11.657648+00:00"
+  }
+}
