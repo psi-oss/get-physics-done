@@ -521,7 +521,7 @@ def pattern_search(query: str, *, root: Path | None = None) -> PatternSearchResu
     """Search patterns by keyword with relevance scoring.
 
     Raises:
-        ValueError: If query is empty.
+        PatternError: If query is empty.
     """
     if not query or not query.strip():
         raise PatternError("Search query required")

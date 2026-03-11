@@ -5,6 +5,7 @@ All functions operate on state dicts (the caller handles persistence).
 
 from __future__ import annotations
 
+import logging
 import secrets
 import time
 from collections import deque
@@ -29,6 +30,8 @@ __all__ = [
     "result_verify",
     "result_update",
 ]
+
+logger = logging.getLogger(__name__)
 
 # --- Models ---
 
@@ -82,7 +85,22 @@ def _normalize_verification_records(
     """Normalize a raw verification-record payload into model instances."""
     if not records:
         return []
-    return [record if isinstance(record, VerificationEvidence) else VerificationEvidence(**record) for record in records]
+    normalized: list[VerificationEvidence] = []
+    for record in records:
+        if isinstance(record, VerificationEvidence):
+            normalized.append(record)
+        elif isinstance(record, dict):
+            try:
+                normalized.append(VerificationEvidence(**record))
+            except (TypeError, _PydanticValidationError) as exc:
+                logger.warning("Skipping malformed verification record %r: %s", record, exc)
+        else:
+            logger.warning(
+                "Skipping verification record of unsupported type %s: %r",
+                type(record).__name__,
+                record,
+            )
+    return normalized
 
 
 def _int_to_base36(n: int) -> str:

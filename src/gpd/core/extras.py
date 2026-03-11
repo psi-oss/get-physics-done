@@ -437,7 +437,12 @@ def approximation_check(state: dict) -> ApproximationCheckResult:
     unchecked: list[Approximation] = []
 
     for approx_dict in state.get("approximations", []):
-        approx = Approximation(**approx_dict)
+        if not isinstance(approx_dict, dict):
+            continue
+        try:
+            approx = Approximation(**approx_dict)
+        except _PydanticValidationError:
+            continue
         val = _parse_float(approx.current_value)
         range_str = approx.validity_range
 

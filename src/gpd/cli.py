@@ -943,7 +943,7 @@ def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
     state_path = ProjectLayout(_get_cwd()).state_json
     try:
         raw = json.loads(state_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    except OSError:
         return ConventionLock()
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
@@ -978,7 +978,7 @@ def convention_set(
     with file_lock(state_path):
         try:
             raw = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             raw = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1057,7 +1057,7 @@ def result_add(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1085,7 +1085,7 @@ def _load_state_dict() -> dict:
     state_path = ProjectLayout(_get_cwd()).state_json
     try:
         data = json.loads(state_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    except OSError:
         return {}
     except json.JSONDecodeError as e:
         _error(f"Malformed state.json: {e}")
@@ -1136,7 +1136,7 @@ def result_verify(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1186,7 +1186,7 @@ def result_update(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1880,7 +1880,7 @@ def approximation_add(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1942,7 +1942,7 @@ def uncertainty_add(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -1981,7 +1981,7 @@ def question_add(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -2016,7 +2016,7 @@ def question_resolve(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -2047,7 +2047,7 @@ def calculation_add(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -2082,7 +2082,7 @@ def calculation_complete(
     with file_lock(state_path):
         try:
             state = _json.loads(state_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
+        except OSError:
             state = {}
         except _json.JSONDecodeError as e:
             _error(f"Malformed state.json: {e}")
@@ -2109,7 +2109,7 @@ def config_get(
     config_path = ProjectLayout(_get_cwd()).config_json
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    except OSError:
         _output({"key": key, "found": False})
         return
     except json.JSONDecodeError as e:

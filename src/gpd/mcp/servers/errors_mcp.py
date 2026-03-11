@@ -312,15 +312,18 @@ def get_error_class(error_id: int) -> dict[str, object]:
         error_id: Numeric error class ID (1-104).
     """
     with gpd_span("mcp.errors.get", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
-            return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
-                "total_classes": store.count,
-            }
-        return dict(error)
+        try:
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                    "total_classes": store.count,
+                }
+            return dict(error)
+        except (OSError, ValueError, KeyError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -335,13 +338,16 @@ def check_error_classes(computation_desc: str) -> dict[str, object]:
                          vacuum polarization at one loop with dimensional regularization").
     """
     with gpd_span("mcp.errors.check"):
-        store = _get_store()
-        matches = store.check_relevant(computation_desc)
-        return {
-            "query": computation_desc,
-            "match_count": len(matches),
-            "error_classes": matches[:15],  # Top 15 matches
-        }
+        try:
+            store = _get_store()
+            matches = store.check_relevant(computation_desc)
+            return {
+                "query": computation_desc,
+                "match_count": len(matches),
+                "error_classes": matches[:15],  # Top 15 matches
+            }
+        except (OSError, ValueError, KeyError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -354,19 +360,22 @@ def get_detection_strategy(error_id: int) -> dict[str, object]:
         error_id: Numeric error class ID (1-104).
     """
     with gpd_span("mcp.errors.detection_strategy", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
+        try:
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                }
             return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
+                "id": error["id"],
+                "name": error["name"],
+                "detection_strategy": error["detection_strategy"],
+                "example": error["example"],
             }
-        return {
-            "id": error["id"],
-            "name": error["name"],
-            "detection_strategy": error["detection_strategy"],
-            "example": error["example"],
-        }
+        except (OSError, ValueError, KeyError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -381,32 +390,35 @@ def get_traceability(error_id: int) -> dict[str, object]:
         error_id: Numeric error class ID (1-104).
     """
     with gpd_span("mcp.errors.traceability", error_class_id=error_id):
-        store = _get_store()
-        error = store.get(error_id)
-        if error is None:
-            return {
-                "error": f"Error class #{error_id} not found",
-                "valid_range": "1-104",
-            }
+        try:
+            store = _get_store()
+            error = store.get(error_id)
+            if error is None:
+                return {
+                    "error": f"Error class #{error_id} not found",
+                    "valid_range": "1-104",
+                }
 
-        traceability = store.get_traceability(error_id)
-        if traceability is None:
+            traceability = store.get_traceability(error_id)
+            if traceability is None:
+                return {
+                    "id": error_id,
+                    "name": error["name"],
+                    "verification_checks": {},
+                    "covered_by": [],
+                    "coverage_count": 0,
+                    "note": "No traceability data available for this error class",
+                }
+
             return {
                 "id": error_id,
                 "name": error["name"],
-                "verification_checks": {},
-                "covered_by": [],
-                "coverage_count": 0,
-                "note": "No traceability data available for this error class",
+                "verification_checks": traceability,
+                "covered_by": [col for col, val in traceability.items() if val],
+                "coverage_count": len([v for v in traceability.values() if v]),
             }
-
-        return {
-            "id": error_id,
-            "name": error["name"],
-            "verification_checks": traceability,
-            "covered_by": [col for col, val in traceability.items() if val],
-            "coverage_count": len([v for v in traceability.values() if v]),
-        }
+        except (OSError, ValueError, KeyError) as e:
+            return {"error": str(e)}
 
 
 @mcp.tool()
@@ -420,14 +432,17 @@ def list_error_classes(domain: str | None = None) -> dict[str, object]:
                 "newly_identified" (#102-104).
     """
     with gpd_span("mcp.errors.list", domain=domain or "all"):
-        store = _get_store()
-        errors = store.list_all(domain)
-        return {
-            "count": len(errors),
-            "error_classes": errors,
-            "available_domains": store.domains,
-            "total_classes": store.count,
-        }
+        try:
+            store = _get_store()
+            errors = store.list_all(domain)
+            return {
+                "count": len(errors),
+                "error_classes": errors,
+                "available_domains": store.domains,
+                "total_classes": store.count,
+            }
+        except (OSError, ValueError, KeyError) as e:
+            return {"error": str(e)}
 
 
 # ---------------------------------------------------------------------------

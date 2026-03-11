@@ -352,6 +352,8 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
             config = parse_jsonc(raw)
         except (json.JSONDecodeError, ValueError):
             config = {}
+        if not isinstance(config, dict):
+            config = {}
 
     # Ensure permission structure exists
     if "permission" not in config or not isinstance(config["permission"], dict):
@@ -640,7 +642,10 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
 
     config: dict = {}
     if config_path.exists():
-        config = parse_jsonc(config_path.read_text(encoding="utf-8"))
+        try:
+            config = parse_jsonc(config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError):
+            config = {}
         if not isinstance(config, dict):
             config = {}
 

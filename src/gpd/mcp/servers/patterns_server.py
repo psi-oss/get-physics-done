@@ -66,11 +66,16 @@ def lookup_pattern(
         try:
             if keywords:
                 result = pattern_search(keywords, root=_get_patterns_root())
+                matches = result.matches
+                if domain:
+                    matches = [p for p in matches if p.domain == domain]
+                if category:
+                    matches = [p for p in matches if p.category == category]
                 return {
-                    "count": result.count,
-                    "patterns": [p.model_dump() for p in result.matches],
+                    "count": len(matches),
+                    "patterns": [p.model_dump() for p in matches],
                     "query": result.query,
-                    "library_exists": None,
+                    "library_exists": result.library_exists,
                 }
 
             result = pattern_list(domain=domain, category=category, root=_get_patterns_root())
@@ -93,6 +98,8 @@ def add_pattern(
     description: str = "",
     detection: str = "",
     prevention: str = "",
+    example: str = "",
+    test_value: str = "",
 ) -> dict:
     """Record a new physics error pattern in the library.
 
@@ -107,6 +114,8 @@ def add_pattern(
         description: What goes wrong.
         detection: How to detect this error.
         prevention: How to prevent it.
+        example: A concrete example illustrating the pattern.
+        test_value: A test value or expression for automated checks.
     """
     with gpd_span("mcp.patterns.add", domain=domain, category=category):
         try:
@@ -118,6 +127,8 @@ def add_pattern(
                 description=description,
                 detection=detection,
                 prevention=prevention,
+                example=example,
+                test_value=test_value,
                 root=_get_patterns_root(),
             )
             return result.model_dump()
@@ -166,11 +177,12 @@ def list_domains() -> dict:
     Returns the valid domains, categories, and severity levels for use
     when adding new patterns.
     """
-    return {
-        "domains": sorted(VALID_DOMAINS),
-        "categories": sorted(VALID_CATEGORIES),
-        "severities": list(VALID_SEVERITIES),
-    }
+    with gpd_span("mcp.patterns.list_domains"):
+        return {
+            "domains": sorted(VALID_DOMAINS),
+            "categories": sorted(VALID_CATEGORIES),
+            "severities": list(VALID_SEVERITIES),
+        }
 
 
 # ---------------------------------------------------------------------------
