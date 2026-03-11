@@ -9,6 +9,8 @@
 
 Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence PBC](https://www.psi.inc) (PSI), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
+[Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
+
 ## Who This Is For
 
 GPD is for hard physics research problems that cannot be handled reliably with manual prompting.
@@ -33,10 +35,7 @@ Then choose the path that matches your starting point:
 | New research project | `new-project` |
 | Existing research folder or codebase | `map-research` |
 
-Runtime syntax:
-- Claude Code / Gemini CLI: `/gpd:...`
-- Codex: `$gpd-...`
-- OpenCode: `/gpd-...`
+Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes).
 
 If you are starting from existing work, run `map-research` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
 
@@ -44,7 +43,8 @@ Typical new-project workflow:
 
 `new-project -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
 
-Pass flags to skip prompts or change the action:
+<details>
+<summary><strong>Install options</strong></summary>
 
 | Flag | Meaning |
 |------|---------|
@@ -59,12 +59,13 @@ Pass flags to skip prompts or change the action:
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-
-Or install directly from GitHub:
+Install directly from GitHub:
 
 ```bash
 npx -y github:physicalsuperintelligence/get-physics-done
 ```
+
+</details>
 
 ## Supported Runtimes
 
@@ -77,10 +78,7 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
-Runtime syntax differs slightly, but the workflow is the same across all four.
-
-After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
-Claude Code and Gemini CLI use `/gpd:...`, Codex installs `$gpd-...` skills, and OpenCode uses `/gpd-...`.
+Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally and use the commands shown above.
 
 Codex-specific note:
 - GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.
@@ -134,7 +132,7 @@ Phase numbers continue across the whole project, so a new milestone may start at
 <details>
 <summary><strong>Conformal bootstrap workflow</strong></summary>
 
-The example below uses Claude Code / Gemini CLI syntax. For Codex, replace `/gpd:` with `$gpd-`. For OpenCode, use `/gpd-...`.
+The example below uses Claude Code / Gemini CLI syntax.
 
 Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
@@ -162,7 +160,7 @@ Typical artifacts include derivation notes, numerical scripts, convergence studi
 
 ## Key In-Runtime Commands
 
-These commands run inside your installed AI runtime after GPD has been installed there. The syntax below uses Claude Code and Gemini CLI form (`/gpd:...`); for Codex use `$gpd-...`, and for OpenCode use `/gpd-...`.
+These commands run inside your installed AI runtime after GPD has been installed there. The examples below use Claude Code / Gemini CLI syntax.
 
 ### Common Starting Points
 
@@ -201,129 +199,173 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 
 #### Project Initialization
 
-- `/gpd:new-project` — Initialize a new physics research project with deep context gathering and PROJECT.md
-- `/gpd:map-research` — Map existing research project — theoretical framework, computations, conventions, and open questions
+| Command | What it does |
+|---------|--------------|
+| `/gpd:new-project` | Initialize a new physics research project with deep context gathering and `PROJECT.md` |
+| `/gpd:map-research` | Map existing research project — theoretical framework, computations, conventions, and open questions |
 
 #### Phase Planning
 
-- `/gpd:discuss-phase <number>` — Gather phase context through adaptive questioning before planning
-- `/gpd:research-phase <number>` — Research how to tackle a phase (standalone - usually use /gpd:plan-phase instead)
-- `/gpd:list-phase-assumptions <number>` — Surface the AI's assumptions about a phase approach before planning
-- `/gpd:discover [phase or topic] [--depth quick|medium|deep]` — Run discovery phase to investigate methods, literature, and approaches before planning
-- `/gpd:show-phase <number>` — Inspect a single phase's artifacts, status, and results
-- `/gpd:plan-phase <number>` — Create detailed execution plan for a phase (PLAN.md) with verification loop
+| Command | What it does |
+|---------|--------------|
+| `/gpd:discuss-phase <number>` | Gather phase context through adaptive questioning before planning |
+| `/gpd:research-phase <number>` | Research how to tackle a phase (standalone - usually use `/gpd:plan-phase` instead) |
+| `/gpd:list-phase-assumptions <number>` | Surface the AI's assumptions about a phase approach before planning |
+| `/gpd:discover [phase or topic] [--depth quick\|medium\|deep]` | Run discovery phase to investigate methods, literature, and approaches before planning |
+| `/gpd:show-phase <number>` | Inspect a single phase's artifacts, status, and results |
+| `/gpd:plan-phase <number>` | Create detailed execution plan for a phase (`PLAN.md`) with verification loop |
 
 #### Execution
 
-- `/gpd:execute-phase <phase-number>` — Execute all plans in a phase with wave-based parallelization
+| Command | What it does |
+|---------|--------------|
+| `/gpd:execute-phase <phase-number>` | Execute all plans in a phase with wave-based parallelization |
 
 #### Derivation
 
-- `/gpd:derive-equation` — Perform a rigorous physics derivation with systematic verification at each step
+| Command | What it does |
+|---------|--------------|
+| `/gpd:derive-equation` | Perform a rigorous physics derivation with systematic verification at each step |
 
 #### Quick Mode
 
-- `/gpd:quick` — Execute a quick research task with GPD guarantees (atomic commits, state tracking) but skip optional agents
+| Command | What it does |
+|---------|--------------|
+| `/gpd:quick` | Execute a quick research task with GPD guarantees (atomic commits, state tracking) but skip optional agents |
 
 #### Roadmap Management
 
-- `/gpd:add-phase <description>` — Add research phase to end of current milestone in roadmap
-- `/gpd:insert-phase <after> <description>` — Insert urgent research work as decimal phase (e.g., 72.1) between existing phases
-- `/gpd:remove-phase <number>` — Remove a future research phase from roadmap and renumber subsequent phases
-- `/gpd:revise-phase <number> "<reason>"` — Supersede a completed phase and create a replacement for iterative revision
-- `/gpd:merge-phases <source> <target>` — Merge results from one phase into another
+| Command | What it does |
+|---------|--------------|
+| `/gpd:add-phase <description>` | Add research phase to end of current milestone in roadmap |
+| `/gpd:insert-phase <after> <description>` | Insert urgent research work as decimal phase (for example, `72.1`) between existing phases |
+| `/gpd:remove-phase <number>` | Remove a future phase from roadmap and renumber subsequent phases |
+| `/gpd:revise-phase <number> "<reason>"` | Supersede a completed phase and create a replacement for iterative revision |
+| `/gpd:merge-phases <source> <target>` | Merge results from one phase into another |
 
 #### Milestone Management
 
-- `/gpd:new-milestone <name>` — Start a new research milestone cycle — update PROJECT.md and route to requirements
-- `/gpd:complete-milestone <version>` — Archive completed research milestone and prepare for next phase of investigation
+| Command | What it does |
+|---------|--------------|
+| `/gpd:new-milestone <name>` | Start a new research milestone cycle — update `PROJECT.md` and route to requirements |
+| `/gpd:complete-milestone <version>` | Archive completed research milestone and prepare for next phase of investigation |
 
 #### Progress Tracking
 
-- `/gpd:progress` — Check research progress, show context, and route to next action (execute or plan)
-- `/gpd:suggest-next` — Suggest the most impactful next action based on current project state
+| Command | What it does |
+|---------|--------------|
+| `/gpd:progress` | Check research progress, show context, and route to the next action (execute or plan) |
+| `/gpd:suggest-next` | Suggest the most impactful next action based on current project state |
 
 #### Research Support
 
-- `/gpd:explain [concept]` — Explain a physics concept rigorously in the context of the active project or standalone question
+| Command | What it does |
+|---------|--------------|
+| `/gpd:explain [concept]` | Explain a physics concept rigorously in the context of the active project or standalone question |
 
 #### Session Management
 
-- `/gpd:resume-work` — Resume research from previous session with full context restoration
-- `/gpd:pause-work` — Create context handoff when pausing research mid-phase
+| Command | What it does |
+|---------|--------------|
+| `/gpd:resume-work` | Resume research from the previous session with full context restoration |
+| `/gpd:pause-work` | Create a context handoff when pausing research mid-phase |
 
 #### Todo Management
 
-- `/gpd:add-todo [description]` — Capture idea or task as todo from current research conversation context
-- `/gpd:check-todos [area]` — List pending research todos and select one to work on
+| Command | What it does |
+|---------|--------------|
+| `/gpd:add-todo [description]` | Capture an idea or task as a todo from current research conversation context |
+| `/gpd:check-todos [area]` | List pending research todos and select one to work on |
 
 #### Validation
 
-- `/gpd:verify-work [phase]` — Verify research results through physics consistency checks
+| Command | What it does |
+|---------|--------------|
+| `/gpd:verify-work [phase]` | Verify research results through physics consistency checks |
 
 #### Debugging
 
-- `/gpd:debug [issue description]` — Systematic debugging of physics calculations with persistent state across context resets
+| Command | What it does |
+|---------|--------------|
+| `/gpd:debug [issue description]` | Systematic debugging of physics calculations with persistent state across context resets |
 
 #### Physics Validation
 
-- `/gpd:dimensional-analysis` — Systematic dimensional analysis audit on all equations in a derivation or phase
-- `/gpd:limiting-cases` — Systematically identify and verify all relevant limiting cases for a result or phase
-- `/gpd:numerical-convergence` — Systematic convergence testing for numerical physics computations
-- `/gpd:compare-experiment` — Systematically compare theoretical predictions with experimental or observational data
-- `/gpd:validate-conventions [phase]` — Validate convention consistency across all phases
-- `/gpd:regression-check [phase]` — Re-verify all previously verified truths to catch regressions after changes
+| Command | What it does |
+|---------|--------------|
+| `/gpd:dimensional-analysis` | Systematic dimensional analysis audit on all equations in a derivation or phase |
+| `/gpd:limiting-cases` | Systematically identify and verify all relevant limiting cases for a result or phase |
+| `/gpd:numerical-convergence` | Systematic convergence testing for numerical physics computations |
+| `/gpd:compare-experiment` | Systematically compare theoretical predictions with experimental or observational data |
+| `/gpd:validate-conventions [phase]` | Validate convention consistency across all phases |
+| `/gpd:regression-check [phase]` | Re-verify all previously verified truths to catch regressions after changes |
 
 #### Quantitative Analysis
 
-- `/gpd:parameter-sweep [phase]` — Systematic parameter sweep with parallel execution and result aggregation
-- `/gpd:sensitivity-analysis` — Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate
-- `/gpd:error-propagation` — Track how uncertainties propagate through multi-step calculations across phases
+| Command | What it does |
+|---------|--------------|
+| `/gpd:parameter-sweep [phase]` | Systematic parameter sweep with parallel execution and result aggregation |
+| `/gpd:sensitivity-analysis` | Systematic sensitivity analysis — which parameters matter most and how uncertainties propagate |
+| `/gpd:error-propagation` | Track how uncertainties propagate through multi-step calculations across phases |
 
 #### Research Publishing
 
-- `/gpd:write-paper [title or topic] [--from-phases 1,2,3]` — Structure and write a physics paper from research results
-- `/gpd:peer-review [paper directory or manuscript path]` — Conduct a staged six-pass peer review of a manuscript and supporting research artifacts in the current GPD project
-- `/gpd:respond-to-referees` — Structure a point-by-point response to referee reports and update the manuscript
-- `/gpd:arxiv-submission` — Prepare a paper for arXiv submission with validation and packaging
-- `/gpd:literature-review [topic]` — Structured literature review for a physics research topic with citation network analysis and open question identification
+| Command | What it does |
+|---------|--------------|
+| `/gpd:write-paper [title or topic] [--from-phases 1,2,3]` | Structure and write a physics paper from research results |
+| `/gpd:peer-review [paper directory or manuscript path]` | Conduct a staged six-pass peer review of a manuscript and supporting research artifacts in the current GPD project |
+| `/gpd:respond-to-referees` | Structure a point-by-point response to referee reports and update the manuscript |
+| `/gpd:arxiv-submission` | Prepare a paper for arXiv submission with validation and packaging |
+| `/gpd:literature-review [topic]` | Structured literature review for a physics research topic with citation network analysis and open question identification |
 
 #### Hypothesis Branches
 
-- `/gpd:branch-hypothesis <description>` — Create a hypothesis branch for parallel investigation of an alternative approach
-- `/gpd:compare-branches` — Compare results across hypothesis branches side-by-side
+| Command | What it does |
+|---------|--------------|
+| `/gpd:branch-hypothesis <description>` | Create a hypothesis branch for parallel investigation of an alternative approach |
+| `/gpd:compare-branches` | Compare results across hypothesis branches side-by-side |
 
 #### Decision Tracking
 
-- `/gpd:decisions [phase or keyword]` — Display and search the cumulative decision log
+| Command | What it does |
+|---------|--------------|
+| `/gpd:decisions [phase or keyword]` | Display and search the cumulative decision log |
 
 #### Visualization & Export
 
-- `/gpd:graph` — Visualize dependency graph across phases and identify gaps
-- `/gpd:slides [topic]` — Create presentation slides from a GPD project or the current folder
-- `/gpd:export [--format html|latex|zip|all]` — Export research results to HTML, LaTeX, or ZIP package
-- `/gpd:error-patterns [category]` — View accumulated physics error patterns for this project
-- `/gpd:record-insight [description]` — Record a project-specific learning or pattern to the insights ledger
+| Command | What it does |
+|---------|--------------|
+| `/gpd:graph` | Visualize dependency graph across phases and identify gaps |
+| `/gpd:slides [topic]` | Create presentation slides from a GPD project or the current folder |
+| `/gpd:export [--format html\|latex\|zip\|all]` | Export research results to HTML, LaTeX, or ZIP package |
+| `/gpd:error-patterns [category]` | View accumulated physics error patterns for this project |
+| `/gpd:record-insight [description]` | Record a project-specific learning or pattern to the insights ledger |
 
 #### Milestone Auditing
 
-- `/gpd:audit-milestone [version]` — Audit research milestone completion against original research goals
-- `/gpd:plan-milestone-gaps` — Create phases to close all gaps identified by research milestone audit
+| Command | What it does |
+|---------|--------------|
+| `/gpd:audit-milestone [version]` | Audit research milestone completion against original research goals |
+| `/gpd:plan-milestone-gaps` | Create phases to close all gaps identified by research milestone audit |
 
 #### Configuration
 
-- `/gpd:settings` — Configure GPD workflow toggles, tier models, and physics research preferences
-- `/gpd:set-profile <profile>` — Switch research profile for GPD agents (deep-theory/numerical/exploratory/review/paper-writing)
+| Command | What it does |
+|---------|--------------|
+| `/gpd:settings` | Configure GPD workflow toggles, tier models, and physics research preferences |
+| `/gpd:set-profile <profile>` | Switch research profile for GPD agents (`deep-theory`, `numerical`, `exploratory`, `review`, `paper-writing`) |
 
 #### Utility Commands
 
-- `/gpd:compact-state` — Archive historical entries from STATE.md to keep it under the 150-line target
-- `/gpd:sync-state` — Reconcile diverged STATE.md and state.json after manual edits or corruption
-- `/gpd:undo` — Rollback last GPD operation with safety checkpoint
-- `/gpd:update` — Update GPD to latest version with changelog display
-- `/gpd:reapply-patches` — Reapply local modifications after a GPD update
-- `/gpd:health` — Run project health checks and optionally auto-fix issues
-- `/gpd:help` — Show available GPD commands and usage guide
+| Command | What it does |
+|---------|--------------|
+| `/gpd:compact-state` | Archive historical entries from `STATE.md` to keep it under the 150-line target |
+| `/gpd:sync-state` | Reconcile diverged `STATE.md` and `state.json` after manual edits or corruption |
+| `/gpd:undo` | Roll back the last GPD operation with a safety checkpoint |
+| `/gpd:update` | Update GPD to the latest version with changelog display |
+| `/gpd:reapply-patches` | Reapply local modifications after a GPD update |
+| `/gpd:health` | Run project health checks and optionally auto-fix issues |
+| `/gpd:help` | Show available GPD commands and usage guide |
 
 For full per-command detail and examples inside your runtime, run `/gpd:help --all` or the equivalent runtime-specific help command.
 
@@ -433,7 +475,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 </details>
 
-## Requirements
+## System Requirements
 
 - Node.js with `npm`/`npx`
 - Python 3.11+ with the standard `venv` module (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
@@ -450,6 +492,10 @@ Low-level function and span calls are not recorded automatically. Observability 
 Run `npx -y get-physics-done --uninstall` for interactive uninstall, or add the runtime and scope flags above for a non-interactive uninstall.
 
 Uninstall removes GPD from the selected runtime config only. It does not delete project `.gpd/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
+
+## Inspiration
+
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
 
 ## Citation
 
@@ -471,10 +517,6 @@ The same file provides the machine-readable CFF metadata used by GitHub's reposi
 ```text
 Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 0.1.5). https://github.com/physicalsuperintelligence/get-physics-done
 ```
-
-## Inspiration
-
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
 
 ## License
 
