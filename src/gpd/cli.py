@@ -2415,14 +2415,14 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
 def _build_project_aware_guidance(explicit_inputs: list[str]) -> str:
     """Render the standardized project-aware guidance string."""
     if not explicit_inputs:
-        return "Either provide explicit inputs for this command, or run /gpd:new-project."
+        return "Either provide explicit inputs for this command, or run `gpd new-project`."
     if len(explicit_inputs) == 1:
         requirement_text = explicit_inputs[0]
     elif len(explicit_inputs) == 2:
         requirement_text = f"{explicit_inputs[0]} and {explicit_inputs[1]}"
     else:
         requirement_text = ", ".join(explicit_inputs[:-1]) + f", and {explicit_inputs[-1]}"
-    return f"Either provide {requirement_text} explicitly, or run /gpd:new-project."
+    return f"Either provide {requirement_text} explicitly, or run `gpd new-project`."
 
 
 def _build_command_context_preflight(
@@ -2489,7 +2489,7 @@ def _build_command_context_preflight(
                 else f"missing {_format_display_path(layout.project_md)}"
             ),
         )
-        guidance = "" if project_exists else "This command requires an initialized GPD project. Run /gpd:new-project."
+        guidance = "" if project_exists else "This command requires an initialized GPD project. Run `gpd new-project`."
         return CommandContextPreflightResult(
             command=command.name,
             context_mode=command.context_mode,
@@ -3427,7 +3427,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 def install(
     runtimes: list[str] | None = typer.Argument(
         None,
-        help="Runtime(s) to install (claude-code, codex, gemini, opencode). Omit for interactive selection.",
+        help="Runtime(s) to install. Omit for interactive selection.",
     ),
     install_all: bool = typer.Option(False, "--all", help="Install for all supported runtimes"),
     global_install: bool = typer.Option(False, "--global", help="Install globally (~/.runtime/)"),
@@ -3442,8 +3442,8 @@ def install(
     Examples::
 
         gpd install                        # interactive
-        gpd install claude-code            # single runtime, local
-        gpd install claude-code codex      # multiple runtimes
+        gpd install <runtime>              # single runtime, local
+        gpd install <runtime-a> <runtime-b>
         gpd install --all --global         # all runtimes, global
     """
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -3545,7 +3545,7 @@ def uninstall(
 
     Examples::
 
-        gpd uninstall claude-code --local
+        gpd uninstall <runtime> --local
         gpd uninstall --all --global
     """
     from rich.prompt import Confirm

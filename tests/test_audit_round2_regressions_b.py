@@ -478,10 +478,10 @@ class TestBug16_PhaseCompletenessUsesIncompletePlans:
         assert complete is False
 
 
-# ─── Bug 17: codex_notify dict check on cache files ─────────────────────────
+# ─── Bug 17: notify dict check on cache files ─────────────────────────
 
 
-class TestBug17_CodexNotifyNonDictCache:
+class TestBug17NotifyNonDictCache:
     """Cache files containing non-dict JSON (null, arrays, etc.) must
     not crash the cache scanning logic in _check_and_notify_update."""
 
@@ -499,7 +499,7 @@ class TestBug17_CodexNotifyNonDictCache:
             "gpd.hooks.runtime_detect.detect_active_runtime",
             return_value="unknown",
         ):
-            from gpd.hooks.codex_notify import _check_and_notify_update
+            from gpd.hooks.notify import _check_and_notify_update
 
             # Must not raise
             _check_and_notify_update()
@@ -516,7 +516,7 @@ class TestBug17_CodexNotifyNonDictCache:
             "gpd.hooks.runtime_detect.detect_active_runtime",
             return_value="unknown",
         ):
-            from gpd.hooks.codex_notify import _check_and_notify_update
+            from gpd.hooks.notify import _check_and_notify_update
 
             _check_and_notify_update()
 
@@ -532,7 +532,7 @@ class TestBug17_CodexNotifyNonDictCache:
             "gpd.hooks.runtime_detect.detect_active_runtime",
             return_value="unknown",
         ):
-            from gpd.hooks.codex_notify import _check_and_notify_update
+            from gpd.hooks.notify import _check_and_notify_update
 
             _check_and_notify_update()
 
@@ -554,7 +554,7 @@ class TestBug17_CodexNotifyNonDictCache:
             "gpd.hooks.runtime_detect.detect_active_runtime",
             return_value="unknown",
         ):
-            from gpd.hooks.codex_notify import _check_and_notify_update
+            from gpd.hooks.notify import _check_and_notify_update
 
             # Must not raise
             _check_and_notify_update()
@@ -571,6 +571,6 @@ class TestBug17_CodexNotifyNonDictCache:
             "gpd.hooks.runtime_detect.detect_active_runtime",
             return_value="unknown",
         ):
-            from gpd.hooks.codex_notify import _check_and_notify_update
+            from gpd.hooks.notify import _check_and_notify_update
 
             _check_and_notify_update()

@@ -27,7 +27,7 @@ class TestProperties:
         assert adapter.runtime_name == "gemini"
 
     def test_display_name(self, adapter: GeminiAdapter) -> None:
-        assert adapter.display_name == "Gemini"
+        assert adapter.display_name == "Gemini CLI"
 
     def test_config_dir_name(self, adapter: GeminiAdapter) -> None:
         assert adapter.config_dir_name == ".gemini"
@@ -456,6 +456,29 @@ class TestInstall:
         assert "{GPD_CONFIG_DIR}" not in verifier
         assert "{GPD_RUNTIME_FLAG}" not in verifier
         assert "--gemini" in verifier
+
+    def test_install_sanitizes_shell_placeholders_in_agents(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
+            "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
+            "Use ${PHASE_ARG} in prose.\n"
+            "```bash\n"
+            'echo "$phase_dir" "$file"\n'
+            "```\n",
+            encoding="utf-8",
+        )
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        checker = (target / "agents" / "gpd-shell-vars.md").read_text(encoding="utf-8")
+        assert "${PHASE_ARG}" not in checker
+        assert "$phase_dir" not in checker
+        assert "$file" not in checker
+        assert "<PHASE_ARG>" in checker
+        assert "<phase_dir>" in checker
+        assert "<file>" in checker
 
     def test_install_does_not_call_finalize_internally(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

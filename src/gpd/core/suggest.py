@@ -189,7 +189,7 @@ def _format_command(action: str) -> str:
 
         return get_adapter(detect_active_runtime()).format_command(action)
     except Exception:
-        return f"/gpd:{action}"
+        return f"gpd {action}"
 
 
 def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:

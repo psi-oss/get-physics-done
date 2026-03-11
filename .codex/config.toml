@@ -1,5 +1,5 @@
 # GPD update notification
-notify = ["/Users/sergio/.gpd/venv/bin/python", ".codex/hooks/codex_notify.py"]
+notify = ["/Users/sergio/.gpd/venv/bin/python", ".codex/hooks/notify.py"]
 
 [features]
 # GPD multi-agent support

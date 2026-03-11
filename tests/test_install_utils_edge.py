@@ -24,6 +24,7 @@ from gpd.adapters.install_utils import (
     expand_at_includes,
     generate_manifest,
     parse_jsonc,
+    protect_runtime_agent_prompt,
     read_settings,
     write_settings,
 )
@@ -172,6 +173,60 @@ class TestExpandAtIncludes:
         content = "@decorator_name"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert result == content
+
+
+# =========================================================================
+# 1b. protect_runtime_agent_prompt
+# =========================================================================
+
+
+class TestProtectRuntimeAgentPrompt:
+    """Tests for runtime-specific agent prompt sanitization."""
+
+    def test_rewrites_braced_and_shell_fence_vars_for_dollar_template_runtimes(self) -> None:
+        content = (
+            "---\n"
+            "name: gpd:test\n"
+            "description: test\n"
+            "---\n"
+            "Use ${PHASE_ARG} for planning.\n"
+            "\n"
+            "```bash\n"
+            'echo "$phase_dir" "${PHASE_ARG}" "$file"\n'
+            "$gpd-help\n"
+            "echo $phase_number\n"
+            "```\n"
+            "\n"
+            "Physics prose keeps $T$ untouched outside shell examples.\n"
+        )
+
+        for runtime in ("gemini", "opencode"):
+            result = protect_runtime_agent_prompt(content, runtime)
+            assert "${PHASE_ARG}" not in result
+            assert "$phase_dir" not in result
+            assert "$file" not in result
+            assert "$phase_number" not in result
+            assert "<PHASE_ARG>" in result
+            assert "<phase_dir>" in result
+            assert "<file>" in result
+            assert "<phase_number>" in result
+            assert "$gpd-help" in result
+            assert "Physics prose keeps $T$ untouched" in result
+
+    def test_noop_for_runtimes_without_dollar_template_collision(self) -> None:
+        content = (
+            "---\n"
+            "name: gpd:test\n"
+            "description: test\n"
+            "---\n"
+            "Use ${PHASE_ARG}.\n"
+            "```bash\n"
+            'echo "$phase_dir"\n'
+            "```\n"
+        )
+
+        for runtime in ("claude-code", "codex"):
+            assert protect_runtime_agent_prompt(content, runtime) == content
 
 
 # =========================================================================

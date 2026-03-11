@@ -13,10 +13,6 @@ from unittest.mock import patch
 
 from gpd.adapters import get_adapter
 from gpd.hooks.runtime_detect import (
-    RUNTIME_CLAUDE,
-    RUNTIME_CODEX,
-    RUNTIME_GEMINI,
-    RUNTIME_OPENCODE,
     RUNTIME_UNKNOWN,
     SCOPE_GLOBAL,
     SCOPE_LOCAL,
@@ -30,6 +26,11 @@ from gpd.hooks.runtime_detect import (
     get_update_cache_files,
     update_command_for_runtime,
 )
+
+RUNTIME_CLAUDE = "claude-code"
+RUNTIME_CODEX = "codex"
+RUNTIME_GEMINI = "gemini"
+RUNTIME_OPENCODE = "opencode"
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
 

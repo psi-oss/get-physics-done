@@ -111,12 +111,12 @@ def test_graph_captures_hook_runtime_wiring_edges() -> None:
         "`src/gpd/hooks/statusline.py -> src/gpd/hooks/runtime_detect.py`",
         "`src/gpd/hooks/statusline.py -> src/gpd/adapters/__init__.py`",
         "`src/gpd/hooks/check_update.py -> src/gpd/hooks/runtime_detect.py`",
-        "`src/gpd/hooks/codex_notify.py -> src/gpd/hooks/check_update.py`",
-        "`src/gpd/hooks/codex_notify.py -> src/gpd/hooks/runtime_detect.py`",
+        "`src/gpd/hooks/notify.py -> src/gpd/hooks/check_update.py`",
+        "`src/gpd/hooks/notify.py -> src/gpd/hooks/runtime_detect.py`",
     ]
 
     unexpected_edges = [
-        "`src/gpd/hooks/codex_notify.py -> src/gpd/adapters/__init__.py`",
+        "`src/gpd/hooks/notify.py -> src/gpd/adapters/__init__.py`",
     ]
 
     for edge in expected_edges:

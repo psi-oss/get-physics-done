@@ -367,6 +367,25 @@ class TestInstall:
         assert "{GPD_RUNTIME_FLAG}" not in verifier
         assert "--claude" in verifier
 
+    def test_install_preserves_shell_placeholders_for_claude_agents(
+        self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
+            "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
+            "Use ${PHASE_ARG} in prose.\n"
+            "```bash\n"
+            'echo "$phase_dir" "$file"\n'
+            "```\n",
+            encoding="utf-8",
+        )
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        checker = (target / "agents" / "gpd-shell-vars.md").read_text(encoding="utf-8")
+        assert "Use ${PHASE_ARG} in prose." in checker
+        assert 'echo "$phase_dir" "$file"' in checker
+
 
 class TestUninstall:
     """Test uninstall cleans up GPD artifacts."""

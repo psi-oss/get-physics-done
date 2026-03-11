@@ -31,6 +31,7 @@ from gpd.adapters.install_utils import (
     generate_manifest,
     get_global_dir,
     parse_jsonc,
+    protect_runtime_agent_prompt,
     remove_stale_agents,
     replace_placeholders,
 )
@@ -296,6 +297,7 @@ def copy_agents_as_agent_files(
             runtime="opencode",
             install_scope=install_scope,
         )
+        content = protect_runtime_agent_prompt(content, "opencode")
         content = convert_claude_to_opencode_frontmatter(content, path_prefix)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
@@ -691,35 +693,6 @@ class OpenCodeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
         return "opencode"
-
-    @property
-    def display_name(self) -> str:
-        return "OpenCode"
-
-    @property
-    def config_dir_name(self) -> str:
-        return ".opencode"
-
-    @property
-    def activation_env_vars(self) -> tuple[str, ...]:
-        return ("OPENCODE_SESSION",)
-
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
-        """OpenCode uses XDG Base Directory spec with env var precedence."""
-        env_dir = os.environ.get("OPENCODE_CONFIG_DIR")
-        if env_dir:
-            return Path(env_dir).expanduser()
-
-        env_cfg = os.environ.get("OPENCODE_CONFIG")
-        if env_cfg:
-            return Path(env_cfg).expanduser().parent
-
-        xdg_home = os.environ.get("XDG_CONFIG_HOME")
-        if xdg_home:
-            return Path(xdg_home).expanduser() / "opencode"
-
-        resolved_home = home or Path.home()
-        return resolved_home / ".config" / "opencode"
 
     def format_command(self, action: str) -> str:
         return f"/gpd-{action}"

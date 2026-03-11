@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code / Gemini statusline hook — GPD edition.
+"""Runtime-agnostic statusline hook for GPD.
 
 Reads JSON from stdin, outputs an ANSI-formatted statusline to stdout.
 Shows: model | current task | directory | research position | context usage.

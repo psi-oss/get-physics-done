@@ -1,4 +1,4 @@
-"""Base adapter ABC — defines the interface all runtime adapters must implement."""
+"""Base adapter ABC for runtime-specific installation surfaces."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ import os
 from pathlib import Path
 
 from gpd.adapters.install_utils import (
+    AGENTS_DIR_NAME,
+    COMMANDS_DIR_NAME,
+    FLAT_COMMANDS_DIR_NAME,
+    GPD_INSTALL_DIR_NAME,
     HOOK_SCRIPTS,
+    HOOKS_DIR_NAME,
     compute_path_prefix,
     copy_hook_scripts,
     install_gpd_content,
@@ -17,39 +22,28 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_version_file,
 )
+from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
 
 logger = logging.getLogger(__name__)
 
 
 class RuntimeAdapter(abc.ABC):
-    """Abstract base for GPD runtime adapters.
-
-    Each adapter knows how to install GPD content and runtime configuration
-    for a specific AI agent (Claude Code, Codex, Gemini CLI, OpenCode).
-
-    The ``install()`` method implements a **template method** pattern:
-    ``_validate → _compute_path_prefix → _pre_cleanup → _install_commands →
-    _install_content → _install_agents → _install_version → _install_hooks →
-    _configure_runtime → _write_manifest → _verify``.
-    Subclasses override individual ``_install_*`` hooks for runtime-specific
-    behavior.  Override ``install()`` itself only when the signature must change
-    (e.g. Codex ``skills_dir``).
-    """
+    """Abstract base for GPD runtime adapters."""
 
     @property
     @abc.abstractmethod
     def runtime_name(self) -> str:
-        """Short identifier for this runtime (e.g. ``'claude-code'``)."""
+        """Short identifier for this runtime."""
 
     @property
-    @abc.abstractmethod
     def display_name(self) -> str:
-        """Human-readable runtime name (e.g. ``'Claude Code'``)."""
+        """Human-readable runtime name."""
+        return self.runtime_descriptor.display_name
 
     @property
-    @abc.abstractmethod
     def config_dir_name(self) -> str:
-        """Name of the runtime's config directory (e.g. ``'.claude'``)."""
+        """Name of the runtime's config directory."""
+        return self.runtime_descriptor.config_dir_name
 
     @property
     def help_command(self) -> str:
@@ -59,7 +53,7 @@ class RuntimeAdapter(abc.ABC):
     @property
     def activation_env_vars(self) -> tuple[str, ...]:
         """Environment variables that signal this runtime is active."""
-        return ()
+        return self.runtime_descriptor.activation_env_vars
 
     @property
     def local_config_dir_name(self) -> str:
@@ -69,7 +63,27 @@ class RuntimeAdapter(abc.ABC):
     @property
     def install_flag(self) -> str:
         """Bootstrap installer flag for this runtime."""
-        return f"--{self.runtime_name}"
+        return self.runtime_descriptor.install_flag
+
+    @property
+    def selection_flags(self) -> tuple[str, ...]:
+        """Public bootstrap flags accepted for selecting this runtime."""
+        return self.runtime_descriptor.selection_flags
+
+    @property
+    def selection_aliases(self) -> tuple[str, ...]:
+        """Interactive/runtime aliases accepted by the bootstrap installer."""
+        return self.runtime_descriptor.selection_aliases
+
+    @property
+    def command_prefix(self) -> str:
+        """Runtime-native command prefix."""
+        return self.runtime_descriptor.command_prefix
+
+    @property
+    def runtime_descriptor(self):
+        """Adapter-owned metadata descriptor for this runtime."""
+        return get_runtime_descriptor(self.runtime_name)
 
     @property
     def global_config_dir(self) -> Path:
@@ -82,7 +96,7 @@ class RuntimeAdapter(abc.ABC):
 
     def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
         """Resolve the runtime's global config dir."""
-        return (home or Path.home()) / self.config_dir_name
+        return resolve_global_config_dir(self.runtime_descriptor, home=home)
 
     def resolve_local_config_dir(self, cwd: Path | None = None) -> Path:
         """Resolve the runtime's local config dir."""
@@ -90,7 +104,7 @@ class RuntimeAdapter(abc.ABC):
 
     def format_command(self, action: str) -> str:
         """Format a runtime-native GPD command."""
-        return f"/gpd:{action}"
+        return f"{self.command_prefix}{action}"
 
     @property
     def update_command(self) -> str:
@@ -222,8 +236,8 @@ class RuntimeAdapter(abc.ABC):
         return 0
 
     def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
-        """Write VERSION file into get-physics-done/."""
-        gpd_dest = target_dir / "get-physics-done"
+        """Write VERSION file into the runtime install root."""
+        gpd_dest = target_dir / GPD_INSTALL_DIR_NAME
         failures.extend(write_version_file(gpd_dest, version))
 
     def _install_hooks(self, gpd_root: Path, target_dir: Path, failures: list[str]) -> None:
@@ -273,20 +287,26 @@ class RuntimeAdapter(abc.ABC):
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
             removed: list[str] = []
 
-            # Remove commands/gpd/ directory
-            gpd_commands = target_dir / "commands" / "gpd"
+            # Remove nested commands/gpd/ directory
+            gpd_commands = target_dir / COMMANDS_DIR_NAME / "gpd"
             if gpd_commands.is_dir():
                 shutil.rmtree(gpd_commands)
-                removed.append("commands/gpd/")
+                removed.append(f"{COMMANDS_DIR_NAME}/gpd/")
 
-            # Remove get-physics-done/ directory
-            gpd_dir = target_dir / "get-physics-done"
+            # Remove flat command/ directory used by some runtimes.
+            flat_commands = target_dir / FLAT_COMMANDS_DIR_NAME
+            if flat_commands.is_dir():
+                shutil.rmtree(flat_commands)
+                removed.append(f"{FLAT_COMMANDS_DIR_NAME}/")
+
+            # Remove the shared GPD install root.
+            gpd_dir = target_dir / GPD_INSTALL_DIR_NAME
             if gpd_dir.is_dir():
                 shutil.rmtree(gpd_dir)
-                removed.append("get-physics-done/")
+                removed.append(f"{GPD_INSTALL_DIR_NAME}/")
 
             # Remove gpd-*.md agent files
-            agents_dir = target_dir / "agents"
+            agents_dir = target_dir / AGENTS_DIR_NAME
             if agents_dir.is_dir():
                 agent_count = 0
                 for f in agents_dir.iterdir():
@@ -297,7 +317,7 @@ class RuntimeAdapter(abc.ABC):
                     removed.append(f"{agent_count} GPD agents")
 
             # Remove GPD hooks
-            hooks_dir = target_dir / "hooks"
+            hooks_dir = target_dir / HOOKS_DIR_NAME
             if hooks_dir.is_dir():
                 hook_count = 0
                 for hook_path in hooks_dir.iterdir():

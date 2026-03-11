@@ -24,7 +24,7 @@ body:
       label: Steps to Reproduce
       description: How can we reproduce this?
       placeholder: |
-        1. Run `/gpd:new-project`
+        1. Run the runtime's project-initialization command
         2. Enter "..."
         3. See error
     validations:
@@ -38,17 +38,12 @@ body:
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: runtime
     attributes:
       label: Runtime
-      description: Which AI agent are you using?
-      options:
-        - Claude Code
-        - OpenCode
-        - Gemini CLI
-        - Codex
-        - Other
+      description: Which supported AI runtime are you using? Include the runtime name and version.
+      placeholder: "Runtime name and version"
     validations:
       required: true
 

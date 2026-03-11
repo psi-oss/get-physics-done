@@ -205,6 +205,27 @@ class TestInstall:
         agent_files = list(agents_dir.glob("gpd-*.md"))
         assert len(agent_files) >= 2
 
+    def test_install_preserves_shell_placeholders_for_codex_agents(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
+            "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
+            "Use ${PHASE_ARG} in prose.\n"
+            "```bash\n"
+            'echo "$phase_dir" "$file"\n'
+            "```\n",
+            encoding="utf-8",
+        )
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        checker = (target / "agents" / "gpd-shell-vars.md").read_text(encoding="utf-8")
+        assert "Use ${PHASE_ARG} in prose." in checker
+        assert 'echo "$phase_dir" "$file"' in checker
+
     def test_install_writes_version(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
@@ -227,7 +248,7 @@ class TestInstall:
         escaped_exe = (sys.executable or "python3").replace("\\", "\\\\")
         expected_notify = (
             f'notify = ["{escaped_exe}", '
-            f'"{(target / "hooks" / "codex_notify.py").as_posix()}"]'
+            f'"{(target / "hooks" / "notify.py").as_posix()}"]'
         )
         assert "# GPD update notification" in content
         assert expected_notify in content
@@ -291,8 +312,8 @@ class TestInstall:
         adapter.install(gpd_root, target, is_global=False, explicit_target=True)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
-        assert f'"{(target / "hooks" / "codex_notify.py").as_posix()}"' in content
-        assert '".codex/hooks/codex_notify.py"' not in content
+        assert f'"{(target / "hooks" / "notify.py").as_posix()}"' in content
+        assert '".codex/hooks/notify.py"' not in content
 
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,
@@ -304,7 +325,7 @@ class TestInstall:
         target = tmp_path / ".codex"
         target.mkdir()
         (target / "config.toml").write_text(
-            '# GPD update notification\nnotify = ["python3", ".codex/hooks/codex_notify.py"]\n',
+            '# GPD update notification\nnotify = ["python3", ".codex/hooks/notify.py"]\n',
             encoding="utf-8",
         )
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
@@ -312,8 +333,8 @@ class TestInstall:
         adapter.install(gpd_root, target, is_global=False)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
-        assert 'notify = ["/custom/venv/bin/python", ".codex/hooks/codex_notify.py"]' in content
-        assert 'notify = ["python3", ".codex/hooks/codex_notify.py"]' not in content
+        assert 'notify = ["/custom/venv/bin/python", ".codex/hooks/notify.py"]' in content
+        assert 'notify = ["python3", ".codex/hooks/notify.py"]' not in content
 
     def test_install_writes_manifest(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -495,7 +516,7 @@ class TestUninstall:
         if config_toml.exists():
             content = config_toml.read_text(encoding="utf-8")
             assert "gpd-" not in content
-            assert "codex_notify" not in content
+            assert "notify.py" not in content
             assert "multi_agent" not in content
 
     def test_uninstall_on_empty_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
@@ -515,7 +536,7 @@ class TestUninstall:
             'model = "gpt-4"\n'
             '# My notes about gpd-style naming\n'
             'custom = "my-gpd-tool"\n'
-            f'notify = ["{sys.executable or "python3"}", "/path/codex_notify.py"]\n',
+            f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -526,7 +547,7 @@ class TestUninstall:
         assert 'model = "gpt-4"' in content
         assert "gpd-style naming" in content
         assert 'custom = "my-gpd-tool"' in content
-        assert "codex_notify" not in content
+        assert "notify.py" not in content
 
     def test_uninstall_removes_gpd_comment_with_notify(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         """The '# GPD update notification' comment should be cleaned alongside the notify line."""
@@ -537,7 +558,7 @@ class TestUninstall:
             'model = "gpt-4"\n'
             "\n"
             "# GPD update notification\n"
-            f'notify = ["{sys.executable or "python3"}", "/path/codex_notify.py"]\n',
+            f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -546,7 +567,7 @@ class TestUninstall:
 
         content = config_toml.read_text(encoding="utf-8")
         assert "GPD update notification" not in content
-        assert "codex_notify" not in content
+        assert "notify.py" not in content
 
 
 class TestNotifyConfiguration:
@@ -573,7 +594,7 @@ class TestNotifyConfiguration:
         assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in content
         assert 'notify = ["sh", "-c",' in content
         assert "/path/to/my-tool" in content
-        assert "codex_notify.py" in content
+        assert "notify.py" in content
 
         skills = tmp_path / "skills"
         skills.mkdir()
@@ -581,7 +602,7 @@ class TestNotifyConfiguration:
 
         cleaned = config_toml.read_text(encoding="utf-8")
         assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
-        assert "codex_notify" not in cleaned
+        assert "notify.py" not in cleaned
         assert "GPD original notify" not in cleaned
 
     def test_mcp_toml_escapes_windows_paths(self, tmp_path: Path) -> None:

@@ -16,8 +16,8 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `1218`
-- Python files under `src/` and `tests/`: `177`
+- Live repo files analyzed in the current tree: `1227`
+- Python files under `src/` and `tests/`: `180`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `61`
@@ -26,7 +26,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `113`
+- `tests/**` files: `115`
 - `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
 - `.claude/get-physics-done/workflows/**/*.md`: `61`
@@ -1090,18 +1090,18 @@ They explicitly preserve:
   `external-service`
   Latest-version authority.
 
-- `src/gpd/hooks/codex_notify.py -> src/gpd/hooks/check_update.py`
+- `src/gpd/hooks/notify.py -> src/gpd/hooks/check_update.py`
   `spawn`
 
-- `src/gpd/hooks/codex_notify.py -> freshest valid update-cache candidate set`
+- `src/gpd/hooks/notify.py -> freshest valid update-cache candidate set`
   `candidate-set`
 
-- `src/gpd/hooks/codex_notify.py -> stdin payload schema {type, workspace}`
+- `src/gpd/hooks/notify.py -> stdin payload schema {type, workspace}`
   `candidate-set`
 
-- `src/gpd/hooks/codex_notify.py -> src/gpd/hooks/runtime_detect.py`
+- `src/gpd/hooks/notify.py -> src/gpd/hooks/runtime_detect.py`
   `hard-import`
-  Reads cache candidates and Codex-scoped update commands through runtime-detection helpers.
+  Reads cache candidates and runtime-scoped update commands through runtime-detection helpers.
 
 - `src/gpd/core/context.py -> src/gpd/adapters/__init__.py`
   `authority`

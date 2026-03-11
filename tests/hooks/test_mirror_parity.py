@@ -14,7 +14,7 @@ def test_claude_hook_mirrors_match_source_hooks() -> None:
         "runtime_detect.py",
         "statusline.py",
         "check_update.py",
-        "codex_notify.py",
+        "notify.py",
     )
 
     for hook_name in hook_names:
@@ -32,7 +32,7 @@ def test_codex_hook_mirrors_match_source_hooks() -> None:
         "runtime_detect.py",
         "statusline.py",
         "check_update.py",
-        "codex_notify.py",
+        "notify.py",
     )
 
     for hook_name in hook_names:

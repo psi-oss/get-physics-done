@@ -18,7 +18,6 @@ from gpd.hooks.check_update import (
     _read_installed_version,
     main,
 )
-from gpd.hooks.runtime_detect import RUNTIME_CODEX
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -109,7 +108,7 @@ class TestReadInstalledVersion:
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
@@ -325,7 +324,7 @@ class TestMainThrottle:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
             patch("subprocess.Popen") as mock_popen,
         ):
             main()

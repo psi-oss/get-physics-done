@@ -7,6 +7,11 @@ hook configs, and tool name translations across runtimes.
 from __future__ import annotations
 
 from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    iter_runtime_descriptors,
+    list_runtime_names,
+)
 
 _REGISTRY: dict[str, type[RuntimeAdapter]] = {}
 _LOADED = False
@@ -50,4 +55,12 @@ def list_runtimes() -> list[str]:
     return sorted(_REGISTRY.keys())
 
 
-__all__ = ["RuntimeAdapter", "get_adapter", "iter_adapters", "list_runtimes"]
+__all__ = [
+    "RuntimeAdapter",
+    "get_adapter",
+    "get_runtime_descriptor",
+    "iter_adapters",
+    "iter_runtime_descriptors",
+    "list_runtime_names",
+    "list_runtimes",
+]

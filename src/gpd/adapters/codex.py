@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shlex
 import shutil
@@ -29,6 +28,7 @@ from gpd.adapters.install_utils import (
     convert_tool_references_in_body,
     expand_at_includes,
     hook_python_interpreter,
+    protect_runtime_agent_prompt,
     pre_install_cleanup,
     remove_stale_agents,
     replace_placeholders,
@@ -281,24 +281,6 @@ class CodexAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
         return "codex"
-
-    @property
-    def display_name(self) -> str:
-        return "Codex"
-
-    @property
-    def config_dir_name(self) -> str:
-        return ".codex"
-
-    @property
-    def activation_env_vars(self) -> tuple[str, ...]:
-        return ("CODEX_SESSION", "CODEX_CLI")
-
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
-        env = os.environ.get("CODEX_CONFIG_DIR")
-        if env:
-            return Path(env).expanduser()
-        return (home or Path.home()) / ".codex"
 
     def format_command(self, action: str) -> str:
         return f"$gpd-{action}"
@@ -623,6 +605,7 @@ def _copy_agents_as_skills(
                 install_scope=install_scope,
             )
 
+        content = protect_runtime_agent_prompt(content, "codex")
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -663,6 +646,7 @@ def _copy_agents_as_agent_files(
                 install_scope=install_scope,
             )
 
+        content = protect_runtime_agent_prompt(content, "codex")
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
@@ -1007,7 +991,7 @@ def _configure_config_toml(
     if config_toml.exists():
         toml_content = config_toml.read_text(encoding="utf-8")
 
-    notify_hook = HOOK_SCRIPTS["codex_notify"]
+    notify_hook = HOOK_SCRIPTS["notify"]
 
     if is_global or explicit_target:
         desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
@@ -1024,7 +1008,7 @@ def _configure_config_toml(
 
 
 def _line_contains_gpd_notify(line: str) -> bool:
-    return "codex_notify.py" in line
+    return re.search(r"(?<![A-Za-z0-9_])(codex_notify|notify)\.py(?![A-Za-z0-9_])", line) is not None
 
 
 def _parse_notify_assignment(line: str) -> list[str] | None:

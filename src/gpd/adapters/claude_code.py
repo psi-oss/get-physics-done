@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -14,6 +13,7 @@ from gpd.adapters.install_utils import (
     copy_with_path_replacement,
     ensure_update_hook,
     parse_jsonc,
+    protect_runtime_agent_prompt,
     read_settings,
     remove_stale_agents,
     replace_placeholders,
@@ -33,28 +33,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
         return "claude-code"
-
-    @property
-    def display_name(self) -> str:
-        return "Claude Code"
-
-    @property
-    def config_dir_name(self) -> str:
-        return ".claude"
-
-    @property
-    def activation_env_vars(self) -> tuple[str, ...]:
-        return ("CLAUDE_CODE_SESSION", "CLAUDE_CODE")
-
-    @property
-    def install_flag(self) -> str:
-        return "--claude"
-
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
-        env = os.environ.get("CLAUDE_CONFIG_DIR")
-        if env:
-            return Path(env).expanduser()
-        return (home or Path.home()) / ".claude"
 
     # --- Template method hooks ---
 
@@ -315,6 +293,7 @@ def _copy_agents_native(
     for agent_md in sorted(agents_src.glob("*.md")):
         content = agent_md.read_text(encoding="utf-8")
         content = replace_placeholders(content, path_prefix, runtime, install_scope=install_scope)
+        content = protect_runtime_agent_prompt(content, runtime)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 

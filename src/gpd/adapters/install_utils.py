@@ -15,6 +15,7 @@ import shlex
 import sys
 from pathlib import Path
 
+from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map, translate_for_runtime
 
 # ---------------------------------------------------------------------------
@@ -24,6 +25,14 @@ from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_t
 PATCHES_DIR_NAME = "gpd-local-patches"
 MANIFEST_NAME = "gpd-file-manifest.json"
 MAX_INCLUDE_EXPANSION_DEPTH = 10
+COMMANDS_DIR_NAME = "commands"
+FLAT_COMMANDS_DIR_NAME = "command"
+AGENTS_DIR_NAME = "agents"
+HOOKS_DIR_NAME = "hooks"
+GPD_INSTALL_DIR_NAME = "get-physics-done"
+TODOS_DIR_NAME = "todos"
+CACHE_DIR_NAME = "cache"
+UPDATE_CACHE_FILENAME = "gpd-update-check.json"
 
 # Subdirectories of specs/ that make up the installed get-physics-done/ content.
 # Shared by all adapters.
@@ -33,7 +42,7 @@ GPD_CONTENT_DIRS = ("references", "templates", "workflows")
 HOOK_SCRIPTS: dict[str, str] = {
     "statusline": "statusline.py",
     "check_update": "check_update.py",
-    "codex_notify": "codex_notify.py",
+    "notify": "notify.py",
     "runtime_detect": "runtime_detect.py",
 }
 
@@ -121,6 +130,91 @@ def replace_placeholders(
     content = content.replace("{GPD_AGENTS_DIR}", path_prefix + "agents")
     content = re.sub(r"~/\.claude/", path_prefix, content)
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
+
+
+_BRACED_PROMPT_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_PLAIN_SHELL_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
+_SHELL_FENCE_LANGS = frozenset({"bash", "sh", "shell"})
+
+
+def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
+    """Rewrite agent body tokens that collide with runtime prompt templating.
+
+    Some runtimes interpret ``$name``/``${NAME}`` inside agent bodies as prompt
+    template inputs. GPD agent prompts use those forms as instructional shell
+    examples, so convert them to neutral placeholders only for runtimes whose
+    agent prompt engines reserve ``$``.
+    """
+    if not get_runtime_descriptor(runtime).agent_prompt_uses_dollar_templates:
+        return content
+
+    frontmatter, body = _split_frontmatter(content)
+    body = _BRACED_PROMPT_VAR_RE.sub(_shell_var_placeholder, body)
+    body = _protect_shell_code_fences(body)
+    return frontmatter + body
+
+
+def _split_frontmatter(content: str) -> tuple[str, str]:
+    """Return ``(frontmatter, body)`` while preserving the original delimiter."""
+    if not content.startswith("---"):
+        return "", content
+
+    end_index = content.find("---", 3)
+    if end_index == -1:
+        return "", content
+
+    return content[: end_index + 3], content[end_index + 3 :]
+
+
+def _shell_var_placeholder(match: re.Match[str]) -> str:
+    return f"<{match.group(1)}>"
+
+
+def _protect_shell_code_fences(body: str) -> str:
+    """Replace shell-style variable references inside fenced shell examples."""
+    lines = body.splitlines(keepends=True)
+    if not lines:
+        return body
+
+    result: list[str] = []
+    fence_lines: list[str] = []
+    in_fence = False
+    is_shell_fence = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if in_fence:
+                if is_shell_fence:
+                    result.append(_protect_shell_vars("".join(fence_lines)))
+                else:
+                    result.extend(fence_lines)
+                fence_lines = []
+                in_fence = False
+                is_shell_fence = False
+            else:
+                in_fence = True
+                is_shell_fence = stripped[3:].strip().lower() in _SHELL_FENCE_LANGS
+            result.append(line)
+            continue
+
+        if in_fence:
+            fence_lines.append(line)
+            continue
+
+        result.append(line)
+
+    if fence_lines:
+        if is_shell_fence:
+            result.append(_protect_shell_vars("".join(fence_lines)))
+        else:
+            result.extend(fence_lines)
+
+    return "".join(result)
+
+
+def _protect_shell_vars(content: str) -> str:
+    return _PLAIN_SHELL_VAR_RE.sub(_shell_var_placeholder, content)
 
 
 def get_opencode_global_dir() -> str:

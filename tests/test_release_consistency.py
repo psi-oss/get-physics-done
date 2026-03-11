@@ -210,16 +210,13 @@ def test_public_bootstrap_installer_accepts_documented_runtime_aliases() -> None
     assert "`--opencode`" in readme
     assert "`--all`" in readme
     assert "npx -y get-physics-done@latest --all --global" in readme
-    assert "npx -y get-physics-done@latest --codex --local" in content
-    assert "npx -y get-physics-done@latest --opencode --global" in content
+    assert 'require("../src/gpd/adapters/runtime_catalog.json")' in content
+    assert "runtimeInstallFlag(dollarCommandRuntime)" in content
+    assert "runtimeConfigDirName(dollarCommandRuntime)" in content
     assert 'args.includes("--all")' in content
-    assert 'args.includes("--claude")' in content
-    assert 'args.includes("--gemini")' in content
-    assert 'args.includes(`--${key}`)' in content
-    assert '"codex": {' in content
-    assert 'name: "Codex"' in content
-    assert '"opencode": {' in content
-    assert 'name: "OpenCode"' in content
+    assert 'documentedRuntimeFlags().join("/")' in content
+    assert "runtimeSelectionFlags(runtime)" in content
+    assert "runtimeSelectionAliases(runtime)" in content
 
 
 def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> None:
@@ -249,7 +246,7 @@ def test_public_bootstrap_installer_documents_uninstall_path() -> None:
     assert "~/.gpd/venv/bin/gpd uninstall" not in readme
     assert "--uninstall" in content
     assert "Uninstall from selected runtime config" in content
-    assert "npx -y get-physics-done@latest --uninstall --claude --global" in content
+    assert '--uninstall ${primaryFlag} --global' in content
 
 
 def test_export_workflow_uses_release_attribution_footer() -> None:

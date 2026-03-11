@@ -4,13 +4,11 @@
  *
  * Usage:
  *   npx -y get-physics-done@latest
- *   npx -y get-physics-done@latest --claude --global
- *   npx -y get-physics-done@latest --gemini --global
- *   npx -y get-physics-done@latest --codex --local
- *   npx -y get-physics-done@latest --opencode --global
+ *   npx -y get-physics-done@latest --<runtime-flag> --global
+ *   npx -y get-physics-done@latest --<runtime-flag> --local
  *   npx -y get-physics-done@latest --all --global
  *   npx -y get-physics-done@latest --uninstall
- *   npx -y get-physics-done@latest --uninstall --claude --global
+ *   npx -y get-physics-done@latest --uninstall --<runtime-flag> --global
  */
 
 const fs = require("fs");
@@ -25,6 +23,7 @@ const {
   repository,
   gpdPythonVersion: rawPythonPackageVersion,
 } = require("../package.json");
+const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
 
 const PYTHON_PACKAGE_NAME = "get-physics-done";
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
@@ -47,25 +46,36 @@ const reset = "\x1b[0m";
 
 let bootstrapProbeOverridesCache = undefined;
 
-const ALL_RUNTIMES = ["claude-code", "opencode", "gemini", "codex"];
-const RUNTIMES = {
-  "claude-code": {
-    name: "Claude Code",
-    configDirName: ".claude",
-  },
-  "opencode": {
-    name: "OpenCode",
-    configDirName: ".opencode",
-  },
-  "gemini": {
-    name: "Gemini CLI",
-    configDirName: ".gemini",
-  },
-  "codex": {
-    name: "Codex",
-    configDirName: ".codex",
-  },
-};
+const ALL_RUNTIMES = RUNTIME_CATALOG.map((runtime) => runtime.runtime_name);
+const RUNTIME_BY_NAME = Object.fromEntries(RUNTIME_CATALOG.map((runtime) => [runtime.runtime_name, runtime]));
+
+function runtimeRecord(runtime) {
+  const record = RUNTIME_BY_NAME[runtime];
+  if (!record) {
+    throw new Error(`Unknown runtime: ${runtime}`);
+  }
+  return record;
+}
+
+function runtimeDisplayName(runtime) {
+  return runtimeRecord(runtime).display_name;
+}
+
+function runtimeConfigDirName(runtime) {
+  return runtimeRecord(runtime).config_dir_name;
+}
+
+function runtimeInstallFlag(runtime) {
+  return runtimeRecord(runtime).install_flag;
+}
+
+function runtimeSelectionFlags(runtime) {
+  return runtimeRecord(runtime).selection_flags || [];
+}
+
+function runtimeSelectionAliases(runtime) {
+  return runtimeRecord(runtime).selection_aliases || [];
+}
 
 function log(msg) {
   console.log(` ${cyan}i${reset} ${msg}`);
@@ -746,28 +756,28 @@ function expandTilde(value) {
 }
 
 function runtimeGlobalConfigDir(runtime) {
-  if (runtime === "opencode") {
-    if (process.env.OPENCODE_CONFIG_DIR) {
-      return expandTilde(process.env.OPENCODE_CONFIG_DIR);
+  const policy = runtimeRecord(runtime).global_config;
+  if (policy.strategy === "env_or_home") {
+    if (policy.env_var && process.env[policy.env_var]) {
+      return expandTilde(process.env[policy.env_var]);
     }
-    if (process.env.OPENCODE_CONFIG) {
-      return path.dirname(expandTilde(process.env.OPENCODE_CONFIG));
-    }
-    if (process.env.XDG_CONFIG_HOME) {
-      return path.join(expandTilde(process.env.XDG_CONFIG_HOME), "opencode");
-    }
-    return path.join(os.homedir(), ".config", "opencode");
+    return path.join(os.homedir(), policy.home_subpath);
   }
 
-  if (runtime === "gemini") {
-    return expandTilde(process.env.GEMINI_CONFIG_DIR || path.join(os.homedir(), ".gemini"));
+  if (policy.strategy === "xdg_app") {
+    if (policy.env_dir_var && process.env[policy.env_dir_var]) {
+      return expandTilde(process.env[policy.env_dir_var]);
+    }
+    if (policy.env_file_var && process.env[policy.env_file_var]) {
+      return path.dirname(expandTilde(process.env[policy.env_file_var]));
+    }
+    if (process.env.XDG_CONFIG_HOME && policy.xdg_subdir) {
+      return path.join(expandTilde(process.env.XDG_CONFIG_HOME), policy.xdg_subdir);
+    }
+    return path.join(os.homedir(), policy.home_subpath);
   }
 
-  if (runtime === "codex") {
-    return expandTilde(process.env.CODEX_CONFIG_DIR || path.join(os.homedir(), ".codex"));
-  }
-
-  return expandTilde(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"));
+  throw new Error(`Unsupported config policy for runtime ${runtime}`);
 }
 
 function formatDisplayPath(filePath) {
@@ -783,7 +793,7 @@ function formatDisplayPath(filePath) {
 }
 
 function formatRuntimeList(runtimes) {
-  const names = runtimes.map((runtime) => RUNTIMES[runtime].name);
+  const names = runtimes.map((runtime) => runtimeDisplayName(runtime));
   if (names.length === 0) {
     return "no runtimes";
   }
@@ -797,18 +807,21 @@ function formatRuntimeList(runtimes) {
 }
 
 function runtimeCommandPrefix(runtime) {
-  if (runtime === "codex") {
-    return "$gpd-";
-  }
-  if (runtime === "opencode") {
-    return "/gpd-";
-  }
-  return "/gpd:";
+  return runtimeRecord(runtime).command_prefix;
 }
 
 function formatRuntimeCommand(runtime, action) {
   const prefix = runtimeCommandPrefix(runtime);
   return `${prefix}${action}`;
+}
+
+function documentedRuntimeFlags() {
+  return RUNTIME_CATALOG.map((runtime) => runtime.install_flag);
+}
+
+function findRuntime(predicate, fallback = ALL_RUNTIMES[0]) {
+  const match = RUNTIME_CATALOG.find(predicate);
+  return match ? match.runtime_name : fallback;
 }
 
 function printBanner() {
@@ -822,12 +835,17 @@ function printBanner() {
   console.log("");
   console.log(` ${bold}Get Physics Done${reset} ${dim}v${packageVersion}${reset}`);
   console.log(" Open-source AI copilot for physics research");
-  console.log(" for Claude Code, Gemini CLI, Codex, and OpenCode.");
+  console.log(` for ${formatRuntimeList(ALL_RUNTIMES)}.`);
   console.log("");
 }
 
 function printHelp() {
   const installCommand = "npx -y get-physics-done@latest";
+  const primaryRuntime = ALL_RUNTIMES[0];
+  const dollarCommandRuntime = findRuntime((runtime) => runtime.command_prefix.startsWith("$"), primaryRuntime);
+  const primaryFlag = runtimeInstallFlag(primaryRuntime);
+  const dollarCommandFlag = runtimeInstallFlag(dollarCommandRuntime);
+  const targetDirExample = `/path/to/${runtimeConfigDirName(dollarCommandRuntime)}`;
   console.log(` ${yellow}Usage:${reset} ${installCommand} [options]`);
   console.log("");
   console.log(` ${yellow}Options:${reset}`);
@@ -836,10 +854,11 @@ function printHelp() {
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
   console.log(` ${cyan}--reinstall${reset}             Reinstall the matching Python release in ~/.gpd/venv`);
   console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
-  console.log(` ${cyan}--claude${reset}                Select Claude Code only`);
-  console.log(` ${cyan}--opencode${reset}              Select OpenCode only`);
-  console.log(` ${cyan}--gemini${reset}               Select Gemini CLI only`);
-  console.log(` ${cyan}--codex${reset}                Select Codex only`);
+  for (const runtime of ALL_RUNTIMES) {
+    const flag = runtimeInstallFlag(runtime);
+    const padding = " ".repeat(Math.max(0, 24 - flag.length));
+    console.log(` ${cyan}${flag}${reset}${padding}Select ${runtimeDisplayName(runtime)} only`);
+  }
   console.log(` ${cyan}--all${reset}                  Select all supported runtimes`);
   console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local scope)`);
   console.log(` ${cyan}--force-statusline${reset}     Replace an existing runtime statusline`);
@@ -849,29 +868,29 @@ function printHelp() {
   console.log(` ${dim}# Interactive install${reset}`);
   console.log(` ${installCommand}`);
   console.log("");
-  console.log(` ${dim}# Install for Claude Code globally${reset}`);
-  console.log(` ${installCommand} --claude --global`);
+  console.log(` ${dim}# Install for ${runtimeDisplayName(primaryRuntime)} globally${reset}`);
+  console.log(` ${installCommand} ${primaryFlag} --global`);
   console.log("");
-  console.log(` ${dim}# Install for Codex locally${reset}`);
-  console.log(` ${installCommand} --codex --local`);
+  console.log(` ${dim}# Install for ${runtimeDisplayName(dollarCommandRuntime)} locally${reset}`);
+  console.log(` ${installCommand} ${dollarCommandFlag} --local`);
   console.log("");
   console.log(` ${dim}# Reinstall the matching managed Python release${reset}`);
-  console.log(` ${installCommand} --reinstall --claude --local`);
+  console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
-  console.log(` ${installCommand} --upgrade --claude --local`);
+  console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
   console.log(` ${installCommand} --all --global`);
   console.log("");
   console.log(` ${dim}# Install into an explicit local target directory${reset}`);
-  console.log(` ${installCommand} --codex --local --target-dir /path/to/.codex`);
+  console.log(` ${installCommand} ${dollarCommandFlag} --local --target-dir ${targetDirExample}`);
   console.log("");
   console.log(` ${dim}# Interactive uninstall${reset}`);
   console.log(` ${installCommand} --uninstall`);
   console.log("");
-  console.log(` ${dim}# Uninstall from Claude Code globally${reset}`);
-  console.log(` ${installCommand} --uninstall --claude --global`);
+  console.log(` ${dim}# Uninstall from ${runtimeDisplayName(primaryRuntime)} globally${reset}`);
+  console.log(` ${installCommand} --uninstall ${primaryFlag} --global`);
   console.log("");
   console.log(` ${dim}# Uninstall from all runtimes globally${reset}`);
   console.log(` ${installCommand} --uninstall --all --global`);
@@ -910,28 +929,12 @@ function parseSelectedRuntimes(args) {
     return [...ALL_RUNTIMES];
   }
 
-  for (const key of ALL_RUNTIMES) {
-    if (args.includes(`--${key}`)) {
-      selected.push(key);
-      seen.add(key);
+  for (const runtime of ALL_RUNTIMES) {
+    const flags = new Set([`--${runtime}`, ...runtimeSelectionFlags(runtime)]);
+    if ([...flags].some((flag) => args.includes(flag)) && !seen.has(runtime)) {
+      selected.push(runtime);
+      seen.add(runtime);
     }
-  }
-
-  if (args.includes("--claude") && !seen.has("claude-code")) {
-    selected.push("claude-code");
-    seen.add("claude-code");
-  }
-  if ((args.includes("--gemini") || args.includes("--gemini-cli")) && !seen.has("gemini")) {
-    selected.push("gemini");
-    seen.add("gemini");
-  }
-  if (args.includes("--codex") && !seen.has("codex")) {
-    selected.push("codex");
-    seen.add("codex");
-  }
-  if (args.includes("--opencode") && !seen.has("opencode")) {
-    selected.push("opencode");
-    seen.add("opencode");
   }
 
   return selected;
@@ -945,40 +948,40 @@ async function selectRuntimes(args, action = "install") {
 
   if (!process.stdin.isTTY) {
     if (action === "uninstall") {
-      error("Specify a runtime with --claude/--gemini/--codex/--opencode or use --all when running --uninstall non-interactively.");
+      error(`Specify a runtime with ${documentedRuntimeFlags().join("/")} or use --all when running --uninstall non-interactively.`);
       process.exit(1);
     }
-    warn("Non-interactive terminal detected, defaulting to Claude Code.");
-    return ["claude-code"];
+    const defaultRuntime = ALL_RUNTIMES[0];
+    warn(`Non-interactive terminal detected, defaulting to ${runtimeDisplayName(defaultRuntime)}.`);
+    return [defaultRuntime];
   }
 
   const actionPrompt = action === "uninstall" ? "uninstall from" : "install for";
   console.log(` ${yellow}Which runtime(s) would you like to ${actionPrompt}?${reset}`);
   console.log("");
-  console.log(
-    ` ${cyan}1${reset}) ${RUNTIMES["claude-code"].name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("claude-code"))})${reset}`
-  );
-  console.log(` ${cyan}2${reset}) ${RUNTIMES.gemini.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("gemini"))})${reset}`);
-  console.log(` ${cyan}3${reset}) ${RUNTIMES.codex.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("codex"))})${reset}`);
-  console.log(` ${cyan}4${reset}) ${RUNTIMES.opencode.name} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir("opencode"))})${reset}`);
-  console.log(` ${cyan}5${reset}) All runtimes`);
+  ALL_RUNTIMES.forEach((runtime, index) => {
+    console.log(
+      ` ${cyan}${index + 1}${reset}) ${runtimeDisplayName(runtime)} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir(runtime))})${reset}`
+    );
+  });
+  console.log(` ${cyan}${ALL_RUNTIMES.length + 1}${reset}) All runtimes`);
   console.log("");
 
   const choice = ((await prompt(` Choice ${dim}[1]${reset}: `)) || "1").toLowerCase();
-  if (choice === "5" || choice === "all" || choice === "all runtimes") {
+  if (choice === String(ALL_RUNTIMES.length + 1) || choice === "all" || choice === "all runtimes") {
     return [...ALL_RUNTIMES];
   }
-  if (choice === "4" || choice === "opencode") {
-    return ["opencode"];
+
+  const numericIndex = Number.parseInt(choice, 10);
+  if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= ALL_RUNTIMES.length) {
+    return [ALL_RUNTIMES[numericIndex - 1]];
   }
-  if (choice === "3" || choice === "codex") {
-    return ["codex"];
-  }
-  if (choice === "2" || choice === "gemini" || choice === "gemini cli") {
-    return ["gemini"];
-  }
-  if (choice === "1" || choice === "claude" || choice === "claude code" || choice === "claude-code") {
-    return ["claude-code"];
+
+  for (const runtime of ALL_RUNTIMES) {
+    const aliases = new Set([runtime, runtimeDisplayName(runtime).toLowerCase(), ...runtimeSelectionAliases(runtime)]);
+    if (aliases.has(choice)) {
+      return [runtime];
+    }
   }
 
   error(`Invalid runtime selection: ${choice}`);
@@ -1006,7 +1009,7 @@ async function selectInstallScope(args, runtimes, targetDir, action = "install")
   }
 
   const globalExamples = runtimes.map((runtime) => formatDisplayPath(runtimeGlobalConfigDir(runtime))).join(", ");
-  const localExamples = runtimes.map((runtime) => `./${RUNTIMES[runtime].configDirName}`).join(", ");
+  const localExamples = runtimes.map((runtime) => `./${runtimeConfigDirName(runtime)}`).join(", ");
   const actionPrompt = action === "uninstall" ? "uninstall from" : "install";
   const globalDescription = action === "uninstall" ? "remove it from all projects" : "available in all projects";
   const localDescription = action === "uninstall" ? "remove it from this project only" : "this project only";
@@ -1057,10 +1060,10 @@ function printCompletionSummary(runtimes, scope) {
     console.log(`  Start a new project:  ${formatRuntimeCommand(runtime, "new-project")}`);
     console.log(`  Show commands:        ${formatRuntimeCommand(runtime, "help")}`);
   } else {
-    const width = Math.max(...runtimes.map((runtime) => RUNTIMES[runtime].name.length));
+    const width = Math.max(...runtimes.map((runtime) => runtimeDisplayName(runtime).length));
     console.log("  Start a new project:");
     for (const runtime of runtimes) {
-      console.log(`  ${RUNTIMES[runtime].name.padEnd(width)}  ${formatRuntimeCommand(runtime, "new-project")}`);
+      console.log(`  ${runtimeDisplayName(runtime).padEnd(width)}  ${formatRuntimeCommand(runtime, "new-project")}`);
     }
   }
   console.log("");

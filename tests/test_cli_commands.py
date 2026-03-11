@@ -469,7 +469,7 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:progress"
         assert payload["context_mode"] == "project-required"
         assert payload["passed"] is False
-        assert payload["guidance"] == "This command requires an initialized GPD project. Run /gpd:new-project."
+        assert payload["guidance"] == "This command requires an initialized GPD project. Run `gpd new-project`."
 
     def test_command_context_projectless_passes_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -526,7 +526,7 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is False
         assert payload["explicit_inputs"] == ["phase number or standalone topic"]
-        assert payload["guidance"] == "Either provide phase number or standalone topic explicitly, or run /gpd:new-project."
+        assert payload["guidance"] == "Either provide phase number or standalone topic explicitly, or run `gpd new-project`."
 
     def test_command_context_project_aware_accepts_explicit_inputs_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -565,7 +565,7 @@ class TestReviewValidationCommands:
         assert payload["passed"] is False
         assert payload["explicit_inputs"] == ["concept, result, method, notation, or paper"]
         assert payload["guidance"] == (
-            "Either provide concept, result, method, notation, or paper explicitly, or run /gpd:new-project."
+            "Either provide concept, result, method, notation, or paper explicitly, or run `gpd new-project`."
         )
 
     def test_review_preflight_write_paper_strict(self) -> None:

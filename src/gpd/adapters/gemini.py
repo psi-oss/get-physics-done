@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -27,6 +26,7 @@ from gpd.adapters.install_utils import (
     expand_at_includes,
     get_commit_attribution,
     process_attribution,
+    protect_runtime_agent_prompt,
     read_settings,
     remove_stale_agents,
     replace_placeholders,
@@ -226,6 +226,7 @@ def _copy_agents_gemini(
         if gpd_src_root:
             content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="gemini", install_scope=install_scope)
 
+        content = protect_runtime_agent_prompt(content, "gemini")
         content = _convert_frontmatter_to_gemini(content)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -309,24 +310,6 @@ class GeminiAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
         return "gemini"
-
-    @property
-    def display_name(self) -> str:
-        return "Gemini"
-
-    @property
-    def config_dir_name(self) -> str:
-        return ".gemini"
-
-    @property
-    def activation_env_vars(self) -> tuple[str, ...]:
-        return ("GEMINI_CLI",)
-
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
-        env = os.environ.get("GEMINI_CONFIG_DIR")
-        if env:
-            return Path(env).expanduser()
-        return (home or Path.home()) / ".gemini"
 
     def install(
         self,

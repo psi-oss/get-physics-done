@@ -185,6 +185,26 @@ class TestCopyAgentsAsAgentFiles:
             content = agent_file.read_text(encoding="utf-8")
             assert "allowed-tools:" not in content
 
+    def test_sanitizes_shell_placeholders_for_opencode_agents(self, gpd_root: Path, tmp_path: Path) -> None:
+        (gpd_root / "agents" / "gpd-shell-vars.md").write_text(
+            "---\nname: gpd-shell-vars\ndescription: shell vars\n---\n"
+            "Use ${PHASE_ARG} in prose.\n"
+            "```bash\n"
+            'echo "$phase_dir" "$file"\n'
+            "```\n",
+            encoding="utf-8",
+        )
+        dest = tmp_path / "agents"
+        copy_agents_as_agent_files(gpd_root / "agents", dest, "/prefix/")
+
+        checker = (dest / "gpd-shell-vars.md").read_text(encoding="utf-8")
+        assert "${PHASE_ARG}" not in checker
+        assert "$phase_dir" not in checker
+        assert "$file" not in checker
+        assert "<PHASE_ARG>" in checker
+        assert "<phase_dir>" in checker
+        assert "<file>" in checker
+
     def test_removes_stale_agents(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "agents"
         dest.mkdir(parents=True)

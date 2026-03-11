@@ -284,7 +284,10 @@ def test_bootstrap_uninstall_requires_explicit_runtime_non_interactively(tmp_pat
     )
 
     assert result.returncode == 1
-    assert "Specify a runtime with --claude/--gemini/--codex/--opencode or use --all when running --uninstall non-interactively." in result.stderr
+    assert "Specify a runtime with" in result.stderr
+    assert "or use --all when running --uninstall non-interactively." in result.stderr
+    for flag in ("--claude", "--gemini", "--codex", "--opencode"):
+        assert flag in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

@@ -223,7 +223,7 @@ def test_codex_hooks_mirror_matches_source():
         mirror_dir = repo_root / mirror_name / "hooks"
         if not mirror_dir.exists():
             continue
-        for hook_name in ("runtime_detect.py", "statusline.py", "check_update.py", "codex_notify.py"):
+        for hook_name in ("runtime_detect.py", "statusline.py", "check_update.py", "notify.py"):
             src = (source_dir / hook_name).read_text(encoding="utf-8")
             mir = (mirror_dir / hook_name).read_text(encoding="utf-8")
             assert src == mir, f"{mirror_name}/hooks/{hook_name} does not match source"

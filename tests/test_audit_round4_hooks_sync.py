@@ -18,7 +18,7 @@ CANONICAL_DIR = REPO_ROOT / "src" / "gpd" / "hooks"
 
 HOOK_FILES = [
     "check_update.py",
-    "codex_notify.py",
+    "notify.py",
     "runtime_detect.py",
     "statusline.py",
 ]

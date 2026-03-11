@@ -2,12 +2,13 @@
   "name": "get-physics-done",
   "version": "0.1.5",
   "gpdPythonVersion": "0.1.5",
-  "description": "Open-source AI copilot for physics research across Claude Code, Gemini CLI, Codex, and OpenCode",
+  "description": "Open-source AI copilot for physics research across supported AI runtimes",
   "bin": {
     "get-physics-done": "bin/install.js"
   },
   "files": [
-    "bin/"
+    "bin/",
+    "src/gpd/adapters/runtime_catalog.json"
   ],
   "repository": {
     "type": "git",
@@ -27,7 +28,11 @@
     "claude",
     "codex",
     "gemini",
-    "opencode"
+    "opencode",
+    "agentic",
+    "automation",
+    "runtime-agnostic",
+    "scientific-computing"
   ],
   "license": "Apache-2.0"
 }

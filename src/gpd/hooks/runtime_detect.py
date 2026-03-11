@@ -11,13 +11,9 @@ import os
 from pathlib import Path
 
 from gpd.adapters import get_adapter, iter_adapters
-from gpd.adapters.install_utils import MANIFEST_NAME
+from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, MANIFEST_NAME, TODOS_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.core.constants import PLANNING_DIR_NAME
 
-RUNTIME_CLAUDE = "claude-code"
-RUNTIME_CODEX = "codex"
-RUNTIME_GEMINI = "gemini"
-RUNTIME_OPENCODE = "opencode"
 RUNTIME_UNKNOWN = "unknown"
 SCOPE_GLOBAL = "global"
 SCOPE_LOCAL = "local"
@@ -78,7 +74,7 @@ def _has_gpd_install(config_dir: Path) -> bool:
     if (config_dir / MANIFEST_NAME).is_file():
         return True
 
-    gpd_dir = config_dir / "get-physics-done"
+    gpd_dir = config_dir / GPD_INSTALL_DIR_NAME
     return gpd_dir.is_dir()
 
 
@@ -152,12 +148,12 @@ def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, ho
 
 def get_todo_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return todo directories for local and global runtime installs."""
-    return [d / "todos" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
+    return [d / TODOS_DIR_NAME for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
 
 def get_cache_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return cache directories for local and global runtime installs."""
-    return [d / "cache" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
+    return [d / CACHE_DIR_NAME for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
 
 def get_update_cache_files(
@@ -173,25 +169,25 @@ def get_update_cache_files(
     paths: list[Path] = []
 
     if prioritized_runtime in ALL_RUNTIMES:
-        paths.append(_local_runtime_dir(prioritized_runtime, resolved_cwd) / "cache" / "gpd-update-check.json")
-        paths.append(_global_runtime_dir(prioritized_runtime, home=resolved_home) / "cache" / "gpd-update-check.json")
+        paths.append(_local_runtime_dir(prioritized_runtime, resolved_cwd) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+        paths.append(_global_runtime_dir(prioritized_runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
 
-    paths.append(resolved_home / PLANNING_DIR_NAME / "cache" / "gpd-update-check.json")
-    paths.extend(d / "gpd-update-check.json" for d in get_cache_dirs(cwd=resolved_cwd, home=resolved_home))
+    paths.append(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+    paths.extend(d / UPDATE_CACHE_FILENAME for d in get_cache_dirs(cwd=resolved_cwd, home=resolved_home))
     return _unique_paths(paths)
 
 
 def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return GPD installation directories for all known runtimes."""
     if not prefer_active:
-        return [d / "get-physics-done" for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
+        return [d / GPD_INSTALL_DIR_NAME for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
     dirs: list[Path] = []
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
     for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
-        dirs.append(_local_runtime_dir(runtime, resolved_cwd) / "get-physics-done")
-        dirs.append(_global_runtime_dir(runtime, home=resolved_home) / "get-physics-done")
+        dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
+        dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)
     return _unique_paths(dirs)
 
 
@@ -213,10 +209,6 @@ def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
 
 __all__ = [
     "ALL_RUNTIMES",
-    "RUNTIME_CLAUDE",
-    "RUNTIME_CODEX",
-    "RUNTIME_GEMINI",
-    "RUNTIME_OPENCODE",
     "RUNTIME_UNKNOWN",
     "SCOPE_GLOBAL",
     "SCOPE_LOCAL",

@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from gpd.adapters import iter_adapters
+from gpd.adapters.install_utils import AGENTS_DIR_NAME, FLAT_COMMANDS_DIR_NAME, GPD_INSTALL_DIR_NAME, HOOKS_DIR_NAME
 from gpd.core.config import (
     GPDProjectConfig,
     resolve_agent_tier,
@@ -88,10 +89,10 @@ _IGNORE_DIRS = frozenset(
         ".idea",
         "node_modules",
         "__pycache__",
-        "get-physics-done",
-        "agents",
-        "command",
-        "hooks",
+        GPD_INSTALL_DIR_NAME,
+        AGENTS_DIR_NAME,
+        FLAT_COMMANDS_DIR_NAME,
+        HOOKS_DIR_NAME,
     }
 )
 
