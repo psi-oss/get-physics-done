@@ -32,6 +32,17 @@ RUNTIME_CLAUDE = "claude-code"
 RUNTIME_CODEX = "codex"
 RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
+_RUNTIME_ENV_PREFIXES = ("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE")
+_RUNTIME_ENV_VARS_TO_CLEAR = {"XDG_CONFIG_HOME"}
+
+
+def _clean_runtime_env() -> dict[str, str]:
+    """Return a deterministic env baseline for runtime-detection tests."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(_RUNTIME_ENV_PREFIXES) and key not in _RUNTIME_ENV_VARS_TO_CLEAR
+    }
 
 
 def _mark_gpd_install(config_dir: Path) -> None:
@@ -46,7 +57,7 @@ class TestDetectActiveRuntime:
 
     def test_no_env_no_dirs_returns_unknown(self, tmp_path: Path) -> None:
         """When no env vars set and no runtime dirs exist → 'unknown'."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -56,28 +67,28 @@ class TestDetectActiveRuntime:
 
     def test_claude_env_var_detected(self) -> None:
         """CLAUDE_CODE_SESSION env var → 'claude'."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["CLAUDE_CODE_SESSION"] = "abc123"
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_CLAUDE
 
     def test_codex_env_var_detected(self) -> None:
         """CODEX_SESSION env var → 'codex'."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["CODEX_SESSION"] = "xyz"
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_CODEX
 
     def test_gemini_env_var_detected(self) -> None:
         """GEMINI_CLI env var → 'gemini'."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["GEMINI_CLI"] = "1"
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_GEMINI
 
     def test_opencode_env_var_detected(self) -> None:
         """OPENCODE_SESSION env var → 'opencode'."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["OPENCODE_SESSION"] = "sess"
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_OPENCODE
@@ -86,7 +97,7 @@ class TestDetectActiveRuntime:
         """Env var signal wins even if multiple runtime dirs exist."""
         # Create codex dir but set claude env var
         (tmp_path / ".codex").mkdir()
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["CLAUDE_CODE"] = "1"
         with (
             patch.dict(os.environ, env, clear=True),
@@ -100,7 +111,7 @@ class TestDetectActiveRuntime:
         (tmp_path / ".gemini").mkdir()
         # No .claude dir → codex is first match in ALL_RUNTIMES priority
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -113,7 +124,7 @@ class TestDetectActiveRuntime:
         (tmp_path / ".claude").mkdir()
         (tmp_path / ".codex").mkdir()
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -125,7 +136,7 @@ class TestDetectActiveRuntime:
         oc_dir = tmp_path / ".config" / "opencode"
         oc_dir.mkdir(parents=True)
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -135,7 +146,7 @@ class TestDetectActiveRuntime:
 
     def test_multiple_env_vars_first_wins(self) -> None:
         """When multiple env vars set, first in signal list wins (claude > codex)."""
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         env["CLAUDE_CODE_SESSION"] = "1"
         env["CODEX_SESSION"] = "1"
         with patch.dict(os.environ, env, clear=True):
@@ -150,7 +161,7 @@ class TestDetectActiveRuntime:
         elsewhere.mkdir()
         (elsewhere / ".claude").mkdir()
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
@@ -164,7 +175,7 @@ class TestDetectActiveRuntime:
         (tmp_path / ".gemini").mkdir()
         (home / ".claude").mkdir(parents=True)
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
@@ -182,7 +193,7 @@ class TestDetectActiveRuntimeWithInstall:
         (tmp_path / ".gemini").mkdir()
         (tmp_path / ".config" / "opencode").mkdir(parents=True)
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -193,7 +204,7 @@ class TestDetectActiveRuntimeWithInstall:
     def test_installed_runtime_is_detected(self, tmp_path: Path) -> None:
         _mark_gpd_install(tmp_path / ".codex")
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        env = _clean_runtime_env()
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
@@ -208,13 +219,15 @@ class TestAllRuntimeDirs:
     """Tests for all_runtime_dirs."""
 
     def test_returns_all_four_dirs(self) -> None:
-        dirs = all_runtime_dirs()
-        assert len(dirs) == 4
-        home = Path.home()
-        assert home / ".claude" in dirs
-        assert home / ".codex" in dirs
-        assert home / ".gemini" in dirs
-        assert home / ".config" / "opencode" in dirs
+        with patch.dict(os.environ, _clean_runtime_env(), clear=True):
+            dirs = all_runtime_dirs()
+
+            assert len(dirs) == 4
+            home = Path.home()
+            assert home / ".claude" in dirs
+            assert home / ".codex" in dirs
+            assert home / ".gemini" in dirs
+            assert home / ".config" / "opencode" in dirs
 
     def test_uses_env_override_paths(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
@@ -245,6 +258,7 @@ class TestHelperDirs:
     def test_todo_dirs_include_local_and_global_runtime_paths(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
@@ -260,6 +274,7 @@ class TestHelperDirs:
     def test_cache_dirs_include_local_and_global_runtime_paths(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
@@ -277,7 +292,8 @@ class TestHelperDirs:
         home = tmp_path / "home"
         workspace.mkdir()
 
-        dirs = get_todo_dirs(cwd=workspace, home=home)
+        with patch.dict(os.environ, _clean_runtime_env(), clear=True):
+            dirs = get_todo_dirs(cwd=workspace, home=home)
 
         assert workspace / ".claude" / "todos" in dirs
         assert workspace / ".codex" / "todos" in dirs
@@ -367,6 +383,7 @@ class TestGPDInstallDirs:
     def test_returns_both_local_and_global(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):

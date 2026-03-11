@@ -308,7 +308,9 @@ class TestCodexLifecycle:
         assert len(gpd_skills) > 0, "No GPD skill directories installed"
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists(), f"Missing SKILL.md in {skill_dir.name}"
-        assert "context_mode:" in (gpd_skills[0] / "SKILL.md").read_text(encoding="utf-8")
+        help_skill = skills_dir / "gpd-help" / "SKILL.md"
+        assert help_skill.exists()
+        assert "context_mode:" in help_skill.read_text(encoding="utf-8")
 
         # Agents installed as .md files
         agents_dir = target / "agents"
