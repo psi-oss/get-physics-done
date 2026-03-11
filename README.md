@@ -40,10 +40,6 @@ Pass flags to skip prompts or change the action:
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Notes:
-- Omit runtime and scope flags to use the interactive installer.
-- For non-interactive uninstall, pass a runtime flag or `--all`, plus `--global` or `--local`.
-- `--reinstall`, `--upgrade`, and `--force-statusline` are install-only.
 
 Or install directly from GitHub:
 
@@ -102,7 +98,7 @@ When you do set explicit model overrides, the model string is runtime-native. GP
 
 - **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full pinned model names such as `claude-opus-4-6` or `claude-sonnet-4-6`. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier instead of the Anthropic alias.
 - **Codex**: the same model string Codex itself accepts for its `model` setting, typically plain IDs such as `gpt-5.4`. If you are unsure, `gpt-5.4` is a safe default for all three tiers; if you want a lighter `tier-3`, `gpt-5-mini` is a reasonable starting point. If you configured a non-default Codex `model_provider`, use that provider's exact model ID.
-- **Gemini CLI**: an exact Gemini model name such as `gemini-3.1-pro` or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
+- **Gemini CLI**: an exact Gemini model name such as `gemini-2.5-pro`, `gemini-3.1-pro`, or `gemini-3.1-flash-lite`. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
 - **OpenCode**: a full `provider/model` string such as `anthropic/claude-sonnet-4-6`, `openai/gpt-5.4`, or `google/gemini-3.1-pro`.
 
 Manual config is still available as an advanced fallback. Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
@@ -410,7 +406,7 @@ Hernandez-Cuenca, S. (2026). Get Physics Done (GPD) (Version 0.1.5) [Computer so
 
 ## Inspiration
 
-GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically desigened for physics research.
+GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github.com/gsd-build/get-shit-done-cc), whose adoption demonstrates how AI-native command workflows can be genuinely useful. GPD takes inspiration from that system to build a sophisticated prompt-engineered agentic system specifically designed for physics research.
 
 ## License
 

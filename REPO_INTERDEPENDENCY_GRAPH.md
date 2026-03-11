@@ -16,8 +16,8 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `958`
-- Python files under `src/` and `tests/`: `166`
+- Live repo files analyzed in the current tree: `961`
+- Python files under `src/` and `tests/`: `169`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `61`
@@ -26,7 +26,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `101`
+- `tests/**` files: `104`
 - `.claude/commands/gpd/*.md`: `60`
 - `.claude/agents/*.md`: `23`
 - `.claude/get-physics-done/workflows/**/*.md`: `61`
@@ -1538,7 +1538,7 @@ They explicitly preserve:
   `ordering-contract`
   Priority sorting and decimal-phase ordering are both under contract.
 
-- `tests/core/test_coverage_wave14.py -> src/gpd/core/utils.py::compare_phase_numbers()`
+- `tests/core/test_utils_core_helpers.py -> src/gpd/core/utils.py::compare_phase_numbers()`
   `ordering-contract`
 
 - `tests/core/test_health.py -> src/gpd/core/health.py`
@@ -1547,7 +1547,7 @@ They explicitly preserve:
 - `tests/core/test_frontmatter.py + tests/core/test_frontmatter_edge.py + tests/core/test_properties.py -> src/gpd/core/frontmatter.py`
   `typed-roundtrip`
 
-- `tests/core/test_state.py + tests/core/test_state_stress.py + tests/core/test_state_coverage_gaps.py + tests/core/test_coverage_wave14.py -> src/gpd/core/state.py`
+- `tests/core/test_state.py + tests/core/test_state_stress.py + tests/core/test_state_coverage_gaps.py + tests/core/test_state_mutations.py + tests/core/test_state_storage.py -> src/gpd/core/state.py`
   `typed-roundtrip`
   Markdown/json persistence, normalization, sync, backup, and tagged verification-record preservation are all exercised.
 
