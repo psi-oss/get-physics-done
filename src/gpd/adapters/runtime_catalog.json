@@ -1,0 +1,66 @@
+[
+  {
+    "runtime_name": "claude-code",
+    "display_name": "Claude Code",
+    "config_dir_name": ".claude",
+    "install_flag": "--claude",
+    "command_prefix": "/gpd:",
+    "activation_env_vars": ["CLAUDE_CODE_SESSION", "CLAUDE_CODE"],
+    "selection_flags": ["--claude-code", "--claude"],
+    "selection_aliases": ["claude-code", "claude code", "claude"],
+    "global_config": {
+      "strategy": "env_or_home",
+      "env_var": "CLAUDE_CONFIG_DIR",
+      "home_subpath": ".claude"
+    }
+  },
+  {
+    "runtime_name": "codex",
+    "display_name": "Codex",
+    "config_dir_name": ".codex",
+    "install_flag": "--codex",
+    "command_prefix": "$gpd-",
+    "activation_env_vars": ["CODEX_SESSION", "CODEX_CLI"],
+    "selection_flags": ["--codex"],
+    "selection_aliases": ["codex"],
+    "global_config": {
+      "strategy": "env_or_home",
+      "env_var": "CODEX_CONFIG_DIR",
+      "home_subpath": ".codex"
+    }
+  },
+  {
+    "runtime_name": "gemini",
+    "display_name": "Gemini CLI",
+    "config_dir_name": ".gemini",
+    "install_flag": "--gemini",
+    "command_prefix": "/gpd:",
+    "activation_env_vars": ["GEMINI_CLI"],
+    "selection_flags": ["--gemini", "--gemini-cli"],
+    "selection_aliases": ["gemini", "gemini cli"],
+    "agent_prompt_uses_dollar_templates": true,
+    "global_config": {
+      "strategy": "env_or_home",
+      "env_var": "GEMINI_CONFIG_DIR",
+      "home_subpath": ".gemini"
+    }
+  },
+  {
+    "runtime_name": "opencode",
+    "display_name": "OpenCode",
+    "config_dir_name": ".opencode",
+    "install_flag": "--opencode",
+    "command_prefix": "/gpd-",
+    "activation_env_vars": ["OPENCODE_SESSION"],
+    "selection_flags": ["--opencode"],
+    "selection_aliases": ["opencode", "open code"],
+    "agent_prompt_uses_dollar_templates": true,
+    "global_config": {
+      "strategy": "xdg_app",
+      "env_dir_var": "OPENCODE_CONFIG_DIR",
+      "env_file_var": "OPENCODE_CONFIG",
+      "xdg_subdir": "opencode",
+      "home_subpath": ".config/opencode"
+    }
+  }
+]

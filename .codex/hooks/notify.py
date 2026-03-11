@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Codex CLI notification hook — GPD edition.
-
-Receives event payloads from Codex CLI notify system on stdin.
-Currently handles: agent-turn-complete.
-"""
+"""Runtime notification hook for GPD."""
 
 import json
 import os
@@ -52,18 +48,20 @@ def _trigger_update_check(cwd: str) -> None:
 def _check_and_notify_update(cwd: str | None = None) -> None:
     """Read update cache and emit a notification to stderr if update available."""
     from gpd.hooks.runtime_detect import (
-        RUNTIME_CODEX,
+        RUNTIME_UNKNOWN,
+        detect_active_runtime,
         detect_install_scope,
         get_update_cache_files,
         update_command_for_runtime,
     )
 
     workspace_path = Path(cwd) if cwd else None
+    runtime = detect_active_runtime(cwd=workspace_path)
 
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0
 
-    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=RUNTIME_CODEX):
+    for cache_file in get_update_cache_files(cwd=workspace_path, preferred_runtime=runtime):
         if not cache_file.exists():
             continue
         try:
@@ -83,34 +81,38 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
     if latest_cache and latest_cache.get("update_available"):
         installed = latest_cache.get("installed", "?")
         latest = latest_cache.get("latest", "?")
-        cmd = update_command_for_runtime(RUNTIME_CODEX, scope=detect_install_scope(RUNTIME_CODEX, cwd=workspace_path))
+        scope = None if runtime == RUNTIME_UNKNOWN else detect_install_scope(runtime, cwd=workspace_path)
+        cmd = update_command_for_runtime(runtime, scope=scope)
         sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 
+def _workspace_from_payload(data: dict[str, object]) -> str:
+    workspace_value = data.get("workspace")
+    if isinstance(workspace_value, str) and workspace_value:
+        return workspace_value
+    return _first_string(workspace_value, "current_dir", "cwd", "path", "workspace_dir") or os.getcwd()
+
+
 def main() -> None:
-    """Entry point: read JSON event from stdin, handle agent-turn-complete."""
+    """Entry point: read a JSON event from stdin and process notifications."""
     try:
         data = json.loads(sys.stdin.read())
     except Exception as exc:
-        _debug(f"codex-notify stdin parse error: {exc}")
+        _debug(f"notify stdin parse error: {exc}")
         return
 
     if not isinstance(data, dict):
         return
 
-    if data.get("type") != "agent-turn-complete":
+    if data.get("type") not in ("agent-turn-complete", None):
         return
 
-    workspace_value = data.get("workspace")
-    if isinstance(workspace_value, str) and workspace_value:
-        cwd = workspace_value
-    else:
-        cwd = _first_string(workspace_value, "current_dir", "cwd", "path", "workspace_dir") or os.getcwd()
+    cwd = _workspace_from_payload(data)
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)
     except Exception as exc:
-        _debug(f"codex-notify handler failed: {exc}")
+        _debug(f"notify handler failed: {exc}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Tests for gpd/hooks/codex_notify.py."""
+"""Tests for gpd/hooks/notify.py."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from gpd.hooks.codex_notify import _check_and_notify_update, main
-from gpd.hooks.runtime_detect import RUNTIME_CODEX
+from gpd.hooks.notify import _check_and_notify_update, main
 
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
@@ -42,7 +41,7 @@ def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_pat
     with (
         patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_CODEX),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
         patch("sys.stderr", stderr),
     ):
         _check_and_notify_update()
@@ -96,8 +95,8 @@ def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> 
 def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
     with (
         patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": {"cwd": "/tmp/project"}}))),
-        patch("gpd.hooks.codex_notify._trigger_update_check") as mock_trigger,
-        patch("gpd.hooks.codex_notify._check_and_notify_update") as mock_notify,
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
     ):
         main()
 
@@ -108,8 +107,8 @@ def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
 def test_main_accepts_string_workspace_payload() -> None:
     with (
         patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": "/tmp/project"}))),
-        patch("gpd.hooks.codex_notify._trigger_update_check") as mock_trigger,
-        patch("gpd.hooks.codex_notify._check_and_notify_update") as mock_notify,
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
     ):
         main()
 
@@ -123,7 +122,7 @@ def test_main_logs_handler_exception_instead_of_swallowing(tmp_path: Path) -> No
     stderr = io.StringIO()
     with (
         patch("sys.stdin", io.StringIO(payload)),
-        patch("gpd.hooks.codex_notify._trigger_update_check", side_effect=RuntimeError("boom")),
+        patch("gpd.hooks.notify._trigger_update_check", side_effect=RuntimeError("boom")),
         patch.dict("os.environ", {"GPD_DEBUG": "1"}),
         patch("sys.stderr", stderr),
     ):
@@ -131,4 +130,4 @@ def test_main_logs_handler_exception_instead_of_swallowing(tmp_path: Path) -> No
         main()
 
     output = stderr.getvalue()
-    assert "codex-notify handler failed: boom" in output
+    assert "notify handler failed: boom" in output
