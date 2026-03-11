@@ -20,17 +20,17 @@ classifiers = [
 ]
 dependencies = [
     # Core
-    "typer>=0.21.1",
-    "rich>=13.7.1",
-    "pydantic>=2.0",
-    "PyYAML>=6.0",
-    "mcp[cli]>=1.9.0",
+    "typer>=0.24.1",
+    "rich>=14.3.3",
+    "pydantic>=2.12",
+    "PyYAML>=6.0.3",
+    "mcp[cli]>=1.26.0",
     # Utilities
-    "pybtex>=0.24",
-    "Pillow>=10.0",
-    "jinja2>=3.1",
+    "pybtex>=0.25.1",
+    "Pillow>=12.1.1",
+    "jinja2>=3.1.6",
     # MCP servers
-    "arxiv-mcp-server>=0.1.0",
+    "arxiv-mcp-server>=0.3.2",
 ]
 
 [project.scripts]
