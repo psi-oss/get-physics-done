@@ -166,6 +166,7 @@ These commands run inside your installed AI runtime after GPD has been installed
 
 | Command | What it does |
 |---------|--------------|
+| `map-research` | Map an existing research project before `new-project` |
 | `new-project` | Start a new research project |
 | `plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
 | `execute-phase N` | Execute all tasks in phase `N` |
@@ -211,7 +212,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 | `/gpd:discuss-phase <number>` | Gather phase context through adaptive questioning before planning |
 | `/gpd:research-phase <number>` | Research how to tackle a phase (standalone - usually use `/gpd:plan-phase` instead) |
 | `/gpd:list-phase-assumptions <number>` | Surface the AI's assumptions about a phase approach before planning |
-| `/gpd:discover [phase or topic] [--depth quick\|medium\|deep]` | Run discovery phase to investigate methods, literature, and approaches before planning |
+| `/gpd:discover [phase or topic] [--depth {quick,medium,deep}]` | Run discovery phase to investigate methods, literature, and approaches before planning |
 | `/gpd:show-phase <number>` | Inspect a single phase's artifacts, status, and results |
 | `/gpd:plan-phase <number>` | Create detailed execution plan for a phase (`PLAN.md`) with verification loop |
 
@@ -337,7 +338,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 |---------|--------------|
 | `/gpd:graph` | Visualize dependency graph across phases and identify gaps |
 | `/gpd:slides [topic]` | Create presentation slides from a GPD project or the current folder |
-| `/gpd:export [--format html\|latex\|zip\|all]` | Export research results to HTML, LaTeX, or ZIP package |
+| `/gpd:export [--format {html,latex,zip,all}]` | Export research results to HTML, LaTeX, or ZIP package |
 | `/gpd:error-patterns [category]` | View accumulated physics error patterns for this project |
 | `/gpd:record-insight [description]` | Record a project-specific learning or pattern to the insights ledger |
 
