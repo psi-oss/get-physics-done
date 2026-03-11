@@ -253,7 +253,7 @@ class RuntimeAdapter(abc.ABC):
         install_result: dict[str, object],
         *,
         force_statusline: bool = False,
-    ) -> None:
+    ) -> None:  # noqa: B027
         """Apply any runtime-specific post-install finalization."""
 
     def _cleanup_runtime_config(self, target_dir: Path) -> list[str]:

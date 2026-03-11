@@ -3,7 +3,7 @@
 Handles phase discovery, ROADMAP.md parsing, wave validation, dependency graph analysis,
 milestone management, and progress rendering.
 
-Most public functions are instrumented with Logfire spans via ``gpd_span``.
+Most public functions are instrumented with local observability spans via ``gpd_span``.
 All return types are Pydantic models — no raw dicts cross module boundaries.
 """
 

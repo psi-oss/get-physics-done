@@ -336,6 +336,34 @@ def test_claude_sdk_is_not_shipped_in_public_install() -> None:
     assert "scientific" not in optional
 
 
+def test_public_source_and_release_inputs_do_not_reference_logfire() -> None:
+    repo_root = _repo_root()
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies: list[str] = project["dependencies"]
+    optional = project.get("optional-dependencies", {})
+
+    assert not any("logfire" in item.lower() for item in dependencies)
+    assert not any("logfire" in item.lower() for items in optional.values() for item in items)
+
+    files_to_scan = [
+        repo_root / "README.md",
+        repo_root / "CONTRIBUTING.md",
+        repo_root / "package.json",
+        repo_root / "pyproject.toml",
+        repo_root / "bin" / "install.js",
+    ]
+    files_to_scan.extend(sorted((repo_root / "infra").glob("gpd-*.json")))
+    files_to_scan.extend(sorted((repo_root / "src").rglob("*.py")))
+    files_to_scan.extend(sorted((repo_root / "src").rglob("*.md")))
+
+    offenders = [
+        path.relative_to(repo_root).as_posix()
+        for path in files_to_scan
+        if "logfire" in path.read_text(encoding="utf-8").lower()
+    ]
+    assert offenders == []
+
+
 
 
 
@@ -391,7 +419,9 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         for template_path in wheel_template_paths:
             assert template_path in wheel_names
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
+        metadata = wheel_zip.read(f"get_physics_done-{version}.dist-info/METADATA").decode("utf-8")
         assert "gpd = gpd.cli:app" in entry_points
+        assert "logfire" not in metadata.lower()
 
     sdist_prefix = f"get_physics_done-{version}/"
     with tarfile.open(sdist, "r:gz") as sdist_tar:

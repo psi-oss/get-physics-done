@@ -22,7 +22,7 @@ import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import typer
 from rich.console import Console
@@ -30,6 +30,9 @@ from rich.table import Table
 
 import gpd
 from gpd.core.errors import GPDError
+
+if TYPE_CHECKING:
+    from gpd.mcp.paper.models import PaperConfig
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
@@ -3225,7 +3228,8 @@ def json_merge_files_cmd(
     """Merge multiple JSON files into one (shallow dict merge)."""
     from gpd.core.json_utils import json_merge_files
 
-    cwd = _get_cwd(); _json_cli_output(json_merge_files(str(cwd / out), [str(cwd / f) for f in files]))
+    cwd = _get_cwd()
+    _json_cli_output(json_merge_files(str(cwd / out), [str(cwd / f) for f in files]))
 
 
 @json_app.command("sum-lengths")

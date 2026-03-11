@@ -454,7 +454,7 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
 
         escaped = re.escape(source_name)
         if source_name not in CONTEXTUAL_TOOL_REFERENCE_NAMES:
-            content = re.sub(r"\b" + escaped + r"\b", lambda m: target, content)
+            content = re.sub(r"\b" + escaped + r"\b", lambda m, replacement=target: replacement, content)
             continue
 
         # Backtick-quoted
@@ -462,27 +462,27 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
         # "the X tool"
         content = re.sub(
             r"\b(the\s+)" + escaped + r"(\s+tool)",
-            lambda m: m.group(1) + target + m.group(2),
+            lambda m, replacement=target: m.group(1) + replacement + m.group(2),
             content,
             flags=re.IGNORECASE,
         )
         # "X tool" after punctuation/start-of-line
         content = re.sub(
             r"(^|[.,:;!?\-\s])" + escaped + r"(\s+tool\b)",
-            lambda m: m.group(1) + target + m.group(2),
+            lambda m, replacement=target: m.group(1) + replacement + m.group(2),
             content,
             flags=re.MULTILINE,
         )
         # "Use X" / "using X" / "via X"
         content = re.sub(
             r"(\b(?:[Uu]se|[Uu]sing|[Vv]ia)\s+)" + escaped + r"\b",
-            lambda m: m.group(1) + target,
+            lambda m, replacement=target: m.group(1) + replacement,
             content,
         )
         # Function-style invocation, e.g. Task(...) or shell(...)
         content = re.sub(
             r"\b" + escaped + r"(?=\s*\()",
-            lambda m: target,
+            lambda m, replacement=target: replacement,
             content,
         )
 
