@@ -722,9 +722,9 @@ CHECKPOINT
 Use ask_user:
 
 - header: "Workflow Setup"
-- question: "How would you like to configure the project?"
+- question: "How would you like to configure the project? Recommended defaults use YOLO autonomy for the fastest, lowest-interaction setup."
 - options:
-  - "Use recommended defaults (Recommended)" — YOLO autonomy, balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
+  - "Use recommended defaults (Recommended)" — YOLO autonomy (fastest, fewest confirmations), balanced research mode, parallel execution, all agents enabled, review profile. Saves 3-5 minutes.
   - "Customize settings" — Choose autonomy, research mode, agents, and model profile individually
 
 **If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
@@ -766,9 +766,9 @@ questions: [
     question: "How much autonomy should GPD have?",
     multiSelect: false,
     options: [
-      { label: "Guided (Recommended)", description: "GPD handles routine work and pauses on major decisions" },
-      { label: "YOLO", description: "Maximum speed. Auto-approve and keep going unless something breaks" },
-      { label: "Autonomous", description: "Mostly self-directed, with fewer hard stops than guided mode" },
+      { label: "Guided (Recommended)", description: "Routine work is automatic; pause on physics decisions, ambiguities, or blockers" },
+      { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints and keep going unless a hard stop fires" },
+      { label: "Autonomous", description: "Run end-to-end with minimal pauses; you mainly review at phase boundaries" },
       { label: "Supervised", description: "Confirm each major step before proceeding" }
     ]
   },

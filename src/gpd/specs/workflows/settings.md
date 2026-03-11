@@ -55,14 +55,14 @@ Use ask_user with current values pre-selected:
 ```
 ask_user([
   {
-    question: "How much autonomy should the AI have?",
+    question: "How much autonomy should the AI have? Supervised pauses constantly, Guided pauses on physics decisions, Autonomous mostly waits until phase boundaries, and YOLO only stops on hard failures.",
     header: "Autonomy",
     multiSelect: false,
     options: [
       { label: "Supervised", description: "Checkpoint after every task. You approve each step." },
-      { label: "Guided (Recommended)", description: "AI executes routine tasks, checkpoints on physics decisions" },
-      { label: "Autonomous", description: "AI drives the research loop. You review at phase boundaries." },
-      { label: "YOLO", description: "Maximum speed. AI makes all decisions. Only hard stops on failures." }
+      { label: "Guided (Recommended)", description: "AI handles routine work and pauses on physics decisions, ambiguities, or blockers." },
+      { label: "Autonomous", description: "AI runs the workflow end-to-end; you mainly review at phase boundaries." },
+      { label: "YOLO", description: "Fastest mode. AI auto-approves checkpoints and only stops on hard failures." }
     ]
   },
   {
