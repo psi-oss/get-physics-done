@@ -82,6 +82,9 @@ Runtime syntax differs slightly, but the workflow is the same across all four.
 After installing GPD, open your chosen runtime normally and use the installed GPD commands there.
 Claude Code and Gemini CLI use `/gpd:...`, Codex installs `$gpd-...` skills, and OpenCode uses `/gpd-...`.
 
+Codex-specific note:
+- GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.
+
 Gemini-specific note:
 - GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
 
