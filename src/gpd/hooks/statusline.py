@@ -2,7 +2,7 @@
 """Runtime-agnostic statusline hook for GPD.
 
 Reads JSON from stdin, outputs an ANSI-formatted statusline to stdout.
-Shows: model | current task | directory | research position | context usage.
+Shows: GPD | current task | research position | context usage.
 """
 
 import json
@@ -18,6 +18,7 @@ _CONTEXT_REAL_LIMIT_PCT = 80
 _CONTEXT_WARN_THRESHOLD = 63
 _CONTEXT_HIGH_THRESHOLD = 81
 _CONTEXT_CRITICAL_THRESHOLD = 95
+_STATUS_LABEL = "GPD"
 
 
 def _context_bar(remaining_pct: float) -> str:
@@ -144,10 +145,10 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
 
 def _latest_update_cache(workspace_dir: str | None = None) -> dict[str, object] | None:
     """Return the freshest valid update cache across all runtime locations."""
-    from gpd.hooks.runtime_detect import detect_active_runtime, get_update_cache_files
+    from gpd.hooks.runtime_detect import detect_active_runtime_with_gpd_install, get_update_cache_files
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    preferred_runtime = detect_active_runtime(cwd=workspace_path) if workspace_path else None
+    preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0
 
@@ -178,10 +179,14 @@ def _check_update(workspace_dir: str | None = None) -> str:
     cache = _latest_update_cache(workspace_dir)
     if cache and cache.get("update_available"):
         from gpd.adapters import get_adapter
-        from gpd.hooks.runtime_detect import detect_active_runtime, detect_install_scope, update_command_for_runtime
+        from gpd.hooks.runtime_detect import (
+            detect_active_runtime_with_gpd_install,
+            detect_install_scope,
+            update_command_for_runtime,
+        )
 
         workspace_path = Path(workspace_dir) if workspace_dir else None
-        runtime = detect_active_runtime(cwd=workspace_path)
+        runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
         try:
             command = get_adapter(runtime).format_command("update")
         except KeyError:
@@ -203,12 +208,6 @@ def main() -> None:
         return
 
     try:
-        model_value = data.get("model")
-        if isinstance(model_value, str) and model_value:
-            model = model_value
-        else:
-            model = _first_string(model_value, "display_name", "name", "id") or "unknown"
-
         workspace_value = data.get("workspace")
         if isinstance(workspace_value, str) and workspace_value:
             workspace_dir = workspace_value
@@ -228,15 +227,19 @@ def main() -> None:
         task = _read_current_task(session_id, workspace_dir)
         gpd_update = _check_update(workspace_dir)
 
-        dirname = Path(workspace_dir).name
-        pos_str = f" \u2502 \x1b[36m{position}\x1b[0m" if position else ""
-
+        segments = [f"\x1b[2m{_STATUS_LABEL}\x1b[0m"]
         if task:
-            sys.stdout.write(
-                f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[1m{task}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}"
-            )
-        else:
-            sys.stdout.write(f"{gpd_update}\x1b[2m{model}\x1b[0m \u2502 \x1b[2m{dirname}\x1b[0m{pos_str}{ctx}")
+            segments.append(f"\x1b[1m{task}\x1b[0m")
+        if position:
+            segments.append(f"\x1b[36m{position}\x1b[0m")
+
+        statusline = " \u2502 ".join(segments)
+        if gpd_update:
+            statusline = f"{gpd_update}{statusline}"
+
+        sys.stdout.write(statusline)
+        if ctx:
+            sys.stdout.write(ctx)
     except Exception as exc:
         _debug(f"Statusline render failed: {exc}")
         sys.stdout.write("\x1b[2mGPD\x1b[0m")

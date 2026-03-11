@@ -19,6 +19,7 @@ from gpd.hooks.runtime_detect import (
     _has_gpd_install,
     all_runtime_dirs,
     detect_active_runtime,
+    detect_active_runtime_with_gpd_install,
     detect_install_scope,
     get_cache_dirs,
     get_gpd_install_dirs,
@@ -31,6 +32,11 @@ RUNTIME_CLAUDE = "claude-code"
 RUNTIME_CODEX = "codex"
 RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
+
+
+def _mark_gpd_install(config_dir: Path) -> None:
+    """Mark a runtime directory as containing a GPD install."""
+    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
 
@@ -165,6 +171,35 @@ class TestDetectActiveRuntime:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert detect_active_runtime() == RUNTIME_GEMINI
+
+
+class TestDetectActiveRuntimeWithInstall:
+    """Tests for the install-aware runtime detection helper used by hooks."""
+
+    def test_plain_runtime_dirs_without_gpd_install_do_not_count(self, tmp_path: Path) -> None:
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".codex").mkdir()
+        (tmp_path / ".gemini").mkdir()
+        (tmp_path / ".config" / "opencode").mkdir(parents=True)
+
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
+
+    def test_installed_runtime_is_detected(self, tmp_path: Path) -> None:
+        _mark_gpd_install(tmp_path / ".codex")
+
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE"))}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_active_runtime_with_gpd_install() == RUNTIME_CODEX
 
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 

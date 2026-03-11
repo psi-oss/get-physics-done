@@ -819,6 +819,8 @@ class TestSkillsServer:
         assert "index_text" in result
         assert "/gpd:execute-phase" in result["index_text"]
         assert "/gpd:peer-review" in result["index_text"]
+        assert "gpd-debugger" in result["index_text"]
+        assert "/gpd:debugger" not in result["index_text"]
 
     def test_get_skill_accepts_command_style_name(self):
         from gpd.mcp.servers.skills_server import get_skill

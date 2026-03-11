@@ -78,6 +78,22 @@ def _has_gpd_install(config_dir: Path) -> bool:
     return gpd_dir.is_dir()
 
 
+def _runtime_dir_has_gpd_install(
+    runtime: str,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    include_local: bool = True,
+    include_global: bool = True,
+) -> bool:
+    """Return whether *runtime* has a concrete GPD install in the requested locations."""
+    if include_local and _has_gpd_install(_local_runtime_dir(runtime, cwd)):
+        return True
+    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=home)):
+        return True
+    return False
+
+
 def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect which AI agent runtime is currently active."""
     for adapter in iter_adapters():
@@ -95,6 +111,19 @@ def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) 
         if _global_runtime_dir(runtime, home=resolved_home).is_dir():
             return runtime
 
+    return RUNTIME_UNKNOWN
+
+
+def detect_active_runtime_with_gpd_install(*, cwd: Path | None = None, home: Path | None = None) -> str:
+    """Detect the active runtime only when that runtime also has a GPD install."""
+    resolved_runtime = detect_active_runtime(cwd=cwd, home=home)
+    if resolved_runtime not in ALL_RUNTIMES:
+        return RUNTIME_UNKNOWN
+
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+    if _runtime_dir_has_gpd_install(resolved_runtime, cwd=resolved_cwd, home=resolved_home):
+        return resolved_runtime
     return RUNTIME_UNKNOWN
 
 
@@ -215,6 +244,7 @@ __all__ = [
     "all_runtime_dirs",
     "detect_install_scope",
     "detect_active_runtime",
+    "detect_active_runtime_with_gpd_install",
     "get_cache_dirs",
     "get_gpd_install_dirs",
     "get_todo_dirs",

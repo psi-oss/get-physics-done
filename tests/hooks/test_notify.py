@@ -92,6 +92,41 @@ def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> 
     assert "Run: npx -y get-physics-done@latest --codex --local" in output
 
 
+def test_notify_runtime_directory_without_install_uses_bootstrap_command(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+
+    local_cache = workspace / ".codex" / "cache"
+    local_cache.mkdir(parents=True)
+    (local_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "2.0.0",
+                "latest": "2.1.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    output = stderr.getvalue()
+    assert "Update available: v2.0.0" in output
+    assert "Run: npx -y get-physics-done@latest" in output
+
+
 def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
     with (
         patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": {"cwd": "/tmp/project"}}))),

@@ -659,4 +659,6 @@ class TestSkillsServerIntegration:
         assert "index_text" in result
         assert "/gpd:" in result["index_text"]
         assert "/gpd:peer-review" in result["index_text"]
+        assert "gpd-debugger" in result["index_text"]
+        assert "/gpd:debugger" not in result["index_text"]
         assert len(result["categories"]) > 3

@@ -47,6 +47,13 @@ def _public_skill(skill: content_registry.SkillDef) -> dict[str, str]:
     }
 
 
+def _skill_index_label(skill: content_registry.SkillDef) -> str:
+    """Render a skill label without presenting agent skills as runtime commands."""
+    if skill.source_kind == "command":
+        return f"/{skill.name.replace('gpd-', 'gpd:')}"
+    return skill.name
+
+
 def _resolve_skill_content(content: str) -> str:
     """Resolve runtime path placeholders to the local package paths."""
     specs_path = content_registry.SPECS_DIR.resolve().as_posix()
@@ -197,19 +204,19 @@ def get_skill_index() -> dict:
     """
     with gpd_span("mcp.skills.index"):
         try:
-            skills = [_public_skill(skill) for skill in _load_skill_index()]
+            skills = _load_skill_index()
             by_category: dict[str, list[str]] = {}
-            for s in skills:
-                cat = s["category"]
+            for skill in skills:
+                cat = skill.category
                 if cat not in by_category:
                     by_category[cat] = []
-                by_category[cat].append(s["name"])
+                by_category[cat].append(_skill_index_label(skill))
 
             lines = ["# Available GPD Skills", ""]
             for cat in sorted(by_category):
                 lines.append(f"## {cat.title()}")
                 for name in sorted(by_category[cat]):
-                    lines.append(f"- /{name.replace('gpd-', 'gpd:')}")
+                    lines.append(f"- {name}")
                 lines.append("")
 
             return {

@@ -11,6 +11,7 @@ build/
 .pytest_cache/
 .mypy_cache/
 .mcp.json
+# Runtime-owned local mirrors/config snapshots.
 .codex/
 .planning/
 .gemini/

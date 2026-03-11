@@ -49,14 +49,14 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
     """Read update cache and emit a notification to stderr if update available."""
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
-        detect_active_runtime,
+        detect_active_runtime_with_gpd_install,
         detect_install_scope,
         get_update_cache_files,
         update_command_for_runtime,
     )
 
     workspace_path = Path(cwd) if cwd else None
-    runtime = detect_active_runtime(cwd=workspace_path)
+    runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
 
     latest_cache: dict[str, object] | None = None
     latest_checked = -1.0

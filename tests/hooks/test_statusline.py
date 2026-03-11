@@ -262,7 +262,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
         ):
             result = _check_update()
             assert "/gpd:update" in result
@@ -317,7 +317,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
         ):
             result = _check_update()
 
@@ -330,6 +330,10 @@ class TestCheckUpdateHook:
 
         local_cache = workspace / ".codex" / "cache"
         local_cache.mkdir(parents=True)
+        (workspace / ".codex" / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
         (local_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": True, "checked": 20}),
             encoding="utf-8",
@@ -346,6 +350,28 @@ class TestCheckUpdateHook:
 
         assert "$gpd-update" in result
 
+    def test_runtime_directory_without_install_uses_bootstrap_update_command(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+
+        local_cache = workspace / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            result = _check_update(str(workspace))
+
+        assert "npx -y get-physics-done@latest" in result
+
     def test_unknown_runtime_falls_back_to_bootstrap_update_command(self, tmp_path: Path) -> None:
         gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)
@@ -354,7 +380,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="unknown"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
         ):
             result = _check_update()
 
@@ -369,7 +395,7 @@ class TestCheckUpdateHook:
         with (
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
             patch("gpd.hooks.runtime_detect.detect_install_scope") as mock_scope,
         ):
             result = _check_update()
@@ -398,32 +424,34 @@ class TestMain:
         return captured.getvalue()
 
     def test_empty_json_object_no_crash(self) -> None:
-        """Empty {} input should not crash — all fields default gracefully."""
+        """Empty {} input should still render the GPD label."""
         output = self._run_main({})
-        assert "unknown" in output  # Default model name
+        assert "GPD" in output
 
-    def test_missing_model_field(self) -> None:
-        """Missing 'model' key → defaults to 'unknown'."""
+    def test_missing_model_field_still_renders_gpd(self) -> None:
+        """Missing 'model' key should not affect the GPD label."""
         output = self._run_main({"workspace": {"current_dir": "/tmp"}})
-        assert "unknown" in output
+        assert "GPD" in output
 
-    def test_model_field_is_none(self) -> None:
-        """model=None → 'or {}' fallback → 'unknown'."""
+    def test_model_field_is_none_does_not_crash(self) -> None:
+        """model=None should still render the GPD label."""
         output = self._run_main({"model": None})
-        assert "unknown" in output
+        assert "GPD" in output
 
-    def test_model_without_display_name(self) -> None:
-        """model={} with no display_name → defaults to 'unknown'."""
+    def test_model_mapping_is_ignored(self) -> None:
+        """Model metadata should not be surfaced in the statusline."""
         output = self._run_main({"model": {}})
-        assert "unknown" in output
+        assert "GPD" in output
 
-    def test_with_valid_model(self) -> None:
+    def test_with_valid_model_does_not_override_gpd_label(self) -> None:
         output = self._run_main({"model": {"display_name": "GPT-4o"}})
-        assert "GPT-4o" in output
+        assert "GPD" in output
+        assert "GPT-4o" not in output
 
-    def test_model_name_falls_back_to_name_field(self) -> None:
+    def test_model_name_field_is_ignored(self) -> None:
         output = self._run_main({"model": {"name": "Claude Sonnet"}})
-        assert "Claude Sonnet" in output
+        assert "GPD" in output
+        assert "Claude Sonnet" not in output
 
     def test_context_window_remaining_zero(self) -> None:
         """remaining_percentage=0 → shows 100% usage."""
@@ -438,12 +466,14 @@ class TestMain:
     def test_no_context_window_field(self) -> None:
         """Missing context_window → no bar in output."""
         output = self._run_main({"model": {"display_name": "Test"}})
+        assert "GPD" in output
         # No percentage should appear
         assert "%" not in output
 
     def test_context_window_is_none(self) -> None:
         """context_window=None → 'or {}' fallback, remaining is None → no bar."""
         output = self._run_main({"context_window": None})
+        assert "GPD" in output
         assert "%" not in output
 
     def test_context_window_supports_remaining_percent_alias(self) -> None:
@@ -458,12 +488,40 @@ class TestMain:
                 "context_window": "not-a-mapping",
             }
         )
-        assert "gpt-5" in output
-        assert "research-project" in output
+        assert "GPD" in output
+        assert "gpt-5" not in output
+
+    def test_string_workspace_is_forwarded_to_helpers(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"workspace": "/tmp/research-project"}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_position.assert_called_once_with("/tmp/research-project")
+        mock_task.assert_called_once_with("", "/tmp/research-project")
+        mock_update.assert_called_once_with("/tmp/research-project")
+        assert "GPD" in captured.getvalue()
 
     def test_workspace_mapping_accepts_cwd_field(self) -> None:
-        output = self._run_main({"workspace": {"cwd": "/tmp/alternate-workspace"}})
-        assert "alternate-workspace" in output
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"workspace": {"cwd": "/tmp/alternate-workspace"}}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_position.assert_called_once_with("/tmp/alternate-workspace")
+        mock_task.assert_called_once_with("", "/tmp/alternate-workspace")
+        mock_update.assert_called_once_with("/tmp/alternate-workspace")
+        assert "GPD" in captured.getvalue()
 
     def test_invalid_json_stdin_no_crash(self) -> None:
         """Invalid JSON on stdin → main() returns silently, no crash."""

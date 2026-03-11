@@ -62,6 +62,40 @@ class TestSkillsServerErrorHandling:
             with pytest.raises(RuntimeError, match="load failed"):
                 get_skill_index()
 
+    def test_get_skill_index_keeps_agents_out_of_command_syntax(self):
+        """Agent skills should appear as canonical skill ids, not slash commands."""
+        from gpd.mcp.servers.skills_server import get_skill_index
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-execute-phase",
+                    description="Execute command",
+                    content="content",
+                    category="execution",
+                    path="/tmp/gpd-execute-phase.md",
+                    source_kind="command",
+                    registry_name="execute-phase",
+                ),
+                SkillDef(
+                    name="gpd-debugger",
+                    description="Debugger agent",
+                    content="content",
+                    category="debugging",
+                    path="/tmp/gpd-debugger.md",
+                    source_kind="agent",
+                    registry_name="gpd-debugger",
+                ),
+            ],
+        ):
+            result = get_skill_index()
+
+        assert "/gpd:execute-phase" in result["index_text"]
+        assert "gpd-debugger" in result["index_text"]
+        assert "/gpd:debugger" not in result["index_text"]
+
     def test_route_skill_empty_skills_returns_error_dict(self):
         """route_skill returns an error dict when no skills are available."""
         from gpd.mcp.servers.skills_server import route_skill

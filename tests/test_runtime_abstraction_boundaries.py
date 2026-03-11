@@ -6,6 +6,7 @@ layers:
 - runtime adapters and installer entrypoints
 - runtime-detection / runtime-specific hook shims
 - checked-in runtime-owned mirrors and config snapshots
+- repo metadata that intentionally ignores runtime-owned mirrors
 - package metadata that advertises compatibility
 
 Everywhere else, shared code should stay runtime-agnostic.
@@ -35,6 +36,7 @@ _RUNTIME_OWNED_PREFIXES = (
     "src/gpd/adapters/",
 )
 _ALLOWED_RUNTIME_FILES = {
+    ".gitignore",
     "bin/install.js",
     "CITATION.cff",
     "package.json",
