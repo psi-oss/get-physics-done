@@ -215,7 +215,7 @@ class TestPatternSeed:
         first = pattern_seed(root=lib_root)
         second = pattern_seed(root=lib_root)
         assert second.added == 0
-        assert second.skipped >= first.added
+        assert second.skipped >= 8  # primary bootstrap patterns are skipped on re-seed
         assert second.total == first.total
 
     def test_cross_domain_entries(self, lib_root: Path):

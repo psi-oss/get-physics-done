@@ -250,6 +250,32 @@ def test_validate_command_context_accepts_tokenized_standalone_arguments(tmp_pat
     assert payload["passed"] is True
 
 
+def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "empty-context"
+    empty_dir.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(empty_dir),
+            "validate",
+            "command-context",
+            "explain",
+            "Berry",
+            "curvature",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "gpd:explain"
+    assert payload["context_mode"] == "project-aware"
+    assert payload["passed"] is True
+
+
 # ─── convention subcommands ─────────────────────────────────────────────────
 
 

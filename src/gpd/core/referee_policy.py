@@ -78,7 +78,7 @@ _HIGH_IMPACT_JOURNALS = {"prl", "nature", "nature_physics"}
 
 
 def _worse_recommendation(left: ReviewRecommendation, right: ReviewRecommendation) -> ReviewRecommendation:
-    return left if _RECOMMENDATION_ORDER[left] >= _RECOMMENDATION_ORDER[right] else right
+    return left if _RECOMMENDATION_ORDER.get(left, 99) >= _RECOMMENDATION_ORDER.get(right, 99) else right
 
 
 def _is_high_impact(journal: str) -> bool:
@@ -86,7 +86,7 @@ def _is_high_impact(journal: str) -> bool:
 
 
 def _at_or_below(value: ReviewAdequacy, floor: ReviewAdequacy) -> bool:
-    return _ADEQUACY_ORDER[value] >= _ADEQUACY_ORDER[floor]
+    return _ADEQUACY_ORDER.get(value, 99) >= _ADEQUACY_ORDER.get(floor, 99)
 
 
 def evaluate_referee_decision(data: RefereeDecisionInput, *, strict: bool = False) -> RefereeDecisionReport:
@@ -180,7 +180,7 @@ def evaluate_referee_decision(data: RefereeDecisionInput, *, strict: bool = Fals
     if data.unresolved_minor_issues > 0:
         allowed = _worse_recommendation(allowed, ReviewRecommendation.minor_revision)
 
-    valid = _RECOMMENDATION_ORDER[data.final_recommendation] >= _RECOMMENDATION_ORDER[allowed]
+    valid = _RECOMMENDATION_ORDER.get(data.final_recommendation, 99) >= _RECOMMENDATION_ORDER.get(allowed, 99)
 
     if not valid:
         reasons.append(

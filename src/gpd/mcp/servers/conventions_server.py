@@ -252,7 +252,7 @@ def convention_lock_status(project_dir: str) -> dict:
             "set_fields": set_fields,
             "unset_fields": unset_fields,
             "custom_conventions": custom,
-            "completeness_percent": round(len(set_fields) / result.canonical_total * 100, 1),
+            "completeness_percent": round(len(set_fields) / max(result.canonical_total, 1) * 100, 1),
         }
 
 
@@ -361,7 +361,7 @@ def convention_check(lock: dict) -> dict:
 
     return {
         "valid": len(missing_critical) == 0,
-        "completeness_percent": round(result.set_count / result.total * 100, 1),
+        "completeness_percent": round(result.set_count / max(result.total, 1) * 100, 1),
         "set_fields": [s.key for s in result.set_conventions],
         "unset_fields": [m.key for m in result.missing],
         "missing_critical": missing_critical,

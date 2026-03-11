@@ -14,6 +14,7 @@ EXCLUDED_GRAPH_DIRS = {
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
+    ".gpd",
     ".codex",
     ".gemini",
     ".opencode",

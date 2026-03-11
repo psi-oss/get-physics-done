@@ -57,3 +57,14 @@ def test_checked_in_claude_manifest_matches_local_install(generated_local_snapsh
     actual.pop("timestamp", None)
 
     assert actual == expected
+
+
+def test_checked_in_claude_local_settings_enable_only_defined_project_servers() -> None:
+    local_settings = json.loads((CLAUDE_SNAPSHOT / "settings.local.json").read_text(encoding="utf-8"))
+    project_mcp = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
+
+    enabled = local_settings.get("enabledMcpjsonServers", [])
+    defined = set((project_mcp.get("mcpServers") or {}).keys())
+
+    assert isinstance(enabled, list)
+    assert set(enabled) <= defined

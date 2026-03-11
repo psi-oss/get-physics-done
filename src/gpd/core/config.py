@@ -179,6 +179,13 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_2,
         "paper-writing": ModelTier.TIER_1,
     },
+    "gpd-explainer": {
+        "deep-theory": ModelTier.TIER_1,
+        "numerical": ModelTier.TIER_2,
+        "exploratory": ModelTier.TIER_1,
+        "review": ModelTier.TIER_1,
+        "paper-writing": ModelTier.TIER_1,
+    },
     "gpd-review-reader": {
         "deep-theory": ModelTier.TIER_2,
         "numerical": ModelTier.TIER_2,
@@ -253,6 +260,7 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     "gpd-paper-writer": ModelTier.TIER_2,
     "gpd-literature-reviewer": ModelTier.TIER_2,
     "gpd-bibliographer": ModelTier.TIER_2,
+    "gpd-explainer": ModelTier.TIER_2,
     "gpd-review-reader": ModelTier.TIER_2,
     "gpd-review-literature": ModelTier.TIER_1,
     "gpd-review-math": ModelTier.TIER_1,

@@ -58,8 +58,8 @@ class TestEnums:
 
 
 class TestModelProfiles:
-    def test_all_22_agents_present(self):
-        assert len(MODEL_PROFILES) == 22
+    def test_all_23_agents_present(self):
+        assert len(MODEL_PROFILES) == 23
 
     def test_all_agents_have_5_profiles(self):
         profiles = {"deep-theory", "numerical", "exploratory", "review", "paper-writing"}

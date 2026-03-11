@@ -138,6 +138,10 @@ def safe_parse_int(value: object, default: int | None = 0) -> int | None:
     """
     if value is None:
         return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
     try:
         return int(str(value))
     except (ValueError, TypeError):

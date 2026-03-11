@@ -75,7 +75,7 @@ def render_paper(config: PaperConfig) -> str:
         for section in config.appendix_sections
     ]
     rendered = template.render(
-        title=config.title,
+        title=clean_latex_fences(config.title),
         authors=config.authors,
         abstract=clean_latex_fences(config.abstract),
         sections=sections,

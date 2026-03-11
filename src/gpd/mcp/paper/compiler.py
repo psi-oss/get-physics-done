@@ -302,6 +302,22 @@ async def build_paper(
                 figures_dir,
                 config.journal,
             )
+            if figures_dir is not None:
+                try:
+                    figures_prefix = figures_dir.relative_to(output_dir)
+                except ValueError:
+                    figures_prefix = figures_dir
+
+                def _rebase_prepared_figure_path(figure: FigureRef) -> FigureRef:
+                    if figure.path.is_absolute():
+                        return figure
+                    return figure.model_copy(update={"path": figures_prefix / figure.path})
+
+                prepared = [_rebase_prepared_figure_path(figure) for figure in prepared]
+                figure_source_pairs = [
+                    (original, _rebase_prepared_figure_path(prepared_figure))
+                    for original, prepared_figure in figure_source_pairs
+                ]
             errors.extend(fig_errors)
         except (ValueError, RuntimeError, OSError) as exc:
             errors.append(f"Figure preparation failed: {exc}")

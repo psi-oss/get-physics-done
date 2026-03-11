@@ -65,6 +65,8 @@ def _read_position(workspace_dir: str) -> str:
         return ""
     try:
         state = json.loads(state_file.read_text(encoding="utf-8"))
+        if not isinstance(state, dict):
+            return ""
         pos = state.get("position", {})
         phase = pos.get("current_phase")
         total_phases = pos.get("total_phases")

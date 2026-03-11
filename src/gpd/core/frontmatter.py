@@ -163,11 +163,13 @@ def splice_frontmatter(content: str, updates: dict) -> str:
 
 
 def deep_merge_frontmatter(content: str, merge_data: dict) -> str:
-    """Shallow-merge *merge_data* into existing frontmatter.
+    """Merge *merge_data* into existing frontmatter (one level deep).
 
-    For each key in *merge_data*: if both existing and new values are plain
-    dicts (not lists), their top-level entries are merged (one level only).
-    Otherwise the new value overwrites.
+    For each key in *merge_data*: if both the existing value and the new
+    value are plain dicts (not lists or other types), their top-level
+    entries are merged via ``dict.update`` — nested sub-dicts within those
+    values are **not** merged recursively; they are replaced wholesale.
+    For all other types the new value overwrites the existing one.
     """
     meta, _ = extract_frontmatter(content)
     for key, val in merge_data.items():

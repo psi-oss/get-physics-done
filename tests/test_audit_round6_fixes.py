@@ -109,7 +109,7 @@ def test_init_todos_handles_corrupt_file(tmp_path):
     """init_todos should skip corrupt todo files instead of crashing."""
     from gpd.core.context import init_todos
     gpd_dir = tmp_path / ".gpd"
-    todo_dir = gpd_dir / "pending-todos"
+    todo_dir = gpd_dir / "todos" / "pending"
     todo_dir.mkdir(parents=True)
 
     # Create a valid todo

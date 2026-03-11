@@ -692,53 +692,54 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
             category = str(bp["category"])
             slug = str(bp.get("slug", ""))
             pattern_id = f"{domain}-{category}-{slug}"
+            rel_path = f"{PATTERNS_BY_DOMAIN_DIR}/{domain}/{category}-{slug}.md"
+            tags = list(bp.get("tags", [])) if isinstance(bp.get("tags"), list) else []
 
             if pattern_id in existing_ids:
                 skipped += 1
-                continue
+            else:
+                full_path = lib_root / rel_path
+                full_path.parent.mkdir(parents=True, exist_ok=True)
 
-            rel_path = f"{PATTERNS_BY_DOMAIN_DIR}/{domain}/{category}-{slug}.md"
-            full_path = lib_root / rel_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+                content = _build_pattern_md(
+                    domain=domain,
+                    category=category,
+                    severity=str(bp["severity"]),
+                    confidence="systematic",
+                    first_seen=today,
+                    last_seen=today,
+                    occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
+                    title=str(bp["title"]),
+                    description=str(bp.get("description", "")),
+                    detection=str(bp.get("detection", "")),
+                    prevention=str(bp.get("prevention", "")),
+                    root_cause="See cross-project-patterns.md for root cause analysis.",
+                )
+                atomic_write(full_path, content)
 
-            content = _build_pattern_md(
-                domain=domain,
-                category=category,
-                severity=str(bp["severity"]),
-                confidence="systematic",
-                first_seen=today,
-                last_seen=today,
-                occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
-                title=str(bp["title"]),
-                description=str(bp.get("description", "")),
-                detection=str(bp.get("detection", "")),
-                prevention=str(bp.get("prevention", "")),
-                root_cause="See cross-project-patterns.md for root cause analysis.",
-            )
-            atomic_write(full_path, content)
-
-            tags = list(bp.get("tags", [])) if isinstance(bp.get("tags"), list) else []
-            entry = PatternEntry(
-                id=pattern_id,
-                file=rel_path,
-                domain=domain,
-                category=category,
-                severity=str(bp["severity"]),
-                confidence="systematic",
-                title=str(bp["title"]),
-                first_seen=today,
-                last_seen=today,
-                occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
-                tags=tags,
-            )
-            index.patterns.append(entry)
-            existing_ids.add(pattern_id)
+                entry = PatternEntry(
+                    id=pattern_id,
+                    file=rel_path,
+                    domain=domain,
+                    category=category,
+                    severity=str(bp["severity"]),
+                    confidence="systematic",
+                    title=str(bp["title"]),
+                    first_seen=today,
+                    last_seen=today,
+                    occurrence_count=SEED_PATTERN_INITIAL_OCCURRENCES,
+                    tags=tags,
+                )
+                index.patterns.append(entry)
+                existing_ids.add(pattern_id)
+                added += 1
 
             # Cross-domain entries
             for extra_domain in bp.get("domains_extra", []):
                 extra_domain = str(extra_domain)
                 extra_id = f"{extra_domain}-{category}-{slug}"
                 if extra_id in existing_ids:
+                    skipped += 1
                     continue
                 extra_rel = f"{PATTERNS_BY_DOMAIN_DIR}/{extra_domain}/{category}-{slug}.md"
                 extra_path = lib_root / extra_rel
@@ -776,8 +777,7 @@ def pattern_seed(*, root: Path | None = None) -> PatternSeedResult:
                     )
                 )
                 existing_ids.add(extra_id)
-
-            added += 1
+                added += 1
 
         _save_index(lib_root, index)
 

@@ -117,6 +117,12 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
         {"check": "L_infinity / A_infinity relations verified", "check_ids": "5.4"},
         {"check": "Gauge invariance of observables confirmed", "check_ids": "5.3,5.9"},
     ],
+    "classical_mechanics": [
+        {"check": "Energy conservation (T + V = const for conservative systems)", "check_ids": "5.4"},
+        {"check": "Hamilton's equations consistent with Lagrangian formulation", "check_ids": "5.3"},
+        {"check": "Canonical transformation preserves Poisson brackets", "check_ids": "5.4"},
+        {"check": "Action principle yields correct Euler-Lagrange equations", "check_ids": "5.3"},
+    ],
 }
 
 # ─── Dimension Parsing ────────────────────────────────────────────────────────

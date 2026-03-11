@@ -118,7 +118,8 @@ class TestBuildPaper:
         assert output.success is True
         assert output.figures_dir == tmp_path / "figures"
         assert prepared_path.exists()
-        assert str(prepared_path) in output.tex_content
+        relative_fig = f"figures/{fig_path.name}"
+        assert relative_fig in output.tex_content
         assert output.manifest is not None
         figure_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.category == "figure")
         assert figure_artifact.path == "figures/velocity.png"

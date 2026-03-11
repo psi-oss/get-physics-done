@@ -35,9 +35,15 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - compatibility during observability replacement
     _observability = None
 
+    class _NoOpSpan:
+        """No-op span for when observability is unavailable."""
+
+        def set_attribute(self, _key: str, _value: object) -> None:
+            pass
+
     @contextmanager
-    def gpd_span(_name: str, **_attrs: object) -> Generator[None, None, None]:
-        yield None
+    def gpd_span(_name: str, **_attrs: object) -> Generator[_NoOpSpan, None, None]:
+        yield _NoOpSpan()
 
     def instrument_gpd_function(
         _span_name: str | None = None,

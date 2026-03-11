@@ -163,8 +163,9 @@ class TestPrepare:
         assert len(result) == 2
         assert errs == []
         for fig in result:
-            assert fig.path.exists()
-            assert fig.path.parent == out
+            resolved = out / fig.path if not fig.path.is_absolute() else fig.path
+            assert resolved.exists()
+            assert resolved.parent == out
 
     def test_prepare_figures_warns_for_underresolved_double_column(self, tmp_path, caplog):
         input_dir = tmp_path / "input"

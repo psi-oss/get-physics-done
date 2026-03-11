@@ -436,7 +436,7 @@ def gpd_span(name: str, **attrs: object) -> Generator[LocalSpan, None, None]:
     session = ensure_session(cwd, source="span")
     span_id = _new_id("span") if session is not None else None
     parent_stack = _span_stack_var.get()
-    parent_span_id = parent_stack[-1] if parent_stack else None
+    parent_span_id = parent_stack[-1] if parent_stack and parent_stack[-1] else None
     span = LocalSpan(session_id=session.session_id if session else None, span_id=span_id, name=name, attrs=prefixed)
 
     observe_event(
@@ -451,7 +451,7 @@ def gpd_span(name: str, **attrs: object) -> Generator[LocalSpan, None, None]:
         data={"attrs": prefixed},
     )
 
-    token = _span_stack_var.set(parent_stack + ((span_id or ""),))
+    token = _span_stack_var.set(parent_stack + ((span_id,)))
     started = perf_counter()
     try:
         yield span

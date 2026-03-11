@@ -36,7 +36,14 @@ mcp = FastMCP("gpd-patterns")
 
 # Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
 # env vars are not set. Falls back to the global ~/.gpd data directory.
-_DEFAULT_PATTERNS_ROOT: Path = patterns_root()
+_DEFAULT_PATTERNS_ROOT: Path | None = None
+
+
+def _get_patterns_root() -> Path:
+    global _DEFAULT_PATTERNS_ROOT
+    if _DEFAULT_PATTERNS_ROOT is None:
+        _DEFAULT_PATTERNS_ROOT = patterns_root()
+    return _DEFAULT_PATTERNS_ROOT
 
 
 @mcp.tool()
@@ -58,7 +65,7 @@ def lookup_pattern(
     with gpd_span("mcp.patterns.lookup", domain=domain or "", category=category or ""):
         try:
             if keywords:
-                result = pattern_search(keywords, root=_DEFAULT_PATTERNS_ROOT)
+                result = pattern_search(keywords, root=_get_patterns_root())
                 return {
                     "count": result.count,
                     "patterns": [p.model_dump() for p in result.matches],
@@ -66,7 +73,7 @@ def lookup_pattern(
                     "library_exists": None,
                 }
 
-            result = pattern_list(domain=domain, category=category, root=_DEFAULT_PATTERNS_ROOT)
+            result = pattern_list(domain=domain, category=category, root=_get_patterns_root())
             return {
                 "count": result.count,
                 "patterns": [p.model_dump() for p in result.patterns],
@@ -111,7 +118,7 @@ def add_pattern(
                 description=description,
                 detection=detection,
                 prevention=prevention,
-                root=_DEFAULT_PATTERNS_ROOT,
+                root=_get_patterns_root(),
             )
             return result.model_dump()
         except (PatternError, OSError) as e:
@@ -130,7 +137,7 @@ def promote_pattern(pattern_id: str) -> dict:
     """
     with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
         try:
-            result = pattern_promote(pattern_id, root=_DEFAULT_PATTERNS_ROOT)
+            result = pattern_promote(pattern_id, root=_get_patterns_root())
             return result.model_dump()
         except (PatternError, OSError) as e:
             return {"error": str(e)}
@@ -146,7 +153,7 @@ def seed_patterns() -> dict:
     """
     with gpd_span("mcp.patterns.seed"):
         try:
-            result = pattern_seed(root=_DEFAULT_PATTERNS_ROOT)
+            result = pattern_seed(root=_get_patterns_root())
             return result.model_dump()
         except (PatternError, OSError) as e:
             return {"error": str(e)}

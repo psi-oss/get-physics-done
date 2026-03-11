@@ -185,12 +185,12 @@ Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-
 Not every GPD command needs the same amount of project state.
 
 - `Projectless` commands can run before `.gpd/PROJECT.md` exists. Examples: `/gpd:new-project`, `/gpd:map-theory`, `/gpd:add-todo`.
-- `Project-aware` commands use project context when present, but can also run from explicit standalone inputs. Examples: `/gpd:discover "finite-temperature RG flow"`, `/gpd:literature-review "axion monodromy"`, `/gpd:sensitivity-analysis --target ... --params ...`.
+- `Project-aware` commands use project context when present, but can also run from explicit standalone inputs. Examples: `/gpd:discover "finite-temperature RG flow"`, `/gpd:explain "Ward identity"`, `/gpd:literature-review "axion monodromy"`, `/gpd:sensitivity-analysis --target ... --params ...`.
 - `Project-required` commands depend on initialized GPD state and fail closed without a project. Examples: `/gpd:progress`, `/gpd:plan-phase`, `/gpd:write-paper`, `/gpd:peer-review`.
 
 Passing a manuscript path to a project-required command such as `/gpd:peer-review paper/` selects the manuscript target, but does not bypass project initialization.
 
-### Full Command Reference (58 Commands)
+### Full Command Reference (59 Commands)
 
 #### Project Initialization
 
@@ -235,6 +235,10 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 
 - `/gpd:progress` — Check research progress, show context, and route to the next action (execute or plan)
 - `/gpd:suggest-next` — Suggest the most impactful next action based on current project state
+
+#### Research Support
+
+- `/gpd:explain [concept]` — Explain a concept, method, notation, result, or paper rigorously in project context or from a standalone question
 
 #### Session Management
 

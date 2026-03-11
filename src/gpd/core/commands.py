@@ -259,7 +259,7 @@ def _extract_section(content: str, heading: str) -> str | None:
     return rest[: next_heading.start()].strip() if next_heading else rest.strip()
 
 
-_BODY_ONE_LINER_RE = re.compile(r"^---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*", re.MULTILINE)
+_BODY_ONE_LINER_RE = re.compile(r"\A---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*")
 
 
 @instrument_gpd_function("commands.summary_extract")

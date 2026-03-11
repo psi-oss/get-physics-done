@@ -1081,14 +1081,19 @@ def _install_gpd_notify_config(
     insert_at: int | None = None
     existing_notify: list[str] | None = None
 
+    past_first_section = False
     for line in toml_content.splitlines():
         stripped = line.strip()
-        if stripped == _GPD_NOTIFY_COMMENT or stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
+        if _parse_section_name(stripped) is not None:
+            past_first_section = True
+        if not past_first_section and (
+            stripped == _GPD_NOTIFY_COMMENT or stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX)
+        ):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             continue
-        # Only match top-level notify (before any section header or at known position)
-        if stripped.startswith("notify") and _parse_section_name(stripped) is None:
+        # Only match top-level notify (before any section header)
+        if not past_first_section and stripped.startswith("notify"):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             if _line_contains_gpd_notify(line):

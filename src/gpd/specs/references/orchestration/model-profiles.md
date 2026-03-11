@@ -31,6 +31,7 @@ On single-model platforms, all tiers resolve to null (use the platform's default
 | gpd-paper-writer         | tier-1        | tier-2      | tier-2        | tier-2   | tier-1          |
 | gpd-literature-reviewer  | tier-1        | tier-2      | tier-1        | tier-2   | tier-2          |
 | gpd-bibliographer        | tier-2        | tier-3      | tier-3        | tier-2   | tier-1          |
+| gpd-explainer            | tier-1        | tier-2      | tier-1        | tier-1   | tier-1          |
 | gpd-review-reader        | tier-2        | tier-2      | tier-2        | tier-2   | tier-2          |
 | gpd-review-literature    | tier-1        | tier-2      | tier-1        | tier-1   | tier-2          |
 | gpd-review-math          | tier-1        | tier-1      | tier-2        | tier-1   | tier-1          |
@@ -181,6 +182,16 @@ Profiles affect agent behavior, not just model selection. When a profile is acti
 | **exploratory**   | Lightweight mode. Resolves citation keys and checks basic formatting. Does not deeply verify that cited results match the reference content. Quick turnaround over thoroughness.         |
 | **review**        | Audit-grade verification. Checks every citation for correctness, verifies page numbers and volume numbers, flags retracted papers. Warns about any reference that cannot be verified.   |
 | **paper-writing** | Publication-ready verification. Full formatting check against target journal style (APS, JHEP, etc.). Ensures BibTeX entries are complete. Adds missing fields (DOI, eprint, pages). Alphabetizes and deduplicates. |
+
+### gpd-explainer
+
+| Profile           | Behavioral Change                                                                                                                                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **deep-theory**   | Formal-first explanations. Expands derivational steps, states assumptions precisely, and connects the concept to exact results, controlled limits, and canonical primary sources.                         |
+| **numerical**     | Workflow-first explanations. Emphasizes how the concept affects implementation choices, convergence behavior, diagnostics, and which equations matter in code or simulation practice.                      |
+| **exploratory**   | Breadth-first explanations. Prioritizes intuition, method landscape, and when different interpretations of the concept matter, while still grounding the answer in a compact reading path.                  |
+| **review**        | Audit-style explanations. Distinguishes established facts, project assumptions, and contested interpretations explicitly. Extra attention to notation drift, caveats, and citation reliability.             |
+| **paper-writing** | Reader-facing explanations. Optimizes for clean structure, narrative flow, and references the user can open immediately. Useful when turning a concept into manuscript-ready exposition or background text. |
 
 ### gpd-referee
 

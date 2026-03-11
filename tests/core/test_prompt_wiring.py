@@ -28,6 +28,7 @@ REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 GRAPH_PATH = REPO_ROOT / "REPO_INTERDEPENDENCY_GRAPH.md"
 
 COMMAND_SPAWN_TOKENS = {
+    "explain.md": ["gpd-explainer", "gpd-bibliographer"],
     "literature-review.md": ["gpd-literature-reviewer"],
     "debug.md": ["gpd-debugger"],
     "map-theory.md": ["gpd-theory-mapper"],
@@ -55,6 +56,7 @@ COMMAND_SPAWN_TOKENS = {
 }
 
 WORKFLOW_SPAWN_TOKENS = {
+    "explain.md": ["gpd-explainer", "gpd-bibliographer"],
     "plan-phase.md": ["gpd-phase-researcher", "gpd-planner", "gpd-plan-checker", "gpd-experiment-designer"],
     "execute-phase.md": [
         "gpd-executor",
@@ -91,6 +93,12 @@ AGENT_REFERENCE_TOKENS = {
         "references/publication/publication-pipeline-modes.md",
         "templates/notation-glossary.md",
         "references/publication/bibtex-standards.md",
+    ],
+    "gpd-explainer.md": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/physics-subfields.md",
+        "templates/notation-glossary.md",
     ],
     "gpd-consistency-checker.md": [
         "references/shared/shared-protocols.md",
@@ -433,6 +441,7 @@ def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("help").context_mode == "global"
     assert registry.get_command("map-theory").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
+    assert registry.get_command("explain").context_mode == "project-aware"
     assert registry.get_command("peer-review").context_mode == "project-required"
 
 
@@ -440,6 +449,7 @@ def test_representative_prompts_use_centralized_command_context_preflight() -> N
     expected = {
         COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
+        COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
         COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
         COMMANDS_DIR / "literature-review.md": "gpd --raw validate command-context literature-review",
         COMMANDS_DIR / "sensitivity-analysis.md": "gpd --raw validate command-context sensitivity-analysis",

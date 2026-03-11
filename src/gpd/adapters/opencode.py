@@ -312,11 +312,6 @@ def copy_agents_as_agent_files(
 # ---------------------------------------------------------------------------
 
 
-def _opencode_managed_permission_key(config_dir: Path) -> str:
-    """Return the preferred permission key managed by GPD for *config_dir*."""
-    return _opencode_managed_permission_keys(config_dir)[0]
-
-
 def _opencode_managed_permission_keys(config_dir: Path) -> tuple[str, ...]:
     """Return all managed permission key variants for *config_dir*.
 

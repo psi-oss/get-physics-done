@@ -583,6 +583,15 @@ Prepare a completed paper for arXiv submission with validation and packaging.
 
 Usage: `/gpd:arxiv-submission`
 
+**`/gpd:explain [concept]`**
+Explain a concept, method, notation, result, or paper in project context or from a standalone question.
+
+- Spawns a `gpd-explainer` agent and grounds the explanation in the active phase, manuscript, or local workflow when available
+- Produces a structured explanation under `.gpd/explanations/`
+- Audits cited papers with `gpd-bibliographer` and includes a reading path with openable links
+
+Usage: `/gpd:explain "Ward identity"`
+
 **`/gpd:literature-review [topic]`**
 Structured literature review for a physics research topic.
 

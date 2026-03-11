@@ -718,7 +718,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
                     "path": f"{PLANNING_DIR_NAME}/todos/pending/{f.name}",
                 }
             )
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
 
     return {
@@ -732,6 +732,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         # Todo inventory
         "todo_count": len(todos),
         "todos": todos,
+        "pending_todos": todos,
         "area_filter": area,
         # Paths
         "pending_dir": f"{PLANNING_DIR_NAME}/todos/pending",

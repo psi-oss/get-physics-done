@@ -26,6 +26,10 @@ def _display_path(path: Path, output_dir: Path) -> str:
         return str(path)
 
 
+def _resolve_output_path(path: Path, output_dir: Path) -> Path:
+    return path if path.is_absolute() else output_dir / path
+
+
 def build_artifact_manifest(
     config: PaperConfig,
     output_dir: Path,
@@ -96,14 +100,15 @@ def build_artifact_manifest(
 
     source_pairs = figure_source_pairs or list(zip(original_figures or [], prepared_figures or [], strict=False))
     for original, prepared in source_pairs:
-        if not prepared.path.exists():
+        prepared_path = _resolve_output_path(prepared.path, output_dir)
+        if not prepared_path.exists():
             continue
         artifacts.append(
             ArtifactRecord(
-                artifact_id=f"figure-{prepared.label or prepared.path.stem}",
+                artifact_id=f"figure-{prepared.label or prepared_path.stem}",
                 category="figure",
-                path=_display_path(prepared.path, output_dir),
-                sha256=_sha256(prepared.path),
+                path=_display_path(prepared_path, output_dir),
+                sha256=_sha256(prepared_path),
                 produced_by="build_paper:prepare_figures",
                 sources=[ArtifactSourceRef(path=str(original.path), role="source-figure")],
                 metadata={

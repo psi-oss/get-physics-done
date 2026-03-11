@@ -2399,6 +2399,7 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
     "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
     "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
+    "gpd:explain": (["concept, result, method, notation, or paper"], _has_simple_positional_inputs),
     "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
     "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),

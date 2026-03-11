@@ -10,7 +10,7 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError as _PydanticValidationError
 
 from gpd.contracts import VerificationEvidence
 from gpd.core.errors import DuplicateResultError, ResultError, ResultNotFoundError
@@ -147,6 +147,7 @@ def result_add(
     *,
     equation: str | None = None,
     description: str | None = None,
+    value: str | None = None,
     units: str | None = None,
     validity: str | None = None,
     phase: str | None = None,
@@ -180,6 +181,9 @@ def result_add(
         position = state.get("position", {})
         raw_phase = position.get("current_phase")
         phase = str(raw_phase) if raw_phase is not None else None
+
+    if value is not None and equation is None and description is None:
+        description = str(value)
 
     # Normalize depends_on to list
     if depends_on is None:
@@ -362,13 +366,21 @@ def result_verify(
 
 
 @instrument_gpd_function("results.update")
-def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[str], IntermediateResult]:
+def result_update(
+    state: dict,
+    result_id: str,
+    updates: dict[str, object] | None = None,
+    **kwargs: object,
+) -> tuple[list[str], IntermediateResult]:
     """Update fields on an existing result.
 
     Only known fields are updated. Returns (updated_field_names, updated_result).
     Raises ResultNotFoundError if result_id is not found.
     Raises ValueError if no recognized fields are provided.
     """
+    updates = dict(updates or {})
+    updates.update(kwargs)
+
     results = state.get("intermediate_results", [])
     idx = _find_result_index(results, result_id)
     if idx == -1:
@@ -420,10 +432,8 @@ def result_update(state: dict, result_id: str, **updates: object) -> tuple[list[
     trial.update(pending)
     try:
         IntermediateResult(**trial)
-    except Exception as exc:
-        if type(exc).__name__ == "ValidationError":
-            raise ResultError(f"Invalid update: {exc}") from exc
-        raise
+    except _PydanticValidationError as exc:
+        raise ResultError(f"Invalid update: {exc}") from exc
 
     # Commit to state only after validation succeeds
     state["intermediate_results"][idx].update(pending)

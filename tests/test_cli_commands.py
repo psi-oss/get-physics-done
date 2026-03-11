@@ -526,6 +526,29 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is True
 
+    def test_command_context_explain_requires_explicit_inputs_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "explain"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:explain"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["concept, result, method, notation, or paper"]
+        assert payload["guidance"] == (
+            "Either provide concept, result, method, notation, or paper explicitly, or run /gpd:new-project."
+        )
+
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,

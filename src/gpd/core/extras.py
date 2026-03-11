@@ -9,7 +9,7 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError as _PydanticValidationError
 
 from gpd.core.errors import DuplicateApproximationError, ExtrasError
 from gpd.core.observability import instrument_gpd_function
@@ -412,7 +412,16 @@ def approximation_add(
 
 def approximation_list(state: dict) -> list[Approximation]:
     """List all approximations from state."""
-    return [Approximation(**a) for a in state.get("approximations", [])]
+    raw = state.get("approximations", [])
+    approximations: list[Approximation] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            approximations.append(Approximation(**item))
+        except _PydanticValidationError:
+            continue
+    return approximations
 
 
 @instrument_gpd_function("extras.approximation_check")

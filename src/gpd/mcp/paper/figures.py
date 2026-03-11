@@ -200,9 +200,13 @@ def _prepare_figures_with_sources(
         if not passes:
             logger.warning("Figure %s below resolution requirement: %s", fig.label, msg)
 
+        try:
+            relative_path = normalized_path.relative_to(output_dir)
+        except ValueError:
+            relative_path = normalized_path
         updated = fig.model_copy(
             update={
-                "path": normalized_path,
+                "path": relative_path,
                 "width": get_figure_width(journal, fig.double_column),
             }
         )

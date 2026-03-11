@@ -6,7 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
 
@@ -22,7 +22,9 @@ class Author(BaseModel):
 class Section(BaseModel):
     """A paper section with title and LaTeX content."""
 
-    title: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str = Field(alias="heading")
     content: str
     label: str = ""
 

@@ -63,8 +63,8 @@ def test_check_approximation_negative_bound_double_bounded():
     result = check_approximation_validity(0, "-100 << x << 100")
     # 0 is NOT much greater than -100 (distance=100, scale=100, needs 2x)
     # so this should be invalid or marginal for the lower bound check
-    assert result in ("invalid", "marginal"), (
-        f"Expected invalid/marginal for 0 in '-100 << x << 100', got {result}"
+    assert result == "invalid", (
+        f"Expected invalid for 0 in '-100 << x << 100', got {result}"
     )
 
 
@@ -185,8 +185,8 @@ def test_verify_summary_passed_false_when_commits_invalid(tmp_path):
 
     result = verify_summary(tmp_path, summary)
     # Should have errors about invalid commit hashes AND passed should be False
-    if result.errors:
-        assert not result.passed, "passed should be False when errors list is non-empty"
+    assert result.errors, "Expected errors for invalid commit hashes"
+    assert not result.passed, "passed should be False when errors list is non-empty"
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # Repository Interdependency Graph
 
-Generated on `2026-03-10` from the current worktree.
+Generated on `2026-03-11` from the current worktree.
 
 ## Status
 
@@ -16,20 +16,20 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `952`
-- Python files under `src/` and `tests/`: `176`
-- `src/gpd/commands/*.md`: `58`
-- `src/gpd/agents/*.md`: `22`
-- `src/gpd/specs/workflows/*.md`: `59`
+- Live repo files analyzed in the current tree: `958`
+- Python files under `src/` and `tests/`: `177`
+- `src/gpd/commands/*.md`: `59`
+- `src/gpd/agents/*.md`: `23`
+- `src/gpd/specs/workflows/*.md`: `60`
 - `src/gpd/specs/templates/**/*.md`: `65`
 - `src/gpd/specs/references/**/*.md`: `156`
 - `src/gpd/adapters/*.py`: `8`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `112`
-- `.claude/commands/gpd/*.md`: `58`
-- `.claude/agents/*.md`: `22`
-- `.claude/get-physics-done/workflows/**/*.md`: `59`
+- `tests/**` files: `113`
+- `.claude/commands/gpd/*.md`: `59`
+- `.claude/agents/*.md`: `23`
+- `.claude/get-physics-done/workflows/**/*.md`: `60`
 - `.claude/get-physics-done/templates/**/*.md`: `65`
 - `.claude/get-physics-done/references/**/*.md`: `156`
 - `infra/gpd-*.json`: `8`
@@ -42,6 +42,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.pytest_cache/**`
 - `.mypy_cache/**`
 - `.ruff_cache/**`
+- `.gpd/**`
 - `.codex/**`
 - `.gemini/**`
 - `.opencode/**`
@@ -141,8 +142,12 @@ flowchart TD
 - `bin/install.js -> GitHub source archive candidate family {https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/tags/v<version>.tar.gz, https://github.com/physicalsuperintelligence/get-physics-done/archive/refs/heads/main.tar.gz}`
   `external-service`
 
-- `bin/install.js -> GitHub git candidate family {git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main}`
+- `bin/install.js -> GitHub git candidate family {git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+ssh://git@github.com/physicalsuperintelligence/get-physics-done.git@main, git+https://github.com/physicalsuperintelligence/get-physics-done.git@v<version>, git+https://github.com/physicalsuperintelligence/get-physics-done.git@main}`
   `external-service`
+
+- `bin/install.js -> ordered install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
+  `ordering-contract`
+  Source fallback resolution is precedence-driven, not an unordered set.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`
@@ -218,7 +223,7 @@ flowchart TD
   `semantic`
   Public package metadata and version surface.
 
-- `.github/ISSUE_TEMPLATE/bug_report.yml -> package.json`
+- `.github/ISSUE_TEMPLATE/bug_report.yml -> src/gpd/version.py`
   `semantic`
 
 - `.github/ISSUE_TEMPLATE/feature_request.yml -> src/gpd/cli.py`
@@ -419,9 +424,12 @@ flowchart TD
   `authority`
   Canonical parser for agent prompt definitions.
 
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-theory,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+
+- `src/gpd/commands/explain.md -> src/gpd/agents/{gpd-explainer,gpd-bibliographer}.md`
+  `spawn`
 
 - `src/gpd/commands/literature-review.md -> src/gpd/agents/gpd-literature-reviewer.md`
   `spawn`
@@ -541,13 +549,13 @@ flowchart TD
 - `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance}.md -> src/gpd/specs/references/shared/shared-protocols.md`
   `include`
 
-- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-experiment-designer,gpd-explainer,gpd-literature-reviewer,gpd-notation-coordinator,gpd-paper-writer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-project-researcher,gpd-referee,gpd-research-synthesizer,gpd-roadmapper,gpd-theory-mapper}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
   `include`
 
 - `src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-significance}.md -> src/gpd/specs/references/orchestration/agent-infrastructure.md`
   `include`
 
-- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
+- `src/gpd/agents/{gpd-bibliographer,gpd-consistency-checker,gpd-debugger,gpd-executor,gpd-explainer,gpd-phase-researcher,gpd-plan-checker,gpd-planner,gpd-referee,gpd-theory-mapper,gpd-verifier}.md -> src/gpd/specs/references/physics-subfields.md`
   `include`
 
 - `src/gpd/agents/{gpd-review-math,gpd-review-physics}.md -> src/gpd/specs/references/physics-subfields.md`
@@ -575,6 +583,9 @@ flowchart TD
   `include`
 
 - `src/gpd/agents/gpd-bibliographer.md -> src/gpd/specs/{templates/notation-glossary.md,references/publication/bibtex-standards.md}`
+  `include`
+
+- `src/gpd/agents/gpd-explainer.md -> src/gpd/specs/templates/notation-glossary.md`
   `include`
 
 - `src/gpd/agents/gpd-consistency-checker.md -> src/gpd/specs/{references/examples/contradiction-resolution-example.md,references/verification/meta/verification-hierarchy-mapping.md,templates/uncertainty-budget.md,templates/conventions.md}`
@@ -785,6 +796,9 @@ flowchart TD
   `selector-input`
 
 - `src/gpd/specs/workflows/map-theory.md -> src/gpd/agents/gpd-theory-mapper.md`
+  `spawn`
+
+- `src/gpd/specs/workflows/explain.md -> src/gpd/agents/{gpd-explainer,gpd-bibliographer}.md`
   `spawn`
 
 - `src/gpd/specs/workflows/literature-review.md -> src/gpd/agents/gpd-bibliographer.md`
