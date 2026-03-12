@@ -22,7 +22,7 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `578`
+- Live repo files analyzed in the current tree: `580`
 - Python files under `src/` and `tests/`: `169`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
