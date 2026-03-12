@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from gpd.core.suggest import (
     Recommendation,
     SuggestContext,
