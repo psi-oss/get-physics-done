@@ -39,6 +39,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 
 - `.git/**`
 - `.mcp.json`
+- `.npm-cache/**`
 - `__pycache__/**`
 - `.venv/**`
 - `.pytest_cache/**`

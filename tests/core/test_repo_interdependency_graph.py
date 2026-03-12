@@ -10,6 +10,7 @@ GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 EXCLUDED_GRAPH_DIRS = {
     ".git",
     ".mcp.json",
+    ".npm-cache",
     "__pycache__",
     ".venv",
     ".pytest_cache",
