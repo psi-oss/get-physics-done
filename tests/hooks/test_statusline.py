@@ -728,6 +728,22 @@ class TestMain:
         mock_update.assert_called_once_with("/tmp/alternate-workspace")
         assert "GPD" in captured.getvalue()
 
+    def test_top_level_cwd_workspace_alias_is_forwarded_to_helpers(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"cwd": "/tmp/top-level-workspace"}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_position.assert_called_once_with("/tmp/top-level-workspace")
+        mock_task.assert_called_once_with("", "/tmp/top-level-workspace")
+        mock_update.assert_called_once_with("/tmp/top-level-workspace")
+        assert "GPD" in captured.getvalue()
+
     def test_invalid_json_stdin_no_crash(self) -> None:
         """Invalid JSON on stdin → main() returns silently, no crash."""
         captured = io.StringIO()

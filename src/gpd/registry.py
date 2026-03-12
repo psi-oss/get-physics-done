@@ -686,11 +686,21 @@ def list_skills() -> list[str]:
 
 
 def get_skill(name: str) -> SkillDef:
-    """Get a canonical skill definition by canonical name."""
+    """Get a canonical skill definition by canonical name or registry key."""
     skills = _cache.skills()
-    candidates = [name]
-    if name.startswith("gpd:"):
-        candidates.append(name.replace("gpd:", "gpd-", 1))
+    normalized = name.strip()
+    if normalized.startswith("/"):
+        normalized = normalized[1:]
+
+    candidates: list[str] = []
+    for candidate in (
+        normalized,
+        normalized.replace("gpd:", "gpd-", 1) if normalized.startswith("gpd:") else None,
+        normalized.replace("gpd-", "gpd:", 1) if normalized.startswith("gpd-") else None,
+        f"gpd-{normalized}" if normalized and not normalized.startswith(("gpd-", "gpd:")) else None,
+    ):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
 
     for candidate in candidates:
         skill = skills.get(candidate)

@@ -404,6 +404,7 @@ def write_manifest(config_dir: Path, version: str, *, install_scope: str | None 
     gpd_dir = config_dir / "get-physics-done"
     command_dir = config_dir / "command"
     agents_dir = config_dir / "agents"
+    hooks_dir = config_dir / "hooks"
 
     manifest: dict = {
         "version": version,
@@ -431,6 +432,11 @@ def write_manifest(config_dir: Path, version: str, *, install_scope: str | None 
         for f in sorted(agents_dir.iterdir()):
             if f.name.startswith("gpd-") and f.name.endswith(".md"):
                 manifest["files"]["agents/" + f.name] = file_hash(f)
+
+    # hooks/ files
+    if hooks_dir.exists():
+        for rel, h in generate_manifest(hooks_dir).items():
+            manifest["files"]["hooks/" + rel] = h
 
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

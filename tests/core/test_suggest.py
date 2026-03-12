@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -77,6 +78,26 @@ def test_no_project_suggests_new_project(tmp_path: Path) -> None:
     assert result.top_action is not None
     assert result.top_action.action == "new-project"
     assert result.top_action.priority == 1
+
+
+def test_no_project_uses_workspace_runtime_for_command_formatting(tmp_path: Path) -> None:
+    """Command formatting should follow the analyzed workspace, not the process cwd."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".codex").mkdir()
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / ".claude").mkdir()
+
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+    ):
+        result = suggest_next(workspace)
+
+    assert result.top_action is not None
+    assert result.top_action.command == "$gpd-new-project"
 
 
 # ─── Empty Project ─────────────────────────────────────────────────────────────

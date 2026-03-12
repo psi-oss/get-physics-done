@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import shutil
 import sys
 import tomllib
@@ -66,6 +65,7 @@ _TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
 _AUTO_DISCOVERED_TOOLS = frozenset({"task"})
 _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
+_GPD_NOTIFY_WRAPPER_MARKER = "gpd-codex-notify-wrapper-v1"
 _GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
 _GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
 _MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
@@ -512,7 +512,7 @@ class CodexAdapter(RuntimeAdapter):
             config_toml = target_dir / "config.toml"
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
-                cleaned = _remove_gpd_notify_config(toml_content)
+                cleaned = _remove_gpd_notify_config(toml_content, target_dir=target_dir)
                 cleaned = _remove_gpd_multi_agent_config(cleaned)
                 if cleaned != toml_content:
                     config_toml.write_text(cleaned, encoding="utf-8")
@@ -1044,7 +1044,8 @@ def _configure_config_toml(
 
 
 def _line_contains_gpd_notify(line: str) -> bool:
-    return re.search(r"(?<![A-Za-z0-9_])(codex_notify|notify)\.py(?![A-Za-z0-9_])", line) is not None
+    parsed = _parse_notify_assignment(line)
+    return _notify_assignment_is_gpd_managed(parsed)
 
 
 def _parse_notify_assignment(line: str) -> list[str] | None:
@@ -1066,16 +1067,43 @@ def _build_notify_line(desired_path: str) -> str:
 
 
 def _build_notify_wrapper_line(existing_notify: list[str], desired_path: str) -> str:
-    existing_cmd = " ".join(shlex.quote(arg) for arg in existing_notify)
-    gpd_cmd = f"{shlex.quote(hook_python_interpreter())} {shlex.quote(desired_path)}"
-    shell_script = (
-        'tmp="$(mktemp "${TMPDIR:-/tmp}/gpd-codex-notify.XXXXXX")" || exit 0; '
-        'cat > "$tmp"; '
-        f"{existing_cmd} < \"$tmp\" || true; "
-        f"{gpd_cmd} < \"$tmp\" || true; "
-        'rm -f "$tmp"'
+    wrapper_script = (
+        "import json, subprocess, sys\n"
+        "payload = sys.stdin.buffer.read()\n"
+        "existing = json.loads(sys.argv[1])\n"
+        "gpd_path = sys.argv[2]\n"
+        "for command in (existing, [sys.executable, gpd_path]):\n"
+        "    try:\n"
+        "        subprocess.run(command, input=payload, check=False)\n"
+        "    except OSError:\n"
+        "        pass\n"
     )
-    return f'notify = ["sh", "-c", {json.dumps(shell_script)}]'
+    parts = [
+        _toml_string(hook_python_interpreter()),
+        _toml_string("-c"),
+        _toml_string(wrapper_script),
+        _toml_string(json.dumps(existing_notify)),
+        _toml_string(desired_path),
+        _toml_string(_GPD_NOTIFY_WRAPPER_MARKER),
+    ]
+    return f"notify = [{', '.join(parts)}]"
+
+
+def _managed_notify_paths(target_dir: Path | None = None) -> set[str]:
+    paths = {".codex/hooks/notify.py"}
+    if target_dir is not None:
+        paths.add(str(target_dir / "hooks" / HOOK_SCRIPTS["notify"]).replace("\\", "/"))
+    return paths
+
+
+def _notify_assignment_is_gpd_managed(parsed_notify: list[str] | None, *, target_dir: Path | None = None) -> bool:
+    if not parsed_notify:
+        return False
+    if _GPD_NOTIFY_WRAPPER_MARKER in parsed_notify:
+        return True
+
+    managed_paths = _managed_notify_paths(target_dir)
+    return len(parsed_notify) == 2 and parsed_notify[1] in managed_paths
 
 
 def _serialize_toml_lines(lines: list[str]) -> str:
@@ -1100,6 +1128,7 @@ def _install_gpd_notify_config(
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     existing_notify: list[str] | None = None
+    pending_managed_block = False
 
     past_first_section = False
     for line in toml_content.splitlines():
@@ -1111,17 +1140,21 @@ def _install_gpd_notify_config(
         ):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
+            pending_managed_block = True
             continue
         # Only match top-level notify (before any section header)
         if not past_first_section and stripped.startswith("notify"):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
-            if _line_contains_gpd_notify(line):
-                continue
             parsed = _parse_notify_assignment(line)
+            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed):
+                pending_managed_block = False
+                continue
             if parsed is not None:
                 existing_notify = parsed
+                pending_managed_block = False
                 continue
+        pending_managed_block = False
         cleaned_lines.append(line)
 
     notify_block: list[str]
@@ -1150,26 +1183,34 @@ def _install_gpd_notify_config(
     return _serialize_toml_lines(cleaned_lines)
 
 
-def _remove_gpd_notify_config(toml_content: str) -> str:
+def _remove_gpd_notify_config(toml_content: str, *, target_dir: Path | None = None) -> str:
     cleaned_lines: list[str] = []
     insert_at: int | None = None
     original_notify: str | None = None
+    pending_managed_block = False
 
     for line in toml_content.splitlines():
         stripped = line.strip()
         if stripped == _GPD_NOTIFY_COMMENT:
             if insert_at is None:
                 insert_at = len(cleaned_lines)
+            pending_managed_block = True
             continue
         if stripped.startswith(_GPD_NOTIFY_BACKUP_PREFIX):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             original_notify = stripped[len(_GPD_NOTIFY_BACKUP_PREFIX) :].strip()
+            pending_managed_block = True
             continue
-        if stripped.startswith("notify") and _line_contains_gpd_notify(line):
+        parsed = _parse_notify_assignment(line)
+        if stripped.startswith("notify") and (
+            pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir)
+        ):
             if insert_at is None:
                 insert_at = len(cleaned_lines)
+            pending_managed_block = False
             continue
+        pending_managed_block = False
         cleaned_lines.append(line)
 
     if original_notify:

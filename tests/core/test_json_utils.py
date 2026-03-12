@@ -259,6 +259,28 @@ def test_json_sum_lengths_missing_key():
     assert result == "1"
 
 
+def test_raw_json_keys_outputs_empty_string_for_empty_object() -> None:
+    result = runner.invoke(app, ["--raw", "json", "keys", ".empty"], input='{"empty": {}}')
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == ""
+
+
+def test_raw_json_list_outputs_empty_string_for_missing_collection() -> None:
+    result = runner.invoke(app, ["--raw", "json", "list", ".missing"], input='{"items": []}')
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == ""
+
+
+def test_raw_json_pluck_outputs_empty_string_for_missing_field() -> None:
+    payload = json.dumps({"plans": [{"name": "alpha"}]})
+    result = runner.invoke(app, ["--raw", "json", "pluck", ".plans", "id"], input=payload)
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == ""
+
+
 def test_json_sum_lengths_empty():
     result = json_sum_lengths("{}", [".a", ".b"])
     assert result == "0"

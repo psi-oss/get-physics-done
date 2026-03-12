@@ -109,18 +109,18 @@ def replace_placeholders(
 ) -> str:
     """Replace GPD path placeholders in file content.
 
-    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, runtime placeholders,
-    and the source tree's canonical config-dir placeholder with *path_prefix*.
+    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, and runtime
+    placeholders with *path_prefix*.
 
-    Source prompt/spec content uses one canonical config-dir placeholder so the
-    adapter layer can rewrite it to the concrete runtime-specific path during
-    installation without each prompt source carrying per-runtime copies.
+    Source prompt/spec content should use canonical placeholders such as
+    ``{GPD_CONFIG_DIR}`` so the adapter layer can rewrite them to the concrete
+    runtime-specific path during installation without each prompt source
+    carrying per-runtime copies.
 
     Used by all adapters during install to rewrite .md file references.
     """
     content = content.replace("{GPD_INSTALL_DIR}", path_prefix + "get-physics-done")
     content = content.replace("{GPD_AGENTS_DIR}", path_prefix + "agents")
-    content = re.sub(r"~/\.claude/", path_prefix, content)
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
@@ -846,6 +846,7 @@ def write_manifest(
     gpd_dir = config_dir / "get-physics-done"
     commands_dir = config_dir / "commands" / "gpd"
     agents_dir = config_dir / "agents"
+    hooks_dir = config_dir / "hooks"
 
     manifest: dict[str, object] = {
         "version": version,
@@ -874,6 +875,11 @@ def write_manifest(
             if f.name.startswith("gpd-") and f.suffix == ".md":
                 files["agents/" + f.name] = file_hash(f)
 
+    # hooks/
+    if hooks_dir.exists():
+        for rel, h in generate_manifest(hooks_dir).items():
+            files["hooks/" + rel] = h
+
     # External/shared skills
     if skills_dir:
         skills = Path(skills_dir)
@@ -890,6 +896,50 @@ def write_manifest(
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def _managed_install_paths(
+    config_dir: Path,
+    *,
+    skills_dir: str | Path | None = None,
+) -> list[str]:
+    """Return the current managed install paths when a manifest cannot be trusted."""
+    managed_paths: list[str] = []
+
+    gpd_dir = config_dir / "get-physics-done"
+    for rel in generate_manifest(gpd_dir).keys():
+        managed_paths.append(f"get-physics-done/{rel}")
+
+    commands_dir = config_dir / "commands" / "gpd"
+    for rel in generate_manifest(commands_dir).keys():
+        managed_paths.append(f"commands/gpd/{rel}")
+
+    command_dir = config_dir / "command"
+    if command_dir.exists():
+        for entry in sorted(command_dir.iterdir()):
+            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+                managed_paths.append(f"command/{entry.name}")
+
+    agents_dir = config_dir / "agents"
+    if agents_dir.exists():
+        for entry in sorted(agents_dir.iterdir()):
+            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+                managed_paths.append(f"agents/{entry.name}")
+
+    hooks_dir = config_dir / "hooks"
+    for rel in generate_manifest(hooks_dir).keys():
+        managed_paths.append(f"hooks/{rel}")
+
+    if skills_dir:
+        skills = Path(skills_dir)
+        if skills.exists():
+            for entry in sorted(skills.iterdir()):
+                if entry.is_dir() and entry.name.startswith("gpd-"):
+                    skill_md = entry / "SKILL.md"
+                    if skill_md.exists():
+                        managed_paths.append(f"skills/{entry.name}/SKILL.md")
+
+    return managed_paths
 
 
 # ---------------------------------------------------------------------------
@@ -914,15 +964,41 @@ def save_local_patches(
     if not manifest_path.exists():
         return []
 
+    manifest_version = "unknown"
+    tracked_files: dict[str, str] = {}
+    fallback_snapshot = False
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return []
+        fallback_snapshot = True
+    else:
+        if isinstance(manifest, dict):
+            manifest_version = str(manifest.get("version", "unknown"))
+            raw_files = manifest.get("files") or {}
+            if isinstance(raw_files, dict) and all(
+                isinstance(rel_path, str) and isinstance(original_hash, str) for rel_path, original_hash in raw_files.items()
+            ):
+                tracked_files = raw_files
+            else:
+                fallback_snapshot = True
+        else:
+            fallback_snapshot = True
+
+    if fallback_snapshot:
+        tracked_files = {rel_path: "" for rel_path in _managed_install_paths(config_dir, skills_dir=skills_dir)}
+
+    import shutil
 
     patches_dir = config_dir / PATCHES_DIR_NAME
+    staging_dir = config_dir / f".{PATCHES_DIR_NAME}.tmp"
+    previous_dir = config_dir / f".{PATCHES_DIR_NAME}.old"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    if previous_dir.exists():
+        shutil.rmtree(previous_dir)
     modified: list[str] = []
 
-    for rel_path, original_hash in (manifest.get("files") or {}).items():
+    for rel_path, original_hash in tracked_files.items():
         if rel_path.startswith("skills/"):
             if skills_dir is None:
                 continue
@@ -934,22 +1010,41 @@ def save_local_patches(
             continue
 
         current = file_hash(full_path)
-        if current != original_hash:
-            backup_path = patches_dir / rel_path
+        if fallback_snapshot or current != original_hash:
+            backup_path = staging_dir / rel_path
             backup_path.parent.mkdir(parents=True, exist_ok=True)
-            import shutil
-
             shutil.copy2(str(full_path), str(backup_path))
             modified.append(rel_path)
 
-    if modified:
-        meta = {
-            "backed_up_at": _iso_now(),
-            "from_version": manifest.get("version", "unknown"),
-            "files": modified,
-        }
-        meta_path = patches_dir / "backup-meta.json"
-        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    if not modified:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        if patches_dir.exists():
+            shutil.rmtree(patches_dir)
+        return []
+
+    meta = {
+        "backed_up_at": _iso_now(),
+        "from_version": manifest_version,
+        "backup_mode": "fallback-snapshot" if fallback_snapshot else "manifest-diff",
+        "files": modified,
+    }
+    meta_path = staging_dir / "backup-meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    try:
+        if patches_dir.exists():
+            patches_dir.rename(previous_dir)
+        staging_dir.rename(patches_dir)
+    except Exception:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        if previous_dir.exists() and not patches_dir.exists():
+            previous_dir.rename(patches_dir)
+        raise
+    else:
+        if previous_dir.exists():
+            shutil.rmtree(previous_dir)
 
     return modified
 
@@ -1018,10 +1113,6 @@ def pre_install_cleanup(
 ) -> None:
     """Common pre-install cleanup: remove stale patches and current install files."""
     import shutil as _shutil
-
-    patches_dir = target_dir / PATCHES_DIR_NAME
-    if patches_dir.exists():
-        _shutil.rmtree(patches_dir)
 
     save_local_patches(target_dir, skills_dir=skills_dir)
 

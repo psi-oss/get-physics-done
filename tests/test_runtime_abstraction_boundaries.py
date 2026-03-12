@@ -22,7 +22,7 @@ _RUNTIME_PATTERN = (
     r"(Claude Code|Gemini CLI|Codex|OpenCode|claude-code|gemini|codex|opencode|"
     r"\.claude|\.gemini|\.codex|\.opencode|"
     r"CLAUDE_[A-Z0-9_]*|GEMINI_[A-Z0-9_]*|CODEX_[A-Z0-9_]*|OPENCODE_[A-Z0-9_]*|"
-    r"codex_notify\.py|/gpd:|\$gpd-|(^|[[:space:]`\"'(])/gpd-)"
+    r"codex_notify\.py)"
 )
 
 _DOC_SUFFIXES = {".md"}
@@ -48,9 +48,6 @@ _SHARED_ADAPTER_INFRA_FILES = {
     "src/gpd/adapters/base.py",
     "src/gpd/adapters/install_utils.py",
     "src/gpd/adapters/tool_names.py",
-}
-_ALLOWED_SHARED_ADAPTER_RUNTIME_SNIPPETS = {
-    ("src/gpd/adapters/install_utils.py", 'content = re.sub(r"~/\\.claude/", path_prefix, content)'),
 }
 _ALLOWED_RUNTIME_ADAPTER_FILES = {
     "src/gpd/adapters/claude_code.py",
@@ -87,6 +84,14 @@ def _is_doc(rel_path: Path) -> bool:
     return rel_path.suffix.lower() in _DOC_SUFFIXES
 
 
+def _is_installed_shared_markdown(rel_path: Path) -> bool:
+    return rel_path.parts[:3] == ("src", "gpd", "commands") or rel_path.parts[:3] == (
+        "src",
+        "gpd",
+        "agents",
+    ) or rel_path.parts[:3] == ("src", "gpd", "specs")
+
+
 def _is_test(rel_path: Path) -> bool:
     return rel_path.parts[:1] == ("tests",)
 
@@ -113,7 +118,9 @@ def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> Non
     leaks = [
         (path, line_no, snippet)
         for path, line_no, snippet in _git_grep(_RUNTIME_PATTERN)
-        if not _is_doc(path) and not _is_test(path) and not _is_runtime_boundary_file(path)
+        if not _is_test(path)
+        and not _is_runtime_boundary_file(path)
+        and (not _is_doc(path) or _is_installed_shared_markdown(path))
     ]
 
     assert leaks == [], (
@@ -143,10 +150,6 @@ def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> N
         (path, line_no, snippet)
         for path, line_no, snippet in _git_grep(_RUNTIME_PATTERN)
         if path.as_posix() in _SHARED_ADAPTER_INFRA_FILES
-        and not any(
-            path.as_posix() == allowed_path and allowed_snippet in snippet.strip()
-            for allowed_path, allowed_snippet in _ALLOWED_SHARED_ADAPTER_RUNTIME_SNIPPETS
-        )
     ]
 
     assert leaks == [], (

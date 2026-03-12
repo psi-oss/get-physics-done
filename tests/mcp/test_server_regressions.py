@@ -171,3 +171,58 @@ def test_pattern_lookup_tolerates_missing_default_library(tmp_path: Path) -> Non
         patterns_server._DEFAULT_PATTERNS_ROOT = original_root
 
     assert isinstance(result, dict)
+
+
+def test_protocol_store_defaults_invalid_tier_for_sorting(tmp_path: Path) -> None:
+    from gpd.mcp.servers.protocols_server import ProtocolStore
+
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "bad-tier.md").write_text(
+        "---\n"
+        "tier: high\n"
+        "load_when:\n"
+        "  - asymptotic\n"
+        "---\n"
+        "# Bad Tier\n"
+        "- First step\n",
+        encoding="utf-8",
+    )
+    (protocols_dir / "good-tier.md").write_text(
+        "---\n"
+        "tier: 1\n"
+        "load_when:\n"
+        "  - perturbative\n"
+        "---\n"
+        "# Good Tier\n"
+        "- First step\n",
+        encoding="utf-8",
+    )
+
+    store = ProtocolStore(protocols_dir)
+    listed = store.list_all()
+
+    assert [protocol["name"] for protocol in listed] == ["good-tier", "bad-tier"]
+    assert listed[1]["tier"] == 2
+
+
+def test_protocol_not_found_tolerates_invalid_tier_catalog(tmp_path: Path) -> None:
+    from gpd.mcp.servers.protocols_server import ProtocolStore, get_protocol
+
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "bad-tier.md").write_text(
+        "---\n"
+        "tier: high\n"
+        "---\n"
+        "# Bad Tier\n"
+        "- First step\n",
+        encoding="utf-8",
+    )
+    store = ProtocolStore(protocols_dir)
+
+    with patch("gpd.mcp.servers.protocols_server._get_store", return_value=store):
+        result = get_protocol("missing-protocol")
+
+    assert result["error"] == "Protocol 'missing-protocol' not found"
+    assert result["available"] == ["bad-tier"]

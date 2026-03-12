@@ -552,6 +552,25 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-aware"
         assert payload["passed"] is True
 
+    def test_command_context_project_aware_rejects_short_flag_without_topic(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "discover", "-d", "deep"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:discover"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+
     def test_command_context_explain_requires_explicit_inputs_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

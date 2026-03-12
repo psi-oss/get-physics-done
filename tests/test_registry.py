@@ -707,6 +707,42 @@ class TestPublicAPI:
         assert skill.source_kind == "command"
         assert skill.content == "Execute body."
 
+    def test_get_skill_accepts_registry_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\nname: gpd:execute-phase\ndescription: Execute\n---\nExecute body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("execute-phase")
+
+        assert isinstance(skill, SkillDef)
+        assert skill.name == "gpd-execute-phase"
+        assert skill.registry_name == "execute-phase"
+
+    def test_get_skill_accepts_public_command_label(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\nname: gpd:execute-phase\ndescription: Execute\n---\nExecute body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("/gpd:execute-phase")
+
+        assert isinstance(skill, SkillDef)
+        assert skill.name == "gpd-execute-phase"
+        assert skill.registry_name == "execute-phase"
+
     def test_real_slides_command_metadata(self) -> None:
         registry.invalidate_cache()
 

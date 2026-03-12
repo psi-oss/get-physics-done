@@ -214,18 +214,15 @@ def test_agent_count_matches_prompts_and_user_docs() -> None:
     assert f"across all {agents_count} agents" in _read("src/gpd/specs/workflows/set-profile.md")
 
 
-def test_settings_workflow_documents_runtime_specific_model_override_guidance() -> None:
+def test_settings_workflow_documents_runtime_native_model_override_guidance() -> None:
     workflow = _read("src/gpd/specs/workflows/settings.md")
 
     assert "model_overrides" in workflow
-    assert "claude-code" in workflow
-    assert "codex" in workflow
-    assert "gemini" in workflow
-    assert "opencode" in workflow
     assert "tier-1" in workflow
-    assert "the exact string Codex accepts" in workflow
-    assert "accepted by the installed Gemini runtime" in workflow
-    assert "`provider/model`" in workflow
+    assert "infer the active runtime identifier" in workflow
+    assert "the exact model string the active runtime accepts" in workflow
+    assert "Preserve any provider prefixes" in workflow
+    assert "slash-delimited ids" in workflow
 
 
 def test_health_check_count_matches_skill_documentation() -> None:

@@ -907,6 +907,13 @@ class TestSkillsServer:
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
 
+    def test_get_skill_accepts_public_index_label(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("/gpd:execute-phase")
+        assert result["name"] == "gpd-execute-phase"
+        assert "Canonical execute command" in result["content"]
+
 
 # ---------------------------------------------------------------------------
 # 6. State server

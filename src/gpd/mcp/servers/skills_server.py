@@ -32,7 +32,7 @@ def _load_skill_index() -> list[content_registry.SkillDef]:
 
 
 def _resolve_skill(name: str) -> content_registry.SkillDef | None:
-    """Resolve a canonical skill name or registry key to a skill record."""
+    """Resolve a public label, canonical skill name, or registry key to a skill record."""
     try:
         return content_registry.get_skill(name)
     except KeyError:

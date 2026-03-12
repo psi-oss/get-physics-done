@@ -467,6 +467,108 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
     assert captured_calls[0]["target_dir"] == target
 
 
+def test_install_single_runtime_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
+    """Relative --target-dir should be anchored to --cwd, not the process cwd."""
+    from gpd.cli import _install_single_runtime
+
+    captured_calls: list[Path] = []
+    cli_cwd = tmp_path / "workspace"
+    cli_cwd.mkdir()
+
+    class SpyAdapter:
+        runtime_name = "claude-code"
+        display_name = "Claude Code"
+        config_dir_name = ".claude"
+        help_command = "/gpd:help"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def install(self, gpd_root, target_dir, *, is_global=False, explicit_target=False):
+            captured_calls.append(target_dir)
+            return {"runtime": "claude-code", "commands": 0, "agents": 0}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            return None
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
+        patch("gpd.cli._get_cwd", return_value=cli_cwd),
+    ):
+        _install_single_runtime("claude-code", is_global=False, target_dir_override="relative-target")
+
+    assert captured_calls == [cli_cwd / "relative-target"]
+
+
+def test_uninstall_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
+    """Relative uninstall --target-dir should be anchored to --cwd."""
+    cli_cwd = tmp_path / "workspace"
+    cli_cwd.mkdir()
+    target = cli_cwd / "relative-target"
+    target.mkdir()
+    captured_targets: list[Path] = []
+
+    class SpyAdapter:
+        display_name = "Claude Code"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def uninstall(self, target_dir):
+            captured_targets.append(target_dir)
+            return {"runtime": "claude-code", "removed": []}
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
+        patch("gpd.cli._get_cwd", return_value=cli_cwd),
+    ):
+        result = runner.invoke(app, ["uninstall", "claude-code", "--target-dir", "relative-target"])
+
+    assert result.exit_code == 0
+    assert captured_targets == [target]
+
+
+def test_install_interactive_rejects_ambiguous_runtime_name(tmp_path: Path):
+    """Substring matches that hit multiple runtimes should fail closed."""
+    with (
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code", "codex", "opencode"]),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        adapters = {
+            "claude-code": MagicMock(display_name="Claude Code", selection_aliases=("claude", "claude code")),
+            "codex": MagicMock(display_name="Codex", selection_aliases=("codex",)),
+            "opencode": MagicMock(display_name="OpenCode", selection_aliases=("opencode", "open code")),
+        }
+        mock_get.side_effect = lambda runtime: adapters[runtime]
+
+        result = runner.invoke(app, ["install"], input="code\n")
+
+    assert result.exit_code == 1
+    assert "Ambiguous selection: 'code'" in result.output
+
+
+def test_install_interactive_rejects_invalid_location_choice(tmp_path: Path):
+    """Interactive location selection should reject invalid choices instead of defaulting to local."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code"]),
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.selection_aliases = ("claude", "claude code")
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, ["install"], input="1\n9\n")
+
+    assert result.exit_code == 1
+    assert "Invalid selection: '9'" in result.output
+
+
 @pytest.mark.parametrize(
     ("argv_suffix", "supported_runtimes", "expected_runtimes", "uses_target_dir"),
     [

@@ -279,6 +279,18 @@ def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
     mock_notify.assert_called_once_with("/tmp/project")
 
 
+def test_main_accepts_top_level_cwd_workspace_alias() -> None:
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "cwd": "/tmp/project"}))),
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
+    ):
+        main()
+
+    mock_trigger.assert_called_once_with("/tmp/project")
+    mock_notify.assert_called_once_with("/tmp/project")
+
+
 def test_main_accepts_string_workspace_payload() -> None:
     with (
         patch("sys.stdin", io.StringIO(json.dumps({"type": "agent-turn-complete", "workspace": "/tmp/project"}))),

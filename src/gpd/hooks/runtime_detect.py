@@ -204,6 +204,18 @@ def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> l
     return unique
 
 
+def _resolved_priority_runtime(
+    preferred_runtime: str | None,
+    *,
+    cwd: Path,
+    home: Path,
+) -> str:
+    """Return an explicit preferred runtime when valid, else detect the active runtime."""
+    if preferred_runtime in ALL_RUNTIMES:
+        return preferred_runtime
+    return detect_active_runtime(cwd=cwd, home=home)
+
+
 def _runtime_dirs_in_priority_order(
     *,
     cwd: Path | None = None,
@@ -213,7 +225,7 @@ def _runtime_dirs_in_priority_order(
     """Return runtime config dirs, optionally prioritizing one runtime first."""
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    prioritized_runtime = preferred_runtime or detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
 
     dirs: list[Path] = []
     if prioritized_runtime in ALL_RUNTIMES:
@@ -280,7 +292,7 @@ def get_update_cache_candidates(
     """Return candidate update-cache files with runtime/scope attribution."""
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    prioritized_runtime = preferred_runtime or detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
     candidates: list[UpdateCacheCandidate] = []
 
     if prioritized_runtime in ALL_RUNTIMES:
@@ -333,8 +345,9 @@ def should_consider_update_cache_candidate(
     if runtime not in ALL_RUNTIMES:
         return True
 
-    if detect_install_scope(runtime, cwd=cwd, home=home) is not None:
-        return True
+    installed_scope = detect_install_scope(runtime, cwd=cwd, home=home)
+    if installed_scope is not None:
+        return candidate.scope in (None, installed_scope)
 
     if active_installed_runtime in (None, "", RUNTIME_UNKNOWN):
         return True

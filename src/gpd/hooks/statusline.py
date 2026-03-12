@@ -125,7 +125,7 @@ def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payl
     policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
     workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, *policy.project_dir_keys)
+    project_dir = _first_string(workspace_value, *policy.project_dir_keys) or _first_string(data, *policy.project_dir_keys)
 
     try:
         resolved_workspace = workspace_path.resolve()
@@ -238,7 +238,10 @@ def _workspace_from_payload(data: dict[str, object]) -> str:
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
-    return _first_string(workspace_value, *hook_payload.workspace_keys) or os.getcwd()
+    return _first_string(workspace_value, *hook_payload.workspace_keys) or _first_string(
+        data,
+        *hook_payload.workspace_keys,
+    ) or os.getcwd()
 
 
 def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:

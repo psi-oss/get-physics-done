@@ -125,7 +125,12 @@ def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) 
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
-    return _first_string(workspace_value, *policy.workspace_keys) or os.getcwd()
+    return (
+        _first_string(workspace_value, *policy.workspace_keys)
+        or _first_string(data, *policy.workspace_keys)
+        or cwd
+        or os.getcwd()
+    )
 
 
 def main() -> None:

@@ -39,10 +39,9 @@ task(
 
 Model override strings are runtime-native and are not normalized by GPD:
 
-- `claude-code`: aliases like `opus`, `sonnet`, `haiku`, or full provider-native model identifiers
-- `codex`: the same string Codex accepts for its `model` setting
-- `gemini`: an exact Gemini model name accepted by the installed Gemini runtime
-- `opencode`: a full `provider/model` string such as `openai/<model>`
+- Preserve the exact identifier or alias syntax accepted by the active runtime.
+- Keep provider prefixes, slash-delimited ids, bracket suffixes, and other runtime-native punctuation intact.
+- If the runtime already uses a non-default provider or model source, keep that provider's exact identifier format.
 
 ## Profile Selection Heuristic
 

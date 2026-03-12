@@ -183,13 +183,13 @@ def _load_config(cwd: Path) -> dict[str, object]:
     }
 
 
-def _format_command(action: str) -> str:
+def _format_command(action: str, *, cwd: Path | None = None) -> str:
     """Format a GPD command name."""
     try:
         from gpd.adapters import get_adapter
         from gpd.hooks.runtime_detect import detect_active_runtime
 
-        return get_adapter(detect_active_runtime()).format_command(action)
+        return get_adapter(detect_active_runtime(cwd=cwd)).format_command(action)
     except Exception:
         return f"gpd {action}"
 
@@ -375,6 +375,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     """
     suggestions: list[_MutableRecommendation] = []
     ctx_kwargs: dict[str, object] = {}
+    format_command = lambda action: _format_command(action, cwd=cwd)
 
     # ── 0. Check project existence ──────────────────────────────────────
     project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
@@ -384,7 +385,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         only = Recommendation(
             action="new-project",
             priority=1,
-            command=_format_command("new-project"),
+            command=format_command("new-project"),
             reason="No PROJECT.md found — initialize a new research project first",
         )
         return SuggestResult(
@@ -420,7 +421,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="resume",
                     priority=1,
-                    command=_format_command("resume-work"),
+                    command=format_command("resume-work"),
                     reason=reason,
                 )
             )
@@ -436,7 +437,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="resolve-blockers",
                     priority=2,
-                    command=_format_command("debug"),
+                    command=format_command("debug"),
                     reason=f"{len(blockers)} unresolved blocker(s): {'; '.join(texts)}",
                 )
             )
@@ -472,7 +473,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="execute-phase",
                 priority=3,
-                command=f"{_format_command('execute-phase')} {current_phase.number}",
+                command=f"{format_command('execute-phase')} {current_phase.number}",
                 reason=(
                     f"Phase {_phase_label(current_phase)} has "
                     f"{current_phase.incomplete_count} incomplete plan(s) — continue execution"
@@ -491,7 +492,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="verify-work",
                 priority=4,
-                command=f"{_format_command('verify-work')} {unverified_complete.number}",
+                command=f"{format_command('verify-work')} {unverified_complete.number}",
                 reason=f"Phase {unverified_complete.number} is complete but unverified — run verification",
                 phase=unverified_complete.number,
             )
@@ -503,7 +504,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="plan-phase",
                 priority=5,
-                command=f"{_format_command('plan-phase')} {next_unplanned.number}",
+                command=f"{format_command('plan-phase')} {next_unplanned.number}",
                 reason=(f"Phase {_phase_label(next_unplanned)} has research but no plans — create execution plan"),
                 phase=next_unplanned.number,
             )
@@ -515,7 +516,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="discuss-phase",
                 priority=6,
-                command=f"{_format_command('discuss-phase')} {next_pending.number}",
+                command=f"{format_command('discuss-phase')} {next_pending.number}",
                 reason=f"Phase {_phase_label(next_pending)} is pending — start with phase discussion",
                 phase=next_pending.number,
             )
@@ -533,7 +534,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="verify-results",
                     priority=5,
-                    command=_format_command("verify-work"),
+                    command=format_command("verify-work"),
                     reason=f"{len(unverified)} unverified result(s): {', '.join(str(i) for i in ids)}{suffix}",
                 )
             )
@@ -549,7 +550,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="address-questions",
                     priority=7,
-                    command=_format_command("check-todos"),
+                    command=format_command("check-todos"),
                     reason=f"{len(open_questions)} open question(s) — {'; '.join(texts)}",
                 )
             )
@@ -566,7 +567,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="continue-calculations",
                     priority=4,
-                    command=_format_command("progress"),
+                    command=format_command("progress"),
                     reason=f"{len(active_calcs)} active calculation(s) in progress — check status",
                 )
             )
@@ -579,7 +580,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="review-todos",
                 priority=8,
-                command=_format_command("check-todos"),
+                command=format_command("check-todos"),
                 reason=f"{todo_count} pending todo(s) — review and prioritize",
             )
         )
@@ -597,7 +598,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                     _MutableRecommendation(
                         action="set-conventions",
                         priority=6,
-                        command=_format_command("validate-conventions"),
+                        command=format_command("validate-conventions"),
                         reason=f"Core conventions not set: {', '.join(missing)} — define before calculations",
                     )
                 )
@@ -608,7 +609,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="new-milestone",
                 priority=2,
-                command=_format_command("new-milestone"),
+                command=format_command("new-milestone"),
                 reason="No ROADMAP.md found — create milestone roadmap",
             )
         )
@@ -619,7 +620,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="audit-milestone",
                 priority=3,
-                command=_format_command("audit-milestone"),
+                command=format_command("audit-milestone"),
                 reason=f"All {len(phase_analysis)} phases complete — audit milestone for gaps",
             )
         )
@@ -641,7 +642,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="write-paper",
                     priority=3,
-                    command=_format_command("write-paper"),
+                    command=format_command("write-paper"),
                     reason=(f"All {len(phase_analysis)} phases complete and verified — ready to write paper"),
                 )
             )
@@ -650,7 +651,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="literature-review",
                     priority=4,
-                    command=_format_command("literature-review"),
+                    command=format_command("literature-review"),
                     reason=(
                         "No literature review found — recommended before paper writing for comprehensive citations"
                     ),
@@ -664,7 +665,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="respond-to-referees",
                     priority=2,
-                    command=_format_command("respond-to-referees"),
+                    command=format_command("respond-to-referees"),
                     reason="Referee report exists — respond to referee comments and revise manuscript",
                 )
             )
@@ -673,7 +674,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="peer-review",
                     priority=4,
-                    command=_format_command("peer-review"),
+                    command=format_command("peer-review"),
                     reason="Paper draft exists — run standalone peer review before submission packaging",
                 )
             )
@@ -681,7 +682,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                 _MutableRecommendation(
                     action="arxiv-submission",
                     priority=5,
-                    command=_format_command("arxiv-submission"),
+                    command=format_command("arxiv-submission"),
                     reason=(
                         "Paper draft exists — prepare for arXiv submission "
                         "(validates LaTeX, flattens bibliography, packages)"
@@ -695,7 +696,7 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
             _MutableRecommendation(
                 action="plan-first-phase",
                 priority=3,
-                command=f"{_format_command('discuss-phase')} 1",
+                command=f"{format_command('discuss-phase')} 1",
                 reason="Roadmap exists but no phases created — start with phase 1",
             )
         )

@@ -25,8 +25,10 @@ from gpd.adapters.install_utils import (
     generate_manifest,
     get_global_dir,
     parse_jsonc,
+    pre_install_cleanup,
     protect_runtime_agent_prompt,
     read_settings,
+    write_manifest,
     replace_placeholders,
     write_settings,
 )
@@ -165,15 +167,15 @@ class TestExpandAtIncludes:
         assert "description: before --- after" not in result
 
     def test_path_replacement_in_included(self, tmp_path: Path) -> None:
-        """Included files should have {GPD_INSTALL_DIR} and ~/.claude/ replaced."""
+        """Included files should have canonical GPD placeholders replaced."""
         gpd_dir = self._make_src(
             tmp_path,
-            {"paths.md": "dir={GPD_INSTALL_DIR} home=~/.claude/foo"},
+            {"paths.md": "dir={GPD_INSTALL_DIR} config={GPD_CONFIG_DIR}/foo"},
         )
         content = f"@{tmp_path}/get-physics-done/paths.md"
-        result = expand_at_includes(content, str(gpd_dir), "/custom/")
+        result = expand_at_includes(content, str(gpd_dir), "/custom/", runtime="claude-code")
         assert "dir=/custom/get-physics-done" in result
-        assert "home=/custom/foo" in result
+        assert "config=/custom/foo" in result
 
     def test_planning_paths_skipped(self, tmp_path: Path) -> None:
         """.gpd/ paths are project-specific, should not be expanded."""
@@ -595,7 +597,7 @@ class TestCopyWithPathReplacement:
         src = tmp_path / "src"
         src.mkdir()
         (src / "readme.md").write_text(
-            "Path: ~/.claude/foo\nDir: {GPD_INSTALL_DIR}/bar\nAgents: {GPD_AGENTS_DIR}/baz",
+            "Config: {GPD_CONFIG_DIR}/foo\nDir: {GPD_INSTALL_DIR}/bar\nAgents: {GPD_AGENTS_DIR}/baz",
             encoding="utf-8",
         )
         (src / "script.sh").write_text("#!/bin/bash\necho ok", encoding="utf-8")
@@ -608,10 +610,9 @@ class TestCopyWithPathReplacement:
 
         assert dest.exists()
         md_content = (dest / "readme.md").read_text(encoding="utf-8")
-        assert "/custom/foo" in md_content
+        assert "Config: /custom/foo" in md_content
         assert "/custom/get-physics-done/bar" in md_content
         assert "/custom/agents/baz" in md_content
-        assert "~/.claude/" not in md_content
 
         sh_content = (dest / "script.sh").read_text(encoding="utf-8")
         assert "echo ok" in sh_content
@@ -711,7 +712,7 @@ class TestCopyWithPathReplacement:
         src = tmp_path / "src"
         sub = src / "sub" / "deep"
         sub.mkdir(parents=True)
-        (sub / "nested.md").write_text("~/.claude/test", encoding="utf-8")
+        (sub / "nested.md").write_text("{GPD_CONFIG_DIR}/test", encoding="utf-8")
         (src / "top.md").write_text("top level", encoding="utf-8")
 
         dest = tmp_path / "dest"
@@ -748,3 +749,70 @@ class TestCopyWithPathReplacement:
         assert dest.exists()
         assert (dest / "original.txt").exists()
         assert (dest / "original.txt").read_text() == "original"
+
+
+class TestInstallBackupSafety:
+    def test_write_manifest_tracks_hooks(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_manifest(config_dir, "1.0.0")
+
+        assert "hooks/statusline.py" in manifest["files"]
+
+    def test_pre_install_cleanup_backs_up_modified_hook_files(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        hook_path = config_dir / "hooks" / "statusline.py"
+        hook_path.write_text("print('original')\n", encoding="utf-8")
+
+        write_manifest(config_dir, "1.0.0")
+        hook_path.write_text("print('user edit')\n", encoding="utf-8")
+
+        pre_install_cleanup(config_dir)
+
+        backup_path = config_dir / "gpd-local-patches" / "hooks" / "statusline.py"
+        assert backup_path.exists()
+        assert backup_path.read_text(encoding="utf-8") == "print('user edit')\n"
+        assert not hook_path.exists()
+
+    def test_opencode_manifest_tracks_hooks(self, tmp_path: Path) -> None:
+        from gpd.adapters.opencode import write_manifest as write_opencode_manifest
+
+        config_dir = tmp_path / ".opencode"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "notify.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_opencode_manifest(config_dir, "1.0.0")
+
+        assert "hooks/notify.py" in manifest["files"]
+
+    def test_pre_install_cleanup_replaces_existing_patches_with_fallback_snapshot_when_manifest_is_malformed(
+        self, tmp_path: Path
+    ) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+        patches_dir = config_dir / "gpd-local-patches"
+        patches_dir.mkdir()
+        preserved_patch = patches_dir / "backup-meta.json"
+        preserved_patch.write_text('{"files":["hooks/statusline.py"]}', encoding="utf-8")
+        (config_dir / "gpd-file-manifest.json").write_text("{not-json", encoding="utf-8")
+
+        pre_install_cleanup(config_dir)
+
+        backup_path = config_dir / "gpd-local-patches" / "hooks" / "statusline.py"
+        assert preserved_patch.exists()
+        assert '"backup_mode": "fallback-snapshot"' in preserved_patch.read_text(encoding="utf-8")
+        assert backup_path.exists()
+        assert backup_path.read_text(encoding="utf-8") == "print('hook')\n"
+        assert not (config_dir / "hooks" / "statusline.py").exists()

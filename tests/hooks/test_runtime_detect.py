@@ -16,6 +16,7 @@ from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
     SCOPE_GLOBAL,
     SCOPE_LOCAL,
+    UpdateCacheCandidate,
     _has_gpd_install,
     all_runtime_dirs,
     detect_active_runtime,
@@ -23,8 +24,10 @@ from gpd.hooks.runtime_detect import (
     detect_install_scope,
     get_cache_dirs,
     get_gpd_install_dirs,
+    get_update_cache_candidates,
     get_todo_dirs,
     get_update_cache_files,
+    should_consider_update_cache_candidate,
     update_command_for_runtime,
 )
 
@@ -455,6 +458,69 @@ class TestUpdateCacheFiles:
 
         assert files[0] == workspace / ".codex" / "cache" / "gpd-update-check.json"
         assert files[1] == home / ".codex" / "cache" / "gpd-update-check.json"
+
+    def test_unknown_preferred_runtime_falls_back_to_detected_workspace_runtime(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        home = tmp_path / "home"
+        workspace.mkdir()
+        (workspace / ".codex" / "cache").mkdir(parents=True)
+        (home / ".claude" / "cache").mkdir(parents=True)
+
+        files = get_update_cache_files(cwd=workspace, home=home, preferred_runtime=RUNTIME_UNKNOWN)
+
+        assert files[0] == workspace / ".codex" / "cache" / "gpd-update-check.json"
+        assert files[1] == home / ".codex" / "cache" / "gpd-update-check.json"
+
+
+class TestUpdateCacheCandidates:
+    """Tests for update-cache candidate filtering."""
+
+    def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        global_runtime_dir = home / ".codex"
+        global_runtime_dir.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": SCOPE_GLOBAL}),
+            encoding="utf-8",
+        )
+
+        stale_local_candidate = UpdateCacheCandidate(
+            workspace / ".codex" / "cache" / "gpd-update-check.json",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_LOCAL,
+        )
+        live_global_candidate = UpdateCacheCandidate(
+            global_runtime_dir / "cache" / "gpd-update-check.json",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_GLOBAL,
+        )
+
+        with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+            assert should_consider_update_cache_candidate(stale_local_candidate, cwd=workspace, home=home) is False
+            assert should_consider_update_cache_candidate(live_global_candidate, cwd=workspace, home=home) is True
+
+    def test_candidate_listing_keeps_installed_scope_ahead_of_stale_other_scope(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        (workspace / ".codex" / "cache").mkdir(parents=True)
+
+        global_runtime_dir = home / ".codex"
+        global_runtime_dir.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": SCOPE_GLOBAL}),
+            encoding="utf-8",
+        )
+
+        candidates = get_update_cache_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_CODEX)
+
+        assert candidates[0].runtime == RUNTIME_CODEX
+        assert candidates[0].scope == SCOPE_GLOBAL
+        assert candidates[1].runtime == RUNTIME_CODEX
+        assert candidates[1].scope == SCOPE_LOCAL
 
 
 class TestUpdateCommand:

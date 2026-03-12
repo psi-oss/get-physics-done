@@ -146,6 +146,22 @@ def _infer_domain(name: str, _load_when: list[str]) -> str:
     return "general"
 
 
+def _normalize_protocol_tier(raw: object, *, protocol_name: str) -> int:
+    """Return a safe integer tier for protocol sorting and ranking."""
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if stripped:
+            try:
+                return int(stripped)
+            except ValueError:
+                pass
+
+    logger.warning("Protocol %s has invalid tier %r; defaulting to 2", protocol_name, raw)
+    return 2
+
+
 # ---------------------------------------------------------------------------
 # Protocol Store
 # ---------------------------------------------------------------------------
@@ -178,7 +194,7 @@ class ProtocolStore:
             load_when = meta.get("load_when", [])
             if not isinstance(load_when, list):
                 load_when = []
-            tier = meta.get("tier", 2)
+            tier = _normalize_protocol_tier(meta.get("tier", 2), protocol_name=name)
             context_cost = meta.get("context_cost", "medium")
 
             domain = _infer_domain(name, load_when)

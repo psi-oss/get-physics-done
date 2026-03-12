@@ -2157,7 +2157,7 @@ def _has_flag_value(tokens: list[str], flag: str) -> bool:
         if token == flag:
             if index + 1 < len(tokens):
                 next_token = tokens[index + 1]
-                if next_token and not next_token.startswith("--"):
+                if next_token and not next_token.startswith("-"):
                     return True
         elif token.startswith(f"{flag}="):
             return bool(token.partition("=")[2].strip())
@@ -2191,7 +2191,7 @@ def _positional_tokens(arguments: str | None, *, flags_with_values: tuple[str, .
 
 def _has_discover_explicit_inputs(arguments: str | None) -> bool:
     """Discover standalone mode needs either a phase number or a topic."""
-    return bool(_positional_tokens(arguments, flags_with_values=("--depth",)))
+    return bool(_positional_tokens(arguments, flags_with_values=("--depth", "-d")))
 
 
 def _has_simple_positional_inputs(arguments: str | None) -> bool:
@@ -3024,8 +3024,7 @@ def json_keys_cmd(
 
     stdin_text = sys.stdin.read()
     result = json_keys(stdin_text, key)
-    if result:
-        _json_cli_output(result)
+    _json_cli_output(result)
 
 
 @json_app.command("list")
@@ -3038,8 +3037,7 @@ def json_list_cmd(
 
     stdin_text = sys.stdin.read()
     result = json_list(stdin_text, key)
-    if result:
-        _json_cli_output(result)
+    _json_cli_output(result)
 
 
 @json_app.command("pluck")
@@ -3053,8 +3051,7 @@ def json_pluck_cmd(
 
     stdin_text = sys.stdin.read()
     result = json_pluck(stdin_text, key, field)
-    if result:
-        _json_cli_output(result)
+    _json_cli_output(result)
 
 
 @json_app.command("set")
@@ -3173,9 +3170,10 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     from gpd.adapters import get_adapter, list_runtimes
 
     runtimes = list_runtimes()
+    adapters = {runtime: get_adapter(runtime) for runtime in runtimes}
     console.print(f"\n[bold cyan]Select runtime(s) to {action}:[/]\n")
     for i, rt in enumerate(runtimes, 1):
-        adapter = get_adapter(rt)
+        adapter = adapters[rt]
         console.print(f"  [bold]{i}[/]) {adapter.display_name} [dim]({rt})[/]")
     console.print(f"  [bold]{len(runtimes) + 1}[/]) [green]All runtimes[/]")
 
@@ -3187,10 +3185,35 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     try:
         idx = int(choice)
     except ValueError:
-        # Try matching by name
-        matched = [r for r in runtimes if choice.lower() in r.lower()]
-        if matched:
-            return matched
+        normalized = choice.strip().casefold()
+        exact_matches = [
+            runtime_name
+            for runtime_name, adapter in adapters.items()
+            if normalized
+            in {
+                runtime_name.casefold(),
+                adapter.display_name.casefold(),
+                *(alias.casefold() for alias in adapter.selection_aliases),
+            }
+        ]
+        if len(exact_matches) == 1:
+            return exact_matches
+
+        fuzzy_matches = [
+            runtime_name
+            for runtime_name, adapter in adapters.items()
+            if normalized
+            and any(
+                normalized in candidate
+                for candidate in (
+                    runtime_name.casefold(),
+                    adapter.display_name.casefold(),
+                    *(alias.casefold() for alias in adapter.selection_aliases),
+                )
+            )
+        ]
+        if len(fuzzy_matches) > 1:
+            _error(f"Ambiguous selection: {choice!r}. Matches: {', '.join(fuzzy_matches)}")
         _error(f"Invalid selection: {choice!r}")
         return []  # unreachable
 
@@ -3227,7 +3250,13 @@ def _prompt_location(runtimes: list[str], *, action: str = "install") -> bool:
     console.print(f"  [bold]2[/]) Global — all projects [dim]({global_example})[/]")
 
     choice = Prompt.ask("\n[bold]Enter choice[/]", default="1")
-    return choice.strip() == "2"
+    normalized = choice.strip().lower()
+    if normalized in {"1", "local"}:
+        return False
+    if normalized in {"2", "global"}:
+        return True
+    _error(f"Invalid selection: {choice!r}")
+    return False  # unreachable
 
 
 def _install_single_runtime(
@@ -3243,7 +3272,7 @@ def _install_single_runtime(
     gpd_root = Path(__file__).parent
 
     if target_dir_override:
-        dest = Path(target_dir_override)
+        dest = _resolve_cli_target_dir(target_dir_override)
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
 
@@ -3289,6 +3318,14 @@ def _validate_target_dir_runtime_selection(action: str, runtimes: list[str], tar
     """Reject explicit target-dir usage when multiple runtimes are selected."""
     if target_dir and len(runtimes) != 1:
         _error(f"--target-dir requires exactly one runtime for {action}")
+
+
+def _resolve_cli_target_dir(target_dir: str) -> Path:
+    """Resolve a CLI target-dir argument relative to the active --cwd."""
+    resolved = Path(target_dir).expanduser()
+    if resolved.is_absolute():
+        return resolved
+    return _get_cwd() / resolved
 
 
 @app.command("install")
@@ -3460,7 +3497,7 @@ def uninstall(
     removed_results: list[tuple[str, dict[str, object]]] = []
     for rt in selected:
         adapter = get_adapter(rt)
-        target = Path(target_dir) if target_dir else adapter.resolve_target_dir(is_global, _get_cwd())
+        target = _resolve_cli_target_dir(target_dir) if target_dir else adapter.resolve_target_dir(is_global, _get_cwd())
         if not target.is_dir():
             if not _raw:
                 console.print(f"  [yellow]⊘[/] {adapter.display_name} — not installed at {_format_display_path(target)}")
