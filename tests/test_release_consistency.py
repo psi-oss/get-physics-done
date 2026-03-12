@@ -153,9 +153,7 @@ def test_public_metadata_records_psi_affiliation() -> None:
 
     assert 'affiliation: "Physical Superintelligence PBC"' in citation
     assert "Physical Superintelligence PBC (PSI)" in contributing
-    assert pyproject["project"]["maintainers"] == [
-        {"name": "Physical Superintelligence PBC", "email": "gpd@psi.inc"}
-    ]
+    assert pyproject["project"]["maintainers"] == [{"name": "Physical Superintelligence PBC"}]
 
 
 def test_public_release_surfaces_share_copilot_positioning() -> None:

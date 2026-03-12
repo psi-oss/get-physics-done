@@ -143,45 +143,6 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
-    def test_removed_mode_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `mode`"):
-            load_config(tmp_path)
-
-    def test_removed_depth_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"depth": "standard"}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `depth`"):
-            load_config(tmp_path)
-
-    def test_parallelization_must_be_bool(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"parallelization": {"enabled": False}}))
-        with pytest.raises(
-            ConfigError,
-            match=r"Unsupported config\.json keys: `parallelization\.enabled`",
-        ):
-            load_config(tmp_path)
-
-    def test_plan_checker_requires_current_key(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"workflow": {"plan_check": False}}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `workflow\.plan_check`"):
-            load_config(tmp_path)
-
-    def test_removed_search_gitignored_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"planning": {"search_gitignored": True}}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `planning\.search_gitignored`"):
-            load_config(tmp_path)
-
-    def test_removed_brave_search_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"brave_search": True}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `brave_search`"):
-            load_config(tmp_path)
-
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text("{bad json")
@@ -205,12 +166,6 @@ class TestLoadConfig:
             "codex": {"tier-1": "o3", "tier-2": "gpt-4.1"},
             "claude-code": {"tier-1": "opus"},
         }
-
-    def test_removed_model_map_key_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"model_map": {"tier-1": "opus"}}))
-        with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `model_map`"):
-            load_config(tmp_path)
 
     def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()

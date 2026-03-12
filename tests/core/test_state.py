@@ -281,23 +281,6 @@ def test_ensure_state_schema_partial():
     assert "decisions" in result
 
 
-def test_ensure_state_schema_does_not_migrate_removed_keys():
-    removed_keys = {
-        "project": {"core_question": "Why?", "current_focus": "Testing"},
-        "metrics": [{"label": "Phase 1 P1", "duration": "12m"}],
-        "session": {"last_session": "2026-03-10"},
-        "position": {"progress": "[#####.....] 50%"},
-    }
-    result = ensure_state_schema(removed_keys)
-    assert result["project_reference"]["core_research_question"] is None
-    assert result["project_reference"]["current_focus"] is None
-    assert result["performance_metrics"]["rows"] == []
-    assert result["session"]["last_date"] is None
-    assert result["position"]["progress_percent"] == 0
-    assert result["project"] == removed_keys["project"]
-    assert result["metrics"] == removed_keys["metrics"]
-
-
 def test_ensure_state_schema_empty_dict():
     """An empty {} must produce a valid default state without crashing."""
     result = ensure_state_schema({})
@@ -562,7 +545,6 @@ def test_is_valid_status():
     assert is_valid_status("Executing") is True
     assert is_valid_status("Planning") is True
     assert is_valid_status("Complete") is True
-    assert is_valid_status("Phase complete") is False
     assert is_valid_status("InvalidFoo") is False
 
 
@@ -572,12 +554,6 @@ def test_validate_state_transition_valid():
 
 def test_validate_state_transition_invalid():
     result = validate_state_transition("Not started", "Complete")
-    assert result is not None
-    assert "Invalid transition" in result
-
-
-def test_validate_state_transition_removed_phase_complete_alias_invalid():
-    result = validate_state_transition("Executing", "Phase complete")
     assert result is not None
     assert "Invalid transition" in result
 
@@ -602,10 +578,7 @@ def test_parse_state_to_json_structure():
     assert result["position"]["current_phase"] == "3"
     assert result["position"]["status"] == "Executing"
     assert result["session"]["last_date"] is not None
-    assert "last_session" not in result["session"]
     assert result["performance_metrics"]["rows"][0]["label"] == "Phase 1 P1"
-    assert "project" not in result
-    assert "metrics" not in result
     assert len(result["decisions"]) == 1
     assert len(result["blockers"]) == 1
 

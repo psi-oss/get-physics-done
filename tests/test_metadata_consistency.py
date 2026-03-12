@@ -208,7 +208,9 @@ def test_settings_workflow_documents_runtime_specific_model_override_guidance() 
     assert "gemini" in workflow
     assert "opencode" in workflow
     assert "tier-1" in workflow
-    assert "gpt-5-mini" in workflow
+    assert "the exact string Codex accepts" in workflow
+    assert "accepted by the installed Gemini runtime" in workflow
+    assert "`provider/model`" in workflow
 
 
 def test_health_check_count_matches_skill_documentation() -> None:

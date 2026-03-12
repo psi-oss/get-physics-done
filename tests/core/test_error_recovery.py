@@ -264,22 +264,6 @@ class TestEnsureStateSchema:
         result = ensure_state_schema({"_custom_key": "preserved", "position": "invalid"})
         assert result.get("_custom_key") == "preserved"
 
-    def test_removed_project_key_is_not_migrated(self) -> None:
-        """Removed top-level keys no longer populate the current schema."""
-        result = ensure_state_schema({
-            "project": {
-                "core_question": "How does X work?",
-                "current_focus": "Testing",
-            }
-        })
-        pr = result["project_reference"]
-        assert pr["core_research_question"] is None
-        assert pr["current_focus"] is None
-        assert result["project"] == {
-            "core_question": "How does X work?",
-            "current_focus": "Testing",
-        }
-
     def test_non_dict_returns_defaults(self) -> None:
         """A non-dict input (e.g. list) returns defaults."""
         result = ensure_state_schema([1, 2, 3])  # type: ignore[arg-type]

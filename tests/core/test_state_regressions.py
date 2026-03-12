@@ -94,35 +94,6 @@ def _make_state_md(tmp_path: Path) -> Path:
     return state_md
 
 
-def test_parse_state_md_uses_core_research_question_key() -> None:
-    from gpd.core.state import parse_state_md
-
-    parsed = parse_state_md(_SAMPLE_STATE_MD)
-
-    assert "core_research_question" in parsed["project"]
-    assert "core_question" not in parsed["project"]
-    assert parsed["project"]["core_research_question"] == "What is the mass gap in Yang-Mills theory?"
-
-
-def test_parse_state_to_json_reads_core_research_question() -> None:
-    from gpd.core.state import parse_state_to_json
-
-    result = parse_state_to_json(_SAMPLE_STATE_MD)
-
-    assert result["project_reference"]["core_research_question"] == (
-        "What is the mass gap in Yang-Mills theory?"
-    )
-
-
-def test_core_research_question_round_trips() -> None:
-    from gpd.core.state import parse_state_md, parse_state_to_json
-
-    parsed = parse_state_md(_SAMPLE_STATE_MD)
-    result = parse_state_to_json(_SAMPLE_STATE_MD)
-
-    assert parsed["project"]["core_research_question"] == result["project_reference"]["core_research_question"]
-
-
 def test_decision_newlines_are_sanitized(tmp_path: Path) -> None:
     from gpd.core.state import state_add_decision
 

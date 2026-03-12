@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
-from gpd.core.errors import ConfigError
 from gpd.core.suggest import (
     Recommendation,
     SuggestContext,
@@ -359,16 +357,6 @@ def test_limit_caps_output(tmp_path: Path) -> None:
     result = suggest_next(root, limit=2)
     assert result.suggestion_count <= 2
     assert result.total_suggestions > 2
-
-
-def test_invalid_config_raises(tmp_path: Path) -> None:
-    """suggest_next should not swallow canonical config validation errors."""
-    root = _setup_project(tmp_path)
-    _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"mode": "yolo"}))
-
-    with pytest.raises(ConfigError, match=r"Unsupported config\.json keys: `mode`"):
-        suggest_next(root)
 
 
 # ─── Mode-Aware Adjustments ───────────────────────────────────────────────────

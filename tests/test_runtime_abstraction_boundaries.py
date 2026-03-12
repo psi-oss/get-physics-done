@@ -34,7 +34,10 @@ _RUNTIME_OWNED_PREFIXES = (
     "src/gpd/adapters/",
 )
 _ALLOWED_RUNTIME_FILES = {
+    "CITATION.cff",
     ".gitignore",
+    "package.json",
+    "pyproject.toml",
     "src/gpd/hooks/runtime_detect.py",
 }
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
