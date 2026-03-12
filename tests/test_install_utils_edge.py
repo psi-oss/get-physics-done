@@ -154,6 +154,16 @@ class TestExpandAtIncludes:
         assert "actual body" in result
         assert "title: Test" not in result
 
+    def test_frontmatter_with_triple_dash_value_is_stripped_without_corrupting_body(self, tmp_path: Path) -> None:
+        gpd_dir = self._make_src(
+            tmp_path,
+            {"fm.md": "---\ndescription: before --- after\n---\nactual body"},
+        )
+        content = f"@{tmp_path}/get-physics-done/fm.md"
+        result = expand_at_includes(content, str(gpd_dir), "~/.test/")
+        assert "actual body" in result
+        assert "description: before --- after" not in result
+
     def test_path_replacement_in_included(self, tmp_path: Path) -> None:
         """Included files should have {GPD_INSTALL_DIR} and ~/.claude/ replaced."""
         gpd_dir = self._make_src(

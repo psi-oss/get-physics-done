@@ -6,6 +6,8 @@ hook configs, and tool name translations across runtimes.
 
 from __future__ import annotations
 
+from importlib import import_module
+
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
@@ -17,18 +19,44 @@ _REGISTRY: dict[str, type[RuntimeAdapter]] = {}
 _LOADED = False
 
 
+def _module_name_for_runtime(runtime_name: str) -> str:
+    """Return the adapter module path segment for a runtime id."""
+    return runtime_name.replace("-", "_")
+
+
+def _load_adapter_class(runtime_name: str) -> type[RuntimeAdapter]:
+    """Import and return the adapter class that owns *runtime_name*."""
+    module = import_module(f"gpd.adapters.{_module_name_for_runtime(runtime_name)}")
+
+    matches: list[type[RuntimeAdapter]] = []
+    for value in vars(module).values():
+        if not isinstance(value, type) or not issubclass(value, RuntimeAdapter) or value is RuntimeAdapter:
+            continue
+        try:
+            if value().runtime_name == runtime_name:
+                matches.append(value)
+        except Exception:
+            continue
+
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise RuntimeError(f"No RuntimeAdapter implementation found for runtime {runtime_name!r}")
+    raise RuntimeError(f"Multiple RuntimeAdapter implementations found for runtime {runtime_name!r}")
+
+
 def _ensure_loaded() -> None:
     global _LOADED  # noqa: PLW0603
     if _LOADED:
         return
-    _LOADED = True
-    from gpd.adapters.claude_code import ClaudeCodeAdapter
-    from gpd.adapters.codex import CodexAdapter
-    from gpd.adapters.gemini import GeminiAdapter
-    from gpd.adapters.opencode import OpenCodeAdapter
 
-    for cls in (ClaudeCodeAdapter, CodexAdapter, GeminiAdapter, OpenCodeAdapter):
-        _REGISTRY[cls().runtime_name] = cls
+    registry: dict[str, type[RuntimeAdapter]] = {}
+    for descriptor in iter_runtime_descriptors():
+        registry[descriptor.runtime_name] = _load_adapter_class(descriptor.runtime_name)
+
+    _REGISTRY.clear()
+    _REGISTRY.update(registry)
+    _LOADED = True
 
 
 def get_adapter(runtime: str) -> RuntimeAdapter:

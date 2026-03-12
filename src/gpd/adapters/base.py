@@ -5,6 +5,7 @@ from __future__ import annotations
 import abc
 import logging
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.install_utils import (
@@ -15,20 +16,35 @@ from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     HOOKS_DIR_NAME,
     compute_path_prefix,
+    convert_tool_references_in_body,
     copy_hook_scripts,
     install_gpd_content,
     pre_install_cleanup,
+    process_settings_commit_attribution,
+    replace_placeholders,
+    strip_sub_tags,
+    translate_frontmatter_tool_names,
     validate_package_integrity,
     write_manifest,
     write_version_file,
 )
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
+from gpd.adapters.tool_names import (
+    build_runtime_alias_map,
+    reference_translation_map,
+    translate_for_runtime,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class RuntimeAdapter(abc.ABC):
     """Abstract base for GPD runtime adapters."""
+
+    tool_name_map: Mapping[str, str] = {}
+    auto_discovered_tools: frozenset[str] = frozenset()
+    drop_mcp_frontmatter_tools: bool = False
+    strip_sub_tags_in_shared_markdown: bool = False
 
     @property
     @abc.abstractmethod
@@ -79,6 +95,64 @@ class RuntimeAdapter(abc.ABC):
     def command_prefix(self) -> str:
         """Runtime-native command prefix."""
         return self.runtime_descriptor.command_prefix
+
+    @property
+    def tool_alias_map(self) -> Mapping[str, str]:
+        """Runtime-native tool aliases back to canonical GPD names."""
+        return build_runtime_alias_map(self.tool_name_map)
+
+    def translate_tool_name(self, name: str) -> str:
+        """Translate a canonical or runtime-native tool name to this runtime."""
+        return translate_for_runtime(
+            name,
+            self.tool_name_map,
+            alias_map=self.tool_alias_map,
+        ) or ""
+
+    def translate_frontmatter_tool_name(self, name: str) -> str | None:
+        """Translate a frontmatter tool token for this runtime."""
+        return translate_for_runtime(
+            name,
+            self.tool_name_map,
+            alias_map=self.tool_alias_map,
+            auto_discovered_tools=self.auto_discovered_tools,
+            drop_mcp_frontmatter_tools=self.drop_mcp_frontmatter_tools,
+        )
+
+    def tool_reference_translation_map(self) -> dict[str, str]:
+        """Canonical prompt tool references rewritten for this runtime."""
+        return reference_translation_map(
+            self.tool_name_map,
+            alias_map=self.tool_alias_map,
+            auto_discovered_tools=self.auto_discovered_tools,
+            drop_mcp_frontmatter_tools=self.drop_mcp_frontmatter_tools,
+        )
+
+    def translate_shared_command_references(self, content: str) -> str:
+        """Rewrite shared command references for this runtime."""
+        return content
+
+    def translate_shared_markdown(
+        self,
+        content: str,
+        path_prefix: str,
+        *,
+        install_scope: str | None = None,
+    ) -> str:
+        """Translate installed shared markdown from canonical form to this runtime."""
+        content = replace_placeholders(content, path_prefix, self.runtime_name, install_scope)
+        content = translate_frontmatter_tool_names(content, self.translate_frontmatter_tool_name)
+        content = self.translate_shared_command_references(content)
+        if self.strip_sub_tags_in_shared_markdown:
+            content = strip_sub_tags(content)
+        return convert_tool_references_in_body(content, self.tool_reference_translation_map())
+
+    def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
+        """Return commit attribution override for this runtime."""
+        settings_path = self.resolve_global_config_dir() / "settings.json"
+        if explicit_config_dir:
+            settings_path = Path(explicit_config_dir).expanduser() / "settings.json"
+        return process_settings_commit_attribution(settings_path)
 
     @property
     def runtime_descriptor(self):
@@ -225,6 +299,7 @@ class RuntimeAdapter(abc.ABC):
                 path_prefix,
                 self.runtime_name,
                 install_scope=self._current_install_scope_flag(),
+                markdown_transform=self.translate_shared_markdown,
             )
         )
 

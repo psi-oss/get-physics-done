@@ -43,6 +43,26 @@ _ALLOWED_RUNTIME_FILES = {
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
     "src/gpd/hooks/runtime_detect.py",
 }
+_SHARED_ADAPTER_INFRA_FILES = {
+    "src/gpd/adapters/__init__.py",
+    "src/gpd/adapters/base.py",
+    "src/gpd/adapters/install_utils.py",
+    "src/gpd/adapters/tool_names.py",
+}
+_ALLOWED_SHARED_ADAPTER_RUNTIME_SNIPPETS = {
+    ("src/gpd/adapters/install_utils.py", 'content = re.sub(r"~/\\.claude/", path_prefix, content)'),
+}
+_ALLOWED_RUNTIME_ADAPTER_FILES = {
+    "src/gpd/adapters/claude_code.py",
+    "src/gpd/adapters/codex.py",
+    "src/gpd/adapters/gemini.py",
+    "src/gpd/adapters/opencode.py",
+    "src/gpd/adapters/runtime_catalog.py",
+    "src/gpd/adapters/runtime_catalog.json",
+}
+_SHARED_ADAPTER_RUNTIME_BRANCH_PATTERN = (
+    r'(runtime\s*==\s*"|runtime\s+in\s+\(|runtime_name\s*==\s*"|runtime_name\s+in\s+\()'
+)
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -73,7 +93,11 @@ def _is_test(rel_path: Path) -> bool:
 
 def _is_runtime_boundary_file(rel_path: Path) -> bool:
     rel = rel_path.as_posix()
-    return rel in _ALLOWED_RUNTIME_FILES or any(rel.startswith(prefix) for prefix in _RUNTIME_OWNED_PREFIXES)
+    return (
+        rel in _ALLOWED_RUNTIME_FILES
+        or rel in _ALLOWED_RUNTIME_ADAPTER_FILES
+        or any(rel.startswith(prefix) for prefix in _RUNTIME_OWNED_PREFIXES)
+    )
 
 
 def _is_allowed_shared_python_runtime_file(rel_path: Path) -> bool:
@@ -110,5 +134,36 @@ def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:
 
     assert leaks == [], (
         "Shared Python modules should stay runtime-agnostic outside explicit boundary files:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> None:
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in _git_grep(_RUNTIME_PATTERN)
+        if path.as_posix() in _SHARED_ADAPTER_INFRA_FILES
+        and not any(
+            path.as_posix() == allowed_path and allowed_snippet in snippet.strip()
+            for allowed_path, allowed_snippet in _ALLOWED_SHARED_ADAPTER_RUNTIME_SNIPPETS
+        )
+    ]
+
+    assert leaks == [], (
+        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in _git_grep(_SHARED_ADAPTER_RUNTIME_BRANCH_PATTERN)
+        if path.parts[:3] == ("src", "gpd", "adapters")
+        and path.as_posix() not in _ALLOWED_RUNTIME_ADAPTER_FILES
+    ]
+
+    assert leaks == [], (
+        "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
         f"{_format_failures(leaks)}"
     )

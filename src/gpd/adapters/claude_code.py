@@ -26,9 +26,29 @@ from gpd.adapters.install_utils import (
 
 logger = logging.getLogger(__name__)
 
+_TOOL_NAME_MAP: dict[str, str] = {
+    "file_read": "Read",
+    "file_write": "Write",
+    "file_edit": "Edit",
+    "shell": "Bash",
+    "search_files": "Grep",
+    "find_files": "Glob",
+    "web_search": "WebSearch",
+    "web_fetch": "WebFetch",
+    "notebook_edit": "NotebookEdit",
+    "agent": "Agent",
+    "ask_user": "AskUserQuestion",
+    "todo_write": "TodoWrite",
+    "task": "Task",
+    "slash_command": "SlashCommand",
+    "tool_search": "ToolSearch",
+}
+
 
 class ClaudeCodeAdapter(RuntimeAdapter):
     """Adapter for Anthropic Claude Code (CLI)."""
+
+    tool_name_map = _TOOL_NAME_MAP
 
     @property
     def runtime_name(self) -> str:
@@ -46,6 +66,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             path_prefix,
             self.runtime_name,
             self._current_install_scope_flag(),
+            markdown_transform=self.translate_shared_markdown,
         )
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd")

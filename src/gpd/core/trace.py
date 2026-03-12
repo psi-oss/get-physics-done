@@ -189,6 +189,31 @@ def _trace_file_path(cwd: Path, phase: str, plan: str) -> Path:
     return ProjectLayout(cwd).trace_file(phase, plan)
 
 
+def _stored_active_trace_file(cwd: Path, trace_file: Path) -> str:
+    """Serialize an active trace file path relative to *cwd* when possible."""
+    try:
+        return str(trace_file.relative_to(cwd))
+    except ValueError:
+        return str(trace_file)
+
+
+def _resolve_active_trace_file(cwd: Path, active: ActiveTrace) -> Path:
+    """Resolve an active trace marker file against the current project root.
+
+    Older markers may store an absolute path. If that path becomes stale after a
+    project move/rename, fall back to the deterministic phase/plan trace path in
+    the current project instead of recreating the old location.
+    """
+    stored = Path(active.file)
+    if not stored.is_absolute():
+        return cwd / stored
+
+    if stored.exists():
+        return stored
+
+    return _trace_file_path(cwd, active.phase, active.plan)
+
+
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 
@@ -400,15 +425,10 @@ def trace_start(cwd: Path, phase: str, plan: str) -> TraceStartResult:
     )
     _append_line(trace_file, line)
 
-    # NOTE: active.file stores an absolute path as a string.  If the project
-    # directory is moved/renamed after a trace is started, active traces and
-    # trace_log / trace_stop will break because the stored path no longer
-    # resolves.  A full fix requires a schema migration to store relative
-    # paths; for now we document the limitation.
     marker = ActiveTrace(
         phase=phase,
         plan=plan,
-        file=str(trace_file),
+        file=_stored_active_trace_file(cwd, trace_file),
         started_at=started_at,
         trace_id=trace_id,
         session_id=session_id,
@@ -462,10 +482,8 @@ def trace_log(cwd: Path, event_type: str, data: dict[str, object] | None = None)
         session_id=session_id,
         data=data,
     )
-    # NOTE: active.file is an absolute path string (see trace_start comment).
-    # If the project directory has been moved since the trace was started,
-    # this Path() will point to a stale location.
-    _append_line(Path(active.file), line)
+    trace_file = _resolve_active_trace_file(cwd, active)
+    _append_line(trace_file, line)
 
     with gpd_span("trace.log", **{"gpd.trace_event_type": event_type}):
         pass
@@ -501,7 +519,7 @@ def trace_stop(cwd: Path) -> TraceStopResult:
     if active is None:
         raise TraceError("No active trace to stop.")
 
-    trace_file = Path(active.file)
+    trace_file = _resolve_active_trace_file(cwd, active)
     trace_id = active.trace_id or _trace_id(active.phase, active.plan)
     session_id = active.session_id or _ensure_observability_session(cwd, phase=active.phase, plan=active.plan)
 
@@ -601,7 +619,7 @@ def trace_show(
         active = _read_active_trace(cwd)
         if active is not None:
             return _filter_events(
-                _read_trace_events(Path(active.file)),
+                _read_trace_events(_resolve_active_trace_file(cwd, active)),
                 event_type=event_type,
                 last=last,
             )

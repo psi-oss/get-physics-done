@@ -126,6 +126,13 @@ class TestConvertFrontmatterToGemini:
         assert "description: A test" in result
         assert "read_file" in result
 
+    def test_description_with_triple_dash_is_preserved(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\nallowed-tools:\n  - Read\n---\nBody"
+        result = _convert_frontmatter_to_gemini(content)
+        assert "description: before --- after" in result
+        assert "read_file" in result
+        assert result.rstrip().endswith("Body")
+
 
 class TestConvertToGeminiToml:
     def test_no_frontmatter(self) -> None:
@@ -137,6 +144,12 @@ class TestConvertToGeminiToml:
         content = "---\nname: test\ndescription: My description\n---\nPrompt body"
         result = _convert_to_gemini_toml(content)
         assert 'description = "My description"' in result
+        assert "Prompt body" in result
+
+    def test_extracts_description_when_value_contains_triple_dash(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\n---\nPrompt body"
+        result = _convert_to_gemini_toml(content)
+        assert 'description = "before --- after"' in result
         assert "Prompt body" in result
 
     def test_extracts_context_mode(self) -> None:

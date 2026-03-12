@@ -87,6 +87,50 @@ def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, m
     assert shown.count == 3
 
 
+def test_observe_event_reuses_persisted_active_session_when_contextvars_are_empty(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    import gpd.core.observability as observability
+
+    session = observability.ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observability._session_id_var.set(None)
+    observability._session_cwd_var.set(None)
+
+    result = observability.observe_event(
+        project,
+        category="workflow",
+        name="resume",
+        action="log",
+        status="ok",
+        command="resume-work",
+        data={"phase": "03"},
+    )
+
+    assert result.recorded is True
+    assert result.session_id == session.session_id
+
+    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    session_logs = sorted(sessions_dir.glob("*.jsonl"))
+    assert len(session_logs) == 1
+
+    events = _read_jsonl(session_logs[0])
+    assert len(events) == 2
+    assert events[0]["action"] == "start"
+    assert events[1]["category"] == "workflow"
+    assert events[1]["name"] == "resume"
+    assert events[1]["command"] == "resume-work"
+
+    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    assert current_session["session_id"] == session.session_id
+    assert current_session["status"] == "active"
+    assert current_session["command"] == "resume-work"
+
+
 def test_late_observe_event_on_finished_session_does_not_reactivate_current_pointer(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -98,6 +98,12 @@ class TestConvertToCodexSkill:
         result = _convert_to_codex_skill(content, "gpd-test")
         assert "description: My description" in result
 
+    def test_description_with_triple_dash_is_preserved(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\n---\nBody"
+        result = _convert_to_codex_skill(content, "gpd-test")
+        assert "description: before --- after" in result
+        assert result.rstrip().endswith("Body")
+
     def test_missing_name_added(self) -> None:
         content = "---\ndescription: D\n---\nBody"
         result = _convert_to_codex_skill(content, "gpd-test")

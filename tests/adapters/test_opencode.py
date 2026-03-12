@@ -122,6 +122,13 @@ class TestConvertFrontmatter:
         result = convert_claude_to_opencode_frontmatter(content)
         assert "tools:" in result
 
+    def test_description_with_triple_dash_is_preserved(self) -> None:
+        content = "---\ndescription: before --- after\nallowed-tools:\n  - Read\n---\nBody"
+        result = convert_claude_to_opencode_frontmatter(content)
+        assert "description: before --- after" in result
+        assert "read_file: true" in result
+        assert result.rstrip().endswith("Body")
+
 
 class TestCopyFlattenedCommands:
     def test_flattens_nested_dirs(self, gpd_root: Path, tmp_path: Path) -> None:

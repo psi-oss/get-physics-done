@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shlex
 import shutil
@@ -27,31 +28,52 @@ from gpd.adapters.install_utils import (
     PATCHES_DIR_NAME,
     convert_tool_references_in_body,
     expand_at_includes,
+    expand_tilde,
+    get_global_dir,
     hook_python_interpreter,
     pre_install_cleanup,
     protect_runtime_agent_prompt,
     remove_stale_agents,
+    render_markdown_frontmatter,
     replace_placeholders,
+    split_markdown_frontmatter,
     verify_installed,
     write_manifest,
 )
-from gpd.adapters.install_utils import (
-    get_codex_global_dir as _get_codex_global_dir_str,
-)
-from gpd.adapters.install_utils import (
-    get_codex_skills_dir as _get_codex_skills_dir_str,
-)
-from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 
 logger = logging.getLogger(__name__)
 
+_TOOL_NAME_MAP: dict[str, str] = {
+    "file_read": "read_file",
+    "file_write": "write_file",
+    "file_edit": "apply_patch",
+    "shell": "shell",
+    "search_files": "grep",
+    "find_files": "glob",
+    "web_search": "web_search",
+    "web_fetch": "web_fetch",
+    "notebook_edit": "notebook_edit",
+    "agent": "agent",
+    "ask_user": "ask_user",
+    "todo_write": "todo",
+    "task": "task",
+    "slash_command": "slash_command",
+    "tool_search": "tool_search",
+}
+_TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
+_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
 _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 _GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
 _GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
 _MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
-_TOOL_REFERENCE_MAP = reference_translation_map("codex")
+_TOOL_REFERENCE_MAP = reference_translation_map(
+    _TOOL_NAME_MAP,
+    alias_map=_TOOL_ALIAS_MAP,
+    auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+)
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
 
 
@@ -63,7 +85,7 @@ def get_codex_global_dir() -> Path:
 
     Priority: CODEX_CONFIG_DIR > ~/.codex
     """
-    return Path(_get_codex_global_dir_str())
+    return Path(get_global_dir("codex"))
 
 
 def get_codex_skills_dir() -> Path:
@@ -72,7 +94,11 @@ def get_codex_skills_dir() -> Path:
     Skills are stored in ~/.agents/skills/ (separate from config).
     Priority: CODEX_SKILLS_DIR > ~/.agents/skills
     """
-    return Path(_get_codex_skills_dir_str())
+    env_dir = os.environ.get("CODEX_SKILLS_DIR")
+    if env_dir:
+        expanded = expand_tilde(env_dir) or env_dir
+        return Path(expanded)
+    return Path.home() / ".agents" / "skills"
 
 
 def _resolve_codex_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: Path | None = None) -> Path:
@@ -142,7 +168,11 @@ def _convert_codex_tool_name(tool_name: str) -> str | None:
     Returns ``None`` if the tool should be excluded (for example ``task``,
     which Codex auto-discovers).
     """
-    return translate_for_runtime(tool_name, "codex")
+    return translate_for_runtime(
+        tool_name,
+        _TOOL_NAME_MAP,
+        auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+    )
 
 
 def _convert_to_codex_skill(content: str, skill_name: str) -> str:
@@ -157,15 +187,9 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
     # Replace /gpd: with $gpd- for Codex skill invocation syntax
     converted = content.replace("/gpd:", "$gpd-")
 
-    if not converted.startswith("---"):
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
+    if not frontmatter:
         return f"---\nname: {skill_name}\ndescription: GPD skill - {skill_name}\n---\n{converted}"
-
-    end_index = converted.find("---", 3)
-    if end_index == -1:
-        return f"---\nname: {skill_name}\ndescription: GPD skill - {skill_name}\n---\n{converted}"
-
-    frontmatter = converted[3:end_index].strip()
-    body = converted[end_index + 3 :]
 
     fm_lines = frontmatter.split("\n")
     new_lines: list[str] = []
@@ -245,7 +269,7 @@ def _convert_to_codex_skill(content: str, skill_name: str) -> str:
             new_lines.append(f"  - {tool}")
 
     new_frontmatter = "\n".join(new_lines).strip()
-    return f"---\n{new_frontmatter}\n---{body}"
+    return render_markdown_frontmatter(preamble, new_frontmatter, separator or "\n", body)
 
 
 def _toml_string(value: str) -> str:
@@ -278,12 +302,23 @@ class CodexAdapter(RuntimeAdapter):
     - Skills -> ~/.agents/skills/ (CODEX_SKILLS_DIR env var)
     """
 
+    tool_name_map = _TOOL_NAME_MAP
+    auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
+    strip_sub_tags_in_shared_markdown = True
+
     @property
     def runtime_name(self) -> str:
         return "codex"
 
     def format_command(self, action: str) -> str:
         return f"$gpd-{action}"
+
+    def translate_shared_command_references(self, content: str) -> str:
+        return content.replace("/gpd:", self.command_prefix)
+
+    def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
+        """Codex uses the runtime default commit attribution behavior."""
+        return ""
 
     def install(
         self,
@@ -316,7 +351,7 @@ class CodexAdapter(RuntimeAdapter):
         return f"./{self.config_dir_name}/"
 
     def _pre_cleanup(self, target_dir: Path) -> None:
-        pre_install_cleanup(target_dir, codex_skills_dir=str(self._skills_dir))
+        pre_install_cleanup(target_dir, skills_dir=str(self._skills_dir))
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
@@ -398,7 +433,8 @@ class CodexAdapter(RuntimeAdapter):
         write_manifest(
             target_dir,
             version,
-            codex_skills_dir=str(self._skills_dir),
+            skills_dir=str(self._skills_dir),
+            metadata={_MANIFEST_CODEX_SKILLS_DIR_KEY: str(self._skills_dir)},
             install_scope=self._current_install_scope_flag(),
         )
 
