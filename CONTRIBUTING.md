@@ -21,7 +21,7 @@ Useful checks:
 
 ```bash
 uv build
-npm_config_cache=.npm-cache npm pack --dry-run --json
+npm_config_cache="$(mktemp -d)" npm pack --dry-run --json
 uv run pytest tests/test_metadata_consistency.py -v
 uv run pytest tests/test_release_consistency.py -v
 uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
@@ -36,7 +36,7 @@ Cross-runtime release checks:
 - `tests/test_metadata_consistency.py` covers public docs, inventory counts, and CLI/registry metadata alignment.
 - `tests/test_release_consistency.py` covers the public install flow, release artifacts, and release-facing messaging.
 - `uv build` validates the published Python wheel and sdist.
-- `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release.
+- `npm pack --dry-run --json` validates the published `npx` bootstrap package surface before release. Use a temporary cache outside the repo so the worktree does not gain a local `.npm-cache/`.
 - Gemini installs are expected to be complete on disk after `GeminiAdapter.install()`: `.gemini/settings.json` should already exist with `experimental.enableAgents`, GPD hooks, and GPD MCP servers configured.
 
 ## Release-Facing Guardrails

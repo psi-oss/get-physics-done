@@ -10,6 +10,7 @@ build/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+.npm-cache/
 .mcp.json
 # Runtime-owned local mirrors/config snapshots.
 .codex/
