@@ -22,7 +22,7 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `579`
+- Live repo files analyzed in the current tree: `578`
 - Python files under `src/` and `tests/`: `169`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
@@ -38,6 +38,7 @@ This graph therefore includes:
 Excluded as noise from node counting, but still modeled where contractually relevant:
 
 - `.git/**`
+- `.mcp.json`
 - `__pycache__/**`
 - `.venv/**`
 - `.pytest_cache/**`

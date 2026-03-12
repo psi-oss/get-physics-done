@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 EXCLUDED_GRAPH_DIRS = {
     ".git",
+    ".mcp.json",
     "__pycache__",
     ".venv",
     ".pytest_cache",
