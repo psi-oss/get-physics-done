@@ -781,6 +781,84 @@ class TestSkillsServer:
         result = route_skill("build a beamer slide deck for a seminar presentation")
         assert result["suggestion"] == "gpd-slides"
 
+    def test_route_skill_suggest_next_from_direct_question(self):
+        from gpd.mcp.servers.skills_server import route_skill
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-suggest-next",
+                    description="Suggest the next action.",
+                    content="Suggest next.",
+                    category="help",
+                    path="/tmp/gpd-suggest-next.md",
+                    source_kind="command",
+                    registry_name="suggest-next",
+                ),
+                SkillDef(
+                    name="gpd-help",
+                    description="Help.",
+                    content="Help.",
+                    category="help",
+                    path="/tmp/gpd-help.md",
+                    source_kind="command",
+                    registry_name="help",
+                ),
+                SkillDef(
+                    name="gpd-new-project",
+                    description="Create projects.",
+                    content="New project.",
+                    category="project",
+                    path="/tmp/gpd-new-project.md",
+                    source_kind="command",
+                    registry_name="new-project",
+                ),
+            ],
+        ):
+            result = route_skill("what should I do next for this project?")
+        assert result["suggestion"] == "gpd-suggest-next"
+
+    def test_route_skill_suggest_next_from_next_step_prompt(self):
+        from gpd.mcp.servers.skills_server import route_skill
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-suggest-next",
+                    description="Suggest the next action.",
+                    content="Suggest next.",
+                    category="help",
+                    path="/tmp/gpd-suggest-next.md",
+                    source_kind="command",
+                    registry_name="suggest-next",
+                ),
+                SkillDef(
+                    name="gpd-help",
+                    description="Help.",
+                    content="Help.",
+                    category="help",
+                    path="/tmp/gpd-help.md",
+                    source_kind="command",
+                    registry_name="help",
+                ),
+                SkillDef(
+                    name="gpd-progress",
+                    description="Project progress.",
+                    content="Progress.",
+                    category="status",
+                    path="/tmp/gpd-progress.md",
+                    source_kind="command",
+                    registry_name="progress",
+                ),
+            ],
+        ):
+            result = route_skill("what is the next step for my project?")
+        assert result["suggestion"] == "gpd-suggest-next"
+
     def test_route_skill_no_match(self):
         from gpd.mcp.servers.skills_server import route_skill
 

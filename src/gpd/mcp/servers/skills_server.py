@@ -132,9 +132,27 @@ def route_skill(task_description: str) -> dict:
             if not skills:
                 return {"error": "No skills available", "suggestion": None}
             available_names = {skill.name for skill in skills}
+            normalized_task = re.sub(r"[^a-z0-9\s-]", "", task_description.lower()).strip()
+
+            if "gpd-suggest-next" in available_names and any(
+                phrase in normalized_task
+                for phrase in (
+                    "what should i do next",
+                    "what do i do next",
+                    "what next",
+                    "next step",
+                    "next steps",
+                )
+            ):
+                return {
+                    "suggestion": "gpd-suggest-next",
+                    "confidence": 0.95,
+                    "alternatives": [name for name in ("gpd-progress", "gpd-plan-phase") if name in available_names],
+                    "task_description": task_description,
+                }
 
             # Keyword scoring
-            words = set(re.sub(r"[^a-z0-9\s-]", "", task_description.lower()).split())
+            words = set(normalized_task.split())
 
             # Direct command mentions (e.g., "execute phase", "plan phase")
             command_keywords: dict[str, list[str]] = {

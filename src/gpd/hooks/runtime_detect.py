@@ -129,14 +129,11 @@ def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) 
 
 def detect_active_runtime_with_gpd_install(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect the active runtime only when that runtime also has a GPD install."""
-    resolved_runtime = detect_active_runtime(cwd=cwd, home=home)
-    if resolved_runtime not in ALL_RUNTIMES:
-        return RUNTIME_UNKNOWN
-
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    if _runtime_dir_has_gpd_install(resolved_runtime, cwd=resolved_cwd, home=resolved_home):
-        return resolved_runtime
+    for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
+        if _runtime_dir_has_gpd_install(runtime, cwd=resolved_cwd, home=resolved_home):
+            return runtime
     return RUNTIME_UNKNOWN
 
 

@@ -321,6 +321,30 @@ class TestObserve:
         assert any(event.get("data", {}).get("wave") == 1 for event in observed["events"])
 
 
+class TestFrontmatterValidate:
+    def test_frontmatter_validate_invalid_schema_returns_exit_code_one(self, gpd_project: Path) -> None:
+        summary = gpd_project / "invalid-summary.md"
+        summary.write_text(
+            "---\nphase: '01'\nplan: '01'\n---\n\n# Summary\n",
+            encoding="utf-8",
+        )
+
+        result = _invoke(
+            "--raw",
+            "frontmatter",
+            "validate",
+            str(summary.relative_to(gpd_project)),
+            "--schema",
+            "summary",
+            expect_ok=False,
+        )
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert sorted(payload["missing"]) == ["completed", "depth", "provides"]
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 5. regression-check
 # ═══════════════════════════════════════════════════════════════════════════

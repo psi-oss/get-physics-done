@@ -64,7 +64,7 @@ For each PLAN.md, check if a matching SUMMARY.md exists. Present as completion t
 Extract key results from SUMMARY.md files using `summary-extract`:
 
 ```bash
-gpd summary-extract <path> --fields one_liner,key_results,equations
+gpd summary-extract <path> --field one_liner --field key_results --field equations
 ```
 
 ## Step 6: Verification Status

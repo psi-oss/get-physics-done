@@ -46,6 +46,7 @@ from gpd.core.state import (
     generate_state_markdown,
     load_state_json,
     save_state_json,
+    state_validate,
     sync_state_json,
 )
 from gpd.core.utils import safe_read_file
@@ -163,6 +164,21 @@ class TestLoadStateJsonFallback:
         restored = json.loads(layout.state_json.read_text(encoding="utf-8"))
         assert restored["position"]["current_phase"] == "02"
 
+    def test_tier2_falls_back_to_bak_when_state_json_has_invalid_utf8(self, tmp_path: Path) -> None:
+        """Invalid UTF-8 in state.json should be treated like any other parse failure."""
+        cwd = _make_planning(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.state_json.write_bytes(b'{"position":"\x80"}')
+        layout.state_json.with_suffix(".json.bak").write_text(
+            json.dumps({"position": {"current_phase": "02", "status": "Planning"}}),
+            encoding="utf-8",
+        )
+
+        result = load_state_json(cwd)
+
+        assert result is not None
+        assert result["position"]["current_phase"] == "02"
+
     def test_tier3_falls_back_to_state_md(self, tmp_path: Path) -> None:
         """Tier 3: when both json and bak are corrupt, parse STATE.md."""
         cwd = _make_planning(tmp_path)
@@ -171,6 +187,20 @@ class TestLoadStateJsonFallback:
         layout.state_json.with_suffix(".json.bak").write_text("ALSO CORRUPT", encoding="utf-8")
         _write_state_md(cwd, MINIMAL_STATE_MD)
         result = load_state_json(cwd)
+        assert result is not None
+        assert result["position"]["current_phase"] == "01"
+        assert result["position"]["status"] == "Executing"
+
+    def test_tier3_falls_back_to_state_md_when_json_and_bak_have_invalid_utf8(self, tmp_path: Path) -> None:
+        """Invalid UTF-8 in both JSON files should still allow STATE.md fallback."""
+        cwd = _make_planning(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.state_json.write_bytes(b'{"position":"\x80"}')
+        layout.state_json.with_suffix(".json.bak").write_bytes(b'{"position":"\x81"}')
+        _write_state_md(cwd, MINIMAL_STATE_MD)
+
+        result = load_state_json(cwd)
+
         assert result is not None
         assert result["position"]["current_phase"] == "01"
         assert result["position"]["status"] == "Executing"
@@ -258,6 +288,32 @@ class TestEnsureStateSchema:
         assert result["position"]["current_phase"] == "01"
         # Session should be either corrected or defaulted
         assert "session" in result
+
+
+class TestStateValidateRecovery:
+    """state_validate should report parse failures instead of crashing."""
+
+    def test_reports_invalid_utf8_in_state_json(self, tmp_path: Path) -> None:
+        cwd = _make_planning(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.state_json.write_bytes(b'{"position":"\x80"}')
+        _write_state_md(cwd, MINIMAL_STATE_MD)
+
+        result = state_validate(cwd)
+
+        assert result.valid is False
+        assert any("state.json parse error" in issue for issue in result.issues)
+
+    def test_reports_invalid_utf8_in_state_md(self, tmp_path: Path) -> None:
+        cwd = _make_planning(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.state_json.write_text(json.dumps(default_state_dict(), indent=2), encoding="utf-8")
+        layout.state_md.write_bytes(b"# Research State\n\x80")
+
+        result = state_validate(cwd)
+
+        assert result.valid is False
+        assert any("STATE.md parse error" in issue for issue in result.issues)
 
     def test_preserves_extra_keys(self) -> None:
         """Extra keys (not in schema) survive even irrecoverable errors."""

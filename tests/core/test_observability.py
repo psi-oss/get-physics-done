@@ -87,6 +87,53 @@ def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, m
     assert shown.count == 3
 
 
+def test_late_observe_event_on_finished_session_does_not_reactivate_current_pointer(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, observe_event
+
+    session = ensure_session(project, source="trace", command="trace start")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="trace",
+        name="trace_stop",
+        action="stop",
+        status="ok",
+        session_id=session.session_id,
+        end_session=True,
+    )
+
+    late_result = observe_event(
+        project,
+        category="trace",
+        name="late_note",
+        action="log",
+        status="ok",
+        session_id=session.session_id,
+        data={"note": "after finish"},
+    )
+
+    assert late_result.recorded is True
+
+    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    assert current_session["session_id"] == session.session_id
+    assert current_session["status"] == "ok"
+
+    next_session = ensure_session(project, source="trace", command="trace resume")
+    assert next_session is not None
+    assert next_session.session_id != session.session_id
+
+    session_log = project / ".gpd" / "observability" / "sessions" / f"{session.session_id}.jsonl"
+    events = _read_jsonl(session_log)
+    assert events[-1]["name"] == "late_note"
+    assert events[-2]["action"] == "finish"
+
+
 def test_gpd_span_does_not_write_observability_artifacts(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)

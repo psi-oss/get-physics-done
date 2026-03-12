@@ -24,6 +24,7 @@ VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\s*\"([a-z0-9-]+)\"(?
 VALIDATE_USAGE_RE = re.compile(r"\bgpd(?:\s+--raw)?\s+validate\s+([a-z0-9-]+)\b")
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
+SUMMARY_EXTRACT_FIELDS_RE = re.compile(r"\bgpd\s+summary-extract\b[^\n`]*\s--fields\b")
 
 
 def _iter_prompt_sources() -> list[Path]:
@@ -122,4 +123,16 @@ def test_command_prompts_declare_valid_context_modes() -> None:
             invalid.append(f"{path.relative_to(REPO_ROOT)} -> {mode}")
 
     assert missing == []
+    assert invalid == []
+
+
+def test_prompt_sources_use_summary_extract_field_flag_not_fields() -> None:
+    invalid: list[str] = []
+    doc_paths = [*(_iter_prompt_sources()), GRAPH_PATH]
+
+    for path in doc_paths:
+        content = path.read_text(encoding="utf-8")
+        for match in SUMMARY_EXTRACT_FIELDS_RE.finditer(content):
+            invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
+
     assert invalid == []

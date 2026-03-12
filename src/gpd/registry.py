@@ -23,7 +23,8 @@ SPECS_DIR = _PKG_ROOT / "specs"
 
 # ─── Frontmatter regex ───────────────────────────────────────────────────────
 
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)")
+_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)(?:\r?\n)?---(?:\r?\n|$)")
+_LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -96,15 +97,18 @@ class SkillDef:
 def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
     text = text.lstrip('﻿')
-    match = _FRONTMATTER_RE.match(text)
+    frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
+    match = _FRONTMATTER_RE.match(frontmatter_candidate)
     if not match:
         return {}, text
     yaml_str = match.group(1)
-    body = text[match.end() :]
+    body = frontmatter_candidate[match.end() :]
     try:
-        meta = yaml.safe_load(yaml_str) or {}
+        meta = yaml.safe_load(yaml_str)
     except yaml.YAMLError:
         return {}, text
+    if meta is None:
+        return {}, body
     if not isinstance(meta, dict):
         return {}, text
     return meta, body
@@ -413,6 +417,11 @@ def _discover_agents() -> dict[str, AgentDef]:
     if AGENTS_DIR.is_dir():
         for path in sorted(AGENTS_DIR.glob("*.md")):
             agent = _parse_agent_file(path, source="agents")
+            if agent.name in result:
+                first_path = result[agent.name].path
+                raise ValueError(
+                    f"Duplicate agent name {agent.name!r} discovered in {path} and {first_path}"
+                )
             result[agent.name] = agent
 
     return result

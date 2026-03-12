@@ -52,6 +52,62 @@ def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_pat
     assert "Run: npx -y get-physics-done --codex --local" in output
 
 
+def test_notify_prefers_active_runtime_cache_over_newer_unrelated_runtime_cache(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+
+    local_runtime_dir = tmp_path / ".codex"
+    local_cache = local_runtime_dir / "cache"
+    local_cache.mkdir(parents=True)
+    (local_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
+    (local_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "1.2.3",
+                "latest": "1.3.0",
+                "checked": 20,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    unrelated_runtime_dir = home / ".claude"
+    unrelated_cache = unrelated_runtime_dir / "cache"
+    unrelated_cache.mkdir(parents=True)
+    (unrelated_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "global"}),
+        encoding="utf-8",
+    )
+    (unrelated_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "9.0.0",
+                "latest": "9.1.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update()
+
+    output = stderr.getvalue()
+    assert "Update available: v1.2.3" in output
+    assert "v9.0.0" not in output
+    assert "Run: npx -y get-physics-done --codex --local" in output
+
+
 def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

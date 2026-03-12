@@ -75,6 +75,61 @@ def test_sync_state_json_core_bootstrap_preserves_progress_and_metrics(tmp_path:
     ]
 
 
+def test_sync_state_json_core_preserves_markdown_round_trip_sections(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "03"
+    state["position"]["status"] = "Executing"
+    state["approximations"] = [
+        {
+            "name": "Hydrodynamic expansion",
+            "validity_range": "Kn << 1",
+            "controlling_param": "Kn",
+            "current_value": "0.05",
+            "status": "valid",
+        }
+    ]
+    state["convention_lock"] = {
+        "metric_signature": "-+++",
+        "custom_conventions": {"branch_cut": "principal"},
+    }
+    state["propagated_uncertainties"] = [
+        {
+            "quantity": "m",
+            "value": "1.00",
+            "uncertainty": "0.02",
+            "phase": "03",
+            "method": "fit",
+        }
+    ]
+    state["pending_todos"] = ["Verify normalization", "Check sign convention"]
+
+    result = sync_state_json_core(cwd, generate_state_markdown(state))
+
+    assert result["approximations"] == [
+        {
+            "name": "Hydrodynamic expansion",
+            "validity_range": "Kn << 1",
+            "controlling_param": "Kn",
+            "current_value": "0.05",
+            "status": "valid",
+        }
+    ]
+    assert result["convention_lock"]["metric_signature"] == "-+++"
+    assert result["convention_lock"]["custom_conventions"] == {"branch_cut": "principal"}
+    assert result["propagated_uncertainties"] == [
+        {
+            "quantity": "m",
+            "value": "1.00",
+            "uncertainty": "0.02",
+            "phase": "03",
+            "method": "fit",
+        }
+    ]
+    assert result["pending_todos"] == ["Verify normalization", "Check sign convention"]
+
+
 def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / ".gpd"

@@ -45,6 +45,23 @@ def _decorated_mcp_tools(relative_path: str) -> list[str]:
     return tool_names
 
 
+def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:
+    args = descriptor.get("args")
+    if isinstance(args, list) and len(args) == 2 and args[0] == "-m":
+        return str(args[1])
+
+    alternatives = descriptor.get("alternatives")
+    if not isinstance(alternatives, dict):
+        return None
+    python_module = alternatives.get("python_module")
+    if not isinstance(python_module, dict):
+        return None
+    alt_args = python_module.get("args")
+    if isinstance(alt_args, list) and len(alt_args) == 2 and alt_args[0] == "-m":
+        return str(alt_args[1])
+    return None
+
+
 def _project_script_lines(repo_root: Path) -> list[str]:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8").splitlines()
     collecting = False
@@ -138,14 +155,11 @@ def test_public_mcp_descriptor_capabilities_match_server_tools() -> None:
 
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
-        args = descriptor.get("args")
-        assert isinstance(args, list)
-        if args == ["-m", "arxiv_mcp_server"]:
+        module_name = _descriptor_python_module(descriptor)
+        if module_name == "arxiv_mcp_server":
             continue
 
-        assert len(args) == 2
-        assert args[0] == "-m"
-        module_name = str(args[1])
+        assert isinstance(module_name, str), name
         module_path = Path("src") / Path(*module_name.split(".")).with_suffix(".py")
 
         assert descriptor["capabilities"] == _decorated_mcp_tools(module_path.as_posix()), name
@@ -162,23 +176,24 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
 
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
-        args = descriptor.get("args")
-        assert isinstance(args, list)
-        if args == ["-m", "arxiv_mcp_server"]:
+        module_name = _descriptor_python_module(descriptor)
+        if module_name == "arxiv_mcp_server":
             assert "alternatives" not in descriptor
             continue
 
+        script_name = descriptor.get("command")
+        assert isinstance(script_name, str), name
+        assert descriptor.get("args") == []
+        assert script_name.startswith("gpd-mcp-")
+        assert script_targets[script_name] == f"{module_name}:main"
+
         alternatives = descriptor.get("alternatives")
         assert isinstance(alternatives, dict), name
-        entry_point = alternatives.get("entry_point")
-        assert isinstance(entry_point, dict), name
-        script_name = entry_point.get("command")
-        assert isinstance(script_name, str), name
-        assert entry_point.get("args") == []
-        assert entry_point.get("notes") == "Requires gpd package installed"
-        assert len(args) == 2
-        assert args[0] == "-m"
-        assert script_targets[script_name] == f"{args[1]}:main"
+        python_module = alternatives.get("python_module")
+        assert isinstance(python_module, dict), name
+        assert python_module.get("command") == "python"
+        assert python_module.get("args") == ["-m", module_name]
+        assert python_module.get("notes") == "Requires gpd package installed"
 
 
 def test_arxiv_descriptor_tracks_required_dependency_surface() -> None:

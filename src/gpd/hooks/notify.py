@@ -56,7 +56,7 @@ def _hook_payload_policy(cwd: str | None = None):
 
 
 def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | None, object | None]:
-    """Return the freshest valid update cache and its candidate metadata."""
+    """Return the highest-priority valid update cache and its candidate metadata."""
     from gpd.hooks.runtime_detect import (
         detect_active_runtime_with_gpd_install,
         get_update_cache_candidates,
@@ -64,10 +64,6 @@ def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | No
 
     workspace_path = Path(cwd) if cwd else None
     preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
-    latest_cache: dict[str, object] | None = None
-    latest_candidate = None
-    latest_checked = -1.0
-
     for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
         cache_file = candidate.path
         if not cache_file.exists():
@@ -80,14 +76,9 @@ def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | No
 
         if not isinstance(cache, dict):
             continue
-        checked = cache.get("checked")
-        checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
-        if latest_cache is None or checked_value > latest_checked:
-            latest_cache = cache
-            latest_candidate = candidate
-            latest_checked = checked_value
+        return cache, candidate
 
-    return latest_cache, latest_candidate
+    return None, None
 
 
 def _check_and_notify_update(cwd: str | None = None) -> None:

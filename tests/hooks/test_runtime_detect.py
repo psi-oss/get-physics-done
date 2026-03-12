@@ -212,6 +212,18 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_CODEX
 
+    def test_higher_priority_runtime_without_install_does_not_mask_lower_installed_runtime(self, tmp_path: Path) -> None:
+        (tmp_path / ".claude").mkdir()
+        _mark_gpd_install(tmp_path / ".codex")
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_active_runtime_with_gpd_install() == RUNTIME_CODEX
+
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
 

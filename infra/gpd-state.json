@@ -2,11 +2,8 @@
   "name": "gpd-state",
   "description": "GPD project state management. Tools for querying state, phase info, progress, validation, health checks, and configuration.",
   "transport": "stdio",
-  "command": "python",
-  "args": [
-    "-m",
-    "gpd.mcp.servers.state_server"
-  ],
+  "command": "gpd-mcp-state",
+  "args": [],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
@@ -31,9 +28,12 @@
     "expect": "contains model_profile"
   },
   "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-state",
-      "args": [],
+    "python_module": {
+      "command": "python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.state_server"
+      ],
       "notes": "Requires gpd package installed"
     }
   }

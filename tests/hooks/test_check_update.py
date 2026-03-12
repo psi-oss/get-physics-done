@@ -331,6 +331,62 @@ class TestMainThrottle:
 
         mock_popen.assert_not_called()
 
+    def test_fresh_unrelated_runtime_cache_does_not_suppress_preferred_runtime_refresh(self, tmp_path: Path) -> None:
+        """A fresher cache for another runtime must not throttle the preferred runtime refresh."""
+        home = tmp_path / "home"
+        stale_codex_cache = tmp_path / ".codex" / "cache"
+        stale_codex_cache.mkdir(parents=True)
+        (stale_codex_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
+            encoding="utf-8",
+        )
+
+        fresh_claude_cache = home / ".claude" / "cache"
+        fresh_claude_cache.mkdir(parents=True)
+        (fresh_claude_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.check_update.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_called_once()
+
+    def test_fresh_preferred_runtime_global_cache_still_suppresses_spawn(self, tmp_path: Path) -> None:
+        """A fresh cache for the preferred runtime should still satisfy throttle."""
+        home = tmp_path / "home"
+        fresh_codex_cache = home / ".codex" / "cache"
+        fresh_codex_cache.mkdir(parents=True)
+        (fresh_codex_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False}),
+            encoding="utf-8",
+        )
+
+        stale_claude_cache = home / ".claude" / "cache"
+        stale_claude_cache.mkdir(parents=True)
+        (stale_claude_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.check_update.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_not_called()
+
     def test_non_dict_cache_json_spawns_check(self, tmp_path: Path) -> None:
         """If cache file contains valid JSON but not a dict (e.g. a list), main() spawns background check."""
         cache_dir = tmp_path / ".gpd" / "cache"

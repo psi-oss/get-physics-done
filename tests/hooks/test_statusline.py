@@ -385,6 +385,43 @@ class TestCheckUpdateHook:
 
         assert "$gpd-update" in result
 
+    def test_active_runtime_cache_beats_newer_unrelated_runtime_cache(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+
+        local_runtime_dir = tmp_path / ".codex"
+        local_cache = local_runtime_dir / "cache"
+        local_cache.mkdir(parents=True)
+        (local_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        unrelated_runtime_dir = home / ".claude"
+        unrelated_cache = unrelated_runtime_dir / "cache"
+        unrelated_cache.mkdir(parents=True)
+        (unrelated_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "global"}),
+            encoding="utf-8",
+        )
+        (unrelated_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 30}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
+        ):
+            result = _check_update()
+
+        assert "$gpd-update" in result
+        assert "/gpd:update" not in result
+
     def test_workspace_dir_overrides_process_cwd_for_local_cache_selection(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()

@@ -52,6 +52,22 @@ def _default_install_hint(package_name: str) -> str:
     return f"Install via: tlmgr install {package_name}"
 
 
+def _merge_bibliography_data(*bibliographies: BibliographyData) -> BibliographyData:
+    """Merge multiple pybtex bibliographies while preserving preambles."""
+    merged = BibliographyData()
+    merged_preamble: list[str] = []
+
+    for bibliography in bibliographies:
+        for preamble_line in getattr(bibliography, "preamble_list", []):
+            if preamble_line not in merged_preamble:
+                merged_preamble.append(preamble_line)
+        for key, entry in bibliography.entries.items():
+            merged.entries[key] = entry
+
+    merged.preamble_list[:] = merged_preamble
+    return merged
+
+
 def check_tex_file(resource_name: str, install_hint: str | None = None) -> tuple[bool, str]:
     """Check if a TeX resource file is available via kpsewhich.
 
@@ -325,14 +341,19 @@ async def build_paper(
         config = config.model_copy(update={"figures": prepared})
 
     if citation_sources:
+        reserved_bib_keys = set(bib_data.entries) if bib_data is not None else None
         built_bib, bibliography_audit = await asyncio.to_thread(
             build_bibliography_with_audit,
             citation_sources,
             enrich_bibliography,
+            reserved_bib_keys,
         )
         if bib_data is None:
             bib_data = built_bib
             bib_entry_source = "citation_sources"
+        else:
+            bib_data = _merge_bibliography_data(bib_data, built_bib)
+            bib_entry_source = "bib_data+citation_sources"
         bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
         await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
 

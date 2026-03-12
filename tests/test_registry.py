@@ -37,7 +37,7 @@ class TestParseFrontmatter:
         text = "---\n---\nBody only."
         meta, body = _parse_frontmatter(text)
         assert meta == {}
-        assert body == text
+        assert body == "Body only."
 
     def test_frontmatter_with_only_whitespace(self) -> None:
         meta, body = _parse_frontmatter("---\n  \n---\nBody.")
@@ -71,6 +71,12 @@ class TestParseFrontmatter:
         assert meta["name"] == "test"
         assert meta["extra_field"] == "surprise"
         assert meta["another"] == 42
+        assert body == "Body."
+
+    def test_frontmatter_with_leading_blank_lines_is_parsed(self) -> None:
+        text = "\n\n---\nname: test\n---\nBody."
+        meta, body = _parse_frontmatter(text)
+        assert meta == {"name": "test"}
         assert body == "Body."
 
 
@@ -335,6 +341,17 @@ class TestDiscovery:
         result = registry._discover_agents()
         assert "gpd-alias" in result
         assert "alias" not in result
+
+    def test_duplicate_agent_names_raise(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "first.md").write_text("---\nname: gpd-duplicate\n---\nFirst prompt.", encoding="utf-8")
+        (agents_dir / "second.md").write_text("---\nname: gpd-duplicate\n---\nSecond prompt.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+
+        with pytest.raises(ValueError, match="Duplicate agent name 'gpd-duplicate'"):
+            registry._discover_agents()
 
 
 class TestSkillDiscovery:

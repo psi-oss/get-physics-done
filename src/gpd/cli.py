@@ -1168,7 +1168,10 @@ def frontmatter_validate(
         fm_content = file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         _error(f"File not found: {file}")
-    _output(validate_frontmatter(fm_content, schema))
+    result = validate_frontmatter(fm_content, schema)
+    _output(result)
+    if not result.valid:
+        raise typer.Exit(code=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2219,14 +2222,14 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
 def _build_project_aware_guidance(explicit_inputs: list[str]) -> str:
     """Render the standardized project-aware guidance string."""
     if not explicit_inputs:
-        return "Either provide explicit inputs for this command, or run `gpd new-project`."
+        return "Either provide explicit inputs for this command, or run `gpd init new-project`."
     if len(explicit_inputs) == 1:
         requirement_text = explicit_inputs[0]
     elif len(explicit_inputs) == 2:
         requirement_text = f"{explicit_inputs[0]} and {explicit_inputs[1]}"
     else:
         requirement_text = ", ".join(explicit_inputs[:-1]) + f", and {explicit_inputs[-1]}"
-    return f"Either provide {requirement_text} explicitly, or run `gpd new-project`."
+    return f"Either provide {requirement_text} explicitly, or run `gpd init new-project`."
 
 
 def _canonical_command_name(command_name: str) -> str:
@@ -2305,7 +2308,11 @@ def _build_command_context_preflight(
                 else f"missing {_format_display_path(layout.project_md)}"
             ),
         )
-        guidance = "" if project_exists else "This command requires an initialized GPD project. Run `gpd new-project`."
+        guidance = (
+            ""
+            if project_exists
+            else "This command requires an initialized GPD project. Run `gpd init new-project`."
+        )
         return CommandContextPreflightResult(
             command=public_command_name,
             context_mode=command.context_mode,

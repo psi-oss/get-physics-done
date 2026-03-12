@@ -555,7 +555,7 @@ def observe_event(
         session,
         timestamp=payload.timestamp,
         command=payload.command,
-        status="active" if not end_session else status,
+        status=status if end_session else ("active" if session.status == "active" else session.status),
     )
     if end_session:
         _finalize_session(
@@ -570,7 +570,7 @@ def observe_event(
                 "status": status,
             },
         )
-    else:
+    elif session.status == "active":
         _save_current_session(layout, updated)
         _session_id_var.set(updated.session_id)
         _session_cwd_var.set(layout.root)

@@ -488,6 +488,19 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     } == set(expected_descriptors)
 
 
+def test_public_gpd_infra_descriptors_use_entry_points_not_python() -> None:
+    repo_root = _repo_root()
+
+    for path in sorted((repo_root / "infra").glob("gpd-*.json")):
+        descriptor = json.loads(path.read_text(encoding="utf-8"))
+        if path.stem == "gpd-arxiv":
+            assert descriptor["command"] == "python"
+            continue
+
+        assert descriptor["command"].startswith("gpd-mcp-")
+        assert descriptor["args"] == []
+
+
 def test_contributing_docs_cover_release_validation_flow() -> None:
     repo_root = _repo_root()
     content = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
