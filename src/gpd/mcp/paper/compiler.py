@@ -235,11 +235,11 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             if fatal:
                 fatal_errors.append(error)
 
-    def fresh_pdf_was_generated() -> bool:
+    def fresh_pdf_was_generated(initial_signature: tuple[int, int] | None) -> bool:
         current_signature = pdf_build_signature()
         if current_signature is None:
             return False
-        return initial_pdf_signature is None or current_signature != initial_pdf_signature
+        return initial_signature is None or current_signature != initial_signature
 
     try:
         # Pass 1: pdflatex
@@ -261,11 +261,11 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         returncode, log = await run_cmd(base_cmd, cwd)
         record_result("pdflatex pass 3", returncode, log)
 
-        if fresh_pdf_was_generated() and not compile_errors:
+        if fresh_pdf_was_generated(initial_pdf_signature) and not compile_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
         # Only the last pass matters: earlier passes often exit non-zero
         # due to unresolved references/citations (expected behaviour).
-        if fresh_pdf_was_generated() and returncode == 0 and not fatal_errors:
+        if fresh_pdf_was_generated(initial_pdf_signature) and returncode == 0 and not fatal_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
@@ -277,6 +277,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         if fix_result.was_modified and fix_result.fixed_content:
             await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
             logger.info("Applied autofix: %s", fix_result.fixes_applied)
+            autofix_initial_pdf_signature = pdf_build_signature()
 
             combined_log_parts = []
             compile_errors = []
@@ -291,7 +292,9 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             record_result("pdflatex autofix pass 2", returncode, log)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if fresh_pdf_was_generated() and (not compile_errors or (returncode == 0 and not fatal_errors)):
+            if fresh_pdf_was_generated(autofix_initial_pdf_signature) and (
+                not compile_errors or (returncode == 0 and not fatal_errors)
+            ):
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
         error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"

@@ -50,6 +50,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.mypy_cache/**`
 - `.ruff_cache/**`
 - `.gpd/**`
+- `.claude/**`
 - `.codex/**`
 - `.gemini/**`
 - `.opencode/**`

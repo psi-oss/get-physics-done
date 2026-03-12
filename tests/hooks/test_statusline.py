@@ -545,6 +545,37 @@ class TestCheckUpdateHook:
         with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
             assert _check_update(str(workspace)) == ""
 
+    def test_default_check_update_ignores_uninstalled_runtime_cache_when_another_runtime_is_installed(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        home = tmp_path / "home"
+
+        stale_cache = tmp_path / ".claude" / "cache"
+        stale_cache.mkdir(parents=True)
+        (stale_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        global_runtime_dir = home / ".codex"
+        global_cache = global_runtime_dir / "cache"
+        global_cache.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "global"}),
+            encoding="utf-8",
+        )
+        (global_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": False, "checked": 10}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _check_update() == ""
+
     def test_unknown_runtime_falls_back_to_bootstrap_update_command(self, tmp_path: Path) -> None:
         gpd_cache = tmp_path / ".gpd" / "cache"
         gpd_cache.mkdir(parents=True)

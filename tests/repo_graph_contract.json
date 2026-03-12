@@ -11,6 +11,7 @@
     ".mypy_cache",
     ".ruff_cache",
     ".gpd",
+    ".claude",
     ".codex",
     ".gemini",
     ".opencode",

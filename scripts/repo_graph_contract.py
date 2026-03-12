@@ -20,7 +20,7 @@ SCOPE_END = "<!-- repo-graph-scope:end -->"
 
 _LOCAL_RUNTIME_MIRROR_EXCLUDES = tuple(
     descriptor.config_dir_name
-    for descriptor in iter_runtime_descriptors()[1:]
+    for descriptor in iter_runtime_descriptors()
 )
 
 EXCLUDED_GRAPH_DIRS = (

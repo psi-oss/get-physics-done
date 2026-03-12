@@ -212,6 +212,49 @@ async def test_manual_multipass_applies_autofix_even_after_compile_errors(
     assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
 
 
+@pytest.mark.asyncio
+async def test_manual_multipass_autofix_requires_fresh_pdf_after_fix(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("broken content", encoding="utf-8")
+    pdf_path = tmp_path / "paper.pdf"
+    call_count = 0
+
+    returncodes = iter([1, 0, 1, 0, 0, 0])
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            pdf_path.write_bytes(b"%PDF-from-broken-first-attempt")
+        return _FakeProcess(returncode=next(returncodes), stdout=b"compile output", stderr=b"")
+
+    def fake_which(binary: str) -> str | None:
+        if binary == "pdflatex":
+            return "/usr/bin/pdflatex"
+        return None
+
+    monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", fake_which)
+    monkeypatch.setattr(
+        "gpd.utils.latex.try_autofix",
+        lambda tex, log: AutoFixResult(
+            fixed_content=r"\documentclass{article}\begin{document}fixed\end{document}",
+            fixes_applied=("fixed",),
+            was_modified=True,
+        ),
+    )
+
+    result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
+
+    assert result.success is False
+    assert result.pdf_path is None
+    assert result.error == "Compilation failed"
+    assert tex_path.read_text(encoding="utf-8") == r"\documentclass{article}\begin{document}fixed\end{document}"
+
+
 # ---- Regression tests for import and dead-code fixes ----
 
 

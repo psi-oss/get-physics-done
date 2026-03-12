@@ -258,16 +258,17 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
     )
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
-    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=active_installed_runtime):
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+    preferred_runtime = active_installed_runtime if workspace_path is not None else None
+    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
+        cache_file = candidate.path
+        if not cache_file.exists():
+            continue
         if not should_consider_update_cache_candidate(
             candidate,
             active_installed_runtime=active_installed_runtime,
             cwd=workspace_path,
         ):
-            continue
-        cache_file = candidate.path
-        if not cache_file.exists():
             continue
         try:
             cache = json.loads(cache_file.read_text(encoding="utf-8"))

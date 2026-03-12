@@ -336,7 +336,16 @@ def should_consider_update_cache_candidate(
     if detect_install_scope(runtime, cwd=cwd, home=home) is not None:
         return True
 
-    return active_installed_runtime in (None, "", RUNTIME_UNKNOWN)
+    if active_installed_runtime in (None, "", RUNTIME_UNKNOWN):
+        return True
+
+    # A caller may supply an active runtime hint that no longer matches the
+    # actual filesystem. Only use that hint to suppress other runtime caches
+    # when the hinted runtime still has a concrete install.
+    if not _runtime_dir_has_gpd_install(active_installed_runtime, cwd=cwd, home=home):
+        return True
+
+    return False
 
 
 def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:

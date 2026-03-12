@@ -251,6 +251,20 @@ class TestProtectRuntimeAgentPrompt:
         for runtime in ("claude-code", "codex"):
             assert protect_runtime_agent_prompt(content, runtime) == content
 
+    def test_frontmatter_with_literal_delimiter_text_keeps_frontmatter_vars_intact(self) -> None:
+        content = (
+            "---\n"
+            "name: gpd:test\n"
+            "description: keep --- and $HOME literal\n"
+            "---\n"
+            "Body uses $USER.\n"
+        )
+
+        for runtime in ("gemini", "opencode"):
+            result = protect_runtime_agent_prompt(content, runtime)
+            assert "description: keep --- and $HOME literal" in result
+            assert "Body uses <USER>." in result
+
 
 # =========================================================================
 # 2. parse_jsonc

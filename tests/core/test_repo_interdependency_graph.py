@@ -193,6 +193,15 @@ def test_live_repo_file_count_ignores_transient_root_artifacts() -> None:
     assert all(not path.exists() for path in sentinel_files)
 
 
+def test_live_repo_file_count_ignores_runtime_mirror_dirs(tmp_path: Path) -> None:
+    for rel_path in (".claude/a.txt", ".codex/b.txt", ".gemini/c.txt", ".opencode/d.txt"):
+        path = tmp_path / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("runtime mirror sentinel\n", encoding="utf-8")
+
+    assert live_repo_file_count(tmp_path) == 0
+
+
 def test_sync_repo_graph_script_runs_as_direct_file() -> None:
     graph_before = GRAPH_PATH.read_text(encoding="utf-8")
     contract_before = CONTRACT_PATH.read_text(encoding="utf-8")

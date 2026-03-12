@@ -128,6 +128,7 @@ def replace_placeholders(
 _BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _PLAIN_SHELL_VAR_RE = re.compile(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
 _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9_])")
+_FRONTMATTER_CLOSER_RE = re.compile(r"(?m)^(---[ \t]*)\r?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -175,11 +176,16 @@ def _split_frontmatter(content: str) -> tuple[str, str]:
     if not content.startswith("---"):
         return "", content
 
-    end_index = content.find("---", 3)
-    if end_index == -1:
+    first_newline = content.find("\n")
+    if first_newline == -1:
         return "", content
 
-    return content[: end_index + 3], content[end_index + 3 :]
+    match = _FRONTMATTER_CLOSER_RE.search(content, pos=first_newline + 1)
+    if match is None:
+        return "", content
+
+    split_index = match.end(1)
+    return content[:split_index], content[split_index:]
 
 
 def _shell_var_placeholder(match: re.Match[str]) -> str:
