@@ -6,7 +6,7 @@ The final section of this README keeps the full checked-in repository interdepen
 
 ## Repository Interdependency Graph
 
-Generated on `2026-03-11` from the current worktree.
+Generated on `2026-03-12` from the current worktree.
 
 ## Status
 
@@ -15,14 +15,14 @@ This is the rebuilt root graph artifact for the repo. It is designed to be both 
 This graph therefore includes:
 
 - canonical in-repo source edges
-- installed and mirrored artifact edges
+- installed and materialized artifact edges
 - generated-output nodes used by build and test contracts
 - external package, binary, service, and CI action nodes where they are operationally authoritative
 - conditional and candidate-set edges where the code does not resolve to a single fixed file
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `961`
+- Live repo files analyzed in the current tree: `579`
 - Python files under `src/` and `tests/`: `169`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
@@ -33,11 +33,6 @@ This graph therefore includes:
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
 - `tests/**` files: `105`
-- `.claude/commands/gpd/*.md`: `60`
-- `.claude/agents/*.md`: `23`
-- `.claude/get-physics-done/workflows/**/*.md`: `61`
-- `.claude/get-physics-done/templates/**/*.md`: `69`
-- `.claude/get-physics-done/references/**/*.md`: `156`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -115,7 +110,7 @@ flowchart TD
     workflows --> templates[src/gpd/specs/templates/**/*.md]
     workflows --> refs[src/gpd/specs/references/**/*.md]
     workflows --> agents
-    adapters --> claude_snapshot[.claude/**]
+    adapters --> claude_artifacts[installed .claude/** family]
     adapters --> runtime_cfg[external runtime configs]
     hooks --> runtime_cfg
     hooks --> workspace_state[external .gpd/**]
@@ -1033,11 +1028,7 @@ flowchart TD
 
 - `.claude/settings.json`
   `generated-output`
-  Checked-in installed snapshot; currently host-shaped because it contains a machine-local interpreter path.
-
-- `.claude/settings.local.json`
-  `generated-output`
-  Checked-in project-local Claude snapshot artifact; parity-tested as a fixture, but not adapter-managed at runtime.
+  Runtime-local Claude config artifact emitted by local installs; not a canonical repo file.
 
 ### Selective Ownership Statement
 
@@ -1349,11 +1340,12 @@ They explicitly preserve:
 - `tests/core/test_prompt_cli_consistency.py -> src/gpd/commands/suggest-next.md`
   `semantic`
 
-- `tests/adapters/test_claude_snapshot_parity.py -> .claude/**`
+- `tests/adapters/test_claude_code.py -> runtime target_dir/.claude/{commands/**,agents/**,hooks/**,get-physics-done/**}`
   `materialized`
+  Claude adapter install/uninstall coverage validates the materialized Claude runtime tree in temporary targets.
 
-- `tests/hooks/test_mirror_parity.py -> .claude/hooks/**`
-  `materialized`
+- `tests/hooks/test_runtime_detect.py -> candidate runtime directories {cwd}/{.claude,.codex,.gemini,.opencode} and {home}/{.claude,.codex,.gemini,.config/opencode}`
+  `ordering-contract`
 
 - `tests/test_release_consistency.py -> package.json`
   `semantic`
@@ -1567,14 +1559,14 @@ They explicitly preserve:
   `typed-roundtrip`
   Verification evidence is normalized through typed dump/load paths, not merely stored as raw dicts.
 
-## Checked-In Installed Snapshot: `.claude/**`
+## Installed Runtime Artifact Family: `.claude/**`
 
 - `.claude/commands/gpd/**`, `.claude/agents/**`, `.claude/hooks/**`, and `.claude/get-physics-done/**` are installed-layout artifacts, not canonical authoring locations.
 
 - These nodes should be read as:
   canonical source asset -> transformed/materialized installed artifact
 
-- `.claude/settings.json` and `.claude/settings.local.json` are runtime-shaped config artifacts, not portable config authorities.
+- `.claude/settings.json` is a runtime-shaped config artifact, not a portable config authority.
 
 - `.claude/gpd-file-manifest.json` is both:
   `materialized`
@@ -1635,7 +1627,7 @@ High confidence coverage:
 - Python packaging/version authority such as `pyproject.toml -> src/gpd/cli.py` and `src/gpd/version.py -> pyproject.toml`
 - committed MCP descriptor authority such as `src/gpd/mcp/builtin_servers.py -> infra/gpd-*.json`
 - many direct Python import relationships under `src/gpd/**`
-- broad source-to-installed-layout correspondence between `src/gpd/**` and checked-in installed artifacts like `.claude/**`
+- broad source-to-installed-layout correspondence between `src/gpd/**` and runtime-installed artifact families such as `.claude/**`
 
 High-to-medium confidence coverage:
 

@@ -32,8 +32,17 @@ def _scope_count(label: str) -> int:
     return int(match.group(1))
 
 
+def _live_repo_file_count() -> int:
+    return sum(
+        1
+        for path in REPO_ROOT.rglob("*")
+        if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
+    )
+
+
 def test_graph_scope_counts_match_live_prompt_inventory() -> None:
     expected = {
+        "Live repo files analyzed in the current tree": _live_repo_file_count(),
         "Python files under `src/` and `tests/`": sum(
             1
             for root in (REPO_ROOT / "src", REPO_ROOT / "tests")
@@ -44,11 +53,15 @@ def test_graph_scope_counts_match_live_prompt_inventory() -> None:
         "`src/gpd/specs/workflows/*.md`": len(list((REPO_ROOT / "src/gpd/specs/workflows").glob("*.md"))),
         "`src/gpd/specs/templates/**/*.md`": len(list((REPO_ROOT / "src/gpd/specs/templates").rglob("*.md"))),
         "`src/gpd/specs/references/**/*.md`": len(list((REPO_ROOT / "src/gpd/specs/references").rglob("*.md"))),
+        "`src/gpd/adapters/*.py`": len(list((REPO_ROOT / "src/gpd/adapters").glob("*.py"))),
+        "`src/gpd/hooks/*.py`": len(list((REPO_ROOT / "src/gpd/hooks").glob("*.py"))),
+        "`src/gpd/mcp/servers/*.py`": len(list((REPO_ROOT / "src/gpd/mcp/servers").glob("*.py"))),
         "`tests/**` files": sum(
             1
             for path in (REPO_ROOT / "tests").rglob("*")
             if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
         ),
+        "`infra/gpd-*.json`": len(list((REPO_ROOT / "infra").glob("gpd-*.json"))),
     }
 
     mismatches = [
@@ -126,3 +139,31 @@ def test_graph_captures_hook_runtime_wiring_edges() -> None:
 
     for edge in unexpected_edges:
         assert edge not in graph
+
+
+def test_graph_test_file_references_exist() -> None:
+    missing = sorted(
+        {
+            ref
+            for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", _graph_text())
+            if not (REPO_ROOT / ref).is_file()
+        }
+    )
+
+    assert missing == []
+
+
+def test_graph_claude_artifact_language_matches_tree() -> None:
+    graph = _graph_text()
+
+    assert "## Installed Runtime Artifact Family: `.claude/**`" in graph
+    assert ".claude/settings.local.json" not in graph
+    assert "## Checked-In Installed Snapshot: `.claude/**`" not in graph
+    assert "checked-in installed artifacts like `.claude/**`" not in graph
+
+    if not (REPO_ROOT / ".claude").exists():
+        assert "- `.claude/commands/gpd/*.md`" not in graph
+        assert "- `.claude/agents/*.md`" not in graph
+        assert "- `.claude/get-physics-done/workflows/**/*.md`" not in graph
+        assert "- `.claude/get-physics-done/templates/**/*.md`" not in graph
+        assert "- `.claude/get-physics-done/references/**/*.md`" not in graph
