@@ -9,8 +9,8 @@ abstract: "An open-source AI copilot for physics research that structures, execu
 authors:
   - name: "Sergio Hernandez-Cuenca"
     affiliation: "Physical Superintelligence PBC"
-repository-code: "https://github.com/physicalsuperintelligence/get-physics-done"
-url: "https://github.com/physicalsuperintelligence/get-physics-done"
+repository-code: "https://github.com/psi-opensource/get-physics-done"
+url: "https://github.com/psi-opensource/get-physics-done"
 keywords:
   - "physical superintelligence"
   - "psi"

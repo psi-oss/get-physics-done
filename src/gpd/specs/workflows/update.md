@@ -127,7 +127,7 @@ If an update is available, fetch recent release notes before asking for confirma
 
 Preferred source:
 
-- GitHub Releases API: `https://api.github.com/repos/physicalsuperintelligence/get-physics-done/releases`
+- GitHub Releases API: `https://api.github.com/repos/psi-opensource/get-physics-done/releases`
 
 Show a short preview covering releases newer than the installed version and up to the latest version. If release notes cannot be fetched, say so briefly and continue with the update prompt anyway.
 
@@ -192,7 +192,7 @@ Format completion like:
 
 >> Restart your AI agent to pick up the new commands.
 
-[View releases](https://github.com/physicalsuperintelligence/get-physics-done/releases)
+[View releases](https://github.com/psi-opensource/get-physics-done/releases)
 ```
 </step>
 
