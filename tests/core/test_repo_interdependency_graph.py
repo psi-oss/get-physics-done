@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import re
 import shutil
+import subprocess
+import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 from scripts.repo_graph_contract import (
-    EXCLUDED_GRAPH_DIRS,
+    CONTRACT_PATH,
     GENERATED_ON_END,
     GENERATED_ON_START,
     GRAPH_PATH,
@@ -189,3 +191,19 @@ def test_live_repo_file_count_ignores_transient_root_artifacts() -> None:
         assert live_repo_file_count() == baseline
 
     assert all(not path.exists() for path in sentinel_files)
+
+
+def test_sync_repo_graph_script_runs_as_direct_file() -> None:
+    graph_before = GRAPH_PATH.read_text(encoding="utf-8")
+    contract_before = CONTRACT_PATH.read_text(encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, "scripts/sync_repo_graph_contract.py"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert GRAPH_PATH.read_text(encoding="utf-8") == graph_before
+    assert CONTRACT_PATH.read_text(encoding="utf-8") == contract_before
