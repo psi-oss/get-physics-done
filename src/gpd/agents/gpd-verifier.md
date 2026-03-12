@@ -2,8 +2,10 @@
 name: gpd-verifier
 description: Verifies phase goal achievement through computational verification. Does not grep for mentions of physics — actually checks the physics by substituting test values, re-deriving limits, parsing dimensions, and cross-checking by alternative methods. Creates VERIFICATION.md report with equations checked, limits re-derived, numerical tests executed, and confidence assessment.
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
+commit_authority: orchestrator
 color: green
 ---
+Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
 
 <role>
 You are a GPD phase verifier for physics research. You verify that a phase achieved its GOAL, not just completed its TASKS.
@@ -350,68 +352,13 @@ Before using any equation from a prior phase or external source, verify conventi
 
 ## gpd CLI Commit Protocol
 
-All file commits during GPD workflows use the gpd CLI:
+The canonical commit protocol and ownership matrix live in `references/orchestration/agent-infrastructure.md`.
 
-```bash
-gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
-```
+This verifier is `commit_authority: orchestrator`:
 
-**Commit types:** `docs` (research output, plans, reports), `fix` (corrections to existing work), `feat` (new capabilities or phases), `chore` (metadata, state updates).
-
-**Rules:**
-- Always specify files explicitly via `--files` (never commit everything)
-- Scope should identify the phase or component (e.g., `docs(02-hamiltonian): derive energy spectrum`)
-- One commit per logical unit of work (one task, one checkpoint, one correction)
-- If `gpd commit` fails twice, fall back to manual git operations and document the workaround
-
-**Pre-commit validation** runs automatically inside `gpd commit` before every commit. It checks:
-
-1. **state.json** — no NaN values, required top-level fields present
-2. **PLAN.md frontmatter** — all required fields (phase, plan, type, wave, depends_on, files_modified, interactive, must_haves)
-3. **SUMMARY.md frontmatter** — all required fields (phase, plan, depth, provides, completed)
-
-If validation fails, the commit is blocked with `reason: "pre_commit_check_failed"` and a list of errors. Fix the errors and retry.
-
-For standalone validation (e.g., CI or manual checks):
-
-```bash
-# Check staged files
-gpd pre-commit-check
-
-# Check specific files
-gpd pre-commit-check --files .gpd/phases/03-foo/03-01-PLAN.md
-
-# Skip physics checks (for documentation-only commits)
-gpd pre-commit-check --skip-physics
-```
-
----
-
-## Agent Commit Ownership
-
-Which agents commit their own work vs. return `files_written` for the orchestrator to commit:
-
-| Agent | Commits? | Mechanism |
-|-------|----------|-----------|
-| gpd-executor | **Yes** | `gpd commit` after each task (task commit protocol) |
-| gpd-planner | **Yes** | `gpd commit` after plan creation and revision |
-| gpd-debugger | **Yes** | `gpd commit` for error patterns and session state |
-| gpd-phase-researcher | No | Returns `files_written`; orchestrator commits |
-| gpd-project-researcher | No | Returns `files_written`; orchestrator commits (spawned in parallel) |
-| gpd-research-synthesizer | No | Returns `files_written`; orchestrator commits |
-| gpd-verifier | No | Returns `files_written`; orchestrator commits |
-| gpd-plan-checker | No | Returns `files_written`; orchestrator commits |
-| gpd-consistency-checker | No | Returns `files_written`; orchestrator commits |
-| gpd-paper-writer | No | Returns `files_written`; orchestrator commits |
-| gpd-bibliographer | No | Returns `files_written`; orchestrator commits |
-| gpd-referee | No | Returns `files_written`; orchestrator commits |
-| gpd-literature-reviewer | No | Returns `files_written`; orchestrator commits |
-| gpd-experiment-designer | No | Returns `files_written`; orchestrator commits |
-| gpd-notation-coordinator | No | Returns `files_written`; orchestrator commits |
-| gpd-research-mapper | No | Returns `files_written`; orchestrator commits |
-| gpd-roadmapper | No | Returns `files_written`; orchestrator commits |
-
-**Rule:** Only 3 agents (executor, planner, debugger) call `gpd commit` directly. All other agents write files and report them in the `gpd_return.files_written` array. The orchestrating workflow commits after the agent returns.
+- Do NOT run `gpd commit`, `git commit`, or stage files.
+- Return changed paths in `gpd_return.files_written`.
+- If commit validation behavior matters, consult the shared infrastructure reference rather than duplicating the rules here.
 
 ---
 

@@ -112,6 +112,7 @@ class TestParseAgentFile:
         assert agent.name == "my-agent"
         assert agent.description == "A test agent"
         assert agent.tools == ["file_read", "file_write"]
+        assert agent.commit_authority == "orchestrator"
         assert agent.color == "blue"
         assert agent.system_prompt == "System prompt."
         assert agent.source == "agents"
@@ -132,8 +133,24 @@ class TestParseAgentFile:
         assert agent.name == "minimal"
         assert agent.description == ""
         assert agent.tools == []
+        assert agent.commit_authority == "orchestrator"
         assert agent.color == ""
         assert agent.source == "agents"
+
+    def test_agent_file_parses_explicit_commit_authority(self, tmp_path: Path) -> None:
+        f = tmp_path / "direct.md"
+        f.write_text("---\nname: direct\ncommit_authority: direct\n---\nPrompt.", encoding="utf-8")
+
+        agent = _parse_agent_file(f, source="agents")
+
+        assert agent.commit_authority == "direct"
+
+    def test_agent_file_invalid_commit_authority_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-authority.md"
+        f.write_text("---\nname: bad\ncommit_authority: someday\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid commit_authority"):
+            _parse_agent_file(f, source="agents")
 
     def test_agent_file_unexpected_extra_fields(self, tmp_path: Path) -> None:
         f = tmp_path / "extra.md"
@@ -666,7 +683,16 @@ class TestDataclasses:
     """Tests for AgentDef, CommandDef, and SkillDef dataclass properties."""
 
     def test_agent_def_frozen(self) -> None:
-        agent = AgentDef(name="a", description="d", system_prompt="s", tools=[], color="", path="/p", source="agents")
+        agent = AgentDef(
+            name="a",
+            description="d",
+            system_prompt="s",
+            tools=[],
+            commit_authority="orchestrator",
+            color="",
+            path="/p",
+            source="agents",
+        )
         with pytest.raises(AttributeError):
             agent.name = "b"  # type: ignore[misc]
 
@@ -686,7 +712,16 @@ class TestDataclasses:
             cmd.name = "x"  # type: ignore[misc]
 
     def test_agent_def_slots(self) -> None:
-        agent = AgentDef(name="a", description="d", system_prompt="s", tools=[], color="", path="/p", source="agents")
+        agent = AgentDef(
+            name="a",
+            description="d",
+            system_prompt="s",
+            tools=[],
+            commit_authority="orchestrator",
+            color="",
+            path="/p",
+            source="agents",
+        )
         with pytest.raises((AttributeError, TypeError)):
             agent.new_attr = "nope"  # type: ignore[misc]
 

@@ -7,6 +7,8 @@ import re
 from datetime import date
 from pathlib import Path
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 CONTRACT_PATH = REPO_ROOT / "tests" / "repo_graph_contract.json"
@@ -16,6 +18,11 @@ GENERATED_ON_START = "<!-- repo-graph-generated-on:start -->"
 GENERATED_ON_END = "<!-- repo-graph-generated-on:end -->"
 SCOPE_START = "<!-- repo-graph-scope:start -->"
 SCOPE_END = "<!-- repo-graph-scope:end -->"
+
+_LOCAL_RUNTIME_MIRROR_EXCLUDES = tuple(
+    descriptor.config_dir_name
+    for descriptor in iter_runtime_descriptors()[1:]
+)
 
 EXCLUDED_GRAPH_DIRS = (
     ".git",
@@ -27,9 +34,7 @@ EXCLUDED_GRAPH_DIRS = (
     ".mypy_cache",
     ".ruff_cache",
     ".gpd",
-    ".codex",
-    ".gemini",
-    ".opencode",
+    *_LOCAL_RUNTIME_MIRROR_EXCLUDES,
     "dist",
 )
 

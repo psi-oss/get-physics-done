@@ -40,6 +40,7 @@ class AgentDef:
     color: str
     path: str
     source: str  # "agents"
+    commit_authority: str = "orchestrator"
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +129,7 @@ def _parse_str_list(raw: object) -> list[str]:
 
 
 VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
+VALID_AGENT_COMMIT_AUTHORITIES: tuple[str, ...] = ("direct", "orchestrator")
 
 
 def _parse_context_mode(raw: object, *, command_name: str) -> str:
@@ -142,6 +144,20 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
         valid = ", ".join(VALID_CONTEXT_MODES)
         raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
     return mode
+
+
+def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
+    """Normalize agent commit ownership to a validated string."""
+    if raw is None:
+        return "orchestrator"
+
+    authority = str(raw).strip().lower()
+    if not authority:
+        return "orchestrator"
+    if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
+        valid = ", ".join(VALID_AGENT_COMMIT_AUTHORITIES)
+        raise ValueError(f"Invalid commit_authority {authority!r} for {agent_name}; expected one of: {valid}")
+    return authority
 
 
 _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
@@ -306,6 +322,7 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         description=str(meta.get("description", "")),
         system_prompt=body.strip(),
         tools=_parse_tools(meta.get("tools", "")),
+        commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=str(meta.get("name", path.stem))),
         color=str(meta.get("color", "")),
         path=str(path),
         source=source,
