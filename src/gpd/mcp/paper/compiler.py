@@ -213,11 +213,33 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
     base_cmd = [compiler_path, "-interaction=nonstopmode", f"-output-directory={output_dir}", str(tex_path)]
     combined_log_parts: list[str] = []
     compile_errors: list[str] = []
+    fatal_errors: list[str] = []
+    pdf_path = output_dir / f"{tex_path.stem}.pdf"
 
-    def record_result(step: str, returncode: int, log: str) -> None:
+    def pdf_build_signature() -> tuple[int, int] | None:
+        if not pdf_path.exists():
+            return None
+        try:
+            stat = pdf_path.stat()
+        except OSError:
+            return None
+        return stat.st_size, stat.st_mtime_ns
+
+    initial_pdf_signature = pdf_build_signature()
+
+    def record_result(step: str, returncode: int, log: str, *, fatal: bool = False) -> None:
         combined_log_parts.append(log)
         if returncode != 0:
-            compile_errors.append(f"{step} exited with code {returncode}")
+            error = f"{step} exited with code {returncode}"
+            compile_errors.append(error)
+            if fatal:
+                fatal_errors.append(error)
+
+    def fresh_pdf_was_generated() -> bool:
+        current_signature = pdf_build_signature()
+        if current_signature is None:
+            return False
+        return initial_pdf_signature is None or current_signature != initial_pdf_signature
 
     try:
         # Pass 1: pdflatex
@@ -231,7 +253,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             logger.warning("bibtex not found -- bibliography will not be processed; citations will show as [?]")
         if bibtex and aux_path.exists():
             returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
-            record_result("bibtex", returncode, log)
+            record_result("bibtex", returncode, log, fatal=True)
 
         # Pass 2 & 3: pdflatex
         returncode, log = await run_cmd(base_cmd, cwd)
@@ -239,12 +261,11 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         returncode, log = await run_cmd(base_cmd, cwd)
         record_result("pdflatex pass 3", returncode, log)
 
-        pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if pdf_path.exists() and not compile_errors:
+        if fresh_pdf_was_generated() and not compile_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
         # Only the last pass matters: earlier passes often exit non-zero
         # due to unresolved references/citations (expected behaviour).
-        if pdf_path.exists() and returncode == 0:
+        if fresh_pdf_was_generated() and returncode == 0 and not fatal_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
@@ -259,20 +280,21 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
 
             combined_log_parts = []
             compile_errors = []
+            fatal_errors = []
 
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 1", returncode, log)
             if bibtex and aux_path.exists():
                 returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
-                record_result("bibtex autofix", returncode, log)
+                record_result("bibtex autofix", returncode, log, fatal=True)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 2", returncode, log)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if pdf_path.exists() and (not compile_errors or returncode == 0):
+            if fresh_pdf_was_generated() and (not compile_errors or (returncode == 0 and not fatal_errors)):
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
-        error = compile_errors[0] if compile_errors else "Compilation failed"
+        error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:

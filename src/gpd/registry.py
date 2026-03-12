@@ -132,6 +132,43 @@ def _parse_str_list(raw: object) -> list[str]:
     return []
 
 
+def _parse_bool_field(raw: object, *, field_name: str, command_name: str, default: bool = False) -> bool:
+    """Normalize booleans from YAML, including common quoted string spellings."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, int) and raw in (0, 1):
+        return bool(raw)
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if not normalized:
+            return default
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    raise ValueError(f"{field_name} for {command_name} must be a boolean")
+
+
+def _parse_non_negative_int_field(raw: object, *, field_name: str, command_name: str, default: int = 0) -> int:
+    """Normalize integer-like review-contract fields with explicit validation."""
+    if raw is None:
+        return default
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return default
+        raw = stripped
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} for {command_name} must be an integer") from exc
+    if value < 0:
+        raise ValueError(f"{field_name} for {command_name} must be >= 0")
+    return value
+
+
 VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
 VALID_AGENT_COMMIT_AUTHORITIES: tuple[str, ...] = ("direct", "orchestrator")
 
@@ -310,8 +347,16 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
         stage_ids=_parse_str_list(merged.get("stage_ids")),
         stage_artifacts=_parse_str_list(merged.get("stage_artifacts")),
         final_decision_output=str(merged.get("final_decision_output", "")).strip(),
-        requires_fresh_context_per_stage=bool(merged.get("requires_fresh_context_per_stage", False)),
-        max_review_rounds=int(merged.get("max_review_rounds", 0) or 0),
+        requires_fresh_context_per_stage=_parse_bool_field(
+            merged.get("requires_fresh_context_per_stage"),
+            field_name="requires_fresh_context_per_stage",
+            command_name=command_name,
+        ),
+        max_review_rounds=_parse_non_negative_int_field(
+            merged.get("max_review_rounds"),
+            field_name="max_review_rounds",
+            command_name=command_name,
+        ),
         required_state=required_state,
         schema_version=schema_version,
     )
@@ -352,6 +397,11 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     if not isinstance(allowed_tools_raw, list):
         allowed_tools_raw = []
 
+    try:
+        review_contract = _parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires)
+    except ValueError as exc:
+        raise ValueError(f"Invalid review-contract in {path}: {exc}") from exc
+
     return CommandDef(
         name=meta.get("name", path.stem),
         description=str(meta.get("description", "")),
@@ -359,7 +409,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         context_mode=_parse_context_mode(meta.get("context_mode"), command_name=str(meta.get("name", path.stem))),
         requires=requires,
         allowed_tools=[str(t) for t in allowed_tools_raw],
-        review_contract=_parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires),
+        review_contract=review_contract,
         content=body.strip(),
         path=str(path),
         source=source,

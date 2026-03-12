@@ -283,6 +283,40 @@ class TestParseCommandFile:
         assert ".gpd/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
         assert ".gpd/REFEREE-REPORT.tex" in cmd.review_contract.required_outputs
 
+    def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
+        f = tmp_path / "review-contract-false.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:review-contract-false\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            '  requires_fresh_context_per_stage: "false"\n'
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.review_contract is not None
+        assert cmd.review_contract.requires_fresh_context_per_stage is False
+
+    def test_command_review_contract_invalid_max_rounds_reports_file_context(self, tmp_path: Path) -> None:
+        f = tmp_path / "review-rounds.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:review-rounds\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  max_review_rounds: many\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds\.md.*max_review_rounds"):
+            _parse_command_file(f, source="commands")
+
 
 class TestEncodingEdgeCases:
     """Tests for files with encoding issues."""

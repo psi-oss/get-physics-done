@@ -317,6 +317,18 @@ def test_bootstrap_uninstall_rejects_reinstall_flag(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_rejects_reinstall_and_upgrade_together(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--codex", "--local", "--reinstall", "--upgrade"],
+    )
+
+    assert result.returncode == 1
+    assert "Cannot combine --reinstall with --upgrade." in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
     result, _, _ = _run_bootstrap_with_fake_python(
         tmp_path,
@@ -347,6 +359,21 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
         and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local", "--target-dir", str(target_dir)]
     ]
     assert len(managed_runtime_installs) == 1
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_rejects_target_dir_with_all_runtimes(tmp_path: Path) -> None:
+    target_dir = tmp_path / "custom target"
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--all", "--target-dir", str(target_dir)],
+    )
+
+    assert result.returncode == 1
+    assert "--target-dir" in result.stderr
+    assert "--all" in result.stderr
+    assert "exactly one runtime" in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

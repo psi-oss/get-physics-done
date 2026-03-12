@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from gpd.mcp.paper.models import PaperConfig, Section
 from gpd.mcp.paper.template_registry import render_paper
 from gpd.utils.latex import clean_latex_fences
@@ -51,3 +53,19 @@ def test_render_paper_jfm_includes_packages_for_unicode_sanitization_macros() ->
     assert "\\bigstar" in rendered
     assert "\\venus" in rendered
     assert "\\checkmark" in rendered
+
+
+@pytest.mark.parametrize("journal", ["prl", "nature", "jhep", "mnras"])
+def test_render_paper_adds_wasysym_support_for_planet_macros(journal: str) -> None:
+    rendered = render_paper(
+        PaperConfig(
+            journal=journal,
+            title="Symbols ♀",
+            authors=[],
+            abstract="Abstract",
+            sections=[Section(title="Intro", content="Symbols ♀")],
+        )
+    )
+
+    assert "\\usepackage{wasysym}" in rendered
+    assert "\\venus" in rendered
