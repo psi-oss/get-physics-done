@@ -22,6 +22,7 @@ Useful checks:
 ```bash
 uv build
 npm_config_cache="$(mktemp -d)" npm pack --dry-run --json
+uv run python -m scripts.sync_repo_graph_contract
 uv run pytest tests/test_metadata_consistency.py -v
 uv run pytest tests/test_release_consistency.py -v
 uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v

@@ -496,6 +496,7 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
     assert "Cross-runtime release checks:" in content
     assert 'npm_config_cache="$(mktemp -d)" npm pack --dry-run --json' in content
+    assert "uv run python -m scripts.sync_repo_graph_contract" in content
     assert "temporary cache outside the repo" in content
     assert "Public install docs should use `npx -y get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content

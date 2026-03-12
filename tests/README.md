@@ -6,7 +6,9 @@ The final section of this README keeps the full checked-in repository interdepen
 
 ## Repository Interdependency Graph
 
+<!-- repo-graph-generated-on:start -->
 Generated on `2026-03-12` from the current worktree.
+<!-- repo-graph-generated-on:end -->
 
 ## Status
 
@@ -22,7 +24,9 @@ This graph therefore includes:
 
 ## Scope
 
-- Live repo files analyzed in the current tree: `580`
+<!-- repo-graph-scope:start -->
+
+- Live repo files analyzed in the current tree: `582`
 - Python files under `src/` and `tests/`: `169`
 - `src/gpd/commands/*.md`: `60`
 - `src/gpd/agents/*.md`: `23`
@@ -32,7 +36,7 @@ This graph therefore includes:
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `105`
+- `tests/**` files: `106`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -50,6 +54,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.gemini/**`
 - `.opencode/**`
 - `dist/**`
+<!-- repo-graph-scope:end -->
 
 Generated-output families are modeled when code or tests depend on them:
 

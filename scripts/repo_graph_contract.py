@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
+CONTRACT_PATH = REPO_ROOT / "tests" / "repo_graph_contract.json"
+SCHEMA_VERSION = 1
 
-EXCLUDED_GRAPH_DIRS = {
+GENERATED_ON_START = "<!-- repo-graph-generated-on:start -->"
+GENERATED_ON_END = "<!-- repo-graph-generated-on:end -->"
+SCOPE_START = "<!-- repo-graph-scope:start -->"
+SCOPE_END = "<!-- repo-graph-scope:end -->"
+
+EXCLUDED_GRAPH_DIRS = (
     ".git",
     ".mcp.json",
     ".npm-cache",
@@ -22,7 +31,7 @@ EXCLUDED_GRAPH_DIRS = {
     ".gemini",
     ".opencode",
     "dist",
-}
+)
 
 GRAPH_SCOPE_LABELS = (
     "Live repo files analyzed in the current tree",
@@ -49,6 +58,10 @@ def read_graph_text() -> str:
     return GRAPH_PATH.read_text(encoding="utf-8")
 
 
+def load_contract() -> dict[str, object]:
+    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
 def canonical_scope_label(label: str) -> str:
     normalized = label.strip()
     if normalized.startswith("`") and normalized.endswith("`"):
@@ -58,9 +71,11 @@ def canonical_scope_label(label: str) -> str:
 
 def parse_scope_count(label: str) -> int:
     canonical_label = canonical_scope_label(label)
-    match = re.search(rf"^- {re.escape(canonical_label)}: `(\d+)`$", read_graph_text(), re.MULTILINE)
-    assert match is not None, f"Missing scope count for {canonical_label}"
-    return int(match.group(1))
+    scope_counts = load_contract()["scope_counts"]
+    assert isinstance(scope_counts, dict), "repo graph contract scope counts must be a mapping"
+    value = scope_counts.get(canonical_label)
+    assert isinstance(value, int), f"Missing scope count for {canonical_label}"
+    return value
 
 
 def live_repo_file_count(repo_root: Path = REPO_ROOT) -> int:
@@ -94,3 +109,78 @@ def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
         ),
         "`infra/gpd-*.json`": len(list((repo_root / "infra").glob("gpd-*.json"))),
     }
+
+
+def build_contract(repo_root: Path = REPO_ROOT, generated_on: str | None = None) -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_on": generated_on or date.today().isoformat(),
+        "excluded_graph_dirs": list(EXCLUDED_GRAPH_DIRS),
+        "scope_counts": expected_scope_counts(repo_root),
+    }
+
+
+def write_contract(contract: dict[str, object], contract_path: Path = CONTRACT_PATH) -> None:
+    contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+
+
+def _excluded_dir_readme_pattern(path_name: str) -> str:
+    return path_name if path_name == ".mcp.json" else f"{path_name}/**"
+
+
+def render_generated_on_block(contract: dict[str, object]) -> str:
+    generated_on = contract["generated_on"]
+    assert isinstance(generated_on, str), "generated_on must be a string"
+    return "\n".join(
+        (
+            GENERATED_ON_START,
+            f"Generated on `{generated_on}` from the current worktree.",
+            GENERATED_ON_END,
+        )
+    )
+
+
+def render_scope_block(contract: dict[str, object]) -> str:
+    scope_counts = contract["scope_counts"]
+    excluded_dirs = contract["excluded_graph_dirs"]
+    assert isinstance(scope_counts, dict), "scope_counts must be a mapping"
+    assert isinstance(excluded_dirs, list), "excluded_graph_dirs must be a list"
+
+    lines = [SCOPE_START, ""]
+    for label in GRAPH_SCOPE_LABELS:
+        value = scope_counts.get(label)
+        assert isinstance(value, int), f"Missing scope count for {label}"
+        lines.append(f"- {label}: `{value}`")
+
+    lines.extend(
+        (
+            "",
+            "Excluded as noise from node counting, but still modeled where contractually relevant:",
+            "",
+        )
+    )
+    lines.extend(f"- `{_excluded_dir_readme_pattern(path_name)}`" for path_name in excluded_dirs)
+    lines.append(SCOPE_END)
+    return "\n".join(lines)
+
+
+def extract_marked_block(text: str, start_marker: str, end_marker: str) -> str:
+    start = text.index(start_marker)
+    end = text.index(end_marker, start) + len(end_marker)
+    return text[start:end]
+
+
+def replace_marked_block(text: str, start_marker: str, end_marker: str, replacement: str) -> str:
+    start = text.index(start_marker)
+    end = text.index(end_marker, start) + len(end_marker)
+    return text[:start] + replacement + text[end:]
+
+
+def sync_readme_text(readme_text: str, contract: dict[str, object]) -> str:
+    synced = replace_marked_block(
+        readme_text,
+        GENERATED_ON_START,
+        GENERATED_ON_END,
+        render_generated_on_block(contract),
+    )
+    return replace_marked_block(synced, SCOPE_START, SCOPE_END, render_scope_block(contract))

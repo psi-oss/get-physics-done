@@ -9,12 +9,20 @@ from pathlib import Path
 
 from scripts.repo_graph_contract import (
     EXCLUDED_GRAPH_DIRS,
+    GENERATED_ON_END,
+    GENERATED_ON_START,
     GRAPH_PATH,
     REPO_ROOT,
+    SCOPE_END,
+    SCOPE_START,
     expected_scope_counts,
+    extract_marked_block,
     live_repo_file_count,
+    load_contract,
     parse_scope_count,
     read_graph_text,
+    render_generated_on_block,
+    render_scope_block,
 )
 
 
@@ -158,6 +166,19 @@ def test_graph_claude_artifact_language_matches_tree() -> None:
 def test_graph_contract_scope_parser_matches_expected_counts() -> None:
     for label, count in expected_scope_counts().items():
         assert parse_scope_count(label) == count
+
+
+def test_graph_contract_json_matches_live_scope_counts() -> None:
+    contract = load_contract()
+    assert contract["scope_counts"] == expected_scope_counts()
+
+
+def test_graph_readme_generated_blocks_match_contract() -> None:
+    contract = load_contract()
+    graph_text = read_graph_text()
+
+    assert extract_marked_block(graph_text, GENERATED_ON_START, GENERATED_ON_END) == render_generated_on_block(contract)
+    assert extract_marked_block(graph_text, SCOPE_START, SCOPE_END) == render_scope_block(contract)
 
 
 def test_live_repo_file_count_ignores_transient_root_artifacts() -> None:
