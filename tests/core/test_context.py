@@ -154,6 +154,18 @@ class TestInitExecutePhase:
         ctx = init_execute_phase(tmp_path, "1", includes={"state"})
         assert ctx["state_content"] == "# State\nstuff"
 
+    def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict
+
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["state_exists"] is True
+
 
 # ─── init_plan_phase ──────────────────────────────────────────────────────────
 
@@ -279,6 +291,16 @@ class TestInitResume:
         ctx = init_resume(tmp_path)
         assert ctx["has_interrupted_agent"] is True
         assert ctx["interrupted_agent_id"] == "agent-123"
+
+    def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict
+
+        _setup_project(tmp_path)
+        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["state_exists"] is True
 
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────

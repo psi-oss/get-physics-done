@@ -101,6 +101,10 @@ def test_update_cache_helpers_prefer_candidate_order_over_newer_unrelated_cache(
     with (
         patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[preferred_candidate, unrelated_candidate]),
         patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
+        patch(
+            "gpd.hooks.runtime_detect.detect_install_scope",
+            side_effect=lambda runtime, **_kwargs: "local" if runtime == "codex" else None,
+        ),
     ):
         cache, candidate = cache_reader(str(tmp_path))
 

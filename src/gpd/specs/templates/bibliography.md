@@ -65,7 +65,7 @@ the project. It is no longer treated as the canonical source of truth for paper 
 
 - **Confidence tiers**: Primary (directly supports results), Secondary (provides context), Tertiary (general background)
 - **Verified**: Checked by gpd-bibliographer against INSPIRE/ADS/Google Scholar
-- **BibTeX file**: `.gpd/references.bib` (maintained by bibliographer)
+- **BibTeX file**: `references/references.bib` (maintained by bibliographer)
 ```
 
 <lifecycle>
@@ -88,7 +88,7 @@ the project. It is no longer treated as the canonical source of truth for paper 
 - Verify BibTeX keys against INSPIRE-HEP, ADS, arXiv, Google Scholar
 - Detect hallucinated citations (keys that don't resolve)
 - Warn about missing citations when equations from papers are used without attribution
-- Maintain `.gpd/references.bib` in correct journal format
+- Maintain `references/references.bib` in correct journal format
 
 **Reading:** By gpd-paper-writer agent
 
@@ -115,7 +115,7 @@ the project. It is no longer treated as the canonical source of truth for paper 
 
 **What does NOT belong here:**
 
-- Full BibTeX entries (those go in `.gpd/references.bib`)
+- Full BibTeX entries (those go in `references/references.bib`)
 - Detailed summaries of papers (those go in phase RESEARCH.md)
 - Literature review analysis (that goes in literature review artifacts)
 
@@ -141,6 +141,6 @@ The gpd-bibliographer agent checks each entry:
 1. Resolve BibTeX key against INSPIRE-HEP (for HEP papers), ADS (for astrophysics), or Google Scholar
 2. Verify that title, authors, and year match
 3. Flag entries that cannot be resolved as SUSPECT
-4. Generate proper BibTeX and add to `.gpd/references.bib`
+4. Generate proper BibTeX and add to `references/references.bib`
 
 </guidelines>

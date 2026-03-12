@@ -44,17 +44,21 @@ class TestParseFrontmatter:
         assert meta == {}
         assert body == "Body."
 
-    def test_non_dict_frontmatter_returns_empty(self) -> None:
+    def test_non_dict_frontmatter_raises(self) -> None:
         text = "---\n- item1\n- item2\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Frontmatter must parse to a mapping"):
+            _parse_frontmatter(text)
 
-    def test_scalar_frontmatter_returns_empty(self) -> None:
+    def test_scalar_frontmatter_raises(self) -> None:
         text = "---\njust a string\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Frontmatter must parse to a mapping"):
+            _parse_frontmatter(text)
+
+    def test_malformed_yaml_frontmatter_raises(self) -> None:
+        text = "---\nname: test\nbad: [unterminated\n---\nBody."
+
+        with pytest.raises(ValueError, match="Malformed YAML frontmatter"):
+            _parse_frontmatter(text)
 
     def test_frontmatter_with_crlf_line_endings(self) -> None:
         meta, body = _parse_frontmatter("---\r\nname: test\r\n---\r\nBody.")
@@ -177,6 +181,13 @@ class TestParseAgentFile:
         agent = _parse_agent_file(f, source="agents")
         assert agent.system_prompt == ""
 
+    def test_agent_file_invalid_frontmatter_raises_with_path(self, tmp_path: Path) -> None:
+        f = tmp_path / "broken.md"
+        f.write_text("---\nname: broken\nbad: [unterminated\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid frontmatter in .*broken\\.md"):
+            _parse_agent_file(f, source="agents")
+
 
 class TestParseCommandFile:
     """Tests for _parse_command_file with various file contents."""
@@ -241,6 +252,13 @@ class TestParseCommandFile:
         f.write_text("---\nname: gpd:help\ncontext_mode: somewhere\n---\nBody.", encoding="utf-8")
 
         with pytest.raises(ValueError, match="Invalid context_mode"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_file_invalid_frontmatter_raises_with_path(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text("---\nname: gpd:help\nbad: [unterminated\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid frontmatter in .*help\\.md"):
             _parse_command_file(f, source="commands")
 
     def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:

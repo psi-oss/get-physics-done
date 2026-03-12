@@ -5,7 +5,9 @@ Layer 1 code: stdlib + pydantic only.
 
 from __future__ import annotations
 
+import copy
 import json
+from collections.abc import Callable
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -26,10 +28,14 @@ __all__ = [
     "ModelProfile",
     "ModelTier",
     "ResearchMode",
+    "canonical_config_key",
+    "effective_config_value",
     "load_config",
     "resolve_agent_tier",
     "resolve_tier",
     "resolve_model",
+    "supported_config_keys",
+    "validate_agent_name",
 ]
 
 # ─── Enums ──────────────────────────────────────────────────────────────────────
@@ -363,6 +369,185 @@ class GPDProjectConfig(BaseModel):
 _CONFIG_DEFAULTS = GPDProjectConfig()
 
 
+def _normalize_config_key(key: str) -> str:
+    """Normalize a user-facing config key path."""
+    return key.strip()
+
+
+def _enum_value(value: object) -> object:
+    """Return the string value for enum-like config fields."""
+    return value.value if isinstance(value, StrEnum) else value
+
+
+_EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
+    "autonomy": lambda config: _enum_value(config.autonomy),
+    "branching_strategy": lambda config: _enum_value(config.branching_strategy),
+    "commit_docs": lambda config: config.commit_docs,
+    "milestone_branch_template": lambda config: config.milestone_branch_template,
+    "model_overrides": lambda config: copy.deepcopy(config.model_overrides),
+    "model_profile": lambda config: _enum_value(config.model_profile),
+    "parallelization": lambda config: config.parallelization,
+    "phase_branch_template": lambda config: config.phase_branch_template,
+    "plan_checker": lambda config: config.plan_checker,
+    "research": lambda config: config.research,
+    "research_mode": lambda config: _enum_value(config.research_mode),
+    "verifier": lambda config: config.verifier,
+}
+
+_EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, object]]] = {
+    "git": lambda config: {
+        "branching_strategy": _enum_value(config.branching_strategy),
+        "phase_branch_template": config.phase_branch_template,
+        "milestone_branch_template": config.milestone_branch_template,
+    },
+    "planning": lambda config: {"commit_docs": config.commit_docs},
+    "workflow": lambda config: {
+        "research": config.research,
+        "plan_checker": config.plan_checker,
+        "verifier": config.verifier,
+    },
+}
+
+_CONFIG_KEY_ALIASES: dict[str, str] = {
+    "autonomy": "autonomy",
+    "branching_strategy": "branching_strategy",
+    "commit_docs": "commit_docs",
+    "git.branching_strategy": "branching_strategy",
+    "git.milestone_branch_template": "milestone_branch_template",
+    "git.phase_branch_template": "phase_branch_template",
+    "milestone_branch_template": "milestone_branch_template",
+    "model_overrides": "model_overrides",
+    "model_profile": "model_profile",
+    "parallelization": "parallelization",
+    "phase_branch_template": "phase_branch_template",
+    "plan_checker": "plan_checker",
+    "planning.commit_docs": "commit_docs",
+    "research": "research",
+    "research_mode": "research_mode",
+    "verifier": "verifier",
+    "workflow.plan_checker": "plan_checker",
+    "workflow.research": "research",
+    "workflow.verifier": "verifier",
+}
+
+_CANONICAL_CONFIG_STORAGE_PATHS: dict[str, tuple[str, ...]] = {
+    canonical_key: (canonical_key,) for canonical_key in _EFFECTIVE_CONFIG_LEAVES
+}
+
+_ALIASES_BY_CANONICAL_KEY: dict[str, tuple[str, ...]] = {}
+for _alias, _canonical_key in _CONFIG_KEY_ALIASES.items():
+    _ALIASES_BY_CANONICAL_KEY.setdefault(_canonical_key, []).append(_alias)
+_ALIASES_BY_CANONICAL_KEY = {
+    canonical_key: tuple(sorted(set(aliases)))
+    for canonical_key, aliases in _ALIASES_BY_CANONICAL_KEY.items()
+}
+
+
+def supported_config_keys() -> tuple[str, ...]:
+    """Return the supported writable CLI-facing config keys."""
+    return tuple(sorted(_CONFIG_KEY_ALIASES))
+
+
+def canonical_config_key(key: str) -> str | None:
+    """Resolve a CLI-facing config key to its canonical leaf key."""
+    return _CONFIG_KEY_ALIASES.get(_normalize_config_key(key))
+
+
+def effective_config_value(config: GPDProjectConfig, key: str) -> tuple[bool, object]:
+    """Return a CLI-facing effective config value for a supported key."""
+    normalized_key = _normalize_config_key(key)
+    if normalized_key in _EFFECTIVE_CONFIG_SECTIONS:
+        return True, _EFFECTIVE_CONFIG_SECTIONS[normalized_key](config)
+
+    canonical_key = canonical_config_key(normalized_key)
+    if canonical_key is None:
+        return False, None
+    return True, _EFFECTIVE_CONFIG_LEAVES[canonical_key](config)
+
+
+def _set_dict_path(target: dict[str, object], path: tuple[str, ...], value: object) -> None:
+    """Set a dotted path inside a nested dict, creating parents as needed."""
+    current = target
+    for segment in path[:-1]:
+        next_value = current.get(segment)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[segment] = next_value
+        current = next_value
+    current[path[-1]] = value
+
+
+def _delete_dict_path(target: dict[str, object], path: tuple[str, ...]) -> None:
+    """Delete a dotted path from a nested dict and prune empty containers."""
+    if not path:
+        return
+
+    trail: list[tuple[dict[str, object], str]] = []
+    current: object = target
+    for segment in path[:-1]:
+        if not isinstance(current, dict):
+            return
+        next_value = current.get(segment)
+        if not isinstance(next_value, dict):
+            return
+        trail.append((current, segment))
+        current = next_value
+
+    if not isinstance(current, dict):
+        return
+    current.pop(path[-1], None)
+
+    for parent, segment in reversed(trail):
+        child = parent.get(segment)
+        if isinstance(child, dict) and not child:
+            parent.pop(segment, None)
+        else:
+            break
+
+
+def apply_config_update(raw: dict[str, object], key: str, value: object) -> tuple[dict[str, object], str]:
+    """Apply a validated config update and normalize shadow aliases away."""
+    if not isinstance(raw, dict):
+        raise ConfigError("config.json must be a JSON object")
+
+    canonical_key = canonical_config_key(key)
+    if canonical_key is None:
+        supported = ", ".join(supported_config_keys())
+        raise ConfigError(f"Unsupported config key {key!r}. Supported keys: {supported}")
+
+    updated = copy.deepcopy(raw)
+    storage_path = _CANONICAL_CONFIG_STORAGE_PATHS[canonical_key]
+    _set_dict_path(updated, storage_path, value)
+    for alias in _ALIASES_BY_CANONICAL_KEY.get(canonical_key, ()):
+        alias_path = tuple(alias.split("."))
+        if alias_path != storage_path:
+            _delete_dict_path(updated, alias_path)
+
+    _model_from_parsed_config(updated)
+    return updated, canonical_key
+
+
+def _known_agent_names() -> frozenset[str]:
+    """Return the known agent names from registry metadata and tier maps."""
+    known = set(MODEL_PROFILES) | set(AGENT_DEFAULT_TIERS)
+    try:
+        from gpd import registry as content_registry
+
+        known.update(content_registry.get_agents())
+    except Exception:
+        pass
+    return frozenset(known)
+
+
+def validate_agent_name(agent_name: str) -> None:
+    """Raise when an agent name is not part of the known registry surface."""
+    normalized = agent_name.strip()
+    if not normalized:
+        raise ConfigError("Agent name must be a non-empty string")
+    if normalized not in _known_agent_names():
+        raise ConfigError(f"Unknown agent {agent_name!r}")
+
+
 def _get_nested(parsed: dict, key: str, section: str | None = None, field: str | None = None) -> object:
     """Get a config value with optional nested section fallback."""
     if key in parsed:
@@ -429,25 +614,8 @@ def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
     return sorted(unsupported)
 
 
-@instrument_gpd_function("config.load")
-def load_config(project_dir: Path) -> GPDProjectConfig:
-    """Load GPD config from .gpd/config.json with defaults.
-
-    Raises on malformed JSON. Returns defaults if file doesn't exist.
-    """
-    config_path = ProjectLayout(project_dir).config_json
-    try:
-        raw = config_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return GPDProjectConfig()
-    except (PermissionError, UnicodeDecodeError, OSError) as exc:
-        raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
-
+def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
+    """Build the canonical config model from a parsed config payload."""
     if not isinstance(parsed, dict):
         raise ConfigError("config.json must be a JSON object")
 
@@ -516,6 +684,27 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         ) from e
 
 
+@instrument_gpd_function("config.load")
+def load_config(project_dir: Path) -> GPDProjectConfig:
+    """Load GPD config from .gpd/config.json with defaults.
+
+    Raises on malformed JSON. Returns defaults if file doesn't exist.
+    """
+    config_path = ProjectLayout(project_dir).config_json
+    try:
+        raw = config_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return GPDProjectConfig()
+    except (PermissionError, UnicodeDecodeError, OSError) as exc:
+        raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
+    return _model_from_parsed_config(parsed)
+
+
 def _coalesce(value: object, default: object) -> object:
     """Return value if not None, else default."""
     return value if value is not None else default
@@ -530,6 +719,7 @@ def resolve_agent_tier(agent_name: str, profile: ModelProfile | str) -> ModelTie
 
     Falls back to the agent's default tier, then to TIER_2.
     """
+    validate_agent_name(agent_name)
     profile_str = profile.value if isinstance(profile, ModelProfile) else profile
     agent_profiles = MODEL_PROFILES.get(agent_name)
     if agent_profiles:
@@ -559,6 +749,7 @@ def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None
     configured so the caller can omit the runtime model parameter and let the
     platform use its own default model.
     """
+    validate_agent_name(agent_name)
     if not runtime:
         return None
 

@@ -108,6 +108,54 @@ def test_notify_prefers_active_runtime_cache_over_newer_unrelated_runtime_cache(
     assert "Run: npx -y get-physics-done --codex --local" in output
 
 
+def test_notify_prefers_installed_global_scope_cache_over_stale_local_scope_cache(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+
+    local_cache = workspace / ".codex" / "cache"
+    local_cache.mkdir(parents=True)
+    (local_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "1.2.3",
+                "latest": "1.3.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    global_runtime_dir = home / ".codex"
+    global_cache = global_runtime_dir / "cache"
+    global_cache.mkdir(parents=True)
+    (global_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "global"}),
+        encoding="utf-8",
+    )
+    (global_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": False,
+                "installed": "9.0.0",
+                "latest": "9.1.0",
+                "checked": 10,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    assert stderr.getvalue() == ""
+
+
 def test_notify_uses_explicit_workspace_cwd_over_process_cwd(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -181,6 +229,42 @@ def test_notify_runtime_directory_without_install_uses_bootstrap_command(tmp_pat
     output = stderr.getvalue()
     assert "Update available: v2.0.0" in output
     assert "Run: npx -y get-physics-done" in output
+
+
+def test_notify_ignores_stale_uninstalled_runtime_cache_when_other_runtime_is_installed(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+
+    stale_cache = workspace / ".codex" / "cache"
+    stale_cache.mkdir(parents=True)
+    (stale_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "2.0.0",
+                "latest": "2.1.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    global_runtime_dir = home / ".claude"
+    global_runtime_dir.mkdir(parents=True)
+    (global_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "global"}),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    assert stderr.getvalue() == ""
 
 
 def test_main_accepts_workspace_mapping_with_cwd_field() -> None:

@@ -195,9 +195,9 @@ class TestResolveAgentTier:
         tier = resolve_agent_tier("gpd-executor", "numerical")
         assert tier == ModelTier.TIER_2
 
-    def test_unknown_agent_falls_back(self):
-        tier = resolve_agent_tier("gpd-unknown", "review")
-        assert tier == ModelTier.TIER_2
+    def test_unknown_agent_raises(self):
+        with pytest.raises(ConfigError, match="Unknown agent 'gpd-unknown'"):
+            resolve_agent_tier("gpd-unknown", "review")
 
     def test_unknown_profile_falls_back_to_review(self):
         tier = resolve_agent_tier("gpd-planner", "nonexistent")

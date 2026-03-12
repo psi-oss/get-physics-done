@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -327,6 +328,31 @@ def test_install_raw_includes_failures(tmp_path: Path):
     assert '"failed"' in result.output
 
 
+def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
+    """A finalize_install failure must only surface in the failed list."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    class FailingFinalizeAdapter:
+        display_name = "Claude Code"
+        help_command = "/gpd:help"
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            raise RuntimeError("finalize boom")
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", return_value=FailingFinalizeAdapter()),
+    ):
+        result = runner.invoke(app, ["--raw", "install", "claude-code", "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["installed"] == []
+    assert payload["failed"] == [{"runtime": "claude-code", "error": "finalize boom"}]
+
+
 def test_uninstall_raw_outputs_json(tmp_path: Path):
     """--raw flag on uninstall outputs clean JSON."""
     target = tmp_path / ".claude"
@@ -511,8 +537,43 @@ def test_install_global_and_local_conflict():
     assert "Cannot specify both" in result.output
 
 
+def test_install_target_dir_rejects_multiple_runtimes(tmp_path: Path):
+    """Explicit target dirs are only safe for a single runtime."""
+    result = runner.invoke(
+        app,
+        ["install", "claude-code", "gemini", "--target-dir", str(tmp_path / "shared")],
+    )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for install" in result.output
+
+
+def test_install_target_dir_rejects_all_runtimes(tmp_path: Path):
+    """`--all` plus an explicit target dir is also unsafe."""
+    with patch("gpd.adapters.list_runtimes", return_value=["claude-code", "gemini"]):
+        result = runner.invoke(
+            app,
+            ["install", "--all", "--target-dir", str(tmp_path / "shared")],
+        )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for install" in result.output
+
+
 def test_uninstall_global_and_local_conflict():
     """--global and --local together on uninstall errors."""
     result = runner.invoke(app, ["uninstall", "claude-code", "--global", "--local"])
     assert result.exit_code == 1
     assert "Cannot specify both" in result.output
+
+
+def test_uninstall_target_dir_rejects_multiple_runtimes(tmp_path: Path):
+    """Explicit target dirs are only safe for a single runtime on uninstall too."""
+    result = runner.invoke(
+        app,
+        ["uninstall", "claude-code", "gemini", "--target-dir", str(tmp_path / "shared")],
+        input="n\n",
+    )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for uninstall" in result.output

@@ -284,6 +284,39 @@ def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: 
     assert payload["passed"] is True
 
 
+def test_pre_commit_check_fails_for_directory_inputs(tmp_path: Path) -> None:
+    directory = tmp_path / "not-a-file"
+    directory.mkdir()
+
+    result = runner.invoke(
+        app,
+        ["--raw", "--cwd", str(tmp_path), "pre-commit-check", "--files", str(directory)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["passed"] is False
+    assert payload["details"][0]["regular_file"] is False
+
+
+def test_pre_commit_check_fails_for_unreadable_inputs(tmp_path: Path) -> None:
+    target = tmp_path / "state.md"
+    target.write_text("# ok\n", encoding="utf-8")
+
+    with patch("gpd.core.git_ops.Path.read_text", side_effect=OSError("denied")):
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "pre-commit-check", "--files", str(target)],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["passed"] is False
+    assert payload["details"][0]["readable"] is False
+
+
 # ─── convention subcommands ─────────────────────────────────────────────────
 
 

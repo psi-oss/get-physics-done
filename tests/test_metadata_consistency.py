@@ -256,3 +256,31 @@ def test_every_command_declares_valid_context_mode() -> None:
 
     assert missing == []
     assert invalid == []
+
+
+def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
+    workflow = _read("src/gpd/specs/workflows/update.md")
+
+    assert "<GPD_CONFIG_DIR>" not in workflow
+    assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in workflow
+
+
+def test_referee_response_round_suffix_convention_is_consistent() -> None:
+    peer_review = _read("src/gpd/specs/workflows/peer-review.md")
+    respond = _read("src/gpd/specs/workflows/respond-to-referees.md")
+    template = _read("src/gpd/specs/templates/paper/referee-response.md")
+
+    assert 'ROUND_SUFFIX="-R2"' in peer_review
+    assert 'ROUND_SUFFIX="-R3"' in peer_review
+    assert "REFEREE_RESPONSE-R2.md" in respond
+    assert "AUTHOR-RESPONSE-R2.md" in respond
+    assert "REFEREE_RESPONSE-R2.md" in template
+    assert "REFEREE_RESPONSE_R2.md" not in respond
+    assert "REFEREE_RESPONSE_R2.md" not in template
+
+
+def test_bibliography_template_tracks_live_references_bib_path() -> None:
+    template = _read("src/gpd/specs/templates/bibliography.md")
+
+    assert "references/references.bib" in template
+    assert ".gpd/references.bib" not in template

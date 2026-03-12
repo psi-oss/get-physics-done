@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -226,6 +227,30 @@ class TestReadCurrentTask:
         ):
             assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
 
+    def test_active_runtime_todo_dir_beats_other_runtime_with_same_session_id(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        claude_todo_dir = tmp_path / ".claude" / "todos"
+        codex_todo_dir = tmp_path / ".codex" / "todos"
+        claude_todo_dir.mkdir(parents=True)
+        codex_todo_dir.mkdir(parents=True)
+
+        (claude_todo_dir / "session-123-agent-claude.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Claude task"}]),
+            encoding="utf-8",
+        )
+        (codex_todo_dir / "session-123-agent-codex.json").write_text(
+            json.dumps([{"status": "in_progress", "activeForm": "Codex task"}]),
+            encoding="utf-8",
+        )
+
+        env = {key: value for key, value in os.environ.items() if key != "CODEX_SESSION"}
+        env["CODEX_SESSION"] = "1"
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_current_task("session-123", str(tmp_path)) == "Codex task"
+
     def test_todo_dir_order_beats_newer_global_match(self, tmp_path: Path) -> None:
         local_todo_dir = tmp_path / ".codex" / "todos"
         global_todo_dir = tmp_path / "home" / ".codex" / "todos"
@@ -422,6 +447,33 @@ class TestCheckUpdateHook:
         assert "$gpd-update" in result
         assert "/gpd:update" not in result
 
+    def test_installed_global_scope_cache_beats_stale_local_scope_cache(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        local_cache = workspace / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 30}),
+            encoding="utf-8",
+        )
+
+        global_runtime_dir = home / ".codex"
+        global_cache = global_runtime_dir / "cache"
+        global_cache.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "global"}),
+            encoding="utf-8",
+        )
+        (global_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": False, "checked": 10}),
+            encoding="utf-8",
+        )
+
+        with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+            assert _check_update(str(workspace)) == ""
+
     def test_workspace_dir_overrides_process_cwd_for_local_cache_selection(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -470,6 +522,28 @@ class TestCheckUpdateHook:
             result = _check_update(str(workspace))
 
         assert "npx -y get-physics-done" in result
+
+    def test_stale_uninstalled_runtime_cache_is_ignored_when_another_runtime_is_installed(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        stale_cache = workspace / ".codex" / "cache"
+        stale_cache.mkdir(parents=True)
+        (stale_cache / "gpd-update-check.json").write_text(
+            json.dumps({"update_available": True, "checked": 20}),
+            encoding="utf-8",
+        )
+
+        global_runtime_dir = home / ".claude"
+        global_runtime_dir.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "global"}),
+            encoding="utf-8",
+        )
+
+        with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+            assert _check_update(str(workspace)) == ""
 
     def test_unknown_runtime_falls_back_to_bootstrap_update_command(self, tmp_path: Path) -> None:
         gpd_cache = tmp_path / ".gpd" / "cache"

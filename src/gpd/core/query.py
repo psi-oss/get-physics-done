@@ -254,6 +254,9 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
         for summary_file in summaries:
             try:
                 content = summary_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                logger.debug("Skipping %s: invalid UTF-8", summary_file.name)
+                continue
             except OSError:
                 continue
 

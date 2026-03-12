@@ -562,6 +562,16 @@ def _extract_bold_block(content: str, label: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _has_subsection(content: str, heading: str) -> bool:
+    """Return whether STATE.md includes a matching subsection heading."""
+    return _extract_subsection(content, heading) is not None
+
+
+def _has_bold_block(content: str, label: str) -> bool:
+    """Return whether STATE.md includes a matching bold-label block."""
+    return _extract_bold_block(content, label) is not None
+
+
 def _parse_table_rows(section: str | None) -> list[list[str]]:
     """Parse markdown table rows, skipping headers and placeholders."""
     if not section:
@@ -1295,6 +1305,10 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
     """Merge markdown-derived state into the existing JSON state."""
     json_path = _state_json_path(cwd)
     parsed = parse_state_to_json(md_content)
+    has_convention_lock = _has_bold_block(md_content, "Convention Lock")
+    has_approximations = _has_subsection(md_content, "Active Approximations")
+    has_uncertainties = _has_subsection(md_content, "Propagated Uncertainties")
+    has_pending_todos = _has_subsection(md_content, "Pending Todos")
 
     existing = None
     try:
@@ -1333,7 +1347,7 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
         if parsed.get("performance_metrics") is not None:
             merged["performance_metrics"] = parsed["performance_metrics"]
 
-        if parsed.get("convention_lock") is not None:
+        if has_convention_lock and parsed.get("convention_lock") is not None:
             merged["convention_lock"] = parsed["convention_lock"]
 
         for field in ("active_calculations", "intermediate_results", "open_questions"):
@@ -1345,8 +1359,13 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
                     )
                 else:
                     merged[field] = parsed.get(field) or []
-        for field in ("approximations", "propagated_uncertainties", "pending_todos"):
-            if field in parsed:
+        structured_fields = (
+            ("approximations", has_approximations),
+            ("propagated_uncertainties", has_uncertainties),
+            ("pending_todos", has_pending_todos),
+        )
+        for field, markdown_has_field in structured_fields:
+            if markdown_has_field and field in parsed:
                 merged[field] = parsed.get(field) or []
     else:
         merged = parsed
@@ -1539,7 +1558,7 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     return StateLoadResult(
         state=state_obj or {},
         state_raw=state_raw,
-        state_exists=len(state_raw) > 0,
+        state_exists=state_obj is not None or len(state_raw) > 0,
         roadmap_exists=layout.roadmap.exists(),
         config_exists=layout.config_json.exists(),
         integrity_mode=integrity_mode,

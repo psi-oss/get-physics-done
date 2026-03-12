@@ -216,7 +216,7 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     from gpd.hooks.runtime_detect import get_todo_dirs
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    todo_dirs = get_todo_dirs(cwd=workspace_path)
+    todo_dirs = get_todo_dirs(cwd=workspace_path, prefer_active=True)
 
     for todos_dir in todo_dirs:
         if not todos_dir.is_dir():
@@ -254,11 +254,18 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
     from gpd.hooks.runtime_detect import (
         detect_active_runtime_with_gpd_install,
         get_update_cache_candidates,
+        should_consider_update_cache_candidate,
     )
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
-    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
+    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=active_installed_runtime):
+        if not should_consider_update_cache_candidate(
+            candidate,
+            active_installed_runtime=active_installed_runtime,
+            cwd=workspace_path,
+        ):
+            continue
         cache_file = candidate.path
         if not cache_file.exists():
             continue

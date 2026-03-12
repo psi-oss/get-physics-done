@@ -312,6 +312,21 @@ class TestHelperDirs:
         assert home / ".claude" / "todos" in dirs
         assert home / ".config" / "opencode" / "todos" in dirs
 
+    def test_todo_dirs_can_prioritize_active_runtime(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        env = _clean_runtime_env()
+        env["CODEX_SESSION"] = "active"
+
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_todo_dirs(prefer_active=True)
+
+        assert dirs[0] == tmp_path / ".codex" / "todos"
+        assert dirs[1] == home / ".codex" / "todos"
+
 
 class TestDetectInstallScope:
     """Tests for local/global install-scope detection."""

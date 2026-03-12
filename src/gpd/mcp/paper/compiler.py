@@ -305,11 +305,13 @@ async def build_paper(
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
     figure_source_pairs: list[tuple[FigureRef, FigureRef]] = []
+    figures_prepared_successfully = True
     bib_path: Path | None = None
     bib_entry_source: str | None = "bib_data" if bib_data is not None else None
 
     # 1. Prepare figures
     if config.figures:
+        requested_figure_count = len(config.figures)
         figures_dir = output_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
         try:
@@ -333,8 +335,14 @@ async def build_paper(
                 (original, _rebase_prepared_figure_path(prepared_figure))
                 for original, prepared_figure in figure_source_pairs
             ]
+            figures_prepared_successfully = not fig_errors and len(prepared) == requested_figure_count
+            if len(prepared) != requested_figure_count and not fig_errors:
+                errors.append(
+                    "Figure preparation did not preserve all requested figures; treating build as unsuccessful."
+                )
             errors.extend(fig_errors)
         except (ValueError, RuntimeError, OSError) as exc:
+            figures_prepared_successfully = False
             errors.append(f"Figure preparation failed: {exc}")
             prepared = []
             figure_source_pairs = []
@@ -422,6 +430,8 @@ async def build_paper(
     )
     await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
+    final_success = result.success and figures_prepared_successfully and not errors
+
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
@@ -431,6 +441,6 @@ async def build_paper(
         bibliography_audit=bibliography_audit,
         manifest_path=manifest_path,
         manifest=manifest,
-        success=result.success,
+        success=final_success,
         errors=errors,
     )

@@ -457,32 +457,27 @@ class TestMultiRuntimeSameTarget:
 class TestRegistryInvalidYaml:
     """Registry parsing a .md file with invalid YAML frontmatter."""
 
-    def test_invalid_yaml_in_frontmatter_returns_fallback(self, tmp_path: Path) -> None:
-        """Invalid YAML in frontmatter is caught; _parse_agent_file returns fallback AgentDef."""
+    def test_invalid_yaml_in_frontmatter_raises(self, tmp_path: Path) -> None:
+        """Invalid YAML in frontmatter should fail fast with path context."""
         f = tmp_path / "bad-yaml.md"
-        # Tabs in YAML values can cause parse errors
         f.write_text(
             "---\nname: [unclosed bracket\n  bad: :\n---\nBody.\n",
             encoding="utf-8",
         )
-        agent = _parse_agent_file(f, source="agents")
-        # Falls back to stem name since frontmatter parsing failed
-        assert agent.name == "bad-yaml"
-        assert agent.source == "agents"
+        with pytest.raises(ValueError, match="Invalid frontmatter in .*bad-yaml\\.md"):
+            _parse_agent_file(f, source="agents")
 
-    def test_registry_frontmatter_with_invalid_yaml_returns_empty(self) -> None:
-        """_parse_frontmatter in registry: invalid YAML returns empty dict gracefully."""
+    def test_registry_frontmatter_with_invalid_yaml_raises(self) -> None:
+        """Malformed registry frontmatter should raise instead of being swallowed."""
         text = "---\n: : : invalid\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Malformed YAML frontmatter"):
+            _parse_frontmatter(text)
 
-    def test_valid_yaml_non_dict_returns_empty(self) -> None:
-        """Non-dict YAML frontmatter falls back gracefully."""
+    def test_valid_yaml_non_dict_raises(self) -> None:
+        """Non-mapping registry frontmatter should also fail fast."""
         text = "---\n- list\n- items\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Frontmatter must parse to a mapping"):
+            _parse_frontmatter(text)
 
     def test_discovery_skips_non_md_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Discovery only processes .md files — other files are safe."""

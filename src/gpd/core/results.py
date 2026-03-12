@@ -117,19 +117,21 @@ def _int_to_base36(n: int) -> str:
     return "".join(reversed(result))
 
 
-def _auto_generate_id(state: dict) -> str:
-    """Auto-generate a result ID from the current phase and existing results count.
+def _auto_generate_id(state: dict, *, phase: str | None = None) -> str:
+    """Auto-generate a result ID from the target phase and existing results count.
 
     Format: "R-{phase}-{seq}-{suffix}" e.g. "R-03-01-lxk7a2b".
 
     Uses base-36 encoding for the timestamp suffix and secrets.token_hex
     for the random part to provide good collision resistance.
     """
-    position = state.get("position", {})
-    phase = position.get("current_phase") or 0
-    padded_phase = phase_normalize(str(phase))
+    resolved_phase = phase
+    if resolved_phase is None:
+        position = state.get("position", {})
+        resolved_phase = position.get("current_phase") or 0
 
-    normalized_current = phase_unpad(str(phase))
+    padded_phase = phase_normalize(str(resolved_phase))
+    normalized_current = phase_unpad(str(resolved_phase))
     results = state.get("intermediate_results", [])
     existing_in_phase = [
         r
@@ -185,7 +187,13 @@ def result_add(
     if "intermediate_results" not in state:
         state["intermediate_results"] = []
 
-    rid = result_id or _auto_generate_id(state)
+    # Resolve phase from state position if not provided
+    if phase is None:
+        position = state.get("position", {})
+        raw_phase = position.get("current_phase")
+        phase = str(raw_phase) if raw_phase is not None else None
+
+    rid = result_id or _auto_generate_id(state, phase=phase)
     if not rid or not rid.strip():
         raise ResultError(
             f"Result ID must be a non-empty string, got {rid!r}. "
@@ -194,12 +202,6 @@ def result_add(
 
     if _find_result_index(state["intermediate_results"], rid) != -1:
         raise DuplicateResultError(rid)
-
-    # Resolve phase from state position if not provided
-    if phase is None:
-        position = state.get("position", {})
-        raw_phase = position.get("current_phase")
-        phase = str(raw_phase) if raw_phase is not None else None
 
     if value is not None and equation is None and description is None:
         description = str(value)

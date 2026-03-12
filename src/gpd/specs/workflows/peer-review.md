@@ -135,6 +135,11 @@ Stage artifacts for revision rounds should use the same suffix:
 - `.gpd/review/REVIEW-LEDGER{ROUND_SUFFIX}.json`
 - `.gpd/review/REFEREE-DECISION{ROUND_SUFFIX}.json`
 
+Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
+
+- `.gpd/AUTHOR-RESPONSE{ROUND_SUFFIX}.md`
+- `.gpd/paper/REFEREE_RESPONSE{ROUND_SUFFIX}.md`
+
 </step>
 
 <step name="stage_1_read">

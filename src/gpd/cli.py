@@ -28,7 +28,7 @@ from rich.console import Console
 from rich.table import Table
 
 import gpd
-from gpd.core.errors import GPDError
+from gpd.core.errors import ConfigError, GPDError
 
 if TYPE_CHECKING:
     from gpd.mcp.paper.models import PaperConfig
@@ -1912,25 +1912,17 @@ def config_get(
     key: str = typer.Argument(..., help="Config key path (dot-separated)"),
 ) -> None:
     """Get a configuration value."""
-    from gpd.core.constants import ProjectLayout
-
-    config_path = ProjectLayout(_get_cwd()).config_json
     try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except OSError:
+        from gpd.core.config import effective_config_value, load_config
+
+        config = load_config(_get_cwd())
+        found, value = effective_config_value(config, key)
+    except ConfigError as exc:
+        _error(str(exc))
+    if not found:
         _output({"key": key, "found": False})
         return
-    except json.JSONDecodeError as e:
-        _error(f"Malformed config.json: {e}")
-    parts = key.split(".")
-    current: object = raw
-    for part in parts:
-        if isinstance(current, dict) and part in current:
-            current = current[part]
-        else:
-            _output({"key": key, "found": False})
-            return
-    _output({"key": key, "value": current, "found": True})
+    _output({"key": key, "value": value, "found": True})
 
 
 @config_app.command("set")
@@ -1939,6 +1931,7 @@ def config_set(
     value: str = typer.Argument(..., help="Value to set"),
 ) -> None:
     """Set a configuration value."""
+    from gpd.core.config import apply_config_update, effective_config_value, load_config
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
@@ -1947,21 +1940,27 @@ def config_set(
     with file_lock(config_path):
         try:
             raw = json.loads(config_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError:
             raw = {}
-        parts = key.split(".")
-        current = raw
-        for part in parts[:-1]:
-            if part not in current or not isinstance(current[part], dict):
-                current[part] = {}
-            current = current[part]
+        except json.JSONDecodeError as e:
+            _error(f"Malformed config.json: {e}")
+        except OSError as exc:
+            _error(f"Cannot read config.json: {exc}")
+        if not isinstance(raw, dict):
+            _error("config.json must be a JSON object")
         try:
             parsed = json.loads(value)
         except (json.JSONDecodeError, ValueError):
             parsed = value
-        current[parts[-1]] = parsed
-        atomic_write(config_path, json.dumps(raw, indent=2) + "\n")
-    _output({"key": key, "value": parsed, "updated": True})
+        try:
+            updated_config, canonical_key = apply_config_update(raw, key, parsed)
+        except ConfigError as exc:
+            _error(str(exc))
+        atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
+
+    config = load_config(_get_cwd())
+    _found, effective_value = effective_config_value(config, key)
+    _output({"key": key, "canonical_key": canonical_key, "value": effective_value, "updated": True})
 
 
 @config_app.command("ensure-section")
@@ -2933,9 +2932,13 @@ def resolve_tier_cmd(
     agent_name: str = typer.Argument(..., help="Agent name (e.g. gpd-executor)"),
 ) -> None:
     """Resolve the abstract model tier for an agent in the current project."""
-    from gpd.core.config import resolve_tier
+    from gpd.core.config import resolve_tier, validate_agent_name
 
-    _output(resolve_tier(_get_cwd(), agent_name))
+    try:
+        validate_agent_name(agent_name)
+        _output(resolve_tier(_get_cwd(), agent_name))
+    except ConfigError as exc:
+        _error(str(exc))
 
 
 @app.command("resolve-model")
@@ -2952,7 +2955,7 @@ def resolve_model_cmd(
     Prints nothing when no override is configured so callers can omit the
     runtime model parameter and let the platform use its default model.
     """
-    from gpd.core.config import resolve_model
+    from gpd.core.config import resolve_model, validate_agent_name
     from gpd.hooks.runtime_detect import detect_active_runtime
 
     supported_runtimes = _supported_runtime_names()
@@ -2961,7 +2964,11 @@ def resolve_model_cmd(
         _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
     active_runtime = runtime or detect_active_runtime(cwd=_get_cwd())
-    _output(resolve_model(_get_cwd(), agent_name, runtime=active_runtime))
+    try:
+        validate_agent_name(agent_name)
+        _output(resolve_model(_get_cwd(), agent_name, runtime=active_runtime))
+    except ConfigError as exc:
+        _error(str(exc))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3278,6 +3285,12 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
         console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]\n")
 
 
+def _validate_target_dir_runtime_selection(action: str, runtimes: list[str], target_dir: str | None) -> None:
+    """Reject explicit target-dir usage when multiple runtimes are selected."""
+    if target_dir and len(runtimes) != 1:
+        _error(f"--target-dir requires exactly one runtime for {action}")
+
+
 @app.command("install")
 def install(
     runtimes: list[str] | None = typer.Argument(
@@ -3327,6 +3340,8 @@ def install(
         console.print(f"[bold]GPD v{gpd.__version__}[/] — Get Physics Done\n")
         selected = _prompt_runtimes()
 
+    _validate_target_dir_runtime_selection("install", selected, target_dir)
+
     # Resolve location
     if target_dir:
         is_global = False  # --target-dir implies a specific path
@@ -3359,9 +3374,9 @@ def install(
             task = progress.add_task(f"Installing {adapter.display_name}...", total=None)
             try:
                 result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
+                adapter.finalize_install(result, force_statusline=force_statusline)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")
-                adapter.finalize_install(result, force_statusline=force_statusline)
             except Exception as exc:
                 failures.append((rt, str(exc)))
                 progress.update(task, description=f"[red]✗[/] {adapter.display_name}: {exc}")
@@ -3424,6 +3439,8 @@ def uninstall(
         selected = list(runtimes)
     else:
         selected = _prompt_runtimes(action="uninstall")
+
+    _validate_target_dir_runtime_selection("uninstall", selected, target_dir)
 
     # Resolve location (skip prompts when --target-dir is explicit)
     if target_dir:

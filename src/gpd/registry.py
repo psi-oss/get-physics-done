@@ -105,12 +105,12 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     body = frontmatter_candidate[match.end() :]
     try:
         meta = yaml.safe_load(yaml_str)
-    except yaml.YAMLError:
-        return {}, text
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Malformed YAML frontmatter: {exc}") from exc
     if meta is None:
         return {}, body
     if not isinstance(meta, dict):
-        return {}, text
+        raise ValueError(f"Frontmatter must parse to a mapping, got {type(meta).__name__}")
     return meta, body
 
 
@@ -320,7 +320,10 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
 def _parse_agent_file(path: Path, source: str) -> AgentDef:
     """Parse a single agent .md file into an AgentDef."""
     text = path.read_text(encoding="utf-8")
-    meta, body = _parse_frontmatter(text)
+    try:
+        meta, body = _parse_frontmatter(text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
     return AgentDef(
         name=meta.get("name", path.stem),
         description=str(meta.get("description", "")),
@@ -336,7 +339,10 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
 def _parse_command_file(path: Path, source: str) -> CommandDef:
     """Parse a single command .md file into a CommandDef."""
     text = path.read_text(encoding="utf-8")
-    meta, body = _parse_frontmatter(text)
+    try:
+        meta, body = _parse_frontmatter(text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
     requires = meta.get("requires", {})
     if not isinstance(requires, dict):

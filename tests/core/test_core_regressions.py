@@ -240,6 +240,22 @@ def test_result_update_wraps_validation_error_as_result_error() -> None:
         result_update(state, "R-01-001", depends_on=[123])
 
 
+def test_result_add_auto_id_uses_explicit_phase_override() -> None:
+    from gpd.core.results import result_add
+
+    state = {
+        "position": {"current_phase": "01"},
+        "intermediate_results": [
+            {"id": "R-02-01-seed", "description": "existing", "phase": "02", "depends_on": [], "verified": False}
+        ],
+    }
+
+    result = result_add(state, description="new result", phase="02")
+
+    assert result.phase == "02"
+    assert result.id.startswith("R-02-02-")
+
+
 def test_verify_summary_marks_invalid_commits_as_failed(tmp_path: Path) -> None:
     from gpd.core.frontmatter import verify_summary
 

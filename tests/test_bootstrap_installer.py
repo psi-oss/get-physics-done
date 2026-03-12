@@ -458,6 +458,42 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--claude", "--local", "--upgrade"],
+        extra_env={
+            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_MAIN_GIT": "1",
+        },
+    )
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
+    ]
+
+    assert managed_pip_targets == [
+        MAIN_ARCHIVE_SPEC,
+        MAIN_SSH_GIT_SPEC,
+        MAIN_HTTPS_GIT_SPEC,
+    ]
+    assert TAG_ARCHIVE_SPEC not in managed_pip_targets
+    assert TAG_SSH_GIT_SPEC not in managed_pip_targets
+    assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
+    assert managed_runtime_installs == []
+    assert "GitHub main upgrade failed across all main-branch candidates." in result.stdout
+    assert "broader GitHub source candidate set" not in result.stdout
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(tmp_path, installer_args=["--all", "--global"])
 

@@ -7,6 +7,7 @@ from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
     save_state_markdown,
+    state_load,
     state_update_progress,
     state_validate,
     sync_state_json_core,
@@ -130,6 +131,94 @@ def test_sync_state_json_core_preserves_markdown_round_trip_sections(tmp_path: P
     assert result["pending_todos"] == ["Verify normalization", "Check sign convention"]
 
 
+def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_is_legacy(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / ".gpd"
+
+    existing = default_state_dict()
+    existing["position"]["current_phase"] = "03"
+    existing["position"]["status"] = "Executing"
+    existing["approximations"] = [
+        {
+            "name": "Large-N expansion",
+            "validity_range": "N >> 1",
+            "controlling_param": "1/N",
+            "current_value": "0.1",
+            "status": "valid",
+        }
+    ]
+    existing["convention_lock"] = {"metric_signature": "-+++", "custom_conventions": {"branch_cut": "principal"}}
+    existing["propagated_uncertainties"] = [
+        {
+            "quantity": "m",
+            "value": "1.00",
+            "uncertainty": "0.02",
+            "phase": "03",
+            "method": "fit",
+        }
+    ]
+    existing["pending_todos"] = ["Verify normalization"]
+    (planning / "state.json").write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+    legacy_markdown = """\
+# Research State
+
+## Project Reference
+
+See: .gpd/PROJECT.md (updated 2026-03-08)
+
+**Core research question:** What is the mass gap?
+**Current focus:** Lattice study
+
+## Current Position
+
+**Current Phase:** 03
+**Status:** Executing
+**Progress:** [####......] 40%
+
+## Active Calculations
+
+None yet.
+
+## Intermediate Results
+
+None yet.
+
+## Open Questions
+
+None yet.
+
+## Performance Metrics
+
+| Label | Duration | Tasks | Files |
+| ----- | -------- | ----- | ----- |
+
+## Accumulated Context
+
+### Decisions
+
+None yet.
+
+### Blockers/Concerns
+
+None yet.
+
+## Session Continuity
+
+**Last session:** —
+**Stopped at:** —
+**Resume file:** —
+"""
+
+    result = sync_state_json_core(cwd, legacy_markdown)
+
+    assert result["approximations"] == existing["approximations"]
+    assert result["convention_lock"]["metric_signature"] == "-+++"
+    assert result["convention_lock"]["custom_conventions"] == {"branch_cut": "principal"}
+    assert result["propagated_uncertainties"] == existing["propagated_uncertainties"]
+    assert result["pending_todos"] == existing["pending_todos"]
+
+
 def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / ".gpd"
@@ -223,3 +312,16 @@ def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) 
     assert result.valid is True
     assert not any("convention_lock" in issue for issue in result.issues)
     assert not any("convention_lock" in warning for warning in result.warnings)
+
+
+def test_state_load_reports_json_backed_state_as_existing_without_state_md(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / ".gpd"
+    state = default_state_dict()
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+    loaded = state_load(cwd)
+
+    assert loaded.state_exists is True
+    assert loaded.state == state
+    assert loaded.state_raw == ""

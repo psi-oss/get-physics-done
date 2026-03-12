@@ -249,6 +249,31 @@ class TestCollectSummaries:
         summaries = collect_summaries(tmp_path)
         assert len(summaries) == 0
 
+    def test_skips_invalid_utf8_summary_files(self, tmp_path: Path) -> None:
+        bad_phase_dir = tmp_path / ".gpd" / "phases" / "01-bad"
+        bad_phase_dir.mkdir(parents=True)
+        (bad_phase_dir / "01-01-SUMMARY.md").write_bytes(b"\xff\xfe\x00\x80invalid")
+
+        good_phase_dir = tmp_path / ".gpd" / "phases" / "02-good"
+        good_phase_dir.mkdir(parents=True)
+        (good_phase_dir / "02-01-SUMMARY.md").write_text(
+            dedent("""\
+            ---
+            provides:
+              - valid-result
+            ---
+            # Phase 02 Summary
+
+            This summary should still be collected.
+        """)
+        )
+
+        summaries = collect_summaries(tmp_path)
+
+        assert len(summaries) == 1
+        assert summaries[0].phase in ("2", "02")
+        assert summaries[0].file == "02-01-SUMMARY.md"
+
 
 # ─── query ───────────────────────────────────────────────────────────────────────
 

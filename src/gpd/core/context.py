@@ -15,16 +15,9 @@ from pathlib import Path
 
 from gpd.adapters import iter_adapters
 from gpd.adapters.install_utils import AGENTS_DIR_NAME, FLAT_COMMANDS_DIR_NAME, GPD_INSTALL_DIR_NAME, HOOKS_DIR_NAME
-from gpd.core.config import (
-    GPDProjectConfig,
-    resolve_agent_tier,
-)
-from gpd.core.config import (
-    load_config as _load_config_structured,
-)
-from gpd.core.config import (
-    resolve_model as _resolve_model_canonical,
-)
+from gpd.core.config import GPDProjectConfig, resolve_agent_tier
+from gpd.core.config import load_config as _load_config_structured
+from gpd.core.config import resolve_model as _resolve_model_canonical
 from gpd.core.constants import (
     AGENT_ID_FILENAME,
     CONFIG_FILENAME,
@@ -51,24 +44,15 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
+from gpd.core.state import load_state_json as _load_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
 )
-from gpd.core.utils import (
-    is_phase_complete as _is_phase_complete,
-)
-from gpd.core.utils import (
-    phase_normalize as _phase_normalize_impl,
-)
-from gpd.core.utils import (
-    phase_sort_key as _phase_sort_key,
-)
-from gpd.core.utils import (
-    safe_read_file as _safe_read_file,
-)
-from gpd.core.utils import (
-    safe_read_file_truncated as _safe_read_file_truncated,
-)
+from gpd.core.utils import is_phase_complete as _is_phase_complete
+from gpd.core.utils import phase_normalize as _phase_normalize_impl
+from gpd.core.utils import phase_sort_key as _phase_sort_key
+from gpd.core.utils import safe_read_file as _safe_read_file
+from gpd.core.utils import safe_read_file_truncated as _safe_read_file_truncated
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +107,11 @@ __all__ = [
 def _path_exists(cwd: Path, target: str) -> bool:
     """Check if a relative path exists under cwd."""
     return (cwd / target).exists()
+
+
+def _state_exists(cwd: Path) -> bool:
+    """Return whether the project has recoverable state from JSON or STATE.md."""
+    return _load_state_json(cwd) is not None
 
 
 def _generate_slug(text: str | None) -> str | None:
@@ -355,7 +344,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         "milestone_name": milestone["name"],
         "milestone_slug": _generate_slug(milestone["name"]),
         # File existence
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "config_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{CONFIG_FILENAME}"),
         # Platform
@@ -530,7 +519,7 @@ def init_new_milestone(cwd: Path) -> dict:
         # File existence
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         # Platform
         "platform": _detect_platform(cwd),
     }
@@ -598,7 +587,7 @@ def init_resume(cwd: Path) -> dict:
 
     return {
         # File existence
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
@@ -678,7 +667,7 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "plan_count": len(phase_info.get("plans", [])) if phase_info else 0,
         # File existence
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
         # Platform
         "platform": _detect_platform(cwd),
@@ -807,7 +796,7 @@ def init_milestone_op(cwd: Path) -> dict:
         # File existence
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         "milestones_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{MILESTONES_DIR_NAME}"),
         "phases_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PHASES_DIR_NAME}"),
         # Platform
@@ -942,7 +931,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         # File existence
         "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_exists": _state_exists(cwd),
         # Platform
         "platform": _detect_platform(cwd),
     }
