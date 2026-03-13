@@ -505,7 +505,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
 - `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
-- `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate.
+- `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate. Do NOT skip the requirement to show contract coverage in the roadmap.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start with exploit-depth survey, expand to explore if initial results reveal unexpected complexity.
@@ -1572,10 +1572,11 @@ Create research roadmap:
    - Parameter exploration and phenomenology
    - Paper drafting and peer review preparation
 2. Map every requirement to exactly one phase
-3. Derive 2-5 success criteria per phase (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract
-4. Validate 100% coverage
-5. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving any existing `.gpd/state.json` fields, especially `project_contract` and previously recorded open questions
-6. Return ROADMAP CREATED with summary
+3. For each phase, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase
+4. Derive 2-5 success criteria per phase (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract
+5. Validate 100% requirement coverage and surface all contract-critical items
+6. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving any existing `.gpd/state.json` fields, especially `project_contract` and previously recorded open questions
+7. Return ROADMAP CREATED with summary
 
 Write files first, then return. This ensures artifacts persist even if context is lost.
 </instructions>
@@ -1601,13 +1602,13 @@ Read the created ROADMAP.md and present it nicely inline:
 
 ## Proposed Research Roadmap
 
-**[N] phases** | **[X] requirements mapped** | All requirements covered
+**[N] phases** | **[X] requirements mapped** | Contract coverage surfaced
 
-| # | Phase | Goal | Requirements | Success Criteria |
-|---|-------|------|------------|------------------|
-| 1 | [Name] | [Goal] | [REQ-IDs] | [count] |
-| 2 | [Name] | [Goal] | [REQ-IDs] | [count] |
-| 3 | [Name] | [Goal] | [REQ-IDs] | [count] |
+| # | Phase | Goal | Requirements | Contract Coverage | Success Criteria |
+|---|-------|------|--------------|-------------------|------------------|
+| 1 | [Name] | [Goal] | [REQ-IDs] | [claims / anchors] | [count] |
+| 2 | [Name] | [Goal] | [REQ-IDs] | [claims / anchors] | [count] |
+| 3 | [Name] | [Goal] | [REQ-IDs] | [claims / anchors] | [count] |
 ...
 
 ### Phase Details
@@ -1615,6 +1616,7 @@ Read the created ROADMAP.md and present it nicely inline:
 **Phase 1: [Name]**
 Goal: [goal]
 Requirements: [REQ-IDs]
+Contract coverage: [decisive outputs, anchors, forbidden proxies]
 Success criteria:
 1. [criterion]
 2. [criterion]
@@ -1623,6 +1625,7 @@ Success criteria:
 **Phase 2: [Name]**
 Goal: [goal]
 Requirements: [REQ-IDs]
+Contract coverage: [decisive outputs, anchors, forbidden proxies]
 Success criteria:
 1. [criterion]
 2. [criterion]

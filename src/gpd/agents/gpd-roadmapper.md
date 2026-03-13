@@ -24,7 +24,9 @@ Your job: Transform research objectives into a phase structure that advances the
 **Core responsibilities:**
 
 - Derive phases from research objectives (not impose arbitrary structure)
+- Map approved contract items to the phases that advance them
 - Validate 100% objective coverage (no orphans)
+- Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
 - Create success criteria (2-5 verifiable outcomes per phase)
 - Initialize STATE.md (project memory)
@@ -41,9 +43,9 @@ Your job: Transform research objectives into a phase structure that advances the
 
 | Autonomy | Roadmapper Behavior |
 |---|---|
-| **babysit** | Present the phase breakdown and dependency structure for user approval before writing `ROADMAP.md`. Checkpoint on any scope question and let the user choose between alternative decompositions. |
-| **balanced** | Create a complete `ROADMAP.md` independently. Choose phase granularity and ordering based on dependency analysis, add obvious risk-mitigation phases, and pause only if the goals are ambiguous or multiple decompositions are genuinely plausible. |
-| **yolo** | Minimal roadmap: linear phase sequence, skip dependency DAG analysis, omit risk mitigation phases. Focus on the shortest path from problem statement to result. Still require at least one verification phase. |
+| **babysit** | Present the phase breakdown and dependency structure for user approval before writing `ROADMAP.md`. Checkpoint on any scope question and let the user choose between alternative decompositions. Still surface contract coverage for every phase. |
+| **balanced** | Create a complete `ROADMAP.md` independently. Choose phase granularity and ordering based on dependency analysis, add obvious risk-mitigation phases, and pause only if the goals are ambiguous or multiple decompositions are genuinely plausible. Keep objective coverage and contract coverage explicit. |
+| **yolo** | Use the shortest viable roadmap, but do NOT drop contract coverage, anchors, or forbidden-proxy visibility. Compression may reduce ceremony, not the requirement to show where decisive contract items are handled. Still require at least one verification phase. |
 
 </autonomy_awareness>
 
@@ -55,7 +57,7 @@ The research mode (from `.gpd/config.json` field `research_mode`, default: `"bal
 
 - **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. 8-15 phases.
 - **balanced**: Linear phase sequence with verification checkpoints. Single approach. 5-10 phases.
-- **exploit**: Minimal roadmap. Shortest path from problem to result. 3-6 phases. Pure execution.
+- **exploit**: Minimal roadmap. Shortest path from problem to result. 3-6 phases. Pure execution, but still explicit about contract coverage, anchors, and forbidden proxies.
 
 </research_mode_awareness>
 
@@ -65,11 +67,12 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 | Output             | How Plan-Phase Uses It                    |
 | ------------------ | ----------------------------------------- |
 | Phase goals        | Decomposed into executable research plans |
-| Success criteria   | Inform must_haves derivation              |
+| Success criteria   | Inform contract claims, acceptance tests, and derived must_haves |
 | Objective mappings | Ensure plans cover phase scope            |
+| Contract coverage  | Tells the planner which decisive outputs, anchors, and forbidden proxies a phase must carry |
 | Dependencies       | Order plan execution                      |
 
-**Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks.
+**Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks. Keep `Requirements` and `Contract Coverage` adjacent but distinct: requirements explain why the phase exists, contract coverage explains what decisive part of the approved contract the phase advances.
 
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
@@ -799,15 +802,15 @@ When presenting to user for approval:
 
 **Phases:** [N]
 **Depth:** [from config]
-**Coverage:** [X]/[Y] objectives mapped
+**Coverage:** [X]/[Y] objectives mapped | [A]/[A] contract items surfaced
 
 ### Phase Structure
 
-| Phase                      | Goal   | Objectives                | Success Criteria |
-| -------------------------- | ------ | ------------------------- | ---------------- |
-| 1 - Foundations            | [goal] | FORM-01, FORM-02          | 3 criteria       |
-| 2 - Analytical Calculation | [goal] | CALC-01, CALC-02, CALC-03 | 4 criteria       |
-| 3 - Numerical Validation   | [goal] | NUM-01, NUM-02, VAL-01    | 3 criteria       |
+| Phase                      | Goal   | Objectives                | Contract Items | Key Anchors | Success Criteria |
+| -------------------------- | ------ | ------------------------- | -------------- | ----------- | ---------------- |
+| 1 - Foundations            | [goal] | FORM-01, FORM-02          | [claim/deliv]  | [refs]      | 3 criteria       |
+| 2 - Analytical Calculation | [goal] | CALC-01, CALC-02, CALC-03 | [claim/deliv]  | [refs]      | 4 criteria       |
+| 3 - Numerical Validation   | [goal] | NUM-01, NUM-02, VAL-01    | [claim/deliv]  | [refs]      | 3 criteria       |
 
 ### Success Criteria Preview
 
@@ -833,6 +836,8 @@ When presenting to user for approval:
 
 check All [X] v1 objectives mapped
 check No orphaned objectives
+check All decisive contract items surfaced
+check No orphaned anchors or forbidden proxies
 
 ### Awaiting
 
@@ -848,6 +853,7 @@ Approve roadmap or provide feedback for revision.
 Orchestrator provides:
 
 - PROJECT.md content (central physics question, scope, constraints)
+- state.json / approved project contract content (decisive outputs, anchors, forbidden proxies)
 - REQUIREMENTS.md content (v1 research objectives with REQ-IDs)
 - research/SUMMARY.md content (if exists - literature review, known results, suggested approaches)
 - config.json (depth setting)
@@ -884,6 +890,7 @@ If research/SUMMARY.md provided:
 - Use as input, not mandate
 
 Literature context informs phase identification but objectives drive coverage.
+Approved contract context informs contract coverage and anchor visibility.
 
 ## Step 4: Identify Phases
 
@@ -892,8 +899,9 @@ Apply phase identification methodology:
 1. Group objectives by natural research milestones
 2. Identify dependencies between groups (formalism before calculation, calculation before numerics)
 3. Create phases that deliver coherent, verifiable research outcomes
-4. Check depth setting for compression guidance
-5. Identify backtracking triggers between phases
+4. Map decisive contract items, anchors, and forbidden proxies to those phases
+5. Check depth setting for compression guidance
+6. Identify backtracking triggers between phases
 
 ## Step 5: Derive Success Criteria
 
@@ -903,14 +911,17 @@ For each phase, apply goal-backward:
 2. Derive 2-5 verifiable outcomes (physics-grounded)
 3. Apply relevant criteria from the physics success criteria taxonomy
 4. Cross-check against objectives
-5. Flag any gaps
-6. Define backtracking conditions
+5. Add a `Contract Coverage` view naming decisive contract items, deliverables, anchor coverage, and forbidden proxies
+6. Flag any gaps
+7. Define backtracking conditions
 
 ## Step 6: Validate Coverage
 
-Verify 100% objective mapping:
+Verify 100% objective mapping and contract-critical coverage:
 
 - Every v1 objective -> exactly one phase
+- Every decisive contract item -> at least one phase
+- Every required anchor / baseline / user-critical prior output -> surfaced in at least one phase's contract coverage
 - No orphans, no duplicates
 
 If gaps found, include in draft for user decision.
@@ -919,7 +930,7 @@ If gaps found, include in draft for user decision.
 
 **Write files first, then return.** This ensures artifacts persist even if context is lost.
 
-1. **Write ROADMAP.md** using output format
+1. **Write ROADMAP.md** using output format, including `## Contract Overview` and per-phase `**Contract Coverage:**`
 
 2. **Write STATE.md** using output format
 
@@ -935,7 +946,7 @@ After the roadmap is created, the orchestrator should spawn `gpd-notation-coordi
 
 Return `## ROADMAP CREATED` with summary of what was written.
 
-## Step 9: Handle Revision (if needed)
+## Step 10: Handle Revision (if needed)
 
 If orchestrator provides revision feedback:
 
@@ -954,7 +965,7 @@ The roadmap is a living document. Re-invoke the roadmapper when:
 
 **Automatic triggers (detected by execute-phase orchestrator):**
 - Executor returns Rule 4 (Methodological) deviation
-- Verification finds > 50% of must-haves failing
+- Verification finds > 50% of contract-critical claims / deliverables / anchors failing
 - A computation proves infeasible (detected by DESIGN BLOCKED returns)
 
 **Manual triggers (user-initiated):**
@@ -993,12 +1004,12 @@ When files are written and returning to orchestrator:
 
 **Phases:** {N}
 **Depth:** {from config}
-**Coverage:** {X}/{X} objectives mapped check
+**Coverage:** {X}/{X} objectives mapped check | {A}/{A} contract items surfaced
 
-| Phase      | Goal   | Objectives |
-| ---------- | ------ | ---------- |
-| 1 - {name} | {goal} | {obj-ids}  |
-| 2 - {name} | {goal} | {obj-ids}  |
+| Phase      | Goal   | Objectives | Contract Items | Key Anchors |
+| ---------- | ------ | ---------- | -------------- | ----------- |
+| 1 - {name} | {goal} | {obj-ids}  | {contract-items} | {anchors} |
+| 2 - {name} | {goal} | {obj-ids}  | {contract-items} | {anchors} |
 
 ### Success Criteria Preview
 
@@ -1053,12 +1064,12 @@ After incorporating user feedback and updating files:
 
 ### Updated Summary
 
-| Phase      | Goal   | Objectives |
-| ---------- | ------ | ---------- |
-| 1 - {name} | {goal} | {count}    |
-| 2 - {name} | {goal} | {count}    |
+| Phase      | Goal   | Objectives | Contract Items | Key Anchors |
+| ---------- | ------ | ---------- | -------------- | ----------- |
+| 1 - {name} | {goal} | {count}    | {contract-items} | {anchors} |
+| 2 - {name} | {goal} | {count}    | {contract-items} | {anchors} |
 
-**Coverage:** {X}/{X} objectives mapped check
+**Coverage:** {X}/{X} objectives mapped check | {A}/{A} contract items surfaced
 
 ### Ready for Planning
 

@@ -243,6 +243,21 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="Invalid contract frontmatter"):
             parse_contract_block(content)
 
+    def test_semantically_incomplete_contract_raises(self):
+        content = (
+            "---\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "---\n\nBody."
+        )
+        with pytest.raises(FrontmatterValidationError, match="missing acceptance_tests"):
+            parse_contract_block(content)
+
 
 # ---------------------------------------------------------------------------
 # validate_frontmatter
@@ -251,18 +266,7 @@ class TestParseContractBlock:
 
 class TestValidateFrontmatter:
     def test_valid_plan(self):
-        content = (
-            "---\n"
-            "phase: 01-test\n"
-            "plan: 01\n"
-            "type: execute\n"
-            "wave: 1\n"
-            "depends_on: []\n"
-            "files_modified: []\n"
-            "interactive: false\n"
-            "must_haves: {}\n"
-            "---\n\nBody."
-        )
+        content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
         result = validate_frontmatter(content, "plan")
         assert isinstance(result, FrontmatterValidation)
         assert result.valid is True
@@ -286,6 +290,7 @@ class TestValidateFrontmatter:
             "depends-on: []\n"
             "files-modified: []\n"
             "interactive: false\n"
+            "contract: {}\n"
             "must-haves: {}\n"
             "---\n\nBody."
         )
@@ -293,7 +298,7 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert "depends_on" in result.missing
         assert "files_modified" in result.missing
-        assert "must_haves" in result.missing
+        assert result.errors
 
     def test_valid_summary(self):
         content = "---\nphase: 01\nplan: 01\ndepth: standard\nprovides: []\ncompleted: 2025-01-01\n---\n\nBody."
@@ -306,6 +311,23 @@ class TestValidateFrontmatter:
         assert result.valid is True
         assert result.errors == []
         assert "must_haves" not in result.missing
+
+    def test_plan_without_contract_is_invalid(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "must_haves: {}\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert "contract" in result.missing
 
     def test_invalid_contract_marks_plan_invalid(self):
         content = (
@@ -325,6 +347,201 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "plan")
         assert result.valid is False
         assert result.errors
+
+    def test_incomplete_plan_contract_marks_plan_invalid(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main figure\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert any("missing acceptance_tests" in error for error in result.errors)
+        assert any("missing references" in error for error in result.errors)
+        assert any("missing forbidden_proxies" in error for error in result.errors)
+        assert any("missing uncertainty_markers.disconfirming_observations" in error for error in result.errors)
+
+    def test_incomplete_plan_contract_requires_must_surface_anchor(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-main]\n"
+            "      required_actions: [read, compare]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches benchmark within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match\n"
+            "      reason: Not decisive\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark mismatch after normalization fix]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert any("must_surface=true" in error for error in result.errors)
+
+    def test_incomplete_plan_contract_requires_must_surface_anchor_metadata(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      must_surface: true\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches benchmark within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match\n"
+            "      reason: Not decisive\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark mismatch after normalization fix]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert any("missing required_actions" in error for error in result.errors)
+        assert any("missing applies_to" in error for error in result.errors)
+
+    def test_incomplete_plan_contract_rejects_unknown_must_read_ref(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-missing]\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-main]\n"
+            "      must_surface: true\n"
+            "      required_actions: [read, compare]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches benchmark within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match\n"
+            "      reason: Not decisive\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark mismatch after normalization fix]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert any("must_read_refs references unknown reference ref-missing" in error for error in result.errors)
 
     def test_valid_verification(self):
         content = "---\nphase: 01\nverified: 2025-01-01\nstatus: passed\nscore: 5/5\n---\n\nBody."
@@ -649,7 +866,44 @@ class TestVerifyPlanStructure:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
-            "must_haves: {}\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value within tolerance\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main benchmark figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-main]\n"
+            "      must_surface: true\n"
+            "      required_actions: [read, compare, cite]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches reference within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match without numerical comparison\n"
+            "      reason: Would allow false progress without the decisive benchmark\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]\n"
             "---\n\n"
             '<task type="code">\n'
             "  <name>Implement feature</name>\n"
@@ -682,7 +936,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ninteractive: false\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
             "---\n\n"
             '<task type="code">\n'
             "  <action>Do something</action>\n"
@@ -699,7 +953,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 2\n"
-            "depends_on: []\nfiles_modified: []\ninteractive: false\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
             "---\n\nBody.\n"
         )
         f = tmp_path / "plan.md"
@@ -713,7 +967,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ninteractive: false\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
             "---\n\n"
             '<task type="checkpoint">\n'
             "  <name>Review</name>\n"
@@ -731,7 +985,7 @@ class TestVerifyPlanStructure:
         content = (
             "---\n"
             "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ninteractive: true\nmust_haves: {}\n"
+            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: true\nmust_haves: {}\n"
             "---\n\n"
             '<task type="code">\n'
             "  <name>Implement feature</name>\n"
@@ -745,6 +999,169 @@ class TestVerifyPlanStructure:
         f.write_text(content)
         result = verify_plan_structure(tmp_path, f)
         assert any("interactive is true" in e for e in result.errors)
+
+    def test_incomplete_contract_is_reported(self, tmp_path):
+        from gpd.core.frontmatter import verify_plan_structure
+
+        content = (
+            "---\n"
+            "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
+            "depends_on: []\nfiles_modified: []\ninteractive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main figure\n"
+            "---\n\n"
+            '<task type="code">\n'
+            "  <name>Implement feature</name>\n"
+            "  <action>Write the code</action>\n"
+            "</task>\n"
+        )
+        f = tmp_path / "plan.md"
+        f.write_text(content)
+        result = verify_plan_structure(tmp_path, f)
+        assert result.valid is False
+        assert any("Invalid contract: missing acceptance_tests" in error for error in result.errors)
+
+    def test_warns_when_must_haves_drift_from_contract(self, tmp_path):
+        from gpd.core.frontmatter import verify_plan_structure
+
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value within tolerance\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main benchmark figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-main]\n"
+            "      must_surface: true\n"
+            "      required_actions: [read, compare, cite]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches reference within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match without numerical comparison\n"
+            "      reason: Would allow false progress without the decisive benchmark\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]\n"
+            "must_haves:\n"
+            "  truths: [Wrong compatibility view]\n"
+            "---\n\n"
+            '<task type="code">\n'
+            "  <name>Implement feature</name>\n"
+            "  <files>src/main.py</files>\n"
+            "  <action>Write the code</action>\n"
+            "  <verify>Run tests</verify>\n"
+            "  <done>Tests pass</done>\n"
+            "</task>\n"
+        )
+        f = tmp_path / "plan.md"
+        f.write_text(content)
+        result = verify_plan_structure(tmp_path, f)
+        assert result.valid is True
+        assert any("must_haves does not match" in warning for warning in result.warnings)
+
+    def test_invalid_reference_targets_are_reported(self, tmp_path):
+        from gpd.core.frontmatter import verify_plan_structure
+
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value within tolerance\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main benchmark figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-missing]\n"
+            "      must_surface: true\n"
+            "      required_actions: [read, compare, cite]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches reference within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match without numerical comparison\n"
+            "      reason: Would allow false progress without the decisive benchmark\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]\n"
+            "---\n\n"
+            '<task type="code">\n'
+            "  <name>Implement feature</name>\n"
+            "  <files>src/main.py</files>\n"
+            "  <action>Write the code</action>\n"
+            "  <verify>Run tests</verify>\n"
+            "  <done>Tests pass</done>\n"
+            "</task>\n"
+        )
+        f = tmp_path / "plan.md"
+        f.write_text(content)
+        result = verify_plan_structure(tmp_path, f)
+        assert result.valid is False
+        assert any("applies_to unknown target claim-missing" in error for error in result.errors)
 
 
 

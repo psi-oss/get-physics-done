@@ -27,7 +27,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation after requirements gathering and before roadmap generation.
 - `autonomy=balanced` (default): Execute the full pipeline automatically and pause only if milestone scope is ambiguous or requirements conflict with prior work.
-- `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap.
+- `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap, but do NOT skip phase-level contract coverage and anchor visibility.
 - `research_mode=explore`: Broader research survey for new milestone, consider alternative approaches, include speculative phases.
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.
 - `research_mode=adaptive`: Start focused, expand if gap analysis reveals significant unknowns.
@@ -349,6 +349,7 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 <files_to_read>
 Read these files using the file_read tool before proceeding:
 - .gpd/PROJECT.md
+- .gpd/state.json
 - .gpd/REQUIREMENTS.md
 - .gpd/research/SUMMARY.md (if exists, skip if not found)
 - .gpd/config.json
@@ -358,12 +359,13 @@ Read these files using the file_read tool before proceeding:
 <instructions>
 Create research roadmap for milestone v[X.Y]:
 1. Start phase numbering from [N]
-2. Derive phases from THIS MILESTONE's objectives only
+2. Derive phases from THIS MILESTONE's objectives and the approved project contract
 3. Map every objective to exactly one phase
-4. Derive 2-5 success criteria per phase (concrete, verifiable results)
-5. Validate 100% coverage
-6. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability)
-7. Return ROADMAP CREATED with summary
+4. For each phase, include explicit contract coverage in ROADMAP.md showing decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase
+5. Derive 2-5 success criteria per phase (concrete, verifiable results)
+6. Validate 100% objective coverage and surface all contract-critical items touched by this milestone
+7. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving existing `.gpd/state.json` fields, especially `project_contract`
+8. Return ROADMAP CREATED with summary
 
 Write files first, then return.
 </instructions>
@@ -381,17 +383,18 @@ Write files first, then return.
 ```
 ## Proposed Research Roadmap
 
-**[N] phases** | **[X] objectives mapped** | All covered
+**[N] phases** | **[X] objectives mapped** | Contract coverage surfaced
 
-| # | Phase | Goal | Objectives | Success Criteria |
-|---|-------|------|------------|------------------|
-| [N] | [Name] | [Goal] | [REQ-IDs] | [count] |
+| # | Phase | Goal | Objectives | Contract Coverage | Success Criteria |
+|---|-------|------|------------|-------------------|------------------|
+| [N] | [Name] | [Goal] | [REQ-IDs] | [claims / anchors] | [count] |
 
 ### Phase Details
 
 **Phase [N]: [Name]**
 Goal: [goal]
 Objectives: [REQ-IDs]
+Contract coverage: [decisive outputs, anchors, forbidden proxies]
 Success criteria:
 1. [criterion]
 2. [criterion]

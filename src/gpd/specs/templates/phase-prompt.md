@@ -36,7 +36,47 @@ approximations:
     breaks_when: "failure regime"
     check: "verification that guards the approximation"
 
+contract:
+  scope:
+    question: "[The decisive question this plan advances]"
+  claims:
+    - id: "claim-main"
+      statement: "[Physics statement this plan must establish]"
+      deliverables: ["deliv-main"]
+      acceptance_tests: ["test-main"]
+      references: ["ref-main"]
+  deliverables:
+    - id: "deliv-main"
+      kind: "figure"
+      path: "path/to/output"
+      description: "[Primary artifact this plan produces]"
+  references:
+    - id: "ref-main"
+      kind: "paper"
+      locator: "[Citation, dataset identifier, or prior artifact path]"
+      role: "benchmark"
+      why_it_matters: "[What this anchor constrains]"
+      applies_to: ["claim-main"]
+      must_surface: true
+      required_actions: ["read", "compare", "cite"]
+  acceptance_tests:
+    - id: "test-main"
+      subject: "claim-main"
+      kind: "benchmark"
+      procedure: "[How this plan will check the claim]"
+      pass_condition: "[Concrete decisive pass condition]"
+      evidence_required: ["deliv-main", "ref-main"]
+  forbidden_proxies:
+    - id: "fp-main"
+      subject: "claim-main"
+      proxy: "[What might look successful but should not count]"
+      reason: "[Why this would be false progress]"
+  uncertainty_markers:
+    weakest_anchors: ["[Least-certain anchor still carrying load]"]
+    disconfirming_observations: ["[Observation that would force a rethink]"]
+
 must_haves:
+  # Derived compatibility view of the contract above. Keep during transition.
   truths:
     - "Testable physics statement the executor must establish"
   artifacts:
@@ -117,6 +157,7 @@ These fields must always be present:
 - `files_modified`
 - `interactive`
 - `conventions`
+- `contract`
 - `must_haves`
 
 Add `dimensional_check` whenever the plan produces quantitative results. Add `approximations` whenever any truncation, asymptotic regime, discretization, or numerical cutoff is active.
@@ -143,6 +184,7 @@ For `plan depth: light`, keep the same frontmatter but reduce the body to:
 - `<success_criteria>`
 
 Do not omit `must_haves`, conventions, or approximation validity just because the plan is light.
+The `contract` block is still required in light mode; `must_haves` remains the derived compatibility view.
 
 ---
 
@@ -165,6 +207,45 @@ conventions:
 
 dimensional_check:
   Pi_munu: "[mass^2]"
+
+contract:
+  scope:
+    question: What benchmark must this plan recover?
+  claims:
+    - id: claim-polarization
+      statement: Vacuum polarization tensor is transverse
+      deliverables: [deliv-vac-pol]
+      acceptance_tests: [test-transversality]
+      references: [ref-textbook]
+  deliverables:
+    - id: deliv-vac-pol
+      kind: derivation
+      path: derivations/vacuum-polarization.tex
+      description: One-loop vacuum polarization Pi^{mu nu}(q)
+  references:
+    - id: ref-textbook
+      kind: paper
+      locator: Peskin & Schroeder, Ch. 7
+      role: definition
+      why_it_matters: Standard convention and benchmark derivation
+      applies_to: [claim-polarization]
+      must_surface: true
+      required_actions: [read, use, cite]
+  acceptance_tests:
+    - id: test-transversality
+      subject: claim-polarization
+      kind: consistency
+      procedure: Contract Pi^{mu nu} with q_mu
+      pass_condition: q_mu Pi^{mu nu} = 0
+      evidence_required: [deliv-vac-pol, ref-textbook]
+  forbidden_proxies:
+    - id: fp-clean-algebra
+      subject: claim-polarization
+      proxy: Clean-looking algebra without explicit transversality check
+      reason: Would not establish the decisive gauge-consistency result
+  uncertainty_markers:
+    weakest_anchors: ["Choice of gauge-fixing convention"]
+    disconfirming_observations: ["Longitudinal term survives after simplification"]
 
 must_haves:
   truths:

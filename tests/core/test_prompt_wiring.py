@@ -285,6 +285,7 @@ def test_planner_templates_exist():
     assert "template_version: 1" in planner_prompt.read_text(encoding="utf-8")
     assert "template_version: 1" in phase_prompt.read_text(encoding="utf-8")
     assert "<planning_context>" in planner_prompt.read_text(encoding="utf-8")
+    assert "contract:" in phase_prompt.read_text(encoding="utf-8")
     assert "must_haves:" in phase_prompt.read_text(encoding="utf-8")
 
 
@@ -600,6 +601,49 @@ def test_planning_and_phase_templates_surface_active_reference_context() -> None
     assert "**Project Contract:** {project_contract}" in workflow_text
     assert "**Active References:** {active_reference_context}" in workflow_text
     assert "**Anchor coverage:** Required references, baselines, and prior outputs are surfaced" in workflow_text
+
+
+def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> None:
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "Light mode changes verbosity, not contract completeness." in planner_prompt
+    assert "Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness." in planner_prompt
+    assert "Profiles may compress detail, but they do NOT relax contract completeness." in planner_agent
+    assert "All modes still require contract completeness, decisive outputs, required anchors, forbidden-proxy handling, and disconfirming paths before execution starts." in workflow_text
+    assert "Human review does not replace those requirements." in checker_agent
+
+
+def test_plan_checker_requires_contract_gate_and_reference_artifacts() -> None:
+    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "## Dimension 0: Contract Gate" in checker_agent
+    assert "contract_decisive_output" in checker_agent
+    assert "contract_anchor_coverage" in checker_agent
+    assert "proxy_only_success_path" in checker_agent
+    assert "**Reference Artifacts:** {reference_artifacts_content}" in workflow_text
+    assert "**Decisive outputs:** The plan set covers decisive claims and deliverables" in workflow_text
+    assert "**Acceptance tests:** Every decisive claim or deliverable has at least one executable or reviewable test" in workflow_text
+    assert "**Forbidden proxies:** Proxy-only success conditions are rejected explicitly" in workflow_text
+
+
+def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> None:
+    roadmap_template = (TEMPLATES_DIR / "roadmap.md").read_text(encoding="utf-8")
+    roadmapper_agent = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+
+    assert "## Contract Overview" in roadmap_template
+    assert "**Contract Coverage:**" in roadmap_template
+    assert "Contract coverage" in roadmapper_agent
+    assert "forbidden proxies a phase must carry" in roadmapper_agent
+    assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_project
+    assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
+    assert "Do NOT skip the initial scoping-contract approval gate." in new_project
+    assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
 
 
 def test_reference_workflows_require_anchor_registry_propagation() -> None:

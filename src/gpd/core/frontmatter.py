@@ -222,9 +222,15 @@ def parse_contract_block(content: str) -> ResearchContract | None:
     if not isinstance(contract_data, dict):
         return None
     try:
-        return ResearchContract.model_validate(contract_data)
+        contract = ResearchContract.model_validate(contract_data)
     except PydanticValidationError as exc:
         raise FrontmatterValidationError(f"Invalid contract frontmatter: {exc}") from exc
+    issues = _validate_plan_contract(contract)
+    if issues:
+        raise FrontmatterValidationError(
+            "Invalid contract frontmatter: " + "; ".join(issues)
+        )
+    return contract
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +247,7 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "depends_on",
             "files_modified",
             "interactive",
+            "contract",
             "must_haves",
         ],
     },
@@ -270,6 +277,109 @@ def _resolve_field(meta: dict, name: str) -> str | None:
     return name if name in meta else None
 
 
+def _validate_plan_contract(contract: ResearchContract) -> list[str]:
+    """Return completeness issues for contract-backed PLAN.md frontmatter."""
+    issues: list[str] = []
+
+    if not contract.claims:
+        issues.append("missing claims")
+    if not contract.deliverables:
+        issues.append("missing deliverables")
+    if not contract.acceptance_tests:
+        issues.append("missing acceptance_tests")
+    if not contract.references:
+        issues.append("missing references")
+    if not contract.forbidden_proxies:
+        issues.append("missing forbidden_proxies")
+    if not contract.uncertainty_markers.weakest_anchors:
+        issues.append("missing uncertainty_markers.weakest_anchors")
+    if not contract.uncertainty_markers.disconfirming_observations:
+        issues.append("missing uncertainty_markers.disconfirming_observations")
+
+    def _append_duplicate_ids(kind: str, ids: list[str]) -> None:
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for item_id in ids:
+            if item_id in seen:
+                duplicates.add(item_id)
+            seen.add(item_id)
+        for duplicate in sorted(duplicates):
+            issues.append(f"duplicate {kind} id {duplicate}")
+
+    _append_duplicate_ids("claim", [claim.id for claim in contract.claims])
+    _append_duplicate_ids("deliverable", [deliverable.id for deliverable in contract.deliverables])
+    _append_duplicate_ids("acceptance_test", [test.id for test in contract.acceptance_tests])
+    _append_duplicate_ids("reference", [reference.id for reference in contract.references])
+    _append_duplicate_ids("forbidden_proxy", [proxy.id for proxy in contract.forbidden_proxies])
+    _append_duplicate_ids("link", [link.id for link in contract.links])
+
+    observable_ids = {observable.id for observable in contract.observables}
+    claim_ids = {claim.id for claim in contract.claims}
+    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
+    acceptance_test_ids = {test.id for test in contract.acceptance_tests}
+    reference_ids = {reference.id for reference in contract.references}
+    known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+
+    if contract.references and not any(reference.must_surface for reference in contract.references):
+        issues.append("references must include at least one must_surface=true anchor")
+    for must_read_ref in contract.context_intake.must_read_refs:
+        if must_read_ref not in reference_ids:
+            issues.append(f"context_intake.must_read_refs references unknown reference {must_read_ref}")
+
+    for claim in contract.claims:
+        if not claim.deliverables:
+            issues.append(f"claim {claim.id} missing deliverables")
+        if not claim.acceptance_tests:
+            issues.append(f"claim {claim.id} missing acceptance_tests")
+        if not claim.references:
+            issues.append(f"claim {claim.id} missing references")
+        for observable_id in claim.observables:
+            if observable_id not in observable_ids:
+                issues.append(f"claim {claim.id} references unknown observable {observable_id}")
+        for deliverable_id in claim.deliverables:
+            if deliverable_id not in deliverable_ids:
+                issues.append(f"claim {claim.id} references unknown deliverable {deliverable_id}")
+        for test_id in claim.acceptance_tests:
+            if test_id not in acceptance_test_ids:
+                issues.append(f"claim {claim.id} references unknown acceptance test {test_id}")
+        for reference_id in claim.references:
+            if reference_id not in reference_ids:
+                issues.append(f"claim {claim.id} references unknown reference {reference_id}")
+
+    for test in contract.acceptance_tests:
+        if test.subject not in claim_ids and test.subject not in deliverable_ids:
+            issues.append(f"acceptance test {test.id} targets unknown subject {test.subject}")
+        for evidence_id in test.evidence_required:
+            if evidence_id not in known_ids:
+                issues.append(f"acceptance test {test.id} references unknown evidence {evidence_id}")
+
+    for reference in contract.references:
+        if reference.must_surface and not reference.required_actions:
+            issues.append(f"reference {reference.id} is must_surface but missing required_actions")
+        if reference.must_surface and not reference.applies_to:
+            issues.append(f"reference {reference.id} is must_surface but missing applies_to")
+        for applies_to_id in reference.applies_to:
+            if applies_to_id not in claim_ids and applies_to_id not in deliverable_ids:
+                issues.append(f"reference {reference.id} applies_to unknown target {applies_to_id}")
+
+    for forbidden_proxy in contract.forbidden_proxies:
+        if forbidden_proxy.subject not in claim_ids and forbidden_proxy.subject not in deliverable_ids:
+            issues.append(
+                f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}"
+            )
+
+    for link in contract.links:
+        if link.source not in known_ids:
+            issues.append(f"link {link.id} references unknown source {link.source}")
+        if link.target not in known_ids:
+            issues.append(f"link {link.id} references unknown target {link.target}")
+        for verification_id in link.verified_by:
+            if verification_id not in acceptance_test_ids:
+                issues.append(f"link {link.id} references unknown acceptance test {verification_id}")
+
+    return issues
+
+
 @instrument_gpd_function("frontmatter.validate")
 def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidation:
     """Validate frontmatter against a named schema.
@@ -292,9 +402,12 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
 
     if isinstance(meta.get("contract"), dict):
         try:
-            ResearchContract.model_validate(meta["contract"])
+            contract = ResearchContract.model_validate(meta["contract"])
         except PydanticValidationError as exc:
             errors.append(f"contract: {exc}")
+        else:
+            if schema_name == "plan":
+                errors.extend(f"contract: {issue}" for issue in _validate_plan_contract(contract))
 
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,
@@ -542,6 +655,18 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
         if _resolve_field(meta, fname) is None:
             errors.append(f"Missing required frontmatter field: {fname}")
 
+    # Contract-backed validation
+    contract: ResearchContract | None = None
+    if isinstance(meta.get("contract"), dict):
+        try:
+            contract = ResearchContract.model_validate(meta["contract"])
+        except PydanticValidationError as exc:
+            errors.append(f"Invalid contract: {exc}")
+        else:
+            errors.extend(f"Invalid contract: {issue}" for issue in _validate_plan_contract(contract))
+    elif "contract" in meta:
+        errors.append("Invalid contract: expected an object")
+
     # must_haves validation
     must_haves = meta.get("must_haves")
     if must_haves is not None:
@@ -553,6 +678,10 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
                     errors.append("Invalid must_haves: list items must be strings")
             else:
                 errors.append("Invalid must_haves: expected an object or list")
+        elif contract is not None:
+            derived = contract_to_legacy_must_haves(contract).model_dump(by_alias=True)
+            if must_haves != derived:
+                warnings.append("must_haves does not match the derived contract compatibility view")
 
     # Parse task elements
     tasks: list[TaskInfo] = []

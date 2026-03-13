@@ -36,6 +36,7 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 - `research_mode=explore`: Always run research step even if research exists. Expand wave count for thorough coverage.
 - `research_mode=exploit`: Skip research if any prior research exists. Produce minimal wave structure.
 - `research_mode=adaptive`: Run research only if phase complexity score > 3 (heuristic from plan-checker).
+- All modes still require contract completeness, decisive outputs, required anchors, forbidden-proxy handling, and disconfirming paths before execution starts.
 
 **Set shell variables from init JSON:**
 
@@ -505,16 +506,24 @@ Each plan MUST include:
 - **Error budget:** For numerical work, specify target precision and identify dominant error sources
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
 - **Anchor discipline:** If a benchmark, paper, dataset, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
+- **Contract completeness:** Every plan must include claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter
 </physics_planning_requirements>
 
+<contract_requirements>
+If `project_contract` is non-empty:
+
+- Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
+- Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
+- Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
+- `must_haves` must be the compatibility projection of this `contract` block, not a separate free-form invention.
+- Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
+- If the planner cannot determine the right contract slice for the phase, return `## CHECKPOINT REACHED` instead of writing a weak plan.
+</contract_requirements>
+
 <light_mode_instructions>
-**If plan depth is `light`:** Produce simplified plans containing ONLY:
+**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and derived `must_haves`.
 
-- **must_haves** -- goal-backward success criteria
-- **constraints** -- approximation regime, notation conventions, symmetry requirements
-- **high-level approach** -- one paragraph describing the strategy (formalism, method, key steps)
-
-Omit: code snippets, detailed task-by-task implementation steps, file paths, and wave assignments. The light plan is a strategic outline, not an execution script.
+Simplify only the body: one high-level task block per plan, concise verification, concise success criteria. The light plan is a shorter execution script, not a strategic outline that drops required contract fields.
 </light_mode_instructions>
 
 <context_budget_guidance>
@@ -534,20 +543,24 @@ See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed 
 <downstream_consumer>
 Output consumed by /gpd:execute-phase. Plans need:
 
-- Frontmatter (wave, depends_on, files_modified, interactive)
+- Frontmatter (wave, depends_on, files_modified, interactive, contract, must_haves)
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
-- must_haves for goal-backward verification including limiting case checks
+- contract-complete frontmatter before execution starts
+- must_haves as the compatibility projection of the selected contract slice, including limiting case checks
 </downstream_consumer>
 
 <quality_gate>
 
 - [ ] PLAN.md files created in phase directory
 - [ ] Each plan has valid frontmatter
+- [ ] Each plan has a complete contract block (claims, deliverables, references, acceptance tests, forbidden proxies, uncertainty markers)
 - [ ] Tasks are specific and actionable with clear mathematical deliverables
 - [ ] Dependencies correctly identified (including prerequisite derivations)
 - [ ] Waves assigned for parallel execution
 - [ ] must_haves derived from phase goal including limiting case recovery
+- [ ] Required refs, prior outputs, and baselines are surfaced in `<context>` or verification paths
+- [ ] Forbidden proxies are rejected explicitly in `<done>` or `<success_criteria>`
 - [ ] Dimensional analysis check specified for each quantitative result
 - [ ] Validation checkpoints placed after each major derivation step
 </quality_gate>
@@ -597,6 +610,7 @@ Checker prompt:
 **Requirements:** {requirements_content}
 **Project Contract:** {project_contract}
 **Active References:** {active_reference_context}
+**Reference Artifacts:** {reference_artifacts_content}
 
 **Phase Context:**
 IMPORTANT: Plans MUST honor user decisions. Flag as issue if plans contradict.
@@ -619,6 +633,11 @@ In addition to structural checks, verify:
 - [ ] **Independent cross-checks:** At least one independent verification method per major result
 - [ ] **Order-of-magnitude sanity:** Expected scales are stated before detailed calculations
 - [ ] **Anchor coverage:** Required references, baselines, and prior outputs are surfaced where the plan depends on them
+- [ ] **Contract completeness:** Each plan includes decisive claims, deliverables, acceptance tests, forbidden proxies, and uncertainty markers
+- [ ] **Decisive outputs:** The plan set covers decisive claims and deliverables rather than only infrastructure or proxy work
+- [ ] **Acceptance tests:** Every decisive claim or deliverable has at least one executable or reviewable test
+- [ ] **Disconfirming path:** Risky plans name the observation or comparison that would force a rethink
+- [ ] **Forbidden proxies:** Proxy-only success conditions are rejected explicitly
 </physics_verification_criteria>
 
 <expected_output>
@@ -703,6 +722,8 @@ Revision prompt:
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
 **Active References:** {active_reference_context}
+**Project Contract:** {project_contract}
+**Reference Artifacts:** {reference_artifacts_content}
 
 **Phase Context:**
 Revisions MUST still honor user decisions.
@@ -716,6 +737,9 @@ Pay special attention to:
 - Dimensional consistency fixes
 - Missing limiting case checks
 - Approximation validity bounds
+- Missing decisive outputs or deliverables
+- Missing acceptance tests, anchor refs, or forbidden-proxy handling
+- Missing disconfirming paths
 Return what changed.
 </instructions>
 ```

@@ -15,6 +15,12 @@ Template for `.gpd/ROADMAP.md`.
 
 [One paragraph describing the research journey from literature review to submitted paper]
 
+## Contract Overview
+
+| Contract Item | Advanced By Phase(s) | Status |
+| ------------- | -------------------- | ------ |
+| [claim / deliverable / anchor label] | [Phase 1, Phase 3] | [Planned] |
+
 ## Phases
 
 **Phase Numbering:**
@@ -37,6 +43,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Goal:** Establish the state of the art and identify the gap this work fills
 **Depends on:** Nothing (first phase)
 **Requirements:** [REQ-01, REQ-02]
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [survey note, comparison table, baseline artifact]
+- Anchor coverage: [must-read refs, prior outputs, decisive baselines]
+- Forbidden proxies: [what should NOT count as success here]
 **Success Criteria** (what must be TRUE):
 
 1. [Key prior results catalogued with their limitations identified]
@@ -54,6 +65,11 @@ Plans:
 **Goal:** Develop the mathematical framework for the calculation
 **Depends on:** Phase 1
 **Requirements:** [DERV-01, DERV-02, DERV-03]
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [derivation, conventions note, benchmark equation]
+- Anchor coverage: [benchmark refs, prior summaries, required baselines]
+- Forbidden proxies: [e.g. algebra completed without decisive comparison]
 **Success Criteria** (what must be TRUE):
 
 1. [Starting Lagrangian/Hamiltonian written down with all terms justified]
@@ -71,6 +87,11 @@ Plans:
 
 **Goal:** [Address issue discovered during formalism development]
 **Depends on:** Phase 2
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [correction note, replacement derivation, revised benchmark]
+- Anchor coverage: [refreshed anchor set or prior outputs that stay decisive]
+- Forbidden proxies: [what false progress this inserted phase prevents]
 **Success Criteria** (what must be TRUE):
 
 1. [What the correction achieves]
@@ -85,6 +106,11 @@ Plans:
 **Goal:** Obtain the main quantitative results of the project
 **Depends on:** Phase 2
 **Requirements:** [CALC-01, CALC-02, SIMU-01, SIMU-02]
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [figure, dataset, report, derivation]
+- Anchor coverage: [benchmarks, baselines, prior outputs, must-read refs]
+- Forbidden proxies: [e.g. qualitative agreement without decisive measurement]
 **Success Criteria** (what must be TRUE):
 
 1. [Core calculation complete with results in tabular/graphical form]
@@ -103,6 +129,11 @@ Plans:
 **Goal:** Confirm results are correct via independent checks
 **Depends on:** Phase 3
 **Requirements:** [VALD-01, VALD-02, VALD-03]
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [comparison figure, benchmark table, verification note]
+- Anchor coverage: [literature anchors, prior artifacts, baseline checks]
+- Forbidden proxies: [e.g. passing internal consistency only]
 **Success Criteria** (what must be TRUE):
 
 1. [Known limiting cases reproduced to required accuracy]
@@ -120,6 +151,11 @@ Plans:
 **Goal:** Produce a publication-ready manuscript
 **Depends on:** Phase 4
 **Requirements:** [PAPR-01, PAPR-02]
+**Contract Coverage:**
+- Advances: [claim / deliverable labels]
+- Deliverables: [paper draft, figure set, response note]
+- Anchor coverage: [citations, benchmark references, prior outputs to cite]
+- Forbidden proxies: [e.g. polished prose without decisive result traceability]
 **Success Criteria** (what must be TRUE):
 
 1. [Manuscript complete with all figures and tables]
@@ -161,7 +197,7 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 
 - 2-5 observable outcomes per phase (from the researcher's perspective)
 - Cross-checked against requirements during roadmap creation
-- Flow downstream to `must_haves` in plan-phase
+- Flow downstream to plan `contract` first, then to derived `must_haves` in plan-phase
 - Verified by verify-phase after execution
 - Format: "[Result] obtained/derived/verified" or "[Comparison] shows agreement"
 
