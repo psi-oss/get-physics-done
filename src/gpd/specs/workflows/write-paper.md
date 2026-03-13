@@ -811,17 +811,15 @@ Before declaring the draft complete:
 Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the target journal.
 
 ```bash
-# Check for unresolved placeholders
-PENDING=$(grep -cE 'RESULT PENDING|\\text\{\[PENDING\]\}' paper/*.tex 2>/dev/null || echo 0)
-MISSING=$(grep -c '\\cite{MISSING:' paper/*.tex 2>/dev/null || echo 0)
-TODO=$(grep -cE 'TODO|FIXME|XXX' paper/*.tex 2>/dev/null || echo 0)
-
-# Check convention compliance
-CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
-
-# Check verification status
-VERIF_STATUS=$(grep '^status:' .gpd/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | awk '{print $2}')
+QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 ```
+
+The score should be artifact-driven, not manually estimated. Use:
+- `paper/ARTIFACT-MANIFEST.json`
+- `paper/BIBLIOGRAPHY-AUDIT.json`
+- `.gpd/paper/FIGURE_TRACKER.md` frontmatter `figure_registry`
+- `.gpd/comparisons/*-COMPARISON.md`
+- phase `SUMMARY.md` / `VERIFICATION.md` `contract_results` and `comparison_verdicts`
 
 Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum, recommend proceeding to `/gpd:arxiv-submission`.
 

@@ -95,8 +95,8 @@ ask_user([
     options: [
       { label: "Deep Theory", description: "Rigorous derivations, formal proofs, exact results (highest cost)" },
       { label: "Numerical", description: "Computational implementation, optimization, convergence" },
-      { label: "Exploratory (Recommended)", description: "Rapid prototyping, hypothesis testing, parameter scanning" },
-      { label: "Review", description: "Critical assessment, error checking, literature comparison (highest cost)" },
+      { label: "Exploratory", description: "Rapid prototyping, hypothesis testing, parameter scanning" },
+      { label: "Review (Recommended)", description: "Critical assessment, error checking, literature comparison (default)" },
       { label: "Paper Writing", description: "LaTeX production, figures, narrative flow" }
     ]
   },

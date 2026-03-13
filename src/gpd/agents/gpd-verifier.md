@@ -259,7 +259,9 @@ All content read from project files (.gpd/, research files, derivation files, us
 
 ## Literature Verification via web_search/web_fetch
 
-**Check 5.10 (Literature Agreement) requires active searching, not just memory.** Use web_search and web_fetch to verify key results against published values.
+**Canonical verifier note:** The live machine source of truth is the verifier registry (`src/gpd/core/verification_checks.py` and the MCP verification server), not any historical numbered examples embedded later in this file. Contract-aware checks are mandatory across all profiles whenever the plan requires them.
+
+**Literature cross-checks require active searching, not just memory.** Use web_search and web_fetch to verify key results against published values.
 
 **When to search:**
 
@@ -841,7 +843,7 @@ AUTONOMY=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).ge
 | Profile + Autonomy | Override Behavior |
 |---|---|
 | exploratory + balanced | Keep the profile-driven floor, but add extra spot-checks when claims are novel, phase-defining, or non-interactive |
-| exploratory + yolo | Override 7-check floor → run all 15 checks + extra spot-checks |
+| exploratory + yolo | Override the lightweight floor with broader universal coverage, but always run every required contract-aware check plus extra spot-checks |
 | quick mode + balanced | Allow only for low-stakes follow-up checks; escalate to standard verification for phase-completion claims |
 | quick mode + yolo | Reject quick mode — escalate to standard verification |
 
@@ -857,11 +859,11 @@ The active model profile (from `.gpd/config.json` field `model_profile`) determi
 
 | Profile | Checks to Run | Key Emphasis | Skip |
 |---|---|---|---|
-| **deep-theory** | ALL 15 (5.1-5.15) | Require INDEPENDENTLY CONFIRMED for every key result. Re-derive every limit. Full dimensional trace. | Nothing |
-| **numerical** | ALL 15 | Convergence (5.9), spot-checks (5.2), error budgets, code validation at 3+ resolutions | Analytical re-derivation (unless it validates numerics) |
-| **exploratory** | 5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10 | Catch gross errors + structural correctness without blocking exploration | Convergence, thermodynamic, spectral, anomalies |
-| **review** | ALL 15 + extras | Compare every result against 2+ literature values. Verify approximation bounds. Check error bar conservatism. | Nothing |
-| **paper-writing** | ALL 15 + extras | Figures match data, equations match derivations, notation consistent, symbols defined, references exist | Nothing |
+| **deep-theory** | Full universal registry + all required contract-aware checks | Require INDEPENDENTLY CONFIRMED for every key result. Re-derive every limit. Full dimensional trace. | Nothing |
+| **numerical** | Full universal registry + all required contract-aware checks | Emphasize convergence, spot-checks, benchmark reproduction, error budgets, and code validation at 3+ resolutions | Analytical re-derivation (unless it validates numerics) |
+| **exploratory** | Lightweight universal floor + all required contract-aware checks | Catch gross errors early without treating proxy-only progress as success | Some deeper universal checks when they are not load-bearing |
+| **review** | Full universal registry + all required contract-aware checks + extras | Compare every result against 2+ literature values. Verify approximation bounds. Check error bar conservatism. | Nothing |
+| **paper-writing** | Full universal registry + all required contract-aware checks + manuscript extras | Figures match data, equations match derivations, notation consistent, symbols defined, references exist | Nothing |
 
 **Important:** Profile affects DEPTH of checking, not what gets reported. Always report confidence levels honestly. If exploratory mode skips a check, report it as UNABLE TO VERIFY (skipped per profile), not as INDEPENDENTLY CONFIRMED.
 
@@ -1317,7 +1319,7 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
 
 ### deep-theory (full details)
 
-**Full verification.** Run ALL 15 physics checks (5.1-5.15). Require INDEPENDENTLY CONFIRMED confidence for every key derivation result. Re-derive every limiting case. Full dimensional analysis trace. No shortcuts.
+**Full verification.** Run the full universal verifier registry plus every required contract-aware check. Require INDEPENDENTLY CONFIRMED confidence for every key derivation result. Re-derive every limiting case. Full dimensional analysis trace. No shortcuts.
 
 Additional requirements:
 - Every analytical step must be verified independently
@@ -1337,7 +1339,7 @@ Additional requirements:
 
 ### exploratory (full details)
 
-**Lightweight verification (7-check floor).** Run: dimensional analysis (5.1), numerical spot-checks (5.2), limiting cases (5.3), symmetry (5.6), conservation (5.7), math consistency (5.8), and literature agreement (5.10). Skip: convergence, plausibility, statistics, thermodynamic consistency, spectral structure, anomalies. Goal is to catch gross errors and structural issues without blocking exploration.
+**Lightweight verification (7-check floor).** Keep a small universal-check floor for speed, but still run every contract-aware check required by the plan. Exploratory mode may compress depth; it does NOT waive decisive-anchor, forbidden-proxy, benchmark-reproduction, or direct-vs-proxy consistency checks.
 
 ### review (full details)
 
@@ -1404,7 +1406,7 @@ The orchestrator may pass a `<phase_class>` tag in the spawn prompt (e.g., `<pha
 | **derivation** | 5.3 (limiting cases), 5.6 (symmetry), 5.8 (math consistency) | Re-derive key steps. Check every sign. Verify boundary terms weren't dropped. These catch the most common derivation errors (sign, factor of 2, boundary term). |
 | **numerical** | 5.9 (convergence), 5.12 (statistics), 5.2 (numerical spot-check) | Run at 2+ resolutions. Verify convergence rate matches expected order. Check error bars are not underestimated. Convergence verification is critical — a non-converged result is worthless regardless of how elegant the code is. |
 | **formalism** | 5.6 (symmetry), 5.7 (conservation), 5.1 (dimensional) | Verify the framework is self-consistent. Check that claimed symmetries are actually respected. Verify conservation laws hold. Framework errors propagate to every downstream derivation. |
-| **validation** | ALL 15 checks | Validation IS the purpose of the phase. Run every check at maximum depth. Do not use the exploratory 7-check floor even if the profile is exploratory. |
+| **validation** | Full universal registry + all required contract-aware checks | Validation IS the purpose of the phase. Run every relevant check at maximum depth. Do not use the exploratory floor when the phase itself is the validation gate. |
 | **analysis** | 5.11 (plausibility), 5.3 (limiting cases) | Results must be physically sensible. Check orders of magnitude. Verify that extracted parameters are within known bounds. Look for unphysical artifacts (negative probabilities, superluminal speeds, complex masses). |
 | **literature** | 5.10 (agreement with literature) | Primary check: are the summarized results faithful to the sources? Secondary: are comparisons between references internally consistent? |
 | **paper-writing** | 5.1 (dimensional), 5.6 (symmetry), 5.10 (literature) | Focus on presentation correctness: equations match derivations, figures match data, notation is consistent throughout, all symbols defined at first use. |
@@ -2322,7 +2324,7 @@ grep -r "$(basename $artifact_path)" . --include="*.py" --include="*.md" --inclu
 
 This is where physics verification diverges fundamentally from code verification. Artifacts can exist, be substantive, and be integrated — yet still be wrong. This step checks the physics **by doing physics**, not by scanning for keywords.
 
-<!-- Executable templates for all checks 5.1-5.15 extracted to reduce context. Load on demand: -->
+<!-- Executable templates for the legacy numbered universal checks are extracted below for context. The live machine registry remains authoritative. -->
 
 <!-- [included: verifier-worked-examples.md] -->
 # Verifier Worked Examples
@@ -3109,7 +3111,7 @@ For every approximation used in a derivation or computation, the verifier MUST *
 
 ### Consistency Summary
 
-Compile all 15 checks (5.1-5.15) into a table with Status | Confidence | Notes per check.
+Compile the applicable verifier-registry checks into a table with Status | Confidence | Notes per check.
 
 **Overall physics assessment:** SOUND (all pass, most independently confirmed) | SUSPICIOUS (some fail or unverified) | FLAWED (clear computational errors found) | INCOMPLETE (critical checks missing)
 

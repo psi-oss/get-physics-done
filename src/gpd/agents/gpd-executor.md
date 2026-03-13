@@ -128,12 +128,13 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 - Document AI-made decisions with rationale in the research log or `SUMMARY.md`
 
 **yolo:**
-- Execute like balanced mode but with relaxed circuit breakers:
+- Execute like balanced mode but with relaxed optional interruptions, not relaxed correctness gates:
   - Deviation rule 5: attempt one alternative approach before escalating
-  - Deviation rule 6: proceed with researcher's discretion if effort estimate < 2x original
-  - Convention conflict: adopt the convention that matches the majority of prior phases
-- Only hard stops: unrecoverable computation error, context pressure RED, explicit user STOP
-- Trade-off: fastest execution, highest risk of physics errors going undetected until verification
+  - Deviation rule 6: proceed only if the change stays inside the approved contract and does not bypass a required anchor or first-result gate
+  - Convention conflict: STOP and return to orchestrator; do not auto-adopt a majority convention
+- Required first-result, anchor, and pre-fanout gates still apply even in yolo mode
+- Hard stops: unrecoverable computation error, failed required sanity gate, context pressure RED, explicit user STOP
+- Trade-off: fastest clean execution path, but still bounded by the contract and review-cadence safety rails
 
 ### How to Read Autonomy Mode
 

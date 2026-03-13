@@ -13,6 +13,24 @@ Template for `.gpd/paper/FIGURE_TRACKER.md` — registry of all figures for the 
 ## File Template
 
 ```markdown
+---
+figure_registry:
+  - id: fig-main
+    label: "Fig. 1"
+    kind: figure
+    role: smoking_gun|benchmark|comparison|sanity_check|publication_polish|other
+    path: paper/figures/fig-main.pdf
+    contract_ids: [claim-id, deliverable-id]
+    decisive: true
+    has_units: true
+    has_uncertainty: true
+    referenced_in_text: true
+    caption_self_contained: true
+    colorblind_safe: true
+    comparison_sources:
+      - .gpd/comparisons/main-benchmark-COMPARISON.md
+---
+
 # Figure Tracker: [Paper Title]
 
 **Total figures:** [N planned, M complete]
@@ -35,6 +53,7 @@ Template for `.gpd/paper/FIGURE_TRACKER.md` — registry of all figures for the 
 | Field        | Value                                                 |
 | ------------ | ----------------------------------------------------- |
 | Type         | [Line plot / Scatter / Heatmap / Diagram / Schematic] |
+| Role         | [smoking_gun / benchmark / comparison / sanity_check / publication_polish] |
 | Source phase | [Phase X]                                             |
 | Source file  | [path/to/plotting_script.py or notebook]              |
 | Data file(s) | [path/to/data.csv, path/to/data2.json]                |
@@ -153,5 +172,6 @@ Template for `.gpd/paper/FIGURE_TRACKER.md` — registry of all figures for the 
 - Use colorblind-safe palettes (e.g., Okabe-Ito, viridis)
 - Ensure readability at single-column width — test by printing at actual size
 - Vector format (PDF/EPS) for line plots; raster (PNG, 300+ dpi) only for heatmaps/images
+- Keep the `figure_registry` frontmatter in sync with decisive roles, contract IDs, and comparison artifact links so paper-quality scoring can verify the right figures automatically
 
 </guidelines>

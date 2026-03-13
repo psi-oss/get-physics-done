@@ -614,6 +614,29 @@ class TestReviewValidationCommands:
             "Either provide concept, result, method, notation, or paper explicitly, or run `gpd init new-project`."
         )
 
+    def test_command_context_compare_results_requires_explicit_inputs_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "compare-results"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:compare-results"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert payload["explicit_inputs"] == ["phase, artifact, or comparison target"]
+        assert payload["guidance"] == (
+            "Either provide phase, artifact, or comparison target explicitly, or run `gpd init new-project`."
+        )
+
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,
@@ -1100,6 +1123,116 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         blocker_checks = {issue["check"] for issue in payload["blocking_issues"]}
         assert "decisive_artifacts_with_explicit_verdicts" in blocker_checks
+
+    def test_validate_paper_quality_command_from_project_artifacts(self, gpd_project: Path) -> None:
+        stage4_dir = Path(__file__).resolve().parent / "fixtures" / "stage4"
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "main.tex").write_text(
+            "\\documentclass{article}\n"
+            "\\begin{document}\n"
+            "\\begin{abstract}Benchmark result with explicit comparison.\\end{abstract}\n"
+            "\\section{Introduction}See Fig.~\\ref{fig:benchmark} and \\cite{bench2026}.\n"
+            "\\section{Conclusion}Recovered the benchmark within tolerance.\n"
+            "\\end{document}\n",
+            encoding="utf-8",
+        )
+        (paper_dir / "ARTIFACT-MANIFEST.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "paper_title": "Benchmark Paper",
+                    "journal": "prd",
+                    "created_at": "2026-03-13T00:00:00+00:00",
+                    "artifacts": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+            json.dumps(
+                {
+                    "generated_at": "2026-03-13T00:00:00+00:00",
+                    "total_sources": 1,
+                    "resolved_sources": 1,
+                    "partial_sources": 0,
+                    "unverified_sources": 0,
+                    "failed_sources": 0,
+                    "entries": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        tracker_dir = gpd_project / ".gpd" / "paper"
+        tracker_dir.mkdir(parents=True, exist_ok=True)
+        (tracker_dir / "FIGURE_TRACKER.md").write_text(
+            "---\n"
+            "figure_registry:\n"
+            "  - id: fig-benchmark\n"
+            '    label: "Fig. 1"\n'
+            "    kind: figure\n"
+            "    role: benchmark\n"
+            "    path: paper/figures/benchmark.pdf\n"
+            "    contract_ids: [claim-benchmark, deliv-figure]\n"
+            "    decisive: true\n"
+            "    has_units: true\n"
+            "    has_uncertainty: true\n"
+            "    referenced_in_text: true\n"
+            "    caption_self_contained: true\n"
+            "    colorblind_safe: true\n"
+            "    comparison_sources:\n"
+            "      - .gpd/comparisons/benchmark-COMPARISON.md\n"
+            "---\n\n"
+            "# Figure Tracker\n",
+            encoding="utf-8",
+        )
+        comparison_dir = gpd_project / ".gpd" / "comparisons"
+        comparison_dir.mkdir(parents=True, exist_ok=True)
+        (comparison_dir / "benchmark-COMPARISON.md").write_text(
+            "---\n"
+            "comparison_kind: benchmark\n"
+            "comparison_sources:\n"
+            "  - label: theory\n"
+            "    kind: summary\n"
+            "    path: .gpd/phases/01-benchmark/01-SUMMARY.md\n"
+            "  - label: benchmark\n"
+            "    kind: verification\n"
+            "    path: .gpd/phases/01-benchmark/01-VERIFICATION.md\n"
+            "comparison_verdicts:\n"
+            "  - subject_id: claim-benchmark\n"
+            "    subject_kind: claim\n"
+            "    subject_role: decisive\n"
+            "    reference_id: ref-benchmark\n"
+            "    comparison_kind: benchmark\n"
+            "    metric: relative_error\n"
+            '    threshold: "<= 0.01"\n'
+            "    verdict: pass\n"
+            "    recommended_action: Keep benchmark figure in manuscript\n"
+            "---\n\n"
+            "# Internal Comparison\n",
+            encoding="utf-8",
+        )
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        (phase_dir / "01-SUMMARY.md").write_text(
+            (stage4_dir / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (phase_dir / "01-VERIFICATION.md").write_text(
+            (stage4_dir / "verification_with_contract_results.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "paper-quality", "--from-project", str(gpd_project)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["journal"] == "prd"
+        assert payload["categories"]["verification"]["checks"]["contract_targets_verified"] > 0
+        assert payload["categories"]["results"]["checks"]["comparison_with_prior_work_present"] > 0
 
     def test_validate_referee_decision_command_accepts_consistent_major_revision(self, gpd_project: Path) -> None:
         decision_path = gpd_project / "referee-decision.json"

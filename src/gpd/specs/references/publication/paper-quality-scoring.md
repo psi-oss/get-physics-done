@@ -21,9 +21,9 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 
 | Check | Points | How to verify |
 |-------|--------|---------------|
-| Decisive figures/tables labeled with units | 3 | Visual inspection of the decisive artifacts first |
-| Decisive figures/tables carry uncertainty bands or error bars | 4 | Check every decisive data plot |
-| Decisive figures/tables referenced in text and role is clear | 4 | Cross-reference figure labels with `\ref` calls and confirm the decisive role is explicit |
+| Decisive figures/tables labeled with units | 3 | Read `.gpd/paper/FIGURE_TRACKER.md` `figure_registry` and verify `has_units: true` for decisive artifacts |
+| Decisive figures/tables carry uncertainty bands or error bars | 4 | Use the tracker `has_uncertainty` field for decisive artifacts |
+| Decisive figures/tables referenced in text and role is clear | 4 | Use the tracker `referenced_in_text` field and verify the `role` is not `other` |
 | Captions are self-contained (understandable without reading text) | 3 | Read each caption in isolation |
 | Colorblind-safe palette used | 1 | Check against viridis/Wong palette |
 
@@ -49,7 +49,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | VERIFICATION.md exists with status: passed | 5 | File exists and frontmatter status = passed |
-| All contract-defined targets verified (score = N/N) | 5 | VERIFICATION.md `contract_results` / score field |
+| All contract-defined targets verified (score = N/N) | 5 | Aggregate phase `SUMMARY.md` / `VERIFICATION.md` `contract_results` by contract ID |
 | Key results have INDEPENDENTLY CONFIRMED confidence | 5 | Count independently confirmed vs total |
 | No UNRELIABLE confidence ratings on any result | 5 | Use `search_files` on VERIFICATION.md for "UNRELIABLE" |
 
@@ -67,7 +67,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | Key numerical results include uncertainties | 4 | Every number in results section has ± or error bar |
-| Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors |
+| Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors; decisive figures should link back to `.gpd/comparisons/*-COMPARISON.md` when relevant |
 | Physical interpretation provided (not just math) | 3 | Discussion section explains meaning of results |
 
 ## Total Score Interpretation
@@ -82,30 +82,13 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 
 ## Automated Scoring Protocol
 
-When invoked during `/gpd:write-paper` (step: quality_assessment):
+When invoked during `/gpd:write-paper` (step: quality_assessment), prefer the artifact-driven path:
 
 ```bash
-# 1. Check equations
-EQ_UNLABELED=$(grep -c '\\begin{equation}' paper/*.tex | grep -v 'label')
-EQ_SCORE=$((EQ_UNLABELED == 0 ? 20 : (EQ_UNLABELED < 3 ? 10 : 0)))
-
-# 2. Check citations
-MISSING_CITES=$(grep -c 'MISSING:' paper/*.tex 2>/dev/null || echo 0)
-UNDEFINED_CITES=$(grep -c 'undefined' paper/*.log 2>/dev/null || echo 0)
-CITE_SCORE=$((MISSING_CITES == 0 && UNDEFINED_CITES == 0 ? 10 : (MISSING_CITES < 3 ? 5 : 0)))
-
-# 3. Check conventions
-CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
-CONV_COMPLETE=$(echo "$CONV_CHECK" | python3 -c "import json,sys; print(json.load(sys.stdin).get('complete',False))")
-
-# 4. Check placeholders
-PLACEHOLDERS=$(grep -cE 'TODO|FIXME|PENDING|TBD|\[RESULT PENDING\]' paper/*.tex 2>/dev/null || echo 0)
-
-# 5. Check verification
-VERIF_STATUS=$(grep 'status:' .gpd/phases/*-VERIFICATION.md 2>/dev/null | tail -1 | grep -o 'passed\|gaps_found\|human_needed')
+gpd --raw validate paper-quality --from-project .
 ```
 
-The scoring is presented as a table to the researcher with specific items to fix for each category that scored below maximum.
+This path derives the machine-readable `PaperQualityInput` from the manuscript, bibliography audit, figure tracker, comparison artifacts, and contract-backed summary / verification ledgers before scoring it.
 
 ## Integration Points
 

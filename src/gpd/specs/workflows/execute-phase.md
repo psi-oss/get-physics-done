@@ -38,7 +38,7 @@ When `parallelization` is false, plans within a wave execute sequentially.
 - `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, or anchor-gated fanout reviews.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
 - `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget.
-- `research_mode=adaptive`: Start with exploit, switch to explore if verification fails.
+- `research_mode=adaptive`: Start with explore-style coverage, then switch to exploit after the first anchor-confirmed or benchmark-confirmed result validates the approach.
 - `review_cadence`: Controls when bounded review gates appear. `autonomy` controls who must approve or inspect those gates. These are separate axes.
 </step>
 

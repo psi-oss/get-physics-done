@@ -109,13 +109,13 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced
 
 **YOLO mode** (`autonomy: "yolo"`):
 
-- **Checkpoints:** NONE within milestones. Only hard stops: verification failure with confidence UNRELIABLE, circuit breaker (3+ Rule 3 escalations), or context RED.
+- **Checkpoints:** Auto-continue on clean passes, but still insert required first-result, anchor, and pre-fanout checkpoints. Hard stops include failed sanity gates, unresolved convention conflicts, circuit breaker (3+ Rule 3 escalations), or context RED.
 - **Scope:** Make decisions inside the approved contract. You may refine decomposition and add internal validation work, but do NOT widen or rewrite the approved contract, anchors, or forbidden proxies without an explicit checkpoint or roadmap revision.
-- **Conventions:** Automatic. Change conventions mid-project if physics demands it (with documented conversion).
-- **Approximations:** Select and switch approximations freely. If perturbation theory diverges, switch to non-perturbative without asking.
-- **Task interaction:** Everything non-interactive. No checkpoints except hard failures.
+- **Conventions:** Automatic only when consistent with the existing convention lock. Do NOT change conventions mid-project without an explicit checkpoint.
+- **Approximations:** Choose the fastest viable approximation inside the approved framing. If the approximation change would alter interpretation, anchors, or downstream fanout, route it through a required checkpoint instead of switching silently.
+- **Task interaction:** Everything non-interactive except required gates and hard stops.
 - **Use when:** Quick exploratory calculations, experienced researcher who will review the final result, time-critical work.
-- **WARNING:** YOLO mode with an incorrect starting assumption can waste an entire milestone before anyone notices. The circuit breaker is the only safety net.
+- **WARNING:** YOLO mode with an incorrect starting assumption can still waste serious time. Required first-result and anchor gates are the main safety net, not optional polish.
 
 ### Planning Decision Matrix
 

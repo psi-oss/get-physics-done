@@ -412,6 +412,9 @@ None yet.
 {
   "autonomy": "balanced",
   "research_mode": "balanced",
+  "execution": {
+    "review_cadence": "adaptive"
+  },
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "review",
@@ -923,7 +926,7 @@ Use ask_user:
 Display confirmation:
 
 ```
-Config: Balanced autonomy | Balanced research mode | Parallel | All agents | Review profile
+Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile
 (Change anytime with /gpd:settings)
 ```
 

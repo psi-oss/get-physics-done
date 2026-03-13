@@ -1,0 +1,424 @@
+"""Artifact-driven paper-quality input construction."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PydanticValidationError
+
+from gpd.contracts import ComparisonVerdict, ContractResults
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.paper_quality import (
+    BinaryCheck,
+    CitationsQualityInput,
+    CompletenessQualityInput,
+    CoverageMetric,
+    FiguresQualityInput,
+    PaperQualityInput,
+    ResultsQualityInput,
+    VerificationConfidence,
+    VerificationQualityInput,
+)
+
+__all__ = ["build_paper_quality_input"]
+
+
+_PLACEHOLDER_RE = re.compile(r"TODO|FIXME|PENDING|TBD|\\text\{\[PENDING\]\}")
+_MISSING_CITE_RE = re.compile(r"\\cite\{MISSING:")
+_ABSTRACT_RE = re.compile(r"\\begin\{abstract\}[\s\S]*?\\end\{abstract\}", re.IGNORECASE)
+_INTRO_RE = re.compile(r"\\section\*?\{[^}]*introduction[^}]*\}", re.IGNORECASE)
+_CONCLUSION_RE = re.compile(r"\\section\*?\{[^}]*conclusion[^}]*\}", re.IGNORECASE)
+_SUPPLEMENT_RE = re.compile(r"appendix|supplement", re.IGNORECASE)
+_CITE_RE = re.compile(r"\\cite\{([^}]*)\}")
+
+
+class _FigureTrackerEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = ""
+    label: str = ""
+    kind: str = "figure"
+    role: str = "other"
+    path: str = ""
+    contract_ids: list[str] = Field(default_factory=list)
+    decisive: bool = False
+    has_units: bool = False
+    has_uncertainty: bool = False
+    referenced_in_text: bool = False
+    caption_self_contained: bool = False
+    colorblind_safe: bool = False
+    comparison_sources: list[str] = Field(default_factory=list)
+
+    @property
+    def stable_keys(self) -> set[str]:
+        keys = {self.id, self.label, self.path, *(self.contract_ids or [])}
+        return {key for key in keys if key}
+
+
+class _ContractCoverage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    total_targets: int = 0
+    satisfied_targets: int = 0
+    confidences: list[VerificationConfidence] = Field(default_factory=list)
+    latest_report_passed: bool = False
+
+
+def _coverage_metric(satisfied: int, total: int) -> CoverageMetric:
+    return CoverageMetric(satisfied=satisfied, total=total)
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _load_json(path: Path) -> dict[str, object]:
+    text = _read_text(path)
+    if text is None:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _extract_meta(path: Path) -> dict[str, object]:
+    content = _read_text(path)
+    if content is None:
+        return {}
+    try:
+        meta, _ = extract_frontmatter(content)
+    except FrontmatterParseError:
+        return {}
+    return meta
+
+
+def _collect_tex_content(paper_dir: Path) -> tuple[list[Path], str]:
+    tex_files = sorted(paper_dir.glob("*.tex"))
+    bodies = []
+    for tex_file in tex_files:
+        text = _read_text(tex_file)
+        if text is not None:
+            bodies.append(text)
+    return tex_files, "\n".join(bodies)
+
+
+def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
+    tracker_path = project_root / ".gpd" / "paper" / "FIGURE_TRACKER.md"
+    meta = _extract_meta(tracker_path)
+    raw = meta.get("figure_registry")
+    if not isinstance(raw, list):
+        return []
+
+    entries: list[_FigureTrackerEntry] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            entries.append(_FigureTrackerEntry.model_validate(item))
+        except PydanticValidationError:
+            continue
+    return entries
+
+
+def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
+    verdicts: list[ComparisonVerdict] = []
+    seen: set[tuple[str, str | None, str | None, str]] = set()
+
+    candidate_roots = [
+        project_root / ".gpd" / "phases",
+        project_root / ".gpd" / "comparisons",
+        project_root / "paper",
+    ]
+    for root in candidate_roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.md")):
+            meta = _extract_meta(path)
+            raw = meta.get("comparison_verdicts")
+            if not isinstance(raw, list):
+                continue
+            for item in raw:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    verdict = ComparisonVerdict.model_validate(item)
+                except PydanticValidationError:
+                    continue
+                key = (verdict.subject_id, verdict.reference_id, verdict.metric, verdict.verdict)
+                if key in seen:
+                    continue
+                seen.add(key)
+                verdicts.append(verdict)
+    return verdicts
+
+
+def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
+    total_claims: set[str] = set()
+    total_deliverables: set[str] = set()
+    total_tests: set[str] = set()
+    passed_claims: set[str] = set()
+    passed_deliverables: set[str] = set()
+    passed_tests: set[str] = set()
+    confidences: list[VerificationConfidence] = []
+    latest_verified_at = ""
+    latest_report_passed = False
+
+    phases_root = project_root / ".gpd" / "phases"
+    if not phases_root.exists():
+        return _ContractCoverage()
+
+    for path in sorted(phases_root.rglob("*.md")):
+        meta = _extract_meta(path)
+        raw_results = meta.get("contract_results")
+        if isinstance(raw_results, dict):
+            try:
+                contract_results = ContractResults.model_validate(raw_results)
+            except PydanticValidationError:
+                contract_results = None
+            if contract_results is not None:
+                total_claims.update(contract_results.claims)
+                total_deliverables.update(contract_results.deliverables)
+                total_tests.update(contract_results.acceptance_tests)
+                passed_claims.update(
+                    claim_id
+                    for claim_id, entry in contract_results.claims.items()
+                    if entry.status == "passed"
+                )
+                passed_deliverables.update(
+                    deliverable_id
+                    for deliverable_id, entry in contract_results.deliverables.items()
+                    if entry.status == "passed"
+                )
+                passed_tests.update(
+                    test_id
+                    for test_id, entry in contract_results.acceptance_tests.items()
+                    if entry.status == "passed"
+                )
+                for entries in (
+                    contract_results.claims.values(),
+                    contract_results.deliverables.values(),
+                    contract_results.acceptance_tests.values(),
+                ):
+                    for entry in entries:
+                        for evidence in entry.evidence:
+                            if evidence.confidence == "high":
+                                confidences.append(VerificationConfidence.independently_confirmed)
+                            elif evidence.confidence == "medium":
+                                confidences.append(VerificationConfidence.structurally_present)
+                            elif evidence.confidence == "low":
+                                confidences.append(VerificationConfidence.unable_to_verify)
+                            else:
+                                confidences.append(VerificationConfidence.unreliable)
+
+        verified_at = str(meta.get("verified") or meta.get("completed") or "")
+        status = str(meta.get("status") or "")
+        if verified_at >= latest_verified_at:
+            latest_verified_at = verified_at
+            latest_report_passed = status == "passed"
+
+    total_targets = len(total_claims) + len(total_deliverables) + len(total_tests)
+    satisfied_targets = len(passed_claims) + len(passed_deliverables) + len(passed_tests)
+    return _ContractCoverage(
+        total_targets=total_targets,
+        satisfied_targets=satisfied_targets,
+        confidences=confidences,
+        latest_report_passed=latest_report_passed,
+    )
+
+
+def _find_verdict_for_entry(
+    entry: _FigureTrackerEntry,
+    verdicts: list[ComparisonVerdict],
+    project_root: Path,
+) -> list[ComparisonVerdict]:
+    by_key = [verdict for verdict in verdicts if verdict.subject_id in entry.stable_keys]
+    if by_key:
+        return by_key
+
+    matched: list[ComparisonVerdict] = []
+    for rel_path in entry.comparison_sources:
+        path = project_root / rel_path
+        meta = _extract_meta(path)
+        raw = meta.get("comparison_verdicts")
+        if not isinstance(raw, list):
+            continue
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            try:
+                verdict = ComparisonVerdict.model_validate(item)
+            except PydanticValidationError:
+                continue
+            matched.append(verdict)
+    return matched
+
+
+def _build_figures_input(
+    figure_registry: list[_FigureTrackerEntry],
+    verdicts: list[ComparisonVerdict],
+    project_root: Path,
+) -> tuple[FiguresQualityInput, ResultsQualityInput]:
+    if not figure_registry:
+        return FiguresQualityInput(), ResultsQualityInput()
+
+    total_figures = len(figure_registry)
+    decisive_entries = [
+        entry for entry in figure_registry if entry.decisive or entry.role in {"smoking_gun", "benchmark", "comparison"}
+    ]
+
+    decisive_with_verdict = 0
+    decisive_with_anchor = 0
+    decisive_failures_scoped = True
+    uncertainty_count = 0
+
+    for entry in decisive_entries:
+        if entry.has_uncertainty:
+            uncertainty_count += 1
+        entry_verdicts = _find_verdict_for_entry(entry, verdicts, project_root)
+        if entry_verdicts:
+            decisive_with_verdict += 1
+        if any(verdict.reference_id for verdict in entry_verdicts):
+            decisive_with_anchor += 1
+        for verdict in entry_verdicts:
+            if verdict.verdict in {"fail", "tension"} and not (verdict.recommended_action or verdict.notes):
+                decisive_failures_scoped = False
+
+    figures = FiguresQualityInput(
+        axes_labeled_with_units=_coverage_metric(sum(1 for entry in figure_registry if entry.has_units), total_figures),
+        error_bars_present=_coverage_metric(sum(1 for entry in figure_registry if entry.has_uncertainty), total_figures),
+        referenced_in_text=_coverage_metric(sum(1 for entry in figure_registry if entry.referenced_in_text), total_figures),
+        captions_self_contained=_coverage_metric(
+            sum(1 for entry in figure_registry if entry.caption_self_contained),
+            total_figures,
+        ),
+        colorblind_safe=_coverage_metric(sum(1 for entry in figure_registry if entry.colorblind_safe), total_figures),
+        decisive_artifacts_labeled_with_units=_coverage_metric(
+            sum(1 for entry in decisive_entries if entry.has_units),
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+        decisive_artifacts_uncertainty_qualified=_coverage_metric(
+            uncertainty_count,
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+        decisive_artifacts_referenced_in_text=_coverage_metric(
+            sum(1 for entry in decisive_entries if entry.referenced_in_text),
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+        decisive_artifact_roles_clear=_coverage_metric(
+            sum(1 for entry in decisive_entries if entry.role and entry.role != "other"),
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+    )
+    results = ResultsQualityInput(
+        uncertainties_present=_coverage_metric(uncertainty_count, len(decisive_entries))
+        if decisive_entries
+        else CoverageMetric(),
+        comparison_with_prior_work_present=BinaryCheck(passed=bool(verdicts)),
+        physical_interpretation_present=BinaryCheck(),
+        decisive_artifacts_with_explicit_verdicts=_coverage_metric(
+            decisive_with_verdict,
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+        decisive_artifacts_benchmark_anchored=_coverage_metric(
+            decisive_with_anchor,
+            len(decisive_entries),
+        )
+        if decisive_entries
+        else CoverageMetric(not_applicable=True),
+        decisive_comparison_failures_scoped=BinaryCheck(
+            passed=decisive_failures_scoped,
+            not_applicable=not decisive_entries,
+        ),
+    )
+    return figures, results
+
+
+def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
+    """Build a conservative :class:`PaperQualityInput` from project artifacts."""
+
+    root = Path(project_root)
+    paper_dir = root / "paper"
+    artifact_manifest = _load_json(paper_dir / "ARTIFACT-MANIFEST.json")
+    paper_config = _load_json(paper_dir / "PAPER-CONFIG.json")
+    bibliography_audit = _load_json(paper_dir / "BIBLIOGRAPHY-AUDIT.json")
+
+    tex_files, tex_content = _collect_tex_content(paper_dir)
+    title = str(artifact_manifest.get("paper_title") or paper_config.get("paper_title") or "")
+    journal = str(artifact_manifest.get("journal") or paper_config.get("journal") or "generic")
+
+    figure_registry = _load_figure_registry(root)
+    verdicts = _collect_comparison_verdicts(root)
+    contract_coverage = _collect_contract_coverage(root)
+    figures, results = _build_figures_input(figure_registry, verdicts, root)
+
+    placeholder_count = len(_PLACEHOLDER_RE.findall(tex_content))
+    missing_cites = len(_MISSING_CITE_RE.findall(tex_content))
+    cite_keys = [part for match in _CITE_RE.findall(tex_content) for part in match.split(",") if part.strip()]
+    required_sections = 3
+    present_sections = 0
+    if _ABSTRACT_RE.search(tex_content):
+        present_sections += 1
+    if _INTRO_RE.search(tex_content):
+        present_sections += 1
+    if _CONCLUSION_RE.search(tex_content):
+        present_sections += 1
+
+    resolved_sources = int(bibliography_audit.get("resolved_sources") or 0)
+    total_sources = int(bibliography_audit.get("total_sources") or 0)
+    partial_sources = int(bibliography_audit.get("partial_sources") or 0)
+    unverified_sources = int(bibliography_audit.get("unverified_sources") or 0)
+    failed_sources = int(bibliography_audit.get("failed_sources") or 0)
+
+    citations = CitationsQualityInput(
+        citation_keys_resolve=_coverage_metric(resolved_sources, total_sources) if total_sources else CoverageMetric(),
+        missing_placeholders=BinaryCheck(passed=missing_cites == 0),
+        key_prior_work_cited=BinaryCheck(passed=bool(verdicts) or bool(cite_keys)),
+        hallucination_free=BinaryCheck(
+            passed=failed_sources == 0 and partial_sources == 0 and unverified_sources == 0,
+            not_applicable=not bibliography_audit,
+        ),
+    )
+    completeness = CompletenessQualityInput(
+        abstract_written_last=BinaryCheck(),
+        required_sections_present=_coverage_metric(present_sections, required_sections) if tex_files else CoverageMetric(),
+        placeholders_cleared=BinaryCheck(passed=placeholder_count == 0),
+        supplemental_cross_referenced=BinaryCheck(passed=bool(_SUPPLEMENT_RE.search(tex_content))),
+    )
+    verification = VerificationQualityInput(
+        report_passed=BinaryCheck(passed=contract_coverage.latest_report_passed),
+        must_haves_verified=_coverage_metric(contract_coverage.satisfied_targets, contract_coverage.total_targets)
+        if contract_coverage.total_targets
+        else CoverageMetric(),
+        contract_targets_verified=_coverage_metric(contract_coverage.satisfied_targets, contract_coverage.total_targets)
+        if contract_coverage.total_targets
+        else CoverageMetric(not_applicable=True),
+        key_result_confidences=contract_coverage.confidences,
+    )
+
+    return PaperQualityInput(
+        title=title,
+        journal=journal,
+        figures=figures,
+        citations=citations,
+        completeness=completeness,
+        verification=verification,
+        results=results,
+    )

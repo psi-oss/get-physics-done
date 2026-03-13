@@ -2236,6 +2236,7 @@ def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
 
 _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
     "gpd:compare-experiment": (["prediction, dataset path, or phase identifier"], _has_simple_positional_inputs),
+    "gpd:compare-results": (["phase, artifact, or comparison target"], _has_simple_positional_inputs),
     "gpd:derive-equation": (["equation or topic to derive"], _has_simple_positional_inputs),
     "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
@@ -2693,13 +2694,24 @@ def validate_review_preflight(
 
 @validate_app.command("paper-quality")
 def validate_paper_quality(
-    input_path: str = typer.Argument(..., help="Path to a PaperQualityInput JSON file, or '-' for stdin"),
+    input_path: str | None = typer.Argument(None, help="Path to a PaperQualityInput JSON file, or '-' for stdin"),
+    from_project: str | None = typer.Option(
+        None,
+        "--from-project",
+        help="Build the PaperQualityInput directly from project artifacts at this root",
+    ),
 ) -> None:
     """Score a machine-readable paper-quality manifest and fail on blockers."""
     from gpd.core.paper_quality import PaperQualityInput, score_paper_quality
+    from gpd.core.paper_quality_artifacts import build_paper_quality_input
 
-    payload = _load_json_document(input_path)
-    report = score_paper_quality(PaperQualityInput.model_validate(payload))
+    if from_project:
+        report = score_paper_quality(build_paper_quality_input(Path(from_project)))
+    else:
+        if not input_path:
+            _error("Provide a PaperQualityInput path or use --from-project <root>")
+        payload = _load_json_document(input_path)
+        report = score_paper_quality(PaperQualityInput.model_validate(payload))
     _output(report)
     if not report.ready_for_submission:
         raise typer.Exit(code=1)

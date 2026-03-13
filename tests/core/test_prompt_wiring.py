@@ -456,6 +456,7 @@ def test_review_commands_expose_typed_contracts() -> None:
 
 def test_representative_commands_expose_expected_context_modes() -> None:
     assert registry.get_command("help").context_mode == "global"
+    assert registry.get_command("compare-results").context_mode == "project-aware"
     assert registry.get_command("map-research").context_mode == "projectless"
     assert registry.get_command("slides").context_mode == "projectless"
     assert registry.get_command("discover").context_mode == "project-aware"
@@ -479,6 +480,7 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:
     expected = {
         COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
+        COMMANDS_DIR / "compare-results.md": "gpd --raw validate command-context compare-results",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
         COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
         COMMANDS_DIR / "limiting-cases.md": "gpd --raw validate command-context limiting-cases",
@@ -524,7 +526,10 @@ def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
 
     assert workflow_text.count('"autonomy": "balanced"') >= 2
     assert "Recommended defaults use Balanced autonomy" in workflow_text
-    assert "Config: Balanced autonomy | Balanced research mode | Parallel | All agents | Review profile" in workflow_text
+    assert (
+        "Config: Balanced autonomy | Adaptive review cadence | Balanced research mode | Parallel | All agents | Review profile"
+        in workflow_text
+    )
     assert "Recommended defaults use YOLO autonomy" not in workflow_text
     assert "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
 
@@ -777,6 +782,47 @@ def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_h
     assert "classifyHandoffIfNeeded" not in quick
     assert "cat .gpd/config.json" not in model_resolution
     assert "print(c.get('model_profile', 'review'))" not in execute_phase
+
+
+def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profile_invariants() -> None:
+    compare_command = (COMMANDS_DIR / "compare-results.md").read_text(encoding="utf-8")
+    compare_workflow = (WORKFLOWS_DIR / "compare-results.md").read_text(encoding="utf-8")
+    internal_template = (TEMPLATES_DIR / "paper" / "internal-comparison.md").read_text(encoding="utf-8")
+    figure_tracker = (TEMPLATES_DIR / "paper" / "figure-tracker.md").read_text(encoding="utf-8")
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    scoring = (REFERENCES_DIR / "publication" / "paper-quality-scoring.md").read_text(encoding="utf-8")
+    settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    profiles = (REFERENCES_DIR / "orchestration" / "model-profiles.md").read_text(encoding="utf-8")
+    quick_reference = (REFERENCES_DIR / "verification" / "core" / "verification-quick-reference.md").read_text(
+        encoding="utf-8"
+    )
+    verifier_profiles = (
+        REFERENCES_DIR / "verification" / "meta" / "verifier-profile-checks.md"
+    ).read_text(encoding="utf-8")
+    planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+
+    assert "emit decisive verdicts" in compare_command
+    assert ".gpd/comparisons/[slug]-COMPARISON.md" in compare_workflow
+    assert "comparison_verdicts" in internal_template
+    assert "figure_registry" in figure_tracker
+    assert "role: smoking_gun|benchmark|comparison|sanity_check|publication_polish|other" in figure_tracker
+    assert "validate paper-quality --from-project ." in write_paper
+    assert '"review_cadence": "adaptive"' in new_project
+    assert "Adaptive review cadence" in new_project
+    assert "Start with explore-style coverage, then switch to exploit" in execute_phase
+    assert "figure_registry" in scoring
+    assert "Review (Recommended)" in settings
+    assert "all required contract-aware checks" in profiles
+    assert "current registry: 5.1-5.19" in quick_reference
+    assert "still run every contract-aware check required by the plan" in verifier_profiles
+    assert "required first-result, anchor, and pre-fanout checkpoints" in planner
+    assert "Do NOT change conventions mid-project without an explicit checkpoint" in planner
+    assert "Required first-result, anchor, and pre-fanout gates still apply even in yolo mode" in executor
+    assert "live machine source of truth is the verifier registry" in verifier_agent
 
 
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:

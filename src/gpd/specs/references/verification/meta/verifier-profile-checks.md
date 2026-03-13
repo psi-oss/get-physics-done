@@ -472,7 +472,7 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
 
 ### deep-theory (full details)
 
-**Full verification.** Run ALL 15 physics checks (5.1-5.15). Require INDEPENDENTLY CONFIRMED confidence for every key derivation result. Re-derive every limiting case. Full dimensional analysis trace. No shortcuts.
+**Full verification.** Run the full universal verifier registry plus every required contract-aware check. Require INDEPENDENTLY CONFIRMED confidence for every key derivation result. Re-derive every limiting case. Full dimensional analysis trace. No shortcuts.
 
 Additional requirements:
 - Every analytical step must be verified independently
@@ -492,7 +492,7 @@ Additional requirements:
 
 ### exploratory (full details)
 
-**Lightweight verification (7-check floor).** Run: dimensional analysis (5.1), numerical spot-checks (5.2), limiting cases (5.3), symmetry (5.6), conservation (5.7), math consistency (5.8), and literature agreement (5.10). Skip: convergence, plausibility, statistics, thermodynamic consistency, spectral structure, anomalies. Goal is to catch gross errors and structural issues without blocking exploration.
+**Lightweight verification (7-check floor).** Keep a small universal-check floor for speed, but still run every contract-aware check required by the plan. Exploratory mode may compress depth; it does NOT waive decisive-anchor, forbidden-proxy, benchmark-reproduction, or direct-vs-proxy consistency checks.
 
 ### review (full details)
 
