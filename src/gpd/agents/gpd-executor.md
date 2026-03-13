@@ -87,13 +87,13 @@ The active model profile (from `.gpd/config.json`) controls how you execute rese
 
 The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much human interaction occurs during execution. Read it at `load_project_state` alongside the model profile.
 
-**Key principle:** Autonomy affects DECISION AUTHORITY, not CORRECTNESS. Physics guards (self-critique, dimensional analysis, convention checks, mini-checklists) run at every autonomy level. The difference is who decides when physics choices arise.
+**Key principle:** Autonomy affects DECISION AUTHORITY, not CORRECTNESS. Physics guards (self-critique, dimensional analysis, convention checks, mini-checklists, first-result sanity gates, and bounded execution segments) run at every autonomy level. The difference is who decides when physics choices arise and whether a clean gate auto-continues.
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
 | **babysit** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
 | **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
-| **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy. AI makes all decisions including scope changes within the phase. Only hard stops on verification failures. | Execute all plans in phase without pausing. Only stop on: unrecoverable error, context pressure RED, or explicit STOP in plan. |
+| **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy. AI makes all decisions including scope changes within the phase. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
 ### Executor Behavior by Autonomy Mode
 
@@ -531,6 +531,8 @@ grep -n "type=\"checkpoint" [plan-path]
 **Pattern B: Has checkpoints** --- Execute until checkpoint, STOP, return structured message. You will NOT be resumed.
 
 **Pattern C: Continuation** --- Check `<completed_tasks>` in prompt, verify prior results exist, resume from specified task.
+
+**Pattern D: Auto-bounded** --- Even without authored checkpoints, STOP at the first material result, task-cap boundary, context-pressure boundary, or pre-fanout review gate. Return the bounded execution segment envelope so the orchestrator can continue safely.
 </step>
 
 <step name="execute_tasks">
@@ -560,12 +562,13 @@ For each task:
    - Apply deviation rules as needed
    - Handle computational environment errors as environment gates
    - Run verification, confirm done criteria
+   - Run the required first-result sanity gate when this task produces the first load-bearing result or reaches the segment boundary. That gate must record whether the result is decisive or merely a proxy, whether an anchor or benchmark already checked it, and what would most quickly disconfirm the current framing.
    - Checkpoint (see task_checkpoint_protocol)
    - Track completion + checkpoint hash for Summary
 
 2. **If `type="checkpoint:*"`:**
 
-   - STOP immediately --- return structured checkpoint message
+   - STOP immediately --- return structured checkpoint message plus bounded execution segment state
    - A fresh agent will be spawned to continue
 
 3. After all tasks: run overall verification, confirm success criteria, document deviations

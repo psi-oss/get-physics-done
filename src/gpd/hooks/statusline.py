@@ -252,6 +252,95 @@ def _read_context_remaining(data: dict[str, object], hook_payload) -> float | in
     return None
 
 
+def _read_execution_state(workspace_dir: str | None = None) -> dict[str, object]:
+    """Return the current normalized execution snapshot for the workspace."""
+    from gpd.core.observability import get_current_execution
+
+    workspace_path = Path(workspace_dir) if workspace_dir else None
+    snapshot = get_current_execution(workspace_path)
+    return snapshot.model_dump(mode="json") if snapshot is not None else {}
+
+
+def _execution_reason_label(reason: str | None, *, default: str) -> str:
+    text = (reason or "").strip().lower()
+    if not text:
+        return default
+    if "user" in text or "review" in text or "approve" in text:
+        return "user"
+    if "depend" in text or "upstream" in text or "fanout" in text:
+        return "dependency"
+    if "anchor" in text or "checkpoint" in text:
+        return "checkpoint"
+    return default
+
+
+def _elapsed_segment_label(started_at: object, updated_at: object) -> str:
+    """Return a compact segment elapsed label like ``12m`` when timestamps parse."""
+    if not isinstance(started_at, str) or not isinstance(updated_at, str):
+        return ""
+    try:
+        from datetime import datetime
+
+        start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    elapsed_seconds = max(0, int((end - start).total_seconds()))
+    if elapsed_seconds < 60:
+        return f"{elapsed_seconds}s"
+    if elapsed_seconds < 3600:
+        return f"{elapsed_seconds // 60}m"
+    return f"{elapsed_seconds // 3600}h"
+
+
+def _execution_badge(snapshot: dict[str, object]) -> str:
+    """Return a compact badge describing live execution state."""
+    if not snapshot:
+        return ""
+
+    checkpoint_reason = _first_string(snapshot, "checkpoint_reason")
+    waiting_reason = _first_string(snapshot, "waiting_reason")
+    blocked_reason = _first_string(snapshot, "blocked_reason")
+    segment_status = _first_string(snapshot, "segment_status").lower()
+
+    if blocked_reason:
+        badge = "BLOCKED"
+    elif bool(snapshot.get("first_result_gate_pending")):
+        badge = "REVIEW:first-result"
+    elif bool(snapshot.get("waiting_for_review")):
+        label = "checkpoint"
+        if checkpoint_reason == "first_result":
+            label = "first-result"
+        elif checkpoint_reason:
+            label = checkpoint_reason.replace("_", "-")
+        badge = f"REVIEW:{label}"
+    elif waiting_reason:
+        badge = f"WAIT:{_execution_reason_label(waiting_reason, default='hold')}"
+    elif segment_status in {"paused", "ready_to_continue"}:
+        badge = "RESUME" if _first_string(snapshot, "resume_file") else "PAUSED"
+    elif segment_status:
+        badge = "EXEC" if segment_status == "active" else segment_status.upper().replace("_", "-")
+    else:
+        return ""
+
+    cadence = _first_string(snapshot, "review_cadence")
+    elapsed = _elapsed_segment_label(snapshot.get("segment_started_at"), snapshot.get("updated_at"))
+    parts = [badge]
+    if cadence:
+        parts.append(cadence)
+    if elapsed:
+        parts.append(elapsed)
+    return " ".join(parts)
+
+
+def _execution_artifact_label(snapshot: dict[str, object]) -> str:
+    """Return the latest artifact or result label for live execution state."""
+    artifact = _first_string(snapshot, "last_artifact_path")
+    if artifact:
+        return Path(artifact).name
+    return _first_string(snapshot, "last_result_label")
+
+
 def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, object] | None, object | None]:
     """Return the highest-priority valid update cache and its candidate metadata."""
     from gpd.hooks.runtime_detect import (
@@ -340,10 +429,18 @@ def main() -> None:
         session_value = data.get("session_id")
         session_id = session_value if isinstance(session_value, str) else ""
         remaining = _read_context_remaining(data, hook_payload)
+        execution = _read_execution_state(workspace_dir)
 
         ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
         position = _read_position(workspace_dir)
         task = _read_current_task(session_id, workspace_dir)
+        execution_badge = _execution_badge(execution)
+        execution_task = _first_string(execution, "current_task") if execution_badge.startswith("EXEC") else ""
+        if execution_task:
+            task = execution_task
+        elif execution_badge:
+            task = ""
+        artifact_label = _execution_artifact_label(execution)
         gpd_update = _check_update(workspace_dir)
         model_label = _read_model_label(data, hook_payload)
         workspace_label = _read_workspace_label(data, workspace_dir, hook_payload)
@@ -353,8 +450,12 @@ def main() -> None:
             segments.append(model_label)
         if workspace_label:
             segments.append(f"\x1b[2m{workspace_label}\x1b[0m")
+        if execution_badge:
+            segments.append(f"\x1b[35m{execution_badge}\x1b[0m")
         if task:
             segments.append(f"\x1b[1m{task}\x1b[0m")
+        if artifact_label:
+            segments.append(f"\x1b[2m{artifact_label}\x1b[0m")
         if position:
             segments.append(f"\x1b[36m{position}\x1b[0m")
 

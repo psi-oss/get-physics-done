@@ -36,7 +36,9 @@ Parse current values (default to `true` / first option if not present):
 - `workflow.research` -- spawn researcher during plan-phase
 - `workflow.plan_checker` -- spawn plan checker during plan-phase
 - `workflow.verifier` -- spawn verifier during execute-phase
-- `workflow.verify_between_waves` -- inter-wave verification gates (default: `"auto"`)
+- `execution.review_cadence` -- execution review density: `"dense"`, `"adaptive"` (default), `"sparse"`
+- `execution.max_unattended_minutes_per_plan` -- wall-clock budget before a bounded continuation should be created
+- `execution.checkpoint_after_n_tasks` -- task budget before a bounded continuation should be created
 - `parallelization` -- execute wave plans in parallel (default: `true`)
 - `model_profile` -- which agent model profile to use (default: `review`)
 - `git.branching_strategy` -- branching approach (default: `"none"`)
@@ -201,13 +203,13 @@ ask_user([
     ]
   },
   {
-    question: "Run inter-wave verification gates during execution?",
-    header: "Wave Verify",
+    question: "How aggressively should execution inject review gates?",
+    header: "Cadence",
     multiSelect: false,
     options: [
-      { label: "Auto (Recommended)", description: "Profile-dependent: enabled for deep-theory/review, disabled for exploratory/numerical/paper-writing" },
-      { label: "Always", description: "Run dimensional analysis + convention checks between every wave" },
-      { label: "Never", description: "Skip inter-wave checks for fastest execution" }
+      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue." },
+      { label: "Dense", description: "Frequent bounded review points for high-risk or high-touch work." },
+      { label: "Sparse", description: "Fewest review stops, but required correctness gates still run." }
     ]
   },
   {
@@ -283,8 +285,12 @@ Merge new settings into existing config.json:
   "workflow": {
     "research": true/false,
     "plan_checker": true/false,
-    "verifier": true/false,
-    "verify_between_waves": "auto" | true | false
+    "verifier": true/false
+  },
+  "execution": {
+    "review_cadence": "dense" | "adaptive" | "sparse",
+    "max_unattended_minutes_per_plan": 45,
+    "checkpoint_after_n_tasks": 3
   },
   "physics": {
     "unit_system": "natural" | "natural_thermal" | "si" | "cgs" | "atomic" | "lattice" | "custom",
@@ -323,7 +329,7 @@ Display:
 | Plan Researcher      | {On/Off} |
 | Plan Checker         | {On/Off} |
 | Execution Verifier   | {On/Off} |
-| Inter-Wave Verify    | {Auto/Always/Never} |
+| Review Cadence       | {Dense/Adaptive/Sparse} |
 | Parallelization      | {On/Off} |
 | Git Branching        | {None/Per Phase/Per Milestone} |
 

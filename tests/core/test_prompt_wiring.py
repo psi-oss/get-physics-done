@@ -707,6 +707,28 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block." in verifier_agent
 
 
+def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_gates() -> None:
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+    continuation = (TEMPLATES_DIR / "continuation-prompt.md").read_text(encoding="utf-8")
+    checkpoints = (REFERENCES_DIR / "orchestration" / "checkpoints.md").read_text(encoding="utf-8")
+    checkpoint_flow = (REFERENCES_DIR / "execution" / "execute-plan-checkpoints.md").read_text(encoding="utf-8")
+    executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+
+    assert "review_cadence" in execute_phase
+    assert "FIRST_RESULT_GATE_REQUIRED" in execute_phase
+    assert "probe_then_fanout" in execute_phase
+    assert "bounded_execution" in execute_phase
+    assert "autonomy` changes who is asked and when. It does NOT disable first-result sanity checks" in execute_plan
+    assert "Required first-result sanity gate" in execute_plan
+    assert "Pattern D: Auto-bounded" in executor_agent
+    assert "active_execution_segment" in resume_work
+    assert "execution_segment" in continuation
+    assert "Required Checkpoint Payload" in checkpoints
+    assert "rollback primitive" in checkpoint_flow
+
+
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
     assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
     assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))

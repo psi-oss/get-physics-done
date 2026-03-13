@@ -550,6 +550,7 @@ class TestConfigCommands:
         assert config_path.exists()
         config = json.loads(config_path.read_text())
         assert config["autonomy"] == "balanced"
+        assert config["execution"]["review_cadence"] == "adaptive"
         assert config["research_mode"] == "balanced"
         assert config["parallelization"] is True
         assert config["workflow"]["plan_checker"] is True

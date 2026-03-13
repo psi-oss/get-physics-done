@@ -2,9 +2,9 @@
 
 Referenced by `src/gpd/specs/workflows/execute-plan.md`. Governs checkpoint creation, previous attempt detection, checkpoint handling during execution, and cleanup.
 
-## Create Checkpoint
+## Create Rollback Tag
 
-**Create a git checkpoint tag before any plan execution begins.** This enables clean rollback if the plan fails partway through.
+**Create a git rollback tag before any plan execution begins.** This enables clean recovery if the plan fails partway through. The git tag is a rollback primitive, not the bounded execution checkpoint state itself.
 
 ```bash
 CHECKPOINT_TAG="gpd-checkpoint/phase-${PHASE}-plan-${PLAN}-$(date +%s)"
@@ -90,9 +90,9 @@ See references/orchestration/checkpoints.md for details.
 
 When spawned via task and hitting checkpoint: return structured state (cannot interact with user directly).
 
-**Required return:** 1) Completed Tasks table (hashes + files) 2) Current task (what's blocking) 3) Checkpoint Details (user-facing content) 4) Awaiting (what's needed from user)
+**Required return:** 1) Completed Tasks table (hashes + files) 2) Current task (what's blocking) 3) Checkpoint Details (user-facing content) 4) Awaiting (what's needed from user) 5) `execution_segment` payload with cursor, checkpoint cause, completed tasks, resume preconditions, and any first-result or pre-fanout gate state.
 
-Orchestrator parses -> presents to user -> spawns fresh continuation with your completed tasks state. You will NOT be resumed. In main context: use checkpoint protocol above.
+Orchestrator parses -> presents to user -> spawns fresh continuation with your completed tasks state plus the `execution_segment` payload. You will NOT be resumed. In main context: use checkpoint protocol above.
 
 ## Cleanup Checkpoint
 

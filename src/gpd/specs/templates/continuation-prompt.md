@@ -18,7 +18,7 @@ Continue executing plan {plan_number} of phase {phase_number}-{phase_name} from 
 
 Previous tasks are completed and committed. Verify prior commits exist, then continue from task {resume_task_number}: {resume_task_name}.
 
-Return state updates (position, decisions, metrics) in your response -- do NOT write STATE.md directly.
+Return state updates (position, decisions, metrics) in your response -- do NOT write STATE.md directly. Treat this as continuation of bounded execution segment `{segment_id}`, not as a fresh unbounded run.
 </objective>
 
 <prior_state>
@@ -33,6 +33,10 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 **User response:** {user_response}
 
 </prior_state>
+
+<execution_segment>
+{execution_segment}
+</execution_segment>
 
 <resume_instructions>
 {resume_instructions}
@@ -55,12 +59,19 @@ Before executing task {resume_task_number}, verify that prior tasks' commits exi
 git log --oneline --grep="({phase}-{plan}):" | head -20
 
 Compare against the completed tasks table above. If any expected commits are missing, STOP and report the discrepancy -- do not proceed with incomplete prior state.
+
+Also verify the bounded execution segment still satisfies its resume preconditions:
+
+- the checkpoint cause is understood
+- any required user decision or review outcome is now present
+- the segment has not already been superseded by a newer continuation state
 </verification_before_continuing>
 
 <success_criteria>
 
 - [ ] Prior task commits verified on disk
 - [ ] Checkpoint response incorporated into task {resume_task_number}
+- [ ] Execution segment cursor advanced or a new checkpoint segment returned
 - [ ] Remaining tasks executed with mathematical rigor
 - [ ] Each task committed individually
 - [ ] Dimensional consistency verified at each step
@@ -84,6 +95,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 | `{checkpoint_type}`       | From checkpoint return              | `human-verify`                                                            |
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
+| `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, and resume preconditions |
 | `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |
 | `{phase}`                 | Phase prefix                        | `03`                                                                      |
@@ -116,7 +128,7 @@ task(
 
 <!-- task() subagent_type and model parameters are runtime-specific. The installer adapts these to the target platform's delegation mechanism. -->
 
-**Why fresh agent, not resume:** Resume relies on internal serialization that can break with parallel tool calls. Fresh agents with explicit prior state are more reliable and produce consistent results across platforms.
+**Why fresh agent, not resume:** Resume relies on internal serialization that can break with parallel tool calls. Fresh agents with explicit prior state and an explicit `execution_segment` block are more reliable and produce consistent results across platforms.
 
 ---
 
@@ -125,7 +137,7 @@ task(
 1. Orchestrator detects checkpoint return from executor agent
 2. Orchestrator presents checkpoint details to user (execute-phase.md step 4)
 3. User responds with approval/decision/action confirmation
-4. Orchestrator fills this template with checkpoint state + user response
+4. Orchestrator fills this template with checkpoint state + bounded `execution_segment` + user response
 5. Orchestrator spawns fresh gpd-executor with filled template
 6. New executor verifies prior commits, incorporates user response, continues execution
 7. If executor hits another checkpoint, cycle repeats (step 1)

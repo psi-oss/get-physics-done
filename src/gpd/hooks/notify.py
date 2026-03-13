@@ -138,6 +138,78 @@ def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) 
     )
 
 
+def _notification_state_path(cwd: str) -> Path:
+    return Path(cwd) / ".gpd" / "observability" / "last-notify.json"
+
+
+def _load_last_notification(cwd: str) -> dict[str, object]:
+    path = _notification_state_path(cwd)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _save_last_notification(cwd: str, payload: dict[str, object]) -> None:
+    path = _notification_state_path(cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
+    from gpd.core.observability import get_current_execution
+
+    snapshot = get_current_execution(Path(cwd))
+    if snapshot is None:
+        return None, None
+
+    phase_plan = "-".join(part for part in (snapshot.phase, snapshot.plan) if part) or "current work"
+    artifact = snapshot.last_result_label or snapshot.last_artifact_path or snapshot.current_task or "latest result"
+
+    if snapshot.blocked_reason:
+        return (
+            f"[GPD] Blocked in {phase_plan}: {snapshot.blocked_reason}\n",
+            f"blocked:{snapshot.transition_id or snapshot.segment_id or snapshot.blocked_reason}",
+        )
+    if snapshot.first_result_gate_pending:
+        return (
+            f"[GPD] First-result review due for {phase_plan}: {artifact}\n",
+            f"first-result:{snapshot.transition_id or snapshot.segment_id or artifact}",
+        )
+    if snapshot.waiting_for_review:
+        checkpoint = snapshot.checkpoint_reason or "checkpoint"
+        return (
+            f"[GPD] Review checkpoint due for {phase_plan}: {checkpoint}\n",
+            f"review:{snapshot.transition_id or snapshot.segment_id or checkpoint}",
+        )
+    if snapshot.waiting_reason:
+        return (
+            f"[GPD] Waiting in {phase_plan}: {snapshot.waiting_reason}\n",
+            f"wait:{snapshot.transition_id or snapshot.segment_id or snapshot.waiting_reason}",
+        )
+    if snapshot.segment_status in {"paused", "ready_to_continue"}:
+        resume_target = snapshot.resume_file or artifact
+        return (
+            f"[GPD] Resume ready for {phase_plan}: {resume_target}\n",
+            f"resume:{snapshot.transition_id or snapshot.segment_id or resume_target}",
+        )
+    return None, None
+
+
+def _emit_execution_notification(cwd: str) -> None:
+    message, fingerprint = _execution_notification_message(cwd)
+    if not message or not fingerprint:
+        return
+
+    previous = _load_last_notification(cwd)
+    if previous.get("fingerprint") == fingerprint:
+        return
+
+    sys.stderr.write(message)
+    _save_last_notification(cwd, {"fingerprint": fingerprint})
+
+
 def main() -> None:
     """Entry point: read a JSON event from stdin and process notifications."""
     try:
@@ -158,6 +230,7 @@ def main() -> None:
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)
+        _emit_execution_notification(cwd)
     except Exception as exc:
         _debug(f"notify handler failed: {exc}")
 

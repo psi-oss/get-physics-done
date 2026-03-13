@@ -15,6 +15,7 @@ from unittest.mock import patch
 from gpd.hooks.statusline import (
     _check_update,
     _context_bar,
+    _execution_badge,
     _format_context_window_size,
     _read_current_task,
     _read_model_label,
@@ -107,6 +108,30 @@ class TestStatusMetadata:
 
         label = _read_workspace_label({}, str(current))
         assert label == "[workspace]"
+
+
+class TestExecutionBadge:
+    def test_first_result_gate_badge_wins(self) -> None:
+        badge = _execution_badge(
+            {
+                "segment_status": "waiting_review",
+                "first_result_gate_pending": True,
+                "review_cadence": "adaptive",
+                "segment_started_at": "2026-03-10T00:00:00+00:00",
+                "updated_at": "2026-03-10T00:12:00+00:00",
+            }
+        )
+        assert "REVIEW:first-result" in badge
+        assert "adaptive" in badge
+        assert "12m" in badge
+
+    def test_blocked_badge_uses_blocked_state(self) -> None:
+        badge = _execution_badge({"segment_status": "active", "blocked_reason": "anchor mismatch"})
+        assert badge == "BLOCKED"
+
+    def test_resume_badge_surfaces_resume_state(self) -> None:
+        badge = _execution_badge({"segment_status": "paused", "resume_file": ".gpd/phases/02/.continue-here.md"})
+        assert badge == "RESUME"
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
@@ -622,6 +647,7 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
@@ -703,6 +729,7 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
         ):
             main()
@@ -719,6 +746,7 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
         ):
             main()
@@ -735,6 +763,7 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
         ):
             main()
@@ -762,6 +791,7 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value="Running experiments"),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
@@ -775,7 +805,33 @@ class TestMain:
             patch("sys.stdout", captured),
             patch("gpd.hooks.statusline._read_position", return_value="P3/10"),
             patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
         assert "P3/10" in captured.getvalue()
+
+    def test_first_result_gate_replaces_plain_task_display(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="P3/10"),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
+            patch(
+                "gpd.hooks.statusline._read_execution_state",
+                return_value={
+                    "segment_status": "waiting_review",
+                    "first_result_gate_pending": True,
+                    "review_cadence": "adaptive",
+                    "last_result_label": "Benchmark reproduction",
+                },
+            ),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue()
+        assert "REVIEW:first-result adaptive" in output
+        assert "Routine task" not in output
+        assert "Benchmark reproduction" in output

@@ -1999,6 +1999,14 @@ def config_ensure_section() -> None:
     defaults = GPDProjectConfig()
     config_dict = {
         "autonomy": defaults.autonomy.value,
+        "execution": {
+            "review_cadence": defaults.review_cadence.value,
+            "max_unattended_minutes_per_plan": defaults.max_unattended_minutes_per_plan,
+            "max_unattended_minutes_per_wave": defaults.max_unattended_minutes_per_wave,
+            "checkpoint_after_n_tasks": defaults.checkpoint_after_n_tasks,
+            "checkpoint_after_first_load_bearing_result": defaults.checkpoint_after_first_load_bearing_result,
+            "checkpoint_before_downstream_dependent_tasks": defaults.checkpoint_before_downstream_dependent_tasks,
+        },
         "research_mode": defaults.research_mode.value,
         "commit_docs": defaults.commit_docs,
         "parallelization": defaults.parallelization,

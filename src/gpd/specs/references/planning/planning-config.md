@@ -9,6 +9,14 @@ Configuration options for `.gpd/` directory behavior in physics research project
   "commit_docs": true
 },
 "autonomy": "balanced",
+"execution": {
+  "review_cadence": "adaptive",
+  "max_unattended_minutes_per_plan": 45,
+  "max_unattended_minutes_per_wave": 90,
+  "checkpoint_after_n_tasks": 3,
+  "checkpoint_after_first_load_bearing_result": true,
+  "checkpoint_before_downstream_dependent_tasks": true
+},
 "research_mode": "balanced",
 "parallelization": true,
 "model_profile": "review",
@@ -18,7 +26,6 @@ Configuration options for `.gpd/` directory behavior in physics research project
   "milestone_branch_template": "gpd/{milestone}-{slug}"
 },
 "workflow": {
-  "verify_between_waves": "auto",
   "verifier": true,
   "plan_checker": true
 },
@@ -36,6 +43,12 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
 | `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"babysit"`, `"balanced"`, `"yolo"`                                    |
+| `execution.review_cadence`      | `"adaptive"`                 | How aggressively long-running execution injects bounded review points                            |
+| `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a continuation segment should be created                                |
+| `execution.max_unattended_minutes_per_wave` | `90`             | Wave-level unattended budget before forcing a bounded review                                     |
+| `execution.checkpoint_after_n_tasks` | `3`                    | Task budget before forcing a bounded continuation segment                                        |
+| `execution.checkpoint_after_first_load_bearing_result` | `true` | Require a first-result sanity gate before fanout                                                 |
+| `execution.checkpoint_before_downstream_dependent_tasks` | `true` | Require review before dependent downstream work unlocks                                          |
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
 | `parallelization`               | `true`                       | Execute plans within a wave in parallel (`true`) or sequentially (`false`)                     |
 | `model_profile`                 | `"review"`                   | Research profile: `"deep-theory"`, `"numerical"`, `"exploratory"`, `"review"`, `"paper-writing"` |
@@ -47,7 +60,6 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | `physics.computational_backend` | `"numpy"`                    | Numerical backend: `"numpy"`, `"jax"`, `"torch"`, `"scipy"`                                    |
 | `physics.symbolic_backend`      | `"sympy"`                    | Symbolic algebra: `"sympy"`, `"sage"`, `"mathematica"`                                         |
 | `physics.convergence_tolerance` | `1e-8`                       | Default convergence threshold for iterative methods                                            |
-| `workflow.verify_between_waves` | `"auto"`                     | Inter-wave verification: `"auto"` (profile-dependent), `true` (always), `false` (never)        |
 | `workflow.verifier`             | `true`                       | Enable end-of-phase verification                                                               |
 | `workflow.plan_checker`         | `true`                       | Spawn plan checker agent during plan-phase to validate plans before execution                   |
 | `physics.dimensional_analysis`  | `true`                       | Auto-check dimensional consistency in expressions                                              |
@@ -97,32 +109,29 @@ The CLI checks `commit_docs` config and gitignore status internally -- no manual
 
 <workflow_config_behavior>
 
-**Inter-wave verification (`workflow.verify_between_waves`):**
+**Execution review cadence (`execution.review_cadence`):**
 
-| Value    | Behavior                                                                                |
-| -------- | --------------------------------------------------------------------------------------- |
-| `"auto"` | Profile-dependent: enabled for `deep-theory`, disabled for `exploratory` and `numerical` |
-| `true`   | Always run inter-wave verification gates                                                |
-| `false`  | Never run inter-wave verification (fastest execution)                                   |
+| Value        | Behavior |
+| ------------ | -------- |
+| `"dense"`    | Frequent bounded review points and short unattended segments |
+| `"adaptive"` | Default. Insert first-result and risky-fanout gates automatically |
+| `"sparse"`   | Fewest review stops, but required correctness gates still run |
 
-When enabled, after each wave completes and before the next wave starts, the orchestrator runs lightweight checks on the wave's SUMMARY.md outputs:
+`autonomy` and `execution.review_cadence` are separate axes:
 
-1. **Dimensional analysis** — verify dimensional consistency of key results reported in SUMMARY.md
-2. **Convention consistency** — check that results use the same conventions locked in state.json
+- `autonomy` controls who must review or approve a gate
+- `execution.review_cadence` controls when the system must create a bounded gate
+- even in `yolo`, first-result and failed-sanity gates are not skipped
 
-If either check fails, execution pauses with options to continue, rollback the wave, or stop.
+When cadence logic injects a gate, the orchestrator still runs lightweight convention and sanity checks before unlocking downstream work.
 
-**Profile defaults for `"auto"` mode:**
+**Profile interaction:**
 
-| Profile        | verify_between_waves |
-| -------------- | -------------------- |
-| `deep-theory`  | enabled              |
-| `numerical`    | disabled             |
-| `exploratory`  | disabled             |
-| `review`       | enabled              |
-| `paper-writing`| disabled             |
+- `model_profile` affects how much detail, rigor, and verification depth each executor applies
+- `review_cadence` affects where bounded continuation segments appear
+- keep them independent so, for example, `paper-writing` can still run with `dense` cadence when stakes are high
 
-**Cost:** Each inter-wave gate adds ~2-5k tokens (one lightweight consistency-checker call per wave transition). For a 4-wave phase with deep-theory profile, this is ~10-15k tokens overhead — negligible compared to the cost of a sign error propagating through 3 subsequent waves.
+**Cost:** Each cadence-driven gate adds overhead, but the cost is negligible compared to letting a wrong first assumption propagate through downstream waves.
 
 </workflow_config_behavior>
 

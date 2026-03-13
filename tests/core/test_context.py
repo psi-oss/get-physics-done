@@ -71,6 +71,12 @@ def _write_project_contract_state(tmp_path: Path) -> None:
     (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
+def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
+    observability = tmp_path / ".gpd" / "observability"
+    observability.mkdir(parents=True, exist_ok=True)
+    (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
 # ─── Helper Tests ──────────────────────────────────────────────────────────────
 
 
@@ -103,16 +109,19 @@ class TestLoadConfig:
         _setup_project(tmp_path)
         config = load_config(tmp_path)
         assert config["autonomy"] == "balanced"
+        assert config["review_cadence"] == "adaptive"
         assert config["research_mode"] == "balanced"
         assert config["commit_docs"] is True
         assert config["parallelization"] is True
         assert config["verifier"] is True
+        assert config["checkpoint_after_first_load_bearing_result"] is True
 
     def test_custom_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"autonomy": "yolo", "research_mode": "exploit"})
+        _create_config(tmp_path, {"autonomy": "yolo", "review_cadence": "dense", "research_mode": "exploit"})
         config = load_config(tmp_path)
         assert config["autonomy"] == "yolo"
+        assert config["review_cadence"] == "dense"
         assert config["research_mode"] == "exploit"
 
     def test_nested_config(self, tmp_path: Path) -> None:
@@ -152,6 +161,8 @@ class TestInitExecutePhase:
         assert ctx["plan_count"] == 1
         assert ctx["incomplete_count"] == 0
         assert ctx["state_exists"] is False
+        assert ctx["review_cadence"] == "adaptive"
+        assert ctx["checkpoint_after_first_load_bearing_result"] is True
 
     def test_missing_phase_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValidationError, match="phase is required"):
@@ -187,6 +198,28 @@ class TestInitExecutePhase:
 
         assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
         assert "Published comparison target" in ctx["active_reference_context"]
+
+    def test_surfaces_live_execution_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "01",
+                "plan": "01",
+                "segment_status": "waiting_review",
+                "first_result_gate_pending": True,
+                "review_cadence": "adaptive",
+            },
+        )
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["has_live_execution"] is True
+        assert ctx["execution_review_pending"] is True
+        assert ctx["current_execution"]["segment_status"] == "waiting_review"
 
 
 # ─── init_plan_phase ──────────────────────────────────────────────────────────
@@ -358,6 +391,27 @@ class TestInitResume:
 
         assert ctx["state_exists"] is True
 
+    def test_exposes_bounded_segment_resume_candidate(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-4",
+                "segment_status": "paused",
+                "resume_file": ".gpd/phases/03-analysis/.continue-here.md",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["resume_mode"] == "bounded_segment"
+        assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
+        assert ctx["segment_candidates"][0]["source"] == "current_execution"
+
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 
@@ -518,6 +572,25 @@ class TestInitProgress:
 
         ctx = init_progress(tmp_path)
         assert ctx["paused_at"] == "2026-03-01T12:00:00Z"
+
+    def test_progress_prefers_live_execution_pause_state(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-2",
+                "phase": "02",
+                "segment_status": "paused",
+                "resume_file": ".gpd/phases/02-analysis/.continue-here.md",
+                "updated_at": "2026-03-11T08:00:00+00:00",
+            },
+        )
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
+        assert ctx["execution_resumable"] is True
+        assert ctx["has_work_in_progress"] is True
 
     def test_includes_project(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

@@ -7,7 +7,13 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from gpd.hooks.notify import _check_and_notify_update, _hook_payload_policy, main
+from gpd.hooks.notify import _check_and_notify_update, _emit_execution_notification, _hook_payload_policy, main
+
+
+def _write_current_execution(workspace: Path, payload: dict[str, object]) -> None:
+    observability = workspace / ".gpd" / "observability"
+    observability.mkdir(parents=True, exist_ok=True)
+    (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
@@ -372,3 +378,48 @@ def test_main_logs_handler_exception_instead_of_swallowing(tmp_path: Path) -> No
 
     output = stderr.getvalue()
     assert "notify handler failed: boom" in output
+
+
+def test_emit_execution_notification_for_first_result_gate(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-1",
+            "first_result_gate_pending": True,
+            "last_result_label": "Benchmark reproduction",
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    assert "First-result review due for 03-01" in stderr.getvalue()
+    assert "Benchmark reproduction" in stderr.getvalue()
+
+
+def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "04",
+            "plan": "02",
+            "segment_id": "seg-2",
+            "segment_status": "paused",
+            "resume_file": ".gpd/phases/04/.continue-here.md",
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+        _emit_execution_notification(str(workspace))
+
+    output = stderr.getvalue()
+    assert output.count("Resume ready for 04-02") == 1

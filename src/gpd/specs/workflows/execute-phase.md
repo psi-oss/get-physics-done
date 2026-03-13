@@ -24,7 +24,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `parallelization`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -35,10 +35,11 @@ When `parallelization` is false, plans within a wave execute sequentially.
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation before each wave. Show the plan summary and wait for approval.
 - `autonomy=balanced` (default): Execute waves automatically and pause only if errors, ambiguities, or scope-changing decisions arise at a wave boundary.
-- `autonomy=yolo`: Execute all waves, skip optional verification steps, commit immediately.
+- `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, or anchor-gated fanout reviews.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
 - `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget.
 - `research_mode=adaptive`: Start with exploit, switch to explore if verification fails.
+- `review_cadence`: Controls when bounded review gates appear. `autonomy` controls who must approve or inspect those gates. These are separate axes.
 </step>
 
 <step name="handle_branching">
@@ -348,6 +349,46 @@ Report:
 
 </step>
 
+<step name="resolve_execution_cadence">
+Translate cadence config plus wave risk into concrete execution boundaries before any executor is spawned.
+
+```bash
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
+MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 90)
+CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
+CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)
+CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_downstream_dependent_tasks --default true)
+```
+
+**Core invariant:** `autonomy` decides who gets interrupted. `review_cadence` decides when the system must stop, inspect, or re-question. Even in `yolo`, required first-result and pre-fanout gates still run; the difference is that a clean pass can auto-continue.
+
+For each wave, classify whether downstream fanout is risky:
+
+- risky when a wave has multiple plans and any later wave depends on it
+- risky when any plan has `task_count >= CHECKPOINT_AFTER_N_TASKS` and no authored checkpoints
+- risky for `derivation`, `formalism`, `numerical`, or `validation` phase classes
+- risky when file conflicts, convention-lock requirements, or benchmark-critical anchors are present
+
+When a wave is risky:
+
+- set `FIRST_RESULT_GATE_REQUIRED=true`
+- set `PRE_FANOUT_REVIEW_REQUIRED=true`
+- set `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}`
+- force bounded continuation segments even when the authored plan has no checkpoints
+
+When a wave is not risky:
+
+- keep bounded execution available for long plans and context pressure
+- allow checkpoint-free plans to run normally when task count is small and fanout is low
+
+**Skeptical re-questioning rule:** if the first material result only validates a proxy while decisive anchors or benchmark references remain unchecked, stop and explicitly re-question the framing before allowing downstream fanout. Record:
+
+- weakest unchecked anchor
+- what still looks assumed rather than verified
+- the disconfirming observation that would most quickly break the current path
+</step>
+
 <step name="execute_waves">
 Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true` AND `FORCE_SEQUENTIAL=false`, sequential otherwise. (Literature phases force sequential execution — see `adapt_to_computation_type`.)
 
@@ -393,6 +434,13 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - Bad: "Executing Hamiltonian diagonalization plan"
    - Good: "Diagonalizing the spin-chain Hamiltonian using Bethe ansatz -- extracts exact energy spectrum and correlation functions in the thermodynamic limit. Required before computing transport coefficients in Wave 3."
 
+   **If this wave is marked risky fanout:** run `probe_then_fanout` instead of blind full-wave scaleout.
+
+   - First launch each risky plan only to its first-result gate or bounded segment boundary
+   - Collect first-result sanity outcomes and anchor status
+   - Only unlock the remainder of the wave when those gates pass cleanly
+   - If any plan fails the gate or requires re-questioning, STOP the wave before spawning more downstream work
+
 4. **Spawn executor agents:**
 
    Pass paths only -- executors read files themselves with their fresh 200k context.
@@ -414,6 +462,13 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
        <context_hint>{EXECUTOR_CONTEXT_HINT}</context_hint>
        <phase_class>{PHASE_CLASSES}</phase_class>
+       <review_cadence>{REVIEW_CADENCE}</review_cadence>
+       <max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>
+       <max_unattended_minutes_per_wave>{MAX_UNATTENDED_MINUTES_PER_WAVE}</max_unattended_minutes_per_wave>
+       <segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>
+       <first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>
+       <checkpoint_before_downstream>{CHECKPOINT_BEFORE_DOWNSTREAM}</checkpoint_before_downstream>
+       <bounded_execution>{true}</bounded_execution>
 
        <files_to_read>
        Read these files at execution start using the file_read tool:
@@ -499,6 +554,15 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 7. **Handle failures** -- see `wave_failure_handling` below.
 
 8. **Execute checkpoint plans between waves** -- see `<checkpoint_handling>`.
+
+   Before unlocking downstream dependent waves, confirm that risky-wave plans passed the first meaningful review point:
+
+   - the first load-bearing result exists
+   - the result is tied to a contract-relevant output, not only a proxy
+   - one quick sanity/benchmark/convention check passed
+   - decisive anchors still missing were explicitly named and re-questioned if necessary
+
+   If this gate fails: STOP — do not let wrong early assumptions scale out.
 
 9. **Inter-wave verification gate (if more waves remain):**
 
@@ -797,7 +861,7 @@ Plans with `interactive: true` require user interaction.
 
 1. Spawn agent for checkpoint plan
 2. Agent runs until checkpoint task or validation gate -> returns structured state
-3. Agent return includes: completed tasks table, current task + blocker, checkpoint type/details, what's awaited
+3. Agent return includes: completed tasks table, current task + blocker, checkpoint type/details, what's awaited, and the bounded execution segment envelope
 4. **Present to user:**
 
    ```
@@ -816,6 +880,7 @@ Plans with `interactive: true` require user interaction.
    - `{resume_task_number}` + `{resume_task_name}`: Current task
    - `{user_response}`: What user provided
    - `{resume_instructions}`: Based on checkpoint type (see template for type-specific instructions)
+   - `{execution_segment}`: The returned bounded-segment state, including checkpoint cause, current cursor, and resume preconditions
 7. Continuation agent verifies previous commits, continues from resume point
 8. Repeat until plan completes or user stops
 

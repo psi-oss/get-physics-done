@@ -124,6 +124,9 @@ OBSERVABILITY_SESSIONS_DIR_NAME = "sessions"
 OBSERVABILITY_CURRENT_SESSION_FILENAME = "current-session.json"
 """Pointer to the most recent active local observability session."""
 
+OBSERVABILITY_CURRENT_EXECUTION_FILENAME = "current-execution.json"
+"""Pointer to the latest active or resumable execution-state snapshot."""
+
 MILESTONES_DIR_NAME = "milestones"
 """Subdirectory under .gpd/ for archived milestone snapshots."""
 
@@ -395,6 +398,10 @@ class ProjectLayout:
     @property
     def current_observability_session(self) -> Path:
         return self.observability_dir / OBSERVABILITY_CURRENT_SESSION_FILENAME
+
+    @property
+    def current_observability_execution(self) -> Path:
+        return self.observability_dir / OBSERVABILITY_CURRENT_EXECUTION_FILENAME
 
     @property
     def milestones_dir(self) -> Path:

@@ -27,6 +27,7 @@ __all__ = [
     "GPDProjectConfig",
     "ModelProfile",
     "ModelTier",
+    "ReviewCadence",
     "ResearchMode",
     "canonical_config_key",
     "effective_config_value",
@@ -47,6 +48,14 @@ class AutonomyMode(StrEnum):
     BABYSIT = "babysit"
     BALANCED = "balanced"
     YOLO = "yolo"
+
+
+class ReviewCadence(StrEnum):
+    """How aggressively long-running execution injects review boundaries."""
+
+    DENSE = "dense"
+    ADAPTIVE = "adaptive"
+    SPARSE = "sparse"
 
 
 class ResearchMode(StrEnum):
@@ -304,6 +313,7 @@ class GPDProjectConfig(BaseModel):
 
     model_profile: ModelProfile = ModelProfile.REVIEW
     autonomy: AutonomyMode = AutonomyMode.BALANCED
+    review_cadence: ReviewCadence = ReviewCadence.ADAPTIVE
     research_mode: ResearchMode = ResearchMode.BALANCED
 
     # Workflow toggles
@@ -312,6 +322,11 @@ class GPDProjectConfig(BaseModel):
     plan_checker: bool = True
     verifier: bool = True
     parallelization: bool = True
+    max_unattended_minutes_per_plan: int = Field(default=45, ge=1)
+    max_unattended_minutes_per_wave: int = Field(default=90, ge=1)
+    checkpoint_after_n_tasks: int = Field(default=3, ge=1)
+    checkpoint_after_first_load_bearing_result: bool = True
+    checkpoint_before_downstream_dependent_tasks: bool = True
 
     # Git settings
     branching_strategy: BranchingStrategy = BranchingStrategy.NONE
@@ -382,7 +397,16 @@ def _enum_value(value: object) -> object:
 _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
     "autonomy": lambda config: _enum_value(config.autonomy),
     "branching_strategy": lambda config: _enum_value(config.branching_strategy),
+    "checkpoint_after_first_load_bearing_result": (
+        lambda config: config.checkpoint_after_first_load_bearing_result
+    ),
+    "checkpoint_after_n_tasks": lambda config: config.checkpoint_after_n_tasks,
+    "checkpoint_before_downstream_dependent_tasks": (
+        lambda config: config.checkpoint_before_downstream_dependent_tasks
+    ),
     "commit_docs": lambda config: config.commit_docs,
+    "max_unattended_minutes_per_plan": lambda config: config.max_unattended_minutes_per_plan,
+    "max_unattended_minutes_per_wave": lambda config: config.max_unattended_minutes_per_wave,
     "milestone_branch_template": lambda config: config.milestone_branch_template,
     "model_overrides": lambda config: copy.deepcopy(config.model_overrides),
     "model_profile": lambda config: _enum_value(config.model_profile),
@@ -390,6 +414,7 @@ _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
     "phase_branch_template": lambda config: config.phase_branch_template,
     "plan_checker": lambda config: config.plan_checker,
     "research": lambda config: config.research,
+    "review_cadence": lambda config: _enum_value(config.review_cadence),
     "research_mode": lambda config: _enum_value(config.research_mode),
     "verifier": lambda config: config.verifier,
 }
@@ -401,6 +426,14 @@ _EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, obj
         "milestone_branch_template": config.milestone_branch_template,
     },
     "planning": lambda config: {"commit_docs": config.commit_docs},
+    "execution": lambda config: {
+        "review_cadence": _enum_value(config.review_cadence),
+        "max_unattended_minutes_per_plan": config.max_unattended_minutes_per_plan,
+        "max_unattended_minutes_per_wave": config.max_unattended_minutes_per_wave,
+        "checkpoint_after_n_tasks": config.checkpoint_after_n_tasks,
+        "checkpoint_after_first_load_bearing_result": config.checkpoint_after_first_load_bearing_result,
+        "checkpoint_before_downstream_dependent_tasks": config.checkpoint_before_downstream_dependent_tasks,
+    },
     "workflow": lambda config: {
         "research": config.research,
         "plan_checker": config.plan_checker,
@@ -411,10 +444,21 @@ _EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, obj
 _CONFIG_KEY_ALIASES: dict[str, str] = {
     "autonomy": "autonomy",
     "branching_strategy": "branching_strategy",
+    "checkpoint_after_first_load_bearing_result": "checkpoint_after_first_load_bearing_result",
+    "checkpoint_after_n_tasks": "checkpoint_after_n_tasks",
+    "checkpoint_before_downstream_dependent_tasks": "checkpoint_before_downstream_dependent_tasks",
     "commit_docs": "commit_docs",
+    "execution.checkpoint_after_first_load_bearing_result": "checkpoint_after_first_load_bearing_result",
+    "execution.checkpoint_after_n_tasks": "checkpoint_after_n_tasks",
+    "execution.checkpoint_before_downstream_dependent_tasks": "checkpoint_before_downstream_dependent_tasks",
+    "execution.max_unattended_minutes_per_plan": "max_unattended_minutes_per_plan",
+    "execution.max_unattended_minutes_per_wave": "max_unattended_minutes_per_wave",
+    "execution.review_cadence": "review_cadence",
     "git.branching_strategy": "branching_strategy",
     "git.milestone_branch_template": "milestone_branch_template",
     "git.phase_branch_template": "phase_branch_template",
+    "max_unattended_minutes_per_plan": "max_unattended_minutes_per_plan",
+    "max_unattended_minutes_per_wave": "max_unattended_minutes_per_wave",
     "milestone_branch_template": "milestone_branch_template",
     "model_overrides": "model_overrides",
     "model_profile": "model_profile",
@@ -423,6 +467,7 @@ _CONFIG_KEY_ALIASES: dict[str, str] = {
     "plan_checker": "plan_checker",
     "planning.commit_docs": "commit_docs",
     "research": "research",
+    "review_cadence": "review_cadence",
     "research_mode": "research_mode",
     "verifier": "verifier",
     "workflow.plan_checker": "plan_checker",
@@ -433,6 +478,22 @@ _CONFIG_KEY_ALIASES: dict[str, str] = {
 _CANONICAL_CONFIG_STORAGE_PATHS: dict[str, tuple[str, ...]] = {
     canonical_key: (canonical_key,) for canonical_key in _EFFECTIVE_CONFIG_LEAVES
 }
+_CANONICAL_CONFIG_STORAGE_PATHS.update(
+    {
+        "review_cadence": ("execution", "review_cadence"),
+        "max_unattended_minutes_per_plan": ("execution", "max_unattended_minutes_per_plan"),
+        "max_unattended_minutes_per_wave": ("execution", "max_unattended_minutes_per_wave"),
+        "checkpoint_after_n_tasks": ("execution", "checkpoint_after_n_tasks"),
+        "checkpoint_after_first_load_bearing_result": (
+            "execution",
+            "checkpoint_after_first_load_bearing_result",
+        ),
+        "checkpoint_before_downstream_dependent_tasks": (
+            "execution",
+            "checkpoint_before_downstream_dependent_tasks",
+        ),
+    }
+)
 
 _ALIASES_BY_CANONICAL_KEY: dict[str, tuple[str, ...]] = {}
 for _alias, _canonical_key in _CONFIG_KEY_ALIASES.items():
@@ -562,8 +623,14 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
     {
         "autonomy",
         "branching_strategy",
+        "checkpoint_after_first_load_bearing_result",
+        "checkpoint_after_n_tasks",
+        "checkpoint_before_downstream_dependent_tasks",
         "commit_docs",
+        "execution",
         "git",
+        "max_unattended_minutes_per_plan",
+        "max_unattended_minutes_per_wave",
         "milestone_branch_template",
         "model_overrides",
         "model_profile",
@@ -572,6 +639,7 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
         "plan_checker",
         "planning",
         "research",
+        "review_cadence",
         "research_mode",
         "verifier",
         "workflow",
@@ -580,6 +648,16 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
 
 _ALLOWED_CONFIG_SECTION_KEYS = {
     "git": frozenset({"branching_strategy", "milestone_branch_template", "phase_branch_template"}),
+    "execution": frozenset(
+        {
+            "review_cadence",
+            "max_unattended_minutes_per_plan",
+            "max_unattended_minutes_per_wave",
+            "checkpoint_after_n_tasks",
+            "checkpoint_after_first_load_bearing_result",
+            "checkpoint_before_downstream_dependent_tasks",
+        }
+    ),
     "planning": frozenset({"commit_docs"}),
     "workflow": frozenset({"plan_checker", "research", "verifier"}),
 }
@@ -637,6 +715,10 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
                 _get_nested(parsed, "autonomy"),
                 _CONFIG_DEFAULTS.autonomy,
             ),
+            review_cadence=_coalesce(
+                _get_nested(parsed, "review_cadence", section="execution", field="review_cadence"),
+                _CONFIG_DEFAULTS.review_cadence,
+            ),
             research_mode=_coalesce(
                 _get_nested(parsed, "research_mode"),
                 _CONFIG_DEFAULTS.research_mode,
@@ -672,6 +754,51 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
             parallelization=_coalesce(
                 _get_nested(parsed, "parallelization"),
                 _CONFIG_DEFAULTS.parallelization,
+            ),
+            max_unattended_minutes_per_plan=_coalesce(
+                _get_nested(
+                    parsed,
+                    "max_unattended_minutes_per_plan",
+                    section="execution",
+                    field="max_unattended_minutes_per_plan",
+                ),
+                _CONFIG_DEFAULTS.max_unattended_minutes_per_plan,
+            ),
+            max_unattended_minutes_per_wave=_coalesce(
+                _get_nested(
+                    parsed,
+                    "max_unattended_minutes_per_wave",
+                    section="execution",
+                    field="max_unattended_minutes_per_wave",
+                ),
+                _CONFIG_DEFAULTS.max_unattended_minutes_per_wave,
+            ),
+            checkpoint_after_n_tasks=_coalesce(
+                _get_nested(
+                    parsed,
+                    "checkpoint_after_n_tasks",
+                    section="execution",
+                    field="checkpoint_after_n_tasks",
+                ),
+                _CONFIG_DEFAULTS.checkpoint_after_n_tasks,
+            ),
+            checkpoint_after_first_load_bearing_result=_coalesce(
+                _get_nested(
+                    parsed,
+                    "checkpoint_after_first_load_bearing_result",
+                    section="execution",
+                    field="checkpoint_after_first_load_bearing_result",
+                ),
+                _CONFIG_DEFAULTS.checkpoint_after_first_load_bearing_result,
+            ),
+            checkpoint_before_downstream_dependent_tasks=_coalesce(
+                _get_nested(
+                    parsed,
+                    "checkpoint_before_downstream_dependent_tasks",
+                    section="execution",
+                    field="checkpoint_before_downstream_dependent_tasks",
+                ),
+                _CONFIG_DEFAULTS.checkpoint_before_downstream_dependent_tasks,
             ),
             model_overrides=_coalesce(
                 _get_nested(parsed, "model_overrides"),

@@ -87,6 +87,99 @@ def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, m
     assert shown.count == 3
 
 
+def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "workflow": "execute-phase",
+                "segment_id": "seg-01",
+                "segment_reason": "task_budget",
+                "review_cadence": "adaptive",
+                "current_task": "Assemble benchmark",
+            }
+        },
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="03",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "checkpoint_reason": "first_result",
+                "first_result_ready": True,
+                "first_result_gate_pending": True,
+                "last_result_label": "Benchmark reproduction",
+            }
+        },
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.segment_id == "seg-01"
+    assert snapshot.waiting_for_review is True
+    assert snapshot.first_result_gate_pending is True
+    assert snapshot.last_result_label == "Benchmark reproduction"
+    assert snapshot.downstream_locked is True
+
+
+def test_execution_finish_clears_current_execution_snapshot(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        phase="04",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-02"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        phase="04",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"segment_status": "completed"}},
+    )
+
+    assert get_current_execution(project) is None
+
+
 def test_observe_event_reuses_persisted_active_session_when_contextvars_are_empty(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -287,6 +287,22 @@ Research plans execute automatically when no checkpoint is required. Checkpoints
 
 <execution_protocol>
 
+## Required Checkpoint Payload
+
+Every authored or auto-inserted checkpoint must return a bounded execution payload, not only prose. The payload must include:
+
+- `checkpoint_id`
+- `checkpoint_type`
+- `checkpoint_reason` (`explicit`, `first_result`, `segment_boundary`, `pre_fanout`, `context_pressure`, or `manual`)
+- `awaiting` (what the user or orchestrator must provide)
+- `verification_prework_done`
+- `resume_contract` (what must be true before continuation)
+- `success_path`
+- `issue_path`
+- `execution_segment` with current cursor, completed tasks, current task, and resume preconditions
+
+This keeps authored checkpoints and auto-inserted Stage 5 checkpoints on the same continuation path.
+
 When the assistant encounters `type="checkpoint:*"`:
 
 1. **Stop immediately** - do not proceed to next task

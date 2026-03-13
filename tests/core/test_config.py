@@ -14,6 +14,7 @@ from gpd.core.config import (
     ModelProfile,
     ModelTier,
     ResearchMode,
+    ReviewCadence,
     _valid_runtime_names,
     load_config,
     resolve_agent_tier,
@@ -36,6 +37,11 @@ class TestEnums:
         assert ResearchMode.BALANCED.value == "balanced"
         assert ResearchMode.EXPLOIT.value == "exploit"
         assert ResearchMode.ADAPTIVE.value == "adaptive"
+
+    def test_review_cadence_values(self):
+        assert ReviewCadence.DENSE.value == "dense"
+        assert ReviewCadence.ADAPTIVE.value == "adaptive"
+        assert ReviewCadence.SPARSE.value == "sparse"
 
     def test_model_profile_values(self):
         assert ModelProfile.DEEP_THEORY.value == "deep-theory"
@@ -88,9 +94,15 @@ class TestGPDProjectConfigDefaults:
         cfg = GPDProjectConfig()
         assert cfg.model_profile == ModelProfile.REVIEW
         assert cfg.autonomy == AutonomyMode.BALANCED
+        assert cfg.review_cadence == ReviewCadence.ADAPTIVE
         assert cfg.research_mode == ResearchMode.BALANCED
         assert cfg.commit_docs is True
         assert cfg.parallelization is True
+        assert cfg.max_unattended_minutes_per_plan == 45
+        assert cfg.max_unattended_minutes_per_wave == 90
+        assert cfg.checkpoint_after_n_tasks == 3
+        assert cfg.checkpoint_after_first_load_bearing_result is True
+        assert cfg.checkpoint_before_downstream_dependent_tasks is True
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
 
@@ -116,6 +128,7 @@ class TestLoadConfig:
                 {
                     "model_profile": "deep-theory",
                     "autonomy": "yolo",
+                    "review_cadence": "dense",
                     "research_mode": "explore",
                     "commit_docs": False,
                 }
@@ -124,6 +137,7 @@ class TestLoadConfig:
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.DEEP_THEORY
         assert cfg.autonomy == AutonomyMode.YOLO
+        assert cfg.review_cadence == ReviewCadence.DENSE
         assert cfg.research_mode == ResearchMode.EXPLORE
         assert cfg.commit_docs is False
 
@@ -133,6 +147,11 @@ class TestLoadConfig:
             json.dumps(
                 {
                     "planning": {"commit_docs": False},
+                    "execution": {
+                        "review_cadence": "sparse",
+                        "max_unattended_minutes_per_plan": 30,
+                        "checkpoint_after_n_tasks": 2,
+                    },
                     "git": {"branching_strategy": "per-phase"},
                     "workflow": {"research": False, "verifier": False},
                 }
@@ -140,6 +159,9 @@ class TestLoadConfig:
         )
         cfg = load_config(tmp_path)
         assert cfg.commit_docs is False
+        assert cfg.review_cadence == ReviewCadence.SPARSE
+        assert cfg.max_unattended_minutes_per_plan == 30
+        assert cfg.checkpoint_after_n_tasks == 2
         assert cfg.branching_strategy == BranchingStrategy.PER_PHASE
         assert cfg.research is False
         assert cfg.verifier is False

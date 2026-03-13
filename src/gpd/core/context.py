@@ -340,6 +340,42 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     }
 
 
+def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
+    """Build shared live execution-state context for orchestration surfaces."""
+    from gpd.core.observability import get_current_execution
+
+    snapshot = get_current_execution(cwd)
+    state = _load_state_json(cwd)
+    position = state.get("position") if isinstance(state, dict) else {}
+    session = state.get("session") if isinstance(state, dict) else {}
+
+    paused_states = {"paused", "awaiting_user", "ready_to_continue", "waiting_review", "blocked"}
+    segment_status = (snapshot.segment_status or "").lower() if snapshot is not None else ""
+    is_resumable = bool(snapshot and segment_status in paused_states)
+    paused_at = (
+        snapshot.updated_at
+        if snapshot is not None and segment_status in paused_states
+        else (position.get("paused_at") if isinstance(position, dict) else None)
+    )
+    resume_file = (
+        snapshot.resume_file
+        if snapshot is not None and snapshot.resume_file
+        else (session.get("resume_file") if isinstance(session, dict) else None)
+    )
+
+    return {
+        "current_execution": snapshot.model_dump(mode="json") if snapshot is not None else None,
+        "has_live_execution": snapshot is not None,
+        "execution_review_pending": bool(
+            snapshot and (snapshot.first_result_gate_pending or snapshot.waiting_for_review)
+        ),
+        "execution_blocked": bool(snapshot and snapshot.blocked_reason),
+        "execution_resumable": is_resumable,
+        "execution_paused_at": paused_at,
+        "execution_resume_file": resume_file,
+    }
+
+
 # ─── Config Loader ────────────────────────────────────────────────────────────
 
 
@@ -352,6 +388,7 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
     d: dict[str, object] = {
         "model_profile": str(cfg.model_profile.value),
         "autonomy": str(cfg.autonomy.value),
+        "review_cadence": str(cfg.review_cadence.value),
         "research_mode": str(cfg.research_mode.value),
         "commit_docs": cfg.commit_docs,
         "branching_strategy": str(cfg.branching_strategy.value),
@@ -361,6 +398,11 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "plan_checker": cfg.plan_checker,
         "verifier": cfg.verifier,
         "parallelization": cfg.parallelization,
+        "max_unattended_minutes_per_plan": cfg.max_unattended_minutes_per_plan,
+        "max_unattended_minutes_per_wave": cfg.max_unattended_minutes_per_wave,
+        "checkpoint_after_n_tasks": cfg.checkpoint_after_n_tasks,
+        "checkpoint_after_first_load_bearing_result": cfg.checkpoint_after_first_load_bearing_result,
+        "checkpoint_before_downstream_dependent_tasks": cfg.checkpoint_before_downstream_dependent_tasks,
     }
     if cfg.model_overrides:
         d["model_overrides"] = cfg.model_overrides
@@ -479,8 +521,14 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         # Config flags
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
+        "review_cadence": config["review_cadence"],
         "research_mode": config["research_mode"],
         "parallelization": config["parallelization"],
+        "max_unattended_minutes_per_plan": config["max_unattended_minutes_per_plan"],
+        "max_unattended_minutes_per_wave": config["max_unattended_minutes_per_wave"],
+        "checkpoint_after_n_tasks": config["checkpoint_after_n_tasks"],
+        "checkpoint_after_first_load_bearing_result": config["checkpoint_after_first_load_bearing_result"],
+        "checkpoint_before_downstream_dependent_tasks": config["checkpoint_before_downstream_dependent_tasks"],
         "branching_strategy": config["branching_strategy"],
         "phase_branch_template": config["phase_branch_template"],
         "milestone_branch_template": config["milestone_branch_template"],
@@ -517,6 +565,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_execution_runtime_context(cwd))
 
     # Include file contents if requested
     planning = cwd / PLANNING_DIR_NAME
@@ -744,6 +793,10 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
 def init_resume(cwd: Path) -> dict:
     """Assemble context for resuming work."""
     config = load_config(cwd)
+    execution_context = _build_execution_runtime_context(cwd)
+    state = _load_state_json(cwd)
+    session = state.get("session") if isinstance(state, dict) else {}
+    position = state.get("position") if isinstance(state, dict) else {}
 
     # Check for interrupted agent
     interrupted_agent_id = None
@@ -752,6 +805,43 @@ def init_resume(cwd: Path) -> dict:
         interrupted_agent_id = agent_id_file.read_text(encoding="utf-8").strip() or None
     except (FileNotFoundError, OSError):
         pass
+
+    segment_candidates: list[dict[str, object]] = []
+    current_execution = execution_context.get("current_execution")
+    if isinstance(current_execution, dict):
+        segment_candidates.append(
+            {
+                "source": "current_execution",
+                "status": current_execution.get("segment_status"),
+                "phase": current_execution.get("phase"),
+                "plan": current_execution.get("plan"),
+                "segment_id": current_execution.get("segment_id"),
+                "resume_file": current_execution.get("resume_file"),
+                "waiting_reason": current_execution.get("waiting_reason"),
+                "blocked_reason": current_execution.get("blocked_reason"),
+                "updated_at": current_execution.get("updated_at"),
+            }
+        )
+    if interrupted_agent_id is not None:
+        segment_candidates.append(
+            {
+                "source": "interrupted_agent",
+                "status": "interrupted",
+                "agent_id": interrupted_agent_id,
+            }
+        )
+    resume_file = session.get("resume_file") if isinstance(session, dict) else None
+    if isinstance(resume_file, str) and resume_file and resume_file != "\u2014":
+        segment_candidates.append(
+            {
+                "source": "session_resume_file",
+                "status": "paused",
+                "resume_file": resume_file,
+                "paused_at": position.get("paused_at") if isinstance(position, dict) else None,
+            }
+        )
+
+    resume_mode = "bounded_segment" if segment_candidates else None
 
     return {
         # File existence
@@ -765,9 +855,14 @@ def init_resume(cwd: Path) -> dict:
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
+        "review_cadence": config["review_cadence"],
         "research_mode": config["research_mode"],
+        "active_execution_segment": current_execution,
+        "segment_candidates": segment_candidates,
+        "resume_mode": resume_mode,
         # Platform
         "platform": _detect_platform(cwd),
+        **execution_context,
     }
 
 
@@ -819,8 +914,14 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
+        "review_cadence": config["review_cadence"],
         "research_mode": config["research_mode"],
         "parallelization": config["parallelization"],
+        "max_unattended_minutes_per_plan": config["max_unattended_minutes_per_plan"],
+        "max_unattended_minutes_per_wave": config["max_unattended_minutes_per_wave"],
+        "checkpoint_after_n_tasks": config["checkpoint_after_n_tasks"],
+        "checkpoint_after_first_load_bearing_result": config["checkpoint_after_first_load_bearing_result"],
+        "checkpoint_before_downstream_dependent_tasks": config["checkpoint_before_downstream_dependent_tasks"],
         # Phase info
         "phase_found": phase_info is not None,
         "phase_dir": phase_info["directory"] if phase_info else None,
@@ -843,6 +944,7 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_execution_runtime_context(cwd))
 
     planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
@@ -1087,6 +1189,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
+        "review_cadence": config["review_cadence"],
         "research_mode": config["research_mode"],
         # Milestone
         "milestone_version": milestone["version"],
@@ -1109,6 +1212,22 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_execution_runtime_context(cwd))
+    if result.get("execution_paused_at"):
+        result["paused_at"] = result["execution_paused_at"]
+    if result.get("current_execution") and result["current_phase"] is None:
+        current_execution = result["current_execution"]
+        if isinstance(current_execution, dict) and current_execution.get("phase"):
+            result["current_phase"] = {
+                "number": current_execution.get("phase"),
+                "name": None,
+                "directory": None,
+                "status": "in_progress",
+                "plan_count": None,
+                "summary_count": None,
+                "has_research": False,
+            }
+        result["has_work_in_progress"] = True
 
     # Include file contents
     planning = cwd / PLANNING_DIR_NAME

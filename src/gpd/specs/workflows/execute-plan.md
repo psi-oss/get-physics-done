@@ -31,7 +31,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`.
+Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`.
 
 **File contents (from --include):** `state_content`, `config_content`. Access with:
 
@@ -118,9 +118,40 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **babysit** | After EVERY task | Always | Always stop |
-| **balanced** (default) | None (auto tasks flow) | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
-| **yolo** | None | None (attempt one alternative before escalating) | Stop only on unrecoverable errors |
+| **babysit** | After EVERY task plus every required first-result gate | Always | Always stop |
+| **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
+| **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result or pre-fanout gates | Stop only on unrecoverable errors or failed sanity gates |
+
+**Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops.
+
+</step>
+
+<step name="resolve_execution_cadence">
+Read cadence controls from init JSON. Use these to decide whether a plan can run unbounded or must be segmented even without authored checkpoints.
+
+```bash
+REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
+CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
+CHECKPOINT_AFTER_FIRST_RESULT=$(echo "$INIT" | gpd json get .checkpoint_after_first_load_bearing_result --default true)
+CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_downstream_dependent_tasks --default true)
+```
+
+Resolve plan-local bounds using orchestrator tags first, then plan shape:
+
+- if the orchestrator passed `<first_result_gate>true</first_result_gate>`, honor it
+- if the orchestrator passed `<segment_task_cap>N</segment_task_cap>`, honor it
+- otherwise require bounded execution when the plan has no authored checkpoints and `task_count >= CHECKPOINT_AFTER_N_TASKS`
+- also require bounded execution when the plan establishes a new baseline, new estimator, new ansatz, or a result that many downstream tasks depend on
+
+Set:
+
+- `FIRST_RESULT_GATE_REQUIRED=true|false`
+- `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}` unless overridden
+- `BOUNDED_EXECUTION=true|false`
+- `PRE_FANOUT_REVIEW_REQUIRED=${CHECKPOINT_BEFORE_DOWNSTREAM}`
+
+**Skeptical re-questioning rule:** if the first material result only validates a proxy while decisive anchors remain unchecked, STOP and ask whether the framing still deserves belief before continuing.
 
 </step>
 
@@ -155,8 +186,9 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 | None        | A (non-interactive) | Single subagent: full plan + SUMMARY + commit                                                    |
 | Verify-only | B (segmented)  | Segments between checkpoints. After none/human-verify -> SUBAGENT. After decision/human-action -> MAIN |
 | Decision    | C (main)       | Execute entirely in main context                                                                       |
+| Auto-bounded | D (virtual checkpoints) | Segment automatically at first-result, task-cap, context-pressure, or pre-fanout review boundaries |
 
-**Pattern A:** init_agent_tracking -> spawn task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + commit, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>` (controls checkpoint frequency and decision authority — see gpd-executor.md autonomy_modes section), report: plan name, tasks, SUMMARY path, commit hash -> track agent_id -> wait -> update tracking -> report.
+**Pattern A:** init_agent_tracking -> spawn task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + commit, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<bounded_execution>false</bounded_execution>` (only for genuinely low-risk short plans), report: plan name, tasks, SUMMARY path, commit hash -> track agent_id -> wait -> update tracking -> report.
 
 **If the executor agent fails to spawn or returns an error (Pattern A):** Check if any work was committed (`git log --oneline -3`). If commits with the plan's work exist, the executor may have completed but failed to report — verify output files and proceed to post-execution checks. If no work was done, offer: 1) Retry executor spawn, 2) Fall back to Pattern C (execute in main context), 3) Abort. Update agent tracking status to "failed" with error details.
 
@@ -165,6 +197,8 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 **If a segment executor fails to spawn or returns an error (Pattern B):** Check if the segment's tasks produced any output files. If work exists, proceed to the next segment. If no work, offer: 1) Retry this segment, 2) Execute the segment's tasks in the main context, 3) Skip this segment and continue. Do not abort the entire plan for a single segment failure. Record the failure in agent tracking.
 
 **Pattern C:** Execute in main using standard flow (step name="execute").
+
+**Pattern D:** Execute via virtual checkpoints even if the authored plan contains no checkpoint tasks. Stop at the first material result, at `SEGMENT_TASK_CAP`, at context-pressure auto-pause, or before downstream fanout when anchors still need review. Use the same continuation flow as authored checkpoints.
 
 Fresh context per subagent preserves peak quality. Main context stays lean.
 </step>
@@ -188,11 +222,11 @@ Run for Pattern A/B before spawning. Pattern C: skip.
 </step>
 
 <step name="segment_execution">
-Pattern B only (verify-only checkpoints). Skip for A/C.
+Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 
-1. Parse segment map: checkpoint locations and types
+1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, and context pressure
 2. Per segment:
-   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs. Track via agent protocol.
+   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs. Track via agent protocol.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> commit -> self-check:
 
@@ -231,11 +265,24 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      gpd observe event task task-complete --phase "${phase}" --plan "${plan}" --data "{\"task\":\"${TASK_NUM}\",\"description\":\"${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      gpd trace log checkpoint --data "{\"description\":\"Task ${TASK_NUM} done: ${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      ```
+     **Required first-result sanity gate:** At the earliest of (a) first quantitative result, (b) first derived core equation, (c) first produced artifact, (d) first benchmark-style comparison, or (e) two completed auto tasks, STOP and check:
+     - is this a load-bearing result or only a proxy?
+     - did one quick sanity/benchmark/convention check already pass?
+     - do decisive anchors remain unchecked?
+     - if anchors remain unchecked, what is the disconfirming observation that would most quickly break the current framing?
+
+     Record this gate with:
+
+     ```bash
+     gpd observe event execution gate --action enter --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"first_result\",\"review_cadence\":\"${REVIEW_CADENCE}\",\"first_result_ready\":true,\"first_result_gate_pending\":true,\"current_task\":\"${TASK_DESCRIPTION}\"}}" 2>/dev/null || true
+     ```
+
      **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
      - **babysit:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
-     - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, and any checkpoint tied to deviation rules 5-6 or unresolved convergence failure. Log routine checkpoint markers and continue when no judgment is needed.
-     - **yolo:** Skip ALL checkpoint types. Log checkpoint events to trace but never stop. Only hard stops: unrecoverable computation error, context pressure RED, or explicit STOP in plan.
+     - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, and any checkpoint tied to deviation rules 5-6 or unresolved convergence failure. Log routine checkpoint markers and continue when no judgment is needed.
+     - **yolo:** Do NOT skip required first-result, bounded-segment, or pre-fanout checkpoints. Auto-continue on clean passes, but STOP on failed sanity, anchor-gate failure, or unrecoverable computation error.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
    gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
@@ -264,7 +311,7 @@ After completing each task, check context usage. Checkpoint frequency varies by 
 |------|--------------------------|--------------------------|---------------------|
 | **babysit** | Yes + present to user | Yes + force pause + user approval | Always stop, present details |
 | **balanced** | Yes (write silently) | Yes + proactive pause | Attempt one bounded fix, then stop if unresolved |
-| **yolo** | Write checkpoint file only | Auto-pause only at context RED (>85%) | Stop only on unrecoverable error |
+| **yolo** | Write checkpoint file only | Auto-pause only at context RED (>85%) | Stop only on unrecoverable error or failed required gate |
 
 1. Write auto-checkpoint to phase directory:
 ```bash
@@ -280,7 +327,7 @@ CHECKPOINT
 
 2. If above 75% (or 85% in yolo mode): Proactively trigger pause protocol:
    - Commit all current work
-   - Create `.continue-here.md` with full derivation state
+   - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
    - Update STATE.md session info
   - **babysit/balanced:** Suggest `/clear` + `/gpd:resume-work`
   - **yolo:** Auto-trigger `/gpd:resume-work` if context allows (otherwise suggest `/clear`)

@@ -30,6 +30,7 @@ from gpd.core.constants import ProjectLayout
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
+    "CurrentExecutionState",
     "LocalSpan",
     "ObservabilityEvent",
     "ObservabilitySession",
@@ -38,6 +39,7 @@ __all__ = [
     "ObservabilityShowResult",
     "ensure_session",
     "ensure_observability_session",
+    "get_current_execution",
     "get_current_session",
     "get_current_session_id",
     "gpd_span",
@@ -92,6 +94,43 @@ class ObservabilityEvent(BaseModel):
     span_id: str | None = None
     parent_span_id: str | None = None
     data: dict[str, object] = Field(default_factory=dict)
+
+
+class CurrentExecutionState(BaseModel):
+    """Latest active or resumable execution-state snapshot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    session_id: str | None = None
+    workflow: str | None = None
+    runtime: str | None = None
+    command: str | None = None
+    phase: str | None = None
+    plan: str | None = None
+    wave: int | str | None = None
+    segment_id: str | None = None
+    segment_status: str | None = None
+    segment_reason: str | None = None
+    review_cadence: str | None = None
+    autonomy: str | None = None
+    current_task: str | None = None
+    current_task_index: int | None = None
+    current_task_total: int | None = None
+    waiting_for_review: bool = False
+    review_required: bool = False
+    checkpoint_reason: str | None = None
+    waiting_reason: str | None = None
+    blocked_reason: str | None = None
+    first_result_ready: bool = False
+    first_result_gate_pending: bool = False
+    downstream_locked: bool = False
+    last_result_id: str | None = None
+    last_result_label: str | None = None
+    last_artifact_path: str | None = None
+    resume_file: str | None = None
+    segment_started_at: str | None = None
+    transition_id: str | None = None
+    updated_at: str | None = None
 
 
 class ObserveEventResult(BaseModel):
@@ -219,6 +258,177 @@ def _append_event(path: Path, payload: dict[str, object]) -> None:
 
 def _save_current_session(layout: ProjectLayout, session: ObservabilitySession) -> None:
     atomic_write(layout.current_observability_session, session.model_dump_json(indent=2))
+
+
+def _save_current_execution(layout: ProjectLayout, execution: CurrentExecutionState) -> None:
+    atomic_write(layout.current_observability_execution, execution.model_dump_json(indent=2))
+
+
+def _clear_current_execution(layout: ProjectLayout) -> None:
+    try:
+        layout.current_observability_execution.unlink()
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
+
+
+def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | None:
+    return _read_json(layout.current_observability_execution)
+
+
+def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
+    layout = _layout(cwd)
+    if layout is None:
+        return None
+    raw = _read_current_execution_raw(layout)
+    if raw is None:
+        return None
+    try:
+        return CurrentExecutionState.model_validate(raw)
+    except Exception:
+        return None
+
+
+def _execution_data(data: dict[str, object]) -> dict[str, object]:
+    nested = data.get("execution")
+    if isinstance(nested, dict):
+        return dict(nested)
+    return dict(data)
+
+
+def _bool_or_none(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _str_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _int_or_none(value: object) -> int | None:
+    return value if isinstance(value, int) else None
+
+
+def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: ObservabilityEvent, execution: dict[str, object]) -> bool:
+    if _bool_or_none(execution.get("preserve_current")):
+        return False
+
+    waiting_statuses = {"awaiting_user", "paused", "blocked", "ready_to_continue", "waiting_review"}
+    if snapshot.segment_status in waiting_statuses:
+        return False
+
+    if snapshot.waiting_for_review or snapshot.first_result_gate_pending or snapshot.blocked_reason:
+        return False
+
+    return payload.action in {"finish", "stop"} or snapshot.segment_status == "completed"
+
+
+def _updated_execution_state(
+    existing: CurrentExecutionState | None,
+    payload: ObservabilityEvent,
+) -> CurrentExecutionState | None:
+    if payload.category != "execution":
+        return existing
+
+    execution = _execution_data(payload.data)
+    current = existing.model_dump(mode="json") if existing is not None else {}
+
+    current["session_id"] = payload.session_id
+    current["command"] = payload.command
+    current["phase"] = payload.phase or current.get("phase")
+    current["plan"] = payload.plan or current.get("plan")
+    current["updated_at"] = payload.timestamp
+
+    workflow = _str_or_none(execution.get("workflow"))
+    if workflow:
+        current["workflow"] = workflow
+    runtime = _str_or_none(execution.get("runtime"))
+    if runtime:
+        current["runtime"] = runtime
+    transition_id = _str_or_none(execution.get("transition_id"))
+    if transition_id:
+        current["transition_id"] = transition_id
+
+    for key in (
+        "segment_id",
+        "segment_status",
+        "segment_reason",
+        "review_cadence",
+        "autonomy",
+        "current_task",
+        "checkpoint_reason",
+        "waiting_reason",
+        "blocked_reason",
+        "last_result_id",
+        "last_result_label",
+        "last_artifact_path",
+        "resume_file",
+        "segment_started_at",
+    ):
+        value = _str_or_none(execution.get(key))
+        if value is not None:
+            current[key] = value
+
+    for key in ("current_task_index", "current_task_total"):
+        value = _int_or_none(execution.get(key))
+        if value is not None:
+            current[key] = value
+
+    if "wave" in execution and execution.get("wave") is not None:
+        current["wave"] = execution.get("wave")
+
+    for key in ("waiting_for_review", "review_required", "first_result_ready", "first_result_gate_pending", "downstream_locked"):
+        value = _bool_or_none(execution.get(key))
+        if value is not None:
+            current[key] = value
+
+    if payload.name == "segment" and payload.action == "start":
+        current.setdefault("segment_started_at", payload.timestamp)
+        current.setdefault("segment_status", "active")
+    elif payload.name == "segment" and payload.action == "pause":
+        current["segment_status"] = current.get("segment_status") or "paused"
+    elif payload.name == "segment" and payload.action in {"finish", "stop"}:
+        current["segment_status"] = current.get("segment_status") or "completed"
+
+    if payload.name == "gate" and payload.action == "enter":
+        current["review_required"] = True
+        current["waiting_for_review"] = True
+        current["segment_status"] = current.get("segment_status") or "waiting_review"
+        if current.get("checkpoint_reason") == "first_result":
+            current["first_result_gate_pending"] = True
+            current["first_result_ready"] = True
+        if "downstream_locked" not in execution:
+            current["downstream_locked"] = True
+    elif payload.name == "gate" and payload.action in {"clear", "override"}:
+        current["waiting_for_review"] = False
+        current["review_required"] = False
+        current["first_result_gate_pending"] = False
+        current["waiting_reason"] = None
+        if payload.action == "clear":
+            current["downstream_locked"] = False
+        if current.get("segment_status") == "waiting_review":
+            current["segment_status"] = "active"
+
+    if payload.name == "fanout" and payload.action == "lock":
+        current["downstream_locked"] = True
+    elif payload.name == "fanout" and payload.action == "unlock":
+        current["downstream_locked"] = False
+
+    if payload.name == "result" and payload.action in {"produce", "log"}:
+        if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
+            current["first_result_ready"] = True
+
+    if current.get("blocked_reason"):
+        current["segment_status"] = "blocked"
+    elif current.get("waiting_for_review"):
+        current["segment_status"] = "waiting_review"
+    elif current.get("waiting_reason"):
+        current["segment_status"] = current.get("segment_status") or "awaiting_user"
+
+    snapshot = CurrentExecutionState.model_validate(current)
+    if _clear_execution_after_event(snapshot, payload, execution):
+        return None
+    return snapshot
 
 
 def _current_command(argv: list[str] | None = None) -> str | None:
@@ -565,6 +775,11 @@ def observe_event(
         data=data or {},
     )
     _append_event(_session_log(layout, session.session_id), payload.model_dump(mode="json"))
+    next_execution = _updated_execution_state(get_current_execution(layout.root), payload)
+    if next_execution is None:
+        _clear_current_execution(layout)
+    else:
+        _save_current_execution(layout, next_execution)
 
     updated = _updated_session(
         session,

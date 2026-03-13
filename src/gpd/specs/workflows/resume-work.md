@@ -27,11 +27,13 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`.
+Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`.
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
 **If `planning_exists` is false:** This is a new project - route to /gpd:new-project
+
+If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target before falling back to legacy `.continue-here` or interrupted-agent heuristics.
 </step>
 
 <step name="load_state">
@@ -187,6 +189,8 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
+**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, and first-result review as the same family of resumable state. Do NOT treat git rollback tags, `.continue-here`, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
+
 **Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than last `.continue-here.md`, warn: "Auto-checkpoint detected -- work may have continued after the last formal pause. Review state.json auto_checkpoint for details."
 
 **Orphaned .continue-here.md detection:** Check for `.continue-here.md` files from crashed sessions (where the plan was already completed but the handoff file was never cleaned up):
@@ -214,7 +218,7 @@ If orphaned files found: offer to clean them up — "Found {N} orphaned .continu
 
 **Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, .continue-here.md, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
 
-**If .continue-here file exists:**
+**If .continue-here file exists but no active execution segment exists:**
 
 - This is a mid-plan resumption point
 - Read the file for specific resumption context, especially:
@@ -231,7 +235,7 @@ If orphaned files found: offer to clean them up — "Found {N} orphaned .continu
 - Execution was started but not completed
 - Flag: "Found incomplete plan execution"
 
-**If interrupted agent found:**
+**If interrupted agent found and no newer bounded execution segment exists:**
 
 - Subagent was spawned but session ended before completion
 - Read agent-history.json for task details
@@ -296,6 +300,10 @@ Present complete research project status to user:
 
 <step name="determine_next_action">
 Based on project state, determine the most logical next action:
+
+**If `resume_mode="bounded_segment"` and `active_execution_segment` exists:**
+-> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, and resume preconditions
+-> Option: Review a lower-priority legacy candidate from `segment_candidates`
 
 **If interrupted agent exists:**
 -> Primary: Resume interrupted agent (Task tool with resume parameter)
