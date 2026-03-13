@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -66,6 +67,66 @@ def load_contract() -> dict[str, object]:
     return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
+def _is_excluded_path(path: Path) -> bool:
+    return any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
+
+
+def _tracked_repo_files(repo_root: Path) -> list[Path] | None:
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+    return [Path(relative_path) for relative_path in completed.stdout.decode("utf-8").split("\0") if relative_path]
+
+
+def _repo_files_in_scope(repo_root: Path) -> list[Path]:
+    tracked_files = _tracked_repo_files(repo_root)
+    if tracked_files is not None:
+        return [path for path in tracked_files if not _is_excluded_path(path)]
+
+    return [
+        path.relative_to(repo_root)
+        for path in repo_root.rglob("*")
+        if path.is_file() and not _is_excluded_path(path.relative_to(repo_root))
+    ]
+
+
+def _is_under(path: Path, *parent_parts: str) -> bool:
+    return path.parts[: len(parent_parts)] == parent_parts
+
+
+def _has_parent(path: Path, *parent_parts: str) -> bool:
+    return path.parts[:-1] == parent_parts
+
+
+def _preserved_generated_on(
+    scope_counts: dict[str, int],
+    excluded_dirs: list[str],
+    contract_path: Path,
+) -> str | None:
+    if not contract_path.exists():
+        return None
+
+    existing_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    if not isinstance(existing_contract, dict):
+        return None
+    if existing_contract.get("schema_version") != SCHEMA_VERSION:
+        return None
+    if existing_contract.get("excluded_graph_dirs") != excluded_dirs:
+        return None
+    if existing_contract.get("scope_counts") != scope_counts:
+        return None
+
+    generated_on = existing_contract.get("generated_on")
+    return generated_on if isinstance(generated_on, str) else None
+
+
 def canonical_scope_label(label: str) -> str:
     normalized = label.strip()
     if normalized.startswith("`") and normalized.endswith("`"):
@@ -83,44 +144,74 @@ def parse_scope_count(label: str) -> int:
 
 
 def live_repo_file_count(repo_root: Path = REPO_ROOT) -> int:
-    return sum(
-        1
-        for path in repo_root.rglob("*")
-        if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
-    )
+    return len(_repo_files_in_scope(repo_root))
 
 
 def expected_scope_counts(repo_root: Path = REPO_ROOT) -> dict[str, int]:
+    repo_files = _repo_files_in_scope(repo_root)
+
     return {
-        "Live repo files analyzed in the current tree": live_repo_file_count(repo_root),
+        "Live repo files analyzed in the current tree": len(repo_files),
         "Python files under `src/` and `tests/`": sum(
-            1
-            for root in (repo_root / "src", repo_root / "tests")
-            for _path in root.rglob("*.py")
+            1 for path in repo_files if path.suffix == ".py" and path.parts and path.parts[0] in {"src", "tests"}
         ),
-        "`src/gpd/commands/*.md`": len(list((repo_root / "src/gpd/commands").glob("*.md"))),
-        "`src/gpd/agents/*.md`": len(list((repo_root / "src/gpd/agents").glob("*.md"))),
-        "`src/gpd/specs/workflows/*.md`": len(list((repo_root / "src/gpd/specs/workflows").glob("*.md"))),
-        "`src/gpd/specs/templates/**/*.md`": len(list((repo_root / "src/gpd/specs/templates").rglob("*.md"))),
-        "`src/gpd/specs/references/**/*.md`": len(list((repo_root / "src/gpd/specs/references").rglob("*.md"))),
-        "`src/gpd/adapters/*.py`": len(list((repo_root / "src/gpd/adapters").glob("*.py"))),
-        "`src/gpd/hooks/*.py`": len(list((repo_root / "src/gpd/hooks").glob("*.py"))),
-        "`src/gpd/mcp/servers/*.py`": len(list((repo_root / "src/gpd/mcp/servers").glob("*.py"))),
+        "`src/gpd/commands/*.md`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "commands") and path.suffix == ".md"
+        ),
+        "`src/gpd/agents/*.md`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "agents") and path.suffix == ".md"
+        ),
+        "`src/gpd/specs/workflows/*.md`": sum(
+            1
+            for path in repo_files
+            if _has_parent(path, "src", "gpd", "specs", "workflows") and path.suffix == ".md"
+        ),
+        "`src/gpd/specs/templates/**/*.md`": sum(
+            1
+            for path in repo_files
+            if _is_under(path, "src", "gpd", "specs", "templates") and path.suffix == ".md"
+        ),
+        "`src/gpd/specs/references/**/*.md`": sum(
+            1
+            for path in repo_files
+            if _is_under(path, "src", "gpd", "specs", "references") and path.suffix == ".md"
+        ),
+        "`src/gpd/adapters/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "adapters") and path.suffix == ".py"
+        ),
+        "`src/gpd/hooks/*.py`": sum(
+            1 for path in repo_files if _has_parent(path, "src", "gpd", "hooks") and path.suffix == ".py"
+        ),
+        "`src/gpd/mcp/servers/*.py`": sum(
+            1
+            for path in repo_files
+            if _has_parent(path, "src", "gpd", "mcp", "servers") and path.suffix == ".py"
+        ),
         "`tests/**` files": sum(
-            1
-            for path in (repo_root / "tests").rglob("*")
-            if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
+            1 for path in repo_files if _is_under(path, "tests")
         ),
-        "`infra/gpd-*.json`": len(list((repo_root / "infra").glob("gpd-*.json"))),
+        "`infra/gpd-*.json`": sum(
+            1
+            for path in repo_files
+            if _has_parent(path, "infra") and path.suffix == ".json" and path.name.startswith("gpd-")
+        ),
     }
 
 
-def build_contract(repo_root: Path = REPO_ROOT, generated_on: str | None = None) -> dict[str, object]:
+def build_contract(
+    repo_root: Path = REPO_ROOT,
+    generated_on: str | None = None,
+    contract_path: Path = CONTRACT_PATH,
+) -> dict[str, object]:
+    scope_counts = expected_scope_counts(repo_root)
+    excluded_dirs = list(EXCLUDED_GRAPH_DIRS)
+    effective_generated_on = generated_on or _preserved_generated_on(scope_counts, excluded_dirs, contract_path)
+
     return {
         "schema_version": SCHEMA_VERSION,
-        "generated_on": generated_on or date.today().isoformat(),
-        "excluded_graph_dirs": list(EXCLUDED_GRAPH_DIRS),
-        "scope_counts": expected_scope_counts(repo_root),
+        "generated_on": effective_generated_on or date.today().isoformat(),
+        "excluded_graph_dirs": excluded_dirs,
+        "scope_counts": scope_counts,
     }
 
 
