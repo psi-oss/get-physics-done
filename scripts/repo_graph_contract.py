@@ -18,6 +18,8 @@ GENERATED_ON_START = "<!-- repo-graph-generated-on:start -->"
 GENERATED_ON_END = "<!-- repo-graph-generated-on:end -->"
 SCOPE_START = "<!-- repo-graph-scope:start -->"
 SCOPE_END = "<!-- repo-graph-scope:end -->"
+SAME_STEM_COMMAND_WORKFLOW_START = "<!-- repo-graph-same-stem-command-workflow:start -->"
+SAME_STEM_COMMAND_WORKFLOW_END = "<!-- repo-graph-same-stem-command-workflow:end -->"
 
 _LOCAL_RUNTIME_MIRROR_EXCLUDES = tuple(
     descriptor.config_dir_name
@@ -259,6 +261,23 @@ def render_scope_block(contract: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def render_same_stem_command_workflow_block(repo_root: Path = REPO_ROOT) -> str:
+    same_stems = ",".join(
+        sorted(
+            {path.stem for path in (repo_root / "src" / "gpd" / "commands").glob("*.md")}
+            & {path.stem for path in (repo_root / "src" / "gpd" / "specs" / "workflows").glob("*.md")}
+        )
+    )
+
+    return "\n".join(
+        (
+            SAME_STEM_COMMAND_WORKFLOW_START,
+            f"- `src/gpd/commands/{{{same_stems}}}.md -> src/gpd/specs/workflows/{{same stems}}.md`",
+            SAME_STEM_COMMAND_WORKFLOW_END,
+        )
+    )
+
+
 def extract_marked_block(text: str, start_marker: str, end_marker: str) -> str:
     start = text.index(start_marker)
     end = text.index(end_marker, start) + len(end_marker)
@@ -278,4 +297,10 @@ def sync_readme_text(readme_text: str, contract: dict[str, object]) -> str:
         GENERATED_ON_END,
         render_generated_on_block(contract),
     )
-    return replace_marked_block(synced, SCOPE_START, SCOPE_END, render_scope_block(contract))
+    synced = replace_marked_block(synced, SCOPE_START, SCOPE_END, render_scope_block(contract))
+    return replace_marked_block(
+        synced,
+        SAME_STEM_COMMAND_WORKFLOW_START,
+        SAME_STEM_COMMAND_WORKFLOW_END,
+        render_same_stem_command_workflow_block(),
+    )

@@ -53,7 +53,7 @@ Output this and STOP (do not display the full reference):
 **Workflow:** new-project → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
 
-Run `/gpd:help --all` for all 60 commands.
+Run `/gpd:help --all` for all 61 commands.
 
 --- END of default output. STOP here. ---
 
