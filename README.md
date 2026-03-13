@@ -28,14 +28,18 @@ Install GPD:
 npx -y get-physics-done
 ```
 
+For best performance, run both this install step and your chosen runtime from your normal system terminal, not inside the VS Code, Cursor, or other AI runtime command/chat interface.
+
 Then choose the path that matches your starting point:
 
-| Starting point | First command |
-|----------------|---------------|
-| New research project | `new-project` |
-| Existing research folder or codebase | `map-research` |
+| Starting point | First command | What it's for |
+|----------------|---------------|----------------|
+| New research project | `new-project` | Start a fresh GPD research workflow. |
+| Existing research folder or codebase | `map-research` | Map existing work before planning. |
+| Configure workflow and model defaults | `settings` | Set workflow toggles, tier models, and research preferences. |
+| Switch research profile | `set-profile <profile>` | Quickly change how GPD agents approach the work. |
 
-Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes).
+Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes), for example `/gpd:settings` or `/gpd:set-profile review`.
 
 If you are starting from existing work, run `map-research` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
 
@@ -78,7 +82,7 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
-Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally and use the commands shown above.
+Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally from your system terminal and use the commands shown above.
 
 Codex-specific note:
 - GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.

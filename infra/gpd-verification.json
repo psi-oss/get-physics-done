@@ -1,6 +1,6 @@
 {
   "name": "gpd-verification",
-  "description": "GPD physics verification checks. Tools for running dimensional analysis, limiting case checks, symmetry verification, and coverage gap analysis.",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis.",
   "transport": "stdio",
   "command": "gpd-mcp-verification",
   "args": [],
@@ -9,7 +9,10 @@
   },
   "capabilities": [
     "run_check",
+    "run_contract_check",
+    "suggest_contract_checks",
     "get_checklist",
+    "get_bundle_checklist",
     "dimensional_check",
     "limiting_case_check",
     "symmetry_check",

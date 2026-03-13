@@ -185,12 +185,16 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     },
     "gpd-verification": {
         "description": (
-            "GPD physics verification checks. Tools for running dimensional analysis, "
-            "limiting case checks, symmetry verification, and coverage gap analysis."
+            "GPD physics verification checks. Tools for running contract-aware checks, "
+            "dimensional analysis, domain and bundle-specific checklists, limiting case checks, "
+            "symmetry verification, and coverage gap analysis."
         ),
         "capabilities": [
             "run_check",
+            "run_contract_check",
+            "suggest_contract_checks",
             "get_checklist",
+            "get_bundle_checklist",
             "dimensional_check",
             "limiting_case_check",
             "symmetry_check",

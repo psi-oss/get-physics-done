@@ -27,6 +27,7 @@ from scripts.repo_graph_contract import (
     render_scope_block,
 )
 
+
 @contextmanager
 def _transient_root_artifacts():
     sentinel_root = "__gpd_repo_graph_test__"
