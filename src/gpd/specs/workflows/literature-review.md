@@ -52,7 +52,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `active_reference_context`, `reference_artifact_files`.
 
 **Read mode settings:**
 
@@ -67,9 +67,9 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=adaptive`: Start with 15 papers, expand if citation network reveals critical gaps.
 - `autonomy=babysit`: Pause after each review round for user feedback on scope and direction.
 - `autonomy=balanced` (default): Complete the full review pipeline automatically. Pause only if the literature reveals scope ambiguity, contradictory evidence, or a change in recommendation.
-- `autonomy=yolo`: Complete the review pipeline without pausing.
+- `autonomy=yolo`: Complete the review pipeline without pausing, but do NOT drop contract-critical anchors or user-mandated references.
 
-- **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic and phase context.
+- **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic, phase context, and any contract-critical references from `active_reference_context`.
 - **If `state_exists` is false** (standalone usage): Proceed — the user will specify the topic directly.
 
 Project context helps focus the review on conventions and methods relevant to the current research.
@@ -87,6 +87,7 @@ Define explicit include/exclude boundaries:
 
 - Include: specific phenomena, methods, energy ranges, dimensions
 - Exclude: tangential fields, historical reviews (unless depth=comprehensive)
+- Record any contract-critical anchor that must be surfaced even if it falls outside the default search breadth
   </step>
 
 <step name="identify_foundations">
@@ -114,6 +115,7 @@ Every subfield has seminal papers that defined the field. Identify them:
    - Method used
    - Conventions (units, metric signature, normalization)
    - Where the result is used downstream
+   - Whether it should be treated as a contract-critical anchor for later planning or verification
 
 4. Build a citation timeline showing how the field developed.
    </step>
@@ -170,6 +172,7 @@ Tabulate results for the SAME quantity across different papers/methods to expose
 - Agreement (convergence of independent methods)
 - Disagreement (controversial values)
 - Trends (how results evolved as methods improved)
+- Which values are decisive benchmarks versus optional background comparisons
   </step>
 
 <step name="trace_citations">
@@ -234,6 +237,7 @@ For each gap:
 - Why hasn't it been addressed? (Too hard? Not important enough? Technical obstacle?)
 - What would it take to address it? (Better methods? More computing power? New data?)
 - What would we learn? (Is it worth the effort?)
+- Whether a missing anchor or missing benchmark is currently blocking downstream planning
   </step>
 
 <step name="assess_frontier">
@@ -345,6 +349,12 @@ status: completed | checkpoint
 ## Current Frontier
 
 {State-of-the-art: most recent results, active groups, emerging methods}
+
+## Active Anchor Registry
+
+| Anchor | Type | Why It Matters | Required Action | Downstream Use |
+| ------ | ---- | -------------- | --------------- | -------------- |
+| {reference or artifact} | {benchmark/method/background/prior artifact} | {claim, observable, or deliverable constrained} | {read/use/compare/cite} | {planning/execution/verification/writing} |
 
 ## Convention Catalog
 

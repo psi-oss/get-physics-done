@@ -158,9 +158,11 @@ Fill in what was extracted. For sections without enough information, use sensibl
 
 ## Scoping Contract Summary
 
-### Decisive Outputs and Deliverables
+### Contract Coverage
 
-- [Exact output, artifact, or claim that would count as success]
+- [Claim / deliverable]: [What counts as success]
+- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
+- [False progress to reject]: [Proxy that must not count]
 
 ### Scope Boundaries
 
@@ -172,10 +174,16 @@ Fill in what was extracted. For sections without enough information, use sensibl
 
 - [Approved out-of-scope item]
 
-### Anchors and Carry-Forward Inputs
+### Active Anchor Registry
 
-- [Must-read reference, benchmark, or "None confirmed yet"]
-- [Prior output, notebook, figure, or baseline]
+- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, or prior artifact]
+  - Why it matters: [What it constrains]
+  - Carry forward: [planning | execution | verification | writing]
+  - Required action: [read | use | compare | cite | avoid]
+
+### Carry-Forward Inputs
+
+- [Prior output, notebook, figure, baseline, or "None confirmed yet"]
 
 ### Skeptical Review
 
@@ -765,9 +773,11 @@ Ensure PROJECT.md visibly summarizes the approved contract, including:
 ```markdown
 ## Scoping Contract Summary
 
-### Decisive Outputs and Deliverables
+### Contract Coverage
 
-- [Exact output, artifact, or claim that would count as success]
+- [Claim / deliverable]: [What counts as success]
+- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
+- [False progress to reject]: [Proxy that must not count]
 
 ### Scope Boundaries
 
@@ -779,10 +789,16 @@ Ensure PROJECT.md visibly summarizes the approved contract, including:
 
 - [Approved out-of-scope item]
 
-### Anchors and Carry-Forward Inputs
+### Active Anchor Registry
 
-- [Must-read reference, benchmark, or "None confirmed yet"]
-- [Prior output, notebook, figure, or baseline]
+- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, or prior artifact]
+  - Why it matters: [What it constrains]
+  - Carry forward: [planning | execution | verification | writing]
+  - Required action: [read | use | compare | cite | avoid]
+
+### Carry-Forward Inputs
+
+- [Prior output, notebook, figure, baseline, or "None confirmed yet"]
 
 ### Skeptical Review
 

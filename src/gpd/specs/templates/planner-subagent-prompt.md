@@ -19,8 +19,11 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 **Autonomy:** {autonomy}
 
 **Project State:** {state_content}
+**Project Contract:** {project_contract}
 **Roadmap:** {roadmap_content}
 **Requirements:** {requirements_content}
+**Active References:** {active_reference_context}
+**Reference Artifacts:** {reference_artifacts_content}
 
 **Phase Context:**
 IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
@@ -75,6 +78,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
 - must_haves derived from the phase goal
+- Contract-critical anchors and benchmarks surfaced wherever the plan depends on them
 </downstream_consumer>
 
 <quality_gate>
@@ -124,8 +128,11 @@ Return what changed.
 | `{research_mode}` | `.gpd/config.json` or init JSON |
 | `{autonomy}` | `.gpd/config.json` or init JSON |
 | `{state_content}` | `state_content` from init JSON |
+| `{project_contract}` | `project_contract` from init JSON |
 | `{roadmap_content}` | `roadmap_content` from init JSON |
 | `{requirements_content}` | `requirements_content` from init JSON |
+| `{active_reference_context}` | `active_reference_context` from init JSON |
+| `{reference_artifacts_content}` | `reference_artifacts_content` from init JSON |
 | `{context_content}` | phase `*-CONTEXT.md`, if present |
 | `{research_content}` | fresh `*-RESEARCH.md` read after researcher completes |
 | `{experiment_design_content}` | `*-EXPERIMENT-DESIGN.md`, if present |

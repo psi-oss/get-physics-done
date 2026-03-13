@@ -34,6 +34,17 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 
 </domain>
 
+<contract_coverage>
+## Contract Coverage
+
+[List the decisive outputs, acceptance signals, and false-progress traps for this phase.]
+
+- [Claim / deliverable]: [What counts as success]
+- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
+- [False progress to reject]: [Proxy that must not count]
+
+</contract_coverage>
+
 <decisions>
 ## Methodological Decisions
 
@@ -74,29 +85,17 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 
 </limiting_cases>
 
-<carry_forward_inputs>
-## Carry-Forward Inputs
+<anchor_registry>
+## Active Anchor Registry
 
-[Artifacts, references, baselines, and user anchors that must remain visible during planning and execution.]
+[References, baselines, prior outputs, and user anchors that must remain visible during planning and execution.]
 
-### Must-Read References and Anchors
+- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, prior artifact, or "None confirmed yet"]
+  - Why it matters: [What claim, observable, or deliverable it constrains]
+  - Carry forward: [planning | execution | verification | writing]
+  - Required action: [read | use | compare | cite | avoid]
 
-- [Reference, dataset, spec, benchmark, or "None confirmed yet"]
-
-### Prior Outputs and Baselines
-
-- [Internal artifact, prior run, notebook, or baseline figure]
-
-</carry_forward_inputs>
-
-<specifics>
-## Specific References and Constraints
-
-[Any particular papers, textbook treatments, known results, or "the answer should look like X" moments from discussion. Specific algorithms, gauge choices, regularization schemes, basis sets.]
-
-[If none: "No specific requirements — open to standard approaches"]
-
-</specifics>
+</anchor_registry>
 
 <skeptical_review>
 ## Skeptical Review
@@ -190,14 +189,23 @@ Derive renormalization group flow equations for the XY model with 1/r^alpha inte
 
 </limiting_cases>
 
-<specifics>
-## Specific References and Constraints
+<anchor_registry>
+## Active Anchor Registry
 
-- "Follow the notation in Altland & Simons Chapter 8 for the Coulomb gas mapping"
-- Use the vortex-antivortex representation rather than the spin-wave representation
-- Key reference for long-range generalization: Defenu et al., PRB 92, 014512 (2015)
+- Altland & Simons, Chapter 8
+  - Why it matters: notation anchor for the Coulomb gas mapping
+  - Carry forward: planning, execution, writing
+  - Required action: read, use, cite
+- Defenu et al., PRB 92, 014512 (2015)
+  - Why it matters: long-range decomposition benchmark
+  - Carry forward: planning, execution, verification
+  - Required action: read, compare, cite
+- Vortex-antivortex representation
+  - Why it matters: formulation choice locked during discussion
+  - Carry forward: planning, execution
+  - Required action: use
 
-</specifics>
+</anchor_registry>
 
 <skeptical_review>
 ## Skeptical Review

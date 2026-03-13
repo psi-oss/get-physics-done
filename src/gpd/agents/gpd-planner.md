@@ -2023,11 +2023,11 @@ If exists, load relevant documents by phase type:
 
 | Phase Keywords                     | Load These                      |
 | ---------------------------------- | ------------------------------- |
-| derivation, analytical, symbolic   | CONVENTIONS.md, METHODS.md      |
-| simulation, numerical, Monte Carlo | ARCHITECTURE.md, CONVENTIONS.md |
-| data, analysis, fitting            | ARCHITECTURE.md, DATASETS.md    |
-| framework, infrastructure, base    | ARCHITECTURE.md, METHODS.md     |
-| validation, testing, benchmarks    | TESTING.md, CONVENTIONS.md      |
+| derivation, analytical, symbolic   | CONVENTIONS.md, FORMALISM.md    |
+| simulation, numerical, Monte Carlo | ARCHITECTURE.md, VALIDATION.md  |
+| data, analysis, fitting            | ARCHITECTURE.md, STRUCTURE.md   |
+| framework, infrastructure, base    | ARCHITECTURE.md, FORMALISM.md   |
+| validation, testing, benchmarks    | VALIDATION.md, REFERENCES.md    |
 | write-up, results, paper           | CONVENTIONS.md, STRUCTURE.md    |
 | (default)                          | CONVENTIONS.md, ARCHITECTURE.md |
 

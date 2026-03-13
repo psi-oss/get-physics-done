@@ -358,6 +358,15 @@ mkdir -p "${phase_dir}"
 
 </domain>
 
+<contract_coverage>
+## Contract Coverage
+
+- [Claim / deliverable]: [What counts as success]
+- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
+- [False progress to reject]: [Proxy that must not count]
+
+</contract_coverage>
+
 <decisions>
 ## Methodological Decisions
 
@@ -399,24 +408,17 @@ mkdir -p "${phase_dir}"
 
 </limiting_cases>
 
-<carry_forward_inputs>
-## Carry-Forward Inputs
+<anchor_registry>
+## Active Anchor Registry
 
-[References, baselines, and prior outputs that must remain visible during planning and execution]
+[References, baselines, prior outputs, and user anchors that must remain visible during planning and execution]
 
-- [Must-read reference, benchmark, or dataset]
-- [Prior output, notebook, figure, or baseline artifact]
+- [Anchor or artifact]
+  - Why it matters: [What it constrains]
+  - Carry forward: [planning | execution | verification | writing]
+  - Required action: [read | use | compare | cite | avoid]
 
-</carry_forward_inputs>
-
-<specifics>
-## Specific References and Constraints
-
-[Any particular papers, textbook treatments, known results, or "the answer should look like X" moments from discussion]
-
-[If none: "No specific requirements -- open to standard approaches"]
-
-</specifics>
+</anchor_registry>
 
 <skeptical_review>
 ## Skeptical Review

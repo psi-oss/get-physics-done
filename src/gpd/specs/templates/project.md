@@ -24,10 +24,11 @@ One sentence that drives prioritization when tradeoffs arise.]
 
 ## Scoping Contract Summary
 
-### Decisive Outputs and Deliverables
+### Contract Coverage
 
-- [Exact output, artifact, or claim that would count as success]
-- [Primary deliverable: figure, table, dataset, derivation, benchmark note, report]
+- [Claim / deliverable]: [What counts as success]
+- [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or review artifact]
+- [False progress to reject]: [Proxy that must NOT count as success]
 
 ### Scope Boundaries
 
@@ -39,15 +40,17 @@ One sentence that drives prioritization when tradeoffs arise.]
 
 - [What this project explicitly does not cover]
 
-### Anchors and Carry-Forward Inputs
+### Active Anchor Registry
 
-**Must-read references / benchmarks**
+- [Anchor ID or short label]: [Paper, dataset, spec, benchmark, or prior artifact]
+  - Why it matters: [What claim, observable, or deliverable it constrains]
+  - Carry forward: [planning | execution | verification | writing]
+  - Required action: [read | use | compare | cite | avoid]
 
-- [Paper, dataset, spec, benchmark result, or \"None confirmed yet\"]
+### Carry-Forward Inputs
 
-**Prior outputs / baselines to carry forward**
-
-- [Internal artifact, prior run, notebook, figure, or baseline]
+- [Internal artifact, prior run, notebook, figure, baseline, or "None confirmed yet"]
+- [User-asserted anchor or crucial prior output]
 
 ### Skeptical Review
 
@@ -128,11 +131,8 @@ Key requirement categories: DERV (derivation), CALC (calculation), SIMU (simulat
 
 ## Key References
 
-[Papers, textbooks, and preprints central to this work:
-
-- [Author et al., Journal, Year] — [why it matters: e.g., original derivation of method we extend]
-- [Author et al., arXiv:XXXX.XXXXX] — [why it matters: e.g., most recent lattice data for comparison]
-- [Textbook, Chapter X] — [why it matters: e.g., standard reference for formalism]]
+Mirror only the contract-critical anchors from `## Scoping Contract Summary`.
+Do not introduce new must-read references here unless they are also added to the contract/state registry.
 
 ## Constraints
 
@@ -176,7 +176,7 @@ _Last updated: [date] after [trigger]_
 **Scoping Contract Summary:**
 
 - Short human-readable projection of the authoritative scoping contract
-- Capture decisive outputs, deliverables, scope boundaries, anchors, skeptical review items, and open contract questions
+- Capture contract coverage, active anchors, carry-forward inputs, skeptical review items, and open contract questions
 - Keep this concise and concrete so later workflows can scan it quickly
 - If an anchor or prior artifact is unknown, say so explicitly instead of implying certainty
 
@@ -198,8 +198,8 @@ _Last updated: [date] after [trigger]_
 
 **Key References:**
 
-- Papers, textbooks, and preprints essential to the project
-- Include why each reference matters (method source, comparison data, formalism reference)
+- Treat this as a readability mirror of the active anchor registry, not a second source of truth
+- Include only references that are already in the structured contract or bibliography flow
 - Distinguish must-read anchors from general background when possible
 - Update as new relevant literature is discovered
 

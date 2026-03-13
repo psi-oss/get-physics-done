@@ -48,7 +48,7 @@ Normalize phase input in step 1 before any directory lookups.
 INIT=$(gpd init phase-op "$ARGUMENTS")
 ```
 
-Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`, `commit_docs`, `has_research`.
+Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`, `commit_docs`, `has_research`, `project_contract`, `active_reference_context`, `reference_artifacts_content`.
 
 Resolve researcher model:
 
@@ -122,17 +122,21 @@ Mode: literature
 **Requirements:** {requirements_list}
 **Prior decisions:** {decisions_if_any}
 **Phase context:** {context_md_content}
+**Active references:** {active_reference_context}
+**Reference artifacts:** {reference_artifacts_content}
 </context>
 
 <downstream_consumer>
 Your RESEARCH.md will be loaded by `/gpd:plan-phase` which uses specific sections:
 
-- `## Standard Methods` -- Plans use these mathematical/computational methods
-- `## Theoretical Framework` -- Derivations and calculations follow this formalism
-- `## Don't Re-derive` -- Tasks use established results for listed problems (cite sources)
-- `## Known Pitfalls` -- Verification steps check for these (divergences, gauge artifacts, numerical instabilities)
-- `## Benchmark Results` -- Validation compares against these known solutions/limits
-- `## Key References` -- Cited in documentation and used for cross-checking
+- `## User Constraints` -- Plans must honor locked decisions and scope boundaries
+- `## Active Anchor References` -- Plans must keep mandated references, benchmarks, and prior artifacts visible
+- `## Mathematical Framework` -- Derivations and calculations follow this formalism
+- `## Standard Approaches` -- Plans use these mathematical/computational methods
+- `## Existing Results to Leverage` -- Tasks use established results instead of re-deriving them
+- `## Don't Re-Derive` -- Tasks cite and reuse these anchors directly
+- `## Common Pitfalls` -- Verification steps check for these (divergences, gauge artifacts, numerical instabilities)
+- `## Validation Strategies` -- Validation compares against these known solutions, limits, and benchmarks
 
 Be prescriptive, not exploratory. "Use X" not "Consider X or Y."
 </downstream_consumer>

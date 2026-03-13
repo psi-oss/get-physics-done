@@ -53,12 +53,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`.
+Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `active_reference_context`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause after each verification round for user review. Present findings and wait for confirmation before writing `VERIFICATION.md`.
 - `autonomy=balanced` (default): Run the full verification pipeline. Pause only if verification reveals critical issues that require user judgment or claim-level decisions.
-- `autonomy=yolo`: Run verification but skip optional cross-checks and literature comparison.
+- `autonomy=yolo`: Run verification but skip optional cross-checks and literature comparison. Do NOT skip contract-critical anchors, decisive benchmarks, or user-mandated references.
 - `research_mode=explore`: Thorough verification — run all check types, compare against literature, verify intermediate steps. More spawned verifier agents.
 - `research_mode=exploit`: Focused verification — run priority checks only, verify final results. Minimal agent spawning.
 - `research_mode=adaptive`: Start with exploit-level checks, escalate to explore if any check fails.
@@ -75,6 +75,14 @@ Usage: /gpd:verify-work <phase-number>
 ```
 
 Exit.
+</step>
+
+<step name="load_anchor_context">
+Use `active_reference_context` from init JSON as a mandatory input to verification.
+
+- If it names a benchmark, prior artifact, or must-read reference, verification must explicitly check it or report why it could not.
+- Treat `reference_artifacts_content` as supporting evidence for what comparisons remain decisive.
+- Background literature may be reduced by mode; anchor checks may not.
 </step>
 
 <step name="check_active_session">

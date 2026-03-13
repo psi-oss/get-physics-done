@@ -26,6 +26,8 @@ from gpd.core.context import (
 )
 from gpd.core.errors import ConfigError, ValidationError
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -58,6 +60,15 @@ def _create_roadmap(tmp_path: Path, content: str) -> Path:
     roadmap.parent.mkdir(parents=True, exist_ok=True)
     roadmap.write_text(content)
     return roadmap
+
+
+def _write_project_contract_state(tmp_path: Path) -> None:
+    """Persist the Stage 0 project contract fixture into state.json."""
+    from gpd.core.state import default_state_dict
+
+    state = default_state_dict()
+    state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 # ─── Helper Tests ──────────────────────────────────────────────────────────────
@@ -166,6 +177,17 @@ class TestInitExecutePhase:
 
         assert ctx["state_exists"] is True
 
+    def test_surfaces_active_reference_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
+        assert "Published comparison target" in ctx["active_reference_context"]
+
 
 # ─── init_plan_phase ──────────────────────────────────────────────────────────
 
@@ -189,6 +211,40 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2", includes={"research"})
         assert ctx["research_content"] == "findings here"
+
+    def test_surfaces_active_reference_context_and_reference_artifacts(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        literature_dir = tmp_path / ".gpd" / "literature"
+        literature_dir.mkdir()
+        (literature_dir / "benchmark-REVIEW.md").write_text("# Literature Review\nbenchmark details")
+        map_dir = tmp_path / ".gpd" / "research-map"
+        map_dir.mkdir()
+        (map_dir / "REFERENCES.md").write_text("# References Map\nanchor registry")
+        (map_dir / "VALIDATION.md").write_text("# Validation Map\nbenchmark checks")
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
+        assert ctx["contract_intake"]["must_read_refs"] == ["Ref-01"]
+        assert ctx["active_reference_count"] == 1
+        assert "[ref-benchmark]" in ctx["active_reference_context"]
+        assert ".gpd/literature/benchmark-REVIEW.md" in ctx["literature_review_files"]
+        assert ".gpd/research-map/REFERENCES.md" in ctx["research_map_reference_files"]
+        assert ".gpd/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
+        assert "benchmark details" in ctx["reference_artifacts_content"]
+        assert "anchor registry" in ctx["reference_artifacts_content"]
+
+    def test_reports_missing_active_references_explicitly(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["project_contract"] is None
+        assert ctx["active_reference_count"] == 0
+        assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
 
 
 # ─── init_new_project ─────────────────────────────────────────────────────────
@@ -320,6 +376,16 @@ class TestInitVerifyWork:
         with pytest.raises(ValidationError, match="phase is required"):
             init_verify_work(tmp_path, "")
 
+    def test_exposes_active_reference_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_verify_work(tmp_path, "1")
+
+        assert ctx["project_contract"]["references"][0]["role"] == "benchmark"
+        assert "## Active Reference Registry" in ctx["active_reference_context"]
+
 
 # ─── init_todos ───────────────────────────────────────────────────────────────
 
@@ -403,6 +469,15 @@ class TestInitMapResearch:
         assert ctx["has_maps"] is True
         assert "theory.md" in ctx["existing_maps"]
 
+    def test_surfaces_project_contract_for_reference_mapping(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_map_research(tmp_path)
+
+        assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert "Ref-01" in ctx["active_reference_context"]
+
 
 # ─── init_progress ────────────────────────────────────────────────────────────
 
@@ -450,6 +525,15 @@ class TestInitProgress:
 
         ctx = init_progress(tmp_path, includes={"project"})
         assert ctx["project_content"] == "# My Project"
+
+    def test_progress_exposes_reference_registry(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["project_contract"]["references"][0]["must_surface"] is True
+        assert "Recover known limiting behavior" in ctx["active_reference_context"]
 
 
 # ─── _extract_frontmatter_field ──────────────────────────────────────────────

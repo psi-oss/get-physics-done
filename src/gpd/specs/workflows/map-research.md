@@ -47,7 +47,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `active_reference_context`.
 
 **Read mode settings:**
 
@@ -59,6 +59,7 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=explore`: Map broadly — include alternative theoretical frameworks, speculative connections, open questions across related domains.
 - `research_mode=exploit`: Map narrowly — focus on primary formalism, established results, direct computational needs.
 - `research_mode=adaptive`: Start with primary framework, expand mapping if connections to other domains appear.
+- Regardless of mode, do not drop contract-critical anchors, prior baselines, or user-mandated references.
 </step>
 
 <step name="check_existing">
@@ -139,10 +140,12 @@ First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructio
 Focus: theory
 
 Analyze this research project for theoretical content and literature foundations.
+Keep this active reference context visible while mapping:
+{active_reference_context}
 
 Write these documents to .gpd/research-map/:
 - FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
-- REFERENCES.md - Papers cited, textbooks used, key results relied upon, BibTeX entries found, open questions from literature, experimental data sources, collaboration context
+- REFERENCES.md - Active anchor registry: papers cited, benchmarks, prior artifacts, required carry-forward actions, open questions from literature, experimental data sources, collaboration context
 
 Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings, README files, BibTeX databases, and any documentation. Write documents directly using templates. Return confirmation only.
 ```

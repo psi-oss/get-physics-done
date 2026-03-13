@@ -15,6 +15,7 @@ from pathlib import Path
 
 from gpd.adapters import iter_adapters
 from gpd.adapters.install_utils import AGENTS_DIR_NAME, FLAT_COMMANDS_DIR_NAME, GPD_INSTALL_DIR_NAME, HOOKS_DIR_NAME
+from gpd.contracts import ResearchContract, contract_from_data
 from gpd.core.config import GPDProjectConfig, resolve_agent_tier
 from gpd.core.config import load_config as _load_config_structured
 from gpd.core.config import resolve_model as _resolve_model_canonical
@@ -60,6 +61,17 @@ logger = logging.getLogger(__name__)
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
 _RUNTIME_CONFIG_DIRS = frozenset(adapter.local_config_dir_name for adapter in iter_adapters())
+_LITERATURE_DIR_NAME = "literature"
+_REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
+_LITERATURE_INCLUDE_LIMIT = 2
+_REFERENCE_ROLE_PRIORITY = {
+    "benchmark": 0,
+    "must_consider": 1,
+    "definition": 2,
+    "method": 3,
+    "background": 4,
+    "other": 5,
+}
 
 # Directories to skip when scanning for research files.
 _IGNORE_DIRS = frozenset(
@@ -172,6 +184,160 @@ def _extract_frontmatter_field(content: str, field: str) -> str | None:
     if len(val) >= 2 and val[0] in ('"', "'") and val[-1] == val[0]:
         val = val[1:-1]
     return val or None
+
+
+def _load_project_contract(cwd: Path) -> ResearchContract | None:
+    """Load the canonical project contract from state.json when available."""
+    state = _load_state_json(cwd)
+    if not isinstance(state, dict):
+        return None
+    return contract_from_data(state.get("project_contract"))
+
+
+def _sorted_markdown_files(directory: Path) -> list[Path]:
+    """Return markdown files in a directory, sorted by name."""
+    try:
+        return sorted(
+            path for path in directory.iterdir() if path.is_file() and path.suffix == ".md"
+        )
+    except FileNotFoundError:
+        return []
+
+
+def _relative_posix(cwd: Path, path: Path) -> str:
+    """Return a stable repo-relative POSIX path."""
+    return path.relative_to(cwd).as_posix()
+
+
+def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
+    """Return contract references ordered by planning relevance."""
+    if contract is None:
+        return []
+
+    refs = sorted(
+        contract.references,
+        key=lambda ref: (
+            0 if ref.must_surface else 1,
+            _REFERENCE_ROLE_PRIORITY.get(ref.role, 99),
+            ref.id,
+        ),
+    )
+    return [ref.model_dump(mode="json") for ref in refs]
+
+
+def _render_active_reference_context(
+    contract: ResearchContract | None,
+    active_references: list[dict[str, object]],
+    literature_review_files: list[str],
+    research_map_reference_files: list[str],
+) -> str:
+    """Render a compact text block of anchors and carry-forward inputs."""
+    lines: list[str] = ["## Active Reference Registry"]
+
+    if active_references:
+        for ref in active_references:
+            actions = ", ".join(str(action) for action in ref.get("required_actions", [])) or "review"
+            applies_to = ", ".join(str(item) for item in ref.get("applies_to", [])) or "global"
+            must_surface = " | must surface" if ref.get("must_surface") else ""
+            lines.append(
+                f"- [{ref['id']}] {ref['locator']} | role: {ref['role']}{must_surface} | "
+                f"actions: {actions} | applies_to: {applies_to} | why: {ref['why_it_matters']}"
+            )
+    else:
+        lines.append("- None confirmed in `state.json.project_contract.references` yet.")
+
+    intake = contract.context_intake if contract is not None else None
+    lines.extend(
+        [
+            "",
+            "## Carry-Forward Inputs",
+            "### Must-Read References",
+        ]
+    )
+    if intake and intake.must_read_refs:
+        lines.extend(f"- {item}" for item in intake.must_read_refs)
+    else:
+        lines.append("- None confirmed yet.")
+
+    lines.append("")
+    lines.append("### Prior Outputs and Baselines")
+    if intake and intake.must_include_prior_outputs:
+        lines.extend(f"- {item}" for item in intake.must_include_prior_outputs)
+    else:
+        lines.append("- None confirmed yet.")
+    if intake and intake.known_good_baselines:
+        lines.extend(f"- Baseline: {item}" for item in intake.known_good_baselines)
+    if intake and intake.crucial_inputs:
+        lines.extend(f"- Crucial input: {item}" for item in intake.crucial_inputs)
+
+    lines.append("")
+    lines.append("### User-Asserted Anchors and Gaps")
+    if intake and intake.user_asserted_anchors:
+        lines.extend(f"- Anchor: {item}" for item in intake.user_asserted_anchors)
+    else:
+        lines.append("- No additional user-asserted anchors recorded.")
+    if intake and intake.context_gaps:
+        lines.extend(f"- Gap: {item}" for item in intake.context_gaps)
+
+    lines.append("")
+    lines.append("## Reference Artifacts Available")
+    if literature_review_files:
+        lines.extend(f"- Literature review: {path}" for path in literature_review_files)
+    if research_map_reference_files:
+        lines.extend(f"- Research map: {path}" for path in research_map_reference_files)
+    if not literature_review_files and not research_map_reference_files:
+        lines.append("- No literature-review or research-map anchor artifacts found yet.")
+
+    return "\n".join(lines)
+
+
+def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
+    """Collect durable reference artifacts for downstream planning and verification."""
+    literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
+    literature_paths = _sorted_markdown_files(literature_dir)
+    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_paths = [research_map_dir / name for name in _REFERENCE_MAP_DOCS if (research_map_dir / name).is_file()]
+
+    literature_review_files = [_relative_posix(cwd, path) for path in literature_paths]
+    research_map_reference_files = [_relative_posix(cwd, path) for path in research_map_paths]
+
+    content_sections: list[str] = []
+    selected_artifacts = [*research_map_paths, *literature_paths[:_LITERATURE_INCLUDE_LIMIT]]
+    for path in selected_artifacts:
+        content = _safe_read_file_truncated(path)
+        if not content:
+            continue
+        content_sections.append(f"## {path.relative_to(cwd).as_posix()}\n{content}")
+
+    return {
+        "literature_review_files": literature_review_files,
+        "literature_review_count": len(literature_review_files),
+        "research_map_reference_files": research_map_reference_files,
+        "research_map_reference_count": len(research_map_reference_files),
+        "reference_artifact_files": [*research_map_reference_files, *literature_review_files],
+        "reference_artifacts_content": "\n\n".join(content_sections) if content_sections else None,
+    }
+
+
+def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
+    """Build shared reference/anchor context for workflow init payloads."""
+    contract = _load_project_contract(cwd)
+    active_references = _serialize_active_references(contract)
+    artifact_payload = _reference_artifact_payload(cwd)
+
+    return {
+        "project_contract": contract.model_dump(mode="json") if contract is not None else None,
+        "contract_intake": contract.context_intake.model_dump(mode="json") if contract is not None else None,
+        "active_references": active_references,
+        "active_reference_count": len(active_references),
+        "active_reference_context": _render_active_reference_context(
+            contract,
+            active_references,
+            artifact_payload["literature_review_files"],
+            artifact_payload["research_map_reference_files"],
+        ),
+        **artifact_payload,
+    }
 
 
 # ─── Config Loader ────────────────────────────────────────────────────────────
@@ -350,6 +516,7 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
 
     # Include file contents if requested
     planning = cwd / PLANNING_DIR_NAME
@@ -411,6 +578,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
 
     # Include file contents
     planning = cwd / PLANNING_DIR_NAME
@@ -614,7 +782,7 @@ def init_verify_work(cwd: Path, phase: str | None) -> dict:
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase)
 
-    return {
+    result = {
         # Models
         "planner_model": _resolve_model(cwd, "gpd-planner", config),
         "checker_model": _resolve_model(cwd, "gpd-plan-checker", config),
@@ -634,6 +802,8 @@ def init_verify_work(cwd: Path, phase: str | None) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
+    return result
 
 
 def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None = None) -> dict:
@@ -672,6 +842,7 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
 
     planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
@@ -816,7 +987,7 @@ def init_map_research(cwd: Path) -> dict:
     except FileNotFoundError:
         pass
 
-    return {
+    result = {
         # Models
         "mapper_model": _resolve_model(cwd, "gpd-research-mapper", config),
         # Config
@@ -835,6 +1006,8 @@ def init_map_research(cwd: Path) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
+    return result
 
 
 def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
@@ -935,6 +1108,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
 
     # Include file contents
     planning = cwd / PLANNING_DIR_NAME

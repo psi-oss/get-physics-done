@@ -66,6 +66,7 @@ Output: [Derivations, code, data, figures, or notes created by this plan]
 @.gpd/PROJECT.md
 @.gpd/ROADMAP.md
 @.gpd/STATE.md
+@path/to/reference-or-benchmark-anchor.md
 @path/to/prior-summary-or-input.md
 </context>
 
@@ -128,7 +129,7 @@ Add `dimensional_check` whenever the plan produces quantitative results. Add `ap
 - Each task should produce one verifiable result.
 - Every task must include an explicit physics verification step.
 - Use checkpoint task types when the plan is interactive.
-- Reference only the prior summaries or artifacts the executor genuinely needs.
+- Reference only the prior summaries, anchor documents, or artifacts the executor genuinely needs.
 
 ---
 

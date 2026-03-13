@@ -25,9 +25,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`.
+Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `active_reference_context`, `reference_artifacts_content`.
 
-**File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `validation_content`. These are null if files don't exist.
+**File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `validation_content`, plus reference-artifact fields from init JSON. These are null if files don't exist.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Present the plan draft for user review before writing it to disk.
@@ -248,6 +248,9 @@ IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /gpd:disc
 **Phase description:** {phase_description}
 **Requirements:** {requirements}
 **Prior decisions:** {decisions}
+**Project contract:** {project_contract}
+**Active references:** {active_reference_context}
+**Reference artifacts:** {reference_artifacts_content}
 </additional_context>
 
 <research_mode>{RESEARCH_MODE}</research_mode>
@@ -420,6 +423,9 @@ REQUIREMENTS_CONTENT=$(echo "$INIT" | gpd json get .requirements_content --defau
 VERIFICATION_CONTENT=$(echo "$INIT" | gpd json get .verification_content --default "")
 UAT_CONTENT=$(echo "$INIT" | gpd json get .validation_content --default "")
 CONTEXT_CONTENT=$(echo "$INIT" | gpd json get .context_content --default "")
+PROJECT_CONTRACT=$(echo "$INIT" | gpd json get .project_contract --default "")
+ACTIVE_REFERENCE_CONTEXT=$(echo "$INIT" | gpd json get .active_reference_context --default "")
+REFERENCE_ARTIFACTS_CONTENT=$(echo "$INIT" | gpd json get .reference_artifacts_content --default "")
 ```
 
 **CRITICAL: Re-read RESEARCH.md from disk if the researcher was spawned in step 5.**
@@ -470,8 +476,11 @@ Planner prompt:
 **Autonomy:** {AUTONOMY}
 
 **Project State:** {state_content}
+**Project Contract:** {project_contract}
 **Roadmap:** {roadmap_content}
 **Requirements:** {requirements_content}
+**Active References:** {active_reference_context}
+**Reference Artifacts:** {reference_artifacts_content}
 
 **Phase Context:**
 IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
@@ -495,6 +504,7 @@ Each plan MUST include:
 - **Order-of-magnitude estimates:** Before any detailed calculation, estimate the expected scale of the answer
 - **Error budget:** For numerical work, specify target precision and identify dominant error sources
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
+- **Anchor discipline:** If a benchmark, paper, dataset, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
 </physics_planning_requirements>
 
 <light_mode_instructions>
@@ -585,6 +595,8 @@ Checker prompt:
 
 **Plans to verify:** {plans_content}
 **Requirements:** {requirements_content}
+**Project Contract:** {project_contract}
+**Active References:** {active_reference_context}
 
 **Phase Context:**
 IMPORTANT: Plans MUST honor user decisions. Flag as issue if plans contradict.
@@ -606,6 +618,7 @@ In addition to structural checks, verify:
 - [ ] **Symmetry preservation:** Approximations and numerical methods preserve relevant symmetries
 - [ ] **Independent cross-checks:** At least one independent verification method per major result
 - [ ] **Order-of-magnitude sanity:** Expected scales are stated before detailed calculations
+- [ ] **Anchor coverage:** Required references, baselines, and prior outputs are surfaced where the plan depends on them
 </physics_verification_criteria>
 
 <expected_output>
@@ -689,6 +702,7 @@ Revision prompt:
 
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
+**Active References:** {active_reference_context}
 
 **Phase Context:**
 Revisions MUST still honor user decisions.

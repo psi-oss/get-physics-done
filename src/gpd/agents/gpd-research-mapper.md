@@ -84,6 +84,8 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 4. **CONCERNS.md drives priorities** - Issues you identify may become future research phases. Be specific about impact, what breaks down, and how to address it.
 
 5. **STRUCTURE.md answers "where do I put this?"** - Include guidance for adding new calculations, scripts, or data, not just describing what exists.
+
+6. **REFERENCES.md is an anchor registry, not just a reading list** - Distinguish decisive benchmarks and prior artifacts from background material, and state what downstream phases must do with them.
    </why_this_matters>
 
 <downstream_consumers>
@@ -102,6 +104,7 @@ Documents written to `.gpd/research-map/` are consumed by:
 
 - Reads research-map docs to understand the project's current theoretical landscape for continuation projects
 - Uses REFERENCES.md and FORMALISM.md to identify what is already known vs. what needs investigation
+- Uses REFERENCES.md to keep contract-critical anchors, benchmarks, and prior artifacts visible downstream
 - Uses VALIDATION.md and CONVENTIONS.md to understand the rigor level of existing work
 
 **Implication:** Your documents must be accurate and detailed enough that these downstream agents can make correct planning and research decisions without re-exploring the research project themselves.
@@ -678,7 +681,7 @@ If a template file is not found at the expected path (e.g., `{GPD_INSTALL_DIR}/r
 3. **Minimum required structure for each document:**
 
    **FORMALISM.md:** Physical System, Fundamental Equations, Symmetries, Key Results, Open Derivations
-   **REFERENCES.md:** Key Papers, Textbook References, Benchmark Values, Open Questions in Literature
+   **REFERENCES.md:** Active Anchor Registry, Benchmark Values, Prior Artifacts and Baselines, Open Questions in Literature
    **ARCHITECTURE.md:** Computational Pipeline, Solver Stack, Performance Characteristics, Data Flow
    **STRUCTURE.md:** Directory Layout, File Inventory, Entry Points, Where to Add New Work
    **CONVENTIONS.md:** Unit System, Notation Table, Approximations Made, Convention Sources

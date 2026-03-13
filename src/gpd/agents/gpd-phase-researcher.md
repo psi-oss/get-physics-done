@@ -89,6 +89,12 @@ MODE=$(python3 -c "import json; print(json.load(open('.gpd/config.json')).get('r
 | `## Agent's Discretion` | Your freedom areas — research options, recommend  |
 | `## Deferred Ideas`      | Out of scope — ignore completely                  |
 
+**Active reference context** (if provided) — Contract-critical anchors, must-read references, baselines, and prior artifacts
+
+- Treat contract-critical anchors as mandatory inputs, not optional background reading
+- If a benchmark or prior artifact is named there, explain exactly how this phase should use it
+- If a required anchor is missing or ambiguous, say so explicitly in `RESEARCH.md`
+
 If CONTEXT.md exists, it constrains your research scope. Don't explore alternatives to locked decisions.
 
 **Examples of locked decisions in physics:**
@@ -105,6 +111,7 @@ Your RESEARCH.md is consumed by `gpd-planner`:
 | Section                                | How Planner Uses It                                                    |
 | -------------------------------------- | ---------------------------------------------------------------------- |
 | **`## User Constraints`**              | **CRITICAL: Planner MUST honor these - references CONTEXT.md**         |
+| **`## Active Anchor References`**      | **Planner MUST keep these references, baselines, and prior artifacts visible** |
 | `## Mathematical Framework`            | Plans use these techniques, formalisms, and starting equations         |
 | `## Standard Approaches`               | Task structure follows these methods and approximation schemes         |
 | `## Existing Results to Leverage`      | Tasks reference these known solutions, identities, and prior work      |
@@ -117,6 +124,7 @@ Your RESEARCH.md is consumed by `gpd-planner`:
 **Be prescriptive, not exploratory.** "Use the Euler-Lagrange equations in field-theoretic form" not "Consider either Lagrangian or Hamiltonian mechanics."
 
 **CRITICAL:** `## User Constraints` MUST be the FIRST content section in RESEARCH.md. Reference user constraints from CONTEXT.md rather than copying verbatim (which is fragile if CONTEXT.md format changes).
+`## Active Anchor References` should appear immediately after `## User Constraints`.
 </downstream_consumer>
 
 <!-- Research philosophy (honest reporting, investigation not confirmation, rigor calibration, physics integrity) loaded from researcher-shared.md (see @ reference above) -->
@@ -143,6 +151,14 @@ Your RESEARCH.md is consumed by `gpd-planner`:
 [2-3 paragraph executive summary of the physics problem and recommended approach]
 
 **Primary recommendation:** [one-liner actionable guidance, e.g., "Use dimensional regularization with MS-bar scheme for the one-loop corrections"]
+
+## Active Anchor References
+
+| Anchor / Artifact | Type | Why It Matters Here | Required Action | Where It Must Reappear |
+| ----------------- | ---- | ------------------- | --------------- | ---------------------- |
+| [benchmark paper] | [benchmark / method / prior artifact] | [claim or observable it constrains] | [read/use/compare/cite] | [plan / execution / verification] |
+
+**Missing or weak anchors:** [Explicitly note any required anchor that is absent, ambiguous, or too weak for confident planning.]
 
 ## Conventions
 

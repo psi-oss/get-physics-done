@@ -565,8 +565,11 @@ def test_project_and_context_templates_surface_contract_and_skeptical_review() -
     state_schema_text = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
 
     assert "## Scoping Contract Summary" in project_text
+    assert "### Contract Coverage" in project_text
+    assert "### Active Anchor Registry" in project_text
     assert "### Skeptical Review" in project_text
-    assert "## Carry-Forward Inputs" in context_text
+    assert "## Contract Coverage" in context_text
+    assert "## Active Anchor Registry" in context_text
     assert "## Skeptical Review" in context_text
     assert "## Contract Coverage" in requirements_text
     assert "disconfirming_observations" in state_schema_text
@@ -578,11 +581,55 @@ def test_discuss_and_assumption_workflows_surface_anchors_and_fast_falsifiers() 
 
     assert "What prior output, benchmark, or reference must stay visible here?" in discuss_text
     assert "What would make this approach look wrong or incomplete early?" in discuss_text
-    assert "## Carry-Forward Inputs" in discuss_text
+    assert "## Contract Coverage" in discuss_text
+    assert "## Active Anchor Registry" in discuss_text
     assert "## Skeptical Review" in discuss_text
     assert "### Anchor Inputs" in assumptions_text
     assert "**Fast falsifier:**" in assumptions_text
     assert "**False progress:**" in assumptions_text
+
+
+def test_planning_and_phase_templates_surface_active_reference_context() -> None:
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "**Project Contract:** {project_contract}" in planner_prompt
+    assert "**Active References:** {active_reference_context}" in planner_prompt
+    assert "@path/to/reference-or-benchmark-anchor.md" in phase_prompt
+    assert "**Project Contract:** {project_contract}" in workflow_text
+    assert "**Active References:** {active_reference_context}" in workflow_text
+    assert "**Anchor coverage:** Required references, baselines, and prior outputs are surfaced" in workflow_text
+
+
+def test_reference_workflows_require_anchor_registry_propagation() -> None:
+    literature_workflow = (WORKFLOWS_DIR / "literature-review.md").read_text(encoding="utf-8")
+    literature_command = (COMMANDS_DIR / "literature-review.md").read_text(encoding="utf-8")
+    literature_agent = (AGENTS_DIR / "gpd-literature-reviewer.md").read_text(encoding="utf-8")
+    map_workflow = (WORKFLOWS_DIR / "map-research.md").read_text(encoding="utf-8")
+    map_command = (COMMANDS_DIR / "map-research.md").read_text(encoding="utf-8")
+    mapper_agent = (AGENTS_DIR / "gpd-research-mapper.md").read_text(encoding="utf-8")
+
+    assert "contract-critical anchors" in literature_workflow
+    assert "Active Anchor Registry" in literature_command
+    assert "active_anchors" in literature_agent
+    assert "active_reference_context" in map_workflow
+    assert "Contract-critical anchors, decisive benchmarks, prior artifacts" in map_command
+    assert "REFERENCES.md is an anchor registry" in mapper_agent
+
+
+def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory() -> None:
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+
+    assert "## Active Anchor References" in phase_researcher
+    assert "contract-critical anchors as mandatory inputs" in phase_researcher
+    assert "FORMALISM.md" in planner_agent
+    assert "| derivation, analytical, symbolic   | CONVENTIONS.md, FORMALISM.md    |" in planner_agent
+    assert "| validation, testing, benchmarks    | VALIDATION.md, REFERENCES.md    |" in planner_agent
+    assert "Do NOT skip contract-critical anchors" in verify_workflow
+    assert "active_reference_context" in verify_workflow
 
 
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:

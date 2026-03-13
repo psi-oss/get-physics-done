@@ -1,97 +1,36 @@
 # REFERENCES.md Template (theory focus)
 
 ```markdown
-# Phenomenology and Physical Predictions
+# Reference and Anchor Map
 
 **Analysis Date:** [YYYY-MM-DD]
 
-## Observable Quantities
+## Active Anchor Registry
 
-**Primary Observables:**
+| Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |
+| ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |
+| [anchor-id] | [benchmark/method/background/prior artifact] | [citation, dataset id, or path] | [claim, observable, deliverable, or convention] | [read/use/compare/cite/avoid] | [planning/execution/verification/writing] |
 
-- [Observable] ([symbol]): [What is measured, units]
-  - Computed in: `[path]`
-  - Method: [Analytic / Numerical / Both]
+## Benchmarks and Comparison Targets
 
-**Derived Observables:**
+- [Benchmark quantity or result]
+  - Source: [citation or artifact]
+  - Compared in: `[path]`
+  - Status: [matched / pending / contested]
 
-- [Observable]: [How obtained from primary quantities]
-  - File: `[path]`
+## Prior Artifacts and Baselines
 
-## Predictions and Results
+- `[path]`: [What this artifact provides and why later phases must keep it visible]
 
-**Analytic Results:**
+## Open Reference Questions
 
-- [Result]: [Key expression or scaling]
-  - File: `[path]` (Eq. X)
-  - Regime of validity: [When this holds]
+- [Missing citation, unresolved benchmark, or ambiguous prior result]
 
-**Numerical Results:**
+## Background Reading
 
-- [Result]: [What was computed, key findings]
-  - Script: `[path]`
-  - Data: `[path]`
-  - Parameters used: [Key parameter values]
-
-## Comparison with Known Results
-
-**Literature Benchmarks:**
-
-- [Reference result]: [Source, agreement status]
-  - Comparison in: `[path]`
-
-**Limiting Case Checks:**
-
-- [Limit]: [Expected result, achieved?]
-  - File: `[path]`
-
-## Experimental / Observational Context
-
-**Relevant Experiments:**
-
-- [Experiment/Observation]: [What it measures, current status]
-
-**Predictions to Test:**
-
-- [Prediction]: [How to test, expected signature]
-
-## Data and Datasets
-
-**Input Data:**
-
-- `[path]`: [What it contains, source, format]
-
-**Generated Data:**
-
-- `[path]`: [What was computed, parameters, format]
-
-**Figures and Plots:**
-
-- `[path]`: [What it shows, key takeaway]
-
-## Parameter Space Exploration
-
-**Scans Performed:**
-
-- [Parameter range]: [What was varied, key findings]
-  - Script: `[path]`
-  - Results: `[path]`
-
-**Sensitivity Analysis:**
-
-- [Parameter]: [How sensitive are results to this parameter]
-
-## Open Phenomenological Questions
-
-**Unexplored Observables:**
-
-- [What hasn't been computed yet]
-
-**Missing Comparisons:**
-
-- [What benchmarks remain to be checked]
+- [Reference]: [Why it is useful context but not currently contract-critical]
 
 ---
 
-_Phenomenology analysis: [date]_
+_Reference map: [date]_
 ```

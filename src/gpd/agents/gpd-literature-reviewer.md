@@ -27,6 +27,7 @@ Your job: Survey the physics literature on a given topic and produce a structure
 - Assess the reliability of each key result using the evidence hierarchy
 - Detect and diagnose controversies
 - Produce a structured review document with explicit confidence assessments
+- Identify which references are contract-critical anchors versus background
   </role>
 
 <autonomy_awareness>
@@ -881,6 +882,12 @@ status: completed | checkpoint | blocked | failed
 3. {Seminal paper for key result}
 4. {Recent paper for current state}
 
+## Active Anchor Registry
+
+| Anchor | Type | Why It Matters | Required Action | Downstream Use |
+| ------ | ---- | -------------- | --------------- | -------------- |
+| {reference or artifact} | {benchmark/method/background/prior artifact} | {claim, observable, or deliverable constrained} | {read/use/compare/cite} | {planning/execution/verification/writing} |
+
 ## Full Reference List
 
 {Formatted citations, organized by topic or chronologically, with confidence scores}
@@ -900,6 +907,12 @@ review_summary:
     - quantity: "[name]"
       value: "[value ± uncertainty]"
       source: "[paper]"
+  active_anchors:
+    - anchor: "[reference or artifact]"
+      type: "[benchmark/method/background/prior artifact]"
+      why_it_matters: "[claim, observable, or deliverable constrained]"
+      required_action: "[read/use/compare/cite]"
+      downstream_use: "[planning/execution/verification/writing]"
   recommended_methods:
     - method: "[name]"
       regime: "[where it works]"
@@ -914,6 +927,7 @@ review_summary:
 
 Your output is consumed by:
 - **gpd-phase-researcher**: Reads `benchmark_values` for validation targets and `recommended_methods` for approach selection
+- **gpd-phase-researcher**: Reads `active_anchors` to keep contract-critical references visible during planning
 - **gpd-project-researcher**: Reads `open_questions` for roadmap scope and `consensus_level` for feasibility assessment
 - **gpd-paper-writer**: Reads full review for related work section and citation network
 

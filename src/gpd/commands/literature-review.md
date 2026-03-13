@@ -57,7 +57,7 @@ fi
 INIT=$(gpd init progress --include state,roadmap,config)
 ```
 
-Extract `commit_docs` from init JSON. Resolve reviewer model:
+Extract `commit_docs`, `project_contract`, `active_reference_context`, and any existing `reference_artifact_files` from init JSON. Resolve reviewer model:
 
 ```bash
 REVIEWER_MODEL=$(gpd resolve-model gpd-literature-reviewer)
@@ -95,6 +95,7 @@ Conduct systematic literature review: {topic}
 - Depth: {depth}
 - Time range: {time_range}
 - Purpose: {purpose}
+- Contract-critical anchors: {active_reference_context}
   </objective>
 
 <review_strategy>
@@ -115,6 +116,7 @@ A physics literature review follows a structured protocol:
    - What was found (numerical value, scaling law, phase diagram feature)
    - What conventions were used (units, metric signature, Fourier conventions)
    - How it connects to other results (agrees, disagrees, extends, corrects)
+   - Whether it should be treated as a must-surface benchmark or comparison target downstream
 
 4. **Trace citation networks** -- Which papers cite which? Where are the intellectual lineages?
 
@@ -165,6 +167,7 @@ Structure:
 - Controversies and Disagreements (conflicting results)
 - Open Questions (what remains unsolved)
 - Current Frontier (state-of-the-art)
+- Active Anchor Registry (must-read papers, decisive benchmarks, and prior artifacts to carry forward)
 - Recommended Reading Path (ordered list for someone entering the field)
 - Full Reference List (formatted citations)
   </output>

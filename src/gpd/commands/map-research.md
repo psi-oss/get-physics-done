@@ -63,7 +63,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
 3. Spawn 4 parallel gpd-research-mapper agents:
    - Agent 1: theory focus -> writes FORMALISM.md, REFERENCES.md
      - FORMALISM.md: Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes
-     - REFERENCES.md: Papers cited, textbooks used, key results relied upon, open questions from literature
+     - REFERENCES.md: Contract-critical anchors, decisive benchmarks, prior artifacts, required carry-forward actions, open questions from literature
    - Agent 2: computation focus -> writes ARCHITECTURE.md, STRUCTURE.md
      - ARCHITECTURE.md: Computational pipeline, solver choices, algorithm design, parallelization strategy
      - STRUCTURE.md: File/directory layout, data flow, input/output formats, dependency graph
@@ -82,6 +82,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
 
 - [ ] .gpd/research-map/ directory created
 - [ ] All 7 research map documents written by mapper agents
+- [ ] REFERENCES.md preserves contract-critical anchors and benchmarks from setup/workflow context
 - [ ] Documents follow template structure
 - [ ] Parallel agents completed without errors
 - [ ] User knows next steps
