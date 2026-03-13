@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from gpd.hooks.notify import _check_and_notify_update, main
+from gpd.hooks.notify import _check_and_notify_update, _hook_payload_policy, main
 
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
@@ -265,6 +265,60 @@ def test_notify_ignores_stale_uninstalled_runtime_cache_when_other_runtime_is_in
         _check_and_notify_update(str(workspace))
 
     assert stderr.getvalue() == ""
+
+
+def test_hook_payload_policy_prefers_installed_runtime_over_stale_local_runtime_dir(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".codex").mkdir(parents=True)
+
+    home = tmp_path / "home"
+    global_runtime_dir = home / ".claude"
+    global_runtime_dir.mkdir(parents=True)
+    (global_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "global"}),
+        encoding="utf-8",
+    )
+
+    with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+        policy = _hook_payload_policy(str(workspace))
+
+    assert policy.notify_event_types == ()
+
+
+def test_main_resolves_workspace_before_filtering_event_types(tmp_path: Path) -> None:
+    process_cwd = tmp_path / "process-cwd"
+    process_cwd.mkdir()
+    process_runtime_dir = process_cwd / ".codex"
+    process_runtime_dir.mkdir(parents=True)
+    (process_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    workspace_runtime_dir = workspace / ".claude"
+    workspace_runtime_dir.mkdir(parents=True)
+    (workspace_runtime_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    home = tmp_path / "home"
+    home.mkdir()
+    payload = json.dumps({"type": "session-end", "workspace": str(workspace)})
+    with (
+        patch("sys.stdin", io.StringIO(payload)),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=process_cwd),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
+    ):
+        main()
+
+    mock_trigger.assert_called_once_with(str(workspace))
+    mock_notify.assert_called_once_with(str(workspace))
 
 
 def test_main_accepts_workspace_mapping_with_cwd_field() -> None:

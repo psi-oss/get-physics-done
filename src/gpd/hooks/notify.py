@@ -48,10 +48,10 @@ def _trigger_update_check(cwd: str) -> None:
 def _hook_payload_policy(cwd: str | None = None):
     """Return hook payload metadata for the active runtime or a merged fallback."""
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime_with_gpd_install
 
     workspace_path = Path(cwd) if cwd else None
-    runtime = detect_active_runtime(cwd=workspace_path)
+    runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
     return get_hook_payload_policy(None if runtime == RUNTIME_UNKNOWN else runtime)
 
 
@@ -121,7 +121,12 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
 
 
 def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
-    policy = _hook_payload_policy(cwd)
+    from gpd.adapters.runtime_catalog import get_hook_payload_policy
+
+    # Before the payload workspace is resolved, accept the union of known
+    # workspace keys so event filtering can defer to the runtime that owns
+    # the payload's actual workspace instead of the process cwd.
+    policy = _hook_payload_policy(cwd) if cwd else get_hook_payload_policy()
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
@@ -144,12 +149,12 @@ def main() -> None:
     if not isinstance(data, dict):
         return
 
-    hook_payload = _hook_payload_policy()
+    cwd = _workspace_from_payload(data)
+    hook_payload = _hook_payload_policy(cwd)
     allowed_event_types = hook_payload.notify_event_types
     if allowed_event_types and data.get("type") not in (*allowed_event_types, None):
         return
 
-    cwd = _workspace_from_payload(data)
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)

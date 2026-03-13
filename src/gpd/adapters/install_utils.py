@@ -124,12 +124,13 @@ def replace_placeholders(
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
-_BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)(?:[^{}]*)\}")
 _PLAIN_SHELL_VAR_RE = re.compile(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
 _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9_])")
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
+_LIST_ITEM_INCLUDE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)(@.*)$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -219,6 +220,28 @@ def _default_markdown_transform(runtime: str) -> Callable[[str, str, str | None]
 
 def _shell_var_placeholder(match: re.Match[str]) -> str:
     return f"<{match.group(1)}>"
+
+
+def _strip_wrapping_quotes(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {'"', "'"}:
+        return stripped[1:-1]
+    return stripped
+
+
+def _parse_frontmatter_tool_tokens(value: str) -> list[str]:
+    stripped = value.strip()
+    if not stripped:
+        return []
+
+    if stripped.startswith("[") and stripped.endswith("]"):
+        stripped = stripped[1:-1]
+
+    lexer = shlex.shlex(stripped, posix=True)
+    lexer.whitespace = ","
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return [_strip_wrapping_quotes(token) for token in lexer if _strip_wrapping_quotes(token)]
 
 
 def _protect_shell_vars(content: str) -> str:
@@ -452,7 +475,7 @@ def translate_frontmatter_tool_names(
                 continue
 
             in_tool_array = False
-            parsed = [part.strip() for part in value.split(",") if part.strip()]
+            parsed = _parse_frontmatter_tool_tokens(value)
             mapped = [translate_tool_name(part) for part in parsed]
             mapped = [part for part in mapped if part]
             translated_lines.append(f"{indent}{key}: {', '.join(mapped)}" if mapped else f"{indent}{key}:")
@@ -462,7 +485,7 @@ def translate_frontmatter_tool_names(
             item_match = re.match(r"^(\s*)-\s+(.*)$", line)
             if item_match:
                 indent, tool_name = item_match.groups()
-                mapped = translate_tool_name(tool_name.strip())
+                mapped = translate_tool_name(_strip_wrapping_quotes(tool_name))
                 if mapped:
                     translated_lines.append(f"{indent}- {mapped}")
                 continue
@@ -575,15 +598,26 @@ def expand_at_includes(
             result.append(line)
             continue
 
+        include_candidate = trimmed
+        bullet_match = _LIST_ITEM_INCLUDE_RE.match(trimmed)
+        if bullet_match:
+            include_candidate = bullet_match.group(1)
+
         # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if not trimmed.startswith("@") or len(trimmed) < 3 or trimmed[1] == " " or re.match(r"^@\w+\{", trimmed):
+        if (
+            not include_candidate.startswith("@")
+            or len(include_candidate) < 3
+            or include_candidate[1] == " "
+            or re.match(r"^@\w+\{", include_candidate)
+        ):
             result.append(line)
             continue
 
         # Extract the include path
-        include_path = trimmed[1:]
+        include_path = include_candidate[1:]
         include_path = include_path.split(" (see")[0]  # strip "(see ..." suffixes
         include_path = include_path.split(" -> ")[0]  # strip "-> Section Name" suffixes
+        include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path)  # strip trailing labels like "(main workflow)"
         include_path = include_path.strip()
 
         # Only treat paths that contain "/" (avoid false positives like decorators)
@@ -985,7 +1019,7 @@ def save_local_patches(
             fallback_snapshot = True
 
     if fallback_snapshot:
-        tracked_files = {rel_path: "" for rel_path in _managed_install_paths(config_dir, skills_dir=skills_dir)}
+        tracked_files = dict.fromkeys(_managed_install_paths(config_dir, skills_dir=skills_dir), "")
 
     import shutil
 

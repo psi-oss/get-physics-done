@@ -83,6 +83,14 @@ class TestParseFrontmatter:
         assert meta == {"name": "test"}
         assert body == "Body."
 
+    def test_frontmatter_block_scalar_preserves_indented_triple_dash_lines(self) -> None:
+        text = "---\ndescription: |\n  first\n  ---\n  second\n---\nBody."
+
+        meta, body = _parse_frontmatter(text)
+
+        assert meta == {"description": "first\n---\nsecond\n"}
+        assert body == "Body."
+
 
 class TestParseTools:
     """Tests for _parse_tools normalization."""
@@ -384,6 +392,16 @@ class TestDiscovery:
         with pytest.raises(ValueError, match="does not match file stem"):
             registry._discover_commands()
 
+    def test_command_name_without_gpd_prefix_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "peer-review.md").write_text("---\nname: peer-review\n---\nBody.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+
+        with pytest.raises(ValueError, match=r"expected 'gpd:peer-review'"):
+            registry._discover_commands()
+
     def test_agents_keyed_by_declared_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -473,7 +491,7 @@ class TestNonMdFilesIgnored:
     def test_non_md_files_in_commands_dir_ignored(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "valid.md").write_text("---\nname: valid\n---\nBody.", encoding="utf-8")
+        (commands_dir / "valid.md").write_text("---\nname: gpd:valid\n---\nBody.", encoding="utf-8")
         (commands_dir / "readme.txt").write_text("Not a command.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
@@ -500,7 +518,7 @@ class TestRegistryCache:
     def test_lazy_load_commands(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "cached.md").write_text("---\nname: cached\n---\nBody.", encoding="utf-8")
+        (commands_dir / "cached.md").write_text("---\nname: gpd:cached\n---\nBody.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
 
@@ -529,7 +547,7 @@ class TestRegistryCache:
 
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "y.md").write_text("---\nname: y\n---\nBody.", encoding="utf-8")
+        (commands_dir / "y.md").write_text("---\nname: gpd:y\n---\nBody.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
@@ -615,8 +633,8 @@ class TestPublicAPI:
     def test_list_commands_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "zebra.md").write_text("---\nname: zebra\n---\nZ.", encoding="utf-8")
-        (commands_dir / "apple.md").write_text("---\nname: apple\n---\nA.", encoding="utf-8")
+        (commands_dir / "zebra.md").write_text("---\nname: gpd:zebra\n---\nZ.", encoding="utf-8")
+        (commands_dir / "apple.md").write_text("---\nname: gpd:apple\n---\nA.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
         registry.invalidate_cache()

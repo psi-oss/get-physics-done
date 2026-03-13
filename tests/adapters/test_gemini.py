@@ -193,6 +193,24 @@ class TestInstall:
         assert "<!-- [included: update.md] -->" in content
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
 
+    def test_complete_milestone_command_inlines_bullet_list_includes(
+        self,
+        adapter: GeminiAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        content = (target / "commands" / "gpd" / "complete-milestone.toml").read_text(encoding="utf-8")
+        assert "<!-- [included: complete-milestone.md] -->" in content
+        assert "<!-- [included: milestone-archive.md] -->" in content
+        assert "Mark a completed research stage" in content
+        assert "# Milestone Archive Template" in content
+        assert re.search(r"^\s*-\s*@.*?/workflows/complete-milestone\.md.*$", content, flags=re.MULTILINE) is None
+        assert re.search(r"^\s*-\s*@.*?/templates/milestone-archive\.md.*$", content, flags=re.MULTILINE) is None
+
     def test_install_creates_agents(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
         target.mkdir()

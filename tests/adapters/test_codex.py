@@ -429,6 +429,26 @@ description: Nested command include expansion regression
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
         assert "$gpd-reapply-patches" in content
 
+    def test_complete_milestone_skill_expands_bullet_list_includes(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (skills / "gpd-complete-milestone" / "SKILL.md").read_text(encoding="utf-8")
+        assert "<!-- [included: complete-milestone.md] -->" in content
+        assert "<!-- [included: milestone-archive.md] -->" in content
+        assert "Mark a completed research stage" in content
+        assert "# Milestone Archive Template" in content
+        assert re.search(r"^\s*-\s*@.*?/workflows/complete-milestone\.md.*$", content, flags=re.MULTILINE) is None
+        assert re.search(r"^\s*-\s*@.*?/templates/milestone-archive\.md.*$", content, flags=re.MULTILINE) is None
+
 
 class TestUninstall:
     def test_global_uninstall_uses_manifest_skills_dir_when_env_drifts(

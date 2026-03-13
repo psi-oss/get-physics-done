@@ -299,6 +299,24 @@ class TestInstall:
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
         assert "/gpd-reapply-patches" in content
 
+    def test_complete_milestone_command_inlines_bullet_list_includes(
+        self,
+        adapter: OpenCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        content = (target / "command" / "gpd-complete-milestone.md").read_text(encoding="utf-8")
+        assert "<!-- [included: complete-milestone.md] -->" in content
+        assert "<!-- [included: milestone-archive.md] -->" in content
+        assert "Mark a completed research stage" in content
+        assert "# Milestone Archive Template" in content
+        assert re.search(r"^\s*-\s*@.*?/workflows/complete-milestone\.md.*$", content, flags=re.MULTILINE) is None
+        assert re.search(r"^\s*-\s*@.*?/templates/milestone-archive\.md.*$", content, flags=re.MULTILINE) is None
+
     def test_install_creates_gpd_content(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()

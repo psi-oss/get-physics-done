@@ -21,10 +21,10 @@ AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 SPECS_DIR = _PKG_ROOT / "specs"
 
-# ─── Frontmatter regex ───────────────────────────────────────────────────────
+# ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)(?:\r?\n)?---(?:\r?\n|$)")
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
+_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -98,11 +98,10 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
     text = text.lstrip('﻿')
     frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
-    match = _FRONTMATTER_RE.match(frontmatter_candidate)
-    if not match:
+    frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
+    if frontmatter_parts is None:
         return {}, text
-    yaml_str = match.group(1)
-    body = frontmatter_candidate[match.end() :]
+    yaml_str, body = frontmatter_parts
     try:
         meta = yaml.safe_load(yaml_str)
     except yaml.YAMLError as exc:
@@ -112,6 +111,25 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     if not isinstance(meta, dict):
         raise ValueError(f"Frontmatter must parse to a mapping, got {type(meta).__name__}")
     return meta, body
+
+
+def _split_frontmatter_block(text: str) -> tuple[str, str] | None:
+    """Return ``(frontmatter, body)`` when *text* begins with markdown frontmatter."""
+    lines = text.splitlines(keepends=True)
+    if not lines or not _is_frontmatter_delimiter(lines[0]):
+        return None
+
+    frontmatter_lines: list[str] = []
+    for index, line in enumerate(lines[1:], start=1):
+        if _is_frontmatter_delimiter(line):
+            return "".join(frontmatter_lines), "".join(lines[index + 1 :])
+        frontmatter_lines.append(line)
+    return None
+
+
+def _is_frontmatter_delimiter(line: str) -> bool:
+    """Return whether *line* is a frontmatter delimiter line."""
+    return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
 def _parse_tools(raw: object) -> list[str]:
@@ -418,8 +436,6 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
 
 def _validate_command_name(path: Path, command: CommandDef) -> None:
     """Reject command metadata that drifts from its registry filename."""
-    if not command.name.startswith("gpd:"):
-        return
     expected_name = f"gpd:{path.stem}"
     if command.name != expected_name:
         raise ValueError(

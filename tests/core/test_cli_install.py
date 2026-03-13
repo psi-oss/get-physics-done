@@ -206,6 +206,35 @@ def test_install_summary_leaves_blank_line_after_help_hint(tmp_path: Path):
     assert "Run /gpd:help to see available commands.\n\n" in result.output
 
 
+def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(tmp_path: Path):
+    """Multi-runtime installs should print runtime-specific help hints."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {
+            "runtime": runtime_name,
+            "commands": 5,
+            "agents": 3,
+            "target": str(tmp_path / runtime_name),
+        }
+
+    adapters = {
+        "claude-code": MagicMock(display_name="Claude Code", help_command="/gpd:claude-help"),
+        "gemini": MagicMock(display_name="Gemini CLI", help_command="/gpd:gemini-help"),
+    }
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", side_effect=lambda runtime: adapters[runtime]),
+    ):
+        result = runner.invoke(app, ["install", "claude-code", "gemini", "--local"])
+
+    assert result.exit_code == 0
+    assert "Run the runtime-specific help command to see available commands:" in result.output
+    assert "- Claude Code: /gpd:claude-help" in result.output
+    assert "- Gemini CLI: /gpd:gemini-help" in result.output
+    assert "Run /gpd:claude-help to see available commands." not in result.output
+
+
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 
@@ -639,6 +668,20 @@ def test_install_global_and_local_conflict():
     assert "Cannot specify both" in result.output
 
 
+def test_install_rejects_explicit_runtimes_with_all() -> None:
+    """`--all` cannot be combined with explicit runtime arguments on install."""
+    with (
+        patch("gpd.cli._install_single_runtime") as mock_install_single,
+        patch("gpd.adapters.list_runtimes") as mock_list_runtimes,
+    ):
+        result = runner.invoke(app, ["install", "claude-code", "--all", "--local"])
+
+    assert result.exit_code == 1
+    assert "Cannot combine explicit runtimes with --all for install" in result.output
+    mock_install_single.assert_not_called()
+    mock_list_runtimes.assert_not_called()
+
+
 def test_install_target_dir_rejects_multiple_runtimes(tmp_path: Path):
     """Explicit target dirs are only safe for a single runtime."""
     result = runner.invoke(
@@ -667,6 +710,20 @@ def test_uninstall_global_and_local_conflict():
     result = runner.invoke(app, ["uninstall", "claude-code", "--global", "--local"])
     assert result.exit_code == 1
     assert "Cannot specify both" in result.output
+
+
+def test_uninstall_rejects_explicit_runtimes_with_all() -> None:
+    """`--all` cannot be combined with explicit runtime arguments on uninstall."""
+    with (
+        patch("gpd.adapters.get_adapter") as mock_get_adapter,
+        patch("gpd.adapters.list_runtimes") as mock_list_runtimes,
+    ):
+        result = runner.invoke(app, ["uninstall", "claude-code", "--all", "--local"])
+
+    assert result.exit_code == 1
+    assert "Cannot combine explicit runtimes with --all for uninstall" in result.output
+    mock_get_adapter.assert_not_called()
+    mock_list_runtimes.assert_not_called()
 
 
 def test_uninstall_target_dir_rejects_multiple_runtimes(tmp_path: Path):

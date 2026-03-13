@@ -28,8 +28,9 @@ from gpd.adapters.install_utils import (
     pre_install_cleanup,
     protect_runtime_agent_prompt,
     read_settings,
-    write_manifest,
     replace_placeholders,
+    translate_frontmatter_tool_names,
+    write_manifest,
     write_settings,
 )
 
@@ -198,6 +199,13 @@ class TestExpandAtIncludes:
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert result == content
 
+    def test_bullet_list_include_is_expanded(self, tmp_path: Path) -> None:
+        gpd_dir = self._make_src(tmp_path, {"workflow.md": "workflow body"})
+        content = f"- @{tmp_path}/get-physics-done/workflow.md (main workflow)"
+        result = expand_at_includes(content, str(gpd_dir), "~/.test/")
+        assert "workflow body" in result
+        assert "<!-- [included: workflow.md] -->" in result
+
 
 # =========================================================================
 # 1b. protect_runtime_agent_prompt
@@ -214,6 +222,8 @@ class TestProtectRuntimeAgentPrompt:
             "description: test\n"
             "---\n"
             "Use ${PHASE_ARG} for planning.\n"
+            "Fallback to ${PHASE_ARG:-plan} when unset.\n"
+            "Strip suffixes with ${FILE%.*} before writing outputs.\n"
             "Also inspect $ARGUMENTS and store cache metadata in $CACHE.\n"
             'Use `file_read("$artifact_path")` to inspect the artifact.\n'
             "\n"
@@ -230,6 +240,8 @@ class TestProtectRuntimeAgentPrompt:
         for runtime in ("gemini", "opencode"):
             result = protect_runtime_agent_prompt(content, runtime)
             assert "${PHASE_ARG}" not in result
+            assert "${PHASE_ARG:-plan}" not in result
+            assert "${FILE%.*}" not in result
             assert "$ARGUMENTS" not in result
             assert "$CACHE" not in result
             assert "$phase_dir" not in result
@@ -237,6 +249,8 @@ class TestProtectRuntimeAgentPrompt:
             assert "$phase_number" not in result
             assert "$artifact_path" not in result
             assert "<PHASE_ARG>" in result
+            assert "Fallback to <PHASE_ARG> when unset." in result
+            assert "Strip suffixes with <FILE> before writing outputs." in result
             assert "<ARGUMENTS>" in result
             assert "<CACHE>" in result
             assert "<phase_dir>" in result
@@ -254,7 +268,7 @@ class TestProtectRuntimeAgentPrompt:
             "name: gpd:test\n"
             "description: test\n"
             "---\n"
-            "Use ${PHASE_ARG} and $ARGUMENTS.\n"
+            "Use ${PHASE_ARG}, ${PHASE_ARG:-plan}, ${FILE%.*}, and $ARGUMENTS.\n"
             "```bash\n"
             'echo "$phase_dir"\n'
             "```\n"
@@ -262,6 +276,28 @@ class TestProtectRuntimeAgentPrompt:
 
         for runtime in ("claude-code", "codex"):
             assert protect_runtime_agent_prompt(content, runtime) == content
+
+
+class TestTranslateFrontmatterToolNames:
+    def test_inline_yaml_array_tools_are_translated(self) -> None:
+        content = "---\nallowed-tools: [Read, Edit]\n---\nBody\n"
+
+        translated = translate_frontmatter_tool_names(
+            content,
+            lambda name: {"Read": "file_read", "Edit": "file_edit"}.get(name),
+        )
+
+        assert "allowed-tools: file_read, file_edit" in translated
+
+    def test_quoted_list_items_are_translated(self) -> None:
+        content = "---\ntools:\n  - \"Read\"\n  - 'Edit'\n---\nBody\n"
+
+        translated = translate_frontmatter_tool_names(
+            content,
+            lambda name: {"Read": "file_read", "Edit": "file_edit"}.get(name),
+        )
+
+        assert "tools:\n  - file_read\n  - file_edit" in translated
 
     def test_frontmatter_with_literal_delimiter_text_keeps_frontmatter_vars_intact(self) -> None:
         content = (

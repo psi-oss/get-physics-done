@@ -3309,9 +3309,30 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 
     # Post-install help hint
     if results:
-        first_runtime = results[0][0]
-        adapter = get_adapter(first_runtime)
-        console.print(f"\n[dim]Run [bold]{adapter.help_command}[/bold] to see available commands.[/]\n")
+        help_entries: list[tuple[str, str]] = []
+        seen_runtime_names: set[str] = set()
+        for runtime_name, _result in results:
+            if runtime_name in seen_runtime_names:
+                continue
+            seen_runtime_names.add(runtime_name)
+            adapter = get_adapter(runtime_name)
+            help_entries.append((adapter.display_name, adapter.help_command))
+
+        unique_help_commands = {help_command for _display_name, help_command in help_entries}
+        console.print()
+        if len(unique_help_commands) == 1:
+            console.print(f"[dim]Run [bold]{help_entries[0][1]}[/bold] to see available commands.[/]")
+        else:
+            console.print("[dim]Run the runtime-specific help command to see available commands:[/]")
+            for display_name, help_command in help_entries:
+                console.print(f"[dim]- {display_name}: [bold]{help_command}[/bold][/]")
+        console.print()
+
+
+def _validate_all_runtime_selection(action: str, runtimes: list[str] | None, use_all: bool) -> None:
+    """Reject ambiguous runtime selection between explicit args and --all."""
+    if use_all and runtimes:
+        _error(f"Cannot combine explicit runtimes with --all for {action}")
 
 
 def _validate_target_dir_runtime_selection(action: str, runtimes: list[str], target_dir: str | None) -> None:
@@ -3358,6 +3379,7 @@ def install(
     if global_install and local_install:
         _error("Cannot specify both --global and --local")
         return  # unreachable
+    _validate_all_runtime_selection("install", runtimes, install_all)
 
     # Resolve which runtimes to install
     selected: list[str]
@@ -3462,6 +3484,7 @@ def uninstall(
     if global_uninstall and local_uninstall:
         _error("Cannot specify both --global and --local")
         return
+    _validate_all_runtime_selection("uninstall", runtimes, uninstall_all)
 
     # Resolve runtimes
     selected: list[str]

@@ -81,15 +81,12 @@ _VALID_MODEL_TIER_VALUES = frozenset(tier.value for tier in ModelTier)
 
 @lru_cache(maxsize=1)
 def _valid_runtime_names() -> frozenset[str]:
-    catalog_path = Path(__file__).resolve().parents[1] / "adapters" / "runtime_catalog.json"
-    entries = json.loads(catalog_path.read_text(encoding="utf-8"))
-    return frozenset(
-        runtime_name
-        for entry in entries
-        if isinstance(entry, dict)
-        for runtime_name in [str(entry.get("runtime_name", "")).strip()]
-        if runtime_name
-    )
+    from gpd.adapters.runtime_catalog import list_runtime_names
+
+    try:
+        return frozenset(list_runtime_names())
+    except Exception as exc:
+        raise RuntimeError("Unable to resolve supported runtimes") from exc
 
 
 class BranchingStrategy(StrEnum):
@@ -332,7 +329,10 @@ class GPDProjectConfig(BaseModel):
             return None
 
         normalized: dict[str, dict[str, str]] = {}
-        valid_runtime_names = _valid_runtime_names()
+        try:
+            valid_runtime_names = _valid_runtime_names()
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from exc
         supported_runtimes = ", ".join(sorted(valid_runtime_names))
         supported_tiers = ", ".join(sorted(_VALID_MODEL_TIER_VALUES))
 
