@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -33,17 +34,20 @@ def _scope_count(label: str) -> int:
     return int(match.group(1))
 
 
-def _live_repo_file_count() -> int:
-    return sum(
-        1
-        for path in REPO_ROOT.rglob("*")
-        if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
-    )
+def _tracked_repo_file_count() -> int:
+    tracked_files = subprocess.run(
+        ["git", "ls-files"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.splitlines()
+    return sum(1 for relative_path in tracked_files if not any(part in EXCLUDED_GRAPH_DIRS for part in Path(relative_path).parts))
 
 
 def test_graph_scope_counts_match_live_prompt_inventory() -> None:
     expected = {
-        "Live repo files analyzed in the current tree": _live_repo_file_count(),
+        "Tracked repo files analyzed in the current tree": _tracked_repo_file_count(),
         "Python files under `src/` and `tests/`": sum(
             1
             for root in (REPO_ROOT / "src", REPO_ROOT / "tests")
