@@ -18,6 +18,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `_version` | `integer` | `1` | Schema version for forward compatibility | Metadata |
 | `_synced_at` | `string (ISO 8601)` | — | Last sync timestamp | Metadata |
 | `project_reference` | `object` | see below | Pointer to PROJECT.md with key fields | Derived from PROJECT.md |
+| `project_contract` | `ResearchContract \| null` | `null` | Canonical machine-readable scoping and anchor contract | **Authoritative** (JSON-only, stage-0+ contract flow) |
 | `position` | `object` | see below | Current phase/plan/status | **Authoritative** (synced to STATE.md) |
 | `active_calculations` | `string[]` | `[]` | Work in progress descriptions | STATE.md unless JSON has structured data |
 | `intermediate_results` | `ResultObject[] \| string[]` | `[]` | Partial results with equations | **Authoritative** (structured objects from `result add`) |
@@ -54,6 +55,42 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 | `project_md_updated` | `string \| null` | Workflows (after updating PROJECT.md) |
 | `core_research_question` | `string \| null` | `/gpd:new-project` |
 | `current_focus` | `string \| null` | Phase transitions, `gpd state update` |
+
+### `project_contract`
+
+```json
+{
+  "schema_version": 1,
+  "scope": {
+    "question": "What must this project answer?",
+    "in_scope": ["deliverable A", "benchmark B"],
+    "out_of_scope": ["adjacent question C"],
+    "unresolved_questions": ["Which observable is decisive?"]
+  },
+  "context_intake": {
+    "must_read_refs": ["Ref-01"],
+    "must_include_prior_outputs": [".gpd/phases/01-setup/01-01-SUMMARY.md"],
+    "user_asserted_anchors": ["Recover known asymptotic limit"],
+    "known_good_baselines": ["Baseline derivation in notebook X"],
+    "context_gaps": ["Missing benchmark comparison"],
+    "crucial_inputs": ["Figure 2 from prior work"]
+  },
+  "observables": [],
+  "claims": [],
+  "deliverables": [],
+  "acceptance_tests": [],
+  "references": [],
+  "forbidden_proxies": [],
+  "links": [],
+  "uncertainty_markers": {
+    "weakest_anchors": [],
+    "unvalidated_assumptions": [],
+    "competing_explanations": []
+  }
+}
+```
+
+Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely.
 
 ### `position`
 

@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from gpd.adapters import get_adapter, iter_adapters, list_runtimes
+from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     GPD_INSTALL_DIR_NAME,
@@ -23,6 +23,10 @@ from gpd.core.constants import PLANNING_DIR_NAME, TODOS_DIR_NAME
 RUNTIME_UNKNOWN = "unknown"
 SCOPE_GLOBAL = "global"
 SCOPE_LOCAL = "local"
+SOURCE_ENV = "env"
+SOURCE_LOCAL = "local"
+SOURCE_GLOBAL = "global"
+SOURCE_UNKNOWN = "unknown"
 
 ALL_RUNTIMES = list_runtimes()
 
@@ -34,6 +38,14 @@ class UpdateCacheCandidate:
     scope: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class EffectiveRuntimeResolution:
+    runtime: str = RUNTIME_UNKNOWN
+    source: str = SOURCE_UNKNOWN
+    has_gpd_install: bool = False
+    install_scope: str | None = None
+
+
 def _adapter(runtime: str):
     try:
         return get_adapter(runtime)
@@ -42,7 +54,7 @@ def _adapter(runtime: str):
 
 
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
-    """Return runtimes in default order, optionally promoting one runtime to the front."""
+    """Return runtimes in explicit priority order, optionally promoting one runtime to the front."""
     if preferred_runtime not in ALL_RUNTIMES:
         return list(ALL_RUNTIMES)
     return [preferred_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != preferred_runtime]
@@ -107,34 +119,73 @@ def _runtime_dir_has_gpd_install(
     return False
 
 
-def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:
-    """Detect which AI agent runtime is currently active."""
-    for adapter in iter_adapters():
-        for env_var in adapter.activation_env_vars:
-            if os.environ.get(env_var):
-                return adapter.runtime_name
+def resolve_effective_runtime(
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    preferred_runtime: str | None = None,
+    require_gpd_install: bool = False,
+) -> EffectiveRuntimeResolution:
+    """Resolve the active runtime plus how it was discovered."""
 
     resolved_cwd = cwd or Path.cwd()
-    for runtime in ALL_RUNTIMES:
-        if _local_runtime_dir(runtime, resolved_cwd).is_dir():
-            return runtime
-
     resolved_home = home or Path.home()
-    for runtime in ALL_RUNTIMES:
-        if _global_runtime_dir(runtime, home=resolved_home).is_dir():
-            return runtime
+    ordered_runtimes = _prioritized_runtimes(preferred_runtime)
 
-    return RUNTIME_UNKNOWN
+    for runtime in ordered_runtimes:
+        adapter = _adapter(runtime)
+        if adapter is None:
+            continue
+        for env_var in adapter.activation_env_vars:
+            if os.environ.get(env_var):
+                install_scope = detect_install_scope(adapter.runtime_name, cwd=resolved_cwd, home=resolved_home)
+                has_install = install_scope is not None
+                if require_gpd_install and not has_install:
+                    continue
+                return EffectiveRuntimeResolution(
+                    runtime=adapter.runtime_name,
+                    source=SOURCE_ENV,
+                    has_gpd_install=has_install,
+                    install_scope=install_scope,
+                )
+
+    for runtime in ordered_runtimes:
+        if _local_runtime_dir(runtime, resolved_cwd).is_dir():
+            install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
+            has_install = install_scope is not None
+            if require_gpd_install and not has_install:
+                continue
+            return EffectiveRuntimeResolution(
+                runtime=runtime,
+                source=SOURCE_LOCAL,
+                has_gpd_install=has_install,
+                install_scope=install_scope,
+            )
+
+    for runtime in ordered_runtimes:
+        if _global_runtime_dir(runtime, home=resolved_home).is_dir():
+            install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
+            has_install = install_scope is not None
+            if require_gpd_install and not has_install:
+                continue
+            return EffectiveRuntimeResolution(
+                runtime=runtime,
+                source=SOURCE_GLOBAL,
+                has_gpd_install=has_install,
+                install_scope=install_scope,
+            )
+
+    return EffectiveRuntimeResolution()
+
+
+def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) -> str:
+    """Detect which AI agent runtime is currently active."""
+    return resolve_effective_runtime(cwd=cwd, home=home).runtime
 
 
 def detect_active_runtime_with_gpd_install(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect the active runtime only when that runtime also has a GPD install."""
-    resolved_cwd = cwd or Path.cwd()
-    resolved_home = home or Path.home()
-    for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
-        if _runtime_dir_has_gpd_install(runtime, cwd=resolved_cwd, home=resolved_home):
-            return runtime
-    return RUNTIME_UNKNOWN
+    return resolve_effective_runtime(cwd=cwd, home=home, require_gpd_install=True).runtime
 
 
 def detect_install_scope(
@@ -144,7 +195,7 @@ def detect_install_scope(
     home: Path | None = None,
 ) -> str | None:
     """Detect whether the active install for *runtime* is local or global."""
-    resolved_runtime = runtime or detect_active_runtime(cwd=cwd, home=home)
+    resolved_runtime = runtime or resolve_effective_runtime(cwd=cwd, home=home).runtime
     if resolved_runtime not in ALL_RUNTIMES:
         return None
 
@@ -408,6 +459,11 @@ __all__ = [
     "RUNTIME_UNKNOWN",
     "SCOPE_GLOBAL",
     "SCOPE_LOCAL",
+    "SOURCE_ENV",
+    "SOURCE_GLOBAL",
+    "SOURCE_LOCAL",
+    "SOURCE_UNKNOWN",
+    "EffectiveRuntimeResolution",
     "UpdateCacheCandidate",
     "all_runtime_dirs",
     "detect_install_scope",
@@ -419,5 +475,6 @@ __all__ = [
     "get_todo_dirs",
     "get_update_cache_files",
     "should_consider_update_cache_candidate",
+    "resolve_effective_runtime",
     "update_command_for_runtime",
 ]

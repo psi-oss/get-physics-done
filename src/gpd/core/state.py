@@ -21,7 +21,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.contracts import ConventionLock
+from gpd.contracts import ConventionLock, ResearchContract
 from gpd.core.constants import (
     ENV_GPD_DEBUG,
     PHASES_DIR_NAME,
@@ -189,6 +189,7 @@ class ResearchState(BaseModel):
     """
 
     project_reference: ProjectReference = Field(default_factory=ProjectReference)
+    project_contract: ResearchContract | None = None
     position: Position = Field(default_factory=Position)
     active_calculations: list[str | dict] = Field(default_factory=list)
     intermediate_results: list[IntermediateResult | str] = Field(default_factory=list)

@@ -34,6 +34,7 @@ class HookPayloadPolicy:
 class RuntimeDescriptor:
     runtime_name: str
     display_name: str
+    priority: int
     config_dir_name: str
     install_flag: str
     command_prefix: str
@@ -42,6 +43,7 @@ class RuntimeDescriptor:
     selection_aliases: tuple[str, ...]
     global_config: GlobalConfigPolicy
     hook_payload: HookPayloadPolicy
+    native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
 
 
@@ -59,9 +61,11 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
             RuntimeDescriptor(
                 runtime_name=str(entry["runtime_name"]),
                 display_name=str(entry["display_name"]),
+                priority=int(entry.get("priority", 100)),
                 config_dir_name=str(entry["config_dir_name"]),
                 install_flag=str(entry["install_flag"]),
                 command_prefix=str(entry["command_prefix"]),
+                native_include_support=bool(entry.get("native_include_support", False)),
                 activation_env_vars=tuple(str(value) for value in entry.get("activation_env_vars", [])),
                 selection_flags=tuple(str(value) for value in entry.get("selection_flags", [])),
                 selection_aliases=tuple(str(value) for value in entry.get("selection_aliases", [])),
@@ -99,6 +103,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 agent_prompt_uses_dollar_templates=bool(entry.get("agent_prompt_uses_dollar_templates", False)),
             )
         )
+    descriptors.sort(key=lambda descriptor: (descriptor.priority, descriptor.runtime_name))
     return tuple(descriptors)
 
 

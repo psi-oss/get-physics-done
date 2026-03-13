@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from gpd.core.frontmatter import (
@@ -10,11 +12,14 @@ from gpd.core.frontmatter import (
     FrontmatterValidationError,
     deep_merge_frontmatter,
     extract_frontmatter,
+    parse_contract_block,
     parse_must_haves_block,
     reconstruct_frontmatter,
     splice_frontmatter,
     validate_frontmatter,
 )
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 # ---------------------------------------------------------------------------
 # extract_frontmatter
@@ -178,6 +183,66 @@ class TestParseMustHavesBlock:
         result = parse_must_haves_block("No frontmatter here.", "truths")
         assert result == []
 
+    def test_derives_must_haves_from_contract(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What is the main benchmark?\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value\n"
+            "      deliverables: [deliv-figure]\n"
+            "  deliverables:\n"
+            "    - id: deliv-figure\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main benchmark figure\n"
+            "  acceptance_tests:\n"
+            "    - id: test-benchmark\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against reference\n"
+            "      pass_condition: Matches benchmark within tolerance\n"
+            "---\n\nBody."
+        )
+        assert parse_must_haves_block(content, "truths") == ["Recover the benchmark value"]
+        artifacts = parse_must_haves_block(content, "artifacts")
+        assert artifacts == [
+            {
+                "path": "figures/main.png",
+                "provides": "Main benchmark figure",
+                "physics_check": "Matches benchmark within tolerance",
+            }
+        ]
+
+
+class TestParseContractBlock:
+    def test_returns_valid_contract_from_fixture(self):
+        fixture = FIXTURES_DIR / "plan_with_contract.md"
+        content = fixture.read_text(encoding="utf-8")
+        contract = parse_contract_block(content)
+        assert contract is not None
+        assert contract.scope.question == "What benchmark must this plan recover?"
+
+    def test_invalid_contract_raises(self):
+        content = (
+            "---\n"
+            "contract:\n"
+            "  scope:\n"
+            "    in_scope: [benchmark]\n"
+            "---\n\nBody."
+        )
+        with pytest.raises(FrontmatterValidationError, match="Invalid contract frontmatter"):
+            parse_contract_block(content)
+
 
 # ---------------------------------------------------------------------------
 # validate_frontmatter
@@ -234,6 +299,32 @@ class TestValidateFrontmatter:
         content = "---\nphase: 01\nplan: 01\ndepth: standard\nprovides: []\ncompleted: 2025-01-01\n---\n\nBody."
         result = validate_frontmatter(content, "summary")
         assert result.valid is True
+
+    def test_valid_plan_with_contract_only(self):
+        content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is True
+        assert result.errors == []
+        assert "must_haves" not in result.missing
+
+    def test_invalid_contract_marks_plan_invalid(self):
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    in_scope: [benchmark]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert result.errors
 
     def test_valid_verification(self):
         content = "---\nphase: 01\nverified: 2025-01-01\nstatus: passed\nscore: 5/5\n---\n\nBody."

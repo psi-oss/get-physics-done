@@ -14,7 +14,9 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PydanticValidationError
 
+from gpd.contracts import ResearchContract, contract_to_legacy_must_haves
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -39,6 +41,7 @@ __all__ = [
     "splice_frontmatter",
     "deep_merge_frontmatter",
     "parse_must_haves_block",
+    "parse_contract_block",
     # Schema validation
     "FRONTMATTER_SCHEMAS",
     "FrontmatterValidation",
@@ -197,11 +200,31 @@ def parse_must_haves_block(content: str, block_name: str) -> list:
     meta, _ = extract_frontmatter(content)
     must_haves = meta.get("must_haves")
     if not isinstance(must_haves, dict):
+        contract_data = meta.get("contract")
+        if isinstance(contract_data, dict):
+            try:
+                must_haves = contract_to_legacy_must_haves(contract_data).model_dump(by_alias=True)
+            except PydanticValidationError:
+                return []
+    if not isinstance(must_haves, dict):
         return []
     block = must_haves.get(block_name)
     if not isinstance(block, list):
         return []
     return block
+
+
+def parse_contract_block(content: str) -> ResearchContract | None:
+    """Extract and validate the optional ``contract`` block from frontmatter."""
+
+    meta, _ = extract_frontmatter(content)
+    contract_data = meta.get("contract")
+    if not isinstance(contract_data, dict):
+        return None
+    try:
+        return ResearchContract.model_validate(contract_data)
+    except PydanticValidationError as exc:
+        raise FrontmatterValidationError(f"Invalid contract frontmatter: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -236,11 +259,14 @@ class FrontmatterValidation(BaseModel):
     valid: bool
     missing: list[str] = Field(default_factory=list)
     present: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
     schema_name: str = ""
 
 
 def _resolve_field(meta: dict, name: str) -> str | None:
     """Return *name* when present in *meta*, otherwise ``None``."""
+    if name == "must_haves" and "contract" in meta:
+        return name
     return name if name in meta else None
 
 
@@ -262,11 +288,19 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
 
     missing = [f for f in required if _resolve_field(meta, f) is None]
     present = [f for f in required if _resolve_field(meta, f) is not None]
+    errors: list[str] = []
+
+    if isinstance(meta.get("contract"), dict):
+        try:
+            ResearchContract.model_validate(meta["contract"])
+        except PydanticValidationError as exc:
+            errors.append(f"contract: {exc}")
 
     return FrontmatterValidation(
-        valid=len(missing) == 0,
+        valid=len(missing) == 0 and not errors,
         missing=missing,
         present=present,
+        errors=errors,
         schema_name=schema_name,
     )
 
@@ -793,4 +827,3 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
         total=len(results),
         artifacts=results,
     )
-

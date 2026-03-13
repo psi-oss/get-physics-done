@@ -74,6 +74,7 @@ class TestRegistry:
         alpha_descriptor = RuntimeDescriptor(
             runtime_name="alpha-runtime",
             display_name="Alpha Runtime",
+            priority=20,
             config_dir_name=".alpha",
             install_flag="--alpha",
             command_prefix="/gpd:",
@@ -86,6 +87,7 @@ class TestRegistry:
         beta_descriptor = RuntimeDescriptor(
             runtime_name="beta-runtime",
             display_name="Beta Runtime",
+            priority=10,
             config_dir_name=".beta",
             install_flag="--beta",
             command_prefix="/gpd:",
@@ -123,7 +125,7 @@ class TestRegistry:
         adapters_module._ensure_loaded()
 
         assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
-        assert adapters_module.list_runtimes() == ["alpha-runtime", "beta-runtime"]
+        assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
         assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
 
 

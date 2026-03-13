@@ -16,6 +16,9 @@ from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
     SCOPE_GLOBAL,
     SCOPE_LOCAL,
+    SOURCE_ENV,
+    SOURCE_GLOBAL,
+    SOURCE_LOCAL,
     UpdateCacheCandidate,
     _has_gpd_install,
     all_runtime_dirs,
@@ -27,6 +30,7 @@ from gpd.hooks.runtime_detect import (
     get_todo_dirs,
     get_update_cache_candidates,
     get_update_cache_files,
+    resolve_effective_runtime,
     should_consider_update_cache_candidate,
     update_command_for_runtime,
 )
@@ -185,6 +189,63 @@ class TestDetectActiveRuntime:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert detect_active_runtime() == RUNTIME_GEMINI
+
+
+class TestResolveEffectiveRuntime:
+    def test_reports_env_source(self) -> None:
+        env = _clean_runtime_env()
+        env["CODEX_SESSION"] = "xyz"
+        with patch.dict(os.environ, env, clear=True):
+            result = resolve_effective_runtime()
+
+        assert result.runtime == RUNTIME_CODEX
+        assert result.source == SOURCE_ENV
+
+    def test_reports_local_source_and_install_scope(self, tmp_path: Path) -> None:
+        _mark_gpd_install(tmp_path / ".gemini")
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            result = resolve_effective_runtime()
+
+        assert result.runtime == RUNTIME_GEMINI
+        assert result.source == SOURCE_LOCAL
+        assert result.has_gpd_install is True
+        assert result.install_scope == SCOPE_LOCAL
+
+    def test_reports_global_source_without_install(self, tmp_path: Path) -> None:
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=workspace),
+        ):
+            result = resolve_effective_runtime()
+
+        assert result.runtime == RUNTIME_CLAUDE
+        assert result.source == SOURCE_GLOBAL
+        assert result.has_gpd_install is False
+
+    def test_require_gpd_install_returns_unknown_when_runtime_has_no_install(self, tmp_path: Path) -> None:
+        (tmp_path / ".codex").mkdir()
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            result = resolve_effective_runtime(require_gpd_install=True)
+
+        assert result.runtime == RUNTIME_UNKNOWN
 
 
 class TestDetectActiveRuntimeWithInstall:

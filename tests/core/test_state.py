@@ -27,6 +27,8 @@ from gpd.core.state import (
     validate_state_transition,
 )
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
 
 def _state_with_result(result: dict) -> dict:
     state = default_state_dict()
@@ -57,6 +59,7 @@ def test_default_state_dict_has_required_keys():
     assert "convention_lock" in s
     assert "approximations" in s
     assert "propagated_uncertainties" in s
+    assert "project_contract" in s
 
 
 def test_default_state_dict_position_defaults():
@@ -65,6 +68,7 @@ def test_default_state_dict_position_defaults():
     assert pos["current_phase"] is None
     assert pos["status"] is None
     assert pos["progress_percent"] == 0
+    assert s["project_contract"] is None
 
 
 # ─── parse_state_md ──────────────────────────────────────────────────────────
@@ -338,6 +342,25 @@ def test_ensure_state_schema_convention_lock_wrong_type():
     """Convention lock with int values where strings expected should not crash."""
     result = ensure_state_schema({"convention_lock": {"metric_signature": 42}})
     assert isinstance(result["convention_lock"], dict)
+
+
+def test_ensure_state_schema_valid_project_contract():
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    result = ensure_state_schema({"project_contract": contract})
+    assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+
+
+def test_ensure_state_schema_invalid_project_contract_resets_to_none():
+    result = ensure_state_schema(
+        {
+            "project_contract": {
+                "scope": {
+                    "in_scope": ["benchmark"],
+                }
+            }
+        }
+    )
+    assert result["project_contract"] is None
 
 
 def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():
