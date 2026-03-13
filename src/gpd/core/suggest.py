@@ -375,7 +375,8 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     """
     suggestions: list[_MutableRecommendation] = []
     ctx_kwargs: dict[str, object] = {}
-    format_command = lambda action: _format_command(action, cwd=cwd)
+    def format_command(action):
+        return _format_command(action, cwd=cwd)
 
     # ── 0. Check project existence ──────────────────────────────────────
     project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
