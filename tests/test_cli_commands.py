@@ -22,6 +22,7 @@ from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
 
 runner = CliRunner()
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "stage0"
 
 
 @pytest.fixture()
@@ -218,22 +219,31 @@ class TestStateCommands:
     def test_set_project_contract(self, gpd_project: Path) -> None:
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
-            json.dumps(
-                {
-                    "scope": {
-                        "question": "What benchmark must the project recover?",
-                        "in_scope": ["benchmark comparison"],
-                        "out_of_scope": ["paper drafting"],
-                        "unresolved_questions": ["Which figure should be primary?"],
-                    }
-                }
-            ),
+            (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
             encoding="utf-8",
         )
 
         _invoke("state", "set-project-contract", str(contract_path))
         state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+
+    def test_set_project_contract_rejects_semantically_invalid_contract(self, gpd_project: Path) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["uncertainty_markers"]["weakest_anchors"] = []
+        contract["uncertainty_markers"]["disconfirming_observations"] = []
+        contract_path = gpd_project / "invalid-contract.json"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any("weakest_anchors" in error for error in payload["errors"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -253,6 +263,60 @@ class TestInitCommands:
 
     def test_execute_phase(self) -> None:
         _invoke("init", "execute-phase", "1")
+
+    def test_plan_phase_surfaces_artifact_derived_reference_context(self, gpd_project: Path) -> None:
+        literature_dir = gpd_project / ".gpd" / "literature"
+        literature_dir.mkdir(parents=True)
+        (literature_dir / "benchmark-REVIEW.md").write_text(
+            """# Literature Review: Benchmark Survey
+
+## Active Anchor Registry
+
+| Anchor | Type | Why It Matters | Required Action | Downstream Use |
+| ------ | ---- | -------------- | --------------- | -------------- |
+| Benchmark Ref 2024 | benchmark | Published benchmark curve for the decisive observable | read/compare/cite | planning/execution |
+
+```yaml
+---
+review_summary:
+  benchmark_values:
+    - quantity: "critical slope"
+      value: "1.23 +/- 0.04"
+      source: "Benchmark Ref 2024"
+  active_anchors:
+    - anchor: "Benchmark Ref 2024"
+      type: "benchmark"
+      why_it_matters: "Published benchmark curve for the decisive observable"
+      required_action: "read/compare/cite"
+      downstream_use: "planning/execution"
+---
+```
+""",
+            encoding="utf-8",
+        )
+        map_dir = gpd_project / ".gpd" / "research-map"
+        map_dir.mkdir(parents=True)
+        (map_dir / "REFERENCES.md").write_text(
+            """# Reference and Anchor Map
+
+## Active Anchor Registry
+
+| Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |
+| ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |
+| prior-baseline | prior artifact | `.gpd/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for later comparisons | use | planning/execution |
+""",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["--raw", "init", "plan-phase", "1"], catch_exceptions=False)
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+
+        assert payload["project_contract"] is None
+        assert payload["derived_active_reference_count"] >= 2
+        assert "Benchmark Ref 2024" in payload["active_reference_context"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["active_reference_context"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

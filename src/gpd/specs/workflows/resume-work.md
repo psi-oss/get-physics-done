@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`.
+Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
@@ -189,7 +189,7 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, and first-result review as the same family of resumable state. Do NOT treat git rollback tags, `.continue-here`, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
+**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, `.continue-here`, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
 
 **Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than last `.continue-here.md`, warn: "Auto-checkpoint detected -- work may have continued after the last formal pause. Review state.json auto_checkpoint for details."
 
@@ -272,6 +272,15 @@ Present complete research project status to user:
     - Last result obtained: [most recent intermediate result]
     - Next planned step: [what was planned before pausing]
 
+[If active_execution_segment is waiting on review:]
+>> Live execution gate detected:
+    - Gate: [checkpoint_reason]
+    - First result ready: [yes/no]
+    - Downstream fanout locked: [yes/no]
+    - Skeptical re-questioning required: [yes/no]
+    - Weakest unchecked anchor: [if present]
+    - Fastest disconfirming observation: [if present]
+
 [If incomplete work found:]
 >> Incomplete work detected:
     - [.continue-here file or incomplete plan]
@@ -302,7 +311,8 @@ Present complete research project status to user:
 Based on project state, determine the most logical next action:
 
 **If `resume_mode="bounded_segment"` and `active_execution_segment` exists:**
--> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, and resume preconditions
+-> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
+-> If `checkpoint_reason=pre_fanout` or skeptical re-questioning is required: treat the next action as a review/replan decision, not a routine execution resume
 -> Option: Review a lower-priority legacy candidate from `segment_candidates`
 
 **If interrupted agent exists:**

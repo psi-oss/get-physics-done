@@ -28,23 +28,37 @@ updated: [ISO timestamp]
 
 number: [N]
 name: [check name]
+subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+subject_id: [contract id or ""]
 claim_id: [claim-id or ""]
 deliverable_id: [deliverable-id or ""]
 acceptance_test_id: [acceptance-test-id or ""]
 reference_ids: [reference-id, ...]
+forbidden_proxy_id: [forbidden-proxy-id or ""]
+comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | ""]
+comparison_reference_id: [reference-id or ""]
 expected: |
 [what the researcher should confirm or evaluate]
+suggested_contract_checks:
+  - [check id or description if the contract appears incomplete]
 awaiting: researcher response
 
 ## Checks
 
 ### 1. [Check Name]
 
+subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+subject_id: [contract id or ""]
 claim_id: [claim-id or ""]
 deliverable_id: [deliverable-id or ""]
 acceptance_test_id: [acceptance-test-id or ""]
 reference_ids: [reference-id, ...]
+forbidden_proxy_id: [forbidden-proxy-id or ""]
+comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | ""]
+comparison_reference_id: [reference-id or ""]
 expected: [what should hold - physical reasoning, derivation step, or result property]
+suggested_contract_checks:
+  - [check id or description if the contract appears incomplete]
 result: [pending]
 
 ### 2. [Check Name]
@@ -74,18 +88,50 @@ passed: [N]
 issues: [N]
 pending: [N]
 skipped: [N]
+comparison_verdicts_recorded: [N]
+forbidden_proxies_rejected: [N]
+
+## Comparison Verdicts
+
+<!-- APPEND decisive benchmark / prior-work / experiment / cross-method outcomes -->
+
+- subject_kind: claim | deliverable | acceptance_test | reference
+  subject_id: "contract-id"
+  reference_id: "reference-id"
+  comparison_kind: benchmark | prior_work | experiment | cross_method | baseline
+  verdict: pass | tension | fail | inconclusive
+  metric: ""
+  threshold: ""
+  notes: ""
+
+## Suggested Contract Checks
+
+<!-- APPEND if the verifier finds missing decisive checks that should be added to the contract -->
+
+- check: "[short description]"
+  reason: "[why this seems required]"
+  suggested_subject_kind: claim | deliverable | acceptance_test | reference
+  suggested_subject_id: ""
+  evidence_path: ""
 
 ## Gaps
 
 <!-- YAML format for plan-phase --gaps consumption -->
 
-- truth: "[expected physics property from check]"
+- subject_kind: "claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check"
+  subject_id: "contract-id"
+  truth: "[expected physics property from check]" # legacy compatibility label for older gap consumers
+  expected_check: "[expected physics property from check]"
   claim_id: "claim-id"
   deliverable_id: "deliverable-id"
   acceptance_test_id: "acceptance-test-id"
   reference_ids: ["reference-id"]
+  forbidden_proxy_id: "forbidden-proxy-id"
+  comparison_kind: "benchmark | prior_work | experiment | cross_method | baseline"
+  comparison_reference_id: "reference-id"
   status: failed
   reason: "Researcher reported: [verbatim response]"
+  suggested_contract_checks: []
   severity: blocker | major | minor | cosmetic
   check: [N]
   root_cause: "" # Filled by diagnosis
@@ -118,11 +164,25 @@ skipped: [N]
 - `result` values: [pending], pass, issue, skipped
 - If issue: add `reported` (verbatim) and `severity` (inferred)
 - If skipped: add `reason` if provided
+- Every check should carry `subject_kind` / `subject_id` when the PLAN contract provides one
+- Use `forbidden_proxy_id` for explicit proxy-rejection checks
+- Use `comparison_kind` / `comparison_reference_id` when the check should later emit a comparison verdict
+- Use `suggested_contract_checks` only when the verifier believes the contract omitted a decisive check
 
 **Summary:**
 
 - OVERWRITE counts after each response
-- Tracks: total, passed, issues, pending, skipped
+- Tracks: total, passed, issues, pending, skipped, comparison_verdicts_recorded, forbidden_proxies_rejected
+
+**Comparison Verdicts:**
+
+- APPEND when a decisive comparison is performed
+- Record verdicts against contract IDs rather than prose labels
+
+**Suggested Contract Checks:**
+
+- APPEND when the verifier identifies a missing decisive check
+- Keep these generic and actionable: what to add, why, and where the evidence should come from
 
 **Gaps:**
 
@@ -175,6 +235,8 @@ Verify that different parts of the research are consistent with each other.
 - "The perturbative result (Phase 2) and the numerical result (Phase 3) differ by 5% at coupling g=0.1. Is this within expected error?"
 - "The analytical continuation from Euclidean to Lorentzian gives [X]. Is this consistent with the real-time simulation?"
 - "The Ward identity requires [relation]. Do our computed Green's functions satisfy it?"
+- "A benchmark comparison was required for claim `claim-main`. Do the observed numbers justify a pass, tension, fail, or inconclusive verdict?"
+- "The plan forbids treating the intermediate fit quality as a success proxy. Did we accidentally rely on that instead of the decisive observable?"
 
 ### 6. Robustness and Sensitivity
 
@@ -203,7 +265,10 @@ Probe how sensitive results are to assumptions and approximations.
 ```yaml
 ## Gaps
 
-- truth: "Correlation function decays as power law at criticality"
+- subject_kind: "claim"
+  subject_id: "claim-critical-decay"
+  truth: "Correlation function decays as power law at criticality"
+  expected_check: "Correlation function decays as power law at criticality"
   status: failed
   reason: "Researcher reported: decay looks exponential, not power-law - probably not at the critical point"
   severity: major
@@ -223,9 +288,11 @@ Probe how sensitive results are to assumptions and approximations.
 
 **Creation:** When /gpd:verify-work starts new verification session
 
-- Extract checks from SUMMARY.md files and verification report
+- Extract checks from the PLAN `contract` first, then use SUMMARY.md files and verification report as evidence maps
 - Use PLAN `contract` IDs as canonical check names. SUMMARY `contract_results` tells you where evidence lives, not what counts as success.
 - Organize by check category (derivation logic, intuition, limits, edges, consistency, robustness)
+- Include explicit forbidden-proxy rejection checks and decisive comparison checks when the contract requires them
+- Add `suggested_contract_checks` if the verifier finds a missing decisive check
 - Set status to "validating"
 - Current Check points to check 1
 - All checks have result: [pending]
@@ -334,10 +401,15 @@ passed: 5
 issues: 2
 pending: 0
 skipped: 0
+comparison_verdicts_recorded: 0
+forbidden_proxies_rejected: 0
 
 ## Gaps
 
-- truth: "Order parameter reaches saturation value 1.0 at T=0"
+- subject_kind: "claim"
+  subject_id: "claim-order-parameter-zero-T"
+  truth: "Order parameter reaches saturation value 1.0 at T=0"
+  expected_check: "Order parameter reaches saturation value 1.0 at T=0"
   status: failed
   reason: "Researcher reported: Order parameter at T=0 is 0.87 but exact is 1.0. Not fully equilibrated."
   severity: major
@@ -351,7 +423,10 @@ skipped: 0
   - "Increase equilibration to 10^5 sweeps minimum, add autocorrelation analysis"
     debug_session: ".gpd/debug/mc-equilibration.md"
 
-- truth: "Results are insensitive to equilibration time (converged)"
+- subject_kind: "acceptance_test"
+  subject_id: "test-equilibration-convergence"
+  truth: "Results are insensitive to doubling the equilibration time"
+  expected_check: "Results are insensitive to doubling the equilibration time"
   status: failed
   reason: "Researcher reported: doubling equilibration changed order parameter from 0.87 to 0.94"
   severity: blocker

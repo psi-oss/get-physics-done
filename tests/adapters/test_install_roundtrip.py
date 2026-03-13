@@ -228,6 +228,40 @@ class TestGeminiRoundtrip:
             content = toml_file.read_text(encoding="utf-8")
             assert "prompt" in content, f"{toml_file.name} missing prompt field"
 
+    def test_toml_preserves_non_runtime_metadata_as_comments(self, gpd_root: Path, tmp_path: Path) -> None:
+        """Gemini TOML commands keep canonical non-runtime metadata as comments."""
+        (gpd_root / "commands" / "progress.md").write_text(
+            "---\n"
+            "name: gpd:progress\n"
+            'description: Check research progress\n'
+            'argument-hint: "[--brief] [--full] [--reconcile]"\n'
+            "context_mode: project-required\n"
+            "requires:\n"
+            '  files: [".gpd/ROADMAP.md"]\n'
+            "allowed-tools:\n"
+            "  - file_read\n"
+            "  - shell\n"
+            "---\n"
+            "Progress body.\n",
+            encoding="utf-8",
+        )
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter = GeminiAdapter()
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        content = (target / "commands" / "gpd" / "progress.toml").read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+
+        assert "# Source frontmatter preserved for parity:" in content
+        assert '# name: gpd:progress' in content
+        assert '# argument-hint: "[--brief] [--full] [--reconcile]"' in content
+        assert "# requires:" in content
+        assert '#   files: [".gpd/ROADMAP.md"]' in content
+        assert "# allowed-tools:" not in content
+        assert parsed["context_mode"] == "project-required"
+
     def test_toml_command_count_matches_source(self, installed: Path, gpd_root: Path) -> None:
         """Number of TOML commands matches source .md count."""
         src_count = sum(1 for _ in (gpd_root / "commands").rglob("*.md"))
@@ -685,6 +719,10 @@ def test_real_installed_command_include_semantics_are_equivalent_across_runtimes
     normalized = _canonicalize_runtime_markdown(content, runtime=runtime)
     lowered = normalized.lower()
 
+    assert "@ include not resolved:" not in content.lower()
+    assert "@ include cycle detected:" not in content.lower()
+    assert "@ include read error:" not in content.lower()
+    assert "@ include depth limit reached:" not in content.lower()
     assert "Systematically compare theoretical predictions with experimental or observational data." in normalized
     assert "unit mismatches and convention mismatches are the two most common sources of discrepancy" in lowered
     assert "what decisive output or contract target was predicted" in lowered

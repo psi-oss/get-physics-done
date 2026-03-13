@@ -206,8 +206,8 @@ class RuntimeAdapter(abc.ABC):
         Returns:
             Summary dict with at minimum: runtime, commands, agents.
         """
-        from gpd import __version__
         from gpd.core.observability import gpd_span
+        from gpd.version import __version__, version_for_gpd_root
 
         with gpd_span("adapter.install", runtime=self.runtime_name, target=str(target_dir)) as span:
             previous_explicit_target = getattr(self, "_install_explicit_target", False)
@@ -218,12 +218,13 @@ class RuntimeAdapter(abc.ABC):
                 self._validate(gpd_root)
                 path_prefix = self._compute_path_prefix(target_dir, is_global)
                 self._pre_cleanup(target_dir)
+                install_version = version_for_gpd_root(gpd_root) or __version__
 
                 failures: list[str] = []
                 command_count = self._install_commands(gpd_root, target_dir, path_prefix, failures)
                 self._install_content(gpd_root, target_dir, path_prefix, failures)
                 agent_count = self._install_agents(gpd_root, target_dir, path_prefix, failures)
-                self._install_version(target_dir, __version__, failures)
+                self._install_version(target_dir, install_version, failures)
                 self._install_hooks(gpd_root, target_dir, failures)
 
                 if failures:
@@ -231,7 +232,7 @@ class RuntimeAdapter(abc.ABC):
                     raise RuntimeError(f"Installation incomplete! Failed: {', '.join(failures)}")
 
                 extra = self._configure_runtime(target_dir, is_global)
-                self._write_manifest(target_dir, __version__)
+                self._write_manifest(target_dir, install_version)
                 self._verify(target_dir)
 
                 span.set_attribute("gpd.commands_count", command_count)

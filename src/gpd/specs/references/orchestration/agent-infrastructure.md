@@ -201,6 +201,42 @@ Canonical ownership matrix:
 
 ---
 
+## Spawned Agent Write Contract
+
+Keep these axes separate:
+
+- `commit_authority`: who may stage or commit files
+- `write_scope`: which paths the subagent may write for this handoff
+- `shared_state_policy`: whether canonical shared state is written directly or returned for orchestrator application
+
+Canonical prompt fields for spawned tasks:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write | direct
+  allowed_paths:
+    - relative/path/owned/by/this/agent
+expected_artifacts:
+  - relative/path/to/verify
+shared_state_policy: return_only | direct
+</spawn_contract>
+```
+
+Interpretation rules:
+
+- `commit_authority: orchestrator` does not imply read-only. Most orchestrator-owned agents still write scoped artifacts and report them in `gpd_return.files_written`.
+- `shared_state_policy: return_only` means the subagent must not write `.gpd/STATE.md`, `.gpd/ROADMAP.md`, or other canonical shared state directly. Return those updates in the structured envelope.
+- `shared_state_policy: direct` is reserved for workflows that explicitly grant shared-state ownership, such as project bootstrap or convention authority flows.
+
+Representative examples:
+
+- `gpd-executor` in parallel execution: `write_scope.mode: scoped_write`, `shared_state_policy: return_only`
+- `gpd-notation-coordinator`: scoped convention artifacts plus `shared_state_policy: direct` for canonical convention ownership
+- `gpd-roadmapper`: writes project bootstrap artifacts with `shared_state_policy: direct`
+
+---
+
 ## gpd CLI State Commands
 
 Common state management commands used across agents:

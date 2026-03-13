@@ -17,6 +17,7 @@ You are a thinking partner, not an interviewer. The user is the physicist with d
    - "Agent's Discretion: choice of basis set" -> planner can decide approach
 
 **Your job:** Capture decisions clearly enough that downstream agents can act on them without asking the user again.
+Also preserve the user's own load-bearing guidance: if they name decisive observables, deliverables, prior outputs, must-have references, or stop conditions, carry them into CONTEXT.md in recognizable language.
 
 **Not your job:** Solve the physics or derive the results. That's what research and planning do with the decisions you capture.
 </downstream_awareness>
@@ -187,6 +188,8 @@ Analyze the phase to identify gray areas worth discussing.
 
 2. **Gray areas by physics category** -- For each relevant category (Formalism, Approximations, Boundary Conditions, Observables, Deliverables, Anchors, Numerics), identify 1-2 specific methodological ambiguities that would change the results.
 
+Pay special attention to any user-stated observables, deliverables, prior outputs, or must-have references already visible in PROJECT.md, ROADMAP.md, or the conversation. Those are carry-forward guidance, not generic background.
+
 3. **Skip assessment** -- If no meaningful gray areas exist (pure data processing, straightforward textbook calculation), the phase may not need discussion.
 
 **Output your analysis internally, then present to user.**
@@ -288,8 +291,10 @@ Ask 4 questions per area before offering to continue or move on. Each answer oft
    - If user picks a method: "What's your intuition for why [method] works here? What regime might it break down in?"
    - If user defers: "I'll research options. Any constraints I should respect -- e.g., must handle [specific case]?"
    - If user is uncertain: "Let's think about limiting cases. In the [extreme limit], what should happen? Does that constrain the choice?"
+   - Ask at least once per phase discussion: "Which observable, figure, derivation, dataset, or note is the decisive thing this phase must produce?"
    - Ask at least once per phase discussion: "What prior output, benchmark, or reference must stay visible here?"
    - Ask at least once per phase discussion: "What would make this approach look wrong or incomplete early?"
+   - Ask at least once per phase discussion: "What should make us stop, re-scope, or ask you again before a long run?"
 
 3. **After 4 questions, check:**
 
@@ -366,6 +371,16 @@ mkdir -p "${phase_dir}"
 - [False progress to reject]: [Proxy that must not count]
 
 </contract_coverage>
+
+<user_guidance>
+## User Guidance To Preserve
+
+- **User-stated observables:** [Specific quantity, curve, figure, or smoking-gun signal]
+- **User-stated deliverables:** [Specific table, plot, derivation, dataset, note, or code output]
+- **Must-have references / prior outputs:** [Paper, notebook, run, figure, or benchmark that must remain visible]
+- **Stop / rethink conditions:** [When to pause, ask again, or re-scope before continuing]
+
+</user_guidance>
 
 <decisions>
 ## Methodological Decisions
@@ -447,6 +462,7 @@ _Context gathered: [date]_
 ```
 
 Write file.
+When writing, preserve the user's own wording where it was explicit and load-bearing. Do not silently rewrite a named observable, deliverable, or must-have reference into a looser generic description.
 </step>
 
 <step name="confirm_creation">

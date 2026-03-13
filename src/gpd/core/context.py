@@ -46,6 +46,7 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import ValidationError
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
+from gpd.core.reference_ingestion import ingest_reference_artifacts
 from gpd.core.state import load_state_json as _load_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
@@ -223,12 +224,107 @@ def _serialize_active_references(contract: ResearchContract | None) -> list[dict
             ref.id,
         ),
     )
-    return [ref.model_dump(mode="json") for ref in refs]
+    serialized: list[dict[str, object]] = []
+    for ref in refs:
+        payload = ref.model_dump(mode="json")
+        payload["source_kind"] = "project_contract"
+        payload["source_artifacts"] = []
+        serialized.append(payload)
+    return serialized
+
+
+def _append_unique_strings(target: list[str], values: list[object] | tuple[object, ...]) -> None:
+    """Append string values without duplicating normalized entries."""
+    for value in values:
+        text = str(value).strip()
+        if text and text not in target:
+            target.append(text)
+
+
+def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str, object]) -> None:
+    """Merge one active-reference record into the merged registry."""
+    ref_id = str(ref.get("id") or "").strip()
+    locator = str(ref.get("locator") or "").strip()
+    target = merged.get(ref_id) if ref_id else None
+
+    if target is None and locator:
+        locator_key = locator.casefold()
+        for candidate in merged.values():
+            if str(candidate.get("locator") or "").strip().casefold() == locator_key:
+                target = candidate
+                break
+
+    if target is None:
+        payload = dict(ref)
+        payload["required_actions"] = list(ref.get("required_actions") or [])
+        payload["applies_to"] = list(ref.get("applies_to") or [])
+        payload["source_artifacts"] = list(ref.get("source_artifacts") or [])
+        if ref_id:
+            merged[ref_id] = payload
+        else:
+            merged[f"derived-{len(merged) + 1:03d}"] = payload
+        return
+
+    if str(ref.get("role") or "").strip() and str(target.get("role") or "other").strip() == "other":
+        target["role"] = ref.get("role")
+    why = str(ref.get("why_it_matters") or "").strip()
+    if why:
+        existing_why = str(target.get("why_it_matters") or "").strip()
+        if existing_why and why not in existing_why:
+            target["why_it_matters"] = f"{existing_why}; {why}"
+        elif not existing_why:
+            target["why_it_matters"] = why
+    _append_unique_strings(target.setdefault("required_actions", []), list(ref.get("required_actions") or []))
+    _append_unique_strings(target.setdefault("applies_to", []), list(ref.get("applies_to") or []))
+    _append_unique_strings(target.setdefault("source_artifacts", []), list(ref.get("source_artifacts") or []))
+    target["must_surface"] = bool(target.get("must_surface") or ref.get("must_surface"))
+
+
+def _merge_active_references(
+    contract_references: list[dict[str, object]],
+    derived_references: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Merge contract-backed and artifact-derived references into one registry."""
+    merged: dict[str, dict[str, object]] = {}
+    for ref in contract_references:
+        _merge_reference_record(merged, ref)
+    for ref in derived_references:
+        _merge_reference_record(merged, ref)
+    return sorted(
+        merged.values(),
+        key=lambda ref: (
+            0 if ref.get("must_surface") else 1,
+            _REFERENCE_ROLE_PRIORITY.get(str(ref.get("role") or "other"), 99),
+            str(ref.get("id") or ""),
+        ),
+    )
+
+
+def _merge_reference_intake(
+    contract: ResearchContract | None,
+    derived_intake: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Return the effective carry-forward intake from contract + parsed artifacts."""
+    merged = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    if contract is not None:
+        intake = contract.context_intake.model_dump(mode="json")
+        for key in merged:
+            _append_unique_strings(merged[key], list(intake.get(key) or []))
+    for key in merged:
+        _append_unique_strings(merged[key], list(derived_intake.get(key) or []))
+    return merged
 
 
 def _render_active_reference_context(
-    contract: ResearchContract | None,
     active_references: list[dict[str, object]],
+    effective_intake: dict[str, list[str]],
     literature_review_files: list[str],
     research_map_reference_files: list[str],
 ) -> str:
@@ -240,14 +336,18 @@ def _render_active_reference_context(
             actions = ", ".join(str(action) for action in ref.get("required_actions", [])) or "review"
             applies_to = ", ".join(str(item) for item in ref.get("applies_to", [])) or "global"
             must_surface = " | must surface" if ref.get("must_surface") else ""
+            source_artifacts = ", ".join(str(item) for item in ref.get("source_artifacts", []) if item)
+            source_note = f" | source: {source_artifacts}" if source_artifacts else ""
             lines.append(
                 f"- [{ref['id']}] {ref['locator']} | role: {ref['role']}{must_surface} | "
-                f"actions: {actions} | applies_to: {applies_to} | why: {ref['why_it_matters']}"
+                f"actions: {actions} | applies_to: {applies_to} | why: {ref['why_it_matters']}{source_note}"
             )
     else:
-        lines.append("- None confirmed in `state.json.project_contract.references` yet.")
+        if literature_review_files or research_map_reference_files:
+            lines.append("- No structured anchors parsed yet; raw reference artifacts are available below.")
+        else:
+            lines.append("- None confirmed in `state.json.project_contract.references` yet.")
 
-    intake = contract.context_intake if contract is not None else None
     lines.extend(
         [
             "",
@@ -255,30 +355,30 @@ def _render_active_reference_context(
             "### Must-Read References",
         ]
     )
-    if intake and intake.must_read_refs:
-        lines.extend(f"- {item}" for item in intake.must_read_refs)
+    if effective_intake["must_read_refs"]:
+        lines.extend(f"- {item}" for item in effective_intake["must_read_refs"])
     else:
         lines.append("- None confirmed yet.")
 
     lines.append("")
     lines.append("### Prior Outputs and Baselines")
-    if intake and intake.must_include_prior_outputs:
-        lines.extend(f"- {item}" for item in intake.must_include_prior_outputs)
+    if effective_intake["must_include_prior_outputs"]:
+        lines.extend(f"- {item}" for item in effective_intake["must_include_prior_outputs"])
     else:
         lines.append("- None confirmed yet.")
-    if intake and intake.known_good_baselines:
-        lines.extend(f"- Baseline: {item}" for item in intake.known_good_baselines)
-    if intake and intake.crucial_inputs:
-        lines.extend(f"- Crucial input: {item}" for item in intake.crucial_inputs)
+    if effective_intake["known_good_baselines"]:
+        lines.extend(f"- Baseline: {item}" for item in effective_intake["known_good_baselines"])
+    if effective_intake["crucial_inputs"]:
+        lines.extend(f"- Crucial input: {item}" for item in effective_intake["crucial_inputs"])
 
     lines.append("")
     lines.append("### User-Asserted Anchors and Gaps")
-    if intake and intake.user_asserted_anchors:
-        lines.extend(f"- Anchor: {item}" for item in intake.user_asserted_anchors)
+    if effective_intake["user_asserted_anchors"]:
+        lines.extend(f"- Anchor: {item}" for item in effective_intake["user_asserted_anchors"])
     else:
         lines.append("- No additional user-asserted anchors recorded.")
-    if intake and intake.context_gaps:
-        lines.extend(f"- Gap: {item}" for item in intake.context_gaps)
+    if effective_intake["context_gaps"]:
+        lines.extend(f"- Gap: {item}" for item in effective_intake["context_gaps"])
 
     lines.append("")
     lines.append("## Reference Artifacts Available")
@@ -323,8 +423,15 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
 def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     """Build shared reference/anchor context for workflow init payloads."""
     contract = _load_project_contract(cwd)
-    active_references = _serialize_active_references(contract)
     artifact_payload = _reference_artifact_payload(cwd)
+    artifact_ingestion = ingest_reference_artifacts(
+        cwd,
+        literature_review_files=list(artifact_payload["literature_review_files"]),
+        research_map_reference_files=list(artifact_payload["research_map_reference_files"]),
+    )
+    derived_references = [ref.to_context_dict() for ref in artifact_ingestion.references]
+    active_references = _merge_active_references(_serialize_active_references(contract), derived_references)
+    effective_reference_intake = _merge_reference_intake(contract, artifact_ingestion.intake.to_dict())
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, contract)
 
@@ -349,6 +456,9 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     return {
         "project_contract": contract.model_dump(mode="json") if contract is not None else None,
         "contract_intake": contract.context_intake.model_dump(mode="json") if contract is not None else None,
+        "effective_reference_intake": effective_reference_intake,
+        "derived_active_references": derived_references,
+        "derived_active_reference_count": len(derived_references),
         "active_references": active_references,
         "active_reference_count": len(active_references),
         "selected_protocol_bundles": [bundle.model_dump(mode="json") for bundle in selected_protocol_bundles],
@@ -358,8 +468,8 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
         "protocol_bundle_verifier_extensions": bundle_verifier_extensions,
         "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
         "active_reference_context": _render_active_reference_context(
-            contract,
             active_references,
+            effective_reference_intake,
             artifact_payload["literature_review_files"],
             artifact_payload["research_map_reference_files"],
         ),
@@ -394,8 +504,19 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         "current_execution": snapshot.model_dump(mode="json") if snapshot is not None else None,
         "has_live_execution": snapshot is not None,
         "execution_review_pending": bool(
-            snapshot and (snapshot.first_result_gate_pending or snapshot.waiting_for_review)
+            snapshot
+            and (
+                snapshot.first_result_gate_pending
+                or snapshot.pre_fanout_review_pending
+                or snapshot.skeptical_requestioning_required
+                or snapshot.waiting_for_review
+            )
         ),
+        "execution_pre_fanout_review_pending": bool(snapshot and snapshot.pre_fanout_review_pending),
+        "execution_skeptical_requestioning_required": bool(
+            snapshot and snapshot.skeptical_requestioning_required
+        ),
+        "execution_downstream_locked": bool(snapshot and snapshot.downstream_locked),
         "execution_blocked": bool(snapshot and snapshot.blocked_reason),
         "execution_resumable": is_resumable,
         "execution_paused_at": paused_at,
@@ -844,8 +965,17 @@ def init_resume(cwd: Path) -> dict:
                 "plan": current_execution.get("plan"),
                 "segment_id": current_execution.get("segment_id"),
                 "resume_file": current_execution.get("resume_file"),
+                "checkpoint_reason": current_execution.get("checkpoint_reason"),
+                "first_result_gate_pending": current_execution.get("first_result_gate_pending"),
+                "pre_fanout_review_pending": current_execution.get("pre_fanout_review_pending"),
+                "skeptical_requestioning_required": current_execution.get("skeptical_requestioning_required"),
+                "skeptical_requestioning_summary": current_execution.get("skeptical_requestioning_summary"),
+                "weakest_unchecked_anchor": current_execution.get("weakest_unchecked_anchor"),
+                "disconfirming_observation": current_execution.get("disconfirming_observation"),
+                "downstream_locked": current_execution.get("downstream_locked"),
                 "waiting_reason": current_execution.get("waiting_reason"),
                 "blocked_reason": current_execution.get("blocked_reason"),
+                "last_result_label": current_execution.get("last_result_label"),
                 "updated_at": current_execution.get("updated_at"),
             }
         )

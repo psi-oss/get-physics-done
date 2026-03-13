@@ -145,6 +145,124 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.downstream_locked is True
 
 
+def test_pre_fanout_gate_records_skeptical_review_state(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="05",
+        plan="03",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "workflow": "execute-phase",
+                "segment_id": "seg-9",
+                "segment_reason": "pre_fanout",
+                "review_cadence": "adaptive",
+                "current_task": "Review benchmark anchor",
+            }
+        },
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="03",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "checkpoint_reason": "pre_fanout",
+                "last_result_label": "Proxy consistency pass",
+                "skeptical_requestioning_required": True,
+                "skeptical_requestioning_summary": "Proxy passed, but decisive benchmark anchor is still unchecked.",
+                "weakest_unchecked_anchor": "Published benchmark table",
+                "disconfirming_observation": "Direct benchmark reproduction misses the published tolerance band.",
+            }
+        },
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.waiting_for_review is True
+    assert snapshot.pre_fanout_review_pending is True
+    assert snapshot.skeptical_requestioning_required is True
+    assert snapshot.downstream_locked is True
+    assert snapshot.weakest_unchecked_anchor == "Published benchmark table"
+    assert snapshot.disconfirming_observation == "Direct benchmark reproduction misses the published tolerance band."
+
+
+def test_gate_clear_clears_pre_fanout_and_skeptical_flags(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="03",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "segment_id": "seg-9",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "waiting_for_review": True,
+                "skeptical_requestioning_required": True,
+                "skeptical_requestioning_summary": "Need to re-check anchor coverage.",
+                "weakest_unchecked_anchor": "Ref-01",
+                "disconfirming_observation": "Benchmark mismatch",
+                "downstream_locked": True,
+            }
+        },
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="clear",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="03",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "pre_fanout"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.waiting_for_review is False
+    assert snapshot.pre_fanout_review_pending is False
+    assert snapshot.skeptical_requestioning_required is False
+    assert snapshot.skeptical_requestioning_summary is None
+    assert snapshot.weakest_unchecked_anchor is None
+    assert snapshot.disconfirming_observation is None
+    assert snapshot.downstream_locked is False
+
+
 def test_execution_finish_clears_current_execution_snapshot(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)

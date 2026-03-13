@@ -9,12 +9,54 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.claude_code import ClaudeCodeAdapter
-from gpd.version import __version__
+from gpd.version import __version__, version_for_gpd_root
 
 
 @pytest.fixture()
 def adapter() -> ClaudeCodeAdapter:
     return ClaudeCodeAdapter()
+
+
+def _make_checkout(tmp_path: Path, version: str) -> Path:
+    """Create a minimal GPD source checkout with an explicit version."""
+    repo_root = tmp_path / "checkout"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "get-physics-done",
+                "version": version,
+                "gpdPythonVersion": version,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "pyproject.toml").write_text(
+        f'[project]\nname = "get-physics-done"\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+
+    gpd_root = repo_root / "src" / "gpd"
+    (gpd_root / "commands").mkdir(parents=True, exist_ok=True)
+    (gpd_root / "agents").mkdir(parents=True, exist_ok=True)
+    (gpd_root / "hooks").mkdir(parents=True, exist_ok=True)
+    for subdir in ("references", "templates", "workflows"):
+        (gpd_root / "specs" / subdir).mkdir(parents=True, exist_ok=True)
+
+    (gpd_root / "commands" / "help.md").write_text(
+        "---\nname: gpd:help\ndescription: Help\n---\nHelp body.\n",
+        encoding="utf-8",
+    )
+    (gpd_root / "agents" / "gpd-verifier.md").write_text(
+        "---\nname: gpd-verifier\ndescription: Verify\n---\nVerifier body.\n",
+        encoding="utf-8",
+    )
+    (gpd_root / "hooks" / "statusline.py").write_text("print('ok')\n", encoding="utf-8")
+    (gpd_root / "hooks" / "check_update.py").write_text("print('ok')\n", encoding="utf-8")
+    (gpd_root / "specs" / "references" / "ref.md").write_text("# references\n", encoding="utf-8")
+    (gpd_root / "specs" / "templates" / "tpl.md").write_text("# templates\n", encoding="utf-8")
+    (gpd_root / "specs" / "workflows" / "flow.md").write_text("# workflows\n", encoding="utf-8")
+    return gpd_root
 
 
 class TestProperties:
@@ -82,7 +124,21 @@ class TestInstall:
 
         version_file = target / "get-physics-done" / "VERSION"
         assert version_file.exists()
-        assert version_file.read_text(encoding="utf-8") == __version__
+        assert version_file.read_text(encoding="utf-8") == (version_for_gpd_root(gpd_root) or __version__)
+
+    def test_install_uses_checkout_version_over_runtime_metadata(
+        self,
+        adapter: ClaudeCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = _make_checkout(tmp_path, "9.9.9")
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+
+        adapter.install(gpd_root, target)
+
+        version_file = target / "get-physics-done" / "VERSION"
+        assert version_file.read_text(encoding="utf-8") == "9.9.9"
 
     def test_install_copies_hooks(self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / "target" / ".claude"

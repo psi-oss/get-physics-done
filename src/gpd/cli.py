@@ -27,7 +27,6 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-import gpd
 from gpd.core.errors import ConfigError, GPDError
 
 if TYPE_CHECKING:
@@ -216,7 +215,15 @@ def _runtime_override_help() -> str:
 
 def _print_version(*, ctx: typer.Context | None = None) -> None:
     """Emit the CLI version using the active raw/non-raw output contract."""
-    value = f"gpd {gpd.__version__}"
+    from gpd.version import resolve_active_version
+
+    cwd = _get_cwd()
+    if ctx is not None:
+        raw_cwd = ctx.params.get("cwd")
+        if isinstance(raw_cwd, str) and raw_cwd.strip():
+            cwd = Path(raw_cwd)
+
+    value = f"gpd {resolve_active_version(cwd)}"
     raw_requested = False
     if ctx is not None:
         meta_raw = ctx.meta.get("raw_requested")
@@ -452,6 +459,7 @@ def state_set_project_contract_cmd(
     source: str = typer.Argument(..., help="Path to a JSON file containing the project contract, or '-' for stdin"),
 ) -> None:
     """Persist the canonical project contract into state.json."""
+    from gpd.core.contract_validation import validate_project_contract
     from gpd.core.state import state_set_project_contract
 
     try:
@@ -465,7 +473,15 @@ def state_set_project_contract_cmd(
     except json.JSONDecodeError as exc:
         _error(f"Invalid JSON project contract: {exc}")
 
-    _output(state_set_project_contract(_get_cwd(), contract_data))
+    validation = validate_project_contract(contract_data)
+    if not validation.valid:
+        _output(validation)
+        raise typer.Exit(code=1)
+
+    result = state_set_project_contract(_get_cwd(), contract_data)
+    _output(result)
+    if not result.updated and result.reason and result.reason.startswith("Project contract failed scoping validation:"):
+        raise typer.Exit(code=1)
 
 
 @state_app.command("update")
@@ -2717,6 +2733,20 @@ def validate_paper_quality(
         raise typer.Exit(code=1)
 
 
+@validate_app.command("project-contract")
+def validate_project_contract_cmd(
+    input_path: str = typer.Argument(..., help="Path to a project contract JSON file, or '-' for stdin"),
+) -> None:
+    """Validate a project-scoping contract before downstream artifact generation."""
+    from gpd.core.contract_validation import validate_project_contract
+
+    payload = _load_json_document(input_path)
+    result = validate_project_contract(payload)
+    _output(result)
+    if not result.valid:
+        raise typer.Exit(code=1)
+
+
 @validate_app.command("referee-decision")
 def validate_referee_decision(
     input_path: str = typer.Argument(..., help="Path to a RefereeDecisionInput JSON file, or '-' for stdin"),
@@ -3308,9 +3338,10 @@ def _install_single_runtime(
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
     from gpd.adapters import get_adapter
+    from gpd.version import resolve_install_gpd_root
 
     adapter = get_adapter(runtime_name)
-    gpd_root = Path(__file__).parent
+    gpd_root = resolve_install_gpd_root(_get_cwd())
 
     if target_dir_override:
         dest = _resolve_cli_target_dir(target_dir_override)
@@ -3436,8 +3467,10 @@ def install(
         selected = list(runtimes)
     else:
         # Interactive mode
+        from gpd.version import resolve_active_version
+
         console.print(_GPD_BANNER, style="bold blue")
-        console.print(f"[bold]GPD v{gpd.__version__}[/] — Get Physics Done\n")
+        console.print(f"[bold]GPD v{resolve_active_version(_get_cwd())}[/] — Get Physics Done\n")
         selected = _prompt_runtimes()
 
     _validate_target_dir_runtime_selection("install", selected, target_dir)

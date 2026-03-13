@@ -166,6 +166,85 @@ def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_literature_review_anchor_file(tmp_path: Path) -> None:
+    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir.mkdir(parents=True, exist_ok=True)
+    (literature_dir / "benchmark-REVIEW.md").write_text(
+        """# Literature Review: Benchmark Survey
+
+## Active Anchor Registry
+
+| Anchor | Type | Why It Matters | Required Action | Downstream Use |
+| ------ | ---- | -------------- | --------------- | -------------- |
+| Benchmark Ref 2024 | benchmark | Published benchmark curve for the primary quantity | read/compare/cite | planning/execution |
+
+## Open Questions
+
+- Need exact normalization convention from the literature
+
+```yaml
+---
+review_summary:
+  topic: "Benchmark Survey"
+  benchmark_values:
+    - quantity: "critical slope"
+      value: "1.23 +/- 0.04"
+      source: "Benchmark Ref 2024"
+  active_anchors:
+    - anchor: "Benchmark Ref 2024"
+      type: "benchmark"
+      why_it_matters: "Published benchmark curve for the primary quantity"
+      required_action: "read/compare/cite"
+      downstream_use: "planning/execution"
+---
+```
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_research_map_anchor_files(tmp_path: Path) -> None:
+    map_dir = tmp_path / ".gpd" / "research-map"
+    map_dir.mkdir(parents=True, exist_ok=True)
+    (map_dir / "REFERENCES.md").write_text(
+        """# Reference and Anchor Map
+
+## Active Anchor Registry
+
+| Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |
+| ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |
+| prior-baseline | prior artifact | `.gpd/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for calibration and later comparisons | use | planning/execution |
+| benchmark-paper | benchmark | Author et al., Journal, 2024 | Published comparison target for the decisive observable | read/compare/cite | verification/writing |
+
+## Benchmarks and Comparison Targets
+
+- Universal crossing window
+  - Source: Author et al., Journal, 2024
+  - Compared in: `.gpd/phases/01-test-phase/01-SUMMARY.md`
+  - Status: pending
+
+## Prior Artifacts and Baselines
+
+- `.gpd/phases/01-test-phase/01-SUMMARY.md`: Prior baseline summary that later phases must keep visible
+
+## Open Reference Questions
+
+- Need collaboration note with the definitive normalization
+""",
+        encoding="utf-8",
+    )
+    (map_dir / "VALIDATION.md").write_text(
+        """# Validation and Cross-Checks
+
+## Comparison with Literature
+
+- Result from Author et al., Journal, 2024: agreement still needs confirmation
+  - Comparison in: `.gpd/phases/01-test-phase/01-SUMMARY.md`
+""",
+        encoding="utf-8",
+    )
+
+
 # ─── Helper Tests ──────────────────────────────────────────────────────────────
 
 
@@ -288,6 +367,24 @@ class TestInitExecutePhase:
         assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
         assert "Published comparison target" in ctx["active_reference_context"]
 
+    def test_ingests_reference_artifacts_without_project_contract(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["project_contract"] is None
+        assert ctx["derived_active_reference_count"] >= 2
+        assert ctx["active_reference_count"] >= 2
+        assert "Benchmark Ref 2024" in ctx["active_reference_context"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["active_reference_context"]
+        assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
+        assert "critical slope" in "\n".join(ctx["effective_reference_intake"]["known_good_baselines"])
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+
     def test_surfaces_live_execution_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "01-setup")
@@ -309,6 +406,31 @@ class TestInitExecutePhase:
         assert ctx["has_live_execution"] is True
         assert ctx["execution_review_pending"] is True
         assert ctx["current_execution"]["segment_status"] == "waiting_review"
+
+    def test_surfaces_pre_fanout_and_skeptical_execution_flags(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "01",
+                "plan": "01",
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "skeptical_requestioning_required": True,
+                "downstream_locked": True,
+            },
+        )
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["execution_review_pending"] is True
+        assert ctx["execution_pre_fanout_review_pending"] is True
+        assert ctx["execution_skeptical_requestioning_required"] is True
+        assert ctx["execution_downstream_locked"] is True
 
     def test_surfaces_selected_protocol_bundles(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -373,6 +495,22 @@ class TestInitPlanPhase:
         assert ".gpd/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
         assert "benchmark details" in ctx["reference_artifacts_content"]
         assert "anchor registry" in ctx["reference_artifacts_content"]
+
+    def test_merges_contract_and_artifact_reference_intake(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["contract_intake"]["must_read_refs"] == ["Ref-01"]
+        assert "Ref-01" in ctx["effective_reference_intake"]["must_read_refs"]
+        assert "Benchmark Ref 2024" in "\n".join(ctx["effective_reference_intake"]["must_read_refs"])
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert ctx["active_reference_count"] >= ctx["derived_active_reference_count"]
+        assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
 
     def test_reports_missing_active_references_explicitly(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -529,6 +667,41 @@ class TestInitResume:
         assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
         assert ctx["segment_candidates"][0]["source"] == "current_execution"
 
+    def test_resume_candidate_carries_pre_fanout_and_skeptical_review_fields(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-7",
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "skeptical_requestioning_required": True,
+                "skeptical_requestioning_summary": "Proxy passed but benchmark anchor remains unchecked.",
+                "weakest_unchecked_anchor": "Ref-01 benchmark figure",
+                "disconfirming_observation": "Direct observable misses the literature band.",
+                "downstream_locked": True,
+                "last_result_label": "Proxy benchmark fit",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["resume_mode"] == "bounded_segment"
+        assert ctx["execution_pre_fanout_review_pending"] is True
+        assert ctx["execution_skeptical_requestioning_required"] is True
+        candidate = ctx["segment_candidates"][0]
+        assert candidate["checkpoint_reason"] == "pre_fanout"
+        assert candidate["pre_fanout_review_pending"] is True
+        assert candidate["skeptical_requestioning_required"] is True
+        assert candidate["weakest_unchecked_anchor"] == "Ref-01 benchmark figure"
+        assert candidate["disconfirming_observation"] == "Direct observable misses the literature band."
+        assert candidate["downstream_locked"] is True
+
     def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_current_execution(
@@ -680,6 +853,18 @@ class TestInitMapResearch:
 
         assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert "Ref-01" in ctx["active_reference_context"]
+
+    def test_surfaces_artifact_derived_reference_context_without_contract(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_map_research(tmp_path)
+
+        assert ctx["project_contract"] is None
+        assert ctx["derived_active_reference_count"] >= 2
+        assert "Benchmark Ref 2024" in ctx["active_reference_context"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
 
 
 # ─── init_progress ────────────────────────────────────────────────────────────

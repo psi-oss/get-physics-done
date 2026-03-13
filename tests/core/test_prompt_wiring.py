@@ -338,6 +338,20 @@ def test_referee_workflow_mentions_optional_pdf_compile_and_missing_tex_prompt()
     assert "Authorize the agent to install TeX now" in peer_review
 
 
+def test_executor_prompt_defaults_to_return_only_shared_state_updates() -> None:
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+
+    assert "return shared-state updates to the orchestrator instead of writing `STATE.md` directly" in executor
+    assert "Your job: Execute the research plan completely, checkpoint each step, create SUMMARY.md, update STATE.md." not in executor
+
+
+def test_referee_prompt_no_longer_claims_read_only_artifact_policy() -> None:
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "Only scoped review artifacts written, and changed paths reported in `gpd_return.files_written`" in referee
+    assert "No files modified (read-only agent)" not in referee
+
+
 def test_prompt_sources_do_not_use_stale_agent_install_paths():
     files = [
         REPO_ROOT / "src/gpd/specs/references/orchestration/agent-delegation.md",
@@ -549,6 +563,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
     assert "gpd state set-project-contract" in workflow_text
+    assert "gpd --raw validate project-contract /tmp/gpd-project-contract.json" in workflow_text
     assert "Read PROJECT.md and `.gpd/state.json` and extract" in workflow_text
     assert "Derive phases from requirements AND the approved project contract" in workflow_text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in command_text
@@ -573,9 +588,11 @@ def test_project_and_context_templates_surface_contract_and_skeptical_review() -
     assert "## Scoping Contract Summary" in project_text
     assert "### Contract Coverage" in project_text
     assert "### Active Anchor Registry" in project_text
+    assert "### User Guidance To Preserve" in project_text
     assert "### Skeptical Review" in project_text
     assert "## Contract Coverage" in context_text
     assert "## Active Anchor Registry" in context_text
+    assert "## User Guidance To Preserve" in context_text
     assert "## Skeptical Review" in context_text
     assert "## Contract Coverage" in requirements_text
     assert "disconfirming_observations" in state_schema_text
@@ -587,9 +604,11 @@ def test_discuss_and_assumption_workflows_surface_anchors_and_fast_falsifiers() 
 
     assert "What prior output, benchmark, or reference must stay visible here?" in discuss_text
     assert "What would make this approach look wrong or incomplete early?" in discuss_text
+    assert "## User Guidance To Preserve" in discuss_text
     assert "## Contract Coverage" in discuss_text
     assert "## Active Anchor Registry" in discuss_text
     assert "## Skeptical Review" in discuss_text
+    assert "User Guidance I Am Treating As Binding" in assumptions_text
     assert "### Anchor Inputs" in assumptions_text
     assert "**Fast falsifier:**" in assumptions_text
     assert "**False progress:**" in assumptions_text
@@ -645,6 +664,11 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "**Contract Coverage:**" in roadmap_template
     assert "Contract coverage" in roadmapper_agent
     assert "forbidden proxies a phase must carry" in roadmapper_agent
+    assert (
+        "Treat `context_intake.must_read_refs`, `must_include_prior_outputs`, "
+        "`user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` "
+        "as binding user guidance"
+    ) in roadmapper_agent
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_project
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
@@ -679,6 +703,7 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
     assert "| validation, testing, benchmarks    | VALIDATION.md, REFERENCES.md    |" in planner_agent
     assert "Do NOT skip contract-critical anchors" in verify_workflow
     assert "active_reference_context" in verify_workflow
+    assert "suggest_contract_checks(contract)" in verify_workflow
 
 
 def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_ledgers() -> None:

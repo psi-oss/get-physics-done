@@ -123,7 +123,12 @@ class CurrentExecutionState(BaseModel):
     blocked_reason: str | None = None
     first_result_ready: bool = False
     first_result_gate_pending: bool = False
+    pre_fanout_review_pending: bool = False
+    skeptical_requestioning_required: bool = False
     downstream_locked: bool = False
+    skeptical_requestioning_summary: str | None = None
+    weakest_unchecked_anchor: str | None = None
+    disconfirming_observation: str | None = None
     last_result_id: str | None = None
     last_result_label: str | None = None
     last_artifact_path: str | None = None
@@ -359,6 +364,9 @@ def _updated_execution_state(
         "checkpoint_reason",
         "waiting_reason",
         "blocked_reason",
+        "skeptical_requestioning_summary",
+        "weakest_unchecked_anchor",
+        "disconfirming_observation",
         "last_result_id",
         "last_result_label",
         "last_artifact_path",
@@ -377,7 +385,15 @@ def _updated_execution_state(
     if "wave" in execution and execution.get("wave") is not None:
         current["wave"] = execution.get("wave")
 
-    for key in ("waiting_for_review", "review_required", "first_result_ready", "first_result_gate_pending", "downstream_locked"):
+    for key in (
+        "waiting_for_review",
+        "review_required",
+        "first_result_ready",
+        "first_result_gate_pending",
+        "pre_fanout_review_pending",
+        "skeptical_requestioning_required",
+        "downstream_locked",
+    ):
         value = _bool_or_none(execution.get(key))
         if value is not None:
             current[key] = value
@@ -397,12 +413,28 @@ def _updated_execution_state(
         if current.get("checkpoint_reason") == "first_result":
             current["first_result_gate_pending"] = True
             current["first_result_ready"] = True
+        if current.get("checkpoint_reason") in {"pre_fanout", "pre-fanout"}:
+            current["pre_fanout_review_pending"] = True
+        if (
+            "skeptical_requestioning_required" not in execution
+            and (
+                current.get("skeptical_requestioning_summary")
+                or current.get("weakest_unchecked_anchor")
+                or current.get("disconfirming_observation")
+            )
+        ):
+            current["skeptical_requestioning_required"] = True
         if "downstream_locked" not in execution:
             current["downstream_locked"] = True
     elif payload.name == "gate" and payload.action in {"clear", "override"}:
         current["waiting_for_review"] = False
         current["review_required"] = False
         current["first_result_gate_pending"] = False
+        current["pre_fanout_review_pending"] = False
+        current["skeptical_requestioning_required"] = False
+        current["skeptical_requestioning_summary"] = None
+        current["weakest_unchecked_anchor"] = None
+        current["disconfirming_observation"] = None
         current["waiting_reason"] = None
         if payload.action == "clear":
             current["downstream_locked"] = False
@@ -413,6 +445,7 @@ def _updated_execution_state(
         current["downstream_locked"] = True
     elif payload.name == "fanout" and payload.action == "unlock":
         current["downstream_locked"] = False
+        current["pre_fanout_review_pending"] = False
 
     if payload.name == "result" and payload.action in {"produce", "log"}:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):

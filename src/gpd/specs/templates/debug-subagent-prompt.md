@@ -115,7 +115,7 @@ Continue debugging {slug}. Evidence is in the debug file.
 </objective>
 
 <prior_state>
-Debug file: @.gpd/debug/{slug}.md
+Read the file at .gpd/debug/{slug}.md
 </prior_state>
 
 <checkpoint_response>

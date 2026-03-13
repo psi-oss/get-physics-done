@@ -36,7 +36,7 @@ Parse `$ARGUMENTS` for specific check flags:
 - `--dimensional` — Run only dimensional analysis checks
 - `--limits` — Run only limiting case checks
 - `--convergence` — Run only numerical convergence checks
-- `--regression` — Run regression check (re-verify previous truths)
+- `--regression` — Run regression check (re-verify previously validated contract-backed outcomes)
 - `--all` or no flags — Run full verification suite
 
 This allows targeted verification without running the full suite.
@@ -91,6 +91,7 @@ Use `protocol_bundle_context` from init JSON as additive specialized guidance.
 - If `selected_protocol_bundle_ids` is non-empty, load the bundle checklist extensions through the verification server and treat them as extra prompts for evidence gathering.
 - Bundle guidance may add estimator checks, decisive artifact expectations, or domain-specific audits, but it does NOT replace the plan contract or reduce anchor obligations.
 - Use `protocol_bundle_verifier_extensions` as a machine-readable quick map when deciding which contract-aware checks deserve deeper scrutiny first.
+- If the phase has a PLAN `contract`, call `suggest_contract_checks(contract)` through the verification server before finalizing the check inventory. Treat the returned items as the default contract-aware check seed unless they are clearly inapplicable to this phase.
 </step>
 
 <step name="check_active_session">
@@ -149,7 +150,7 @@ Use `phase_dir` from init (or run init if not already done).
 ls "$phase_dir"/*-SUMMARY.md 2>/dev/null
 ```
 
-Read each SUMMARY.md to extract **deliverable names and file paths only**. Do NOT trust SUMMARY.md claims about correctness, convergence, or agreement with literature — those are exactly what you are validating. Use SUMMARY.md as a map to find artifacts, not as evidence that they are correct.
+Read each SUMMARY.md to extract **deliverable names, file paths, and evidence locations only**. Do NOT trust SUMMARY.md claims about correctness, convergence, or agreement with literature — those are exactly what you are validating. Use SUMMARY.md as a map to find artifacts and comparison evidence, not as evidence that they are correct.
 
 If a SUMMARY has `contract_results` or `comparison_verdicts`, use them only as evidence maps keyed to contract IDs. The PLAN `contract` remains the source of truth for what must be verified.
 
@@ -162,22 +163,32 @@ gpd roadmap get-phase "${phase_number}"
 </step>
 
 <step name="extract_checks">
-**Extract validatable deliverables from PLAN `contract` first, then use SUMMARY.md as an evidence map:**
+**Extract validatable contract-backed checks from PLAN `contract` first, then use SUMMARY.md as an evidence map:**
 
 Parse for:
 
-1. **Derivations** - Analytical results, equations derived, proofs completed
-2. **Calculations** - Numerical results, computed quantities, simulation outputs
-3. **Plots and figures** - Visualizations of results, comparison plots
-4. **Physical claims** - Statements about physics supported by the work
+1. **Claims** - Contract-backed statements the phase is supposed to establish
+2. **Deliverables** - Analytical results, numerical outputs, plots, tables, code artifacts
+3. **Acceptance tests** - Explicit tests that must pass for the phase to count as complete
+4. **Reference actions** - Must-read anchors that require read / compare / cite / reproduce actions
+5. **Forbidden proxies** - Outputs that would look like progress but do not establish success
+6. **Suggested contract checks** - Decisive checks the verifier thinks should exist if the contract is incomplete
 
-Focus on VERIFIABLE RESEARCH OUTCOMES, not implementation details. Use contract IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`) as canonical names throughout the verification file.
+Focus on VERIFIABLE RESEARCH OUTCOMES, not implementation details. Use contract IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) as canonical names throughout the verification file.
 
-For each deliverable, create a validation check that includes **both qualitative expectations and a concrete computational test:**
+For each contract-backed check, create a validation record that includes **both qualitative expectations and a concrete computational test:**
 
 - name: Brief check name
 - expected: What the physics should show (specific, verifiable)
 - computation: A specific numerical test the AI will perform before presenting to the researcher
+- subject_kind: `claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check`
+- subject_id: Contract ID when available
+
+Rules:
+
+- If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`.
+- If a forbidden proxy exists, create an explicit rejection check rather than assuming silence means success.
+- If the contract lacks an obvious decisive check, create a `suggested_contract_check` entry with a short rationale instead of silently dropping the concern.
 
 **Examples with computational verification:**
 
@@ -267,9 +278,9 @@ If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase`
 
 If no existing VERIFICATION.md exists, create a new one from scratch.
 
-Build check list from extracted deliverables, including computational test specifications.
+Build check list from extracted contract-backed checks, including computational test specifications.
 
-If the PLAN has a `contract`, every check in this file must carry the relevant `claim_id`, `deliverable_id`, `acceptance_test_id`, and `reference_ids` when applicable.
+If the PLAN has a `contract`, every check in this file must carry the relevant `subject_kind`, `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_ids`, and `forbidden_proxy_id` when applicable.
 
 Create file (or extend existing):
 
@@ -278,6 +289,7 @@ Create file (or extend existing):
 status: validating
 phase: {phase_number}-{phase_name}
 source: [list of SUMMARY.md files]
+plan_contract_ref: .gpd/phases/{phase_number}-{phase_name}/{phase_number}-{plan}-PLAN.md#/contract
 started: [ISO timestamp]
 updated: [ISO timestamp]
 ---
@@ -288,21 +300,43 @@ updated: [ISO timestamp]
 
 number: 1
 name: [first check name]
+subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+subject_id: [contract id or ""]
+claim_id: [claim-id or ""]
+deliverable_id: [deliverable-id or ""]
+acceptance_test_id: [acceptance-test-id or ""]
+reference_ids: [reference-id, ...]
+forbidden_proxy_id: [forbidden-proxy-id or ""]
+comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | ""]
+comparison_reference_id: [reference-id or ""]
 expected: |
 [what the physics should show]
 computation: |
 [what computational test was performed]
 precomputed_result: |
 [result of AI's independent computation]
+suggested_contract_checks:
+  - [check id or description if the contract appears incomplete]
 awaiting: researcher response
 
 ## Checks
 
 ### 1. [Check Name]
 
+subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+subject_id: [contract id or ""]
+claim_id: [claim-id or ""]
+deliverable_id: [deliverable-id or ""]
+acceptance_test_id: [acceptance-test-id or ""]
+reference_ids: [reference-id, ...]
+forbidden_proxy_id: [forbidden-proxy-id or ""]
+comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | ""]
+comparison_reference_id: [reference-id or ""]
 expected: [verifiable physics outcome]
 computation: [specific numerical test performed]
 precomputed_result: [AI's independent computation result]
+suggested_contract_checks:
+  - [check id or description if the contract appears incomplete]
 result: [pending]
 
 ### 2. [Check Name]
@@ -321,6 +355,16 @@ passed: 0
 issues: 0
 pending: [N]
 skipped: 0
+comparison_verdicts_recorded: 0
+forbidden_proxies_rejected: 0
+
+## Comparison Verdicts
+
+[none yet]
+
+## Suggested Contract Checks
+
+[none yet]
 
 ## Gaps
 
@@ -457,10 +501,21 @@ severity: {inferred}
 Append to Gaps section (structured YAML for plan-phase --gaps):
 
 ```yaml
-- truth: "{expected physics outcome from check}"
+- subject_kind: "{subject_kind}"
+  subject_id: "{subject_id}"
+  truth: "{expected physics outcome from check}" # legacy compatibility label for older gap consumers
+  expected_check: "{expected physics outcome from check}"
+  claim_id: "{claim_id}"
+  deliverable_id: "{deliverable_id}"
+  acceptance_test_id: "{acceptance_test_id}"
+  reference_ids: ["{reference_id}"]
+  forbidden_proxy_id: "{forbidden_proxy_id}"
+  comparison_kind: "{comparison_kind}"
+  comparison_reference_id: "{comparison_reference_id}"
   status: failed
   reason: "Researcher reported: {verbatim researcher response}"
   computation_evidence: "{what AI independently computed and found}"
+  suggested_contract_checks: []
   severity: { inferred }
   check: { N }
   artifacts: [] # Filled by diagnosis
@@ -931,10 +986,10 @@ Wait for researcher response.
 
 **Phase {X}: {Name}** -- {N} gap(s) diagnosed, {M} fix plan(s) created
 
-| Gap | Root Cause | Computation Evidence | Fix Plan |
-|-----|------------|---------------------|----------|
-| {truth 1} | {root_cause} | {what test showed} | {phase}-04 |
-| {truth 2} | {root_cause} | {what test showed} | {phase}-04 |
+| Contract Target | Root Cause | Computation Evidence | Fix Plan |
+|-----------------|------------|---------------------|----------|
+| {subject-id or expected check 1} | {root_cause} | {what test showed} | {phase}-04 |
+| {subject-id or expected check 2} | {root_cause} | {what test showed} | {phase}-04 |
 
 Plans verified and ready for execution.
 
@@ -991,7 +1046,7 @@ Default to **major** if unclear. Researcher can correct if needed.
 
 <success_criteria>
 
-- [ ] Verification file created with all checks from SUMMARY.md, including computational test specifications
+- [ ] Verification file created with checks sourced from the PLAN `contract` first, then SUMMARY evidence maps, including computational test specifications
 - [ ] **Minimum verification floor met**: dimensional analysis + limiting case + numerical spot-check with code execution
 - [ ] **VERIFICATION.md contains at least one code output block** (actual execution result, not just text analysis)
 - [ ] **Pre-computation performed** on each check before presenting to researcher
@@ -1004,6 +1059,9 @@ Default to **major** if unclear. Researcher can correct if needed.
 - [ ] Severity inferred from description (never asked)
 - [ ] Batched writes: on issue, every 5 passes, or completion
 - [ ] Committed on completion
+- [ ] Forbidden proxies explicitly checked and rejected or escalated
+- [ ] Decisive comparison outcomes recorded as `comparison_verdicts` when applicable
+- [ ] Missing decisive checks recorded as `suggested_contract_checks`
 - [ ] Cross-phase uncertainty audit performed (or N/A noted for Phase 1)
 - [ ] Catastrophic cancellation check for subtracted inherited quantities
 - [ ] If issues: parallel investigation agents diagnose root causes (with computation evidence)

@@ -37,6 +37,7 @@ from gpd.core.constants import (
     SUMMARY_SUFFIX,
     ProjectLayout,
 )
+from gpd.core.contract_validation import validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
@@ -1706,6 +1707,13 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"
         message = first_error.get("msg", "validation failed")
         return StateUpdateResult(updated=False, reason=f"Invalid project contract at {location}: {message}")
+
+    validation = validate_project_contract(parsed)
+    if not validation.valid:
+        return StateUpdateResult(
+            updated=False,
+            reason="Project contract failed scoping validation: " + "; ".join(validation.errors),
+        )
 
     state_obj = load_state_json(cwd) or default_state_dict()
     contract_payload = parsed.model_dump()

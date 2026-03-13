@@ -114,6 +114,14 @@ What does the assistant assume exists or needs to be in place?
 - "This will feed into [downstream phases]"
 - "Required input: [specific quantities with expected formats]"
 
+**9. User Guidance I Am Treating As Binding:**
+What explicit user requests does the assistant think must survive into planning and execution?
+
+- "I think the user cares most about [observable / figure / artifact] because..."
+- "I think [reference / prior output / baseline] must stay visible because..."
+- "I think we should stop or re-scope if [condition] because..."
+- "I may be over-generalizing [user request] into [weaker proxy]..."
+
 Also name:
 
 - the **weakest anchor or assumption**
@@ -175,6 +183,10 @@ For each: state why it matters and how confident you are that it should constrai
 **External:** [packages, data, known results]
 **Feeds into:** [what future phases need from this]
 
+### User Guidance I Am Treating As Binding
+[List the observables, deliverables, prior outputs, must-have references, and stop conditions I believe the user explicitly cares about]
+For each: state why I think it is binding and where I might be paraphrasing too loosely
+
 ---
 
 **What do you think?**
@@ -187,6 +199,8 @@ Probe these assumptions critically:
 - Which anchor or prior output feels weakest?
 - What should we check early so a wrong framing does not survive too long?
 - What result would look like progress here but should not count as success?
+- Which of your explicit requests am I at risk of generalizing away or weakening?
+- Did I miss any must-have reference, prior output, decisive observable, or stop condition?
 ```
 
 Wait for user response.
@@ -255,7 +269,7 @@ If "Re-examine": Return to analyze_phase with updated understanding
 <success_criteria>
 
 - Phase number validated against roadmap
-- Assumptions surfaced across seven areas: physical, mathematical framework, approximation scheme, computational approach, scope, expected results, dependencies
+- Assumptions surfaced across nine areas: physical, mathematical framework, approximation scheme, computational approach, scope, anchor inputs, expected results, dependencies, user-binding guidance
 - Each assumption includes justification and consequences if wrong
 - Confidence levels marked where appropriate
 - Limiting cases and consistency checks identified

@@ -566,6 +566,17 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    If this gate fails: STOP — do not let wrong early assumptions scale out.
 
+   **Machine-state requirement for risky fanout gates:** when this review point pauses execution, record it as live execution state, not only prose. Emit an execution gate event with:
+
+   - `checkpoint_reason: pre_fanout`
+   - `pre_fanout_review_pending: true`
+   - `downstream_locked: true`
+   - `last_result_label` or `last_artifact_path` for the first load-bearing output being reviewed
+   - `skeptical_requestioning_required: true` when the first result still looks proxy-only or anchor-thin
+   - `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, and `disconfirming_observation` whenever skeptical re-questioning is required
+
+   When review passes cleanly, emit the matching gate-clear plus fanout-unlock transition so live status, notify, and resume surfaces stop showing the wave as blocked.
+
 9. **Inter-wave verification gate (if more waves remain):**
 
    Before spawning the next wave, run lightweight verification on the just-completed wave's outputs. This catches errors cheaply before they propagate to downstream waves.
@@ -837,6 +848,14 @@ Plans with `interactive: true` require user interaction.
 1. Spawn agent for checkpoint plan
 2. Agent runs until checkpoint task or validation gate -> returns structured state
 3. Agent return includes: completed tasks table, current task + blocker, checkpoint type/details, what's awaited, and the bounded execution segment envelope
+   - For first-result or pre-fanout pauses, the bounded segment envelope must also carry:
+     - `checkpoint_reason`
+     - `first_result_gate_pending` or `pre_fanout_review_pending`
+     - `skeptical_requestioning_required`
+     - `skeptical_requestioning_summary`
+     - `weakest_unchecked_anchor`
+     - `disconfirming_observation`
+     - `downstream_locked`
 4. **Present to user:**
 
    ```
@@ -855,7 +874,7 @@ Plans with `interactive: true` require user interaction.
    - `{resume_task_number}` + `{resume_task_name}`: Current task
    - `{user_response}`: What user provided
    - `{resume_instructions}`: Based on checkpoint type (see template for type-specific instructions)
-   - `{execution_segment}`: The returned bounded-segment state, including checkpoint cause, current cursor, and resume preconditions
+   - `{execution_segment}`: The returned bounded-segment state, including checkpoint cause, current cursor, resume preconditions, downstream-lock status, and any skeptical re-questioning fields that must survive into the continuation
 7. Continuation agent verifies previous commits, continues from resume point
 8. Repeat until plan completes or user stops
 

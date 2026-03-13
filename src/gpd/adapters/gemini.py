@@ -173,6 +173,8 @@ def _convert_to_gemini_toml(content: str) -> str:
     """Convert Claude Code markdown command to Gemini TOML format.
 
     Extracts selected frontmatter fields and puts body into ``prompt``.
+    Preserves non-runtime command metadata as TOML comments so installed
+    Gemini commands stay inspectable and closer to the canonical source.
     Uses TOML multi-line literal strings (``'''``) to avoid escape issues
     with backslashes in LaTeX/physics content.
     """
@@ -192,6 +194,9 @@ def _convert_to_gemini_toml(content: str) -> str:
             context_mode = trimmed[13:].strip()
 
     toml = ""
+    metadata_comments = _render_preserved_frontmatter_comments(frontmatter)
+    if metadata_comments:
+        toml += metadata_comments + "\n"
     if description:
         toml += f"description = {json.dumps(description)}\n"
     if context_mode:
@@ -205,6 +210,47 @@ def _convert_to_gemini_toml(content: str) -> str:
         toml += f"prompt = '''\n{body}\n'''\n"
 
     return toml
+
+
+def _render_preserved_frontmatter_comments(frontmatter: str) -> str:
+    """Render non-runtime frontmatter metadata as TOML comments.
+
+    Gemini commands only honor a narrow TOML surface, but the canonical GPD
+    markdown commands carry other important metadata such as ``name``,
+    ``argument-hint``, and ``requires``. Preserve those source fields as
+    comments so the installed command remains auditable without inventing new
+    runtime semantics.
+    """
+    excluded_keys = {"allowed-tools", "tools", "color", "description", "context_mode"}
+    preserved: list[str] = []
+    include_current = False
+
+    for line in frontmatter.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            if include_current and preserved and preserved[-1] != "":
+                preserved.append("")
+            continue
+
+        if line == line.lstrip() and ":" in line:
+            key = line.split(":", 1)[0].strip()
+            include_current = key not in excluded_keys
+
+        if include_current:
+            preserved.append(line.rstrip())
+
+    while preserved and preserved[0] == "":
+        preserved.pop(0)
+    while preserved and preserved[-1] == "":
+        preserved.pop()
+
+    if not preserved:
+        return ""
+
+    comment_lines = ["# Source frontmatter preserved for parity:"]
+    for line in preserved:
+        comment_lines.append("#" if not line else f"# {line}")
+    return "\n".join(comment_lines)
 
 
 # ---------------------------------------------------------------------------

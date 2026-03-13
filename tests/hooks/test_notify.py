@@ -402,6 +402,30 @@ def test_emit_execution_notification_for_first_result_gate(tmp_path: Path) -> No
     assert "Benchmark reproduction" in stderr.getvalue()
 
 
+def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "05",
+            "plan": "03",
+            "segment_id": "seg-9",
+            "segment_status": "waiting_review",
+            "waiting_for_review": True,
+            "checkpoint_reason": "pre_fanout",
+            "pre_fanout_review_pending": True,
+            "skeptical_requestioning_required": True,
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    assert "Review checkpoint due for 05-03: pre_fanout" in stderr.getvalue()
+
+
 def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

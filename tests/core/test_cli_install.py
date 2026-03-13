@@ -50,6 +50,30 @@ def gpd_root(tmp_path: Path) -> Path:
     return root
 
 
+def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
+    """Create a minimal GPD source checkout."""
+    repo_root = tmp_path / "checkout"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "get-physics-done",
+                "version": version,
+                "gpdPythonVersion": version,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "pyproject.toml").write_text(
+        f'[project]\nname = "get-physics-done"\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    gpd_root = repo_root / "src" / "gpd"
+    for subdir in ("commands", "agents", "hooks", "specs"):
+        (gpd_root / subdir).mkdir(parents=True, exist_ok=True)
+    return repo_root
+
+
 # ─── 1. Install to non-existent directory ────────────────────────────────────
 
 
@@ -456,6 +480,39 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
     assert len(captured_calls) == 1
     assert captured_calls[0]["is_global"] is False
     assert captured_calls[0]["explicit_target"] is False
+
+
+def test_install_single_runtime_prefers_checkout_source_tree(tmp_path: Path):
+    """When invoked inside the repo, install should use that checkout's src/gpd tree."""
+    from gpd.cli import _install_single_runtime
+
+    checkout = _make_checkout(tmp_path, "9.9.9")
+    captured_calls: list[dict[str, object]] = []
+
+    class SpyAdapter:
+        runtime_name = "claude-code"
+        display_name = "Claude Code"
+        config_dir_name = ".claude"
+        help_command = "/gpd:help"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def install(self, gpd_root, target_dir, *, is_global=False, explicit_target=False):
+            captured_calls.append({"gpd_root": gpd_root, "target_dir": target_dir})
+            return {"runtime": "claude-code", "commands": 0, "agents": 0}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            return None
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
+        patch("gpd.cli._get_cwd", return_value=checkout),
+    ):
+        _install_single_runtime("claude-code", is_global=False)
+
+    assert len(captured_calls) == 1
+    assert captured_calls[0]["gpd_root"] == checkout / "src" / "gpd"
 
 
 def test_install_single_runtime_marks_explicit_target(tmp_path: Path):

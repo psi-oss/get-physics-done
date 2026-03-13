@@ -29,7 +29,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
 
 **Read mode settings:**
 
@@ -110,6 +110,14 @@ Set `round_suffix` to match the peer-review artifact convention:
 - `"-R3"` for the third round
 
 Use that exact suffix for both `.gpd/AUTHOR-RESPONSE{round_suffix}.md` and `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md`.
+</step>
+
+<step name="load_specialized_revision_context">
+Use `protocol_bundle_context` from init JSON as additive revision guidance.
+
+- If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact expectations, benchmark anchors, estimator caveats, and reference prompts visible while triaging referee requests.
+- Use bundle guidance to distinguish "missing decisive evidence we already owed" from "new side quest the referee is asking for."
+- Do **not** let bundle guidance justify broader claims, waive review-ledger blockers, or replace the manuscript's actual evidence trail in `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, phase `SUMMARY.md`, or `VERIFICATION.md`.
 </step>
 
 <step name="parse_referee_reports">
@@ -305,6 +313,7 @@ gpd phase add "Referee revision: {description}"
 The user should run `/gpd:plan-phase` and `/gpd:execute-phase` for each new phase, then return to `/gpd:respond-to-referees` to continue.
 
 If the staged decision artifacts indicate that the main problem is overclaiming rather than missing computation, prefer narrowing the claim set or venue framing before creating new research phases.
+If selected protocol bundles already identify a decisive comparison, benchmark anchor, or estimator caveat that the manuscript failed to surface, prefer fulfilling that existing obligation or narrowing the claim before creating broader new-computation work.
 
 </step>
 
@@ -346,6 +355,8 @@ Each revision agent receives:
 - The specific referee comments affecting this section (with full quotes)
 - The current section text (read from paper/{section}.tex)
 - The planned response strategy for each comment
+- Relevant `.gpd/comparisons/*-COMPARISON.md` files and `FIGURE_TRACKER.md` entries for decisive claims mentioned in the section
+- `protocol_bundle_context` and `selected_protocol_bundle_ids` as additive specialized guidance only; they help preserve benchmark anchors, decisive artifacts, and estimator caveats during revision, but do not create new claims or replace the review ledger
 - Instruction to make minimal, targeted changes (do NOT rewrite the section)
 - Instruction to mark changed text with `% REVISED: Referee X, Comment Y` LaTeX comments for tracking
 
@@ -378,6 +389,7 @@ pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -5
 3. Verify new citations exist in .bib file — for any NEW citations added during revision, verify metadata accuracy (author, year, journal) via `gpd pattern search` or web search. Referee-suggested references are usually real but may have wrong metadata.
 4. Check cross-references to new or renumbered equations/figures
 5. Resolve any `MISSING:` citation markers left by the paper-writer (see write-paper workflow for the resolution protocol)
+6. Re-check any decisive `comparison_verdicts` or benchmark anchors touched by the revision. If protocol bundles are selected, use them only as an additive reminder of which decisive comparisons or estimator caveats must remain visible after revision.
 
 **If inconsistencies found and iteration < 3:**
 

@@ -61,7 +61,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
 
 **Load mode settings:**
 
@@ -129,6 +129,16 @@ fi
 ```
 
 If conventions are locked, all equations in the paper must follow them. Convention mismatches between research phases and the paper are a common source of sign errors and missing factors.
+
+</step>
+
+<step name="load_specialized_publication_context">
+Use `protocol_bundle_context` from init JSON as additive specialized-publication guidance.
+
+- If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact guidance, estimator caveats, and reference prompts visible while choosing main-text figures, appendices, and related-work framing.
+- Use bundle guidance to check whether the manuscript surfaces the right decisive comparisons, benchmark anchors, and estimator limitations for this project.
+- Do **not** let bundle guidance invent new claims, replace `project_contract`, or override `contract_results`, `comparison_verdicts`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or `active_reference_context`. Those remain authoritative.
+- If no bundle is selected, rely on shared publication guidance plus the contract-backed comparison artifacts already present in the project.
 
 </step>
 
@@ -253,6 +263,12 @@ Gather all research outputs that could contribute to the paper:
    - Which limiting cases were checked?
    - What is the confidence level of each result?
 
+6. **Internal comparisons and decisive evidence** -- From `.gpd/comparisons/*-COMPARISON.md`, `FIGURE_TRACKER.md`, and bundle context
+
+   - Which comparisons carry decisive `comparison_verdicts` for the paper's core claims?
+   - Which figures or tables are benchmark-anchored versus only supportive?
+   - If protocol bundles are selected, do their decisive-artifact expectations match what the manuscript plans to surface?
+
 Map each artifact to the section where it will appear.
 </step>
 
@@ -345,6 +361,17 @@ ls .gpd/phases/*/LITERATURE-REVIEW.md 2>/dev/null
 
 **No bibliography file and no literature review** → WARNING (citations will need to be built from scratch).
 
+### Check 6: Decisive comparison continuity
+
+Check that the manuscript can surface the decisive evidence, not just supporting narrative:
+
+1. Read `.gpd/comparisons/*-COMPARISON.md` and note every decisive `comparison_verdicts` entry
+2. Read `.gpd/paper/FIGURE_TRACKER.md` and confirm those decisive claims have a planned figure, table, or explicit textual comparison path
+3. If `selected_protocol_bundle_ids` is non-empty, use `protocol_bundle_context` only as an additive expectation map for which anchors, estimator caveats, or benchmark comparisons should stay visible in the paper
+
+**Decisive comparison missing for a central claim** → CRITICAL gap.
+**Bundle guidance suggests a decisive comparison that is absent, but the manuscript narrows the claim honestly** → WARNING, not blocker.
+
 ### Audit Report
 
 Present results as a readiness report:
@@ -356,13 +383,14 @@ Present results as a readiness report:
 
 Phases audited: {N}
 
-  Check                     Status    Issues
-  ─────────────────────────────────────────────
-  SUMMARY completeness      {P/F}     {details}
-  Convention consistency     {P/F}     {details}
-  Numerical stability        {P/F}     {details}
-  Figure readiness           {P/F}     {details}
-  Citation readiness         {P/F}     {details}
+	  Check                     Status    Issues
+	  ─────────────────────────────────────────────
+	  SUMMARY completeness      {P/F}     {details}
+	  Convention consistency     {P/F}     {details}
+	  Numerical stability        {P/F}     {details}
+	  Figure readiness           {P/F}     {details}
+	  Citation readiness         {P/F}     {details}
+	  Decisive comparisons       {P/F}     {details}
 
   CRITICAL gaps: {count}
   Warnings:      {count}
@@ -556,6 +584,8 @@ task(
 - Section brief (purpose, content, equations, figures, citations)
 - Narrative continuity (how preceding section ends, what following section needs)
 - Research artifacts (file paths to read for content)
+- Active decisive-comparison artifacts (`.gpd/comparisons/*-COMPARISON.md`) and relevant `FIGURE_TRACKER.md` entries for any contract-critical figure or table
+- `protocol_bundle_context` and `selected_protocol_bundle_ids` as additive specialized guidance only; they help decide which decisive anchors, estimator caveats, and benchmark comparisons must stay visible, but they do not replace the contract-backed evidence ledger
 - Writing principles (see command file)
 
 **What makes good physics writing:**

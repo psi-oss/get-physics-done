@@ -53,6 +53,31 @@ Every runtime-specific delegation surface must preserve these workflow semantics
 
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
 
+## Prompt Contract Addendum
+
+For file-producing or state-sensitive tasks, include an explicit handoff contract inside the spawned prompt:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write | direct
+  allowed_paths:
+    - relative/path/owned/by/this/agent
+expected_artifacts:
+  - relative/path/the/orchestrator/must_verify
+shared_state_policy: return_only | direct
+</spawn_contract>
+```
+
+Use the fields this way:
+
+- `write_scope.mode`: `scoped_write` for normal subagents with isolated artifact ownership. Use `direct` only when the subagent is explicitly allowed to mutate canonical shared state.
+- `write_scope.allowed_paths`: concrete writable targets for this handoff. Parallel agents must not overlap here.
+- `expected_artifacts`: artifacts the orchestrator must verify before trusting the handoff.
+- `shared_state_policy`: `return_only` when shared project state must be returned in the structured envelope and applied by the orchestrator. Use `direct` only when the workflow explicitly delegates shared-state ownership.
+
+If the task does not produce files, still state the `shared_state_policy` and the required structured return envelope.
+
 ## Platform Note Template
 
 Add this before any task() call in a workflow:

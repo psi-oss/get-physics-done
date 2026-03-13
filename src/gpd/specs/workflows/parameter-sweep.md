@@ -250,8 +250,20 @@ Execute the sweep plans using wave-based parallel execution following the execut
        <objective>
        Execute sweep plan {plan_number}: compute {observable} at {param_name} = {p_i}.
        Write result to results/point-{PADDED_INDEX}.json.
-       Create SUMMARY.md. Update STATE.md.
+       Create SUMMARY.md. Return state updates in your response -- do NOT write STATE.md directly.
        </objective>
+
+       <spawn_contract>
+       write_scope:
+         mode: scoped_write
+         allowed_paths:
+           - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
+           - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+       expected_artifacts:
+         - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
+         - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+       shared_state_policy: return_only
+       </spawn_contract>
 
        <context_hint>code-heavy</context_hint>
        <phase_class>numerical</phase_class>
@@ -271,6 +283,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
        - [ ] Result written to results/point-{PADDED_INDEX}.json
        - [ ] Uncertainty estimated if applicable
        - [ ] SUMMARY.md created
+       - [ ] State updates returned (NOT written to STATE.md directly)
        </success_criteria>
      "
    )

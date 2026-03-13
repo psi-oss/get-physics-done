@@ -90,6 +90,10 @@ comparison_sources:
   - label: benchmark
     kind: verification
     path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+protocol_bundle_ids:
+  - stat-mech-simulation
+bundle_expectations:
+  - Keep benchmark comparison visible in the manuscript main text
 comparison_verdicts:
   - subject_id: claim-benchmark
     subject_kind: claim
@@ -141,3 +145,31 @@ def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tm
     assert result.verification.report_passed.passed is False
     assert result.results.decisive_artifacts_with_explicit_verdicts.not_applicable is True
     assert result.completeness.required_sections_present.satisfied == 1
+
+
+def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    write_paper = (repo_root / "src/gpd/specs/workflows/write-paper.md").read_text(encoding="utf-8")
+    peer_review = (repo_root / "src/gpd/specs/workflows/peer-review.md").read_text(encoding="utf-8")
+    respond = (repo_root / "src/gpd/specs/workflows/respond-to-referees.md").read_text(encoding="utf-8")
+    internal_template = (repo_root / "src/gpd/specs/templates/paper/internal-comparison.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "protocol_bundle_context" in write_paper
+    assert "additive specialized-publication guidance" in write_paper
+    assert ".gpd/comparisons/*-COMPARISON.md" in write_paper
+    assert "Do **not** let bundle guidance invent new claims" in write_paper
+
+    assert "protocol_bundle_context" in peer_review
+    assert ".gpd/paper/FIGURE_TRACKER.md" in peer_review
+    assert ".gpd/comparisons/*-COMPARISON.md" in peer_review
+    assert "Treat bundle guidance as additive skepticism only." in peer_review
+
+    assert "protocol_bundle_context" in respond
+    assert "missing decisive evidence we already owed" in respond
+    assert "prefer fulfilling that existing obligation or narrowing the claim" in respond
+
+    assert "protocol_bundle_ids (optional):" in internal_template
+    assert "bundle_expectations (optional):" in internal_template
+    assert "additive provenance" in internal_template

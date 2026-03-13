@@ -28,7 +28,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `project_exists`, `state_exists`, `commit_docs`.
+Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
 
 Run centralized context preflight before continuing:
 
@@ -71,6 +71,14 @@ fi
 
 </step>
 
+<step name="load_specialized_review_context">
+Use `protocol_bundle_context` from init JSON as additive review guidance.
+
+- If `selected_protocol_bundle_ids` is non-empty, treat the bundle summary as a quick map of which decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should make visible.
+- Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or phase `SUMMARY.md` / `VERIFICATION.md` evidence.
+- If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
+</step>
+
 <step name="preflight">
 **Run the executable review preflight checks before spawning the review panel:**
 
@@ -93,6 +101,8 @@ Load the following files:
 - `.gpd/ROADMAP.md`
 - All `.gpd/phases/*/SUMMARY.md` files
 - All `.gpd/phases/*/*VERIFICATION.md` files
+- `.gpd/comparisons/*-COMPARISON.md` if present
+- `.gpd/paper/FIGURE_TRACKER.md` if present
 - `paper/ARTIFACT-MANIFEST.json` if present
 - `paper/BIBLIOGRAPHY-AUDIT.json` if present
 - `paper/reproducibility-manifest.json` if present
@@ -100,6 +110,8 @@ Load the following files:
 - `paper/references.bib` or `references/references.bib` if present
 
 Infer the target journal from `PAPER-CONFIG.json` when available; otherwise use `unspecified`.
+
+If bundle context is present, compare its decisive-artifact and reference expectations against the actual comparison artifacts and figure tracker. Missing bundle-suggested coverage is a warning unless the manuscript has narrowed the claim honestly; missing contract-backed decisive evidence remains a blocker.
 
 Create the review artifact directory if needed:
 
@@ -206,16 +218,21 @@ Operate in literature-context stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
+Selected protocol bundles: {selected_protocol_bundle_ids}
+Additive specialized guidance:
+{protocol_bundle_context}
 Output path: `.gpd/review/STAGE-literature{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
 - `.gpd/review/CLAIMS{round_suffix}.json`
 - `.gpd/review/STAGE-reader{round_suffix}.json`
+- `.gpd/comparisons/*-COMPARISON.md` if present
+- `.gpd/paper/FIGURE_TRACKER.md` if present
 - `paper/BIBLIOGRAPHY-AUDIT.json` if present
 - `paper/references.bib` or `references/references.bib` if present
 
-Use targeted web search when novelty, significance, or prior-work positioning is uncertain. Treat novelty-heavy claims as requiring external comparison, not trust.
+Use targeted web search when novelty, significance, or prior-work positioning is uncertain. Treat novelty-heavy claims as requiring external comparison, not trust. Use bundle reference prompts only as additive hints about which prior-work or benchmark framing should be visible; do not infer novelty or correctness from bundle presence alone.
 Return STAGE 2 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 2: literature context"
 )
@@ -274,6 +291,9 @@ Operate in physical-soundness stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
+Selected protocol bundles: {selected_protocol_bundle_ids}
+Additive specialized guidance:
+{protocol_bundle_context}
 Output path: `.gpd/review/STAGE-physics{round_suffix}.json`
 
 Files to read:
@@ -283,11 +303,17 @@ Files to read:
 - `.gpd/review/STAGE-math{round_suffix}.json`
 - `.gpd/review/STAGE-literature{round_suffix}.json`
 - `.gpd/phases/*/SUMMARY.md`
+- `.gpd/phases/*/*VERIFICATION.md`
+- `.gpd/comparisons/*-COMPARISON.md` if present
+- `.gpd/paper/FIGURE_TRACKER.md` if present
 
 Focus on:
 1. Regime of validity
 2. Whether the physical interpretation is actually supported
 3. Unsupported or unfounded connections between formal manipulations and physics
+4. Whether decisive comparison artifacts, benchmark anchors, and estimator caveats expected by the specialized workflow are actually visible in the manuscript or honestly scoped down
+
+Treat bundle guidance as additive skepticism only. It may highlight missing decisive comparisons or estimator caveats, but it must not replace contract-backed evidence or create new manuscript obligations out of thin air.
 
 Return STAGE 4 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 4: physical soundness"
@@ -358,6 +384,9 @@ Act as the final adjudicating referee for the staged peer-review panel.
 
 Target journal: {target_journal}
 Round: {round}
+Selected protocol bundles: {selected_protocol_bundle_ids}
+Additive specialized guidance:
+{protocol_bundle_context}
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
@@ -367,6 +396,8 @@ Files to read:
 - `.gpd/review/STAGE-math{round_suffix}.json`
 - `.gpd/review/STAGE-physics{round_suffix}.json`
 - `.gpd/review/STAGE-interestingness{round_suffix}.json`
+- `.gpd/comparisons/*-COMPARISON.md` if present
+- `.gpd/paper/FIGURE_TRACKER.md` if present
 - `paper/ARTIFACT-MANIFEST.json` if present
 - `paper/BIBLIOGRAPHY-AUDIT.json` if present
 - `paper/reproducibility-manifest.json` if present
@@ -381,8 +412,9 @@ Recommendation guardrails:
 1. Do not issue minor revision if novelty, physical support, or significance remain materially doubtful.
 2. A mathematically coherent but physically weak or scientifically mediocre paper can require major revision or rejection.
 3. Evaluate venue fit explicitly using the panel artifacts and spot-check the manuscript where the artifacts are under-evidenced.
-4. Write `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json`.
-5. Run `gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict` before trusting a recommendation better than `major_revision`.
+4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
+5. Write `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json`.
+6. Run `gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict` before trusting a recommendation better than `major_revision`.
 
 Write `.gpd/REFEREE-REPORT{round_suffix}.md` and the matching `.gpd/REFEREE-REPORT{round_suffix}.tex`.
 Also write `.gpd/CONSISTENCY-REPORT.md` when applicable.

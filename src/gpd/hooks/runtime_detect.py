@@ -112,9 +112,12 @@ def _runtime_dir_has_gpd_install(
     include_global: bool = True,
 ) -> bool:
     """Return whether *runtime* has a concrete GPD install in the requested locations."""
-    if include_local and _has_gpd_install(_local_runtime_dir(runtime, cwd)):
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+
+    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd)):
         return True
-    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=home)):
+    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home)):
         return True
     return False
 

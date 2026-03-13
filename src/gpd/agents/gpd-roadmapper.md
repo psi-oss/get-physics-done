@@ -29,6 +29,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 - Derive phases from research objectives (not impose arbitrary structure)
 - Map approved contract items to the phases that advance them
+- Preserve user-stated observables, deliverables, must-have references, prior outputs, and stop conditions as explicit roadmap inputs
 - Validate 100% objective coverage (no orphans)
 - Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
@@ -77,6 +78,7 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 | Dependencies       | Order plan execution                      |
 
 **Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks. Keep `Requirements` and `Contract Coverage` adjacent but distinct: requirements explain why the phase exists, contract coverage explains what decisive part of the approved contract the phase advances.
+If the user named a specific observable, figure, derivation, benchmark, notebook, or prior run, keep it recognizable in the roadmap. Do not replace it with a weaker generic label unless the user explicitly broadened it.
 
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
@@ -895,6 +897,7 @@ If research/SUMMARY.md provided:
 
 Literature context informs phase identification but objectives drive coverage.
 Approved contract context informs contract coverage and anchor visibility.
+Treat `context_intake.must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` as binding user guidance, not optional flavor text.
 
 ## Step 4: Identify Phases
 
@@ -904,8 +907,9 @@ Apply phase identification methodology:
 2. Identify dependencies between groups (formalism before calculation, calculation before numerics)
 3. Create phases that deliver coherent, verifiable research outcomes
 4. Map decisive contract items, anchors, and forbidden proxies to those phases
-5. Check depth setting for compression guidance
-6. Identify backtracking triggers between phases
+5. Map user-stated observables, deliverables, must-have references, prior outputs, and stop conditions to the earliest phase that should carry them
+6. Check depth setting for compression guidance
+7. Identify backtracking triggers between phases
 
 ## Step 5: Derive Success Criteria
 
@@ -916,8 +920,9 @@ For each phase, apply goal-backward:
 3. Apply relevant criteria from the physics success criteria taxonomy
 4. Cross-check against objectives
 5. Add a `Contract Coverage` view naming decisive contract items, deliverables, anchor coverage, and forbidden proxies
-6. Flag any gaps
-7. Define backtracking conditions
+6. Preserve any user-stated observable, deliverable, prior-output, or stop-condition wording in that phase's contract coverage or success criteria
+7. Flag any gaps
+8. Define backtracking conditions, including user-stated stop or rethink triggers when they are load-bearing
 
 ## Step 6: Validate Coverage
 
@@ -926,6 +931,7 @@ Verify 100% objective mapping and contract-critical coverage:
 - Every v1 objective -> exactly one phase
 - Every decisive contract item -> at least one phase
 - Every required anchor / baseline / user-critical prior output -> surfaced in at least one phase's contract coverage
+- Every user-stated decisive observable / deliverable / stop condition -> visible in at least one phase's contract coverage, success criteria, or backtracking trigger
 - No orphans, no duplicates
 
 If gaps found, include in draft for user decision.

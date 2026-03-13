@@ -584,7 +584,7 @@ class TestManifestConsistency:
 
     @pytest.mark.parametrize("runtime", ["claude-code", "gemini"])
     def test_manifest_version_matches_package(self, runtime: str, tmp_path: Path, gpd_root: Path) -> None:
-        from gpd import __version__
+        from gpd.version import version_for_gpd_root
 
         adapter = get_adapter(runtime)
         target = tmp_path / adapter.config_dir_name
@@ -598,7 +598,7 @@ class TestManifestConsistency:
             adapter.install(gpd_root, target, is_global=True)
 
         manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-        assert manifest["version"] == __version__
+        assert manifest["version"] == version_for_gpd_root(gpd_root)
 
     @pytest.mark.parametrize("runtime", ["claude-code", "gemini"])
     def test_manifest_has_timestamp(self, runtime: str, tmp_path: Path, gpd_root: Path) -> None:

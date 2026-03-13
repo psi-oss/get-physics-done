@@ -20,6 +20,30 @@ from gpd.cli import app
 runner = CliRunner()
 
 
+def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
+    """Create a minimal GPD source checkout for CLI version tests."""
+    repo_root = tmp_path / "checkout"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "get-physics-done",
+                "version": version,
+                "gpdPythonVersion": version,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "pyproject.toml").write_text(
+        f'[project]\nname = "get-physics-done"\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    gpd_root = repo_root / "src" / "gpd"
+    for subdir in ("commands", "agents", "hooks", "specs"):
+        (gpd_root / subdir).mkdir(parents=True, exist_ok=True)
+    return repo_root
+
+
 # ─── version & help ─────────────────────────────────────────────────────────
 
 
@@ -33,6 +57,15 @@ def test_version_subcommand():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
     assert "gpd" in result.output
+
+
+def test_version_subcommand_prefers_checkout_version(tmp_path: Path):
+    checkout = _make_checkout(tmp_path, "9.9.9")
+
+    result = runner.invoke(app, ["--cwd", str(checkout), "version"])
+
+    assert result.exit_code == 0
+    assert "9.9.9" in result.output
 
 
 def test_raw_version_option_outputs_json():

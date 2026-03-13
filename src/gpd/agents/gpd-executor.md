@@ -21,7 +21,7 @@ Spawned by:
 - The quick command (lightweight ad-hoc task execution)
 - The parameter-sweep workflow (sweep point execution)
 
-Your job: Execute the research plan completely, checkpoint each step, create SUMMARY.md, update STATE.md.
+Your job: Execute the research plan completely, checkpoint each step, create SUMMARY.md, and handle shared state the way the invoking workflow specifies. In spawned execution, return shared-state updates to the orchestrator instead of writing `STATE.md` directly.
 
 You operate across all areas of physics --- theoretical, computational, mathematical, experimental analysis --- and handle LaTeX documents, Mathematica/Python notebooks, numerical code, data analysis scripts, and figure generation.
 
@@ -975,21 +975,12 @@ Do NOT skip. Do NOT proceed to state updates if self-check fails.
 
 Full templates and error handling in `executor-completion.md` (loaded during summary_creation). Inline minimums below ensure correct behavior if the file_read fails.
 
-### State Updates (after SUMMARY.md written)
+### Shared State Discipline (after SUMMARY.md written)
 
-```bash
-# Advance plan counter
-gpd state advance-plan
+- **Spawned subagent mode:** Return state updates in `gpd_return.state_updates`. Do NOT write `.gpd/STATE.md` directly unless the invoking workflow explicitly delegates shared-state ownership.
+- **Main-context / direct-owner mode:** If the workflow says you are the state owner, apply the required `gpd state ...` commands yourself and document any manual fallback in `SUMMARY.md`.
 
-# Recalculate progress bar
-gpd state update-progress
-
-# Record session
-gpd state record-session \
-  --stopped-at "Completed ${PHASE}-${PLAN}-PLAN.md"
-```
-
-If any gpd command fails twice, make the state update manually via file_edit tool and document in SUMMARY.md.
+The default spawned-agent path is `shared_state_policy: return_only`.
 
 ### Final Commit
 
@@ -1085,7 +1076,7 @@ Plan execution complete when:
 - [ ] Convergence demonstrated for all numerical results
 - [ ] SUMMARY.md created with substantive physics content and conventions section
 - [ ] State tracking file updated with all equations, parameters, approximations, figures, conventions
-- [ ] STATE.md updated (position, decisions, results, issues, session)
+- [ ] Shared-state updates handled per workflow contract (`gpd_return` by default; direct writes only when explicitly delegated)
 - [ ] Final metadata commit made
 - [ ] Completion format returned to orchestrator
 - [ ] Context pressure monitored: ORANGE/RED triggers checkpoint, never exceeds RED

@@ -30,6 +30,13 @@ One sentence that drives prioritization when tradeoffs arise.]
 - [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or review artifact]
 - [False progress to reject]: [Proxy that must NOT count as success]
 
+### User Guidance To Preserve
+
+- **User-stated observables:** [Specific quantity, signal, figure, or smoking-gun the user explicitly named]
+- **User-stated deliverables:** [Specific table, plot, derivation, dataset, note, or code output the user expects]
+- **Must-have references / prior outputs:** [Paper, notebook, baseline run, figure, or benchmark the user said must stay visible]
+- **Stop / rethink conditions:** [What should make the system pause, ask again, or re-scope]
+
 ### Scope Boundaries
 
 **In scope**
@@ -176,9 +183,11 @@ _Last updated: [date] after [trigger]_
 **Scoping Contract Summary:**
 
 - Short human-readable projection of the authoritative scoping contract
-- Capture contract coverage, active anchors, carry-forward inputs, skeptical review items, and open contract questions
+- Capture contract coverage, user guidance, active anchors, carry-forward inputs, skeptical review items, and open contract questions
 - Keep this concise and concrete so later workflows can scan it quickly
 - If an anchor or prior artifact is unknown, say so explicitly instead of implying certainty
+- Preserve the user's wording when they explicitly name an observable, deliverable, prior output, or must-have reference
+- Record user-stated pause / rethink conditions rather than only abstract risks
 
 **Research Questions:**
 

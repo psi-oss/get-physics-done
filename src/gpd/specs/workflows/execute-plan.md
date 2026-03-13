@@ -196,7 +196,7 @@ grep -n "type=\"checkpoint" "${phase_dir}/${phase}-${plan}-PLAN.md"
 | Decision    | C (main)       | Execute entirely in main context                                                                       |
 | Auto-bounded | D (virtual checkpoints) | Segment automatically at first-result, task-cap, context-pressure, or pre-fanout review boundaries |
 
-**Pattern A:** init_agent_tracking -> spawn task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + commit, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<bounded_execution>false</bounded_execution>` (only for genuinely low-risk short plans), report: plan name, tasks, SUMMARY path, commit hash -> track agent_id -> wait -> update tracking -> report.
+**Pattern A:** init_agent_tracking -> spawn task(subagent_type="gpd-executor", model=executor_model) with prompt: execute plan at [path], all tasks + SUMMARY + structured return envelope, follow deviation/validation rules, **load conventions from `gpd convention list` before starting work**, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<bounded_execution>false</bounded_execution>` (only for genuinely low-risk short plans), return: plan name, tasks, SUMMARY path, commit hash, and state updates -> track agent_id -> wait -> update tracking -> report.
 
 **If the executor agent fails to spawn or returns an error (Pattern A):** Check if any work was committed (`git log --oneline -3`). If commits with the plan's work exist, the executor may have completed but failed to report — verify output files and proceed to post-execution checks. If no work was done, offer: 1) Retry executor spawn, 2) Fall back to Pattern C (execute in main context), 3) Abort. Update agent tracking status to "failed" with error details.
 
@@ -236,7 +236,7 @@ Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 2. Per segment:
    - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs. Track via agent protocol.
    - Main route: execute tasks using standard flow (step name="execute")
-3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> commit -> self-check:
+3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> apply returned state updates in main context -> final metadata commit -> self-check:
 
    - Verify key-files.created exist on disk with `[ -f ]`
    - Check `git log --oneline --grep="{phase}-{plan}"` returns >=1 commit
@@ -572,7 +572,7 @@ More plans -> update plan count, keep "In progress". Last plan -> mark phase "Co
 </step>
 
 <step name="git_commit_metadata">
-Task work already committed per-task. Run pre-commit validation, then commit plan metadata:
+Task work already committed per-task. By this step the main context has already applied any returned state updates. Run pre-commit validation, then commit plan metadata:
 
 ```bash
 # Validate staged files before final commit (physics checks, format checks)

@@ -21,6 +21,10 @@ comparison_sources:
   - label: benchmark
     kind: summary|verification|artifact|reference|other
     path: .gpd/phases/02-example/02-VERIFICATION.md
+protocol_bundle_ids (optional):
+  - bundle-id
+bundle_expectations (optional):
+  - "[additive decisive-artifact, estimator, or benchmark expectation recorded for provenance]"
 comparison_verdicts:
   - subject_id: claim-id
     subject_kind: claim|deliverable|acceptance_test|artifact
@@ -47,6 +51,7 @@ comparison_verdicts:
 - [ ] Units / normalization match
 - [ ] Threshold is tied to the right contract target or benchmark anchor
 - [ ] No decisive target was replaced by a weaker proxy
+- [ ] Any selected protocol bundle guidance is recorded only as additive provenance and does not override contract thresholds
 
 ## Results
 
@@ -59,4 +64,4 @@ comparison_verdicts:
 - [Action to take if any verdict is not a clean pass]
 ```
 
-When the comparison is decisive for a contract-backed claim or deliverable, `comparison_verdicts` is required.
+When the comparison is decisive for a contract-backed claim or deliverable, `comparison_verdicts` is required. If selected protocol bundles informed the comparison design, record them in `protocol_bundle_ids` / `bundle_expectations` as provenance only; they do not replace contract IDs, benchmark anchors, or pass/fail thresholds.

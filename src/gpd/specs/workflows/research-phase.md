@@ -26,8 +26,8 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 - `research_mode=explore`: Comprehensive research — survey all viable methods, include failed approaches from literature, 10+ papers.
 - `research_mode=exploit`: Focused research — direct methods only, 3-5 key papers, skip speculative approaches.
 - `research_mode=adaptive`: Start focused, expand if initial search reveals unexpected complexity or multiple competing methods.
-- `autonomy=babysit`: Present the `RESEARCH.md` draft for user review before committing.
-- `autonomy=balanced/yolo`: Auto-commit `RESEARCH.md`.
+- `autonomy=babysit`: Present the `RESEARCH.md` draft for user review before treating the handoff as complete.
+- `autonomy=balanced/yolo`: Accept the researcher handoff automatically once `RESEARCH.md` exists and passes the artifact check.
 
 @{GPD_INSTALL_DIR}/references/orchestration/model-profile-resolution.md
 
@@ -127,10 +127,25 @@ Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 )
 ```
 
+Add this contract inside the spawned prompt when adapting it:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+expected_artifacts:
+  - .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+shared_state_policy: return_only
+</spawn_contract>
+```
+
 ## Step 5: Handle Return
 
 **If the researcher agent fails to spawn or returns an error:** Report the failure. Offer: 1) Retry with the same context, 2) Execute the research in the main context (slower but reliable), 3) Skip research and proceed to `/gpd:plan-phase` directly (planner will work with less context). Do not silently continue without research output.
 
+- **Artifact gate:** If the researcher reports `## RESEARCH COMPLETE` but no `RESEARCH.md` exists in the phase directory, treat the handoff as incomplete. Offer: 1) Retry researcher, 2) Execute research in the main context, 3) Abort.
 - `## RESEARCH COMPLETE` -- Display summary, offer: Plan/Dig deeper/Review/Done
 - `## CHECKPOINT REACHED` -- Present to user, spawn continuation
 - `## RESEARCH INCONCLUSIVE` -- Show attempts, offer: Add context/Try different approach/Manual

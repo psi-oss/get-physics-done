@@ -13,9 +13,10 @@ A task "derive dispersion relation" can be marked complete when the derivation h
 
 Goal-backward verification:
 
-1. What must be TRUE for the research goal to be achieved?
-2. What must EXIST for those truths to hold (derivations, calculations, plots)?
+1. What contract-backed outcomes must be TRUE for the research goal to be achieved?
+2. What must EXIST for those outcomes to hold (derivations, calculations, plots, baselines, benchmark evidence)?
 3. What must be VALIDATED for those artifacts to be trustworthy?
+4. What must be explicitly REJECTED because it would be a forbidden proxy for real progress?
 
 Then verify each level against the actual research artifacts — **by doing physics, not by pattern-matching**.
 
@@ -106,6 +107,17 @@ done
 
 Use the PLAN `contract` block as the canonical target definition. Verification must be keyed to contract IDs (`claim`, `deliverable`, `acceptance_test`, `reference`, `forbidden_proxy`) instead of re-deriving names from prose.
 
+Treat these as separate verification obligations:
+
+- `claims` -> determine whether the physics claim is actually established
+- `deliverables` -> determine whether the required artifact exists and is substantively correct
+- `acceptance_tests` -> determine whether decisive checks actually passed
+- `references` -> determine whether must-read anchors were read/compared/cited as required
+- `forbidden_proxies` -> determine whether tempting but non-decisive substitutes were explicitly rejected
+
+If the phase depends on a decisive comparison (benchmark, prior work, experiment, cross-method, baseline), emit a `comparison_verdicts` entry in the report keyed to the relevant contract IDs.
+Before finalizing the check list, call `suggest_contract_checks(contract)` through the verification server and fold the returned contract-aware checks into the verification plan unless they are clearly inapplicable.
+
 **Legacy fallback: must_haves in PLAN frontmatter**
 
 Use gpd to extract must_haves from each PLAN:
@@ -121,23 +133,27 @@ Returns JSON: `{ truths: [...], artifacts: [...], key_links: [...] }`
 
 Aggregate all contract-backed targets across plans for phase-level verification. Use `must_haves` only if a historical plan has no `contract`.
 
-**Option B: Derive from phase goal**
+**Option B: Derive contract-like targets from phase goal**
 
 If no `contract` or `must_haves` is available in frontmatter:
 
 1. State the goal from ROADMAP.md
-2. Derive **truths** (3-7 verifiable physics claims, each testable by computation)
-3. Derive **artifacts** (concrete file paths for each truth: derivations, notebooks, plots, data)
-4. Derive **physics checks** (critical validation steps where errors hide)
-5. Document derived must-haves before proceeding
+2. Derive **claims** (3-7 verifiable physics outcomes, each testable by computation)
+3. Derive **deliverables** (concrete file paths for each claim: derivations, notebooks, plots, data)
+4. Derive **acceptance tests** (critical validation steps where errors hide)
+5. Derive **required comparisons** (benchmarks, prior work, experiments, cross-method checks) when they are clearly decisive
+6. Derive **forbidden proxies** (outputs that would look like progress but do not establish the claim)
+7. Document this derived contract-like target set before proceeding
 
-**Important: every truth must be testable by substituting values, taking limits, or performing an independent computation. Truths that can only be checked by grepping are not truths — they are process claims.**
+**Important: every derived claim must be testable by substituting values, taking limits, or performing an independent computation. Outcomes that can only be checked by grepping are process claims, not verification targets.**
+
+If the plan contract is materially incomplete but the verifier can see an obvious decisive check that should exist, record it as a `suggested_contract_check` in the report rather than silently ignoring the gap.
 </step>
 
 <step name="batch_verification_triage">
 **For phases with 10+ checks, use batch verification to reduce researcher burden.**
 
-Count total checks across all contract-backed targets (claims + deliverables + acceptance tests + must-surface references). For legacy plans, fall back to must_haves (truths + artifacts + key_links):
+Count total checks across all contract-backed targets (claims + deliverables + acceptance tests + must-surface references + forbidden proxies + decisive comparisons). For legacy plans, fall back to must_haves (truths + artifacts + key_links):
 
 ```bash
 TOTAL_CHECKS=$(echo "$ALL_MUST_HAVES" | gpd json sum-lengths .truths .artifacts .key_links)
@@ -170,14 +186,20 @@ TOTAL_CHECKS=$(echo "$ALL_MUST_HAVES" | gpd json sum-lengths .truths .artifacts 
 **If TOTAL_CHECKS < 10:** Present all checks one at a time as usual.
 </step>
 
-<step name="verify_truths">
-For each verifiable physics claim, determine if the research artifacts support it.
+<step name="verify_contract_targets">
+For each contract-backed target, determine if the research artifacts support it.
 
-**Status:** VERIFIED (all supporting artifacts and checks pass) | FAILED (artifact missing/incomplete/unvalidated) | UNCERTAIN (needs human expert)
+**Status:** VERIFIED (all supporting artifacts and checks pass) | PARTIAL (some evidence exists but decisive checks remain open) | FAILED (artifact missing/incomplete/unvalidated or decisive comparison fails) | UNCERTAIN (needs human expert)
 
-For each truth: identify supporting artifacts -> check artifact status -> run computational physics checks -> determine truth status.
+For each claim or acceptance test: identify supporting artifacts -> check artifact status -> run computational physics checks -> determine target status.
 
-**Example:** Truth "Dispersion relation is correct in all limiting cases" depends on derivation.tex (full derivation), limits_check.py (numerical verification), dispersion_plot.pdf (visual confirmation).
+For each reference target: verify the required actions (`read`, `compare`, `cite`, etc.) were actually completed and note any missing decisive anchor work.
+
+For each forbidden proxy: verify the phase did not treat the proxy as success evidence. A forbidden proxy must be explicitly rejected, not merely omitted from prose.
+
+For each decisive comparison: emit a `comparison_verdict` (`pass`, `tension`, `fail`, `inconclusive`) with the relevant subject ID, reference ID if applicable, comparison kind, metric, threshold, and outcome.
+
+**Example:** Claim "Dispersion relation is correct in all limiting cases" depends on derivation.tex (full derivation), limits_check.py (numerical verification), dispersion_plot.pdf (visual confirmation).
 
 Verification approach:
 
@@ -186,7 +208,7 @@ Verification approach:
 3. **Take limits** independently: long-wavelength limit (should give acoustic dispersion omega ~ v\*k), tight-binding limit, etc.
 4. **Cross-check**: evaluate omega(k) numerically at several k points and compare with independent calculation
 
-If the limits you compute do not match known results -> FAILED. If all independently-computed checks pass -> VERIFIED.
+If the limits you compute do not match known results -> FAILED. If some supporting evidence exists but a decisive comparison or anchor action is still missing -> PARTIAL. If all independently-computed checks pass -> VERIFIED.
 </step>
 
 <step name="verify_artifacts">
@@ -412,9 +434,9 @@ If the traceability table is not found, fall back to a broader search:
 grep -E "^\|.*\b${PHASE_NUM}\b" .gpd/REQUIREMENTS.md 2>/dev/null
 ```
 
-For each requirement: parse description -> identify supporting truths/artifacts -> status: SATISFIED / BLOCKED / NEEDS EXPERT.
+For each requirement: parse description -> identify supporting contract targets / artifacts -> status: SATISFIED / BLOCKED / NEEDS EXPERT.
 
-A requirement is SATISFIED only if the supporting truths were VERIFIED with computation evidence, not just structurally present.
+A requirement is SATISFIED only if the supporting claims / deliverables / acceptance tests were VERIFIED with computation evidence, required anchors were handled, and no forbidden proxy is masking a missing result.
 </step>
 
 <step name="verify_numerical_results">
@@ -499,13 +521,13 @@ Format each as: Check Name -> What to verify -> Expected result -> Why cannot ve
 </step>
 
 <step name="determine_status">
-**passed:** All truths VERIFIED with computation evidence, all artifacts pass levels 1-4, all physics checks PASSED, no blocker anti-patterns, no cross-phase blockers.
+**passed:** All decisive contract targets VERIFIED with computation evidence, all artifacts pass levels 1-4, all required comparison verdicts are acceptable, all must-surface references are handled, all forbidden proxies are rejected, no blocker anti-patterns, no cross-phase blockers.
 
-**gaps_found:** Any truth FAILED, artifact MISSING/INCOMPLETE/INCORRECT, physics check NOT_PERFORMED/FAILED, blocker anti-pattern found, or cross-phase blocker found.
+**gaps_found:** Any decisive contract target FAILED, artifact MISSING/INCOMPLETE/INCORRECT, required comparison verdict FAIL/TENSION without resolution, required reference action missing, forbidden proxy VIOLATED/UNRESOLVED, physics check NOT_PERFORMED/FAILED, blocker anti-pattern found, or cross-phase blocker found.
 
 **human_needed:** All automated and computational checks pass but expert verification items remain.
 
-**Score:** `verified_truths / total_truths`
+**Score:** `verified_contract_targets / total_contract_targets`
 **Independently confirmed:** `independently_confirmed_checks / total_applicable_checks`
 </step>
 
@@ -526,7 +548,9 @@ If gaps_found:
 REPORT_PATH="$phase_dir/${phase_number}-VERIFICATION.md"
 ```
 
-Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results/comparison_verdicts/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata.
+Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results/comparison_verdicts/suggested_contract_checks/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata.
+
+If the verifier identifies a decisive check that the contract omitted but downstream work clearly depends on, record it under `suggested_contract_checks` with a reason and recommended evidence path.
 
 See {GPD_INSTALL_DIR}/templates/verification-report.md for complete template.
 </step>
@@ -558,9 +582,9 @@ This gate enforces the principle that verification must involve external computa
 </step>
 
 <step name="return_to_orchestrator">
-Return status (`passed` | `gaps_found` | `human_needed`), score (N/M must-haves), independently confirmed count (K/M), report path.
+Return status (`passed` | `gaps_found` | `human_needed`), score (N/M contract targets), independently confirmed count (K/M), report path.
 
-If gaps_found: list gaps with computation evidence + recommended fix plan names.
+If gaps_found: list gaps with contract IDs, computation evidence, comparison verdict failures or forbidden-proxy violations, and recommended fix plan names.
 If human_needed: list items requiring expert review with explanation of why computational verification was insufficient.
 
 Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute fixes, re-verify | `human_needed` -> present to researcher.
@@ -571,7 +595,7 @@ Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute
 <success_criteria>
 
 - [ ] Contract-backed targets established from PLAN frontmatter (with `must_haves` used only as a legacy fallback)
-- [ ] All truths verified with status, computation evidence, and confidence rating
+- [ ] All contract-backed claims / deliverables / acceptance tests verified with status, computation evidence, and confidence rating
 - [ ] All artifacts checked at all four levels (exists, substantive, content-validated, integrated)
 - [ ] **Numerical spot-checks performed** on key expressions (2-3 test points each)
 - [ ] **Limiting cases independently re-derived** by taking limits of final expressions
@@ -580,6 +604,9 @@ Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute
 - [ ] All physics checks verified computationally (not just structurally)
 - [ ] Convergence tested at multiple resolutions for numerical results
 - [ ] Literature benchmarks compared with actual numerical values
+- [ ] Required `comparison_verdicts` emitted for decisive benchmarks / prior-work / experiment / cross-method checks
+- [ ] Required references handled and forbidden proxies explicitly audited
+- [ ] Missing decisive checks recorded as `suggested_contract_checks`
 - [ ] Requirements coverage assessed (if applicable)
 - [ ] Anti-patterns scanned and categorized
 - [ ] Cross-phase consistency checked (notation, conventions, approximations, units) if 2+ phases exist

@@ -48,7 +48,7 @@ Not all verification sections apply to every project. Select based on physics do
 phase: XX-name
 verified: YYYY-MM-DDTHH:MM:SSZ
 status: passed | gaps_found | expert_needed | human_needed
-score: N/M checks verified
+score: N/M contract targets verified
 plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
 contract_results:
   claims:
@@ -83,6 +83,12 @@ comparison_verdicts:
     metric: relative_error
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
+suggested_contract_checks:
+  - check: "[short description of missing decisive check]"
+    reason: "[why the verifier believes it should exist]"
+    suggested_subject_kind: claim|deliverable|acceptance_test|reference
+    suggested_subject_id: ""
+    evidence_path: ""
 ---
 
 # Phase {X}: {Name} Verification Report
@@ -101,6 +107,33 @@ comparison_verdicts:
 | {reference-id} | reference anchor | {completed/missing} | {yes/no} | {path} | {why} |
 
 Use contract IDs consistently throughout the report. The PLAN contract defines what must be verified. `SUMMARY.md` `contract_results` and `comparison_verdicts` tell you what evidence was produced, not what success means.
+
+If the verifier identifies a decisive check that the contract omitted, record it under `suggested_contract_checks` instead of silently treating the missing check as acceptable.
+
+## Forbidden Proxy Audit
+
+| Forbidden Proxy ID | What Was Forbidden | Status | Evidence Path | Notes |
+| ------------------ | ------------------ | ------ | ------------- | ----- |
+| {forbidden-proxy-id} | {proxy description} | {rejected/violated/unresolved} | {path} | {why this matters} |
+| {forbidden-proxy-id} | {proxy description} | {status} | {path} | {notes} |
+
+**Rule:** A forbidden proxy must be explicitly rejected or escalated. Silence is not sufficient evidence that the phase stayed on target.
+
+## Comparison Verdict Ledger
+
+| Subject ID | Subject Kind | Comparison Kind | Anchor / Source | Metric | Threshold | Verdict | Notes |
+| ---------- | ------------ | --------------- | --------------- | ------ | --------- | ------- | ----- |
+| {claim-id} | claim | benchmark | {reference-id or prior artifact} | {relative_error} | {<= 0.01} | {pass/tension/fail/inconclusive} | {why} |
+| {deliverable-id} | deliverable | cross_method | {reference-id or artifact path} | {difference} | {threshold} | {verdict} | {notes} |
+
+Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison.
+
+## Suggested Contract Checks
+
+| Suggested Check | Why It Seems Required | Suggested Subject Kind | Suggested Subject ID | Evidence Path |
+| --------------- | --------------------- | ---------------------- | -------------------- | ------------- |
+| {missing check} | {why the verifier thinks it is decisive} | {claim|deliverable|acceptance_test|reference} | {id or blank} | {where evidence would come from} |
+| {missing check} | {reason} | {kind} | {id} | {path} |
 
 ## Dimensional Analysis
 
@@ -319,14 +352,16 @@ Use contract IDs consistently throughout the report. The PLAN contract defines w
 | ------------------ | ---------- | -------------------------- | --------------------------------------- | -------------------- | -------- |
 | {e.g., kappa(T_c)} | {T_c, E_0} | {linear error propagation} | {delta_T_c = 0.005, delta_E_0 = 0.0003} | {delta_kappa = 0.02} | {Yes/No} |
 
-## Observable Truths (from must_haves)
+## Contract Claim Coverage
 
-| #   | Truth                   | Status                        | Evidence                        |
-| --- | ----------------------- | ----------------------------- | ------------------------------- |
-| 1   | {truth from must_haves} | VERIFIED / FAILED / UNCERTAIN | {what confirmed it}             |
-| 2   | {truth from must_haves} | VERIFIED / FAILED / UNCERTAIN | {what's wrong or why uncertain} |
+| Claim ID | Claim Summary | Status | Evidence | Notes |
+| -------- | ------------- | ------ | -------- | ----- |
+| {claim-id} | {contract-backed claim} | VERIFIED / PARTIAL / FAILED / UNCERTAIN | {what confirmed it} | {why} |
+| {claim-id} | {contract-backed claim} | VERIFIED / PARTIAL / FAILED / UNCERTAIN | {what's wrong or why uncertain} | {notes} |
 
-**Score:** {N}/{M} truths verified
+**Score:** {N}/{M} contract claims verified
+
+{If the phase uses a legacy plan with no contract: "Legacy note: claim coverage above was derived from `must_haves` because the plan has no `contract` block."}
 
 ## Required Artifacts
 
@@ -422,8 +457,8 @@ Use contract IDs consistently throughout the report. The PLAN contract defines w
 
 ## Verification Metadata
 
-**Verification approach:** Goal-backward (derived from phase goal) + physics-first (dimensional analysis, limits, symmetries)
-**Must-haves source:** {PLAN.md frontmatter | derived from ROADMAP.md goal}
+**Verification approach:** Goal-backward + contract-first + physics-first (dimensional analysis, limits, symmetries, decisive comparisons, forbidden-proxy rejection)
+**Verification target source:** {PLAN `contract` | legacy `must_haves` fallback | derived contract-like target set from ROADMAP.md goal}
 **Dimensional checks:** {N} performed
 **Limiting cases checked:** {N} checked, {M} passed
 **Symmetry checks:** {N} performed
@@ -434,6 +469,9 @@ Use contract IDs consistently throughout the report. The PLAN contract defines w
 **Statistical validation tests:** {N} performed
 **Convergence studies:** {N} quantities studied
 **Literature comparisons:** {N} values compared
+**Comparison verdicts:** {N} recorded
+**Forbidden proxy audits:** {N} performed
+**Suggested contract checks:** {N} recorded
 **Total verification time:** {duration}
 
 ---
@@ -497,7 +535,7 @@ _Verifier: {agent name or "AI assistant (subagent)"}_
 phase: 02-syk-sff
 verified: 2025-06-20T16:00:00Z
 status: gaps_found
-score: 8/11 checks verified
+score: 8/11 contract targets verified
 ---
 
 # Phase 2: SYK Spectral Form Factor Verification Report

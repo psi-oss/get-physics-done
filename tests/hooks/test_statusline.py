@@ -133,6 +133,19 @@ class TestExecutionBadge:
         badge = _execution_badge({"segment_status": "paused", "resume_file": ".gpd/phases/02/.continue-here.md"})
         assert badge == "RESUME"
 
+    def test_pre_fanout_review_badge_uses_checkpoint_reason_label(self) -> None:
+        badge = _execution_badge(
+            {
+                "segment_status": "waiting_review",
+                "waiting_for_review": True,
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "review_cadence": "adaptive",
+            }
+        )
+        assert "REVIEW:pre-fanout" in badge
+        assert "adaptive" in badge
+
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
 

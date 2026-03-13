@@ -797,6 +797,17 @@ This mirrors **physics peer review**: reviewers see the paper (results), not the
 
 **Practical implication:** When a PLAN has a `contract`, use its claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs as the canonical verification targets. Only use `must_haves` when a legacy plan lacks `contract`. Do not read the plan body to understand "what was supposed to happen" — derive what must be true from the phase goal, the contract, and the physics.
 
+**Verification authority order:**
+
+1. PLAN `contract` IDs and required actions
+2. Phase goal from ROADMAP.md
+3. Artifact contents and machine-readable convention lock
+4. Anchor reference obligations and decisive comparison context
+5. SUMMARY `contract_results` / `comparison_verdicts` only as evidence maps
+6. `must_haves` only as a legacy fallback when no `contract` exists
+
+If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a `suggested_contract_check`. Do not silently downgrade verification scope.
+
 **IMPORTANT — Orchestrator responsibility:** The orchestrator that spawns the verifier MUST NOT include plan details, execution strategy, or SUMMARY.md content in the verifier's spawn prompt. The spawn prompt should contain ONLY: phase number, phase goal (from ROADMAP.md), artifact file paths, and STATE.md path. Including plan details defeats the purpose of independent verification by biasing the verifier toward confirming the plan was followed rather than checking if the physics is correct. If you notice plan details in your spawn context, disregard them and verify from first principles.
 
 </verification_independence>
@@ -1649,6 +1660,17 @@ In re-verification mode, contract targets come from Step 0.
 
 Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block. These IDs are the canonical verification names for this phase.
 
+Treat the contract as a typed checklist, not a prose hint:
+
+- `claims` tell you what the phase must establish
+- `deliverables` tell you what must exist
+- `acceptance_tests` tell you what decisive checks must pass
+- `references` tell you which anchor actions must be completed
+- `forbidden_proxies` tell you what must not be mistaken for success
+
+Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs.
+Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. If the contract still appears to miss a decisive check after that pass, record it as a `suggested_contract_check`.
+
 **Protocol bundle guidance (additive, not authoritative)**
 
 If the workflow supplies selected protocol bundles or bundle checklist extensions:
@@ -1669,12 +1691,13 @@ If found, extract the `truths:` (physically verifiable statements), `artifacts:`
 If no `contract` or `must_haves` is available in frontmatter:
 
 1. **State the goal** from ROADMAP.md
-2. **Derive truths:** "What must be TRUE?" — list 3-7 physically verifiable statements
-3. **Derive artifacts:** For each truth, "What must EXIST?" — map to concrete file paths
-4. **Derive key_links:** For each pair of related artifacts, "What must be CONSISTENT?" — this is where errors hide
-5. **Document derived must-haves** before proceeding
+2. **Derive claims:** "What must be TRUE?" — list 3-7 physically verifiable outcomes
+3. **Derive deliverables:** For each claim, "What must EXIST?" — map to concrete file paths
+4. **Derive acceptance tests:** "What decisive checks must PASS?" — limits, benchmarks, consistency checks, cross-method checks
+5. **Derive forbidden proxies:** "What tempting intermediate output would not actually establish success?"
+6. **Document this derived contract-like target set** before proceeding
 
-**When deriving truths, consider the physics verification hierarchy:**
+**When deriving claims, consider the physics verification hierarchy:**
 
 | Priority | Check                     | Question                                                                      |
 | -------- | ------------------------- | ----------------------------------------------------------------------------- |
@@ -1708,22 +1731,34 @@ If no `contract` or `must_haves` is available in frontmatter:
   - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-quantum-info.md` — CPTP, entanglement measures, error correction, channel capacity
   - `@{GPD_INSTALL_DIR}/references/verification/domains/verification-domain-soft-matter.md` — polymer scaling, FDT, coarse-graining, equilibration
 
-## Step 3: Verify Observable Truths
+## Step 3: Verify Contract-Backed Outcomes
 
-For each truth, determine if the research outputs establish it.
+For each claim / deliverable / acceptance test / reference / forbidden proxy, determine if the research outputs establish it.
 
 **Verification status:**
 
 - VERIFIED: All supporting artifacts pass all checks with consistent physics
-- FAILED: One or more artifacts missing, incomplete, or physically inconsistent
+- PARTIAL: Some evidence exists but decisive checks or anchor actions remain open
+- FAILED: One or more artifacts missing, incomplete, physically inconsistent, or contradicted by decisive comparisons
 - UNCERTAIN: Cannot verify programmatically (needs expert review or additional computation)
 
-For each truth:
+For each contract-backed outcome:
 
 1. Identify supporting artifacts
 2. Check artifact status (Step 4)
 3. Check consistency status (Step 5)
-4. Determine truth status
+4. Determine outcome status
+
+For reference targets:
+
+1. Verify the required action (`read`, `compare`, `cite`, `reproduce`, etc.) was actually completed
+2. Mark missing anchor work as PARTIAL or FAILED depending on whether it blocks the claim
+
+For forbidden proxies:
+
+1. Identify the proxy the contract forbids
+2. Check whether the phase relied on it as evidence of success
+3. Mark the proxy as REJECTED, VIOLATED, or UNRESOLVED in the final report
 
 ## Step 4: Verify Artifacts (Three Levels)
 
@@ -3127,10 +3162,10 @@ If REQUIREMENTS.md has requirements mapped to this phase:
 grep -E "Phase $PHASE_NUM" .gpd/REQUIREMENTS.md 2>/dev/null
 ```
 
-For each requirement: parse description -> identify supporting truths/artifacts -> determine status.
+For each requirement: parse description -> identify supporting contract targets / artifacts -> determine status.
 
-- SATISFIED: All supporting truths verified with consistent physics
-- BLOCKED: One or more supporting truths failed or physics inconsistent
+- SATISFIED: All supporting contract targets verified with consistent physics
+- BLOCKED: One or more supporting contract targets failed or physics inconsistent
 - NEEDS EXPERT: Cannot verify programmatically, requires domain expert review
 
 ## Step 7: Scan for Anti-Patterns
@@ -3703,13 +3738,13 @@ For each item, document: what to verify, expected result, domain expertise neede
 
 ## Step 9: Determine Overall Status
 
-**Status: passed** -- All truths VERIFIED, all artifacts pass levels 1-3, all key_link checks pass (or are appropriately marked as not applicable), no blocker anti-patterns.
+**Status: passed** -- All decisive contract targets VERIFIED, required comparison verdicts acceptable, required references handled, forbidden proxies rejected, all artifacts pass levels 1-3, and no blocker anti-patterns.
 
-**Status: gaps_found** -- One or more truths FAILED, artifacts MISSING/STUB, key_link checks FAILED, or blocker anti-patterns found.
+**Status: gaps_found** -- One or more decisive contract targets FAILED, artifacts MISSING/STUB, required comparisons failed or remain unresolved, required reference actions missing, forbidden proxies violated, or blocker anti-patterns found.
 
 **Status: human_needed** -- All automated checks pass but items flagged for expert verification. This is common for novel theoretical results.
 
-**Score:** `verified_truths / total_truths` and `key_links_verified / total_applicable_links`
+**Score:** `verified_contract_targets / total_contract_targets` and `key_links_verified / total_applicable_links`
 
 **Confidence assessment:**
 
@@ -3722,9 +3757,9 @@ For each item, document: what to verify, expected result, domain expertise neede
 
 ## Step 10: Structure Gap Output (If Gaps Found)
 
-Structure gaps in YAML frontmatter for `/gpd:plan-phase --gaps`. Each gap has: `truth` (what failed), `status` (failed|partial), `category` (which check: dimensional_analysis, limiting_case, symmetry, conservation, math_consistency, convergence, literature_agreement, plausibility, statistical_rigor, thermodynamic_consistency, spectral_analytic, anomalies_topological, spot_check, cross_check, intermediate_spot_check), `reason`, `computation_evidence` (what you computed that revealed the error), `artifacts` (path + issue), `missing` (specific fixes), `severity` (blocker|significant|minor).
+Structure gaps in YAML frontmatter for `/gpd:plan-phase --gaps`. Each gap has: `subject_kind`, `subject_id`, `truth` (legacy compatibility label for what failed), `expected_check`, `status` (failed|partial), `category` (which check: dimensional_analysis, limiting_case, symmetry, conservation, math_consistency, convergence, literature_agreement, plausibility, statistical_rigor, thermodynamic_consistency, spectral_analytic, anomalies_topological, spot_check, cross_check, intermediate_spot_check, forbidden_proxy, comparison_verdict), `reason`, `computation_evidence` (what you computed that revealed the error), `artifacts` (path + issue), `missing` (specific fixes), `severity` (blocker|significant|minor), and `suggested_contract_checks` when the contract is missing a decisive target.
 
-**Group related gaps by root cause** — if multiple truths fail from the same physics error, note this for focused remediation.
+**Group related gaps by root cause** — if multiple contract targets fail from the same physics error, note this for focused remediation.
 
 </verification_process>
 
@@ -3763,7 +3798,7 @@ Create `.gpd/phases/{phase_dir}/{phase}-VERIFICATION.md` with this structure:
 phase: XX-name
 verified: YYYY-MM-DDTHH:MM:SSZ
 status: passed | gaps_found | human_needed
-score: N/M must-haves verified
+score: N/M contract targets verified
 consistency_score: N/M physics checks passed
 independently_confirmed: K/M checks independently confirmed
 confidence: high | medium | low | unreliable
@@ -3774,7 +3809,10 @@ re_verification:        # Only if previous VERIFICATION.md existed
   gaps_remaining: []
   regressions: []
 gaps:                   # Only if status: gaps_found (same schema as Step 10)
-  - truth: "..."
+  - subject_kind: "claim"
+    subject_id: "claim-id"
+    truth: "..."        # legacy compatibility label
+    expected_check: "..."
     status: failed
     category: "limiting_case"
     reason: "..."
@@ -3782,6 +3820,21 @@ gaps:                   # Only if status: gaps_found (same schema as Step 10)
     artifacts: [{path: "...", issue: "..."}]
     missing: ["..."]
     severity: blocker
+    suggested_contract_checks: []
+comparison_verdicts:    # Optional but expected when decisive comparisons were required
+  - subject_kind: claim
+    subject_id: "claim-id"
+    reference_id: "ref-id"
+    comparison_kind: benchmark
+    verdict: pass
+    metric: "relative_error"
+    threshold: "<= 0.01"
+suggested_contract_checks:
+  - check: "Add explicit benchmark comparison for decisive observable"
+    reason: "Phase conclusion depends on agreement with prior work but the contract does not name the comparison"
+    suggested_subject_kind: acceptance_test
+    suggested_subject_id: ""
+    evidence_path: "path/to/artifact"
 expert_verification:    # Only if status: human_needed
   - check: "..."
     expected: "..."
@@ -3793,7 +3846,7 @@ expert_verification:    # Only if status: human_needed
 ### Report Body Sections
 
 1. **Header**: Phase goal, timestamp, status, confidence, re-verification flag
-2. **Goal Achievement**: Observable truths table (# | Truth | Status | Confidence | Evidence)
+2. **Contract Coverage**: Contract targets table (ID | Kind | Status | Confidence | Evidence)
 3. **Required Artifacts**: Artifact status table (Artifact | Expected | Status | Details)
 4. **Computational Verification Details** — subsections for each check type performed:
    - Spot-Check Results (Expression | Test Point | Computed | Expected | Match)
@@ -3802,12 +3855,15 @@ expert_verification:    # Only if status: human_needed
    - Intermediate Result Spot-Checks (Step | Intermediate Expression | Independent Result | Match)
    - Dimensional Analysis Trace (Equation | Location | LHS Dims | RHS Dims | Consistent)
 5. **Physics Consistency**: Summary table matching the Consistency Summary from Step 5 (15 checks)
-6. **Discrepancies Found**: Table with severity, location, computation evidence, root cause, suggested fix
-7. **Requirements Coverage**: Table with satisfaction status
-8. **Anti-Patterns Found**: Table with physics impact
-9. **Expert Verification Required**: Detailed items for domain expert
-10. **Confidence Assessment**: Narrative explaining confidence with computation details
-11. **Gaps Summary**: Narrative organized by root cause with computation evidence
+6. **Forbidden Proxy Audit**: Proxy ID | Status | Evidence | Why it matters
+7. **Comparison Verdict Ledger**: Subject ID | Comparison kind | Verdict | Threshold | Notes
+8. **Discrepancies Found**: Table with severity, location, computation evidence, root cause, suggested fix
+9. **Suggested Contract Checks**: Missing decisive checks, why they matter, where evidence should come from
+10. **Requirements Coverage**: Table with satisfaction status
+11. **Anti-Patterns Found**: Table with physics impact
+12. **Expert Verification Required**: Detailed items for domain expert
+13. **Confidence Assessment**: Narrative explaining confidence with computation details
+14. **Gaps Summary**: Narrative organized by root cause with computation evidence
 
 </output>
 
@@ -3831,7 +3887,7 @@ Return message format:
 
 **Return Status:** {completed | checkpoint | blocked | failed}
 **Verification Status:** {passed | gaps_found | human_needed}
-**Score:** {N}/{M} must-haves verified
+**Score:** {N}/{M} contract targets verified
 **Consistency:** {N}/{M} physics checks passed ({K}/{M} independently confirmed)
 **Confidence:** {HIGH | MEDIUM | LOW | UNRELIABLE}
 **Report:** .gpd/phases/{phase_dir}/{phase}-VERIFICATION.md
@@ -4015,9 +4071,9 @@ When operating in static analysis mode, add the following to VERIFICATION.md:
 <success_criteria>
 
 - [ ] Previous VERIFICATION.md checked (Step 0)
-- [ ] If re-verification: must-haves loaded from previous, focus on failed items
-- [ ] If initial: must-haves established (from frontmatter or derived)
-- [ ] All truths verified with status and evidence
+- [ ] If re-verification: contract-backed gaps loaded from previous, focus on failed items
+- [ ] If initial: verification targets established from PLAN `contract` first (`must_haves` only as legacy fallback)
+- [ ] All decisive contract targets verified with status and evidence
 - [ ] All artifacts checked at all three levels (exists, substantive, integrated)
 - [ ] **Numerical spot-checks** performed on key expressions with 2-3 test parameter sets each
 - [ ] **Limiting cases independently re-derived** with EVERY step shown (not just checked if mentioned)
@@ -4033,6 +4089,9 @@ When operating in static analysis mode, add the following to VERIFICATION.md:
 - [ ] **Mathematical consistency** verified by tracing algebra and substituting test values
 - [ ] **Numerical convergence** verified by running at multiple resolutions (or examining stored convergence data)
 - [ ] **Agreement with literature** checked by numerical comparison against benchmark values
+- [ ] Required `comparison_verdicts` recorded for decisive benchmark / prior-work / experiment / cross-method checks
+- [ ] Forbidden proxies explicitly rejected or escalated
+- [ ] Missing decisive checks recorded as `suggested_contract_checks`
 - [ ] **Physical plausibility** assessed by evaluating constraints (positivity, boundedness, causality)
 - [ ] **Statistical rigor** evaluated by recomputing error bars where possible
 - [ ] **Subfield-specific checklist** applied with computational checks (not just grep)

@@ -9,6 +9,7 @@ Template for `.gpd/phases/XX-name/{phase}-CONTEXT.md` - captures research decisi
 **Purpose:** Document decisions that downstream agents need. The researcher-agent uses this to know WHAT to investigate in the literature. The planner-agent uses this to know WHAT calculations are locked vs flexible.
 
 **Key principle:** Categories are NOT predefined. They emerge from what was actually discussed for THIS phase. A formalism phase has formalism-relevant sections, a simulation phase has simulation-relevant sections.
+Also preserve any explicit user requests about observables, deliverables, prior outputs, references, or stop conditions; do not let them disappear into generic method summaries.
 
 **Downstream consumers:**
 
@@ -44,6 +45,18 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 - [False progress to reject]: [Proxy that must not count]
 
 </contract_coverage>
+
+<user_guidance>
+## User Guidance To Preserve
+
+[Keep the user's own load-bearing guidance visible for downstream agents. Preserve recognizable wording when possible.]
+
+- **User-stated observables:** [Specific quantity, figure, curve, or smoking-gun signal]
+- **User-stated deliverables:** [Specific table, plot, derivation, dataset, note, or code output]
+- **Must-have references / prior outputs:** [Paper, notebook, baseline run, figure, or benchmark that must remain visible]
+- **Stop / rethink conditions:** [When to pause, ask again, or re-scope before continuing]
+
+</user_guidance>
 
 <decisions>
 ## Methodological Decisions

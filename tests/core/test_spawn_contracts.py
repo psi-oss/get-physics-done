@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
+TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 RUNTIME_NOTE_FRAGMENT = "Runtime delegation:"
 MODEL_OMISSION_FRAGMENT = (
@@ -115,6 +116,9 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     assert "Write-scope isolation:" in content
     assert "Blocking completion semantics:" in content
     assert "Return-envelope parity:" in content
+    assert "write_scope:" in content
+    assert "expected_artifacts:" in content
+    assert "shared_state_policy:" in content
 
 
 def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap() -> None:
@@ -166,6 +170,28 @@ def test_execute_phase_requires_state_return_envelope_and_handoff_spot_checks() 
     assert "Verify expected output files, the structured return envelope, and git commits" in content
 
 
+def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_updates() -> None:
+    path = WORKFLOWS_DIR / "parameter-sweep.md"
+    executor = _find_single_task(path, "gpd-executor")
+
+    assert "Return state updates in your response -- do NOT write STATE.md directly." in executor.text
+    assert "<spawn_contract>" in executor.text
+    assert "write_scope:" in executor.text
+    assert "expected_artifacts:" in executor.text
+    assert "shared_state_policy: return_only" in executor.text
+    assert "State updates returned (NOT written to STATE.md directly)" in executor.text
+
+
+def test_research_phase_verifies_research_artifact_before_accepting_handoff() -> None:
+    content = _read(WORKFLOWS_DIR / "research-phase.md")
+
+    assert "Accept the researcher handoff automatically once `RESEARCH.md` exists and passes the artifact check." in content
+    assert "Artifact gate:" in content
+    assert "If the researcher reports `## RESEARCH COMPLETE` but no `RESEARCH.md` exists" in content
+    assert "<spawn_contract>" in content
+    assert "shared_state_policy: return_only" in content
+
+
 def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     path = WORKFLOWS_DIR / "new-project.md"
     tasks = _task_blocks_by_agent(path, "gpd-project-researcher")
@@ -207,3 +233,10 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert ".gpd/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
     assert ".gpd/review/REFEREE-DECISION{round_suffix}.json" in referee.text
     assert ".gpd/REFEREE-REPORT{round_suffix}.md" in referee.text
+
+
+def test_debug_subagent_template_continuations_use_explicit_file_reads() -> None:
+    content = _read(TEMPLATES_DIR / "debug-subagent-prompt.md")
+
+    assert "Read the file at .gpd/debug/{slug}.md" in content
+    assert "@.gpd/debug/{slug}.md" not in content

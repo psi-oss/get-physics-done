@@ -401,6 +401,24 @@ def test_state_set_project_contract_rejects_invalid_contract(tmp_path: Path):
     assert saved["project_contract"] is None
 
 
+def test_state_set_project_contract_rejects_contract_missing_skeptical_fields(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["uncertainty_markers"]["weakest_anchors"] = []
+    contract["uncertainty_markers"]["disconfirming_observations"] = []
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is False
+    assert result.reason is not None
+    assert "failed scoping validation" in result.reason
+    assert "weakest_anchors" in result.reason
+    assert "disconfirming_observations" in result.reason
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is None
+
+
 def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():
     """When one top-level key has type errors, other valid keys survive."""
     result = ensure_state_schema({

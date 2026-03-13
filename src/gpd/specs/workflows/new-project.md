@@ -67,10 +67,12 @@ Minimal mode creates the SAME directory structure and file set as the full path 
 Parse the input markdown for:
 
 - **Research question** — Look for headings like "Research Question", "Objective", "Goal", or the first substantive paragraph
+- **Decisive observables and deliverables** — Look for explicit plots, figures, datasets, calculations, derivations, or benchmark outputs the user says matter
 - **List of phases** — Look for numbered lists, headings like "Phases", "Plan", "Steps", or "Milestones"
 - **Key parameters** — Look for mentions of physical parameters, coupling constants, energy scales, system sizes
 - **Theoretical framework** — Infer from terminology (QFT, condensed matter, GR, statistical mechanics, etc.)
 - **Computational tools** — Any mentioned software, libraries, or numerical methods
+- **Must-keep context** — Look for must-read references, benchmark values, prior outputs, figures, notebooks, and any stop/rethink conditions
 
 If the file cannot be parsed (no discernible research question or phases), error:
 
@@ -118,10 +120,14 @@ Build a canonical scoping contract from the extracted input.
 
 - In-scope and out-of-scope boundaries
 - Must-read references, benchmarks, or prior outputs
+- User-stated observables, deliverables, decisive plots, or artifact expectations
+- User-stated stop conditions, rethink triggers, or "come back to me before continuing" guidance
 - Weakest anchor
 - What would look like progress but should not count as success
 - What result would make the current framing look wrong or incomplete
 - Unresolved questions / context gaps
+
+**Preservation rule:** If the user names a specific observable, figure, dataset, derivation, paper, benchmark, notebook, prior run, or stop condition, keep that wording recognizable in the contract. Do not generalize it away into a vague proxy.
 
 If a blocking field is missing, ask exactly one repair prompt that targets only the missing field. Do not silently continue with placeholders.
 
@@ -137,7 +143,15 @@ Then present a concise scoping summary and require explicit approval:
 
 **CRITICAL:** Minimal mode is still allowed to be lean, but it is not allowed to be contract-free.
 
-After approval, persist the approved contract into `.gpd/state.json` using `gpd state set-project-contract` (use a temporary JSON file if needed).
+After approval, validate the contract before persisting it:
+
+```bash
+gpd --raw validate project-contract /tmp/gpd-project-contract.json
+```
+
+If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
+
+After validation passes, persist the approved contract into `.gpd/state.json` using `gpd state set-project-contract` (use a temporary JSON file if needed).
 
 #### M2. Create PROJECT.md
 
@@ -163,6 +177,13 @@ Fill in what was extracted. For sections without enough information, use sensibl
 - [Claim / deliverable]: [What counts as success]
 - [Acceptance signal]: [Benchmark match, proof obligation, figure, dataset, or note]
 - [False progress to reject]: [Proxy that must not count]
+
+### User Guidance To Preserve
+
+- **User-stated observables:** [Specific quantity, curve, figure, or smoking-gun signal]
+- **User-stated deliverables:** [Specific table, plot, derivation, dataset, note, or code output]
+- **Must-have references / prior outputs:** [Paper, notebook, run, figure, or benchmark that must remain visible]
+- **Stop / rethink conditions:** [When to pause, ask again, or re-scope before continuing]
 
 ### Scope Boundaries
 
@@ -627,12 +648,17 @@ Keep following threads. Each answer opens new threads to explore. Ask about:
 - What approximations or limits they are considering
 - What observable or measurable quantities they care about
 - What exact output, artifact, or benchmark would count as success
+- What exact observable, figure, derivation, dataset, or note they would personally look for first
 - What would look like progress but should not count as success
 - What references, benchmark results, datasets, or prior internal outputs must stay visible
+- What prior plots, notebooks, code outputs, or existing artifacts already matter and must not be ignored
+- What should make the system stop, re-scope, or ask them again before a long execution branch
 - Which anchor or assumption feels weakest right now
 - What result would make the current framing look wrong or incomplete
 - What computational resources they have access to
 - Whether this connects to existing experimental data
+
+If the user names a specific observable, deliverable, anchor paper, benchmark, figure, notebook, or prior result, reflect it back using recognizable wording and treat it as binding context unless the user later revises it.
 
 Consult `{GPD_INSTALL_DIR}/references/research/questioning.md` for techniques:
 
@@ -655,8 +681,10 @@ Context to gather:
 - Physical system and regime
 - Theoretical framework (QFT, condensed matter, GR, statistical mechanics, etc.)
 - Key parameters and scales
+- User-stated observables, smoking-gun signals, or decisive plots
 - Decisive outputs, deliverables, or benchmark targets
 - Must-read references, baselines, and prior outputs to carry forward
+- User-stated stop conditions, rethink triggers, or review requests before long execution
 - Known results in the field (what has been done)
 - What is new or open (what has NOT been done)
 - Computational vs analytical approach preference
@@ -696,6 +724,8 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 - `context_intake.user_asserted_anchors`
 - `context_intake.known_good_baselines`
 - `context_intake.context_gaps`
+- `context_intake.crucial_inputs` for user-stated observables, deliverables, stop conditions, or anything the user said must stay visible
+- `observables` for any user-named decisive quantity, signal, or behavior
 - at least one decisive claim, observable, or deliverable
 - any forbidden proxy or false-progress signal that the user called out
 - `uncertainty_markers.weakest_anchors`
@@ -704,6 +734,7 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 - `uncertainty_markers.disconfirming_observations`
 
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
+If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
 
 Present a concise scoping summary and require explicit approval before downstream artifact generation:
 
@@ -714,6 +745,14 @@ Present a concise scoping summary and require explicit approval before downstrea
   - "Adjust scope" -- revise the contract before writing files
   - "Review raw contract" -- show the structured contract
   - "Stop here" -- exit without creating downstream artifacts
+
+Validate the approved contract before persisting it:
+
+```bash
+gpd --raw validate project-contract /tmp/gpd-project-contract.json
+```
+
+If validation fails, show the errors, revise the scoping contract, and do NOT continue.
 
 Persist the approved contract into `.gpd/state.json` via `gpd state set-project-contract` (use a temporary JSON file if needed).
 

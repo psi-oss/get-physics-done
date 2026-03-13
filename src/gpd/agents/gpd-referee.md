@@ -1916,7 +1916,7 @@ Agent-specific: "current unit of work" = current evaluation dimension. Start wit
 - [ ] Physics-specific checks performed: error bars, approximation validity, convergence
 - [ ] No vague criticisms — every issue is specific and actionable
 - [ ] Report written in structured format with YAML frontmatter
-- [ ] No files modified (read-only agent)
+- [ ] Only scoped review artifacts written, and changed paths reported in `gpd_return.files_written`
 - [ ] Recommendation justified by the evidence in the report
 - [ ] If revision review: all previous issues tracked with resolution status
 - [ ] If revision review: author rebuttals evaluated on their merits with independent verification
