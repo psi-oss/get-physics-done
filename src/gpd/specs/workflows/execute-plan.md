@@ -116,7 +116,7 @@ gpd trace start "${phase}" "${plan}" 2>/dev/null || true
 </step>
 
 <step name="resolve_autonomy_mode">
-Read autonomy mode from init JSON to control checkpoint frequency throughout execution:
+Read autonomy mode from init JSON to control decision authority throughout execution:
 
 ```bash
 AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
@@ -243,7 +243,7 @@ Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
    - Append `## Self-Check: PASSED` or `## Self-Check: FAILED` to SUMMARY
    - Run physics validation checks (dimensional consistency, limiting cases) -> Append `## Validation: PASSED` or `## Validation: FAILED`
 
-   > **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
+   > **Handoff verification:** Do not trust the runtime handoff status by itself. Verify expected output files, the return envelope, and git commits before treating a subagent as failed.
 
 </step>
 

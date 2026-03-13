@@ -546,6 +546,44 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
     return content
 
 
+def compile_markdown_for_runtime(
+    content: str,
+    *,
+    runtime: str,
+    path_prefix: str,
+    install_scope: str | None = None,
+    src_root: str | Path | None = None,
+    protect_agent_prompt_body: bool = False,
+) -> str:
+    """Compile canonical markdown into a runtime-specific installed form.
+
+    This helper centralizes the shared install pipeline steps that were
+    previously duplicated across adapters:
+
+    - runtime/path placeholder replacement
+    - capability-driven ``@`` include expansion
+    - optional agent-prompt dollar-template protection
+
+    Runtime-owned container conversions such as TOML command wrapping,
+    SKILL frontmatter, or flat-command rendering stay in the adapter.
+    """
+    if src_root is not None and not get_runtime_descriptor(runtime).native_include_support:
+        content = expand_at_includes(
+            content,
+            src_root,
+            path_prefix,
+            runtime=runtime,
+            install_scope=install_scope,
+        )
+
+    content = replace_placeholders(content, path_prefix, runtime, install_scope)
+
+    if protect_agent_prompt_body:
+        content = protect_runtime_agent_prompt(content, runtime)
+
+    return content
+
+
 def expand_at_includes(
     content: str,
     src_root: str | Path,

@@ -24,14 +24,13 @@ from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
+    compile_markdown_for_runtime,
     compute_path_prefix,
     convert_tool_references_in_body,
-    expand_at_includes,
     file_hash,
     generate_manifest,
     get_global_dir,
     parse_jsonc,
-    protect_runtime_agent_prompt,
     remove_stale_agents,
     render_markdown_frontmatter,
     replace_placeholders,
@@ -257,16 +256,13 @@ def copy_flattened_commands(
             dest_name = f"{prefix}-{base_name}.md"
             dest_path = dest_dir / dest_name
 
-            content = entry.read_text(encoding="utf-8")
-            if gpd_src_root:
-                content = expand_at_includes(
-                    content,
-                    str(gpd_src_root),
-                    path_prefix,
-                    runtime="opencode",
-                    install_scope=install_scope,
-                )
-            content = replace_placeholders(content, path_prefix, "opencode", install_scope)
+            content = compile_markdown_for_runtime(
+                entry.read_text(encoding="utf-8"),
+                runtime="opencode",
+                path_prefix=path_prefix,
+                install_scope=install_scope,
+                src_root=gpd_src_root,
+            )
             content = convert_claude_to_opencode_frontmatter(content, path_prefix)
 
             dest_path.write_text(content, encoding="utf-8")
@@ -303,16 +299,14 @@ def copy_agents_as_agent_files(
         if not entry.is_file() or not entry.name.endswith(".md"):
             continue
 
-        content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "opencode", install_scope)
-        content = expand_at_includes(
-            content,
-            str(agents_dest.parent / "get-physics-done"),
-            path_prefix,
+        content = compile_markdown_for_runtime(
+            entry.read_text(encoding="utf-8"),
             runtime="opencode",
+            path_prefix=path_prefix,
             install_scope=install_scope,
+            src_root=agents_dest.parent / "get-physics-done",
+            protect_agent_prompt_body=True,
         )
-        content = protect_runtime_agent_prompt(content, "opencode")
         content = convert_claude_to_opencode_frontmatter(content, path_prefix)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
@@ -740,21 +734,8 @@ class OpenCodeAdapter(RuntimeAdapter):
         )
 
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
-        specs_dir = gpd_root / "specs"
+        super()._install_content(gpd_root, target_dir, path_prefix, failures)
         skill_dest = target_dir / "get-physics-done"
-        skill_dest.mkdir(parents=True, exist_ok=True)
-        for subdir_name in ("references", "templates", "workflows"):
-            src_subdir = specs_dir / subdir_name
-            if src_subdir.is_dir():
-                try:
-                    copy_with_path_replacement(
-                        src_subdir,
-                        skill_dest / subdir_name,
-                        path_prefix,
-                        self._current_install_scope_flag(),
-                    )
-                except Exception as exc:
-                    failures.append(f"get-physics-done/{subdir_name}: {exc}")
         self._gpd_files_count = sum(1 for _ in skill_dest.rglob("*") if _.is_file())
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:

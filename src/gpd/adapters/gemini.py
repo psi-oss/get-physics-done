@@ -21,15 +21,14 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     _is_hook_command_for_script,
     build_hook_command,
+    compile_markdown_for_runtime,
     convert_tool_references_in_body,
     ensure_update_hook,
-    expand_at_includes,
     process_attribution,
     protect_runtime_agent_prompt,
     read_settings,
     remove_stale_agents,
     render_markdown_frontmatter,
-    replace_placeholders,
     split_markdown_frontmatter,
     strip_sub_tags,
     verify_installed,
@@ -237,14 +236,14 @@ def _copy_agents_gemini(
 
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
-        content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "gemini", install_scope)
+        content = compile_markdown_for_runtime(
+            agent_md.read_text(encoding="utf-8"),
+            runtime="gemini",
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=gpd_src_root,
+        )
         content = process_attribution(content, attribution)
-
-        # Expand @ includes — Gemini doesn't support native @ file inclusion
-        if gpd_src_root:
-            content = expand_at_includes(content, str(gpd_src_root), path_prefix, runtime="gemini", install_scope=install_scope)
-
         content = protect_runtime_agent_prompt(content, "gemini")
         content = _convert_frontmatter_to_gemini(content)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
@@ -298,15 +297,13 @@ def _copy_commands_recursive(
             sub_dest.mkdir(parents=True, exist_ok=True)
             _copy_commands_recursive(entry, sub_dest, path_prefix, attribution, gpd_src_root, install_scope)
         elif entry.suffix == ".md":
-            content = entry.read_text(encoding="utf-8")
-            content = expand_at_includes(
-                content,
-                str(gpd_src_root),
-                path_prefix,
+            content = compile_markdown_for_runtime(
+                entry.read_text(encoding="utf-8"),
                 runtime="gemini",
+                path_prefix=path_prefix,
                 install_scope=install_scope,
+                src_root=gpd_src_root,
             )
-            content = replace_placeholders(content, path_prefix, "gemini", install_scope)
             content = process_attribution(content, attribution)
             content = strip_sub_tags(content)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)

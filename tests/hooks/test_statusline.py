@@ -692,6 +692,63 @@ class TestMain:
         output = self._run_main({"context_window": {"remaining_percentage": 100}})
         assert "0%" in output
 
+    def test_main_resolves_workspace_before_runtime_specific_payload_selection(self, tmp_path: Path) -> None:
+        process_cwd = tmp_path / "process-cwd"
+        process_cwd.mkdir()
+        (process_cwd / ".codex").mkdir(parents=True)
+        (process_cwd / ".codex" / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / ".claude").mkdir(parents=True)
+        (workspace / ".claude" / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
+
+        home = tmp_path / "home"
+        home.mkdir()
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"workspace": str(workspace)}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=process_cwd),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        assert "[workspace]" in captured.getvalue()
+
+    def test_main_prefers_live_execution_task_over_todo_fallback(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"workspace": "/tmp/project"}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Todo task"),
+            patch(
+                "gpd.hooks.statusline._read_execution_state",
+                return_value={
+                    "segment_status": "waiting_review",
+                    "current_task": "Live execution task",
+                },
+            ),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue()
+        assert "Live execution task" in output
+        assert "Todo task" not in output
+
     def test_no_context_window_field(self) -> None:
         """Missing context_window → no bar in output."""
         output = self._run_main({"model": {"display_name": "Test"}})

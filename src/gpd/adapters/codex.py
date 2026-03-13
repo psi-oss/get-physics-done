@@ -25,16 +25,14 @@ from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
+    compile_markdown_for_runtime,
     convert_tool_references_in_body,
-    expand_at_includes,
     expand_tilde,
     get_global_dir,
     hook_python_interpreter,
     pre_install_cleanup,
-    protect_runtime_agent_prompt,
     remove_stale_agents,
     render_markdown_frontmatter,
-    replace_placeholders,
     split_markdown_frontmatter,
     verify_installed,
     write_manifest,
@@ -584,16 +582,13 @@ def _copy_commands_as_skills(
             skill_dir = skills_dir / skill_name
             skill_dir.mkdir(parents=True, exist_ok=True)
 
-            content = entry.read_text(encoding="utf-8")
-            if gpd_src_root:
-                content = expand_at_includes(
-                    content,
-                    str(gpd_src_root),
-                    path_prefix,
-                    runtime="codex",
-                    install_scope=install_scope,
-                )
-            content = replace_placeholders(content, path_prefix, "codex", install_scope)
+            content = compile_markdown_for_runtime(
+                entry.read_text(encoding="utf-8"),
+                runtime="codex",
+                path_prefix=path_prefix,
+                install_scope=install_scope,
+                src_root=gpd_src_root,
+            )
             content = _convert_to_codex_skill(content, skill_name)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -628,20 +623,14 @@ def _copy_agents_as_skills(
             shutil.rmtree(skill_dir)
         skill_dir.mkdir(parents=True, exist_ok=True)
 
-        content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "codex", install_scope)
-
-        # Expand @ includes (Codex doesn't support @ file inclusion)
-        if gpd_content_dir:
-            content = expand_at_includes(
-                content,
-                str(gpd_content_dir),
-                path_prefix,
-                runtime="codex",
-                install_scope=install_scope,
-            )
-
-        content = protect_runtime_agent_prompt(content, "codex")
+        content = compile_markdown_for_runtime(
+            entry.read_text(encoding="utf-8"),
+            runtime="codex",
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=gpd_content_dir,
+            protect_agent_prompt_body=True,
+        )
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
@@ -669,20 +658,14 @@ def _copy_agents_as_agent_files(
         if not entry.is_file() or entry.suffix != ".md":
             continue
 
-        content = entry.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, "codex", install_scope)
-
-        # Expand @ includes for Codex
-        if gpd_content_dir:
-            content = expand_at_includes(
-                content,
-                str(gpd_content_dir),
-                path_prefix,
-                runtime="codex",
-                install_scope=install_scope,
-            )
-
-        content = protect_runtime_agent_prompt(content, "codex")
+        content = compile_markdown_for_runtime(
+            entry.read_text(encoding="utf-8"),
+            runtime="codex",
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=gpd_content_dir,
+            protect_agent_prompt_body=True,
+        )
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")

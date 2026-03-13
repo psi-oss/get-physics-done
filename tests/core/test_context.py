@@ -529,6 +529,27 @@ class TestInitResume:
         assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
         assert ctx["segment_candidates"][0]["source"] == "current_execution"
 
+    def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-4",
+                "segment_status": "active",
+                "current_task": "Running bounded segment",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["resume_mode"] is None
+        assert ctx["segment_candidates"] == []
+        assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
+
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 

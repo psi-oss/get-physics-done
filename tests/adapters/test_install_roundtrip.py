@@ -8,14 +8,101 @@ installed content) to catch serialization/deserialization mismatches.
 from __future__ import annotations
 
 import json
+import re
+import tomllib
 from pathlib import Path
 
 import pytest
 
+from gpd.adapters import iter_adapters
 from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.codex import CodexAdapter
 from gpd.adapters.gemini import GeminiAdapter
+from gpd.adapters.install_utils import (
+    convert_tool_references_in_body,
+    expand_at_includes,
+    translate_frontmatter_tool_names,
+)
 from gpd.adapters.opencode import OpenCodeAdapter
+from gpd.adapters.tool_names import build_canonical_alias_map
+
+REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
+RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
+
+
+def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
+    if runtime == "claude-code":
+        target = tmp_path / ".claude"
+        target.mkdir()
+        ClaudeCodeAdapter().install(REPO_GPD_ROOT, target)
+        return target
+
+    if runtime == "codex":
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        CodexAdapter().install(REPO_GPD_ROOT, target, skills_dir=skills)
+        return target
+
+    if runtime == "gemini":
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter = GeminiAdapter()
+        result = adapter.install(REPO_GPD_ROOT, target)
+        adapter.finalize_install(result)
+        return target
+
+    if runtime == "opencode":
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        OpenCodeAdapter().install(REPO_GPD_ROOT, target)
+        return target
+
+    raise AssertionError(f"Unsupported runtime {runtime}")
+
+
+def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
+    content = re.sub(
+        r"@(?:\./)?[^\s`>)]*get-physics-done/([^\s`>)]+)",
+        r"@{GPD_INSTALL_DIR}/\1",
+        content,
+    )
+    content = re.sub(
+        r"@(?:\./)?[^\s`>)]*agents/([^\s`>)]+)",
+        r"@{GPD_AGENTS_DIR}/\1",
+        content,
+    )
+    content = expand_at_includes(
+        content,
+        REPO_GPD_ROOT / "specs",
+        "/normalized/",
+        runtime=runtime,
+    )
+    content = translate_frontmatter_tool_names(content, lambda name: RUNTIME_ALIAS_MAP.get(name, name))
+    content = convert_tool_references_in_body(content, RUNTIME_ALIAS_MAP)
+    content = content.replace("$gpd-", "/gpd:")
+    content = content.replace("/gpd-", "/gpd:")
+    return content
+
+
+def _read_compare_experiment_command(tmp_path: Path, target: Path, runtime: str) -> str:
+    if runtime == "claude-code":
+        return (target / "commands" / "gpd" / "compare-experiment.md").read_text(encoding="utf-8")
+
+    if runtime == "codex":
+        return (tmp_path / "skills" / "gpd-compare-experiment" / "SKILL.md").read_text(encoding="utf-8")
+
+    if runtime == "gemini":
+        parsed = tomllib.loads((target / "commands" / "gpd" / "compare-experiment.toml").read_text(encoding="utf-8"))
+        prompt = parsed.get("prompt")
+        assert isinstance(prompt, str)
+        return prompt
+
+    if runtime == "opencode":
+        return (target / "command" / "gpd-compare-experiment.md").read_text(encoding="utf-8")
+
+    raise AssertionError(f"Unsupported runtime {runtime}")
 
 # ---------------------------------------------------------------------------
 # Claude Code: install → read back → compare
@@ -589,3 +676,37 @@ class TestSerializationRoundtrip:
         oc_target.mkdir(parents=True)
         OpenCodeAdapter().install(gpd_root, oc_target)
         assert (oc_target / "command" / "gpd-sub-deep.md").exists()
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_command_include_semantics_are_equivalent_across_runtimes(tmp_path: Path, runtime: str) -> None:
+    target = _install_real_repo_for_runtime(tmp_path, runtime)
+    content = _read_compare_experiment_command(tmp_path, target, runtime)
+    normalized = _canonicalize_runtime_markdown(content, runtime=runtime)
+    lowered = normalized.lower()
+
+    assert "Systematically compare theoretical predictions with experimental or observational data." in normalized
+    assert "unit mismatches and convention mismatches are the two most common sources of discrepancy" in lowered
+    assert "what decisive output or contract target was predicted" in lowered
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_shared_prompt_semantics_are_equivalent_across_runtimes(tmp_path: Path, runtime: str) -> None:
+    target = _install_real_repo_for_runtime(tmp_path, runtime)
+    delegation = _canonicalize_runtime_markdown(
+        (target / "get-physics-done" / "references" / "orchestration" / "agent-delegation.md").read_text(
+            encoding="utf-8"
+        ),
+        runtime=runtime,
+    )
+    execute_plan = _canonicalize_runtime_markdown(
+        (target / "get-physics-done" / "workflows" / "execute-plan.md").read_text(encoding="utf-8"),
+        runtime=runtime,
+    )
+
+    assert "gpd resolve-model" in delegation
+    assert "Fresh context" in delegation
+    assert "Assign an explicit write scope" in delegation
+    assert "review_cadence" in execute_plan
+    assert "Required first-result sanity gate" in execute_plan
+    assert "Contract-backed plans" in execute_plan

@@ -159,7 +159,7 @@ After executor returns:
 2. Extract commit hash from executor output
 3. Report completion status
 
-> **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
+> **Handoff verification:** Do not trust the runtime handoff status by itself. Verify expected output files and git commits before treating a subagent as failed.
 
 If summary not found, error: "Executor failed to create ${next_num}-SUMMARY.md"
 

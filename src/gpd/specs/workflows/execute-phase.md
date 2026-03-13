@@ -570,40 +570,13 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    Before spawning the next wave, run lightweight verification on the just-completed wave's outputs. This catches errors cheaply before they propagate to downstream waves.
 
-   **Determine if gate is enabled:**
+   **Determine if gate is enabled from init/context fields only:**
 
-   ```bash
-   # Read verify_between_waves from config (default: "auto")
-   # Uses nullish check so explicit false is respected
-   VERIFY_BETWEEN=$(python3 -c "
-   import json, pathlib
-   try:
-       c = json.loads(pathlib.Path('.gpd/config.json').read_text())
-       v = (c.get('workflow') or {}).get('verify_between_waves')
-       print('auto' if v is None else str(v).lower())
-   except Exception:
-       print('auto')
-   ")
+   - if `review_cadence == dense`: enable inter-wave verification
+   - if `review_cadence == adaptive`: enable it when the completed wave established a first result, a new baseline/estimator, or a contract-critical artifact
+   - if `review_cadence == sparse`: skip the routine gate unless the just-completed wave triggered a failed sanity check, anchor gap, or pre-fanout dependency warning
 
-   # Resolve "auto" based on model profile
-   if [ "$VERIFY_BETWEEN" = "auto" ]; then
-     PROFILE=$(python3 -c "
-   import json, pathlib
-   try:
-       c = json.loads(pathlib.Path('.gpd/config.json').read_text())
-       print(c.get('model_profile', 'review'))
-   except Exception:
-       print('review')
-   ")
-     # auto defaults: enabled for deep-theory and review, disabled for others
-     case "$PROFILE" in
-       deep-theory|review) VERIFY_BETWEEN="true" ;;
-       *) VERIFY_BETWEEN="false" ;;
-     esac
-   fi
-   ```
-
-   **If enabled (`VERIFY_BETWEEN` is `"true"`):**
+   **If enabled:**
 
    First, collect the SUMMARY.md files produced by the just-completed wave:
 
@@ -853,7 +826,7 @@ for DEP in $(echo "$PLAN_DEPS" | tr ',' ' '); do
 done
 ```
 
-> **Runtime caveat:** Some runtimes may misreport a completed subagent as failed (`classifyHandoffIfNeeded`). Spot-check expected output files and git commits before treating the result as a real failure.
+> **Handoff verification:** Do not trust the runtime handoff status by itself. Verify expected output files, the structured return envelope, and git commits before treating a subagent as failed.
 </step>
 
 <step name="checkpoint_handling">
@@ -1540,7 +1513,7 @@ Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task bloc
 
 <failure_handling>
 
-- **classifyHandoffIfNeeded false failure:** Spot-check (SUMMARY exists, commits present) -> if pass, treat as success
+- **False failure report despite delivered work:** Spot-check (SUMMARY exists, commits present, expected artifacts exist) -> if pass, treat as success
 - **Agent fails mid-plan:** Missing SUMMARY.md -> report, route to wave_failure_handling for user decision
 - **Dependency chain breaks:** Wave N plan fails -> identify Wave N+1 dependents via `depends_on` frontmatter -> auto-skip with clear message -> user chooses at wave level
 - **All agents in wave fail:** Systemic issue -> stop, report for investigation, offer wave-level rollback

@@ -10,13 +10,12 @@ from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     _is_hook_command_for_script,
     build_hook_command,
+    compile_markdown_for_runtime,
     copy_with_path_replacement,
     ensure_update_hook,
     parse_jsonc,
-    protect_runtime_agent_prompt,
     read_settings,
     remove_stale_agents,
-    replace_placeholders,
     verify_installed,
     write_settings,
 )
@@ -312,9 +311,13 @@ def _copy_agents_native(
 
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
-        content = agent_md.read_text(encoding="utf-8")
-        content = replace_placeholders(content, path_prefix, runtime, install_scope=install_scope)
-        content = protect_runtime_agent_prompt(content, runtime)
+        content = compile_markdown_for_runtime(
+            agent_md.read_text(encoding="utf-8"),
+            runtime=runtime,
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            protect_agent_prompt_body=True,
+        )
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 

@@ -103,18 +103,13 @@ class RuntimeAdapter(abc.ABC):
 
     def translate_tool_name(self, name: str) -> str:
         """Translate a canonical or runtime-native tool name to this runtime."""
-        return translate_for_runtime(
-            name,
-            self.tool_name_map,
-            alias_map=self.tool_alias_map,
-        ) or ""
+        return translate_for_runtime(name, self.tool_name_map) or ""
 
     def translate_frontmatter_tool_name(self, name: str) -> str | None:
         """Translate a frontmatter tool token for this runtime."""
         return translate_for_runtime(
             name,
             self.tool_name_map,
-            alias_map=self.tool_alias_map,
             auto_discovered_tools=self.auto_discovered_tools,
             drop_mcp_frontmatter_tools=self.drop_mcp_frontmatter_tools,
         )
@@ -123,7 +118,6 @@ class RuntimeAdapter(abc.ABC):
         """Canonical prompt tool references rewritten for this runtime."""
         return reference_translation_map(
             self.tool_name_map,
-            alias_map=self.tool_alias_map,
             auto_discovered_tools=self.auto_discovered_tools,
             drop_mcp_frontmatter_tools=self.drop_mcp_frontmatter_tools,
         )

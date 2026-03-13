@@ -71,10 +71,10 @@ def _first_value(value: object, *keys: str) -> object | None:
 def _hook_payload_policy(workspace_dir: str | None = None):
     """Return hook payload metadata for the active runtime or a merged fallback."""
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime_with_gpd_install
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    runtime = detect_active_runtime(cwd=workspace_path)
+    runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
     return get_hook_payload_policy(None if runtime == RUNTIME_UNKNOWN else runtime)
 
 
@@ -234,7 +234,9 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
 
 def _workspace_from_payload(data: dict[str, object]) -> str:
     """Extract the workspace directory from a runtime hook payload."""
-    hook_payload = _hook_payload_policy()
+    from gpd.adapters.runtime_catalog import get_hook_payload_policy
+
+    hook_payload = get_hook_payload_policy()
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
@@ -433,9 +435,9 @@ def main() -> None:
 
         ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
         position = _read_position(workspace_dir)
-        task = _read_current_task(session_id, workspace_dir)
         execution_badge = _execution_badge(execution)
-        execution_task = _first_string(execution, "current_task") if execution_badge.startswith("EXEC") else ""
+        execution_task = _first_string(execution, "current_task")
+        task = execution_task or _read_current_task(session_id, workspace_dir)
         if execution_task:
             task = execution_task
         elif execution_badge:

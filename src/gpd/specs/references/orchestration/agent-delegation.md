@@ -41,6 +41,18 @@ task(
 7. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
 8. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
 
+## Delegation Contract
+
+Every runtime-specific delegation surface must preserve these workflow semantics, even when the spawn mechanism differs:
+
+1. **Fresh context:** The subagent starts without hidden access to the orchestrator's conversation.
+2. **Model semantics:** The `model` parameter is omitted when `gpd resolve-model` returns empty.
+3. **Write-scope isolation:** Parallel subagents get disjoint writable targets.
+4. **Blocking completion semantics:** The orchestrator treats the handoff as incomplete until artifacts or structured return data are present.
+5. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
+
+If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
+
 ## Platform Note Template
 
 Add this before any task() call in a workflow:

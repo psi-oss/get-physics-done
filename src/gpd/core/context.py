@@ -835,7 +835,7 @@ def init_resume(cwd: Path) -> dict:
 
     segment_candidates: list[dict[str, object]] = []
     current_execution = execution_context.get("current_execution")
-    if isinstance(current_execution, dict):
+    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
         segment_candidates.append(
             {
                 "source": "current_execution",

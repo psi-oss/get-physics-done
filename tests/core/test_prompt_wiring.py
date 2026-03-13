@@ -753,6 +753,32 @@ def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_v
     assert "preferred way to decide which specialized files to load" in executor_guide
 
 
+def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_handoff_rules() -> None:
+    model_resolution = (
+        REFERENCES_DIR / "orchestration" / "model-profile-resolution.md"
+    ).read_text(encoding="utf-8")
+    agent_delegation = (REFERENCES_DIR / "orchestration" / "agent-delegation.md").read_text(encoding="utf-8")
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    quick = (WORKFLOWS_DIR / "quick.md").read_text(encoding="utf-8")
+
+    assert "Do not scrape `.gpd/config.json` directly in workflows." in model_resolution
+    assert "gpd resolve-tier" in model_resolution
+    assert "gpd resolve-model" in model_resolution
+    assert "Delegation Contract" in agent_delegation
+    assert "Return-envelope parity" in agent_delegation
+    assert "control decision authority throughout execution" in execute_plan
+    assert "Handoff verification" in execute_plan
+    assert "Handoff verification" in execute_phase
+    assert "False failure report despite delivered work" in execute_phase
+    assert "Handoff verification" in quick
+    assert "classifyHandoffIfNeeded" not in execute_phase
+    assert "classifyHandoffIfNeeded" not in execute_plan
+    assert "classifyHandoffIfNeeded" not in quick
+    assert "cat .gpd/config.json" not in model_resolution
+    assert "print(c.get('model_profile', 'review'))" not in execute_phase
+
+
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
     assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
     assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))
