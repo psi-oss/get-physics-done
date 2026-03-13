@@ -447,6 +447,27 @@ def state_patch(
     _output(state_patch(_get_cwd(), patch_dict))
 
 
+@state_app.command("set-project-contract")
+def state_set_project_contract_cmd(
+    source: str = typer.Argument(..., help="Path to a JSON file containing the project contract, or '-' for stdin"),
+) -> None:
+    """Persist the canonical project contract into state.json."""
+    from gpd.core.state import state_set_project_contract
+
+    try:
+        if source == "-":
+            raw = sys.stdin.read()
+        else:
+            raw = Path(source).read_text(encoding="utf-8")
+        contract_data = json.loads(raw)
+    except FileNotFoundError:
+        _error(f"Contract file not found: {source}")
+    except json.JSONDecodeError as exc:
+        _error(f"Invalid JSON project contract: {exc}")
+
+    _output(state_set_project_contract(_get_cwd(), contract_data))
+
+
 @state_app.command("update")
 def state_update(
     field: str = typer.Argument(..., help="Field name to update"),

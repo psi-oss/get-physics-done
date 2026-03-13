@@ -16,13 +16,13 @@ allowed-tools:
 
 <context>
 **Flags:**
-- `--auto` — Automatic mode. After config questions, runs research → requirements → roadmap without further interaction. Expects research proposal document via @ reference.
-- `--minimal` — Skip deep questioning, literature survey, requirements elaboration, and roadmapper agent. Creates all `.gpd/` artifacts from a single description or input file with sensible defaults. Use for fast bootstrapping when you know your research plan.
+- `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.
+- `--minimal` — Fast bootstrapping mode. Uses one structured intake plus one scoping approval gate, then creates all `.gpd/` artifacts with lean content. Scope, anchors, and decisive outputs are still required.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phases, and key parameters from the file.
 </context>
 
 <objective>
-Initialize a new physics research project through unified flow: questioning → literature survey (optional) → requirements → roadmap.
+Initialize a new physics research project through unified flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → roadmap.
 
 **Creates:**
 
@@ -32,6 +32,7 @@ Initialize a new physics research project through unified flow: questioning → 
 - `.gpd/REQUIREMENTS.md` — scoped research requirements
 - `.gpd/ROADMAP.md` — phase structure
 - `.gpd/STATE.md` — project memory
+- `.gpd/state.json` `project_contract` — authoritative machine-readable scoping contract
 
 **After this command:** Run `/gpd:plan-phase 1` to start execution.
 </objective>
@@ -42,6 +43,7 @@ Initialize a new physics research project through unified flow: questioning → 
 @{GPD_INSTALL_DIR}/references/ui/ui-brand.md
 @{GPD_INSTALL_DIR}/templates/project.md
 @{GPD_INSTALL_DIR}/templates/requirements.md
+@{GPD_INSTALL_DIR}/templates/state-json-schema.md
 </execution_context>
 
 <process>
@@ -59,13 +61,13 @@ Execute the workflow end-to-end. Preserve all workflow gates (validation, approv
 
 Check `$ARGUMENTS` for flags:
 
-- **`--auto`** → Auto mode (skip questioning, synthesize from provided document)
-- **`--minimal`** → Minimal mode (fast bootstrapping path)
+- **`--auto`** → Auto mode (structured document synthesis + scope approval)
+- **`--minimal`** → Minimal mode (fast bootstrapping path with scope approval)
 - **`--minimal @file.md`** → Minimal mode with input file
 
-**If `--minimal` detected:** After Setup, route to the **minimal initialization path** in the workflow. This skips deep questioning and research, replacing them with a streamlined flow that creates the same file set with less content.
+**If `--minimal` detected:** After Setup, route to the **minimal initialization path** in the workflow. This compresses questioning and research, but still requires a scoping contract with decisive outputs, anchors, and explicit approval before downstream artifacts.
 
-**If `--auto` detected:** After Setup, skip questioning. Extract context from provided document. Config questions still required. Then run research → requirements → roadmap automatically with smart defaults.
+**If `--auto` detected:** After Setup, synthesize context from the provided document, repair only blocking gaps, present the scoping contract for approval, then run research → requirements → roadmap automatically with smart defaults.
 </process>
 
 <output>
@@ -90,6 +92,8 @@ Check `$ARGUMENTS` for flags:
 **Full mode success criteria:**
 - [ ] .gpd/ directory created and git repo initialized
 - [ ] Deep questioning completed (research context fully captured)
+- [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
+- [ ] Scoping contract explicitly approved before requirements or roadmap generation
 - [ ] PROJECT.md created with full context -- committed
 - [ ] config.json created with workflow settings -- committed
 - [ ] Literature survey completed (if selected) -- committed
@@ -104,6 +108,8 @@ Check `$ARGUMENTS` for flags:
 
 - [ ] .gpd/ directory created
 - [ ] Git repo initialized
+- [ ] Structured intake captured core question, decisive outputs, anchors, and known gaps
+- [ ] Scoping contract approved before requirements or roadmap generation
 - [ ] PROJECT.md created from single description or input file → **committed**
 - [ ] ROADMAP.md created with phases derived from input → **committed**
 - [ ] REQUIREMENTS.md created with auto-generated REQ-IDs → **committed**

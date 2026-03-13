@@ -1,5 +1,5 @@
 <purpose>
-Surface the AI's assumptions about a phase before planning, enabling users to correct misconceptions early. Covers physical, mathematical, and computational assumptions with justification requirements.
+Surface the AI's assumptions about a phase before planning, enabling users to correct misconceptions early. Covers physical, mathematical, computational, anchor, and skeptical assumptions with justification requirements.
 
 Key difference from discuss-phase: This is ANALYSIS of what the AI thinks, not INTAKE of what user knows. No file output - purely conversational to prompt discussion.
 </purpose>
@@ -50,7 +50,7 @@ Continue to analyze_phase.
 </step>
 
 <step name="analyze_phase">
-Based on roadmap description and project context, identify assumptions across seven areas:
+Based on roadmap description and project context, identify assumptions across eight areas:
 
 **1. Physical Assumptions:**
 What physical regime, symmetries, and conservation laws does the AI assume apply?
@@ -91,7 +91,14 @@ What's included vs excluded in the assistant's interpretation?
 - "This phase does NOT include: D, E, F"
 - "Boundary ambiguities: G could go either way"
 
-**6. Expected Results:**
+**6. Anchor Inputs:**
+What trusted references, prior outputs, baselines, or benchmarks does the AI assume constrain the phase?
+
+- "I assume [paper/result/baseline] is the anchor because..."
+- "I assume [prior internal output] must be carried forward because..."
+- "Anchor uncertainty: [what reference or baseline is weakest or least explicit]..."
+
+**7. Expected Results:**
 What does the assistant expect the answer to look like?
 
 - "I expect [quantity] to scale as [expression] because..."
@@ -99,13 +106,19 @@ What does the assistant expect the answer to look like?
 - "Order of magnitude estimate: [value] based on [reasoning]..."
 - "The result should satisfy [constraint/sum rule/Ward identity]..."
 
-**7. Dependencies and Prerequisites:**
+**8. Dependencies and Prerequisites:**
 What does the assistant assume exists or needs to be in place?
 
 - "This assumes [result/data] from previous phases"
 - "External dependencies: [packages, data sets, known results]"
 - "This will feed into [downstream phases]"
 - "Required input: [specific quantities with expected formats]"
+
+Also name:
+
+- the **weakest anchor or assumption**
+- the **earliest disconfirming check**
+- the **kind of false progress** that would look encouraging but should not count as success
 
 Be honest about uncertainty. Mark assumptions with confidence levels:
 
@@ -142,11 +155,20 @@ For each: state why this method suits the problem and what its limitations are
 **Out of scope:** [what's excluded]
 **Ambiguous:** [what could go either way]
 
+### Anchor Inputs
+[List assumed references, baselines, prior outputs, and benchmark anchors]
+For each: state why it matters and how confident you are that it should constrain the phase
+
 ### Expected Results
 **Scaling:** [expected functional forms]
 **Limiting cases:** [what known results must be recovered]
 **Order of magnitude:** [rough estimates with reasoning]
 **Consistency checks:** [sum rules, Ward identities, conservation laws to verify]
+
+### Skeptical Review
+**Weakest anchor / assumption:** [what feels least grounded]
+**Fast falsifier:** [what would most quickly prove the framing wrong]
+**False progress:** [what might look promising but would not count as success]
 
 ### Dependencies
 **From prior phases:** [what's needed]
@@ -162,6 +184,9 @@ Probe these assumptions critically:
 - Are the approximation regimes appropriate for your parameter values?
 - Do the expected results match your intuition?
 - Am I missing any important limiting cases?
+- Which anchor or prior output feels weakest?
+- What should we check early so a wrong framing does not survive too long?
+- What result would look like progress here but should not count as success?
 ```
 
 Wait for user response.

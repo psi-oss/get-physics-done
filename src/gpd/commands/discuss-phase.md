@@ -16,14 +16,14 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Extract research decisions that downstream agents need -- researcher and planner will use CONTEXT.md to know what to investigate and what choices are locked.
+Extract research decisions that downstream agents need -- researcher and planner will use CONTEXT.md to know what to investigate, which anchors and prior outputs must stay visible, and what choices are locked.
 
 **How it works:**
 
 1. Analyze the phase to identify gray areas (physics assumptions, method choices, scope boundaries, etc.)
 2. Present gray areas -- user selects which to discuss
 3. Deep-dive each selected area until satisfied
-4. Create CONTEXT.md with decisions that guide research and planning
+4. Create CONTEXT.md with decisions, carry-forward inputs, and skeptical review items that guide research and planning
 
 **Output:** `{phase}-CONTEXT.md` -- decisions clear enough that downstream agents can act without asking the user again
 </objective>

@@ -23,6 +23,7 @@ from gpd.core.state import (
     state_load,
     state_record_session,
     state_replace_field,
+    state_set_project_contract,
     state_validate,
     validate_state_transition,
 )
@@ -348,6 +349,9 @@ def test_ensure_state_schema_valid_project_contract():
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     result = ensure_state_schema({"project_contract": contract})
     assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+    assert result["project_contract"]["uncertainty_markers"]["disconfirming_observations"] == [
+        "Benchmark agreement disappears once normalization is fixed"
+    ]
 
 
 def test_ensure_state_schema_invalid_project_contract_resets_to_none():
@@ -361,6 +365,40 @@ def test_ensure_state_schema_invalid_project_contract_resets_to_none():
         }
     )
     assert result["project_contract"] is None
+
+
+def test_state_set_project_contract_persists_contract_and_unresolved_questions(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is True
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+    assert saved["project_contract"]["uncertainty_markers"]["weakest_anchors"] == ["Reference tolerance interpretation"]
+    assert "Which diagnostic artifact should be primary?" in saved["open_questions"]
+
+
+def test_state_set_project_contract_rejects_invalid_contract(tmp_path: Path):
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(
+        tmp_path,
+        {
+            "scope": {
+                "in_scope": ["missing question"],
+            }
+        },
+    )
+
+    assert result.updated is False
+    assert result.reason is not None
+    assert "Invalid project contract" in result.reason
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is None
 
 
 def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():

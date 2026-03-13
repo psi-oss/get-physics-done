@@ -238,7 +238,7 @@ Answer: "What mathematical methods, physical principles, and computational tools
 IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /gpd:discuss-phase.
 
 - **Decisions** = Locked -- research THESE deeply, no alternatives
-- **AI's Discretion** = Freedom areas -- research options, recommend
+- **Agent's Discretion** = Freedom areas -- research options, recommend
 - **Deferred Ideas** = Out of scope -- ignore
 
 {context_content}
@@ -477,7 +477,7 @@ Planner prompt:
 IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
 
 - **Decisions** = LOCKED -- honor exactly, do not revisit
-- **AI's Discretion** = Freedom -- make methodological choices
+- **Agent's Discretion** = Freedom -- make methodological choices
 - **Deferred Ideas** = Out of scope -- do NOT include
 
 {context_content}
@@ -590,7 +590,7 @@ Checker prompt:
 IMPORTANT: Plans MUST honor user decisions. Flag as issue if plans contradict.
 
 - **Decisions** = LOCKED -- plans must implement exactly
-- **AI's Discretion** = Freedom areas -- plans can choose approach
+- **Agent's Discretion** = Freedom areas -- plans can choose approach
 - **Deferred Ideas** = Out of scope -- plans must NOT include
 
 {context_content}

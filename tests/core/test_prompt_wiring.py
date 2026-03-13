@@ -528,6 +528,63 @@ def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
     assert "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
 
 
+def test_new_project_requires_scoping_contract_across_setup_modes() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    assert "Require one explicit scoping approval gate before requirements and roadmap generation" in workflow_text
+    assert "Minimal mode is still allowed to be lean, but it is not allowed to be contract-free." in workflow_text
+    assert "Do NOT skip the initial scoping-contract approval gate." in workflow_text
+    assert "scoping contract with decisive outputs, anchors, and explicit approval" in command_text
+
+
+def test_new_project_wiring_mentions_contract_persistence_and_contract_first_downstream_generation() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    assert "gpd state set-project-contract" in workflow_text
+    assert "Read PROJECT.md and `.gpd/state.json` and extract" in workflow_text
+    assert "Derive phases from requirements AND the approved project contract" in workflow_text
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in command_text
+
+
+def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> None:
+    guide_text = (REFERENCES_DIR / "research" / "questioning.md").read_text(encoding="utf-8")
+
+    assert "Surface anchors early." in guide_text
+    assert "Pressure-test the first story." in guide_text
+    assert "Ground-truth anchors -- what reality should constrain this:" in guide_text
+    assert "Disconfirmation and failure -- how the current framing could be wrong:" in guide_text
+    assert "What would be a misleading proxy for success" in guide_text
+
+
+def test_project_and_context_templates_surface_contract_and_skeptical_review() -> None:
+    project_text = (TEMPLATES_DIR / "project.md").read_text(encoding="utf-8")
+    context_text = (TEMPLATES_DIR / "context.md").read_text(encoding="utf-8")
+    requirements_text = (TEMPLATES_DIR / "requirements.md").read_text(encoding="utf-8")
+    state_schema_text = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+
+    assert "## Scoping Contract Summary" in project_text
+    assert "### Skeptical Review" in project_text
+    assert "## Carry-Forward Inputs" in context_text
+    assert "## Skeptical Review" in context_text
+    assert "## Contract Coverage" in requirements_text
+    assert "disconfirming_observations" in state_schema_text
+
+
+def test_discuss_and_assumption_workflows_surface_anchors_and_fast_falsifiers() -> None:
+    discuss_text = (WORKFLOWS_DIR / "discuss-phase.md").read_text(encoding="utf-8")
+    assumptions_text = (WORKFLOWS_DIR / "list-phase-assumptions.md").read_text(encoding="utf-8")
+
+    assert "What prior output, benchmark, or reference must stay visible here?" in discuss_text
+    assert "What would make this approach look wrong or incomplete early?" in discuss_text
+    assert "## Carry-Forward Inputs" in discuss_text
+    assert "## Skeptical Review" in discuss_text
+    assert "### Anchor Inputs" in assumptions_text
+    assert "**Fast falsifier:**" in assumptions_text
+    assert "**False progress:**" in assumptions_text
+
+
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
     assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
     assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))

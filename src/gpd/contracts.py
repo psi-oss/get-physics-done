@@ -202,6 +202,7 @@ class ContractUncertaintyMarkers(BaseModel):
     weakest_anchors: list[str] = Field(default_factory=list)
     unvalidated_assumptions: list[str] = Field(default_factory=list)
     competing_explanations: list[str] = Field(default_factory=list)
+    disconfirming_observations: list[str] = Field(default_factory=list)
 
 
 class ResearchContract(BaseModel):

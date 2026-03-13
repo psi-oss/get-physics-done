@@ -130,6 +130,9 @@
     ],
     "competing_explanations": [
       "Agreement could be a normalization artifact"
+    ],
+    "disconfirming_observations": [
+      "Benchmark agreement disappears once normalization is fixed"
     ]
   }
 }

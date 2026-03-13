@@ -85,12 +85,13 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   "uncertainty_markers": {
     "weakest_anchors": [],
     "unvalidated_assumptions": [],
-    "competing_explanations": []
+    "competing_explanations": [],
+    "disconfirming_observations": []
   }
 }
 ```
 
-Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely.
+Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely. Preferred write path: `gpd state set-project-contract <path-to-contract.json>`.
 
 ### `position`
 

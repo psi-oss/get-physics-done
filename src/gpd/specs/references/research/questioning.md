@@ -14,11 +14,12 @@ Don't interrogate. Collaborate. Don't follow a script. Follow the physics.
 
 <the_goal>
 
-By the end of questioning, you need enough clarity to write a PROJECT.md that downstream phases can act on:
+By the end of questioning, you need enough clarity to draft a scoping contract and then write a PROJECT.md that downstream phases can act on:
 
 - **Literature review** needs: what field, what's known, what's contested, what references the researcher already has
 - **Research plan** needs: clear enough problem statement to scope a tractable investigation
 - **Roadmap** needs: clear enough to decompose into phases, what "a result" looks like
+- **Scoping contract** needs: decisive outputs, ground-truth anchors, weakest assumptions, and explicit failure signals
 - **plan-phase** needs: specific calculations to break into tasks, context for approximation choices
 - **execute-phase** needs: success criteria to verify against, the physical motivation behind each computation
 
@@ -40,7 +41,13 @@ A vague PROJECT.md forces every downstream phase to guess. The cost compounds --
 
 **Clarify scope.** "When you say you want to study X, do you mean the equilibrium properties or the dynamics?" "Are you interested in the ground state or finite temperature?"
 
-**Know when to stop.** When you understand what they want to compute, why it matters, what physical regime they're in, and what a successful result looks like -- offer to proceed.
+**Surface anchors early.** Ask what references, prior outputs, benchmarks, datasets, or known results should remain visible if the project goes well. If none are known yet, record that explicitly instead of inventing one.
+
+**Pressure-test the first story.** Treat the first framing as a working hypothesis, not as truth. After 1-2 productive exchanges, restate the current picture in one sentence and ask one question that could narrow, overturn, or falsify it.
+
+**Separate decisive outputs from proxies.** Ask what exact output, figure, table, proof obligation, or benchmark would count as success, and what might look like progress but should not count as success.
+
+**Know when to stop.** When you understand what they want to establish, why it matters, what regime or scope they care about, what outputs count as success, and what anchors or disconfirming checks should constrain the work -- offer to proceed.
 
 </how_to_question>
 
@@ -58,7 +65,7 @@ Use these as inspiration, not a checklist. Pick what's relevant to the physics.
 
 - "Walk me through the physical setup"
 - "You said X -- what does that look like in terms of the microscopic degrees of freedom?"
-- "Give me the Hamiltonian, or at least the key terms"
+- "Give me the governing model, equations, simulation setup, or core object being studied"
 - "What are the relevant energy/length/time scales?"
 
 **Scope and regime -- where you're working:**
@@ -77,9 +84,23 @@ Use these as inspiration, not a checklist. Pick what's relevant to the physics.
 **Success -- how you'll know it worked:**
 
 - "What does a successful result look like?"
+- "What exact output or deliverable would count as done?"
 - "What known result should this reduce to in some limit?"
 - "Is there experimental data to compare against?"
 - "What would make you confident the calculation is correct?"
+
+**Ground-truth anchors -- what reality should constrain this:**
+
+- "Is there a known result, benchmark, prior output, or reference that you would treat as non-negotiable here?"
+- "What should a correct result agree with, reduce to, or reproduce?"
+- "Are there papers, datasets, or internal artifacts that must stay visible throughout the work?"
+
+**Disconfirmation and failure -- how the current framing could be wrong:**
+
+- "What assumption are we least certain about right now?"
+- "What result would make you think this framing is wrong or incomplete?"
+- "What would look encouraging but should not count as success?"
+- "If your current intuition conflicts with a trusted anchor, which should win?"
 
 </question_types>
 
@@ -119,21 +140,33 @@ Researcher mentions "anomalous scaling"
 
 Use this as a **background checklist**, not a conversation structure. Check these mentally as you go. If gaps remain, weave questions naturally.
 
-- [ ] What physical system they're studying (concrete enough to write down a Hamiltonian or equation of motion)
+- [ ] What physical system, model, setup, or core object they're studying
 - [ ] Why it matters (the physical question or discrepancy driving the investigation)
-- [ ] What regime they're in (parameter values, symmetries, approximation validity)
-- [ ] What "a result" looks like (observable quantities, comparison points, success criteria)
+- [ ] What regime or scope they're in (parameter values, symmetries, approximation validity)
+- [ ] What exact output or deliverable would count as success
+- [ ] What known result, benchmark, reference, or prior output should anchor the work
+- [ ] What assumption is weakest or most uncertain
+- [ ] What would falsify or seriously narrow the current framing
+- [ ] What would be a misleading proxy for success
 
-Four things. If they volunteer more -- scales, known limits, relevant references -- capture it.
+These are background checks, not a script. If they volunteer more -- scales, known limits, relevant references, prior outputs, likely failure modes -- capture it.
 
 </context_checklist>
 
 <decision_gate>
 
-When you could write a clear PROJECT.md, offer to proceed:
+Only offer to proceed when you can state, in concrete terms:
+
+- the core problem,
+- the decisive output or deliverable,
+- at least one anchor (or an explicit "anchor unknown; must establish later"),
+- the weakest assumption,
+- one failure signal or forbidden proxy.
+
+Then offer to proceed:
 
 - header: "Ready?"
-- question: "I think I understand the physics. Ready to create PROJECT.md?"
+- question: "I think I understand the problem, the decisive output, and the anchors we need to respect. Ready to create PROJECT.md?"
 - options:
   - "Create PROJECT.md" -- Let's move forward
   - "Keep exploring" -- I want to clarify more / ask me more

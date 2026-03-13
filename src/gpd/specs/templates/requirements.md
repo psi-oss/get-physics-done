@@ -74,6 +74,15 @@ Standards that results must meet before being considered complete.
 | [SIMU-01]   | [e.g., Statistical error < 1%] | [e.g., Bootstrap error estimation]          |
 | [DERV-01]   | [e.g., Exact analytic result]  | [e.g., Check limiting cases and symmetries] |
 
+## Contract Coverage
+
+Make the scoping contract visible in requirement form so planning does not drift.
+
+| Requirement | Decisive Output / Deliverable | Anchor / Benchmark / Reference | Prior Inputs / Baselines | False Progress To Reject |
+| ----------- | ----------------------------- | ------------------------------ | ------------------------ | ------------------------ |
+| [CALC-01]   | [figure, table, derivation]   | [paper, dataset, known limit]  | [prior run, notebook]    | [misleading proxy]       |
+| [VALD-01]   | [benchmark note, comparison]  | [trusted source]               | [baseline artifact]      | [qualitative-only match] |
+
 ## Traceability
 
 Which phases cover which requirements. Updated during roadmap creation.
@@ -131,6 +140,13 @@ _Last updated: [date] after [trigger]_
 - Every quantitative result needs a defined accuracy target
 - Every result needs a validation method (limiting case, literature comparison, numerical convergence)
 - Be specific: "4 significant figures" not "high accuracy"
+
+**Contract Coverage:**
+
+- Every primary requirement should point back to a decisive output or deliverable
+- Name the anchor, benchmark, or reference that constrains the requirement
+- Carry forward required prior outputs or baselines explicitly when they matter
+- Record any misleading proxy that should not be accepted as success
 
 **Traceability:**
 

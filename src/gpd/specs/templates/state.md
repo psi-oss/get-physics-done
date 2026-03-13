@@ -17,6 +17,8 @@ Template for `.gpd/STATE.md` — the research project's living memory.
 
 See: .gpd/PROJECT.md (updated [date])
 
+**Machine-readable scoping contract:** `.gpd/state.json` field `project_contract`
+
 **Core research question:** [One-liner from PROJECT.md Core Research Question section]
 **Current focus:** [Current phase name]
 
@@ -200,6 +202,7 @@ Points to PROJECT.md for full context. Includes:
 - Last update date (triggers re-read if stale)
 
 The agent reads PROJECT.md directly for requirements, constraints, notation, and references.
+The authoritative structured scoping contract lives in `state.json.project_contract`; PROJECT.md is the human-readable projection.
 
 ### Current Position
 

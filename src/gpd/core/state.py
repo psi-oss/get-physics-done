@@ -101,6 +101,7 @@ __all__ = [
     "state_record_metric",
     "state_record_session",
     "state_replace_field",
+    "state_set_project_contract",
     "state_resolve_blocker",
     "state_snapshot",
     "state_update",
@@ -1683,6 +1684,50 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
             _write_state_markdown_locked(cwd, content)
 
     return StatePatchResult(updated=updated, failed=failed)
+
+
+@instrument_gpd_function("state.set_project_contract")
+def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | ResearchContract) -> StateUpdateResult:
+    """Persist the canonical project contract to ``state.json``.
+
+    This is a JSON-only state field, so it bypasses ``STATE.md`` field patching and
+    writes through the authoritative structured state path instead.
+    """
+    from pydantic import ValidationError
+
+    try:
+        parsed = (
+            contract_data
+            if isinstance(contract_data, ResearchContract)
+            else ResearchContract.model_validate(contract_data)
+        )
+    except ValidationError as exc:
+        first_error = exc.errors()[0] if exc.errors() else {}
+        location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"
+        message = first_error.get("msg", "validation failed")
+        return StateUpdateResult(updated=False, reason=f"Invalid project contract at {location}: {message}")
+
+    state_obj = load_state_json(cwd) or default_state_dict()
+    contract_payload = parsed.model_dump()
+    if state_obj.get("project_contract") == contract_payload:
+        return StateUpdateResult(updated=False, reason="Project contract already matches requested value")
+
+    state_obj["project_contract"] = contract_payload
+
+    unresolved = [question.strip() for question in parsed.scope.unresolved_questions if question and question.strip()]
+    if unresolved:
+        existing_questions = {
+            item.strip()
+            for item in state_obj.get("open_questions", [])
+            if isinstance(item, str) and item.strip()
+        }
+        for question in unresolved:
+            if question not in existing_questions:
+                state_obj.setdefault("open_questions", []).append(question)
+                existing_questions.add(question)
+
+    save_state_json(cwd, state_obj)
+    return StateUpdateResult(updated=True)
 
 
 @instrument_gpd_function("state.advance_plan")

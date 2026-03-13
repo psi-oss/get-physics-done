@@ -22,6 +22,46 @@ Update whenever the research direction drifts from this description.]
 [The ONE question this project must answer. If everything else fails, this must be resolved.
 One sentence that drives prioritization when tradeoffs arise.]
 
+## Scoping Contract Summary
+
+### Decisive Outputs and Deliverables
+
+- [Exact output, artifact, or claim that would count as success]
+- [Primary deliverable: figure, table, dataset, derivation, benchmark note, report]
+
+### Scope Boundaries
+
+**In scope**
+
+- [What this project explicitly covers]
+
+**Out of scope**
+
+- [What this project explicitly does not cover]
+
+### Anchors and Carry-Forward Inputs
+
+**Must-read references / benchmarks**
+
+- [Paper, dataset, spec, benchmark result, or \"None confirmed yet\"]
+
+**Prior outputs / baselines to carry forward**
+
+- [Internal artifact, prior run, notebook, figure, or baseline]
+
+### Skeptical Review
+
+- **Weakest anchor:** [Least-certain benchmark, assumption, or prior result]
+- **Unvalidated assumptions:** [What is currently assumed rather than checked]
+- **Competing explanation:** [Plausible alternative story that could also fit]
+- **Disconfirming observation:** [What result would make you stop and rethink]
+- **False progress to reject:** [What might look encouraging but should not count as success]
+
+### Open Contract Questions
+
+- [Unresolved question 1]
+- [Unresolved question 2]
+
 ## Research Questions
 
 ### Answered
@@ -133,6 +173,13 @@ _Last updated: [date] after [trigger]_
 - Drives prioritization when tradeoffs arise (e.g., accuracy vs. generality)
 - Rarely changes; if it does, it's a significant pivot in the research program
 
+**Scoping Contract Summary:**
+
+- Short human-readable projection of the authoritative scoping contract
+- Capture decisive outputs, deliverables, scope boundaries, anchors, skeptical review items, and open contract questions
+- Keep this concise and concrete so later workflows can scan it quickly
+- If an anchor or prior artifact is unknown, say so explicitly instead of implying certainty
+
 **Research Questions:**
 
 - Tracks the lifecycle of research questions through three states: Answered, Active, Out of Scope
@@ -153,6 +200,7 @@ _Last updated: [date] after [trigger]_
 
 - Papers, textbooks, and preprints essential to the project
 - Include why each reference matters (method source, comparison data, formalism reference)
+- Distinguish must-read anchors from general background when possible
 - Update as new relevant literature is discovered
 
 **Notation and Conventions:**
@@ -194,6 +242,7 @@ PROJECT.md evolves throughout the research lifecycle.
 6. Research Context: Update Known Results with new findings; refine Key Parameters if values changed
 7. "What This Is" still accurate? — Update if research direction drifted
 8. New references discovered? — Add to Key References
+9. Revisit the Scoping Contract Summary — weakest anchor, false-progress risks, and open questions still accurate?
 
 **After each milestone:**
 

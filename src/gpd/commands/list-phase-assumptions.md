@@ -14,7 +14,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Analyze a phase and present the AI's assumptions about the physics, methodology, computational approach, scope boundaries, risk areas, and dependencies.
+Analyze a phase and present the AI's assumptions about the physics, methodology, computational approach, scope boundaries, anchors, risk areas, and dependencies.
 
 Purpose: Help users see what the AI thinks BEFORE planning begins -- enabling course correction early when assumptions are wrong.
 Output: Conversational output only (no file creation) -- ends with "What do you think?" prompt
@@ -62,6 +62,8 @@ Output: Conversational output only (no file creation) -- ends with "What do you 
    - What parameter ranges are targeted
    - What level of rigor is expected (estimate, calculation, proof)
    - What deliverables the phase produces
+6. **Anchor assumptions** -- what trusted references, baselines, prior outputs, or benchmarks the AI assumes constrain the phase
+7. **Skeptical assumptions** -- what looks weakest, what could falsify the current framing early, and what might be false progress
      </objective>
 
 <execution_context>
@@ -83,7 +85,7 @@ Phase number: $ARGUMENTS (required)
 2. Check if phase exists in roadmap
 3. Follow list-phase-assumptions.md workflow:
    - Analyze roadmap description
-   - Surface assumptions about: physical model, mathematical formalism, computational approach, methodology ordering, scope boundaries
+   - Surface assumptions about: physical model, mathematical formalism, computational approach, methodology ordering, scope boundaries, anchors, and skeptical failure modes
    - For each assumption, state WHY the AI assumes it (what in the phase description or physics domain suggests it)
    - Flag assumptions that are most likely to be wrong or most consequential if wrong
    - Present assumptions clearly, grouped by category

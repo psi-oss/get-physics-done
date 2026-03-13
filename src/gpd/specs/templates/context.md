@@ -48,7 +48,7 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 - [Decision or preference captured]
 - [Physical justification given by user]
 
-### AI's Discretion
+### Agent's Discretion
 
 [Areas where the user said "you decide" — note that the AI has flexibility here, with any constraints mentioned]
 
@@ -74,6 +74,21 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 
 </limiting_cases>
 
+<carry_forward_inputs>
+## Carry-Forward Inputs
+
+[Artifacts, references, baselines, and user anchors that must remain visible during planning and execution.]
+
+### Must-Read References and Anchors
+
+- [Reference, dataset, spec, benchmark, or "None confirmed yet"]
+
+### Prior Outputs and Baselines
+
+- [Internal artifact, prior run, notebook, or baseline figure]
+
+</carry_forward_inputs>
+
 <specifics>
 ## Specific References and Constraints
 
@@ -82,6 +97,19 @@ Requirements: [{REQ-ID-1}, {REQ-ID-2}]  <!-- from ROADMAP.md phase details -->
 [If none: "No specific requirements — open to standard approaches"]
 
 </specifics>
+
+<skeptical_review>
+## Skeptical Review
+
+[The load-bearing uncertainty check for this phase. Keep it concrete.]
+
+- **Weakest anchor:** [Least-certain assumption, benchmark, or prior result]
+- **Unvalidated assumptions:** [What is currently assumed rather than checked]
+- **Competing explanation:** [Alternative story that could also fit]
+- **Disconfirming check:** [Earliest observation or comparison that would force a re-think]
+- **False progress to reject:** [What might look promising but should not count as success]
+
+</skeptical_review>
 
 <deferred>
 ## Deferred Ideas
@@ -136,7 +164,7 @@ Derive renormalization group flow equations for the XY model with 1/r^alpha inte
 - If divergences appear at higher order, use dimensional regularization to preserve U(1) symmetry
 - Cutoff regularization acceptable only if symmetry-preserving
 
-### AI's Discretion
+### Agent's Discretion
 
 - Specific form of the momentum-shell integration measure
 - Whether to work in real space or Fourier space for intermediate steps
@@ -170,6 +198,17 @@ Derive renormalization group flow equations for the XY model with 1/r^alpha inte
 - Key reference for long-range generalization: Defenu et al., PRB 92, 014512 (2015)
 
 </specifics>
+
+<skeptical_review>
+## Skeptical Review
+
+- **Weakest anchor:** Defenu et al. long-range decomposition is being reused outside its original parameter choices
+- **Unvalidated assumptions:** Long-range part can be cleanly folded into the bare stiffness without changing vortex counting
+- **Competing explanation:** Apparent agreement could come from a convention choice rather than real physics
+- **Disconfirming check:** Failure to recover the short-range BKT equations in the alpha -> infinity limit
+- **False progress to reject:** Algebra that looks clean but never checks the known limiting case
+
+</skeptical_review>
 
 <deferred>
 ## Deferred Ideas

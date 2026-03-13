@@ -14,13 +14,16 @@ Check if `--auto` flag is present in $ARGUMENTS.
 
 **If auto mode:**
 
-- Skip existing-work mapping offer (assume fresh project)
-- Skip deep questioning (extract context from provided document)
+- Do not assume scope is already correct just because a document exists
+- Existing-work routing may be compressed to one lightweight question, but cannot be skipped when prior artifacts are detected
+- Skip full deep questioning, but still synthesize a scoping contract from the supplied document
+- Ask at most one repair prompt if blocking scoping fields are missing
 - Config questions still required (Step 5)
-- After config: run Steps 6-9 automatically with smart defaults:
+- Require one explicit scoping approval gate before requirements and roadmap generation
+- After config and scope approval: run Steps 6-9 automatically with smart defaults:
   - Literature survey: Always yes
   - Research questions: Include all from provided document
-  - Research questions approval: Auto-approve
+  - Research questions approval: Use approved scoping contract as source of truth
   - Roadmap approval: Auto-approve
 
 **Document requirement:**
@@ -44,7 +47,7 @@ Check if `--minimal` flag is present in $ARGUMENTS.
 
 **If minimal mode:** After Step 1 (Setup), skip the entire standard flow (Steps 2-9) and execute the **Minimal Initialization Path** below instead.
 
-Minimal mode creates the SAME directory structure and file set as the full path -- just with less content in each file. This ensures all downstream workflows (`/gpd:plan-phase`, `/gpd:execute-phase`, etc.) work identically.
+Minimal mode creates the SAME directory structure and file set as the full path -- just with less conversational overhead. It still must produce a scoping contract with decisive outputs, anchors, and explicit approval so downstream workflows (`/gpd:plan-phase`, `/gpd:execute-phase`, etc.) work identically.
 
 **Two variants:**
 
@@ -92,7 +95,7 @@ Example structure:
 
 Ask ONE question inline (freeform, NOT ask_user):
 
-"Describe your research project: what's the physics question, and what are the main phases of investigation?"
+"Describe your research project in one pass: what's the core question, what outputs would count as success, what are the main phases, what references or prior outputs must stay visible, and what would make you rethink the approach?"
 
 Wait for response. From the single response, extract:
 
@@ -100,6 +103,41 @@ Wait for response. From the single response, extract:
 - Theoretical framework
 - Phases of investigation
 - Any mentioned parameters, tools, or constraints
+
+#### M1.5. Synthesize And Approve The Scoping Contract
+
+Build a canonical scoping contract from the extracted input.
+
+**Blocking fields that must be present before approval:**
+
+- Core question
+- At least one decisive output, claim, or deliverable
+- At least one major phase or stage
+
+**Fields to capture even if still uncertain:**
+
+- In-scope and out-of-scope boundaries
+- Must-read references, benchmarks, or prior outputs
+- Weakest anchor
+- What would look like progress but should not count as success
+- What result would make the current framing look wrong or incomplete
+- Unresolved questions / context gaps
+
+If a blocking field is missing, ask exactly one repair prompt that targets only the missing field. Do not silently continue with placeholders.
+
+Then present a concise scoping summary and require explicit approval:
+
+- header: "Scope"
+- question: "Does this scoping contract look right before I generate the project artifacts?"
+- options:
+  - "Approve scope" -- proceed
+  - "Adjust scope" -- revise before writing files
+  - "Review raw contract" -- show the structured contract
+  - "Stop here" -- do not create downstream artifacts
+
+**CRITICAL:** Minimal mode is still allowed to be lean, but it is not allowed to be contract-free.
+
+After approval, persist the approved contract into `.gpd/state.json` using `gpd state set-project-contract` (use a temporary JSON file if needed).
 
 #### M2. Create PROJECT.md
 
@@ -117,6 +155,37 @@ Fill in what was extracted. For sections without enough information, use sensibl
 ## Core Research Question
 
 [Extracted research question]
+
+## Scoping Contract Summary
+
+### Decisive Outputs and Deliverables
+
+- [Exact output, artifact, or claim that would count as success]
+
+### Scope Boundaries
+
+**In scope**
+
+- [Approved in-scope item]
+
+**Out of scope**
+
+- [Approved out-of-scope item]
+
+### Anchors and Carry-Forward Inputs
+
+- [Must-read reference, benchmark, or "None confirmed yet"]
+- [Prior output, notebook, figure, or baseline]
+
+### Skeptical Review
+
+- **Weakest anchor:** [Least-certain assumption, reference, or prior result]
+- **Disconfirming observation:** [What would make the framing look wrong]
+- **False progress to reject:** [What might look promising but should not count as success]
+
+### Open Contract Questions
+
+- [Unresolved question or context gap]
 
 ## Physics Subfield
 
@@ -154,7 +223,7 @@ To be established during initial phases.
 
 ## Key References
 
-(To be populated during literature review)
+[Approved must-read references, benchmarks, or "None confirmed yet"]
 
 ## Target Publication
 
@@ -296,7 +365,7 @@ None yet.
 
 ## Open Questions
 
-None yet.
+[Populate from approved scoping-contract unresolved questions. If none, say "None yet."]
 
 ## Performance Metrics
 
@@ -308,7 +377,7 @@ None yet.
 
 ### Decisions
 
-- [Phase 1]: Minimal mode — deep scoping deferred to phase planning
+- [Phase 1]: Minimal mode — scoping contract approved before phase planning
 
 ### Active Approximations
 
@@ -353,10 +422,10 @@ Create the directory structure and commit everything in a single commit:
 ```bash
 mkdir -p .gpd
 
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/config.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/config.json
+gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
 ```
 
 #### M7. Done — Offer Next Step
@@ -426,9 +495,9 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_research_map`, `has_git`.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause for user confirmation after each major step (questioning, research, roadmap). Show summaries and wait for approval before proceeding.
-- `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment.
-- `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap.
+- `autonomy=babysit`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
+- `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
+- `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start with exploit-depth survey, expand to explore if initial results reveal unexpected complexity.
@@ -483,7 +552,15 @@ If start fresh: delete `init-progress.json` and proceed normally.
 
 ## 2. Existing Work Offer
 
-**If auto mode:** Skip to Step 4 (assume fresh project, synthesize PROJECT.md from provided document).
+**If auto mode:** Do not offer the full mapping flow by default, but do NOT assume a fresh project if prior artifacts exist. If `needs_research_map` is true or existing artifacts are detected, ask one lightweight routing question:
+
+- header: "Existing Work"
+- question: "Should I treat the supplied document as a fresh project, or as a continuation that must carry forward existing outputs?"
+- options:
+  - "Fresh project" -- synthesize scope from the document only
+  - "Continuation" -- include existing outputs and baselines as contract inputs
+
+If no prior artifacts are detected, continue directly to Step 3 / Step 4 as appropriate.
 
 **If `needs_research_map` is true** (from init — existing research artifacts detected but no research map):
 
@@ -534,10 +611,15 @@ Based on what they said, ask follow-up questions that dig into their response. U
 Keep following threads. Each answer opens new threads to explore. Ask about:
 
 - What physical system or phenomenon motivated this
-- What they already know or suspect about the answer
+- What they currently suspect about the answer, and what evidence would change their mind
 - What theoretical framework they are working in
 - What approximations or limits they are considering
 - What observable or measurable quantities they care about
+- What exact output, artifact, or benchmark would count as success
+- What would look like progress but should not count as success
+- What references, benchmark results, datasets, or prior internal outputs must stay visible
+- Which anchor or assumption feels weakest right now
+- What result would make the current framing look wrong or incomplete
 - What computational resources they have access to
 - Whether this connects to existing experimental data
 
@@ -548,6 +630,9 @@ Consult `{GPD_INSTALL_DIR}/references/research/questioning.md` for techniques:
 - Surface assumptions ("Are you assuming equilibrium? Why?")
 - Find edges ("What happens at strong coupling?")
 - Reveal motivation ("What would change if you solved this?")
+- Surface anchors ("What do we trust as ground truth here?")
+- Force one disconfirming question ("What would make this framing look wrong?")
+- Reject proxies ("What should not count as done?")
 
 **Check context (background, not out loud):**
 
@@ -559,32 +644,69 @@ Context to gather:
 - Physical system and regime
 - Theoretical framework (QFT, condensed matter, GR, statistical mechanics, etc.)
 - Key parameters and scales
+- Decisive outputs, deliverables, or benchmark targets
+- Must-read references, baselines, and prior outputs to carry forward
 - Known results in the field (what has been done)
 - What is new or open (what has NOT been done)
 - Computational vs analytical approach preference
 - Target audience and venue (journal, conference)
 - Timeline and collaboration context
 - Available computational resources
+- Weakest anchor or assumption
+- Disconfirming observation / change-course trigger
+- False-progress signals to reject
 
 **Decision gate:**
 
-When you could write a clear PROJECT.md, use ask_user:
+When you could write a clear scoping contract, use ask_user:
 
 - header: "Ready?"
-- question: "I think I understand the research direction. Ready to create PROJECT.md?"
+- question: "I think I understand the research direction, the decisive outputs, and the anchors we need to respect. Ready to create PROJECT.md?"
 - options:
   - "Create PROJECT.md" — Let's move forward
   - "Keep exploring" — I want to share more / ask me more
 
 If "Keep exploring" — ask what they want to add, or identify gaps and probe naturally.
 
-**Maximum 6 questioning iterations.** After iteration 6, proceed to PROJECT.md creation with gathered context, noting any unresolved questions in the project's `open_questions`. Loop until "Create PROJECT.md" selected or iteration limit reached.
+**Maximum 6 questioning iterations.** After iteration 6, you may proceed only if you can still state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note). Record all unresolved questions and weak-anchor gaps in the scoping contract and the project's `open_questions`. Do not imply certainty where there is still ambiguity.
 
-## 4. Write PROJECT.md
+## 4. Synthesize The Approved Project Contract And Write PROJECT.md
 
-**If auto mode:** Synthesize from provided document. No "Ready?" gate was shown — proceed directly to commit.
+**If auto mode:** Synthesize the scoping contract from the provided document, ask at most one repair prompt for blocking gaps, and require one explicit scope approval before continuing.
 
-Synthesize all context into `.gpd/PROJECT.md` using the template from `templates/project.md`.
+Before writing `PROJECT.md`, synthesize a canonical project contract with at least these elements:
+
+- `scope.question`
+- `scope.in_scope`
+- `scope.out_of_scope`
+- `scope.unresolved_questions`
+- `context_intake.must_read_refs`
+- `context_intake.must_include_prior_outputs`
+- `context_intake.user_asserted_anchors`
+- `context_intake.known_good_baselines`
+- `context_intake.context_gaps`
+- at least one decisive claim, observable, or deliverable
+- any forbidden proxy or false-progress signal that the user called out
+- `uncertainty_markers.weakest_anchors`
+- `uncertainty_markers.unvalidated_assumptions`
+- `uncertainty_markers.competing_explanations`
+- `uncertainty_markers.disconfirming_observations`
+
+If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
+
+Present a concise scoping summary and require explicit approval before downstream artifact generation:
+
+- header: "Scope"
+- question: "Does this scoping contract look right before I generate project artifacts?"
+- options:
+  - "Approve scope" -- proceed
+  - "Adjust scope" -- revise the contract before writing files
+  - "Review raw contract" -- show the structured contract
+  - "Stop here" -- exit without creating downstream artifacts
+
+Persist the approved contract into `.gpd/state.json` via `gpd state set-project-contract` (use a temporary JSON file if needed).
+
+Then synthesize all context into `.gpd/PROJECT.md` using the template from `templates/project.md`.
 
 **For fresh research projects:**
 
@@ -634,6 +756,45 @@ Infer answered questions from existing work:
 ### Out of Scope
 
 - [Question 1] — [why]
+```
+
+**Scoping Contract Summary:**
+
+Ensure PROJECT.md visibly summarizes the approved contract, including:
+
+```markdown
+## Scoping Contract Summary
+
+### Decisive Outputs and Deliverables
+
+- [Exact output, artifact, or claim that would count as success]
+
+### Scope Boundaries
+
+**In scope**
+
+- [Approved in-scope item]
+
+**Out of scope**
+
+- [Approved out-of-scope item]
+
+### Anchors and Carry-Forward Inputs
+
+- [Must-read reference, benchmark, or "None confirmed yet"]
+- [Prior output, notebook, figure, or baseline]
+
+### Skeptical Review
+
+- **Weakest anchor:** [Least-certain assumption, reference, or prior result]
+- **Unvalidated assumptions:** [What is currently assumed rather than checked]
+- **Competing explanation:** [Alternative story that could also fit]
+- **Disconfirming observation:** [What would make the framing look wrong]
+- **False progress to reject:** [What might look promising but should not count as success]
+
+### Open Contract Questions
+
+- [Unresolved question or context gap]
 ```
 
 **Key Decisions:**
@@ -700,17 +861,17 @@ Do not compress. Capture everything gathered.
 ```bash
 mkdir -p .gpd
 
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project" --files .gpd/PROJECT.md
+gpd commit "docs: initialize research project" --files .gpd/PROJECT.md .gpd/state.json
 ```
 
 **Checkpoint step 4:**
 
 ```bash
 cat > .gpd/init-progress.json << CHECKPOINT
-{"step": 4, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "PROJECT.md created and committed"}
+{"step": 4, "completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "Approved project contract and PROJECT.md created and committed"}
 CHECKPOINT
 ```
 
@@ -1204,17 +1365,20 @@ Display stage banner:
 
 **Load context:**
 
-Read PROJECT.md and extract:
+Read PROJECT.md and `.gpd/state.json` and extract:
 
 - Core research question (the ONE thing that must be answered)
 - Stated constraints (computational resources, timeline, method limitations)
 - Any explicit scope boundaries
+- The approved `project_contract`
+- Decisive outputs, deliverables, and forbidden proxies from the contract
+- Must-read references, prior outputs, and known baselines from the contract
 
 **If literature survey exists:** Read research/METHODS.md and PRIOR-WORK.md and extract available approaches.
 
 **If auto mode:**
 
-- Auto-include all essential research requirements (directly answer the core question)
+- Auto-include all essential research requirements (directly answer the core question and satisfy the approved contract)
 - Include requirements explicitly mentioned in provided document
 - Auto-defer tangential investigations not mentioned in document
 - Skip per-category ask_user loops
@@ -1294,6 +1458,7 @@ Create `.gpd/REQUIREMENTS.md` with:
 - Current Requirements grouped by category (checkboxes, REQ-IDs)
 - Future Requirements (deferred)
 - Out of Scope (explicit exclusions with reasoning)
+- Contract Coverage section mapping requirements to decisive outputs, anchors, baselines, and false-progress risks
 - Traceability section (empty, filled by roadmap)
 
 **REQ-ID format:** `[CATEGORY]-[NUMBER]` (ANAL-01, NUMR-02, PHENO-03)
@@ -1375,6 +1540,7 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 
 **Read these files before proceeding:**
 - `.gpd/PROJECT.md` — Project definition and research question
+- `.gpd/state.json` — Approved project contract in `project_contract`
 - `.gpd/REQUIREMENTS.md` — Derived requirements
 - `.gpd/research/SUMMARY.md` — Literature survey (if exists)
 - `.gpd/config.json` — Project configuration
@@ -1383,16 +1549,16 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 
 <instructions>
 Create research roadmap:
-1. Derive phases from requirements — typical physics research phases:
+1. Derive phases from requirements AND the approved project contract — typical physics research phases:
    - Literature deep-dive and framework setup
    - Analytical derivations (ordered by dependency)
    - Numerical implementation and validation
    - Parameter exploration and phenomenology
    - Paper drafting and peer review preparation
 2. Map every requirement to exactly one phase
-3. Derive 2-5 success criteria per phase (concrete, verifiable results)
+3. Derive 2-5 success criteria per phase (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract
 4. Validate 100% coverage
-5. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability)
+5. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving any existing `.gpd/state.json` fields, especially `project_contract` and previously recorded open questions
 6. Return ROADMAP CREATED with summary
 
 Write files first, then return. This ensures artifacts persist even if context is lost.
@@ -1659,6 +1825,7 @@ Present completion with next steps:
 - `.gpd/REQUIREMENTS.md`
 - `.gpd/ROADMAP.md`
 - `.gpd/STATE.md`
+- `.gpd/state.json` with `project_contract`
 - `.gpd/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
@@ -1669,6 +1836,8 @@ Present completion with next steps:
 - [ ] Git repo initialized
 - [ ] Existing work detection completed
 - [ ] Deep questioning completed (threads followed, not rushed)
+- [ ] Approved scoping contract persisted in `.gpd/state.json`
+- [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
 - [ ] PROJECT.md captures full research context — **committed**
 - [ ] config.json has autonomy, research_mode, and parallelization settings — **committed**
 - [ ] Literature survey completed (if selected) — 4 parallel agents spawned — **committed**

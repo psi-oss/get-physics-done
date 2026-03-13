@@ -26,7 +26,7 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss-phase.
 
 - **Decisions** = LOCKED -- honor exactly, do not revisit
-- **AI's Discretion** = Freedom -- make methodological choices
+- **Agent's Discretion** = Freedom -- make methodological choices
 - **Deferred Ideas** = Out of scope -- do NOT include
 
 {context_content}

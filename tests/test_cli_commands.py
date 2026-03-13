@@ -215,6 +215,26 @@ class TestStateCommands:
     def test_add_blocker(self) -> None:
         _invoke("state", "add-blocker", "--text", "Need reference data")
 
+    def test_set_project_contract(self, gpd_project: Path) -> None:
+        contract_path = gpd_project / "contract.json"
+        contract_path.write_text(
+            json.dumps(
+                {
+                    "scope": {
+                        "question": "What benchmark must the project recover?",
+                        "in_scope": ["benchmark comparison"],
+                        "out_of_scope": ["paper drafting"],
+                        "unresolved_questions": ["Which figure should be primary?"],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        _invoke("state", "set-project-contract", str(contract_path))
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Init commands
