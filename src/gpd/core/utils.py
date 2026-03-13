@@ -5,15 +5,25 @@ Layer 1 code: stdlib + pathlib + re only.
 
 from __future__ import annotations
 
-import fcntl
 import os
 import re
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from gpd.core.constants import DEFAULT_MAX_INCLUDE_CHARS, ENV_MAX_INCLUDE_CHARS
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - exercised on Windows
+    fcntl = None
+
+try:
+    import msvcrt
+except ModuleNotFoundError:  # pragma: no cover - exercised on POSIX
+    msvcrt = None
 
 __all__ = [
     "MAX_INCLUDE_CHARS",
@@ -222,9 +232,44 @@ def atomic_write(filepath: Path, content: str) -> None:
                 pass
 
 
+def _ensure_windows_lock_region(lock_fd: object) -> None:
+    """Guarantee a 1-byte region exists for msvcrt byte-range locking."""
+    if msvcrt is None:
+        return
+    lock_fd.seek(0, os.SEEK_END)
+    if lock_fd.tell() == 0:
+        lock_fd.write(b"\0")
+        lock_fd.flush()
+    lock_fd.seek(0)
+
+
+def _acquire_file_lock_nonblocking(lock_fd: object) -> None:
+    """Acquire an exclusive non-blocking lock using the active platform backend."""
+    if fcntl is not None:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return
+    if msvcrt is not None:
+        _ensure_windows_lock_region(lock_fd)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+        return
+    raise RuntimeError("No supported file-locking backend is available on this platform")
+
+
+def _release_file_lock(lock_fd: object) -> None:
+    """Release a lock using the active platform backend."""
+    if fcntl is not None:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+        return
+    if msvcrt is not None:
+        _ensure_windows_lock_region(lock_fd)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    raise RuntimeError("No supported file-locking backend is available on this platform")
+
+
 @contextmanager
 def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
-    """Context manager for advisory file locking using fcntl.flock().
+    """Context manager for cross-platform exclusive file locking.
 
     Usage:
         with file_lock(some_path):
@@ -234,14 +279,11 @@ def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = None
     try:
-        lock_fd = open(lock_path, "w", encoding="utf-8")  # noqa: SIM115
-        # Use non-blocking first, retry with timeout
-        import time
-
+        lock_fd = open(lock_path, "a+b")  # noqa: SIM115
         deadline = time.monotonic() + timeout
         while True:
             try:
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _acquire_file_lock_nonblocking(lock_fd)
                 break
             except OSError:
                 if time.monotonic() >= deadline:
@@ -251,7 +293,7 @@ def file_lock(path: Path, timeout: float = 5.0) -> Iterator[None]:
     finally:
         if lock_fd is not None:
             try:
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                _release_file_lock(lock_fd)
             except OSError:
                 pass
             lock_fd.close()

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import builtins
+import importlib
+import sys
 from pathlib import Path
 
 import pytest
 
+import gpd.core.utils as utils
 from gpd.core.utils import (
     compare_phase_numbers,
     file_lock,
@@ -131,6 +135,30 @@ def test_safe_read_file_truncated_returns_none_for_missing_files(tmp_path: Path)
     assert safe_read_file_truncated(tmp_path / "missing.txt") is None
 
 
+def test_utils_module_imports_without_fcntl(monkeypatch: pytest.MonkeyPatch) -> None:
+    module_name = "gpd.core.utils"
+    original_module = sys.modules.get(module_name)
+    real_import = builtins.__import__
+
+    def fake_import(
+        name: str, globals: object = None, locals: object = None, fromlist: object = (), level: int = 0
+    ) -> object:
+        if name == "fcntl":
+            raise ModuleNotFoundError("fcntl is unavailable")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    sys.modules.pop(module_name, None)
+
+    try:
+        reloaded = importlib.import_module(module_name)
+        assert reloaded.fcntl is None
+    finally:
+        sys.modules.pop(module_name, None)
+        if original_module is not None:
+            sys.modules[module_name] = original_module
+
+
 def test_file_lock_allows_writes_while_held(tmp_path: Path) -> None:
     target = tmp_path / "lockable.json"
     target.write_text("{}", encoding="utf-8")
@@ -160,3 +188,31 @@ def test_file_lock_creates_parent_directories_for_missing_targets(tmp_path: Path
         target.write_text("{}", encoding="utf-8")
 
     assert target.exists()
+
+
+def test_file_lock_uses_windows_backend_when_fcntl_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeMSVCRT:
+        LK_NBLCK = 1
+        LK_UNLCK = 2
+
+        def __init__(self) -> None:
+            self.calls: list[tuple[int, int]] = []
+
+        def locking(self, fileno: int, mode: int, nbytes: int) -> None:
+            self.calls.append((mode, nbytes))
+
+    fake_msvcrt = FakeMSVCRT()
+    target = tmp_path / "windows-lock.json"
+
+    monkeypatch.setattr(utils, "fcntl", None)
+    monkeypatch.setattr(utils, "msvcrt", fake_msvcrt)
+
+    with file_lock(target):
+        assert target.with_suffix(".json.lock").exists()
+
+    assert fake_msvcrt.calls == [
+        (fake_msvcrt.LK_NBLCK, 1),
+        (fake_msvcrt.LK_UNLCK, 1),
+    ]

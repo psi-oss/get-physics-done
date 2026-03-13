@@ -5,7 +5,7 @@ The state engine maintains two files in sync:
 - state.json — machine-readable, authoritative for structured data
 
 Atomic writes with intent-marker crash recovery keep both in sync.
-File locking via fcntl.flock() prevents concurrent modification.
+File locking prevents concurrent modification across supported platforms.
 """
 
 from __future__ import annotations
