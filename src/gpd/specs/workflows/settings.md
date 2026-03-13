@@ -50,7 +50,7 @@ Parse current values (default to `true` / first option if not present):
 <step name="determine_runtime_for_model_overrides">
 Infer the active runtime before prompting for explicit model IDs.
 
-Use the current command syntax, tool names, environment, and local runtime config directories to determine whether the user is in `claude-code`, `codex`, `gemini`, or `opencode`.
+Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
 
@@ -241,26 +241,25 @@ After the main settings answers are collected, handle concrete tier model overri
 - If the user chose **Use runtime defaults**, clear `model_overrides.<active_runtime>` so GPD falls back to the runtime's default model behavior.
 - If the user chose **Configure explicit tier models**, ask one compact freeform follow-up for the active runtime and capture values for `tier-1`, `tier-2`, and `tier-3`.
 
-Runtime-specific guidance for that follow-up:
+Guidance for that follow-up:
 
-- `claude-code`: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or full model names like `claude-opus-4-6` and `claude-sonnet-4-6`.
-- `codex`: the exact string Codex accepts for its `model` setting. If the user configured a non-default Codex `model_provider`, preserve that provider's exact model ID format.
-- `gemini`: an exact Gemini model name accepted by the installed Gemini runtime. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
-- `opencode`: a full `provider/model` id such as `anthropic/<model>`, `openai/<model>`, or `google/<model>`.
+- Ask for the exact model string the active runtime accepts rather than normalizing it inside GPD.
+- Preserve any provider prefixes, slash-delimited ids, brackets, or alias syntax the active runtime already uses.
+- If the user already configured a non-default provider or model source for that runtime, preserve that exact identifier format.
+- Prefer exact model ids when the runtime distinguishes them from interactive "auto" selection.
 
 Suggested defaults when the user wants a recommendation:
 
-- `claude-code`: `tier-1 = opus`, `tier-2 = sonnet`, `tier-3 = haiku`
-- `codex`: prefer leaving overrides unset unless the user asks for explicit model IDs; if they do, use exact IDs already known to work in that runtime.
-- `gemini`: prefer leaving overrides unset unless the user asks for explicit model IDs; if they do, use exact IDs already known to work in that runtime.
-- `opencode`: first confirm the provider the user wants to route through, then suggest provider-native `provider/model` ids
+- Prefer leaving overrides unset unless the user explicitly asks to pin concrete model ids.
+- When the user does want explicit overrides, suggest exact ids already known to work in the active runtime and preserve its native identifier format.
+- If the runtime routes through multiple providers, confirm the provider first before suggesting provider-native ids.
 
 Normalization rules:
 
 - Trim surrounding whitespace only.
 - Preserve case, slashes, brackets, colons, and punctuation inside custom model IDs.
 - Treat blank / `runtime default` / `none` as "no override for this tier".
-- Treat literal `default` as a real model alias only when the runtime supports it and the user explicitly intends that alias, not as shorthand for "clear override".
+- Treat literal `default` as a real model alias only when the active runtime supports it and the user explicitly intends that alias, not as shorthand for "clear override".
 </step>
 
 <step name="update_config">
@@ -313,7 +312,7 @@ Display:
 
 | Setting              | Value |
 |----------------------|-------|
-| Active Runtime       | {claude-code/codex/gemini/opencode} |
+| Active Runtime       | {detected runtime id} |
 | Research Profile     | {deep-theory/numerical/exploratory/review/paper-writing} |
 | Tier Models          | {runtime default / tier-1=..., tier-2=..., tier-3=...} |
 | Unit System          | {natural/SI/CGS/atomic/lattice/custom} |

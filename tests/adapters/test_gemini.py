@@ -126,6 +126,13 @@ class TestConvertFrontmatterToGemini:
         assert "description: A test" in result
         assert "read_file" in result
 
+    def test_description_with_triple_dash_is_preserved(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\nallowed-tools:\n  - Read\n---\nBody"
+        result = _convert_frontmatter_to_gemini(content)
+        assert "description: before --- after" in result
+        assert "read_file" in result
+        assert result.rstrip().endswith("Body")
+
 
 class TestConvertToGeminiToml:
     def test_no_frontmatter(self) -> None:
@@ -137,6 +144,12 @@ class TestConvertToGeminiToml:
         content = "---\nname: test\ndescription: My description\n---\nPrompt body"
         result = _convert_to_gemini_toml(content)
         assert 'description = "My description"' in result
+        assert "Prompt body" in result
+
+    def test_extracts_description_when_value_contains_triple_dash(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\n---\nPrompt body"
+        result = _convert_to_gemini_toml(content)
+        assert 'description = "before --- after"' in result
         assert "Prompt body" in result
 
     def test_extracts_context_mode(self) -> None:
@@ -179,6 +192,24 @@ class TestInstall:
         assert "Check for a newer GPD release" in content
         assert "<!-- [included: update.md] -->" in content
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
+
+    def test_complete_milestone_command_inlines_bullet_list_includes(
+        self,
+        adapter: GeminiAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        content = (target / "commands" / "gpd" / "complete-milestone.toml").read_text(encoding="utf-8")
+        assert "<!-- [included: complete-milestone.md] -->" in content
+        assert "<!-- [included: milestone-archive.md] -->" in content
+        assert "Mark a completed research stage" in content
+        assert "# Milestone Archive Template" in content
+        assert re.search(r"^\s*-\s*@.*?/workflows/complete-milestone\.md.*$", content, flags=re.MULTILINE) is None
+        assert re.search(r"^\s*-\s*@.*?/templates/milestone-archive\.md.*$", content, flags=re.MULTILINE) is None
 
     def test_install_creates_agents(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"

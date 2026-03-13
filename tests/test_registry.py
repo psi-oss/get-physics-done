@@ -37,24 +37,28 @@ class TestParseFrontmatter:
         text = "---\n---\nBody only."
         meta, body = _parse_frontmatter(text)
         assert meta == {}
-        assert body == text
+        assert body == "Body only."
 
     def test_frontmatter_with_only_whitespace(self) -> None:
         meta, body = _parse_frontmatter("---\n  \n---\nBody.")
         assert meta == {}
         assert body == "Body."
 
-    def test_non_dict_frontmatter_returns_empty(self) -> None:
+    def test_non_dict_frontmatter_raises(self) -> None:
         text = "---\n- item1\n- item2\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Frontmatter must parse to a mapping"):
+            _parse_frontmatter(text)
 
-    def test_scalar_frontmatter_returns_empty(self) -> None:
+    def test_scalar_frontmatter_raises(self) -> None:
         text = "---\njust a string\n---\nBody."
-        meta, body = _parse_frontmatter(text)
-        assert meta == {}
-        assert body == text
+        with pytest.raises(ValueError, match="Frontmatter must parse to a mapping"):
+            _parse_frontmatter(text)
+
+    def test_malformed_yaml_frontmatter_raises(self) -> None:
+        text = "---\nname: test\nbad: [unterminated\n---\nBody."
+
+        with pytest.raises(ValueError, match="Malformed YAML frontmatter"):
+            _parse_frontmatter(text)
 
     def test_frontmatter_with_crlf_line_endings(self) -> None:
         meta, body = _parse_frontmatter("---\r\nname: test\r\n---\r\nBody.")
@@ -71,6 +75,20 @@ class TestParseFrontmatter:
         assert meta["name"] == "test"
         assert meta["extra_field"] == "surprise"
         assert meta["another"] == 42
+        assert body == "Body."
+
+    def test_frontmatter_with_leading_blank_lines_is_parsed(self) -> None:
+        text = "\n\n---\nname: test\n---\nBody."
+        meta, body = _parse_frontmatter(text)
+        assert meta == {"name": "test"}
+        assert body == "Body."
+
+    def test_frontmatter_block_scalar_preserves_indented_triple_dash_lines(self) -> None:
+        text = "---\ndescription: |\n  first\n  ---\n  second\n---\nBody."
+
+        meta, body = _parse_frontmatter(text)
+
+        assert meta == {"description": "first\n---\nsecond\n"}
         assert body == "Body."
 
 
@@ -112,6 +130,7 @@ class TestParseAgentFile:
         assert agent.name == "my-agent"
         assert agent.description == "A test agent"
         assert agent.tools == ["file_read", "file_write"]
+        assert agent.commit_authority == "orchestrator"
         assert agent.color == "blue"
         assert agent.system_prompt == "System prompt."
         assert agent.source == "agents"
@@ -132,8 +151,24 @@ class TestParseAgentFile:
         assert agent.name == "minimal"
         assert agent.description == ""
         assert agent.tools == []
+        assert agent.commit_authority == "orchestrator"
         assert agent.color == ""
         assert agent.source == "agents"
+
+    def test_agent_file_parses_explicit_commit_authority(self, tmp_path: Path) -> None:
+        f = tmp_path / "direct.md"
+        f.write_text("---\nname: direct\ncommit_authority: direct\n---\nPrompt.", encoding="utf-8")
+
+        agent = _parse_agent_file(f, source="agents")
+
+        assert agent.commit_authority == "direct"
+
+    def test_agent_file_invalid_commit_authority_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-authority.md"
+        f.write_text("---\nname: bad\ncommit_authority: someday\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid commit_authority"):
+            _parse_agent_file(f, source="agents")
 
     def test_agent_file_unexpected_extra_fields(self, tmp_path: Path) -> None:
         f = tmp_path / "extra.md"
@@ -153,6 +188,13 @@ class TestParseAgentFile:
         f.write_text("---\nname: nobody\n---\n", encoding="utf-8")
         agent = _parse_agent_file(f, source="agents")
         assert agent.system_prompt == ""
+
+    def test_agent_file_invalid_frontmatter_raises_with_path(self, tmp_path: Path) -> None:
+        f = tmp_path / "broken.md"
+        f.write_text("---\nname: broken\nbad: [unterminated\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid frontmatter in .*broken\\.md"):
+            _parse_agent_file(f, source="agents")
 
 
 class TestParseCommandFile:
@@ -220,6 +262,13 @@ class TestParseCommandFile:
         with pytest.raises(ValueError, match="Invalid context_mode"):
             _parse_command_file(f, source="commands")
 
+    def test_command_file_invalid_frontmatter_raises_with_path(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text("---\nname: gpd:help\nbad: [unterminated\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Invalid frontmatter in .*help\\.md"):
+            _parse_command_file(f, source="commands")
+
     def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"
         f.write_text(
@@ -241,6 +290,40 @@ class TestParseCommandFile:
         ]
         assert ".gpd/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
         assert ".gpd/REFEREE-REPORT.tex" in cmd.review_contract.required_outputs
+
+    def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
+        f = tmp_path / "review-contract-false.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:review-contract-false\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            '  requires_fresh_context_per_stage: "false"\n'
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.review_contract is not None
+        assert cmd.review_contract.requires_fresh_context_per_stage is False
+
+    def test_command_review_contract_invalid_max_rounds_reports_file_context(self, tmp_path: Path) -> None:
+        f = tmp_path / "review-rounds.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:review-rounds\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  max_review_rounds: many\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds\.md.*max_review_rounds"):
+            _parse_command_file(f, source="commands")
 
 
 class TestEncodingEdgeCases:
@@ -309,6 +392,16 @@ class TestDiscovery:
         with pytest.raises(ValueError, match="does not match file stem"):
             registry._discover_commands()
 
+    def test_command_name_without_gpd_prefix_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "peer-review.md").write_text("---\nname: peer-review\n---\nBody.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+
+        with pytest.raises(ValueError, match=r"expected 'gpd:peer-review'"):
+            registry._discover_commands()
+
     def test_agents_keyed_by_declared_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -318,6 +411,17 @@ class TestDiscovery:
         result = registry._discover_agents()
         assert "gpd-alias" in result
         assert "alias" not in result
+
+    def test_duplicate_agent_names_raise(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "first.md").write_text("---\nname: gpd-duplicate\n---\nFirst prompt.", encoding="utf-8")
+        (agents_dir / "second.md").write_text("---\nname: gpd-duplicate\n---\nSecond prompt.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
+
+        with pytest.raises(ValueError, match="Duplicate agent name 'gpd-duplicate'"):
+            registry._discover_agents()
 
 
 class TestSkillDiscovery:
@@ -387,7 +491,7 @@ class TestNonMdFilesIgnored:
     def test_non_md_files_in_commands_dir_ignored(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "valid.md").write_text("---\nname: valid\n---\nBody.", encoding="utf-8")
+        (commands_dir / "valid.md").write_text("---\nname: gpd:valid\n---\nBody.", encoding="utf-8")
         (commands_dir / "readme.txt").write_text("Not a command.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
@@ -414,7 +518,7 @@ class TestRegistryCache:
     def test_lazy_load_commands(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "cached.md").write_text("---\nname: cached\n---\nBody.", encoding="utf-8")
+        (commands_dir / "cached.md").write_text("---\nname: gpd:cached\n---\nBody.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
 
@@ -443,7 +547,7 @@ class TestRegistryCache:
 
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "y.md").write_text("---\nname: y\n---\nBody.", encoding="utf-8")
+        (commands_dir / "y.md").write_text("---\nname: gpd:y\n---\nBody.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
@@ -529,8 +633,8 @@ class TestPublicAPI:
     def test_list_commands_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
-        (commands_dir / "zebra.md").write_text("---\nname: zebra\n---\nZ.", encoding="utf-8")
-        (commands_dir / "apple.md").write_text("---\nname: apple\n---\nA.", encoding="utf-8")
+        (commands_dir / "zebra.md").write_text("---\nname: gpd:zebra\n---\nZ.", encoding="utf-8")
+        (commands_dir / "apple.md").write_text("---\nname: gpd:apple\n---\nA.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
         registry.invalidate_cache()
@@ -621,6 +725,42 @@ class TestPublicAPI:
         assert skill.source_kind == "command"
         assert skill.content == "Execute body."
 
+    def test_get_skill_accepts_registry_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\nname: gpd:execute-phase\ndescription: Execute\n---\nExecute body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("execute-phase")
+
+        assert isinstance(skill, SkillDef)
+        assert skill.name == "gpd-execute-phase"
+        assert skill.registry_name == "execute-phase"
+
+    def test_get_skill_accepts_public_command_label(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\nname: gpd:execute-phase\ndescription: Execute\n---\nExecute body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(registry, "AGENTS_DIR", tmp_path / "nonexistent-agents")
+        registry.invalidate_cache()
+
+        skill = registry.get_skill("/gpd:execute-phase")
+
+        assert isinstance(skill, SkillDef)
+        assert skill.name == "gpd-execute-phase"
+        assert skill.registry_name == "execute-phase"
+
     def test_real_slides_command_metadata(self) -> None:
         registry.invalidate_cache()
 
@@ -666,7 +806,16 @@ class TestDataclasses:
     """Tests for AgentDef, CommandDef, and SkillDef dataclass properties."""
 
     def test_agent_def_frozen(self) -> None:
-        agent = AgentDef(name="a", description="d", system_prompt="s", tools=[], color="", path="/p", source="agents")
+        agent = AgentDef(
+            name="a",
+            description="d",
+            system_prompt="s",
+            tools=[],
+            commit_authority="orchestrator",
+            color="",
+            path="/p",
+            source="agents",
+        )
         with pytest.raises(AttributeError):
             agent.name = "b"  # type: ignore[misc]
 
@@ -686,7 +835,16 @@ class TestDataclasses:
             cmd.name = "x"  # type: ignore[misc]
 
     def test_agent_def_slots(self) -> None:
-        agent = AgentDef(name="a", description="d", system_prompt="s", tools=[], color="", path="/p", source="agents")
+        agent = AgentDef(
+            name="a",
+            description="d",
+            system_prompt="s",
+            tools=[],
+            commit_authority="orchestrator",
+            color="",
+            path="/p",
+            source="agents",
+        )
         with pytest.raises((AttributeError, TypeError)):
             agent.new_attr = "nope"  # type: ignore[misc]
 

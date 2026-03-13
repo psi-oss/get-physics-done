@@ -14,6 +14,7 @@ from gpd.core.config import (
     ModelProfile,
     ModelTier,
     ResearchMode,
+    _valid_runtime_names,
     load_config,
     resolve_agent_tier,
     resolve_model,
@@ -183,6 +184,28 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="model_overrides\\['codex'\\] contains unknown tier"):
             load_config(tmp_path)
 
+    def test_model_overrides_runtime_lookup_failure_raises_config_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(
+            json.dumps({"model_overrides": {"codex": {"tier-1": "gpt-5"}}})
+        )
+
+        _valid_runtime_names.cache_clear()
+
+        def _raise_runtime_lookup_failure() -> list[str]:
+            raise FileNotFoundError("runtime catalog missing")
+
+        monkeypatch.setattr("gpd.adapters.runtime_catalog.list_runtime_names", _raise_runtime_lookup_failure)
+
+        with pytest.raises(ConfigError, match="Unable to resolve supported runtimes"):
+            load_config(tmp_path)
+
+        _valid_runtime_names.cache_clear()
+
 # ─── resolve_agent_tier ─────────────────────────────────────────────────────────
 
 
@@ -195,9 +218,9 @@ class TestResolveAgentTier:
         tier = resolve_agent_tier("gpd-executor", "numerical")
         assert tier == ModelTier.TIER_2
 
-    def test_unknown_agent_falls_back(self):
-        tier = resolve_agent_tier("gpd-unknown", "review")
-        assert tier == ModelTier.TIER_2
+    def test_unknown_agent_raises(self):
+        with pytest.raises(ConfigError, match="Unknown agent 'gpd-unknown'"):
+            resolve_agent_tier("gpd-unknown", "review")
 
     def test_unknown_profile_falls_back_to_review(self):
         tier = resolve_agent_tier("gpd-planner", "nonexistent")

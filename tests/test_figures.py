@@ -183,6 +183,27 @@ class TestPrepare:
         assert len(result) == 1
         assert any("double-column width" in message for message in caplog.messages)
 
+    def test_prepare_figures_keeps_valid_figures_when_one_fails_normalization(self, tmp_path):
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+
+        good = input_dir / "good.png"
+        Image.new("RGB", (100, 100), color="green").save(good)
+        bad = input_dir / "bad.gif"
+        bad.write_bytes(b"GIF89a")
+
+        figures = [
+            FigureRef(path=good, caption="Good figure", label="good"),
+            FigureRef(path=bad, caption="Bad figure", label="bad"),
+        ]
+
+        result, errs = prepare_figures(figures, tmp_path / "output", "prl")
+
+        assert len(result) == 1
+        assert result[0].label == "good"
+        assert any("Figure preparation failed for" in err for err in errs)
+        assert any("Unsupported figure format" in err for err in errs)
+
 
 # ---- Exception chaining regression ----
 

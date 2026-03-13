@@ -285,6 +285,30 @@ class TestTraceEdgeCases:
         result = trace_log(project, "info")
         assert result.logged is True
 
+    def test_active_trace_survives_project_rename(self, project: Path) -> None:
+        start_result = trace_start(project, "01", "plan-01")
+        assert start_result.started is True
+
+        original_trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        renamed_project = project.with_name(f"{project.name}-renamed")
+        project.rename(renamed_project)
+
+        log_result = trace_log(renamed_project, "checkpoint", {"step": "after-rename"})
+        stop_result = trace_stop(renamed_project)
+
+        moved_trace_file = renamed_project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        assert log_result.logged is True
+        assert stop_result.stopped is True
+        assert moved_trace_file.exists()
+        assert not original_trace_file.exists()
+
+        events = [json.loads(line) for line in moved_trace_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert [event["type"] for event in events] == ["trace_start", "checkpoint", "trace_stop"]
+        assert events[1]["data"]["step"] == "after-rename"
+
+        active_marker = renamed_project / ".gpd" / "traces" / ".active-trace"
+        assert not active_marker.exists()
+
     def test_full_lifecycle(self, project: Path) -> None:
         """Complete start -> log multiple -> stop -> show cycle."""
         trace_start(project, "03", "integration")

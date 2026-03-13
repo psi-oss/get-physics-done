@@ -321,6 +321,30 @@ class TestObserve:
         assert any(event.get("data", {}).get("wave") == 1 for event in observed["events"])
 
 
+class TestFrontmatterValidate:
+    def test_frontmatter_validate_invalid_schema_returns_exit_code_one(self, gpd_project: Path) -> None:
+        summary = gpd_project / "invalid-summary.md"
+        summary.write_text(
+            "---\nphase: '01'\nplan: '01'\n---\n\n# Summary\n",
+            encoding="utf-8",
+        )
+
+        result = _invoke(
+            "--raw",
+            "frontmatter",
+            "validate",
+            str(summary.relative_to(gpd_project)),
+            "--schema",
+            "summary",
+            expect_ok=False,
+        )
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert sorted(payload["missing"]) == ["completed", "depth", "provides"]
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 5. regression-check
 # ═══════════════════════════════════════════════════════════════════════════
@@ -464,40 +488,51 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
         assert parsed["found"] is False
 
-    def test_config_get_nested_key(self, gpd_project: Path) -> None:
-        """Test dot-path access for nested keys."""
+    def test_config_get_alias_key_reads_effective_value(self, gpd_project: Path) -> None:
+        """Alias keys should resolve through the canonical config surface."""
         config_path = gpd_project / ".gpd" / "config.json"
-        config_path.write_text(json.dumps({"nested": {"key": "value"}}))
-        result = _invoke("--raw", "config", "get", "nested.key")
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["commit_docs"] = False
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+
+        result = _invoke("--raw", "config", "get", "planning.commit_docs")
         parsed = json.loads(result.output)
         assert parsed["found"] is True
-        assert parsed["value"] == "value"
+        assert parsed["value"] is False
 
-    def test_config_set_new_key(self, gpd_project: Path) -> None:
-        result = _invoke("--raw", "config", "set", "new_key", "new_value")
+    def test_config_get_returns_defaults_when_config_is_missing(self, gpd_project: Path) -> None:
+        (gpd_project / ".gpd" / "config.json").unlink()
+
+        result = _invoke("--raw", "config", "get", "autonomy")
         parsed = json.loads(result.output)
-        assert parsed["updated"] is True
 
-        # Verify it persisted
-        config = json.loads(
-            (gpd_project / ".gpd" / "config.json").read_text()
-        )
-        assert config["new_key"] == "new_value"
+        assert parsed["found"] is True
+        assert parsed["value"] == "balanced"
 
-    def test_config_set_nested_key(self, gpd_project: Path) -> None:
-        _invoke("config", "set", "section.subsection", "deep_value")
-        config = json.loads(
-            (gpd_project / ".gpd" / "config.json").read_text()
-        )
-        assert config["section"]["subsection"] == "deep_value"
+    def test_config_set_rejects_unsupported_key(self, gpd_project: Path) -> None:
+        result = _invoke("--raw", "config", "set", "new_key", "new_value", expect_ok=False)
+        parsed = json.loads(result.output)
+        assert "Unsupported config key" in parsed["error"]
+
+        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        assert "new_key" not in config
+
+    def test_config_set_nested_alias_updates_canonical_value(self, gpd_project: Path) -> None:
+        _invoke("--raw", "config", "set", "planning.commit_docs", "false")
+        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        assert config["commit_docs"] is False
+        assert "planning" not in config
+
+        get_result = _invoke("--raw", "config", "get", "planning.commit_docs")
+        parsed = json.loads(get_result.output)
+        assert parsed["found"] is True
+        assert parsed["value"] is False
 
     def test_config_set_json_value(self, gpd_project: Path) -> None:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""
-        _invoke("config", "set", "count", "42")
-        config = json.loads(
-            (gpd_project / ".gpd" / "config.json").read_text()
-        )
-        assert config["count"] == 42
+        _invoke("config", "set", "parallelization", "false")
+        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        assert config["parallelization"] is False
 
     def test_config_ensure_section_exists(self) -> None:
         """ensure-section with existing config.json should report created=False."""
@@ -685,6 +720,11 @@ class TestResolveModelCommand:
         result = _invoke("resolve-tier", "gpd-executor")
         assert result.output.strip() == "tier-2"
 
+    def test_resolve_tier_rejects_unknown_agent(self) -> None:
+        result = _invoke("--raw", "resolve-tier", "not-an-agent", expect_ok=False)
+        parsed = json.loads(result.output)
+        assert parsed["error"] == "Unknown agent 'not-an-agent'"
+
     def test_resolve_model_uses_active_runtime_override(self, gpd_project: Path) -> None:
         config_path = gpd_project / ".gpd" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -697,3 +737,8 @@ class TestResolveModelCommand:
 
         planner_result = _invoke("resolve-model", "gpd-planner")
         assert planner_result.output.strip() == "gpt-5"
+
+    def test_resolve_model_rejects_unknown_agent(self) -> None:
+        result = _invoke("--raw", "resolve-model", "not-an-agent", "--runtime", "codex", expect_ok=False)
+        parsed = json.loads(result.output)
+        assert parsed["error"] == "Unknown agent 'not-an-agent'"

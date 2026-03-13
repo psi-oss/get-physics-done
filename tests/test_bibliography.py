@@ -59,6 +59,33 @@ class TestBibtexCreation:
         ]
         assert citation_keys_for_sources(sources) == list(create_bibliography(sources).entries.keys())
 
+    def test_citation_keys_match_enriched_emission(self):
+        from datetime import datetime
+
+        mock_author = MagicMock()
+        mock_author.name = "A. Mock"
+
+        mock_result = MagicMock()
+        mock_result.title = "Mock Title"
+        mock_result.authors = [mock_author]
+        mock_result.published = datetime(2023, 1, 15)
+
+        mock_arxiv = MagicMock()
+        mock_arxiv.Search.return_value = MagicMock()
+        mock_client = MagicMock()
+        mock_client.results.return_value = [mock_result]
+        mock_arxiv.Client.return_value = mock_client
+
+        sources = [CitationSource(source_type="paper", title="", arxiv_id="2301.12345")]
+        with patch.dict("sys.modules", {"arxiv": mock_arxiv}):
+            keys = citation_keys_for_sources(sources, enrich=True)
+        with patch.dict("sys.modules", {"arxiv": mock_arxiv}):
+            bibliography, audit = build_bibliography_with_audit(sources, enrich=True)
+
+        assert keys == list(bibliography.entries.keys())
+        assert keys == [entry.key for entry in audit.entries]
+        assert keys == ["mock2023"]
+
     def test_create_bibliography_multiple(self):
         sources = [
             CitationSource(source_type="paper", title="P1", authors=["A"], year="2020"),

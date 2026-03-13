@@ -129,14 +129,11 @@ def detect_active_runtime(*, cwd: Path | None = None, home: Path | None = None) 
 
 def detect_active_runtime_with_gpd_install(*, cwd: Path | None = None, home: Path | None = None) -> str:
     """Detect the active runtime only when that runtime also has a GPD install."""
-    resolved_runtime = detect_active_runtime(cwd=cwd, home=home)
-    if resolved_runtime not in ALL_RUNTIMES:
-        return RUNTIME_UNKNOWN
-
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    if _runtime_dir_has_gpd_install(resolved_runtime, cwd=resolved_cwd, home=resolved_home):
-        return resolved_runtime
+    for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
+        if _runtime_dir_has_gpd_install(runtime, cwd=resolved_cwd, home=resolved_home):
+            return runtime
     return RUNTIME_UNKNOWN
 
 
@@ -164,6 +161,25 @@ def detect_install_scope(
     return None
 
 
+def _ordered_runtime_dirs_for_lookup(
+    runtime: str,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> list[tuple[Path, str]]:
+    """Return local/global runtime dirs, preferring the detected install scope first."""
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+    scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
+
+    ordered_scopes = (SCOPE_GLOBAL, SCOPE_LOCAL) if scope == SCOPE_GLOBAL else (SCOPE_LOCAL, SCOPE_GLOBAL)
+    dirs_by_scope = {
+        SCOPE_LOCAL: _local_runtime_dir(runtime, resolved_cwd),
+        SCOPE_GLOBAL: _global_runtime_dir(runtime, home=resolved_home),
+    }
+    return [(dirs_by_scope[ordered_scope], ordered_scope) for ordered_scope in ordered_scopes]
+
+
 def _unique_paths(paths: list[Path]) -> list[Path]:
     """Return paths in order with duplicates removed."""
     seen: set[Path] = set()
@@ -188,6 +204,46 @@ def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> l
     return unique
 
 
+def _resolved_priority_runtime(
+    preferred_runtime: str | None,
+    *,
+    cwd: Path,
+    home: Path,
+) -> str:
+    """Return an explicit preferred runtime when valid, else detect the active runtime."""
+    if preferred_runtime in ALL_RUNTIMES:
+        return preferred_runtime
+    return detect_active_runtime(cwd=cwd, home=home)
+
+
+def _runtime_dirs_in_priority_order(
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    preferred_runtime: str | None = None,
+) -> list[Path]:
+    """Return runtime config dirs, optionally prioritizing one runtime first."""
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
+    prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
+
+    dirs: list[Path] = []
+    if prioritized_runtime in ALL_RUNTIMES:
+        for runtime_dir, _scope in _ordered_runtime_dirs_for_lookup(
+            prioritized_runtime,
+            cwd=resolved_cwd,
+            home=resolved_home,
+        ):
+            dirs.append(runtime_dir)
+
+    for runtime in ALL_RUNTIMES:
+        if runtime == prioritized_runtime:
+            continue
+        dirs.append(_local_runtime_dir(runtime, resolved_cwd))
+        dirs.append(_global_runtime_dir(runtime, home=resolved_home))
+    return _unique_paths(dirs)
+
+
 def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return config directories for all known runtimes."""
     dirs: list[Path] = []
@@ -200,8 +256,15 @@ def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, ho
     return _unique_paths(dirs)
 
 
-def get_todo_dirs(*, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
+def get_todo_dirs(
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    prefer_active: bool = False,
+) -> list[Path]:
     """Return todo directories for local and global runtime installs."""
+    if prefer_active:
+        return [d / TODOS_DIR_NAME for d in _runtime_dirs_in_priority_order(cwd=cwd, home=home)]
     return [d / TODOS_DIR_NAME for d in all_runtime_dirs(include_local=True, cwd=cwd, home=home)]
 
 
@@ -229,24 +292,22 @@ def get_update_cache_candidates(
     """Return candidate update-cache files with runtime/scope attribution."""
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    prioritized_runtime = preferred_runtime or detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
     candidates: list[UpdateCacheCandidate] = []
 
     if prioritized_runtime in ALL_RUNTIMES:
-        candidates.append(
-            UpdateCacheCandidate(
-                _local_runtime_dir(prioritized_runtime, resolved_cwd) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
-                runtime=prioritized_runtime,
-                scope=SCOPE_LOCAL,
+        for runtime_dir, scope in _ordered_runtime_dirs_for_lookup(
+            prioritized_runtime,
+            cwd=resolved_cwd,
+            home=resolved_home,
+        ):
+            candidates.append(
+                UpdateCacheCandidate(
+                    runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
+                    runtime=prioritized_runtime,
+                    scope=scope,
+                )
             )
-        )
-        candidates.append(
-            UpdateCacheCandidate(
-                _global_runtime_dir(prioritized_runtime, home=resolved_home) / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
-                runtime=prioritized_runtime,
-                scope=SCOPE_GLOBAL,
-            )
-        )
 
     candidates.append(UpdateCacheCandidate(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME))
     for runtime in ALL_RUNTIMES:
@@ -267,6 +328,39 @@ def get_update_cache_candidates(
     return _unique_update_cache_candidates(candidates)
 
 
+def should_consider_update_cache_candidate(
+    candidate: UpdateCacheCandidate,
+    *,
+    active_installed_runtime: str | None = None,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> bool:
+    """Return whether a cache candidate should participate in update lookup.
+
+    Runtime-specific caches are ignored when they belong to an uninstalled runtime
+    and a different runtime currently has a live GPD install. This prevents stale
+    caches from one runtime from being paired with another runtime's update command.
+    """
+    runtime = candidate.runtime
+    if runtime not in ALL_RUNTIMES:
+        return True
+
+    installed_scope = detect_install_scope(runtime, cwd=cwd, home=home)
+    if installed_scope is not None:
+        return candidate.scope in (None, installed_scope)
+
+    if active_installed_runtime in (None, "", RUNTIME_UNKNOWN):
+        return True
+
+    # A caller may supply an active runtime hint that no longer matches the
+    # actual filesystem. Only use that hint to suppress other runtime caches
+    # when the hinted runtime still has a concrete install.
+    if not _runtime_dir_has_gpd_install(active_installed_runtime, cwd=cwd, home=home):
+        return True
+
+    return False
+
+
 def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
     """Return GPD installation directories for all known runtimes."""
     if not prefer_active:
@@ -275,7 +369,19 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
     dirs: list[Path] = []
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    for runtime in _prioritized_runtimes(detect_active_runtime(cwd=resolved_cwd, home=resolved_home)):
+    prioritized_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+
+    if prioritized_runtime in ALL_RUNTIMES:
+        for runtime_dir, _scope in _ordered_runtime_dirs_for_lookup(
+            prioritized_runtime,
+            cwd=resolved_cwd,
+            home=resolved_home,
+        ):
+            dirs.append(runtime_dir / GPD_INSTALL_DIR_NAME)
+
+    for runtime in ALL_RUNTIMES:
+        if runtime == prioritized_runtime:
+            continue
         dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
         dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)
     return _unique_paths(dirs)
@@ -312,5 +418,6 @@ __all__ = [
     "get_gpd_install_dirs",
     "get_todo_dirs",
     "get_update_cache_files",
+    "should_consider_update_cache_candidate",
     "update_command_for_runtime",
 ]

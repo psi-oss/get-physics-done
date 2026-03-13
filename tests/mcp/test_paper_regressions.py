@@ -143,6 +143,33 @@ def test_render_paper_cleans_title_fences() -> None:
     assert "My Test Paper" in rendered
 
 
+def test_render_paper_cleans_fenced_author_section_appendix_and_caption_fields() -> None:
+    from pathlib import Path
+
+    from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+    from gpd.mcp.paper.template_registry import render_paper
+
+    rendered = render_paper(
+        PaperConfig(
+            journal="prl",
+            title="Paper",
+            authors=[Author(name="```Alice Example```", email="```alice@example.com```", affiliation="```MIT```")],
+            abstract="Abstract text",
+            sections=[Section(title="```Intro```", content="Body text")],
+            appendix_sections=[Section(title="```Appendix A```", content="Appendix text")],
+            figures=[FigureRef(path=Path("figures/fig01.pdf"), caption="```Velocity caption```", label="velocity")],
+        )
+    )
+
+    assert "```" not in rendered
+    assert "\\author{Alice Example}" in rendered
+    assert "\\email{alice@example.com}" in rendered
+    assert "\\affiliation{MIT}" in rendered
+    assert "\\section{Intro}" in rendered
+    assert "\\section{Appendix A}" in rendered
+    assert "\\caption{Velocity caption}" in rendered
+
+
 def test_latex_autofix_preserves_documentclass_and_texttt_underscores() -> None:
     from gpd.utils.latex import _fix_unbalanced_braces, _fix_unescaped_underscores
 

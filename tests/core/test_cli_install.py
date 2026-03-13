@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -205,6 +206,35 @@ def test_install_summary_leaves_blank_line_after_help_hint(tmp_path: Path):
     assert "Run /gpd:help to see available commands.\n\n" in result.output
 
 
+def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(tmp_path: Path):
+    """Multi-runtime installs should print runtime-specific help hints."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {
+            "runtime": runtime_name,
+            "commands": 5,
+            "agents": 3,
+            "target": str(tmp_path / runtime_name),
+        }
+
+    adapters = {
+        "claude-code": MagicMock(display_name="Claude Code", help_command="/gpd:claude-help"),
+        "gemini": MagicMock(display_name="Gemini CLI", help_command="/gpd:gemini-help"),
+    }
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", side_effect=lambda runtime: adapters[runtime]),
+    ):
+        result = runner.invoke(app, ["install", "claude-code", "gemini", "--local"])
+
+    assert result.exit_code == 0
+    assert "Run the runtime-specific help command to see available commands:" in result.output
+    assert "- Claude Code: /gpd:claude-help" in result.output
+    assert "- Gemini CLI: /gpd:gemini-help" in result.output
+    assert "Run /gpd:claude-help to see available commands." not in result.output
+
+
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 
@@ -327,6 +357,31 @@ def test_install_raw_includes_failures(tmp_path: Path):
     assert '"failed"' in result.output
 
 
+def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
+    """A finalize_install failure must only surface in the failed list."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    class FailingFinalizeAdapter:
+        display_name = "Claude Code"
+        help_command = "/gpd:help"
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            raise RuntimeError("finalize boom")
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", return_value=FailingFinalizeAdapter()),
+    ):
+        result = runner.invoke(app, ["--raw", "install", "claude-code", "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["installed"] == []
+    assert payload["failed"] == [{"runtime": "claude-code", "error": "finalize boom"}]
+
+
 def test_uninstall_raw_outputs_json(tmp_path: Path):
     """--raw flag on uninstall outputs clean JSON."""
     target = tmp_path / ".claude"
@@ -441,6 +496,108 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
     assert captured_calls[0]["target_dir"] == target
 
 
+def test_install_single_runtime_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
+    """Relative --target-dir should be anchored to --cwd, not the process cwd."""
+    from gpd.cli import _install_single_runtime
+
+    captured_calls: list[Path] = []
+    cli_cwd = tmp_path / "workspace"
+    cli_cwd.mkdir()
+
+    class SpyAdapter:
+        runtime_name = "claude-code"
+        display_name = "Claude Code"
+        config_dir_name = ".claude"
+        help_command = "/gpd:help"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def install(self, gpd_root, target_dir, *, is_global=False, explicit_target=False):
+            captured_calls.append(target_dir)
+            return {"runtime": "claude-code", "commands": 0, "agents": 0}
+
+        def finalize_install(self, install_result, *, force_statusline=False):
+            return None
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
+        patch("gpd.cli._get_cwd", return_value=cli_cwd),
+    ):
+        _install_single_runtime("claude-code", is_global=False, target_dir_override="relative-target")
+
+    assert captured_calls == [cli_cwd / "relative-target"]
+
+
+def test_uninstall_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
+    """Relative uninstall --target-dir should be anchored to --cwd."""
+    cli_cwd = tmp_path / "workspace"
+    cli_cwd.mkdir()
+    target = cli_cwd / "relative-target"
+    target.mkdir()
+    captured_targets: list[Path] = []
+
+    class SpyAdapter:
+        display_name = "Claude Code"
+
+        def resolve_target_dir(self, is_global, cwd=None):
+            return tmp_path / ".claude"
+
+        def uninstall(self, target_dir):
+            captured_targets.append(target_dir)
+            return {"runtime": "claude-code", "removed": []}
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=SpyAdapter()),
+        patch("gpd.cli._get_cwd", return_value=cli_cwd),
+    ):
+        result = runner.invoke(app, ["uninstall", "claude-code", "--target-dir", "relative-target"])
+
+    assert result.exit_code == 0
+    assert captured_targets == [target]
+
+
+def test_install_interactive_rejects_ambiguous_runtime_name(tmp_path: Path):
+    """Substring matches that hit multiple runtimes should fail closed."""
+    with (
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code", "codex", "opencode"]),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        adapters = {
+            "claude-code": MagicMock(display_name="Claude Code", selection_aliases=("claude", "claude code")),
+            "codex": MagicMock(display_name="Codex", selection_aliases=("codex",)),
+            "opencode": MagicMock(display_name="OpenCode", selection_aliases=("opencode", "open code")),
+        }
+        mock_get.side_effect = lambda runtime: adapters[runtime]
+
+        result = runner.invoke(app, ["install"], input="code\n")
+
+    assert result.exit_code == 1
+    assert "Ambiguous selection: 'code'" in result.output
+
+
+def test_install_interactive_rejects_invalid_location_choice(tmp_path: Path):
+    """Interactive location selection should reject invalid choices instead of defaulting to local."""
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code"]),
+    ):
+        mock_adapter = MagicMock()
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.selection_aliases = ("claude", "claude code")
+        mock_get.return_value = mock_adapter
+
+        result = runner.invoke(app, ["install"], input="1\n9\n")
+
+    assert result.exit_code == 1
+    assert "Invalid selection: '9'" in result.output
+
+
 @pytest.mark.parametrize(
     ("argv_suffix", "supported_runtimes", "expected_runtimes", "uses_target_dir"),
     [
@@ -511,8 +668,71 @@ def test_install_global_and_local_conflict():
     assert "Cannot specify both" in result.output
 
 
+def test_install_rejects_explicit_runtimes_with_all() -> None:
+    """`--all` cannot be combined with explicit runtime arguments on install."""
+    with (
+        patch("gpd.cli._install_single_runtime") as mock_install_single,
+        patch("gpd.adapters.list_runtimes") as mock_list_runtimes,
+    ):
+        result = runner.invoke(app, ["install", "claude-code", "--all", "--local"])
+
+    assert result.exit_code == 1
+    assert "Cannot combine explicit runtimes with --all for install" in result.output
+    mock_install_single.assert_not_called()
+    mock_list_runtimes.assert_not_called()
+
+
+def test_install_target_dir_rejects_multiple_runtimes(tmp_path: Path):
+    """Explicit target dirs are only safe for a single runtime."""
+    result = runner.invoke(
+        app,
+        ["install", "claude-code", "gemini", "--target-dir", str(tmp_path / "shared")],
+    )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for install" in result.output
+
+
+def test_install_target_dir_rejects_all_runtimes(tmp_path: Path):
+    """`--all` plus an explicit target dir is also unsafe."""
+    with patch("gpd.adapters.list_runtimes", return_value=["claude-code", "gemini"]):
+        result = runner.invoke(
+            app,
+            ["install", "--all", "--target-dir", str(tmp_path / "shared")],
+        )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for install" in result.output
+
+
 def test_uninstall_global_and_local_conflict():
     """--global and --local together on uninstall errors."""
     result = runner.invoke(app, ["uninstall", "claude-code", "--global", "--local"])
     assert result.exit_code == 1
     assert "Cannot specify both" in result.output
+
+
+def test_uninstall_rejects_explicit_runtimes_with_all() -> None:
+    """`--all` cannot be combined with explicit runtime arguments on uninstall."""
+    with (
+        patch("gpd.adapters.get_adapter") as mock_get_adapter,
+        patch("gpd.adapters.list_runtimes") as mock_list_runtimes,
+    ):
+        result = runner.invoke(app, ["uninstall", "claude-code", "--all", "--local"])
+
+    assert result.exit_code == 1
+    assert "Cannot combine explicit runtimes with --all for uninstall" in result.output
+    mock_get_adapter.assert_not_called()
+    mock_list_runtimes.assert_not_called()
+
+
+def test_uninstall_target_dir_rejects_multiple_runtimes(tmp_path: Path):
+    """Explicit target dirs are only safe for a single runtime on uninstall too."""
+    result = runner.invoke(
+        app,
+        ["uninstall", "claude-code", "gemini", "--target-dir", str(tmp_path / "shared")],
+        input="n\n",
+    )
+
+    assert result.exit_code == 1
+    assert "--target-dir requires exactly one runtime for uninstall" in result.output

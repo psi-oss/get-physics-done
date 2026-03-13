@@ -256,16 +256,17 @@ def _is_module_available(module_name: str) -> bool:
 
 
 def _build_public_alternatives(name: str) -> dict[str, dict[str, str | list[str]]] | None:
-    """Build a descriptor alternatives block for a built-in server."""
+    """Build fallback launch alternatives for a public built-in server descriptor."""
     if name == "gpd-arxiv":
         return None
     if not name.startswith("gpd-"):
         return None
-    suffix = name.removeprefix("gpd-")
+    raw = _BUILTIN_SERVERS[name]
+    args = list(raw.get("args", [])) if isinstance(raw.get("args"), list) else []
     return {
-        "entry_point": {
-            "command": f"gpd-mcp-{suffix}",
-            "args": [],
+        "python_module": {
+            "command": str(raw["command"]),
+            "args": args,
             "notes": _ENTRY_POINT_NOTES,
         }
     }
@@ -275,13 +276,18 @@ def build_public_descriptor(name: str) -> dict[str, object]:
     """Build the canonical public infra descriptor for a built-in MCP server."""
     raw = _BUILTIN_SERVERS[name]
     metadata = _PUBLIC_DESCRIPTOR_METADATA[name]
-    args = list(raw.get("args", [])) if isinstance(raw.get("args"), list) else []
+    default_args = list(raw.get("args", [])) if isinstance(raw.get("args"), list) else []
     env = dict(raw.get("env", {})) if isinstance(raw.get("env"), dict) else {}
+    command = str(raw["command"])
+    args = default_args
+    if name != "gpd-arxiv" and name.startswith("gpd-"):
+        command = f"gpd-mcp-{name.removeprefix('gpd-')}"
+        args = []
     descriptor: dict[str, object] = {
         "name": name,
         "description": str(metadata["description"]),
         "transport": "stdio",
-        "command": str(raw["command"]),
+        "command": command,
         "args": args,
         "env": env,
         "capabilities": list(metadata["capabilities"]) if isinstance(metadata["capabilities"], list) else [],

@@ -125,7 +125,7 @@ def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payl
     policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
     workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, *policy.project_dir_keys)
+    project_dir = _first_string(workspace_value, *policy.project_dir_keys) or _first_string(data, *policy.project_dir_keys)
 
     try:
         resolved_workspace = workspace_path.resolve()
@@ -216,7 +216,7 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     from gpd.hooks.runtime_detect import get_todo_dirs
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    todo_dirs = get_todo_dirs(cwd=workspace_path)
+    todo_dirs = get_todo_dirs(cwd=workspace_path, prefer_active=True)
 
     for todos_dir in todo_dirs:
         if not todos_dir.is_dir():
@@ -238,7 +238,10 @@ def _workspace_from_payload(data: dict[str, object]) -> str:
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
-    return _first_string(workspace_value, *hook_payload.workspace_keys) or os.getcwd()
+    return _first_string(workspace_value, *hook_payload.workspace_keys) or _first_string(
+        data,
+        *hook_payload.workspace_keys,
+    ) or os.getcwd()
 
 
 def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:
@@ -250,21 +253,25 @@ def _read_context_remaining(data: dict[str, object], hook_payload) -> float | in
 
 
 def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, object] | None, object | None]:
-    """Return the freshest valid update cache and its candidate metadata."""
+    """Return the highest-priority valid update cache and its candidate metadata."""
     from gpd.hooks.runtime_detect import (
         detect_active_runtime_with_gpd_install,
         get_update_cache_candidates,
+        should_consider_update_cache_candidate,
     )
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path) if workspace_path else None
-    latest_cache: dict[str, object] | None = None
-    latest_candidate = None
-    latest_checked = -1.0
-
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+    preferred_runtime = active_installed_runtime if workspace_path is not None else None
     for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
         cache_file = candidate.path
         if not cache_file.exists():
+            continue
+        if not should_consider_update_cache_candidate(
+            candidate,
+            active_installed_runtime=active_installed_runtime,
+            cwd=workspace_path,
+        ):
             continue
         try:
             cache = json.loads(cache_file.read_text(encoding="utf-8"))
@@ -276,14 +283,9 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
             _debug(f"Ignoring non-object update cache {cache_file}")
             continue
 
-        checked = cache.get("checked")
-        checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
-        if latest_cache is None or checked_value > latest_checked:
-            latest_cache = cache
-            latest_candidate = candidate
-            latest_checked = checked_value
+        return cache, candidate
 
-    return latest_cache, latest_candidate
+    return None, None
 
 
 def _check_update(workspace_dir: str | None = None) -> str:

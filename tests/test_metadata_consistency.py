@@ -45,6 +45,23 @@ def _decorated_mcp_tools(relative_path: str) -> list[str]:
     return tool_names
 
 
+def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:
+    args = descriptor.get("args")
+    if isinstance(args, list) and len(args) == 2 and args[0] == "-m":
+        return str(args[1])
+
+    alternatives = descriptor.get("alternatives")
+    if not isinstance(alternatives, dict):
+        return None
+    python_module = alternatives.get("python_module")
+    if not isinstance(python_module, dict):
+        return None
+    alt_args = python_module.get("args")
+    if isinstance(alt_args, list) and len(alt_args) == 2 and alt_args[0] == "-m":
+        return str(alt_args[1])
+    return None
+
+
 def _project_script_lines(repo_root: Path) -> list[str]:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8").splitlines()
     collecting = False
@@ -138,14 +155,11 @@ def test_public_mcp_descriptor_capabilities_match_server_tools() -> None:
 
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
-        args = descriptor.get("args")
-        assert isinstance(args, list)
-        if args == ["-m", "arxiv_mcp_server"]:
+        module_name = _descriptor_python_module(descriptor)
+        if module_name == "arxiv_mcp_server":
             continue
 
-        assert len(args) == 2
-        assert args[0] == "-m"
-        module_name = str(args[1])
+        assert isinstance(module_name, str), name
         module_path = Path("src") / Path(*module_name.split(".")).with_suffix(".py")
 
         assert descriptor["capabilities"] == _decorated_mcp_tools(module_path.as_posix()), name
@@ -162,23 +176,24 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
 
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
-        args = descriptor.get("args")
-        assert isinstance(args, list)
-        if args == ["-m", "arxiv_mcp_server"]:
+        module_name = _descriptor_python_module(descriptor)
+        if module_name == "arxiv_mcp_server":
             assert "alternatives" not in descriptor
             continue
 
+        script_name = descriptor.get("command")
+        assert isinstance(script_name, str), name
+        assert descriptor.get("args") == []
+        assert script_name.startswith("gpd-mcp-")
+        assert script_targets[script_name] == f"{module_name}:main"
+
         alternatives = descriptor.get("alternatives")
         assert isinstance(alternatives, dict), name
-        entry_point = alternatives.get("entry_point")
-        assert isinstance(entry_point, dict), name
-        script_name = entry_point.get("command")
-        assert isinstance(script_name, str), name
-        assert entry_point.get("args") == []
-        assert entry_point.get("notes") == "Requires gpd package installed"
-        assert len(args) == 2
-        assert args[0] == "-m"
-        assert script_targets[script_name] == f"{args[1]}:main"
+        python_module = alternatives.get("python_module")
+        assert isinstance(python_module, dict), name
+        assert python_module.get("command") == "python"
+        assert python_module.get("args") == ["-m", module_name]
+        assert python_module.get("notes") == "Requires gpd package installed"
 
 
 def test_arxiv_descriptor_tracks_required_dependency_surface() -> None:
@@ -199,18 +214,15 @@ def test_agent_count_matches_prompts_and_user_docs() -> None:
     assert f"across all {agents_count} agents" in _read("src/gpd/specs/workflows/set-profile.md")
 
 
-def test_settings_workflow_documents_runtime_specific_model_override_guidance() -> None:
+def test_settings_workflow_documents_runtime_native_model_override_guidance() -> None:
     workflow = _read("src/gpd/specs/workflows/settings.md")
 
     assert "model_overrides" in workflow
-    assert "claude-code" in workflow
-    assert "codex" in workflow
-    assert "gemini" in workflow
-    assert "opencode" in workflow
     assert "tier-1" in workflow
-    assert "the exact string Codex accepts" in workflow
-    assert "accepted by the installed Gemini runtime" in workflow
-    assert "`provider/model`" in workflow
+    assert "infer the active runtime identifier" in workflow
+    assert "the exact model string the active runtime accepts" in workflow
+    assert "Preserve any provider prefixes" in workflow
+    assert "slash-delimited ids" in workflow
 
 
 def test_health_check_count_matches_skill_documentation() -> None:
@@ -241,3 +253,31 @@ def test_every_command_declares_valid_context_mode() -> None:
 
     assert missing == []
     assert invalid == []
+
+
+def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
+    workflow = _read("src/gpd/specs/workflows/update.md")
+
+    assert "<GPD_CONFIG_DIR>" not in workflow
+    assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in workflow
+
+
+def test_referee_response_round_suffix_convention_is_consistent() -> None:
+    peer_review = _read("src/gpd/specs/workflows/peer-review.md")
+    respond = _read("src/gpd/specs/workflows/respond-to-referees.md")
+    template = _read("src/gpd/specs/templates/paper/referee-response.md")
+
+    assert 'ROUND_SUFFIX="-R2"' in peer_review
+    assert 'ROUND_SUFFIX="-R3"' in peer_review
+    assert "REFEREE_RESPONSE-R2.md" in respond
+    assert "AUTHOR-RESPONSE-R2.md" in respond
+    assert "REFEREE_RESPONSE-R2.md" in template
+    assert "REFEREE_RESPONSE_R2.md" not in respond
+    assert "REFEREE_RESPONSE_R2.md" not in template
+
+
+def test_bibliography_template_tracks_live_references_bib_path() -> None:
+    template = _read("src/gpd/specs/templates/bibliography.md")
+
+    assert "references/references.bib" in template
+    assert ".gpd/references.bib" not in template

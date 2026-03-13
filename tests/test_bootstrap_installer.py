@@ -317,6 +317,18 @@ def test_bootstrap_uninstall_rejects_reinstall_flag(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_rejects_reinstall_and_upgrade_together(tmp_path: Path) -> None:
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--codex", "--local", "--reinstall", "--upgrade"],
+    )
+
+    assert result.returncode == 1
+    assert "Cannot combine --reinstall with --upgrade." in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
     result, _, _ = _run_bootstrap_with_fake_python(
         tmp_path,
@@ -347,6 +359,21 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
         and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local", "--target-dir", str(target_dir)]
     ]
     assert len(managed_runtime_installs) == 1
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_rejects_target_dir_with_all_runtimes(tmp_path: Path) -> None:
+    target_dir = tmp_path / "custom target"
+    result, _, _ = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--all", "--target-dir", str(target_dir)],
+    )
+
+    assert result.returncode == 1
+    assert "--target-dir" in result.stderr
+    assert "--all" in result.stderr
+    assert "exactly one runtime" in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -454,6 +481,42 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
     assert "Using HTTPS git checkout of main for the main-branch upgrade." in result.stdout
     assert "HTTP error 404 while getting branch archive" not in result.stderr
     assert "current main branch source archive failed. Falling back to HTTPS git checkout of main..." not in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=["--claude", "--local", "--upgrade"],
+        extra_env={
+            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
+            "FAKE_PIP_FAIL_MAIN_GIT": "1",
+        },
+    )
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
+    ]
+
+    assert managed_pip_targets == [
+        MAIN_ARCHIVE_SPEC,
+        MAIN_SSH_GIT_SPEC,
+        MAIN_HTTPS_GIT_SPEC,
+    ]
+    assert TAG_ARCHIVE_SPEC not in managed_pip_targets
+    assert TAG_SSH_GIT_SPEC not in managed_pip_targets
+    assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
+    assert managed_runtime_installs == []
+    assert "GitHub main upgrade failed across all main-branch candidates." in result.stdout
+    assert "broader GitHub source candidate set" not in result.stdout
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

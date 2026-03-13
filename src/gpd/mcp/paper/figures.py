@@ -194,7 +194,11 @@ def _prepare_figures_with_sources(
             errors.append(f"Figure not found: {fig.path}")
             continue
 
-        normalized_path = normalize_figure(fig.path, output_dir)
+        try:
+            normalized_path = normalize_figure(fig.path, output_dir)
+        except (OSError, RuntimeError, ValueError) as exc:
+            errors.append(f"Figure preparation failed for {fig.path}: {exc}")
+            continue
 
         passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)
         if not passes:

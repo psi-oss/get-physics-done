@@ -546,6 +546,55 @@ def _extract_bullets(content: str, section_name: str) -> list[str]:
     return [b.strip() for b in bullets if b.strip() and not re.match(r"^none", b.strip(), re.IGNORECASE)]
 
 
+def _extract_subsection(content: str, heading: str) -> str | None:
+    """Extract a ### subsection body from STATE.md."""
+    escaped = re.escape(heading)
+    pattern = re.compile(rf"###?\s*{escaped}\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)", re.IGNORECASE)
+    match = pattern.search(content)
+    return match.group(1) if match else None
+
+
+def _extract_bold_block(content: str, label: str) -> str | None:
+    """Extract a bold-label block like ``**Convention Lock:**``."""
+    escaped = re.escape(label)
+    pattern = re.compile(rf"\*\*{escaped}:\*\*\s*\n([\s\S]*?)(?=\n###?|\n##[^#]|$)", re.IGNORECASE)
+    match = pattern.search(content)
+    return match.group(1) if match else None
+
+
+def _has_subsection(content: str, heading: str) -> bool:
+    """Return whether STATE.md includes a matching subsection heading."""
+    return _extract_subsection(content, heading) is not None
+
+
+def _has_bold_block(content: str, label: str) -> bool:
+    """Return whether STATE.md includes a matching bold-label block."""
+    return _extract_bold_block(content, label) is not None
+
+
+def _parse_table_rows(section: str | None) -> list[list[str]]:
+    """Parse markdown table rows, skipping headers and placeholders."""
+    if not section:
+        return []
+
+    rows = [line.strip() for line in section.splitlines() if line.strip().startswith("|")]
+    parsed_rows: list[list[str]] = []
+    for row in rows[2:]:
+        cells = [_unescape_pipe(cell.strip()) for cell in re.split(r"(?<!\\)\|", row) if cell.strip()]
+        if not cells:
+            continue
+        if cells[0] == "-" or re.match(r"^none", cells[0], re.IGNORECASE):
+            continue
+        parsed_rows.append(cells)
+    return parsed_rows
+
+
+def _slugify_custom_convention(label: str) -> str:
+    """Convert a display label into a stable custom convention key."""
+    slug = re.sub(r"[^a-z0-9]+", "_", label.strip().lower()).strip("_")
+    return slug or "custom_convention"
+
+
 def parse_state_md(content: str) -> dict:
     """Parse STATE.md into a structured dict.
 
@@ -671,6 +720,59 @@ def parse_state_md(content: str) -> dict:
     active_calculations = _extract_bullets(content, "Active Calculations")
     intermediate_results = _extract_bullets(content, "Intermediate Results")
     open_questions = _extract_bullets(content, "Open Questions")
+    pending_todos = [
+        bullet.strip()
+        for bullet in re.findall(r"^\s*-\s+(.+)$", _extract_subsection(content, "Pending Todos") or "", re.MULTILINE)
+        if bullet.strip() and not re.match(r"^none", bullet.strip(), re.IGNORECASE)
+    ]
+
+    approximations: list[dict[str, str]] = []
+    for cells in _parse_table_rows(_extract_subsection(content, "Active Approximations")):
+        if len(cells) < 5:
+            continue
+        approximations.append(
+            {
+                "name": cells[0],
+                "validity_range": cells[1],
+                "controlling_param": cells[2],
+                "current_value": cells[3],
+                "status": cells[4],
+            }
+        )
+
+    propagated_uncertainties: list[dict[str, str]] = []
+    for cells in _parse_table_rows(_extract_subsection(content, "Propagated Uncertainties")):
+        if len(cells) < 5:
+            continue
+        propagated_uncertainties.append(
+            {
+                "quantity": cells[0],
+                "value": cells[1],
+                "uncertainty": cells[2],
+                "phase": cells[3],
+                "method": cells[4],
+            }
+        )
+
+    convention_lock: dict[str, object] = {}
+    custom_conventions: dict[str, str] = {}
+    label_to_key = {label.lower(): key for key, label in _CONVENTION_LABELS.items()}
+    for entry in re.findall(r"^\s*-\s+(.+)$", _extract_bold_block(content, "Convention Lock") or "", re.MULTILINE):
+        text = entry.strip()
+        if not text or re.match(r"^(?:none|no conventions locked yet)", text, re.IGNORECASE):
+            continue
+        label, separator, value = text.partition(":")
+        if not separator:
+            continue
+        normalized_label = label.strip()
+        normalized_value = value.strip()
+        key = label_to_key.get(normalized_label.lower())
+        if key is not None:
+            convention_lock[key] = normalized_value
+        else:
+            custom_conventions[_slugify_custom_convention(normalized_label)] = normalized_value
+    if custom_conventions:
+        convention_lock["custom_conventions"] = custom_conventions
 
     return {
         "project": project,
@@ -682,6 +784,10 @@ def parse_state_md(content: str) -> dict:
         "active_calculations": active_calculations,
         "intermediate_results": intermediate_results,
         "open_questions": open_questions,
+        "approximations": approximations,
+        "convention_lock": convention_lock,
+        "propagated_uncertainties": propagated_uncertainties,
+        "pending_todos": pending_todos,
     }
 
 
@@ -735,6 +841,10 @@ def parse_state_to_json(content: str) -> dict:
         "active_calculations": parsed["active_calculations"],
         "intermediate_results": parsed["intermediate_results"],
         "open_questions": parsed["open_questions"],
+        "approximations": parsed["approximations"],
+        "convention_lock": parsed["convention_lock"],
+        "propagated_uncertainties": parsed["propagated_uncertainties"],
+        "pending_todos": parsed["pending_todos"],
     }
 
 
@@ -1195,19 +1305,23 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
     """Merge markdown-derived state into the existing JSON state."""
     json_path = _state_json_path(cwd)
     parsed = parse_state_to_json(md_content)
+    has_convention_lock = _has_bold_block(md_content, "Convention Lock")
+    has_approximations = _has_subsection(md_content, "Active Approximations")
+    has_uncertainties = _has_subsection(md_content, "Propagated Uncertainties")
+    has_pending_todos = _has_subsection(md_content, "Pending Todos")
 
     existing = None
     try:
         existing = json.loads(json_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         pass
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
         logger.warning("state.json is corrupt, attempting backup restore: %s", e)
         bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
         try:
             existing = json.loads(bak_path.read_text(encoding="utf-8"))
             logger.info("Restored from state.json.bak")
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+        except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json.bak also unavailable")
 
@@ -1233,6 +1347,9 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
         if parsed.get("performance_metrics") is not None:
             merged["performance_metrics"] = parsed["performance_metrics"]
 
+        if has_convention_lock and parsed.get("convention_lock") is not None:
+            merged["convention_lock"] = parsed["convention_lock"]
+
         for field in ("active_calculations", "intermediate_results", "open_questions"):
             if field in parsed:
                 if field == "intermediate_results":
@@ -1242,6 +1359,14 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
                     )
                 else:
                     merged[field] = parsed.get(field) or []
+        structured_fields = (
+            ("approximations", has_approximations),
+            ("propagated_uncertainties", has_uncertainties),
+            ("pending_todos", has_pending_todos),
+        )
+        for field, markdown_has_field in structured_fields:
+            if markdown_has_field and field in parsed:
+                merged[field] = parsed.get(field) or []
     else:
         merged = parsed
 
@@ -1356,7 +1481,7 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
             return normalized
         except FileNotFoundError:
             pass
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json parse error: %s", e)
             if integrity_mode == "review":
@@ -1371,7 +1496,7 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
                     return None
                 atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
                 return restored
-            except (FileNotFoundError, json.JSONDecodeError, OSError):
+            except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
                 if os.environ.get(ENV_GPD_DEBUG):
                     logger.debug("state.json.bak restore failed")
 
@@ -1383,7 +1508,7 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
                 return None
             content = md_path.read_text(encoding="utf-8")
             return sync_state_json_core(cwd, content)
-        except (FileNotFoundError, OSError):
+        except (FileNotFoundError, OSError, UnicodeDecodeError):
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("STATE.md fallback failed")
             return None
@@ -1433,7 +1558,7 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     return StateLoadResult(
         state=state_obj or {},
         state_raw=state_raw,
-        state_exists=len(state_raw) > 0,
+        state_exists=state_obj is not None or len(state_raw) > 0,
         roadmap_exists=layout.roadmap.exists(),
         config_exists=layout.config_json.exists(),
         integrity_mode=integrity_mode,
@@ -1954,7 +2079,7 @@ def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidate
                 target.append(f"state.json version drift: expected 1, found {raw_version}")
     except FileNotFoundError:
         issues.append("state.json not found")
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
         issues.append(f"state.json parse error: {e}")
 
     # Load and parse STATE.md
@@ -1964,7 +2089,7 @@ def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidate
         state_md = parse_state_to_json(content)
     except FileNotFoundError:
         issues.append("STATE.md not found")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         issues.append(f"STATE.md parse error: {e}")
 
     if not state_json and not state_md:

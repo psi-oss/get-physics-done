@@ -163,29 +163,41 @@ For stricter semantic checks, use the dedicated commands alongside `pre-commit-c
 
 ## Agent Commit Ownership
 
-Which agents commit their own work vs. return `files_written` for the orchestrator to commit:
+Commit authority is default-deny. Only agents with `commit_authority: direct` may call `gpd commit`.
 
-| Agent | Commits? | Mechanism |
-|-------|----------|-----------|
-| gpd-executor | **Yes** | `gpd commit` after each task (task commit protocol) |
-| gpd-planner | **Yes** | `gpd commit` after plan creation and revision |
-| gpd-debugger | **Yes** | `gpd commit` for error patterns and session state |
-| gpd-phase-researcher | No | Returns `files_written`; orchestrator commits |
-| gpd-project-researcher | No | Returns `files_written`; orchestrator commits (spawned in parallel) |
-| gpd-research-synthesizer | No | Returns `files_written`; orchestrator commits |
-| gpd-verifier | No | Returns `files_written`; orchestrator commits |
-| gpd-plan-checker | No | Returns `files_written`; orchestrator commits |
-| gpd-consistency-checker | No | Returns `files_written`; orchestrator commits |
-| gpd-paper-writer | No | Returns `files_written`; orchestrator commits |
-| gpd-bibliographer | No | Returns `files_written`; orchestrator commits |
-| gpd-referee | No | Returns `files_written`; orchestrator commits |
-| gpd-literature-reviewer | No | Returns `files_written`; orchestrator commits |
-| gpd-experiment-designer | No | Returns `files_written`; orchestrator commits |
-| gpd-notation-coordinator | No | Returns `files_written`; orchestrator commits |
-| gpd-research-mapper | No | Returns `files_written`; orchestrator commits |
-| gpd-roadmapper | No | Returns `files_written`; orchestrator commits |
+- Agents with `commit_authority: orchestrator` must not run `gpd commit`, `git commit`, `git add`, or stage files.
+- Orchestrator-owned agents return changed paths in `gpd_return.files_written`; the orchestrator commits after the agent returns.
+- Direct-commit agents may use `gpd commit` only for their own scoped artifacts and should avoid raw `git commit` when `gpd commit` applies.
 
-**Rule:** Only 3 agents (executor, planner, debugger) call `gpd commit` directly. All other agents write files and report them in the `gpd_return.files_written` array. The orchestrating workflow commits after the agent returns.
+Canonical ownership matrix:
+
+| Agent | `commit_authority` | Mechanism |
+|-------|--------------------|-----------|
+| gpd-debugger | `direct` | `gpd commit` for error patterns and session state |
+| gpd-executor | `direct` | `gpd commit` after each task (task commit protocol) |
+| gpd-planner | `direct` | `gpd commit` after plan creation and revision |
+| gpd-bibliographer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-consistency-checker | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-experiment-designer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-explainer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-literature-reviewer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-notation-coordinator | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-paper-writer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-phase-researcher | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-plan-checker | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-project-researcher | `orchestrator` | Returns `files_written`; orchestrator commits (spawned in parallel) |
+| gpd-referee | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-research-mapper | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-research-synthesizer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-review-literature | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-review-math | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-review-physics | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-review-reader | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-review-significance | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-roadmapper | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-verifier | `orchestrator` | Returns `files_written`; orchestrator commits |
+
+**Rule:** Only `commit_authority: direct` agents call `gpd commit` directly. All other agents write files, report them in `gpd_return.files_written`, and leave commit/staging decisions to the orchestrating workflow.
 
 ---
 

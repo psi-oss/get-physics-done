@@ -5,8 +5,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import convert_tool_references_in_body
-from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, CLAUDE_CODE, canonical
+from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, build_runtime_alias_map, canonical
 from gpd.registry import _parse_frontmatter, _parse_tools
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,8 @@ FORBIDDEN_CONTEXTUAL_RUNTIME_ALIAS_PATTERNS = (
     re.compile(r"\bEdit \+"),
     re.compile(r"\bFile Edit\b"),
 )
+
+_CLAUDE_ALIAS_MAP = build_runtime_alias_map(get_adapter("claude-code").tool_name_map)
 
 
 def _iter_markdown_sources(*roots: Path) -> list[Path]:
@@ -62,11 +65,10 @@ def test_primary_prompt_frontmatter_uses_canonical_tool_names() -> None:
 
 def test_primary_prompt_bodies_use_canonical_tool_references() -> None:
     invalid: list[str] = []
-    runtime_alias_map = {runtime_name: canonical_name for canonical_name, runtime_name in CLAUDE_CODE.items()}
 
     for path in _iter_markdown_sources(*PRIMARY_PROMPT_ROOTS):
         _meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
-        if convert_tool_references_in_body(body, runtime_alias_map) != body:
+        if convert_tool_references_in_body(body, _CLAUDE_ALIAS_MAP) != body:
             invalid.append(str(path.relative_to(REPO_ROOT)))
 
     assert invalid == []
@@ -74,11 +76,10 @@ def test_primary_prompt_bodies_use_canonical_tool_references() -> None:
 
 def test_shared_specs_use_canonical_tool_references() -> None:
     invalid: list[str] = []
-    runtime_alias_map = {runtime_name: canonical_name for canonical_name, runtime_name in CLAUDE_CODE.items()}
 
     for path in _iter_markdown_sources(*SHARED_SPEC_ROOTS):
         content = path.read_text(encoding="utf-8")
-        if convert_tool_references_in_body(content, runtime_alias_map) != content:
+        if convert_tool_references_in_body(content, _CLAUDE_ALIAS_MAP) != content:
             invalid.append(str(path.relative_to(REPO_ROOT)))
 
     assert invalid == []

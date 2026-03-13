@@ -2,11 +2,8 @@
   "name": "gpd-conventions",
   "description": "GPD convention lock management. Tools for querying, setting, validating, and comparing physics conventions across research phases.",
   "transport": "stdio",
-  "command": "python",
-  "args": [
-    "-m",
-    "gpd.mcp.servers.conventions_server"
-  ],
+  "command": "gpd-mcp-conventions",
+  "args": [],
   "env": {
     "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
   },
@@ -30,9 +27,12 @@
     "expect": "contains metric_signature"
   },
   "alternatives": {
-    "entry_point": {
-      "command": "gpd-mcp-conventions",
-      "args": [],
+    "python_module": {
+      "command": "python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.conventions_server"
+      ],
       "notes": "Requires gpd package installed"
     }
   }

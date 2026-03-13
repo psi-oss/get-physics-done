@@ -3,83 +3,73 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
+import sys
+from contextlib import contextmanager
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
-EXCLUDED_GRAPH_DIRS = {
-    ".git",
-    ".mcp.json",
-    "__pycache__",
-    ".venv",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".gpd",
-    ".codex",
-    ".gemini",
-    ".opencode",
-    "dist",
-}
+from scripts.repo_graph_contract import (
+    CONTRACT_PATH,
+    GENERATED_ON_END,
+    GENERATED_ON_START,
+    GRAPH_PATH,
+    REPO_ROOT,
+    SCOPE_END,
+    SCOPE_START,
+    expected_scope_counts,
+    extract_marked_block,
+    live_repo_file_count,
+    load_contract,
+    parse_scope_count,
+    read_graph_text,
+    render_generated_on_block,
+    render_scope_block,
+)
 
+@contextmanager
+def _transient_root_artifacts():
+    sentinel_root = "__gpd_repo_graph_test__"
+    transient_roots = (
+        ".npm-cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+    )
+    created_paths: list[tuple[Path, bool]] = []
 
-def _graph_text() -> str:
-    return GRAPH_PATH.read_text(encoding="utf-8")
-
-
-def _scope_count(label: str) -> int:
-    match = re.search(rf"^- {re.escape(label)}: `(\d+)`$", _graph_text(), re.MULTILINE)
-    assert match is not None, f"Missing scope count for {label}"
-    return int(match.group(1))
-
-
-def _tracked_repo_file_count() -> int:
-    tracked_files = subprocess.run(
-        ["git", "ls-files"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        check=True,
-        text=True,
-    ).stdout.splitlines()
-    return sum(1 for relative_path in tracked_files if not any(part in EXCLUDED_GRAPH_DIRS for part in Path(relative_path).parts))
+    try:
+        for root_name in transient_roots:
+            root_path = REPO_ROOT / root_name
+            sentinel_dir = root_path / sentinel_root
+            root_existed = root_path.exists()
+            sentinel_dir.mkdir(parents=True, exist_ok=True)
+            (sentinel_dir / "sentinel.txt").write_text("graph regression coverage\n", encoding="utf-8")
+            created_paths.append((root_path, root_existed))
+        yield [root_path / sentinel_root / "sentinel.txt" for root_path, _ in created_paths]
+    finally:
+        for root_path, root_existed in created_paths:
+            sentinel_dir = root_path / sentinel_root
+            if sentinel_dir.exists():
+                shutil.rmtree(sentinel_dir)
+            if not root_existed and root_path.exists() and not any(root_path.iterdir()):
+                root_path.rmdir()
 
 
 def test_graph_scope_counts_match_live_prompt_inventory() -> None:
-    expected = {
-        "Tracked repo files analyzed in the current tree": _tracked_repo_file_count(),
-        "Python files under `src/` and `tests/`": sum(
-            1
-            for root in (REPO_ROOT / "src", REPO_ROOT / "tests")
-            for _path in root.rglob("*.py")
-        ),
-        "`src/gpd/commands/*.md`": len(list((REPO_ROOT / "src/gpd/commands").glob("*.md"))),
-        "`src/gpd/agents/*.md`": len(list((REPO_ROOT / "src/gpd/agents").glob("*.md"))),
-        "`src/gpd/specs/workflows/*.md`": len(list((REPO_ROOT / "src/gpd/specs/workflows").glob("*.md"))),
-        "`src/gpd/specs/templates/**/*.md`": len(list((REPO_ROOT / "src/gpd/specs/templates").rglob("*.md"))),
-        "`src/gpd/specs/references/**/*.md`": len(list((REPO_ROOT / "src/gpd/specs/references").rglob("*.md"))),
-        "`src/gpd/adapters/*.py`": len(list((REPO_ROOT / "src/gpd/adapters").glob("*.py"))),
-        "`src/gpd/hooks/*.py`": len(list((REPO_ROOT / "src/gpd/hooks").glob("*.py"))),
-        "`src/gpd/mcp/servers/*.py`": len(list((REPO_ROOT / "src/gpd/mcp/servers").glob("*.py"))),
-        "`tests/**` files": sum(
-            1
-            for path in (REPO_ROOT / "tests").rglob("*")
-            if path.is_file() and not any(part in EXCLUDED_GRAPH_DIRS for part in path.parts)
-        ),
-        "`infra/gpd-*.json`": len(list((REPO_ROOT / "infra").glob("gpd-*.json"))),
-    }
+    expected = expected_scope_counts()
 
     mismatches = [
-        f"{label}: graph={_scope_count(label)} live={count}"
+        f"{label}: graph={parse_scope_count(label)} live={count}"
         for label, count in expected.items()
-        if _scope_count(label) != count
+        if parse_scope_count(label) != count
     ]
 
     assert not mismatches, "Graph scope counts are stale:\n" + "\n".join(mismatches)
 
 
 def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
-    graph = _graph_text()
+    graph = read_graph_text()
     match = re.search(
         r"src/gpd/commands/\{([^}]*)\}\.md -> src/gpd/specs/workflows/\{same stems\}\.md",
         graph,
@@ -96,7 +86,7 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
 
 
 def test_graph_captures_staged_review_prompt_edges() -> None:
-    graph = _graph_text()
+    graph = read_graph_text()
     expected_edges = [
         "`src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
         "`src/gpd/commands/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
@@ -110,7 +100,7 @@ def test_graph_captures_staged_review_prompt_edges() -> None:
 
 
 def test_graph_captures_paper_build_prompt_edges() -> None:
-    graph = _graph_text()
+    graph = read_graph_text()
     expected_edges = [
         "`src/gpd/commands/write-paper.md -> gpd paper-build paper/PAPER-CONFIG.json`",
         "`src/gpd/commands/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`",
@@ -126,7 +116,7 @@ def test_graph_captures_paper_build_prompt_edges() -> None:
 
 
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
-    graph = _graph_text()
+    graph = read_graph_text()
     expected_edges = [
         "`src/gpd/hooks/statusline.py -> src/gpd/hooks/runtime_detect.py`",
         "`src/gpd/hooks/statusline.py -> src/gpd/adapters/__init__.py`",
@@ -150,7 +140,7 @@ def test_graph_test_file_references_exist() -> None:
     missing = sorted(
         {
             ref
-            for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", _graph_text())
+            for ref in re.findall(r"tests/[A-Za-z0-9_./-]+\.py", read_graph_text())
             if not (REPO_ROOT / ref).is_file()
         }
     )
@@ -159,7 +149,7 @@ def test_graph_test_file_references_exist() -> None:
 
 
 def test_graph_claude_artifact_language_matches_tree() -> None:
-    graph = _graph_text()
+    graph = read_graph_text()
 
     assert "## Installed Runtime Artifact Family: `.claude/**`" in graph
     assert ".claude/settings.local.json" not in graph
@@ -172,3 +162,70 @@ def test_graph_claude_artifact_language_matches_tree() -> None:
         assert "- `.claude/get-physics-done/workflows/**/*.md`" not in graph
         assert "- `.claude/get-physics-done/templates/**/*.md`" not in graph
         assert "- `.claude/get-physics-done/references/**/*.md`" not in graph
+
+
+def test_graph_contract_scope_parser_matches_expected_counts() -> None:
+    for label, count in expected_scope_counts().items():
+        assert parse_scope_count(label) == count
+
+
+def test_graph_contract_json_matches_live_scope_counts() -> None:
+    contract = load_contract()
+    assert contract["scope_counts"] == expected_scope_counts()
+
+
+def test_graph_readme_generated_blocks_match_contract() -> None:
+    contract = load_contract()
+    graph_text = read_graph_text()
+
+    assert extract_marked_block(graph_text, GENERATED_ON_START, GENERATED_ON_END) == render_generated_on_block(contract)
+    assert extract_marked_block(graph_text, SCOPE_START, SCOPE_END) == render_scope_block(contract)
+
+
+def test_live_repo_file_count_ignores_transient_root_artifacts() -> None:
+    baseline = live_repo_file_count()
+
+    with _transient_root_artifacts() as sentinel_files:
+        assert all(path.is_file() for path in sentinel_files)
+        assert live_repo_file_count() == baseline
+
+    assert all(not path.exists() for path in sentinel_files)
+
+
+def test_live_repo_file_count_ignores_untracked_worktree_files(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    tracked_file = tmp_path / "tracked.txt"
+    tracked_file.write_text("tracked\n", encoding="utf-8")
+    subprocess.run(["git", "add", tracked_file.name], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    untracked_file = tmp_path / "docs" / "scratch.md"
+    untracked_file.parent.mkdir(parents=True, exist_ok=True)
+    untracked_file.write_text("untracked\n", encoding="utf-8")
+
+    assert live_repo_file_count(tmp_path) == 1
+
+
+def test_live_repo_file_count_ignores_runtime_mirror_dirs(tmp_path: Path) -> None:
+    for rel_path in (".claude/a.txt", ".codex/b.txt", ".gemini/c.txt", ".opencode/d.txt"):
+        path = tmp_path / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("runtime mirror sentinel\n", encoding="utf-8")
+
+    assert live_repo_file_count(tmp_path) == 0
+
+
+def test_sync_repo_graph_script_runs_as_direct_file() -> None:
+    graph_before = GRAPH_PATH.read_text(encoding="utf-8")
+    contract_before = CONTRACT_PATH.read_text(encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, "scripts/sync_repo_graph_contract.py"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert GRAPH_PATH.read_text(encoding="utf-8") == graph_before
+    assert CONTRACT_PATH.read_text(encoding="utf-8") == contract_before

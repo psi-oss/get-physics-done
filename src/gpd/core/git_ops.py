@@ -38,6 +38,8 @@ class FileCheckDetail(BaseModel):
 
     file: str
     exists: bool = True
+    regular_file: bool = True
+    readable: bool = True
     frontmatter_valid: bool | None = None
     has_nan: bool = False
     warnings: list[str] = Field(default_factory=list)
@@ -117,12 +119,14 @@ def _check_single_file(cwd: Path, file_path: str) -> FileCheckDetail:
         return detail
 
     if not full_path.is_file():
+        detail.regular_file = False
         detail.warnings.append(f"Not a regular file: {file_path}")
         return detail
 
     try:
         content = full_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
+        detail.readable = False
         detail.warnings.append(f"Cannot read file: {exc}")
         return detail
 
@@ -185,6 +189,8 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
     # Fail on: invalid frontmatter, NaN detected, missing files
     passed = all(
         detail.exists
+        and detail.regular_file
+        and detail.readable
         and detail.frontmatter_valid is not False
         and not detail.has_nan
         for detail in details

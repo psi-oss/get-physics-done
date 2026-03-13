@@ -117,6 +117,19 @@ def _do_check(cache_file: Path) -> None:
         _debug(f"Failed to write update cache: {exc}")
 
 
+def _throttle_cache_candidates(cache_candidates: list[Path]) -> list[Path]:
+    """Return cache files that are relevant for throttling this refresh."""
+    fallback_cache = Path.home() / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
+    relevant: list[Path] = []
+
+    for candidate in cache_candidates:
+        relevant.append(candidate)
+        if candidate == fallback_cache:
+            break
+
+    return relevant
+
+
 def main() -> None:
     """Entry point: throttle-check for updates, spawn background worker if needed."""
     from gpd.hooks.runtime_detect import get_update_cache_files
@@ -128,8 +141,8 @@ def main() -> None:
         else (Path.home() / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
     )
 
-    # Throttle: skip if any candidate cache was checked recently.
-    for candidate in cache_candidates:
+    # Throttle: skip only when the preferred runtime/home cache set is still fresh.
+    for candidate in _throttle_cache_candidates(cache_candidates):
         if not candidate.exists():
             continue
         try:

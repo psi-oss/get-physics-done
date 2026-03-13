@@ -50,10 +50,10 @@ The workflow handles all logic including:
    - **Parallel execution**: on / off
    - **Git branching**: none / per-phase / per-milestone
 4. Runtime-aware model guidance when explicit tier models are requested:
-   - **Claude Code**: aliases like `opus`, `sonnet`, `haiku` or pinned full names
-   - **Codex**: the exact Codex model string accepted by the active runtime
-   - **Gemini CLI**: the exact Gemini model name accepted by the active runtime
-   - **OpenCode**: a full `provider/model` id
+   - Ask for the exact model string the active runtime accepts
+   - Preserve provider prefixes, slash-delimited ids, brackets, and alias syntax already used by that runtime
+   - Prefer runtime defaults unless the user explicitly wants pinned tier overrides
+   - When the runtime routes through multiple providers, confirm the provider before suggesting provider-native ids
 5. Answer parsing and config merging
 6. File writing
 7. Confirmation display with current settings summary and quick command references

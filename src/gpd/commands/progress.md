@@ -119,7 +119,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 - Find the 2-3 most recent SUMMARY.md files
 - Use `summary-extract` for efficient parsing:
   ```bash
-  gpd summary-extract <path> --fields one_liner
+  gpd summary-extract <path> --field one_liner
   ```
 - This shows "what we've been working on" (e.g., derivations completed, numerical results obtained, validations passed)
 

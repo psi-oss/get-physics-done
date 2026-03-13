@@ -399,24 +399,21 @@ def clean_latex_fences(raw: str) -> str:
     """Strip markdown code fences from LLM output."""
     latex = raw.strip()
     if "```" in latex:
-        # Extract content from ALL fenced blocks (handles multiple blocks)
         parts = latex.split("```")
-        # parts[0] is before first fence, parts[1] is first block content,
-        # parts[2] is between blocks, parts[3] is second block content, etc.
-        # Odd-indexed parts are inside fences.
-        # If len(parts) is even, fences are unmatched — return unchanged.
         if len(parts) % 2 == 0:
             return latex
         collected: list[str] = []
-        for i in range(1, len(parts), 2):
-            content = parts[i]
-            # Strip language tag (e.g. Tex, TeX, plaintex) if present
-            first_newline = content.find('\n')
-            if first_newline > 0:
-                first_line = content[:first_newline].strip().lower()
-                if first_line in ('latex', 'tex', 'plaintex'):
-                    content = content[first_newline + 1:]
-            collected.append(content.strip())
+        for index, part in enumerate(parts):
+            content = part
+            if index % 2 == 1:
+                first_newline = content.find('\n')
+                if first_newline > 0:
+                    first_line = content[:first_newline].strip().lower()
+                    if first_line in ("latex", "tex", "plaintex"):
+                        content = content[first_newline + 1 :]
+            stripped = content.strip()
+            if stripped:
+                collected.append(stripped)
         if collected:
             latex = "\n\n".join(collected)
     return latex

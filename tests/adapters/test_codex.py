@@ -98,6 +98,12 @@ class TestConvertToCodexSkill:
         result = _convert_to_codex_skill(content, "gpd-test")
         assert "description: My description" in result
 
+    def test_description_with_triple_dash_is_preserved(self) -> None:
+        content = "---\nname: test\ndescription: before --- after\n---\nBody"
+        result = _convert_to_codex_skill(content, "gpd-test")
+        assert "description: before --- after" in result
+        assert result.rstrip().endswith("Body")
+
     def test_missing_name_added(self) -> None:
         content = "---\ndescription: D\n---\nBody"
         result = _convert_to_codex_skill(content, "gpd-test")
@@ -423,6 +429,26 @@ description: Nested command include expansion regression
         assert re.search(r"^\s*@.*?/workflows/update\.md\s*$", content, flags=re.MULTILINE) is None
         assert "$gpd-reapply-patches" in content
 
+    def test_complete_milestone_skill_expands_bullet_list_includes(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (skills / "gpd-complete-milestone" / "SKILL.md").read_text(encoding="utf-8")
+        assert "<!-- [included: complete-milestone.md] -->" in content
+        assert "<!-- [included: milestone-archive.md] -->" in content
+        assert "Mark a completed research stage" in content
+        assert "# Milestone Archive Template" in content
+        assert re.search(r"^\s*-\s*@.*?/workflows/complete-milestone\.md.*$", content, flags=re.MULTILINE) is None
+        assert re.search(r"^\s*-\s*@.*?/templates/milestone-archive\.md.*$", content, flags=re.MULTILINE) is None
+
 
 class TestUninstall:
     def test_global_uninstall_uses_manifest_skills_dir_when_env_drifts(
@@ -551,7 +577,7 @@ class TestUninstall:
         assert 'model = "gpt-4"' in content
         assert "gpd-style naming" in content
         assert 'custom = "my-gpd-tool"' in content
-        assert "notify.py" not in content
+        assert f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]' in content
 
     def test_uninstall_removes_gpd_comment_with_notify(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         """The '# GPD update notification' comment should be cleaned alongside the notify line."""
@@ -596,7 +622,9 @@ class TestNotifyConfiguration:
 
         content = config_toml.read_text(encoding="utf-8")
         assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in content
-        assert 'notify = ["sh", "-c",' in content
+        escaped_exe = (sys.executable or "python3").replace("\\", "\\\\")
+        assert f'notify = ["{escaped_exe}", "-c",' in content
+        assert "gpd-codex-notify-wrapper-v1" in content
         assert "/path/to/my-tool" in content
         assert "notify.py" in content
 
@@ -607,6 +635,38 @@ class TestNotifyConfiguration:
         cleaned = config_toml.read_text(encoding="utf-8")
         assert 'notify = ["toolctl", "/path/to/my-tool"]' in cleaned
         assert "notify.py" not in cleaned
+        assert "GPD original notify" not in cleaned
+
+    def test_wraps_custom_notify_py_and_restores_it_on_uninstall(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        from gpd.adapters.codex import _configure_config_toml
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "hooks").mkdir()
+        config_toml = target / "config.toml"
+        config_toml.write_text(
+            'notify = ["python", "/Users/me/custom/notify.py"]\n',
+            encoding="utf-8",
+        )
+
+        _configure_config_toml(target, is_global=False)
+
+        content = config_toml.read_text(encoding="utf-8")
+        assert '# GPD original notify: ["python", "/Users/me/custom/notify.py"]' in content
+        assert 'notify = ["python", "/Users/me/custom/notify.py"]' not in content
+        assert "gpd-codex-notify-wrapper-v1" in content
+
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.uninstall(target, skills_dir=skills)
+
+        cleaned = config_toml.read_text(encoding="utf-8")
+        assert 'notify = ["python", "/Users/me/custom/notify.py"]' in cleaned
+        assert "gpd-codex-notify-wrapper-v1" not in cleaned
         assert "GPD original notify" not in cleaned
 
     def test_mcp_toml_escapes_windows_paths(self, tmp_path: Path) -> None:

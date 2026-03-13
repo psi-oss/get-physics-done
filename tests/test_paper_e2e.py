@@ -88,6 +88,57 @@ class TestBuildPaper:
         assert bib_artifact["metadata"]["entry_source"] == "bib_data"
 
     @pytest.mark.asyncio
+    async def test_build_paper_merges_bib_data_and_citation_sources(self, tmp_path, monkeypatch):
+        from gpd.mcp.paper.compiler import build_paper
+
+        config = PaperConfig(
+            title="Merged Bibliography Paper",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="Hello world.")],
+        )
+
+        explicit_bib = BibliographyData()
+        explicit_bib.entries["einstein1905"] = Entry(
+            "article",
+            [("author", "Einstein"), ("title", "Zur Elektrodynamik"), ("year", "1905")],
+        )
+
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+
+        output = await build_paper(
+            config,
+            tmp_path,
+            bib_data=explicit_bib,
+            citation_sources=[
+                CitationSource(
+                    source_type="paper",
+                    title="Relativity Follow-up",
+                    authors=["N. Bohr"],
+                    year="1913",
+                    doi="10.1000/bohr1913",
+                )
+            ],
+            enrich_bibliography=False,
+        )
+
+        bib_content = (tmp_path / "references.bib").read_text(encoding="utf-8")
+        assert "einstein1905" in bib_content
+        assert "bohr1913" in bib_content
+        assert output.bibliography_audit is not None
+        assert output.bibliography_audit.entries[0].key == "bohr1913"
+        assert output.manifest is not None
+        bib_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "bib-references")
+        assert bib_artifact.metadata["entry_source"] == "bib_data+citation_sources"
+
+    @pytest.mark.asyncio
     async def test_build_paper_prepares_config_figures(self, tmp_path, monkeypatch):
         from gpd.mcp.paper.compiler import build_paper
 
@@ -204,6 +255,51 @@ class TestBuildPaper:
         figure_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.category == "figure")
         assert figure_artifact.metadata["label"] == "existing"
         assert figure_artifact.sources[0].path == str(existing_figure)
+
+    @pytest.mark.asyncio
+    async def test_build_paper_fails_when_some_figures_cannot_be_prepared_but_keeps_valid_figures(
+        self, tmp_path, monkeypatch
+    ):
+        from gpd.mcp.paper.compiler import build_paper
+
+        good_figure = tmp_path / "good.png"
+        Image.new("RGB", (200, 200), color="purple").save(good_figure)
+        bad_figure = tmp_path / "bad.gif"
+        bad_figure.write_bytes(b"GIF89a")
+
+        config = PaperConfig(
+            title="Mixed Figure Quality",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="See Fig.~\\ref{fig:good}.")],
+            figures=[
+                FigureRef(path=good_figure, caption="Good figure.", label="good"),
+                FigureRef(path=bad_figure, caption="Bad figure.", label="bad"),
+            ],
+        )
+
+        pdf_path = tmp_path / "main.pdf"
+        pdf_path.write_bytes(b"%PDF-fake")
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+
+        output = await build_paper(config, tmp_path)
+
+        assert output.success is False
+        assert output.pdf_path == pdf_path
+        assert any("Figure preparation failed for" in error for error in output.errors)
+        assert "figures/good.png" in output.tex_content
+        assert "bad.gif" not in output.tex_content
+        assert output.manifest is not None
+        figure_artifacts = [artifact for artifact in output.manifest.artifacts if artifact.category == "figure"]
+        assert len(figure_artifacts) == 1
+        assert figure_artifacts[0].metadata["label"] == "good"
+        assert figure_artifacts[0].sources[0].path == str(good_figure)
 
 
 # ---- Public API surface test ----

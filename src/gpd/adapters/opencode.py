@@ -33,10 +33,12 @@ from gpd.adapters.install_utils import (
     parse_jsonc,
     protect_runtime_agent_prompt,
     remove_stale_agents,
+    render_markdown_frontmatter,
     replace_placeholders,
+    split_markdown_frontmatter,
     strip_sub_tags,
 )
-from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,25 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-_TOOL_REFERENCE_MAP = reference_translation_map("opencode")
+_TOOL_NAME_MAP: dict[str, str] = {
+    "file_read": "read_file",
+    "file_write": "write_file",
+    "file_edit": "edit_file",
+    "shell": "shell",
+    "search_files": "grep",
+    "find_files": "glob",
+    "web_search": "websearch",
+    "web_fetch": "webfetch",
+    "notebook_edit": "notebookedit",
+    "agent": "agent",
+    "ask_user": "question",
+    "todo_write": "todowrite",
+    "task": "task",
+    "slash_command": "skill",
+    "tool_search": "toolsearch",
+}
+_TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
+_TOOL_REFERENCE_MAP = reference_translation_map(_TOOL_NAME_MAP, alias_map=_TOOL_ALIAS_MAP)
 
 # Color name → hex for OpenCode compatibility
 _COLOR_NAME_TO_HEX: dict[str, str] = {
@@ -94,7 +114,7 @@ def convert_tool_name(tool_name: str) -> str:
 
     OpenCode keeps MCP tools as-is, so this never returns ``None``.
     """
-    mapped = translate_for_runtime(tool_name, "opencode")
+    mapped = translate_for_runtime(tool_name, _TOOL_NAME_MAP)
     return mapped if mapped is not None else tool_name
 
 
@@ -124,15 +144,9 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     converted = converted.replace("/gpd:", "/gpd-")
     converted = re.sub(r"~/\.claude\b", resolved_config_dir, converted)
 
-    if not converted.startswith("---"):
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
+    if not frontmatter:
         return converted
-
-    end_index = converted.find("---", 3)
-    if end_index == -1:
-        return converted
-
-    frontmatter = converted[3:end_index].strip()
-    body = converted[end_index + 3 :]
 
     lines = frontmatter.split("\n")
     new_lines: list[str] = []
@@ -193,7 +207,7 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
             new_lines.append(f"  {convert_tool_name(tool)}: true")
 
     new_frontmatter = "\n".join(new_lines).strip()
-    return f"---\n{new_frontmatter}\n---{body}"
+    return render_markdown_frontmatter(preamble, new_frontmatter, separator, body)
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +404,7 @@ def write_manifest(config_dir: Path, version: str, *, install_scope: str | None 
     gpd_dir = config_dir / "get-physics-done"
     command_dir = config_dir / "command"
     agents_dir = config_dir / "agents"
+    hooks_dir = config_dir / "hooks"
 
     manifest: dict = {
         "version": version,
@@ -417,6 +432,11 @@ def write_manifest(config_dir: Path, version: str, *, install_scope: str | None 
         for f in sorted(agents_dir.iterdir()):
             if f.name.startswith("gpd-") and f.name.endswith(".md"):
                 manifest["files"]["agents/" + f.name] = file_hash(f)
+
+    # hooks/ files
+    if hooks_dir.exists():
+        for rel, h in generate_manifest(hooks_dir).items():
+            manifest["files"]["hooks/" + rel] = h
 
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -669,12 +689,32 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
 class OpenCodeAdapter(RuntimeAdapter):
     """Adapter for OpenCode."""
 
+    tool_name_map = _TOOL_NAME_MAP
+    strip_sub_tags_in_shared_markdown = True
+
     @property
     def runtime_name(self) -> str:
         return "opencode"
 
+    def translate_shared_command_references(self, content: str) -> str:
+        return content.replace("/gpd:", self.command_prefix)
+
     def format_command(self, action: str) -> str:
         return f"/gpd-{action}"
+
+    def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
+        """OpenCode opts out when `disable_ai_attribution` is enabled."""
+        config_dir = Path(explicit_config_dir).expanduser() if explicit_config_dir else self.resolve_global_config_dir()
+        config_path = config_dir / "opencode.json"
+        if not config_path.exists():
+            return ""
+        try:
+            parsed = parse_jsonc(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+        if isinstance(parsed, dict) and parsed.get("disable_ai_attribution") is True:
+            return None
+        return ""
 
     # --- Template method hooks ---
 

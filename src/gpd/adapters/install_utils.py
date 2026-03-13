@@ -13,10 +13,11 @@ import os
 import re
 import shlex
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
-from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES, reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -108,26 +109,28 @@ def replace_placeholders(
 ) -> str:
     """Replace GPD path placeholders in file content.
 
-    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, runtime placeholders,
-    and ``~/.claude/`` references with *path_prefix*-based paths.
+    Replaces ``{GPD_INSTALL_DIR}``, ``{GPD_AGENTS_DIR}``, and runtime
+    placeholders with *path_prefix*.
 
-    The source spec files always use ``~/.claude/`` as a canonical placeholder
-    for the runtime config directory, regardless of the target runtime.  This
-    function rewrites that placeholder to *path_prefix*, which is the
-    runtime-specific config path (e.g. ``~/.gemini/``, ``~/.codex/``,
-    ``~/.config/opencode/``, or ``~/.claude/`` itself for Claude Code).
+    Source prompt/spec content should use canonical placeholders such as
+    ``{GPD_CONFIG_DIR}`` so the adapter layer can rewrite them to the concrete
+    runtime-specific path during installation without each prompt source
+    carrying per-runtime copies.
 
     Used by all adapters during install to rewrite .md file references.
     """
     content = content.replace("{GPD_INSTALL_DIR}", path_prefix + "get-physics-done")
     content = content.replace("{GPD_AGENTS_DIR}", path_prefix + "agents")
-    content = re.sub(r"~/\.claude/", path_prefix, content)
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
-_BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)(?:[^{}]*)\}")
 _PLAIN_SHELL_VAR_RE = re.compile(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
 _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9_])")
+_MARKDOWN_FRONTMATTER_RE = re.compile(
+    r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
+)
+_LIST_ITEM_INCLUDE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)(@.*)$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -172,18 +175,73 @@ def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
 
 def _split_frontmatter(content: str) -> tuple[str, str]:
     """Return ``(frontmatter, body)`` while preserving the original delimiter."""
-    if not content.startswith("---"):
+    match = _MARKDOWN_FRONTMATTER_RE.match(content)
+    if match is None:
         return "", content
+    return content[: match.end()], content[match.end() :]
 
-    end_index = content.find("---", 3)
-    if end_index == -1:
-        return "", content
 
-    return content[: end_index + 3], content[end_index + 3 :]
+def split_markdown_frontmatter(content: str) -> tuple[str, str, str, str]:
+    """Split markdown into preamble, frontmatter, body separator, and body."""
+    match = _MARKDOWN_FRONTMATTER_RE.match(content)
+    if match is None:
+        return "", "", "", content
+    return (
+        match.group("preamble"),
+        match.group("frontmatter"),
+        match.group("body_separator"),
+        content[match.end() :],
+    )
+
+
+def render_markdown_frontmatter(preamble: str, frontmatter: str, separator: str, body: str) -> str:
+    """Reassemble markdown content after frontmatter mutation."""
+    rendered = f"{preamble}---\n{frontmatter}\n---"
+    if separator:
+        rendered += separator
+    return rendered + body
+
+
+def _default_markdown_transform(runtime: str) -> Callable[[str, str, str | None], str]:
+    """Resolve the adapter-owned shared-markdown transform for *runtime*."""
+    from gpd.adapters import get_adapter
+
+    try:
+        adapter = get_adapter(runtime)
+    except KeyError:
+        return lambda content, path_prefix, install_scope: replace_placeholders(
+            content,
+            path_prefix,
+            runtime,
+            install_scope,
+        )
+    return adapter.translate_shared_markdown
 
 
 def _shell_var_placeholder(match: re.Match[str]) -> str:
     return f"<{match.group(1)}>"
+
+
+def _strip_wrapping_quotes(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {'"', "'"}:
+        return stripped[1:-1]
+    return stripped
+
+
+def _parse_frontmatter_tool_tokens(value: str) -> list[str]:
+    stripped = value.strip()
+    if not stripped:
+        return []
+
+    if stripped.startswith("[") and stripped.endswith("]"):
+        stripped = stripped[1:-1]
+
+    lexer = shlex.shlex(stripped, posix=True)
+    lexer.whitespace = ","
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return [_strip_wrapping_quotes(token) for token in lexer if _strip_wrapping_quotes(token)]
 
 
 def _protect_shell_vars(content: str) -> str:
@@ -217,34 +275,6 @@ def _looks_like_shell_placeholder(name: str) -> bool:
     if name.islower():
         return len(alpha_only) > 1
     return False
-
-
-def get_opencode_global_dir() -> str:
-    """Resolve OpenCode global config directory following XDG spec.
-
-    Priority: ``OPENCODE_CONFIG_DIR`` > ``dirname(OPENCODE_CONFIG)`` >
-    ``XDG_CONFIG_HOME/opencode`` > ``~/.config/opencode``.
-    """
-    return get_global_dir("opencode")
-
-
-def get_codex_global_dir() -> str:
-    """Resolve Codex global config directory.
-
-    Priority: ``CODEX_CONFIG_DIR`` > ``~/.codex``.
-    """
-    return get_global_dir("codex")
-
-
-def get_codex_skills_dir() -> str:
-    """Resolve Codex global skills directory.
-
-    Priority: ``CODEX_SKILLS_DIR`` > ``~/.agents/skills``.
-    """
-    env_dir = os.environ.get("CODEX_SKILLS_DIR")
-    if env_dir:
-        return expand_tilde(env_dir) or env_dir
-    return str(Path.home() / ".agents" / "skills")
 
 
 def get_global_dir(runtime: str, explicit_dir: str | None = None) -> str:
@@ -372,34 +402,8 @@ def write_settings(settings_path: str | Path, settings: dict[str, object]) -> No
 # ---------------------------------------------------------------------------
 
 
-def get_commit_attribution(
-    runtime: str,
-    *,
-    explicit_config_dir: str | None = None,
-) -> str | None:
-    """Get commit attribution setting for *runtime*.
-
-    Returns:
-        ``None`` — remove Co-Authored-By lines.
-        ``""`` (empty string) — keep default (no change).
-        A non-empty string — replace attribution with this value.
-
-    We use *empty string* to mean "keep default" since Python has no
-    ``undefined`` sentinel.
-    """
-    if runtime == "opencode":
-        config_path = Path(get_global_dir("opencode", explicit_config_dir)) / "opencode.json"
-        config = read_settings(config_path)
-        if config.get("disable_ai_attribution") is True:
-            return None
-        return ""
-
-    if runtime == "codex":
-        # Codex uses config.toml — default to keep
-        return ""
-
-    # Claude Code & Gemini share the same settings.json approach
-    settings_path = Path(get_global_dir(runtime, explicit_config_dir)) / "settings.json"
+def process_settings_commit_attribution(settings_path: str | Path) -> str | None:
+    """Read a settings.json-style commit attribution override."""
     settings = read_settings(settings_path)
     attribution = settings.get("attribution")
     if not isinstance(attribution, dict) or "commit" not in attribution:
@@ -448,20 +452,14 @@ def strip_sub_tags(content: str) -> str:
     return re.sub(r"<sub>(.*?)</sub>", r"*(\1)*", content)
 
 
-def _translate_frontmatter_tool_names(content: str, runtime: str) -> str:
+def translate_frontmatter_tool_names(
+    content: str,
+    translate_tool_name: Callable[[str], str | None],
+) -> str:
     """Translate canonical tool names inside YAML frontmatter lists."""
-    if not content.startswith("---"):
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
         return content
-
-    fm_end = re.search(r"\n---[ \t]*(?:\n|$)", content[3:])
-    if not fm_end:
-        return content
-
-    frontmatter_start = 4 if content.startswith("---\n") else 3
-    frontmatter_end = 3 + fm_end.start()
-    body_start = 3 + fm_end.end()
-    frontmatter = content[frontmatter_start:frontmatter_end].strip("\n")
-    body = content[body_start:]
 
     translated_lines: list[str] = []
     in_tool_array = False
@@ -477,8 +475,8 @@ def _translate_frontmatter_tool_names(content: str, runtime: str) -> str:
                 continue
 
             in_tool_array = False
-            parsed = [part.strip() for part in value.split(",") if part.strip()]
-            mapped = [translate_for_runtime(part, runtime) for part in parsed]
+            parsed = _parse_frontmatter_tool_tokens(value)
+            mapped = [translate_tool_name(part) for part in parsed]
             mapped = [part for part in mapped if part]
             translated_lines.append(f"{indent}{key}: {', '.join(mapped)}" if mapped else f"{indent}{key}:")
             continue
@@ -487,7 +485,7 @@ def _translate_frontmatter_tool_names(content: str, runtime: str) -> str:
             item_match = re.match(r"^(\s*)-\s+(.*)$", line)
             if item_match:
                 indent, tool_name = item_match.groups()
-                mapped = translate_for_runtime(tool_name.strip(), runtime)
+                mapped = translate_tool_name(_strip_wrapping_quotes(tool_name))
                 if mapped:
                     translated_lines.append(f"{indent}- {mapped}")
                 continue
@@ -497,7 +495,7 @@ def _translate_frontmatter_tool_names(content: str, runtime: str) -> str:
         translated_lines.append(line)
 
     translated_frontmatter = "\n".join(translated_lines)
-    return f"---\n{translated_frontmatter}\n---{body}"
+    return render_markdown_frontmatter(preamble, translated_frontmatter, separator, body)
 
 
 def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None]) -> str:
@@ -548,34 +546,6 @@ def convert_tool_references_in_body(content: str, tool_map: dict[str, str | None
     return content
 
 
-def _translate_markdown_for_runtime(
-    content: str,
-    path_prefix: str,
-    runtime: str,
-    install_scope: str | None = None,
-) -> str:
-    """Translate shared markdown content from canonical source form to *runtime*.
-
-    This is used for markdown copied into installed shared content directories
-    such as ``get-physics-done/workflows/`` and ``references/``. Those files are
-    read directly by installed commands and agents, so command syntax, tool
-    references, placeholders, and lightweight formatting need the same
-    runtime-specific adaptation as primary prompts.
-    """
-    content = replace_placeholders(content, path_prefix, runtime, install_scope)
-    content = _translate_frontmatter_tool_names(content, runtime)
-
-    if runtime == "codex":
-        content = content.replace("/gpd:", "$gpd-")
-    elif runtime == "opencode":
-        content = content.replace("/gpd:", "/gpd-")
-
-    if runtime in ("gemini", "codex", "opencode"):
-        content = strip_sub_tags(content)
-
-    return convert_tool_references_in_body(content, reference_translation_map(runtime))
-
-
 def expand_at_includes(
     content: str,
     src_root: str | Path,
@@ -588,21 +558,21 @@ def expand_at_includes(
 ) -> str:
     """Expand ``@path/to/file`` include directives by inlining referenced file content.
 
-    Claude Code resolves these at runtime, but Gemini and Codex do not.
-    This resolves includes at install time for runtimes that lack native resolution.
+    Some runtimes resolve these includes natively, while others require the
+    adapter layer to inline them at install time.
 
     Args:
         content: File content potentially containing ``@`` include lines.
         src_root: Source root directory (repo's ``get-physics-done/`` dir).
-        path_prefix: Runtime-specific path prefix replacing ``~/.claude/``.
+        path_prefix: Runtime-specific config path prefix used for placeholder replacement.
         depth: Current recursion depth (for cycle protection).
         include_stack: Set of already-included absolute paths (cycle detection).
 
     Examples::
 
-        >>> expand_at_includes("no includes here", "/src", "~/.claude/")
+        >>> expand_at_includes("no includes here", "/src", "/runtime/")
         'no includes here'
-        >>> expand_at_includes("@.gpd/notes.md", "/src", "~/.claude/")
+        >>> expand_at_includes("@.gpd/notes.md", "/src", "/runtime/")
         '@.gpd/notes.md'
     """
     if depth > MAX_INCLUDE_EXPANSION_DEPTH:
@@ -628,15 +598,26 @@ def expand_at_includes(
             result.append(line)
             continue
 
+        include_candidate = trimmed
+        bullet_match = _LIST_ITEM_INCLUDE_RE.match(trimmed)
+        if bullet_match:
+            include_candidate = bullet_match.group(1)
+
         # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if not trimmed.startswith("@") or len(trimmed) < 3 or trimmed[1] == " " or re.match(r"^@\w+\{", trimmed):
+        if (
+            not include_candidate.startswith("@")
+            or len(include_candidate) < 3
+            or include_candidate[1] == " "
+            or re.match(r"^@\w+\{", include_candidate)
+        ):
             result.append(line)
             continue
 
         # Extract the include path
-        include_path = trimmed[1:]
+        include_path = include_candidate[1:]
         include_path = include_path.split(" (see")[0]  # strip "(see ..." suffixes
         include_path = include_path.split(" -> ")[0]  # strip "-> Section Name" suffixes
+        include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path)  # strip trailing labels like "(main workflow)"
         include_path = include_path.strip()
 
         # Only treat paths that contain "/" (avoid false positives like decorators)
@@ -691,12 +672,9 @@ def expand_at_includes(
 
             # Strip frontmatter from included file (only include the body)
             body = included
-            if body.startswith("---"):
-                # Match closing --- only at the start of a line
-                fm_end = re.search(r"\n---[ \t]*(?:\n|$)", body[3:])
-                if fm_end:
-                    actual_end = 3 + fm_end.end()
-                    body = body[actual_end:].strip()
+            _preamble, frontmatter, _separator, split_body = split_markdown_frontmatter(body)
+            if frontmatter:
+                body = split_body.strip()
 
             # Normalize path references in included content before recursion
             body = replace_placeholders(body, path_prefix, runtime, install_scope)
@@ -733,6 +711,7 @@ def copy_with_path_replacement(
     path_prefix: str,
     runtime: str,
     install_scope: str | None = None,
+    markdown_transform: Callable[[str, str, str | None], str] | None = None,
 ) -> None:
     """Safely copy *src_dir* to *dest_dir* with path replacement in ``.md`` files.
 
@@ -741,8 +720,8 @@ def copy_with_path_replacement(
 
     Examples::
 
-        >>> copy_with_path_replacement("src/", "dest/", "/custom/", "claude-code")
-        # Copies src/ → dest/ with ~/.claude/ replaced by /custom/ in .md files
+        >>> copy_with_path_replacement("src/", "dest/", "/custom/", "runtime-id")
+        # Copies src/ → dest/ with placeholder replacement in .md files
 
     Raises:
         FileNotFoundError: If *src_dir* does not exist.
@@ -764,7 +743,14 @@ def copy_with_path_replacement(
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        _copy_dir_contents(src_dir, tmp_dir, path_prefix, runtime, install_scope)
+        _copy_dir_contents(
+            src_dir,
+            tmp_dir,
+            path_prefix,
+            runtime,
+            install_scope,
+            markdown_transform=markdown_transform,
+        )
 
         # Swap into place
         if dest_dir.exists():
@@ -796,6 +782,7 @@ def _copy_dir_contents(
     path_prefix: str,
     runtime: str,
     install_scope: str | None = None,
+    markdown_transform: Callable[[str, str, str | None], str] | None = None,
 ) -> None:
     """Recursively copy directory contents with runtime translation in .md files.
 
@@ -809,10 +796,18 @@ def _copy_dir_contents(
 
         if entry.is_dir():
             dest.mkdir(parents=True, exist_ok=True)
-            _copy_dir_contents(entry, dest, path_prefix, runtime, install_scope)
+            _copy_dir_contents(
+                entry,
+                dest,
+                path_prefix,
+                runtime,
+                install_scope,
+                markdown_transform=markdown_transform,
+            )
         elif entry.suffix == ".md":
             content = entry.read_text(encoding="utf-8")
-            content = _translate_markdown_for_runtime(content, path_prefix, runtime, install_scope)
+            active_transform = markdown_transform or _default_markdown_transform(runtime)
+            content = active_transform(content, path_prefix, install_scope=install_scope)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy
@@ -873,7 +868,8 @@ def write_manifest(
     config_dir: str | Path,
     version: str,
     *,
-    codex_skills_dir: str | Path | None = None,
+    skills_dir: str | Path | None = None,
+    metadata: dict[str, object] | None = None,
     install_scope: str | None = None,
 ) -> dict[str, object]:
     """Write a file manifest after installation for future modification detection.
@@ -884,6 +880,7 @@ def write_manifest(
     gpd_dir = config_dir / "get-physics-done"
     commands_dir = config_dir / "commands" / "gpd"
     agents_dir = config_dir / "agents"
+    hooks_dir = config_dir / "hooks"
 
     manifest: dict[str, object] = {
         "version": version,
@@ -912,9 +909,14 @@ def write_manifest(
             if f.name.startswith("gpd-") and f.suffix == ".md":
                 files["agents/" + f.name] = file_hash(f)
 
-    # Codex skills
-    if codex_skills_dir:
-        skills = Path(codex_skills_dir)
+    # hooks/
+    if hooks_dir.exists():
+        for rel, h in generate_manifest(hooks_dir).items():
+            files["hooks/" + rel] = h
+
+    # External/shared skills
+    if skills_dir:
+        skills = Path(skills_dir)
         if skills.exists():
             for entry in sorted(skills.iterdir()):
                 if entry.is_dir() and entry.name.startswith("gpd-"):
@@ -923,11 +925,55 @@ def write_manifest(
                         files[f"skills/{entry.name}/SKILL.md"] = file_hash(skill_md)
 
     manifest["files"] = files
-    if codex_skills_dir:
-        manifest["codex_skills_dir"] = str(codex_skills_dir)
+    if metadata:
+        manifest.update(metadata)
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def _managed_install_paths(
+    config_dir: Path,
+    *,
+    skills_dir: str | Path | None = None,
+) -> list[str]:
+    """Return the current managed install paths when a manifest cannot be trusted."""
+    managed_paths: list[str] = []
+
+    gpd_dir = config_dir / "get-physics-done"
+    for rel in generate_manifest(gpd_dir).keys():
+        managed_paths.append(f"get-physics-done/{rel}")
+
+    commands_dir = config_dir / "commands" / "gpd"
+    for rel in generate_manifest(commands_dir).keys():
+        managed_paths.append(f"commands/gpd/{rel}")
+
+    command_dir = config_dir / "command"
+    if command_dir.exists():
+        for entry in sorted(command_dir.iterdir()):
+            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+                managed_paths.append(f"command/{entry.name}")
+
+    agents_dir = config_dir / "agents"
+    if agents_dir.exists():
+        for entry in sorted(agents_dir.iterdir()):
+            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+                managed_paths.append(f"agents/{entry.name}")
+
+    hooks_dir = config_dir / "hooks"
+    for rel in generate_manifest(hooks_dir).keys():
+        managed_paths.append(f"hooks/{rel}")
+
+    if skills_dir:
+        skills = Path(skills_dir)
+        if skills.exists():
+            for entry in sorted(skills.iterdir()):
+                if entry.is_dir() and entry.name.startswith("gpd-"):
+                    skill_md = entry / "SKILL.md"
+                    if skill_md.exists():
+                        managed_paths.append(f"skills/{entry.name}/SKILL.md")
+
+    return managed_paths
 
 
 # ---------------------------------------------------------------------------
@@ -938,7 +984,7 @@ def write_manifest(
 def save_local_patches(
     config_dir: str | Path,
     *,
-    codex_skills_dir: str | Path | None = None,
+    skills_dir: str | Path | None = None,
 ) -> list[str]:
     """Detect user-modified GPD files and back them up before overwriting.
 
@@ -952,18 +998,45 @@ def save_local_patches(
     if not manifest_path.exists():
         return []
 
+    manifest_version = "unknown"
+    tracked_files: dict[str, str] = {}
+    fallback_snapshot = False
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return []
+        fallback_snapshot = True
+    else:
+        if isinstance(manifest, dict):
+            manifest_version = str(manifest.get("version", "unknown"))
+            raw_files = manifest.get("files") or {}
+            if isinstance(raw_files, dict) and all(
+                isinstance(rel_path, str) and isinstance(original_hash, str) for rel_path, original_hash in raw_files.items()
+            ):
+                tracked_files = raw_files
+            else:
+                fallback_snapshot = True
+        else:
+            fallback_snapshot = True
 
-    codex_skills = Path(codex_skills_dir) if codex_skills_dir else Path(get_codex_skills_dir())
+    if fallback_snapshot:
+        tracked_files = dict.fromkeys(_managed_install_paths(config_dir, skills_dir=skills_dir), "")
+
+    import shutil
+
     patches_dir = config_dir / PATCHES_DIR_NAME
+    staging_dir = config_dir / f".{PATCHES_DIR_NAME}.tmp"
+    previous_dir = config_dir / f".{PATCHES_DIR_NAME}.old"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    if previous_dir.exists():
+        shutil.rmtree(previous_dir)
     modified: list[str] = []
 
-    for rel_path, original_hash in (manifest.get("files") or {}).items():
+    for rel_path, original_hash in tracked_files.items():
         if rel_path.startswith("skills/"):
-            full_path = codex_skills / rel_path[len("skills/") :]
+            if skills_dir is None:
+                continue
+            full_path = Path(skills_dir) / rel_path[len("skills/") :]
         else:
             full_path = config_dir / rel_path
 
@@ -971,22 +1044,41 @@ def save_local_patches(
             continue
 
         current = file_hash(full_path)
-        if current != original_hash:
-            backup_path = patches_dir / rel_path
+        if fallback_snapshot or current != original_hash:
+            backup_path = staging_dir / rel_path
             backup_path.parent.mkdir(parents=True, exist_ok=True)
-            import shutil
-
             shutil.copy2(str(full_path), str(backup_path))
             modified.append(rel_path)
 
-    if modified:
-        meta = {
-            "backed_up_at": _iso_now(),
-            "from_version": manifest.get("version", "unknown"),
-            "files": modified,
-        }
-        meta_path = patches_dir / "backup-meta.json"
-        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    if not modified:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        if patches_dir.exists():
+            shutil.rmtree(patches_dir)
+        return []
+
+    meta = {
+        "backed_up_at": _iso_now(),
+        "from_version": manifest_version,
+        "backup_mode": "fallback-snapshot" if fallback_snapshot else "manifest-diff",
+        "files": modified,
+    }
+    meta_path = staging_dir / "backup-meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    try:
+        if patches_dir.exists():
+            patches_dir.rename(previous_dir)
+        staging_dir.rename(patches_dir)
+    except Exception:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        if previous_dir.exists() and not patches_dir.exists():
+            previous_dir.rename(patches_dir)
+        raise
+    else:
+        if previous_dir.exists():
+            shutil.rmtree(previous_dir)
 
     return modified
 
@@ -1051,16 +1143,12 @@ def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bo
 def pre_install_cleanup(
     target_dir: Path,
     *,
-    codex_skills_dir: str | None = None,
+    skills_dir: str | None = None,
 ) -> None:
     """Common pre-install cleanup: remove stale patches and current install files."""
     import shutil as _shutil
 
-    patches_dir = target_dir / PATCHES_DIR_NAME
-    if patches_dir.exists():
-        _shutil.rmtree(patches_dir)
-
-    save_local_patches(target_dir, codex_skills_dir=codex_skills_dir)
+    save_local_patches(target_dir, skills_dir=skills_dir)
 
     gpd_dir = target_dir / "get-physics-done"
     if gpd_dir.exists():
@@ -1080,6 +1168,7 @@ def install_gpd_content(
     path_prefix: str,
     runtime: str,
     install_scope: str | None = None,
+    markdown_transform: Callable[[str, str, str | None], str] | None = None,
 ) -> list[str]:
     """Install get-physics-done/ content from specs/ subdirectories.
 
@@ -1092,7 +1181,14 @@ def install_gpd_content(
     for subdir_name in GPD_CONTENT_DIRS:
         src_subdir = specs_dir / subdir_name
         if src_subdir.is_dir():
-            copy_with_path_replacement(src_subdir, gpd_dest / subdir_name, path_prefix, runtime, install_scope)
+            copy_with_path_replacement(
+                src_subdir,
+                gpd_dest / subdir_name,
+                path_prefix,
+                runtime,
+                install_scope,
+                markdown_transform=markdown_transform,
+            )
 
     if verify_installed(gpd_dest, "get-physics-done"):
         subdir_info = []
@@ -1299,7 +1395,7 @@ def finish_install(
 ) -> None:
     """Apply statusline config and write settings atomically.
 
-    Shared by Claude Code and Gemini adapters (both use settings.json).
+    Shared by settings-backed adapters that expose a status-line command hook.
     """
     if should_install_statusline:
         status_line = settings.get("statusLine")
@@ -1329,7 +1425,7 @@ def build_hook_command(
 ) -> str:
     """Build the shell command string for a hook script.
 
-    Shared by Claude Code and Gemini adapters.
+    Shared by adapters that launch Python hook scripts from a config directory.
     """
     command_interpreter = interpreter or hook_python_interpreter()
     if is_global or explicit_target:

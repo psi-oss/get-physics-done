@@ -102,6 +102,14 @@ ls .gpd/review/REFEREE-DECISION*.json 2>/dev/null
 ```
 
 If matching round-specific files exist, load them as structured context. Use `REFEREE-REPORT*.md` as the canonical issue-ID source, and use `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` to identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale.
+
+Set `round_suffix` to match the peer-review artifact convention:
+
+- `""` for the initial response round
+- `"-R2"` for the second round
+- `"-R3"` for the third round
+
+Use that exact suffix for both `.gpd/AUTHOR-RESPONSE{round_suffix}.md` and `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md`.
 </step>
 
 <step name="parse_referee_reports">
@@ -179,7 +187,7 @@ Create both response artifacts for the current round:
 - `.gpd/AUTHOR-RESPONSE{round_suffix}.md` — structured internal tracker keyed by `REF-*` issues, change locations, and staged review outcomes
 - `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md` — journal-facing response letter built from the template
 
-Populate `.gpd/paper/REFEREE_RESPONSE.md` with:
+Populate `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md` with:
 
 - Paper metadata (journal, manuscript ID, dates)
 - Decision summary from editor
@@ -189,14 +197,14 @@ Populate `.gpd/paper/REFEREE_RESPONSE.md` with:
 - Empty response and changes-made fields (to be filled in subsequent steps)
 - Progress tracking table
 
-Populate `.gpd/AUTHOR-RESPONSE.md` with:
+Populate `.gpd/AUTHOR-RESPONSE{round_suffix}.md` with:
 
 - One section per `REF-*` issue
 - Classification (`fixed`, `rebutted`, `acknowledged`, `needs-calculation`)
 - Exact manuscript change locations or planned follow-up work
 - Any blocking / recommendation-floor context imported from `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json`
 
-For later rounds, use the round-specific variants (for example `REFEREE_RESPONSE_R2.md` and `AUTHOR-RESPONSE-R2.md`).
+For later rounds, use the round-specific variants (for example `REFEREE_RESPONSE-R2.md` and `AUTHOR-RESPONSE-R2.md`).
 
 ```bash
 mkdir -p .gpd/paper
@@ -205,12 +213,12 @@ mkdir -p .gpd/paper
 Commit the initial response file:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/REFEREE_RESPONSE{round_suffix}.md .gpd/AUTHOR-RESPONSE{round_suffix}.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: create referee response structure" \
-  --files .gpd/paper/REFEREE_RESPONSE.md .gpd/AUTHOR-RESPONSE.md
+  --files .gpd/paper/REFEREE_RESPONSE{round_suffix}.md .gpd/AUTHOR-RESPONSE{round_suffix}.md
 ```
 
 Keep the two files synchronized for the rest of the workflow: draft issue-by-issue substance in `.gpd/AUTHOR-RESPONSE{round_suffix}.md`, and mirror the journal-facing prose into `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md`.

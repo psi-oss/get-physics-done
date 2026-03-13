@@ -194,7 +194,7 @@ Sincerely,
 **When to create this file:**
 
 - Immediately upon receiving referee reports
-- One file per round of review (create `.gpd/paper/REFEREE_RESPONSE_R2.md` for second round)
+- One file per round of review (create `.gpd/paper/REFEREE_RESPONSE-R2.md` for second round)
 - Keep every `REF-*` issue ID exactly aligned with `REFEREE-REPORT*.md`
 
 **Comment categories:**

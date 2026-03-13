@@ -24,12 +24,13 @@ from gpd.adapters.install_utils import (
     convert_tool_references_in_body,
     ensure_update_hook,
     expand_at_includes,
-    get_commit_attribution,
     process_attribution,
     protect_runtime_agent_prompt,
     read_settings,
     remove_stale_agents,
+    render_markdown_frontmatter,
     replace_placeholders,
+    split_markdown_frontmatter,
     strip_sub_tags,
     verify_installed,
     write_manifest,
@@ -38,10 +39,36 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
-from gpd.adapters.tool_names import reference_translation_map, translate_for_runtime
+from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 
 logger = logging.getLogger(__name__)
-_TOOL_REFERENCE_MAP = reference_translation_map("gemini")
+
+_TOOL_NAME_MAP: dict[str, str] = {
+    "file_read": "read_file",
+    "file_write": "write_file",
+    "file_edit": "replace",
+    "shell": "run_shell_command",
+    "search_files": "search_file_content",
+    "find_files": "glob",
+    "web_search": "google_web_search",
+    "web_fetch": "web_fetch",
+    "notebook_edit": "notebook_edit",
+    "agent": "agent",
+    "ask_user": "ask_user",
+    "todo_write": "write_todos",
+    "task": "task",
+    "slash_command": "slash_command",
+    "tool_search": "tool_search",
+}
+_TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
+_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_DROP_MCP_FRONTMATTER_TOOLS = True
+_TOOL_REFERENCE_MAP = reference_translation_map(
+    _TOOL_NAME_MAP,
+    alias_map=_TOOL_ALIAS_MAP,
+    auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+    drop_mcp_frontmatter_tools=_DROP_MCP_FRONTMATTER_TOOLS,
+)
 
 
 def _convert_gemini_tool_name(tool_name: str) -> str | None:
@@ -50,7 +77,12 @@ def _convert_gemini_tool_name(tool_name: str) -> str | None:
     Returns ``None`` if the tool should be excluded from the Gemini config
     (MCP tools are auto-discovered at runtime and ``task`` is auto-registered).
     """
-    return translate_for_runtime(tool_name, "gemini")
+    return translate_for_runtime(
+        tool_name,
+        _TOOL_NAME_MAP,
+        auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+        drop_mcp_frontmatter_tools=_DROP_MCP_FRONTMATTER_TOOLS,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -67,15 +99,9 @@ def _convert_frontmatter_to_gemini(content: str) -> str:
     - ``mcp__*`` tools excluded (auto-discovered at runtime)
     - ``<sub>`` tags in body stripped for terminal rendering
     """
-    if not content.startswith("---"):
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
         return strip_sub_tags(content)
-
-    end_index = content.find("---", 3)
-    if end_index == -1:
-        return strip_sub_tags(content)
-
-    frontmatter = content[3:end_index].strip()
-    body = content[end_index + 3 :]
 
     lines = frontmatter.split("\n")
     new_lines: list[str] = []
@@ -136,7 +162,7 @@ def _convert_frontmatter_to_gemini(content: str) -> str:
             new_lines.append(f"  - {tool}")
 
     new_frontmatter = "\n".join(new_lines).strip()
-    return f"---\n{new_frontmatter}\n---{strip_sub_tags(body)}"
+    return render_markdown_frontmatter(preamble, new_frontmatter, separator, strip_sub_tags(body))
 
 
 # ---------------------------------------------------------------------------
@@ -151,15 +177,10 @@ def _convert_to_gemini_toml(content: str) -> str:
     Uses TOML multi-line literal strings (``'''``) to avoid escape issues
     with backslashes in LaTeX/physics content.
     """
-    if not content.startswith("---"):
+    _preamble, frontmatter, _separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
         return f"prompt = {json.dumps(content)}\n"
-
-    end_index = content.find("---", 3)
-    if end_index == -1:
-        return f"prompt = {json.dumps(content)}\n"
-
-    frontmatter = content[3:end_index].strip()
-    body = content[end_index + 3 :].strip()
+    body = body.strip()
 
     # Extract selected frontmatter fields
     description = ""
@@ -197,7 +218,7 @@ def _copy_agents_gemini(
     agents_dest: Path,
     path_prefix: str,
     gpd_src_root: Path | None = None,
-    explicit_config_dir: str | None = None,
+    attribution: str | None = "",
     install_scope: str | None = None,
 ) -> None:
     """Install agent .md files with Gemini-specific conversions.
@@ -213,8 +234,6 @@ def _copy_agents_gemini(
         return
 
     agents_dest.mkdir(parents=True, exist_ok=True)
-
-    attribution = get_commit_attribution("gemini", explicit_config_dir=explicit_config_dir)
 
     new_agent_names: set[str] = set()
     for agent_md in sorted(agents_src.glob("*.md")):
@@ -246,7 +265,7 @@ def _install_commands_as_toml(
     commands_dest: Path,
     path_prefix: str,
     gpd_src_root: Path,
-    explicit_config_dir: str | None = None,
+    attribution: str | None = "",
     install_scope: str | None = None,
 ) -> None:
     """Install commands as .toml files in nested ``commands/gpd/`` structure.
@@ -261,7 +280,6 @@ def _install_commands_as_toml(
         shutil.rmtree(commands_dest)
     commands_dest.mkdir(parents=True, exist_ok=True)
 
-    attribution = get_commit_attribution("gemini", explicit_config_dir=explicit_config_dir)
     _copy_commands_recursive(commands_src, commands_dest, path_prefix, attribution, gpd_src_root, install_scope)
 
 
@@ -307,6 +325,11 @@ def _copy_commands_recursive(
 class GeminiAdapter(RuntimeAdapter):
     """Adapter for Google Gemini CLI."""
 
+    tool_name_map = _TOOL_NAME_MAP
+    auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
+    drop_mcp_frontmatter_tools = _DROP_MCP_FRONTMATTER_TOOLS
+    strip_sub_tags_in_shared_markdown = True
+
     @property
     def runtime_name(self) -> str:
         return "gemini"
@@ -345,6 +368,7 @@ class GeminiAdapter(RuntimeAdapter):
             commands_dest,
             path_prefix,
             gpd_root / "specs",
+            attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
         )
         if verify_installed(commands_dest, "commands/gpd"):
@@ -362,6 +386,7 @@ class GeminiAdapter(RuntimeAdapter):
             agents_dest,
             path_prefix,
             gpd_dest,
+            attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
         )
         if verify_installed(agents_dest, "agents"):

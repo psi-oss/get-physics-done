@@ -25,9 +25,12 @@ from gpd.adapters.install_utils import (
     generate_manifest,
     get_global_dir,
     parse_jsonc,
+    pre_install_cleanup,
     protect_runtime_agent_prompt,
     read_settings,
     replace_placeholders,
+    translate_frontmatter_tool_names,
+    write_manifest,
     write_settings,
 )
 
@@ -154,16 +157,26 @@ class TestExpandAtIncludes:
         assert "actual body" in result
         assert "title: Test" not in result
 
-    def test_path_replacement_in_included(self, tmp_path: Path) -> None:
-        """Included files should have {GPD_INSTALL_DIR} and ~/.claude/ replaced."""
+    def test_frontmatter_with_triple_dash_value_is_stripped_without_corrupting_body(self, tmp_path: Path) -> None:
         gpd_dir = self._make_src(
             tmp_path,
-            {"paths.md": "dir={GPD_INSTALL_DIR} home=~/.claude/foo"},
+            {"fm.md": "---\ndescription: before --- after\n---\nactual body"},
+        )
+        content = f"@{tmp_path}/get-physics-done/fm.md"
+        result = expand_at_includes(content, str(gpd_dir), "~/.test/")
+        assert "actual body" in result
+        assert "description: before --- after" not in result
+
+    def test_path_replacement_in_included(self, tmp_path: Path) -> None:
+        """Included files should have canonical GPD placeholders replaced."""
+        gpd_dir = self._make_src(
+            tmp_path,
+            {"paths.md": "dir={GPD_INSTALL_DIR} config={GPD_CONFIG_DIR}/foo"},
         )
         content = f"@{tmp_path}/get-physics-done/paths.md"
-        result = expand_at_includes(content, str(gpd_dir), "/custom/")
+        result = expand_at_includes(content, str(gpd_dir), "/custom/", runtime="claude-code")
         assert "dir=/custom/get-physics-done" in result
-        assert "home=/custom/foo" in result
+        assert "config=/custom/foo" in result
 
     def test_planning_paths_skipped(self, tmp_path: Path) -> None:
         """.gpd/ paths are project-specific, should not be expanded."""
@@ -186,6 +199,13 @@ class TestExpandAtIncludes:
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert result == content
 
+    def test_bullet_list_include_is_expanded(self, tmp_path: Path) -> None:
+        gpd_dir = self._make_src(tmp_path, {"workflow.md": "workflow body"})
+        content = f"- @{tmp_path}/get-physics-done/workflow.md (main workflow)"
+        result = expand_at_includes(content, str(gpd_dir), "~/.test/")
+        assert "workflow body" in result
+        assert "<!-- [included: workflow.md] -->" in result
+
 
 # =========================================================================
 # 1b. protect_runtime_agent_prompt
@@ -202,6 +222,8 @@ class TestProtectRuntimeAgentPrompt:
             "description: test\n"
             "---\n"
             "Use ${PHASE_ARG} for planning.\n"
+            "Fallback to ${PHASE_ARG:-plan} when unset.\n"
+            "Strip suffixes with ${FILE%.*} before writing outputs.\n"
             "Also inspect $ARGUMENTS and store cache metadata in $CACHE.\n"
             'Use `file_read("$artifact_path")` to inspect the artifact.\n'
             "\n"
@@ -218,6 +240,8 @@ class TestProtectRuntimeAgentPrompt:
         for runtime in ("gemini", "opencode"):
             result = protect_runtime_agent_prompt(content, runtime)
             assert "${PHASE_ARG}" not in result
+            assert "${PHASE_ARG:-plan}" not in result
+            assert "${FILE%.*}" not in result
             assert "$ARGUMENTS" not in result
             assert "$CACHE" not in result
             assert "$phase_dir" not in result
@@ -225,6 +249,8 @@ class TestProtectRuntimeAgentPrompt:
             assert "$phase_number" not in result
             assert "$artifact_path" not in result
             assert "<PHASE_ARG>" in result
+            assert "Fallback to <PHASE_ARG> when unset." in result
+            assert "Strip suffixes with <FILE> before writing outputs." in result
             assert "<ARGUMENTS>" in result
             assert "<CACHE>" in result
             assert "<phase_dir>" in result
@@ -242,7 +268,7 @@ class TestProtectRuntimeAgentPrompt:
             "name: gpd:test\n"
             "description: test\n"
             "---\n"
-            "Use ${PHASE_ARG} and $ARGUMENTS.\n"
+            "Use ${PHASE_ARG}, ${PHASE_ARG:-plan}, ${FILE%.*}, and $ARGUMENTS.\n"
             "```bash\n"
             'echo "$phase_dir"\n'
             "```\n"
@@ -250,6 +276,42 @@ class TestProtectRuntimeAgentPrompt:
 
         for runtime in ("claude-code", "codex"):
             assert protect_runtime_agent_prompt(content, runtime) == content
+
+
+class TestTranslateFrontmatterToolNames:
+    def test_inline_yaml_array_tools_are_translated(self) -> None:
+        content = "---\nallowed-tools: [Read, Edit]\n---\nBody\n"
+
+        translated = translate_frontmatter_tool_names(
+            content,
+            lambda name: {"Read": "file_read", "Edit": "file_edit"}.get(name),
+        )
+
+        assert "allowed-tools: file_read, file_edit" in translated
+
+    def test_quoted_list_items_are_translated(self) -> None:
+        content = "---\ntools:\n  - \"Read\"\n  - 'Edit'\n---\nBody\n"
+
+        translated = translate_frontmatter_tool_names(
+            content,
+            lambda name: {"Read": "file_read", "Edit": "file_edit"}.get(name),
+        )
+
+        assert "tools:\n  - file_read\n  - file_edit" in translated
+
+    def test_frontmatter_with_literal_delimiter_text_keeps_frontmatter_vars_intact(self) -> None:
+        content = (
+            "---\n"
+            "name: gpd:test\n"
+            "description: keep --- and $HOME literal\n"
+            "---\n"
+            "Body uses $USER.\n"
+        )
+
+        for runtime in ("gemini", "opencode"):
+            result = protect_runtime_agent_prompt(content, runtime)
+            assert "description: keep --- and $HOME literal" in result
+            assert "Body uses <USER>." in result
 
 
 # =========================================================================
@@ -571,7 +633,7 @@ class TestCopyWithPathReplacement:
         src = tmp_path / "src"
         src.mkdir()
         (src / "readme.md").write_text(
-            "Path: ~/.claude/foo\nDir: {GPD_INSTALL_DIR}/bar\nAgents: {GPD_AGENTS_DIR}/baz",
+            "Config: {GPD_CONFIG_DIR}/foo\nDir: {GPD_INSTALL_DIR}/bar\nAgents: {GPD_AGENTS_DIR}/baz",
             encoding="utf-8",
         )
         (src / "script.sh").write_text("#!/bin/bash\necho ok", encoding="utf-8")
@@ -584,10 +646,9 @@ class TestCopyWithPathReplacement:
 
         assert dest.exists()
         md_content = (dest / "readme.md").read_text(encoding="utf-8")
-        assert "/custom/foo" in md_content
+        assert "Config: /custom/foo" in md_content
         assert "/custom/get-physics-done/bar" in md_content
         assert "/custom/agents/baz" in md_content
-        assert "~/.claude/" not in md_content
 
         sh_content = (dest / "script.sh").read_text(encoding="utf-8")
         assert "echo ok" in sh_content
@@ -687,7 +748,7 @@ class TestCopyWithPathReplacement:
         src = tmp_path / "src"
         sub = src / "sub" / "deep"
         sub.mkdir(parents=True)
-        (sub / "nested.md").write_text("~/.claude/test", encoding="utf-8")
+        (sub / "nested.md").write_text("{GPD_CONFIG_DIR}/test", encoding="utf-8")
         (src / "top.md").write_text("top level", encoding="utf-8")
 
         dest = tmp_path / "dest"
@@ -724,3 +785,70 @@ class TestCopyWithPathReplacement:
         assert dest.exists()
         assert (dest / "original.txt").exists()
         assert (dest / "original.txt").read_text() == "original"
+
+
+class TestInstallBackupSafety:
+    def test_write_manifest_tracks_hooks(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_manifest(config_dir, "1.0.0")
+
+        assert "hooks/statusline.py" in manifest["files"]
+
+    def test_pre_install_cleanup_backs_up_modified_hook_files(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        hook_path = config_dir / "hooks" / "statusline.py"
+        hook_path.write_text("print('original')\n", encoding="utf-8")
+
+        write_manifest(config_dir, "1.0.0")
+        hook_path.write_text("print('user edit')\n", encoding="utf-8")
+
+        pre_install_cleanup(config_dir)
+
+        backup_path = config_dir / "gpd-local-patches" / "hooks" / "statusline.py"
+        assert backup_path.exists()
+        assert backup_path.read_text(encoding="utf-8") == "print('user edit')\n"
+        assert not hook_path.exists()
+
+    def test_opencode_manifest_tracks_hooks(self, tmp_path: Path) -> None:
+        from gpd.adapters.opencode import write_manifest as write_opencode_manifest
+
+        config_dir = tmp_path / ".opencode"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "notify.py").write_text("print('hook')\n", encoding="utf-8")
+
+        manifest = write_opencode_manifest(config_dir, "1.0.0")
+
+        assert "hooks/notify.py" in manifest["files"]
+
+    def test_pre_install_cleanup_replaces_existing_patches_with_fallback_snapshot_when_manifest_is_malformed(
+        self, tmp_path: Path
+    ) -> None:
+        config_dir = tmp_path / ".claude"
+        (config_dir / "get-physics-done").mkdir(parents=True)
+        (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (config_dir / "hooks").mkdir()
+        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+        patches_dir = config_dir / "gpd-local-patches"
+        patches_dir.mkdir()
+        preserved_patch = patches_dir / "backup-meta.json"
+        preserved_patch.write_text('{"files":["hooks/statusline.py"]}', encoding="utf-8")
+        (config_dir / "gpd-file-manifest.json").write_text("{not-json", encoding="utf-8")
+
+        pre_install_cleanup(config_dir)
+
+        backup_path = config_dir / "gpd-local-patches" / "hooks" / "statusline.py"
+        assert preserved_patch.exists()
+        assert '"backup_mode": "fallback-snapshot"' in preserved_patch.read_text(encoding="utf-8")
+        assert backup_path.exists()
+        assert backup_path.read_text(encoding="utf-8") == "print('hook')\n"
+        assert not (config_dir / "hooks" / "statusline.py").exists()

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
+from scripts.repo_graph_contract import parse_scope_count
 
 
 @pytest.fixture(autouse=True)
@@ -527,19 +528,12 @@ def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
     assert "Config: YOLO autonomy | Balanced research mode | Parallel | All agents | Review profile" not in workflow_text
 
 
-def _graph_scope_count(label: str) -> int:
-    graph_text = GRAPH_PATH.read_text(encoding="utf-8")
-    match = re.search(rf"^- `{re.escape(label)}`: `(\d+)`$", graph_text, flags=re.MULTILINE)
-    assert match is not None, f"Missing graph scope count for {label}"
-    return int(match.group(1))
-
-
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
-    assert _graph_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
-    assert _graph_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))
-    assert _graph_scope_count("src/gpd/specs/workflows/*.md") == len(list(WORKFLOWS_DIR.glob("*.md")))
-    assert _graph_scope_count("src/gpd/specs/templates/**/*.md") == len(list(TEMPLATES_DIR.rglob("*.md")))
-    assert _graph_scope_count("src/gpd/specs/references/**/*.md") == len(list(REFERENCES_DIR.rglob("*.md")))
+    assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
+    assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))
+    assert parse_scope_count("src/gpd/specs/workflows/*.md") == len(list(WORKFLOWS_DIR.glob("*.md")))
+    assert parse_scope_count("src/gpd/specs/templates/**/*.md") == len(list(TEMPLATES_DIR.rglob("*.md")))
+    assert parse_scope_count("src/gpd/specs/references/**/*.md") == len(list(REFERENCES_DIR.rglob("*.md")))
 
 
 def test_repo_graph_same_stem_command_inventory_matches_repo() -> None:

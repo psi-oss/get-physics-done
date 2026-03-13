@@ -243,32 +243,70 @@ def audit_citation_source(
     return resolved, record
 
 
-def bibliography_entries_from_sources(sources: list[CitationSource]) -> list[tuple[str, Entry]]:
+def _resolve_sources_for_bibliography(
+    sources: list[CitationSource],
+    *,
+    enrich: bool,
+    existing_keys: set[str] | None = None,
+) -> tuple[list[CitationSource], list[CitationAuditRecord]]:
+    """Resolve citation sources and reserve keys exactly as bibliography emission will."""
+    audited_sources: list[CitationSource] = []
+    audit_entries: list[CitationAuditRecord] = []
+    reserved_keys = set(existing_keys or ())
+
+    for source in sources:
+        resolved, audit_record = audit_citation_source(source, reserved_keys, enrich=enrich)
+        audited_sources.append(resolved)
+        audit_entries.append(audit_record)
+        reserved_keys.add(audit_record.key)
+
+    return audited_sources, audit_entries
+
+
+def bibliography_entries_from_sources(
+    sources: list[CitationSource],
+    existing_keys: set[str] | None = None,
+) -> list[tuple[str, Entry]]:
     """Build ordered `(key, entry)` pairs for citation sources.
 
     This is the single key-generation path for bibliography emission so
     other parts of the pipeline can reuse the exact emitted citation keys.
     """
     entries: list[tuple[str, Entry]] = []
-    existing_keys: set[str] = set()
+    reserved_keys = set(existing_keys or ())
 
     for source in sources:
-        key, entry = _source_to_entry(source, existing_keys)
-        existing_keys.add(key)
+        key, entry = _source_to_entry(source, reserved_keys)
+        reserved_keys.add(key)
         entries.append((key, entry))
 
     return entries
 
 
-def citation_keys_for_sources(sources: list[CitationSource]) -> list[str]:
+def citation_keys_for_sources(
+    sources: list[CitationSource],
+    *,
+    enrich: bool = False,
+    existing_keys: set[str] | None = None,
+) -> list[str]:
     """Return bibliography keys in the exact order they will be emitted."""
-    return [key for key, _entry in bibliography_entries_from_sources(sources)]
+    resolved_sources = sources
+    if enrich:
+        resolved_sources, _audit_entries = _resolve_sources_for_bibliography(
+            sources,
+            enrich=True,
+            existing_keys=existing_keys,
+        )
+    return [key for key, _entry in bibliography_entries_from_sources(resolved_sources, existing_keys=existing_keys)]
 
 
-def create_bibliography(sources: list[CitationSource]) -> BibliographyData:
+def create_bibliography(
+    sources: list[CitationSource],
+    existing_keys: set[str] | None = None,
+) -> BibliographyData:
     """Convert all citation sources to a BibliographyData object."""
     bib = BibliographyData()
-    for key, entry in bibliography_entries_from_sources(sources):
+    for key, entry in bibliography_entries_from_sources(sources, existing_keys=existing_keys):
         bib.entries[key] = entry
 
     return bib
@@ -326,29 +364,34 @@ def enrich_from_arxiv(source: CitationSource) -> CitationSource:
 def build_bibliography_with_audit(
     sources: list[CitationSource],
     enrich: bool = True,
+    existing_keys: set[str] | None = None,
 ) -> tuple[BibliographyData, BibliographyAudit]:
     """Build both the BibTeX payload and a machine-readable audit artifact."""
-    audited_sources: list[CitationSource] = []
-    audit_entries: list[CitationAuditRecord] = []
-    existing_keys: set[str] = set()
+    audited_sources, audit_entries = _resolve_sources_for_bibliography(
+        sources,
+        enrich=enrich,
+        existing_keys=existing_keys,
+    )
+    emitted_entries = bibliography_entries_from_sources(audited_sources, existing_keys=existing_keys)
+    normalized_audit_entries: list[CitationAuditRecord] = []
+    bib = BibliographyData()
+    for audit_entry, (key, entry) in zip(audit_entries, emitted_entries, strict=False):
+        bib.entries[key] = entry
+        if audit_entry.key == key:
+            normalized_audit_entries.append(audit_entry)
+        else:
+            normalized_audit_entries.append(audit_entry.model_copy(update={"key": key}))
 
-    for source in sources:
-        resolved, audit_record = audit_citation_source(source, existing_keys, enrich=enrich)
-        audited_sources.append(resolved)
-        audit_entries.append(audit_record)
-        existing_keys.add(audit_record.key)
-
-    bib = create_bibliography(audited_sources)
     audit = BibliographyAudit(
         generated_at=datetime.now(UTC).isoformat(),
-        total_sources=len(audit_entries),
+        total_sources=len(normalized_audit_entries),
         resolved_sources=sum(
-            1 for entry in audit_entries if entry.resolution_status in {"provided", "enriched"}
+            1 for entry in normalized_audit_entries if entry.resolution_status in {"provided", "enriched"}
         ),
-        partial_sources=sum(1 for entry in audit_entries if entry.verification_status == "partial"),
-        unverified_sources=sum(1 for entry in audit_entries if entry.verification_status == "unverified"),
-        failed_sources=sum(1 for entry in audit_entries if entry.resolution_status == "failed"),
-        entries=audit_entries,
+        partial_sources=sum(1 for entry in normalized_audit_entries if entry.verification_status == "partial"),
+        unverified_sources=sum(1 for entry in normalized_audit_entries if entry.verification_status == "unverified"),
+        failed_sources=sum(1 for entry in normalized_audit_entries if entry.resolution_status == "failed"),
+        entries=normalized_audit_entries,
     )
     return bib, audit
 

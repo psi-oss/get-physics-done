@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import tarfile
 import tomllib
 import zipfile
 from pathlib import Path
+
+import pytest
 
 
 def _repo_root() -> Path:
@@ -55,6 +59,38 @@ def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Pat
     wheel = next(out_dir.glob("get_physics_done-*.whl"))
     sdist = next(out_dir.glob("get_physics_done-*.tar.gz"))
     return wheel, sdist
+
+
+def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
+    npm = shutil.which("npm")
+    assert npm is not None, "npm is required for npm pack validation"
+
+    cache_dir = work_dir / "npm-cache"
+    env = os.environ.copy()
+    env.update(
+        {
+            "npm_config_audit": "false",
+            "npm_config_cache": str(cache_dir),
+            "npm_config_fund": "false",
+            "npm_config_update_notifier": "false",
+        }
+    )
+
+    result = subprocess.run(
+        [npm, "pack", "--dry-run", "--json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+    pack_data = json.loads(result.stdout)
+    assert isinstance(pack_data, list) and len(pack_data) == 1
+    pack = pack_data[0]
+    assert isinstance(pack, dict)
+    return pack
 
 
 def _paper_template_paths(repo_root: Path) -> tuple[list[str], list[str]]:
@@ -452,6 +488,19 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
     } == set(expected_descriptors)
 
 
+def test_public_gpd_infra_descriptors_use_entry_points_not_python() -> None:
+    repo_root = _repo_root()
+
+    for path in sorted((repo_root / "infra").glob("gpd-*.json")):
+        descriptor = json.loads(path.read_text(encoding="utf-8"))
+        if path.stem == "gpd-arxiv":
+            assert descriptor["command"] == "python"
+            continue
+
+        assert descriptor["command"].startswith("gpd-mcp-")
+        assert descriptor["args"] == []
+
+
 def test_contributing_docs_cover_release_validation_flow() -> None:
     repo_root = _repo_root()
     content = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
@@ -459,10 +508,47 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "uv run pytest tests/test_release_consistency.py -v" in content
     assert "uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v" in content
     assert "Cross-runtime release checks:" in content
+    assert 'npm_config_cache="$(mktemp -d)" npm pack --dry-run --json' in content
+    assert "uv run python -m scripts.sync_repo_graph_contract" in content
+    assert "temporary cache outside the repo" in content
     assert "Public install docs should use `npx -y get-physics-done`." in content
     assert "Keep public artifacts present and up to date" in content
     assert "direct pushes are blocked" in content
     assert "required `tests` workflow" in content
+
+
+def test_gitignore_covers_repo_local_npm_cache() -> None:
+    repo_root = _repo_root()
+    assert ".npm-cache/" in (repo_root / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    if shutil.which("npm") is None:
+        pytest.skip("npm is not available")
+
+    repo_cache = repo_root / ".npm-cache"
+    existed_before = repo_cache.exists()
+    before_paths = (
+        sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*"))
+        if existed_before
+        else []
+    )
+
+    pack = _npm_pack_dry_run(repo_root, tmp_path)
+    packed_paths = {str(item["path"]) for item in pack["files"]}
+
+    assert pack["name"] == "get-physics-done"
+    assert pack["version"] == _python_release_version(repo_root)
+    assert "bin/install.js" in packed_paths
+    assert "src/gpd/adapters/runtime_catalog.json" in packed_paths
+    assert (tmp_path / "npm-cache").is_dir()
+
+    if existed_before:
+        after_paths = sorted(path.relative_to(repo_cache).as_posix() for path in repo_cache.rglob("*"))
+        assert after_paths == before_paths
+    else:
+        assert not repo_cache.exists()
 
 
 

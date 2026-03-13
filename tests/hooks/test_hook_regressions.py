@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,3 +67,46 @@ def test_statusline_read_position_returns_empty_for_non_dict_state(tmp_path: Pat
 
     state_file.write_text('"hello"', encoding="utf-8")
     assert _read_position(str(tmp_path)) == ""
+
+
+@pytest.mark.parametrize(
+    ("module_name", "function_name"),
+    [
+        ("gpd.hooks.notify", "_latest_update_cache"),
+        ("gpd.hooks.statusline", "_latest_update_cache"),
+    ],
+)
+def test_update_cache_helpers_prefer_candidate_order_over_newer_unrelated_cache(
+    tmp_path: Path,
+    module_name: str,
+    function_name: str,
+) -> None:
+    module = __import__(module_name, fromlist=[function_name])
+    cache_reader = getattr(module, function_name)
+
+    preferred_cache = tmp_path / "preferred.json"
+    preferred_cache.write_text(
+        json.dumps({"update_available": True, "checked": 20}),
+        encoding="utf-8",
+    )
+    unrelated_cache = tmp_path / "unrelated.json"
+    unrelated_cache.write_text(
+        json.dumps({"update_available": True, "checked": 30}),
+        encoding="utf-8",
+    )
+
+    preferred_candidate = SimpleNamespace(path=preferred_cache, runtime="codex", scope="local")
+    unrelated_candidate = SimpleNamespace(path=unrelated_cache, runtime="claude-code", scope="global")
+
+    with (
+        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[preferred_candidate, unrelated_candidate]),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
+        patch(
+            "gpd.hooks.runtime_detect.detect_install_scope",
+            side_effect=lambda runtime, **_kwargs: "local" if runtime == "codex" else None,
+        ),
+    ):
+        cache, candidate = cache_reader(str(tmp_path))
+
+    assert cache == {"update_available": True, "checked": 20}
+    assert candidate is preferred_candidate

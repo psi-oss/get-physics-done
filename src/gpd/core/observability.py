@@ -403,12 +403,24 @@ def get_current_session_id(cwd: Path | None = None) -> str | None:
     return current.session_id if current is not None else None
 
 
+def _set_session_context(layout: ProjectLayout, session: ObservabilitySession) -> None:
+    _session_id_var.set(session.session_id)
+    _session_cwd_var.set(layout.root)
+
+
+def _persisted_active_session(layout: ProjectLayout) -> ObservabilitySession | None:
+    current = get_current_session(layout.root)
+    if current is None or current.status != "active":
+        return None
+    return current
+
+
 def _active_context_session(layout: ProjectLayout) -> ObservabilitySession | None:
     existing_id = _session_id_var.get()
     if not existing_id or _session_cwd_var.get() != layout.root:
         return None
-    current = get_current_session(layout.root)
-    if current is None or current.session_id != existing_id or current.status != "active":
+    current = _persisted_active_session(layout)
+    if current is None or current.session_id != existing_id:
         return None
     return current
 
@@ -428,6 +440,10 @@ def ensure_session(
     existing = _active_context_session(layout)
     if existing is not None:
         return existing
+    persisted = _persisted_active_session(layout)
+    if persisted is not None:
+        _set_session_context(layout, persisted)
+        return persisted
 
     now = _now_iso()
     session = ObservabilitySession(
@@ -442,8 +458,7 @@ def ensure_session(
     )
     _append_event(_session_log(layout, session.session_id), _session_start_event(session).model_dump(mode="json"))
     _save_current_session(layout, session)
-    _session_id_var.set(session.session_id)
-    _session_cwd_var.set(layout.root)
+    _set_session_context(layout, session)
     return session
 
 
@@ -555,7 +570,7 @@ def observe_event(
         session,
         timestamp=payload.timestamp,
         command=payload.command,
-        status="active" if not end_session else status,
+        status=status if end_session else ("active" if session.status == "active" else session.status),
     )
     if end_session:
         _finalize_session(
@@ -570,10 +585,9 @@ def observe_event(
                 "status": status,
             },
         )
-    else:
+    elif session.status == "active":
         _save_current_session(layout, updated)
-        _session_id_var.set(updated.session_id)
-        _session_cwd_var.set(layout.root)
+        _set_session_context(layout, updated)
 
     return ObserveEventResult(
         recorded=True,

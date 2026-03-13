@@ -48,27 +48,30 @@ def _trigger_update_check(cwd: str) -> None:
 def _hook_payload_policy(cwd: str | None = None):
     """Return hook payload metadata for the active runtime or a merged fallback."""
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime
+    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_active_runtime_with_gpd_install
 
     workspace_path = Path(cwd) if cwd else None
-    runtime = detect_active_runtime(cwd=workspace_path)
+    runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
     return get_hook_payload_policy(None if runtime == RUNTIME_UNKNOWN else runtime)
 
 
 def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | None, object | None]:
-    """Return the freshest valid update cache and its candidate metadata."""
+    """Return the highest-priority valid update cache and its candidate metadata."""
     from gpd.hooks.runtime_detect import (
         detect_active_runtime_with_gpd_install,
         get_update_cache_candidates,
+        should_consider_update_cache_candidate,
     )
 
     workspace_path = Path(cwd) if cwd else None
-    preferred_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
-    latest_cache: dict[str, object] | None = None
-    latest_candidate = None
-    latest_checked = -1.0
-
-    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+    for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=active_installed_runtime):
+        if not should_consider_update_cache_candidate(
+            candidate,
+            active_installed_runtime=active_installed_runtime,
+            cwd=workspace_path,
+        ):
+            continue
         cache_file = candidate.path
         if not cache_file.exists():
             continue
@@ -80,14 +83,9 @@ def _latest_update_cache(cwd: str | None = None) -> tuple[dict[str, object] | No
 
         if not isinstance(cache, dict):
             continue
-        checked = cache.get("checked")
-        checked_value = float(checked) if isinstance(checked, (int, float)) else -1.0
-        if latest_cache is None or checked_value > latest_checked:
-            latest_cache = cache
-            latest_candidate = candidate
-            latest_checked = checked_value
+        return cache, candidate
 
-    return latest_cache, latest_candidate
+    return None, None
 
 
 def _check_and_notify_update(cwd: str | None = None) -> None:
@@ -123,11 +121,21 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
 
 
 def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
-    policy = _hook_payload_policy(cwd)
+    from gpd.adapters.runtime_catalog import get_hook_payload_policy
+
+    # Before the payload workspace is resolved, accept the union of known
+    # workspace keys so event filtering can defer to the runtime that owns
+    # the payload's actual workspace instead of the process cwd.
+    policy = _hook_payload_policy(cwd) if cwd else get_hook_payload_policy()
     workspace_value = data.get("workspace")
     if isinstance(workspace_value, str) and workspace_value:
         return workspace_value
-    return _first_string(workspace_value, *policy.workspace_keys) or os.getcwd()
+    return (
+        _first_string(workspace_value, *policy.workspace_keys)
+        or _first_string(data, *policy.workspace_keys)
+        or cwd
+        or os.getcwd()
+    )
 
 
 def main() -> None:
@@ -141,12 +149,12 @@ def main() -> None:
     if not isinstance(data, dict):
         return
 
-    hook_payload = _hook_payload_policy()
+    cwd = _workspace_from_payload(data)
+    hook_payload = _hook_payload_policy(cwd)
     allowed_event_types = hook_payload.notify_event_types
     if allowed_event_types and data.get("type") not in (*allowed_event_types, None):
         return
 
-    cwd = _workspace_from_payload(data)
     try:
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)

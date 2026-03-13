@@ -21,9 +21,10 @@ AGENTS_DIR = _PKG_ROOT / "agents"
 COMMANDS_DIR = _PKG_ROOT / "commands"
 SPECS_DIR = _PKG_ROOT / "specs"
 
-# ─── Frontmatter regex ───────────────────────────────────────────────────────
+# ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)")
+_LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
+_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
 
 
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ class AgentDef:
     color: str
     path: str
     source: str  # "agents"
+    commit_authority: str = "orchestrator"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,18 +97,39 @@ class SkillDef:
 def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
     text = text.lstrip('﻿')
-    match = _FRONTMATTER_RE.match(text)
-    if not match:
+    frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
+    frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
+    if frontmatter_parts is None:
         return {}, text
-    yaml_str = match.group(1)
-    body = text[match.end() :]
+    yaml_str, body = frontmatter_parts
     try:
-        meta = yaml.safe_load(yaml_str) or {}
-    except yaml.YAMLError:
-        return {}, text
+        meta = yaml.safe_load(yaml_str)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Malformed YAML frontmatter: {exc}") from exc
+    if meta is None:
+        return {}, body
     if not isinstance(meta, dict):
-        return {}, text
+        raise ValueError(f"Frontmatter must parse to a mapping, got {type(meta).__name__}")
     return meta, body
+
+
+def _split_frontmatter_block(text: str) -> tuple[str, str] | None:
+    """Return ``(frontmatter, body)`` when *text* begins with markdown frontmatter."""
+    lines = text.splitlines(keepends=True)
+    if not lines or not _is_frontmatter_delimiter(lines[0]):
+        return None
+
+    frontmatter_lines: list[str] = []
+    for index, line in enumerate(lines[1:], start=1):
+        if _is_frontmatter_delimiter(line):
+            return "".join(frontmatter_lines), "".join(lines[index + 1 :])
+        frontmatter_lines.append(line)
+    return None
+
+
+def _is_frontmatter_delimiter(line: str) -> bool:
+    """Return whether *line* is a frontmatter delimiter line."""
+    return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
 def _parse_tools(raw: object) -> list[str]:
@@ -127,7 +150,45 @@ def _parse_str_list(raw: object) -> list[str]:
     return []
 
 
+def _parse_bool_field(raw: object, *, field_name: str, command_name: str, default: bool = False) -> bool:
+    """Normalize booleans from YAML, including common quoted string spellings."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, int) and raw in (0, 1):
+        return bool(raw)
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if not normalized:
+            return default
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    raise ValueError(f"{field_name} for {command_name} must be a boolean")
+
+
+def _parse_non_negative_int_field(raw: object, *, field_name: str, command_name: str, default: int = 0) -> int:
+    """Normalize integer-like review-contract fields with explicit validation."""
+    if raw is None:
+        return default
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return default
+        raw = stripped
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} for {command_name} must be an integer") from exc
+    if value < 0:
+        raise ValueError(f"{field_name} for {command_name} must be >= 0")
+    return value
+
+
 VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
+VALID_AGENT_COMMIT_AUTHORITIES: tuple[str, ...] = ("direct", "orchestrator")
 
 
 def _parse_context_mode(raw: object, *, command_name: str) -> str:
@@ -142,6 +203,20 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
         valid = ", ".join(VALID_CONTEXT_MODES)
         raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
     return mode
+
+
+def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
+    """Normalize agent commit ownership to a validated string."""
+    if raw is None:
+        return "orchestrator"
+
+    authority = str(raw).strip().lower()
+    if not authority:
+        return "orchestrator"
+    if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
+        valid = ", ".join(VALID_AGENT_COMMIT_AUTHORITIES)
+        raise ValueError(f"Invalid commit_authority {authority!r} for {agent_name}; expected one of: {valid}")
+    return authority
 
 
 _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
@@ -290,8 +365,16 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
         stage_ids=_parse_str_list(merged.get("stage_ids")),
         stage_artifacts=_parse_str_list(merged.get("stage_artifacts")),
         final_decision_output=str(merged.get("final_decision_output", "")).strip(),
-        requires_fresh_context_per_stage=bool(merged.get("requires_fresh_context_per_stage", False)),
-        max_review_rounds=int(merged.get("max_review_rounds", 0) or 0),
+        requires_fresh_context_per_stage=_parse_bool_field(
+            merged.get("requires_fresh_context_per_stage"),
+            field_name="requires_fresh_context_per_stage",
+            command_name=command_name,
+        ),
+        max_review_rounds=_parse_non_negative_int_field(
+            merged.get("max_review_rounds"),
+            field_name="max_review_rounds",
+            command_name=command_name,
+        ),
         required_state=required_state,
         schema_version=schema_version,
     )
@@ -300,12 +383,16 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
 def _parse_agent_file(path: Path, source: str) -> AgentDef:
     """Parse a single agent .md file into an AgentDef."""
     text = path.read_text(encoding="utf-8")
-    meta, body = _parse_frontmatter(text)
+    try:
+        meta, body = _parse_frontmatter(text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
     return AgentDef(
         name=meta.get("name", path.stem),
         description=str(meta.get("description", "")),
         system_prompt=body.strip(),
         tools=_parse_tools(meta.get("tools", "")),
+        commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=str(meta.get("name", path.stem))),
         color=str(meta.get("color", "")),
         path=str(path),
         source=source,
@@ -315,7 +402,10 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
 def _parse_command_file(path: Path, source: str) -> CommandDef:
     """Parse a single command .md file into a CommandDef."""
     text = path.read_text(encoding="utf-8")
-    meta, body = _parse_frontmatter(text)
+    try:
+        meta, body = _parse_frontmatter(text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
     requires = meta.get("requires", {})
     if not isinstance(requires, dict):
@@ -325,6 +415,11 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     if not isinstance(allowed_tools_raw, list):
         allowed_tools_raw = []
 
+    try:
+        review_contract = _parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires)
+    except ValueError as exc:
+        raise ValueError(f"Invalid review-contract in {path}: {exc}") from exc
+
     return CommandDef(
         name=meta.get("name", path.stem),
         description=str(meta.get("description", "")),
@@ -332,7 +427,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         context_mode=_parse_context_mode(meta.get("context_mode"), command_name=str(meta.get("name", path.stem))),
         requires=requires,
         allowed_tools=[str(t) for t in allowed_tools_raw],
-        review_contract=_parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires),
+        review_contract=review_contract,
         content=body.strip(),
         path=str(path),
         source=source,
@@ -341,8 +436,6 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
 
 def _validate_command_name(path: Path, command: CommandDef) -> None:
     """Reject command metadata that drifts from its registry filename."""
-    if not command.name.startswith("gpd:"):
-        return
     expected_name = f"gpd:{path.stem}"
     if command.name != expected_name:
         raise ValueError(
@@ -396,6 +489,11 @@ def _discover_agents() -> dict[str, AgentDef]:
     if AGENTS_DIR.is_dir():
         for path in sorted(AGENTS_DIR.glob("*.md")):
             agent = _parse_agent_file(path, source="agents")
+            if agent.name in result:
+                first_path = result[agent.name].path
+                raise ValueError(
+                    f"Duplicate agent name {agent.name!r} discovered in {path} and {first_path}"
+                )
             result[agent.name] = agent
 
     return result
@@ -604,11 +702,21 @@ def list_skills() -> list[str]:
 
 
 def get_skill(name: str) -> SkillDef:
-    """Get a canonical skill definition by canonical name."""
+    """Get a canonical skill definition by canonical name or registry key."""
     skills = _cache.skills()
-    candidates = [name]
-    if name.startswith("gpd:"):
-        candidates.append(name.replace("gpd:", "gpd-", 1))
+    normalized = name.strip()
+    if normalized.startswith("/"):
+        normalized = normalized[1:]
+
+    candidates: list[str] = []
+    for candidate in (
+        normalized,
+        normalized.replace("gpd:", "gpd-", 1) if normalized.startswith("gpd:") else None,
+        normalized.replace("gpd-", "gpd:", 1) if normalized.startswith("gpd-") else None,
+        f"gpd-{normalized}" if normalized and not normalized.startswith(("gpd-", "gpd:")) else None,
+    ):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
 
     for candidate in candidates:
         skill = skills.get(candidate)

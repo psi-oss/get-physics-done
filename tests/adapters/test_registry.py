@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+import gpd.adapters as adapters_module
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.runtime_catalog import GlobalConfigPolicy, HookPayloadPolicy, RuntimeDescriptor, list_runtime_names
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
-    CLAUDE_CODE,
-    CODEX,
     CONTEXTUAL_TOOL_REFERENCE_NAMES,
-    GEMINI,
-    OPENCODE,
-    RUNTIME_TABLES,
+    build_canonical_alias_map,
     canonical,
     reference_translation_map,
     translate,
     translate_for_runtime,
 )
+
+
+def _runtime_tool_maps() -> dict[str, dict[str, str]]:
+    return {runtime: get_adapter(runtime).tool_name_map for runtime in list_runtimes()}
+
+
+def _canonical_alias_map() -> dict[str, str]:
+    return build_canonical_alias_map(_runtime_tool_maps().values())
 
 
 class TestRegistry:
@@ -27,6 +35,9 @@ class TestRegistry:
     def test_list_runtimes_returns_all_four(self) -> None:
         runtimes = list_runtimes()
         assert set(runtimes) == {"claude-code", "codex", "gemini", "opencode"}
+
+    def test_list_runtimes_matches_runtime_catalog(self) -> None:
+        assert list_runtimes() == sorted(list_runtime_names())
 
     def test_list_runtimes_sorted(self) -> None:
         runtimes = list_runtimes()
@@ -59,6 +70,62 @@ class TestRegistry:
     def test_update_command_is_adapter_owned(self, runtime: str, expected: str) -> None:
         assert get_adapter(runtime).update_command == expected
 
+    def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        alpha_descriptor = RuntimeDescriptor(
+            runtime_name="alpha-runtime",
+            display_name="Alpha Runtime",
+            config_dir_name=".alpha",
+            install_flag="--alpha",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--alpha",),
+            selection_aliases=("alpha-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".alpha"),
+            hook_payload=HookPayloadPolicy(),
+        )
+        beta_descriptor = RuntimeDescriptor(
+            runtime_name="beta-runtime",
+            display_name="Beta Runtime",
+            config_dir_name=".beta",
+            install_flag="--beta",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--beta",),
+            selection_aliases=("beta-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".beta"),
+            hook_payload=HookPayloadPolicy(),
+        )
+
+        class AlphaAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "alpha-runtime"
+
+        class BetaAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "beta-runtime"
+
+        imported_modules: list[str] = []
+
+        def fake_import_module(name: str) -> object:
+            imported_modules.append(name)
+            return {
+                "gpd.adapters.alpha_runtime": SimpleNamespace(AlphaAdapter=AlphaAdapter),
+                "gpd.adapters.beta_runtime": SimpleNamespace(BetaAdapter=BetaAdapter),
+            }[name]
+
+        monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
+        monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+        monkeypatch.setattr(adapters_module, "_LOADED", False)
+
+        adapters_module._ensure_loaded()
+
+        assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
+        assert adapters_module.list_runtimes() == ["alpha-runtime", "beta-runtime"]
+        assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
+
 
 class TestToolNames:
     """Tests for tool_names canonical/translate functions."""
@@ -88,10 +155,10 @@ class TestToolNames:
         ],
     )
     def test_canonical_runtime_aliases(self, runtime_alias: str, expected: str) -> None:
-        assert canonical(runtime_alias) == expected
+        assert canonical(runtime_alias, _canonical_alias_map()) == expected
 
     def test_canonical_unknown_passthrough(self) -> None:
-        assert canonical("custom_tool") == "custom_tool"
+        assert canonical("custom_tool", _canonical_alias_map()) == "custom_tool"
 
     @pytest.mark.parametrize(
         ("canon", "runtime", "expected"),
@@ -109,33 +176,63 @@ class TestToolNames:
         ],
     )
     def test_translate_canonical_to_runtime(self, canon: str, runtime: str, expected: str) -> None:
-        assert translate(canon, runtime) == expected
+        assert translate(canon, _runtime_tool_maps()[runtime], alias_map=_canonical_alias_map()) == expected
 
     def test_translate_runtime_alias_auto_canonicalized(self) -> None:
-        assert translate("Read", "codex") == "read_file"
-        assert translate("Bash", "gemini") == "run_shell_command"
+        runtime_maps = _runtime_tool_maps()
+        alias_map = _canonical_alias_map()
+        assert translate("Read", runtime_maps["codex"], alias_map=alias_map) == "read_file"
+        assert translate("Bash", runtime_maps["gemini"], alias_map=alias_map) == "run_shell_command"
 
     def test_translate_runtime_native_name_auto_canonicalized(self) -> None:
-        assert translate("apply_patch", "claude-code") == "Edit"
-        assert translate("question", "codex") == "ask_user"
-        assert translate("run_shell_command", "opencode") == "shell"
+        runtime_maps = _runtime_tool_maps()
+        alias_map = _canonical_alias_map()
+        assert translate("apply_patch", runtime_maps["claude-code"], alias_map=alias_map) == "Edit"
+        assert translate("question", runtime_maps["codex"], alias_map=alias_map) == "ask_user"
+        assert translate("run_shell_command", runtime_maps["opencode"], alias_map=alias_map) == "shell"
 
     def test_translate_unknown_runtime_fallback(self) -> None:
-        assert translate("file_read", "unknown-runtime") == "file_read"
+        assert translate("file_read", {}, alias_map=_canonical_alias_map()) == "file_read"
 
     def test_translate_unknown_tool_fallback(self) -> None:
-        assert translate("custom_tool", "claude-code") == "custom_tool"
+        assert translate("custom_tool", _runtime_tool_maps()["claude-code"], alias_map=_canonical_alias_map()) == "custom_tool"
 
     def test_translate_for_runtime_drops_auto_discovered_tools(self) -> None:
-        assert translate_for_runtime("task", "codex") is None
-        assert translate_for_runtime("Task", "gemini") is None
+        runtime_maps = _runtime_tool_maps()
+        alias_map = _canonical_alias_map()
+        assert translate_for_runtime(
+            "task",
+            runtime_maps["codex"],
+            alias_map=alias_map,
+            auto_discovered_tools=get_adapter("codex").auto_discovered_tools,
+        ) is None
+        assert translate_for_runtime(
+            "Task",
+            runtime_maps["gemini"],
+            alias_map=alias_map,
+            auto_discovered_tools=get_adapter("gemini").auto_discovered_tools,
+            drop_mcp_frontmatter_tools=get_adapter("gemini").drop_mcp_frontmatter_tools,
+        ) is None
 
     def test_translate_for_runtime_handles_mcp_policy(self) -> None:
-        assert translate_for_runtime("mcp__physics", "gemini") is None
-        assert translate_for_runtime("mcp__physics", "codex") == "mcp__physics"
+        runtime_maps = _runtime_tool_maps()
+        alias_map = _canonical_alias_map()
+        assert translate_for_runtime(
+            "mcp__physics",
+            runtime_maps["gemini"],
+            alias_map=alias_map,
+            auto_discovered_tools=get_adapter("gemini").auto_discovered_tools,
+            drop_mcp_frontmatter_tools=get_adapter("gemini").drop_mcp_frontmatter_tools,
+        ) is None
+        assert translate_for_runtime(
+            "mcp__physics",
+            runtime_maps["codex"],
+            alias_map=alias_map,
+            auto_discovered_tools=get_adapter("codex").auto_discovered_tools,
+        ) == "mcp__physics"
 
     def test_reference_translation_map_uses_only_canonical_source_names(self) -> None:
-        mapping = reference_translation_map("opencode")
+        mapping = reference_translation_map(_runtime_tool_maps()["opencode"], alias_map=_canonical_alias_map())
         assert mapping["ask_user"] == "question"
         assert "AskUserQuestion" not in mapping
         assert "read_file" not in mapping  # identical names are omitted
@@ -144,12 +241,13 @@ class TestToolNames:
         assert {"Read", "Write", "Edit", "shell", "task", "agent"} <= CONTEXTUAL_TOOL_REFERENCE_NAMES
 
     def test_canonical_tool_names_match_runtime_table_keys(self) -> None:
-        assert set(CANONICAL_TOOL_NAMES) == set(CLAUDE_CODE)
+        assert set(CANONICAL_TOOL_NAMES) == set(_runtime_tool_maps()["claude-code"])
 
     def test_all_runtime_tables_present(self) -> None:
-        assert set(RUNTIME_TABLES.keys()) == {"claude-code", "codex", "gemini", "opencode"}
+        assert set(_runtime_tool_maps()) == {"claude-code", "codex", "gemini", "opencode"}
 
     def test_all_tables_have_same_canonical_keys(self) -> None:
-        keys = set(CLAUDE_CODE.keys())
-        for name, table in [("CODEX", CODEX), ("GEMINI", GEMINI), ("OPENCODE", OPENCODE)]:
-            assert set(table.keys()) == keys, f"{name} has different canonical keys than CLAUDE_CODE"
+        runtime_maps = _runtime_tool_maps()
+        keys = set(runtime_maps["claude-code"].keys())
+        for runtime, table in runtime_maps.items():
+            assert set(table.keys()) == keys, f"{runtime} has different canonical keys than claude-code"

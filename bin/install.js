@@ -663,10 +663,12 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
         flushCapturedOutput(installResult);
       }
 
-      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed. Falling back to the broader GitHub source candidate set...`);
+      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed across all main-branch candidates.`);
+      return { ok: false, requestedVersion };
     } else if (resolution.skipped.length > 0) {
       logUnavailableCandidates(resolution.skipped);
-      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected. Falling back to the broader GitHub source candidate set...`);
+      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected for the upgrade.`);
+      return { ok: false, requestedVersion };
     }
   }
 
@@ -1080,6 +1082,10 @@ async function main() {
     error("Cannot combine --uninstall with --upgrade.");
     process.exit(1);
   }
+  if (reinstallManagedPackage && upgradeManagedPackage) {
+    error("Cannot combine --reinstall with --upgrade.");
+    process.exit(1);
+  }
   if (isUninstall && forceStatusline) {
     error("Cannot combine --uninstall with --force-statusline.");
     process.exit(1);
@@ -1091,6 +1097,10 @@ async function main() {
 
   const action = isUninstall ? "uninstall" : "install";
   const selectedRuntimes = await selectRuntimes(args, action);
+  if (targetDir && selectedRuntimes.length !== 1) {
+    error("Cannot combine --target-dir with --all or multiple runtimes. Select exactly one runtime.");
+    process.exit(1);
+  }
   const scope = await selectInstallScope(args, selectedRuntimes, targetDir, action);
 
   const basePython = checkPython();

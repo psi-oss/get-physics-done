@@ -170,7 +170,7 @@ def resolve_global_config_dir(
     home: Path | None = None,
     environ: dict[str, str] | None = None,
 ) -> Path:
-    env = environ or os.environ
+    env = os.environ if environ is None else environ
     policy = descriptor.global_config
     if policy.strategy == "env_or_home":
         if policy.env_var:

@@ -52,6 +52,22 @@ def _default_install_hint(package_name: str) -> str:
     return f"Install via: tlmgr install {package_name}"
 
 
+def _merge_bibliography_data(*bibliographies: BibliographyData) -> BibliographyData:
+    """Merge multiple pybtex bibliographies while preserving preambles."""
+    merged = BibliographyData()
+    merged_preamble: list[str] = []
+
+    for bibliography in bibliographies:
+        for preamble_line in getattr(bibliography, "preamble_list", []):
+            if preamble_line not in merged_preamble:
+                merged_preamble.append(preamble_line)
+        for key, entry in bibliography.entries.items():
+            merged.entries[key] = entry
+
+    merged.preamble_list[:] = merged_preamble
+    return merged
+
+
 def check_tex_file(resource_name: str, install_hint: str | None = None) -> tuple[bool, str]:
     """Check if a TeX resource file is available via kpsewhich.
 
@@ -197,11 +213,33 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
     base_cmd = [compiler_path, "-interaction=nonstopmode", f"-output-directory={output_dir}", str(tex_path)]
     combined_log_parts: list[str] = []
     compile_errors: list[str] = []
+    fatal_errors: list[str] = []
+    pdf_path = output_dir / f"{tex_path.stem}.pdf"
 
-    def record_result(step: str, returncode: int, log: str) -> None:
+    def pdf_build_signature() -> tuple[int, int] | None:
+        if not pdf_path.exists():
+            return None
+        try:
+            stat = pdf_path.stat()
+        except OSError:
+            return None
+        return stat.st_size, stat.st_mtime_ns
+
+    initial_pdf_signature = pdf_build_signature()
+
+    def record_result(step: str, returncode: int, log: str, *, fatal: bool = False) -> None:
         combined_log_parts.append(log)
         if returncode != 0:
-            compile_errors.append(f"{step} exited with code {returncode}")
+            error = f"{step} exited with code {returncode}"
+            compile_errors.append(error)
+            if fatal:
+                fatal_errors.append(error)
+
+    def fresh_pdf_was_generated(initial_signature: tuple[int, int] | None) -> bool:
+        current_signature = pdf_build_signature()
+        if current_signature is None:
+            return False
+        return initial_signature is None or current_signature != initial_signature
 
     try:
         # Pass 1: pdflatex
@@ -215,7 +253,7 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
             logger.warning("bibtex not found -- bibliography will not be processed; citations will show as [?]")
         if bibtex and aux_path.exists():
             returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
-            record_result("bibtex", returncode, log)
+            record_result("bibtex", returncode, log, fatal=True)
 
         # Pass 2 & 3: pdflatex
         returncode, log = await run_cmd(base_cmd, cwd)
@@ -223,12 +261,11 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         returncode, log = await run_cmd(base_cmd, cwd)
         record_result("pdflatex pass 3", returncode, log)
 
-        pdf_path = output_dir / f"{tex_path.stem}.pdf"
-        if pdf_path.exists() and not compile_errors:
+        if fresh_pdf_was_generated(initial_pdf_signature) and not compile_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
         # Only the last pass matters: earlier passes often exit non-zero
         # due to unresolved references/citations (expected behaviour).
-        if pdf_path.exists() and returncode == 0:
+        if fresh_pdf_was_generated(initial_pdf_signature) and returncode == 0 and not fatal_errors:
             return CompilationResult(success=True, pdf_path=pdf_path)
 
         # Try autofix
@@ -240,23 +277,27 @@ async def _compile_manual_multipass(tex_path: Path, output_dir: Path, compiler: 
         if fix_result.was_modified and fix_result.fixed_content:
             await asyncio.to_thread(tex_path.write_text, fix_result.fixed_content, encoding="utf-8")
             logger.info("Applied autofix: %s", fix_result.fixes_applied)
+            autofix_initial_pdf_signature = pdf_build_signature()
 
             combined_log_parts = []
             compile_errors = []
+            fatal_errors = []
 
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 1", returncode, log)
             if bibtex and aux_path.exists():
                 returncode, log = await run_cmd([bibtex, str(aux_path)], cwd)
-                record_result("bibtex autofix", returncode, log)
+                record_result("bibtex autofix", returncode, log, fatal=True)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 2", returncode, log)
             returncode, log = await run_cmd(base_cmd, cwd)
             record_result("pdflatex autofix pass 3", returncode, log)
-            if pdf_path.exists() and (not compile_errors or returncode == 0):
+            if fresh_pdf_was_generated(autofix_initial_pdf_signature) and (
+                not compile_errors or (returncode == 0 and not fatal_errors)
+            ):
                 return CompilationResult(success=True, pdf_path=pdf_path)
 
-        error = compile_errors[0] if compile_errors else "Compilation failed"
+        error = fatal_errors[0] if fatal_errors else compile_errors[0] if compile_errors else "Compilation failed"
         return CompilationResult(success=False, error=error, log="".join(combined_log_parts)[-5000:])
 
     except TimeoutError:
@@ -289,11 +330,13 @@ async def build_paper(
     bibliography_audit_path: Path | None = None
     errors: list[str] = []
     figure_source_pairs: list[tuple[FigureRef, FigureRef]] = []
+    figures_prepared_successfully = True
     bib_path: Path | None = None
     bib_entry_source: str | None = "bib_data" if bib_data is not None else None
 
     # 1. Prepare figures
     if config.figures:
+        requested_figure_count = len(config.figures)
         figures_dir = output_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
         try:
@@ -317,22 +360,33 @@ async def build_paper(
                 (original, _rebase_prepared_figure_path(prepared_figure))
                 for original, prepared_figure in figure_source_pairs
             ]
+            figures_prepared_successfully = not fig_errors and len(prepared) == requested_figure_count
+            if len(prepared) != requested_figure_count and not fig_errors:
+                errors.append(
+                    "Figure preparation did not preserve all requested figures; treating build as unsuccessful."
+                )
             errors.extend(fig_errors)
         except (ValueError, RuntimeError, OSError) as exc:
+            figures_prepared_successfully = False
             errors.append(f"Figure preparation failed: {exc}")
             prepared = []
             figure_source_pairs = []
         config = config.model_copy(update={"figures": prepared})
 
     if citation_sources:
+        reserved_bib_keys = set(bib_data.entries) if bib_data is not None else None
         built_bib, bibliography_audit = await asyncio.to_thread(
             build_bibliography_with_audit,
             citation_sources,
             enrich_bibliography,
+            reserved_bib_keys,
         )
         if bib_data is None:
             bib_data = built_bib
             bib_entry_source = "citation_sources"
+        else:
+            bib_data = _merge_bibliography_data(bib_data, built_bib)
+            bib_entry_source = "bib_data+citation_sources"
         bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
         await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
 
@@ -401,6 +455,8 @@ async def build_paper(
     )
     await asyncio.to_thread(write_artifact_manifest, manifest, manifest_path)
 
+    final_success = result.success and figures_prepared_successfully and not errors
+
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
@@ -410,6 +466,6 @@ async def build_paper(
         bibliography_audit=bibliography_audit,
         manifest_path=manifest_path,
         manifest=manifest,
-        success=result.success,
+        success=final_success,
         errors=errors,
     )
