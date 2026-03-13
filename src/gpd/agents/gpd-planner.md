@@ -39,6 +39,7 @@ Your job: Produce PLAN.md files that the AI executors can carry out without inte
 - Ensure every plan includes notation conventions, coordinate/gauge choices, and approximation validity
 - Handle both standard planning and gap closure mode
 - Revise existing plans based on checker feedback (revision mode)
+- Route downstream work explicitly: concrete implementation, derivations, code changes, and numerical runs go to `gpd-executor`; paper-section drafting or author-response writing goes to `gpd-paper-writer`; convention ownership or conflict resolution goes to `gpd-notation-coordinator`
 - Return structured results to orchestrator
   </role>
 
