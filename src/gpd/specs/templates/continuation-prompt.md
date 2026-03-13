@@ -38,6 +38,10 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 {execution_segment}
 </execution_segment>
 
+<protocol_bundles>
+{protocol_bundle_context}
+</protocol_bundles>
+
 <resume_instructions>
 {resume_instructions}
 </resume_instructions>
@@ -96,6 +100,7 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
 | `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, and resume preconditions |
+| `{protocol_bundle_context}` | Selected protocol bundle summary | Additive specialized-loading guidance carried across continuations |
 | `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |
 | `{phase}`                 | Phase prefix                        | `03`                                                                      |

@@ -71,6 +71,95 @@ def _write_project_contract_state(tmp_path: Path) -> None:
     (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
+def _write_stat_mech_project(tmp_path: Path) -> None:
+    project = tmp_path / ".gpd" / "PROJECT.md"
+    project.write_text(
+        """# Test Project
+
+## What This Is
+
+Monte Carlo study of a statistical mechanics lattice model near criticality.
+
+## Research Context
+
+### Theoretical Framework
+
+Statistical mechanics
+
+### Known Results
+
+Binder cumulants, thermalization windows, and finite-size scaling should be benchmarked.
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_bundle_ready_contract_state(tmp_path: Path) -> None:
+    from gpd.core.state import default_state_dict
+
+    state = default_state_dict()
+    state["project_contract"] = {
+        "scope": {
+            "question": "What finite-size scaling collapse and benchmark comparison does the simulation recover?",
+        },
+        "claims": [
+            {
+                "id": "claim-critical",
+                "statement": "Recover benchmark finite-size scaling behavior",
+                "deliverables": ["deliv-data", "deliv-figure"],
+                "acceptance_tests": ["test-benchmark"],
+                "references": ["ref-benchmark"],
+            }
+        ],
+        "deliverables": [
+            {
+                "id": "deliv-data",
+                "kind": "dataset",
+                "path": "results/measurements.csv",
+                "description": "Raw Monte Carlo measurements with metadata",
+            },
+            {
+                "id": "deliv-figure",
+                "kind": "figure",
+                "path": "figures/collapse.png",
+                "description": "Finite-size scaling collapse figure",
+            },
+        ],
+        "acceptance_tests": [
+            {
+                "id": "test-benchmark",
+                "subject": "claim-critical",
+                "kind": "benchmark",
+                "procedure": "Compare Binder cumulants and finite-size scaling against literature benchmarks",
+                "pass_condition": "Benchmark agreement is within uncertainty",
+            }
+        ],
+        "references": [
+            {
+                "id": "ref-benchmark",
+                "kind": "paper",
+                "locator": "Benchmark Monte Carlo paper",
+                "role": "benchmark",
+                "why_it_matters": "Decisive comparison for the simulation regime",
+                "required_actions": ["read", "compare", "cite"],
+            }
+        ],
+        "forbidden_proxies": [
+            {
+                "id": "fp-proxy",
+                "subject": "claim-critical",
+                "proxy": "Qualitative agreement without scaling analysis",
+                "reason": "Would not validate the decisive benchmarked observable",
+            }
+        ],
+        "uncertainty_markers": {
+            "weakest_anchors": ["Autocorrelation estimate near the critical point"],
+            "disconfirming_observations": ["Finite-size crossings drift away from the benchmark window"],
+        },
+    }
+    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
 def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
     observability = tmp_path / ".gpd" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
@@ -221,6 +310,22 @@ class TestInitExecutePhase:
         assert ctx["execution_review_pending"] is True
         assert ctx["current_execution"]["segment_status"] == "waiting_review"
 
+    def test_surfaces_selected_protocol_bundles(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_stat_mech_project(tmp_path)
+        _write_bundle_ready_contract_state(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert "stat-mech-simulation" in ctx["selected_protocol_bundle_ids"]
+        assert "monte-carlo.md" in ctx["protocol_bundle_context"]
+        assert any(
+            extension["bundle_id"] == "stat-mech-simulation"
+            for extension in ctx["protocol_bundle_verifier_extensions"]
+        )
+
 
 # ─── init_plan_phase ──────────────────────────────────────────────────────────
 
@@ -278,6 +383,18 @@ class TestInitPlanPhase:
         assert ctx["project_contract"] is None
         assert ctx["active_reference_count"] == 0
         assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
+
+    def test_surfaces_protocol_bundle_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_stat_mech_project(tmp_path)
+        _write_bundle_ready_contract_state(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert "stat-mech-simulation" in ctx["selected_protocol_bundle_ids"]
+        assert ctx["protocol_bundle_count"] >= 1
+        assert "Decisive artifacts:" in ctx["protocol_bundle_context"]
 
 
 # ─── init_new_project ─────────────────────────────────────────────────────────
@@ -439,6 +556,17 @@ class TestInitVerifyWork:
 
         assert ctx["project_contract"]["references"][0]["role"] == "benchmark"
         assert "## Active Reference Registry" in ctx["active_reference_context"]
+
+    def test_exposes_selected_protocol_bundle_ids(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_stat_mech_project(tmp_path)
+        _write_bundle_ready_contract_state(tmp_path)
+
+        ctx = init_verify_work(tmp_path, "1")
+
+        assert "stat-mech-simulation" in ctx["selected_protocol_bundle_ids"]
+        assert "Verifier extensions:" in ctx["protocol_bundle_context"]
 
 
 # ─── init_todos ───────────────────────────────────────────────────────────────

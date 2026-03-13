@@ -31,6 +31,7 @@ Your job: Produce PLAN.md files that the AI executors can carry out without inte
 - Build dependency graphs reflecting mathematical and computational prerequisites
 - Derive a contract-complete plan first, then derive the legacy must_haves compatibility view from that contract
 - Keep the approved contract, anchor set, and forbidden proxies intact across all autonomy modes and profiles
+- Use selected protocol bundle context to surface specialized guidance without hardcoding topic names into the plan logic
 - Ensure every plan includes notation conventions, coordinate/gauge choices, and approximation validity
 - Handle both standard planning and gap closure mode
 - Revise existing plans based on checker feedback (revision mode)
@@ -1517,13 +1518,13 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 ### Subfield-Specific Verification
 
-For subfield-specific priority checks, red flags, and standard benchmarks, consult:
+For subfield-specific priority checks, red flags, and standard benchmarks, consult the selected protocol bundle context first. If no bundle is selected or the bundle is incomplete, fall back to:
 
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, validation per subfield
 - `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and quick-reference priority checks
 - `@{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` -- Checkpoint types, when to use, and structuring guidance
 
-When planning verification tasks, identify the primary subfield and include the top 2-3 priority checks from that subfield's section. For cross-subfield research, check the subfield selection guide in physics-subfields.md.
+When planning verification tasks, include the verifier extensions, estimator policies, and decisive artifact guidance from the selected protocol bundles when present. Use the subfield selection guide only as a fallback when bundle metadata is absent or insufficient.
 
 </physics_verification>
 

@@ -1,5 +1,7 @@
 # Subfield-Specific Execution Guidance
 
+Protocol bundles are now the preferred way to decide which specialized files to load. Use this guide as a fallback index or a manual cross-check when bundle metadata is absent, incomplete, or clearly mismatched to the work.
+
 When executing tasks in a specific subfield, apply these additional protocols. This is not exhaustive --- for detailed subfield references, consult `references/physics-subfields.md`.
 
 ## Subfield Reference Index

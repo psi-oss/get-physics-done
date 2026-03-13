@@ -31,7 +31,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`.
+Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
 
 **File contents (from --include):** `state_content`, `config_content`. Access with:
 
@@ -41,6 +41,14 @@ CONFIG_CONTENT=$(echo "$INIT" | gpd json get .config_content --default "")
 ```
 
 If `.gpd/` missing: error.
+</step>
+
+<step name="load_protocol_bundle_context">
+If `selected_protocol_bundle_ids` is non-empty, treat `protocol_bundle_context` as the primary specialized-loading guide for this plan.
+
+- Read the bundle-listed core assets before starting substantive work.
+- Carry bundle estimator policies and decisive artifact guidance into task execution and SUMMARY evidence.
+- If no bundle is selected, fall back to shared protocols plus on-demand routing through the executor index.
 </step>
 
 <step name="verify_conventions">

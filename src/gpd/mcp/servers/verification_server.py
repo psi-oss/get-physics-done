@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from gpd.contracts import ResearchContract
 from gpd.core.observability import gpd_span
+from gpd.core.protocol_bundles import get_protocol_bundle
 from gpd.core.verification_checks import (
     ERROR_CLASS_COVERAGE,
     VERIFICATION_CHECK_IDS,
@@ -583,6 +584,52 @@ def get_checklist(domain: str) -> dict:
             "domain_check_count": len(checklist),
             "universal_checks": universal,
             "universal_check_count": len(universal),
+        }
+
+
+@mcp.tool()
+def get_bundle_checklist(bundle_ids: list[str]) -> dict:
+    """Return additive verifier checklist extensions for selected protocol bundles."""
+    with gpd_span("mcp.verification.bundle_checklist", bundle_count=len(bundle_ids)):
+        bundles: list[dict[str, object]] = []
+        checklist: list[dict[str, object]] = []
+        missing_bundle_ids: list[str] = []
+
+        for bundle_id in bundle_ids:
+            bundle = get_protocol_bundle(bundle_id)
+            if bundle is None:
+                missing_bundle_ids.append(bundle_id)
+                continue
+
+            verification_domain_paths = [asset.path for asset in bundle.assets.verification_domains]
+            bundle_payload = {
+                "bundle_id": bundle.bundle_id,
+                "title": bundle.title,
+                "summary": bundle.summary,
+                "verification_domains": verification_domain_paths,
+                "verifier_extensions": [extension.model_dump(mode="json") for extension in bundle.verifier_extensions],
+            }
+            bundles.append(bundle_payload)
+
+            for extension in bundle.verifier_extensions:
+                checklist.append(
+                    {
+                        "bundle_id": bundle.bundle_id,
+                        "bundle_title": bundle.title,
+                        "name": extension.name,
+                        "rationale": extension.rationale,
+                        "check_ids": extension.check_ids,
+                    }
+                )
+
+        return {
+            "found": not missing_bundle_ids,
+            "schema_version": VERIFICATION_SCHEMA_VERSION,
+            "bundle_count": len(bundles),
+            "bundles": bundles,
+            "bundle_check_count": len(checklist),
+            "bundle_checks": checklist,
+            "missing_bundle_ids": missing_bundle_ids,
         }
 
 

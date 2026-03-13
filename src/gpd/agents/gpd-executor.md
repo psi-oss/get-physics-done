@@ -195,47 +195,23 @@ If no `<context_hint>` is provided, use `standard` allocation.
 
 ## Dynamic Protocol Loading
 
-Your system prompt is large. To preserve context for actual research work, load physics reasoning protocols **conditionally** based on the phase's physics domain.
+Your system prompt is large. To preserve context for actual research work, load specialized guidance **from selected protocol bundles first**, not from hardcoded topic tables.
 
-**Step 1:** Read the phase's physics domain from PLAN.md frontmatter (the `conventions` or `approximations` fields, or infer from the `<objective>` section).
+**Step 1:** Read `<protocol_bundle_context>` from the spawn prompt or `protocol_bundle_context` from the `init execute-phase` JSON. If bundle IDs are present, they are the authoritative specialized-loading hints for this plan.
 
-**Step 2:** Load ONLY the protocols relevant to that domain. The core execution flow, deviation rules, checkpoint protocol, and stuck protocol are always inline — you always have those. The physics reasoning protocols below are loaded on demand.
+**Step 2:** Load ONLY the bundle-listed assets relevant to execution:
 
-### Protocol Loading Map
+- project-type templates when they clarify decisive artifacts or phase structure
+- subfield guides when they clarify standard methods, pitfalls, or benchmark language
+- verification-domain docs when they clarify what must be checked before calling the result believable
+- core protocols before execution begins
+- optional protocols only when the plan or the work actually enters that method family
 
-| Physics Domain | Load These Protocols |
-|---|---|
-| **QFT (perturbative)** | derivation-discipline, perturbation-theory, renormalization-group, integral-evaluation, green-functions, scattering-theory, group-theory |
-| **QFT (non-perturbative / lattice)** | derivation-discipline, numerical-computation, renormalization-group, lattice-gauge-theory, monte-carlo, group-theory, symmetry-analysis |
-| **Condensed matter (analytical)** | derivation-discipline, integral-evaluation, effective-field-theory, many-body-perturbation-theory, quantum-many-body, green-functions, symmetry-analysis, variational-methods |
-| **Condensed matter (numerical)** | numerical-computation, symbolic-to-numerical, monte-carlo, exact-diagonalization, tensor-networks, density-functional-theory, quantum-many-body, machine-learning-physics |
-| **GR & cosmology** | derivation-discipline, general-relativity, analytic-continuation, order-of-limits, numerical-computation, numerical-relativity, cosmological-perturbation-theory |
-| **Quantum mechanics** | derivation-discipline, integral-evaluation, group-theory, symmetry-analysis, perturbation-theory, wkb-semiclassical, hamiltonian-mechanics, variational-methods |
-| **Statistical mechanics** | derivation-discipline, numerical-computation, integral-evaluation, monte-carlo, stochastic-processes, hamiltonian-mechanics, renormalization-group |
-| **AMO physics** | derivation-discipline, perturbation-theory, numerical-computation, electrodynamics, scattering-theory, wkb-semiclassical, group-theory, open-quantum-systems |
-| **Path integral methods** | derivation-discipline, path-integrals, integral-evaluation, hamiltonian-mechanics |
-| **EFT construction / matching** | derivation-discipline, effective-field-theory, perturbation-theory, renormalization-group |
-| **Numerical / computational (any)** | numerical-computation, symbolic-to-numerical, machine-learning-physics |
-| **Astrophysics** | derivation-discipline, general-relativity, numerical-computation, order-of-limits, numerical-relativity, electrodynamics, statistical-inference |
-| **Nuclear & particle** | derivation-discipline, perturbation-theory, renormalization-group, monte-carlo, scattering-theory, group-theory, supersymmetry, statistical-inference |
-| **Quantum information** | derivation-discipline, numerical-computation, exact-diagonalization, tensor-networks, quantum-error-correction, open-quantum-systems |
-| **Fluid dynamics & plasma** | derivation-discipline, fluid-dynamics-mhd, numerical-computation, symbolic-to-numerical, stochastic-processes, non-equilibrium-transport |
-| **Conformal field theory / bootstrap** | derivation-discipline, numerical-computation, conformal-bootstrap, symmetry-analysis, group-theory, renormalization-group, holography-ads-cft |
-| **Algebraic QFT / operator algebras** | derivation-discipline, algebraic-qft, group-theory, generalized-symmetries, symmetry-analysis, topological-methods |
-| **String field theory** | derivation-discipline, string-field-theory, path-integrals, numerical-computation, symmetry-analysis, supersymmetry, holography-ads-cft |
-| **Mathematical physics** | derivation-discipline, topological-methods, conformal-bootstrap, group-theory, symmetry-analysis, holography-ads-cft |
-| **Classical mechanics** | derivation-discipline, numerical-computation, classical-mechanics, hamiltonian-mechanics, variational-methods |
-| **Soft matter & biophysics** | derivation-discipline, numerical-computation, monte-carlo, molecular-dynamics, stochastic-processes, machine-learning-physics |
-| **Finite-temperature QFT** | derivation-discipline, finite-temperature-field-theory, path-integrals, analytic-continuation |
-| **Mixed analytical + numerical** | derivation-discipline, numerical-computation, symbolic-to-numerical |
+**Step 3:** Carry bundle estimator policies and decisive artifact guidance into the work log and SUMMARY. Bundle guidance is additive: it cannot relax contract-critical anchors, acceptance tests, forbidden proxies, or first-result gates.
 
-### Protocol File Paths
+**Step 4:** If no bundle is selected, or the bundle is clearly incomplete for the task at hand, fall back to `{GPD_INSTALL_DIR}/references/execution/executor-index.md` and load the minimum additional protocols needed from there.
 
-All protocols live at `{GPD_INSTALL_DIR}/references/protocols/{name}.md`. The protocol name in the loading map above matches the filename (e.g., `derivation-discipline` → `protocols/derivation-discipline.md`).
-
-**Step 3:** Read the selected protocol files using the file_read tool during the `load_plan` step, BEFORE executing any tasks. If the domain is ambiguous or cross-disciplinary, load protocols for all relevant domains.
-
-**Step 4:** If a task requires a protocol you did not initially load (e.g., an unexpected integral appears during a condensed matter calculation), load it on demand before proceeding.
+**Step 5:** If the work changes formulation mid-plan, load additional protocols on demand and record the shift. Do not stay trapped in the original bundle if the actual computation demands a different method family.
 
 **Always loaded (via @-references above):** Convention tracking, common physics error taxonomy, agent infrastructure, order-of-limits. Deviation rules, checkpoint protocol, stuck protocol, and context pressure monitoring are inline below.
 

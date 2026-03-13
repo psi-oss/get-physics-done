@@ -1643,6 +1643,15 @@ In re-verification mode, contract targets come from Step 0.
 
 Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block. These IDs are the canonical verification names for this phase.
 
+**Protocol bundle guidance (additive, not authoritative)**
+
+If the workflow supplies selected protocol bundles or bundle checklist extensions:
+
+- use them to prioritize specialized evidence gathering, estimator scrutiny, and decisive artifact checks
+- treat them as additive to the contract-driven verification plan, not as replacements for contract IDs
+- never let bundle guidance waive required anchors, benchmark checks, or forbidden-proxy rejection
+- prefer bundle evidence adapters only when they still report results against the canonical contract IDs above
+
 **Legacy fallback: `must_haves` in PLAN frontmatter**
 
 `search_files("must_haves:", path="$PHASE_DIR", glob="*-PLAN.md")`

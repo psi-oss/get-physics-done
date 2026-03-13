@@ -25,7 +25,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `active_reference_context`, `reference_artifacts_content`.
+Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `validation_content`, plus reference-artifact fields from init JSON. These are null if files don't exist.
 
@@ -425,6 +425,7 @@ VERIFICATION_CONTENT=$(echo "$INIT" | gpd json get .verification_content --defau
 UAT_CONTENT=$(echo "$INIT" | gpd json get .validation_content --default "")
 CONTEXT_CONTENT=$(echo "$INIT" | gpd json get .context_content --default "")
 PROJECT_CONTRACT=$(echo "$INIT" | gpd json get .project_contract --default "")
+PROTOCOL_BUNDLE_CONTEXT=$(echo "$INIT" | gpd json get .protocol_bundle_context --default "")
 ACTIVE_REFERENCE_CONTEXT=$(echo "$INIT" | gpd json get .active_reference_context --default "")
 REFERENCE_ARTIFACTS_CONTENT=$(echo "$INIT" | gpd json get .reference_artifacts_content --default "")
 ```
@@ -480,6 +481,7 @@ Planner prompt:
 **Project Contract:** {project_contract}
 **Roadmap:** {roadmap_content}
 **Requirements:** {requirements_content}
+**Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 
@@ -507,6 +509,7 @@ Each plan MUST include:
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
 - **Anchor discipline:** If a benchmark, paper, dataset, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
 - **Contract completeness:** Every plan must include claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter
+- **Protocol bundle coverage:** If protocol bundles are selected, carry their estimator policies, decisive artifact guidance, and verifier extensions into the plan explicitly
 </physics_planning_requirements>
 
 <contract_requirements>
@@ -548,6 +551,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - Verification criteria with mathematical rigor requirements
 - contract-complete frontmatter before execution starts
 - must_haves as the compatibility projection of the selected contract slice, including limiting case checks
+- protocol-bundle guidance reflected in task structure, verification, and decisive artifact selection when applicable
 </downstream_consumer>
 
 <quality_gate>
@@ -560,6 +564,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - [ ] Waves assigned for parallel execution
 - [ ] must_haves derived from phase goal including limiting case recovery
 - [ ] Required refs, prior outputs, and baselines are surfaced in `<context>` or verification paths
+- [ ] Selected protocol bundles are reflected in verification paths or decisive artifact choices where relevant
 - [ ] Forbidden proxies are rejected explicitly in `<done>` or `<success_criteria>`
 - [ ] Dimensional analysis check specified for each quantitative result
 - [ ] Validation checkpoints placed after each major derivation step
@@ -609,6 +614,7 @@ Checker prompt:
 **Plans to verify:** {plans_content}
 **Requirements:** {requirements_content}
 **Project Contract:** {project_contract}
+**Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 
@@ -633,6 +639,7 @@ In addition to structural checks, verify:
 - [ ] **Independent cross-checks:** At least one independent verification method per major result
 - [ ] **Order-of-magnitude sanity:** Expected scales are stated before detailed calculations
 - [ ] **Anchor coverage:** Required references, baselines, and prior outputs are surfaced where the plan depends on them
+- [ ] **Protocol-bundle coverage:** Selected protocol bundles are reflected in task structure, estimator guards, decisive artifacts, or verification paths
 - [ ] **Contract completeness:** Each plan includes decisive claims, deliverables, acceptance tests, forbidden proxies, and uncertainty markers
 - [ ] **Decisive outputs:** The plan set covers decisive claims and deliverables rather than only infrastructure or proxy work
 - [ ] **Acceptance tests:** Every decisive claim or deliverable has at least one executable or reviewable test
@@ -721,6 +728,7 @@ Revision prompt:
 
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
+**Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Project Contract:** {project_contract}
 **Reference Artifacts:** {reference_artifacts_content}
@@ -739,6 +747,7 @@ Pay special attention to:
 - Approximation validity bounds
 - Missing decisive outputs or deliverables
 - Missing acceptance tests, anchor refs, or forbidden-proxy handling
+- Missing protocol-bundle-driven estimator guards, decisive artifacts, or verifier extensions
 - Missing disconfirming paths
 Return what changed.
 </instructions>

@@ -27,6 +27,7 @@ Goal-backward verification of PLANS before execution. Start from what the phase 
 - Scope exceeds context budget (quality will degrade)
 - **Plans contradict research decisions from CONTEXT.md**
 - **Plans are missing contract-critical claims, anchors, disconfirming paths, or forbidden proxies**
+- **Plans ignore selected protocol bundle guidance for estimator guards, decisive artifacts, or verification paths**
 
 You are NOT the executor or verifier -- you verify plans WILL work before execution burns context.
 
@@ -146,6 +147,7 @@ Reject with `blocker` if any of the following is true:
 - A contract-critical anchor (`must_surface`, `must_read_refs`, user-critical prior output, or known baseline) is absent from the plan context or comparison path.
 - A forbidden proxy is used as the only success condition.
 - A risky plan has no disconfirming observation, stop condition, or reframe trigger.
+- Selected protocol bundle guidance is absent where the phase clearly depends on it for estimator discipline, decisive artifacts, or verification coverage.
 
 Treat a plan as risky if it relies on approximations, novel inference, weak anchors, or non-empty `uncertainty_markers`.
 
@@ -156,6 +158,7 @@ Treat a plan as risky if it relies on approximations, novel inference, weak anch
 - `contract_anchor_coverage`
 - `proxy_only_success_path`
 - `contract_disconfirming_path`
+- `protocol_bundle_coverage`
 
 ## Dimension 1: Research Question Coverage
 

@@ -45,6 +45,7 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
+from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
 from gpd.core.state import load_state_json as _load_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
@@ -324,12 +325,38 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     contract = _load_project_contract(cwd)
     active_references = _serialize_active_references(contract)
     artifact_payload = _reference_artifact_payload(cwd)
+    project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
+    selected_protocol_bundles = select_protocol_bundles(project_text, contract)
+
+    bundle_asset_paths: list[str] = []
+    bundle_verifier_extensions: list[dict[str, object]] = []
+    seen_paths: set[str] = set()
+    for bundle in selected_protocol_bundles:
+        for asset_path in bundle.asset_paths:
+            if asset_path in seen_paths:
+                continue
+            seen_paths.add(asset_path)
+            bundle_asset_paths.append(asset_path)
+        for extension in bundle.verifier_extensions:
+            bundle_verifier_extensions.append(
+                {
+                    "bundle_id": bundle.bundle_id,
+                    "bundle_title": bundle.title,
+                    **extension.model_dump(mode="json"),
+                }
+            )
 
     return {
         "project_contract": contract.model_dump(mode="json") if contract is not None else None,
         "contract_intake": contract.context_intake.model_dump(mode="json") if contract is not None else None,
         "active_references": active_references,
         "active_reference_count": len(active_references),
+        "selected_protocol_bundles": [bundle.model_dump(mode="json") for bundle in selected_protocol_bundles],
+        "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
+        "protocol_bundle_count": len(selected_protocol_bundles),
+        "protocol_bundle_asset_paths": bundle_asset_paths,
+        "protocol_bundle_verifier_extensions": bundle_verifier_extensions,
+        "protocol_bundle_context": render_protocol_bundle_context(selected_protocol_bundles),
         "active_reference_context": _render_active_reference_context(
             contract,
             active_references,

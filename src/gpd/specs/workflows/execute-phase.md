@@ -24,7 +24,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -462,6 +462,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
        <context_hint>{EXECUTOR_CONTEXT_HINT}</context_hint>
        <phase_class>{PHASE_CLASSES}</phase_class>
+       <protocol_bundles>{selected_protocol_bundle_ids}</protocol_bundles>
+       <protocol_bundle_context>{protocol_bundle_context}</protocol_bundle_context>
        <review_cadence>{REVIEW_CADENCE}</review_cadence>
        <max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>
        <max_unattended_minutes_per_wave>{MAX_UNATTENDED_MINUTES_PER_WAVE}</max_unattended_minutes_per_wave>
@@ -1253,6 +1255,8 @@ task(
 
   <context_hint>{EXECUTOR_CONTEXT_HINT}</context_hint>
   <phase_class>{PHASE_CLASSES}</phase_class>
+  <protocol_bundles>{selected_protocol_bundle_ids}</protocol_bundles>
+  <protocol_bundle_context>{protocol_bundle_context}</protocol_bundle_context>
 
   <files_to_read>
   - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md

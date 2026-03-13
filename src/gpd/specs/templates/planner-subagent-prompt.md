@@ -22,6 +22,7 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 **Project Contract:** {project_contract}
 **Roadmap:** {roadmap_content}
 **Requirements:** {requirements_content}
+**Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 
@@ -49,6 +50,7 @@ Each plan MUST include:
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
 - **Contract completeness:** Every plan must carry decisive claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter
 - **Anchor discipline:** If a benchmark, paper, dataset, baseline, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
+- **Protocol bundle coverage:** If specialized protocol bundles are selected, carry their anchor prompts, estimator policies, decisive artifact guidance, and verification extensions into the plan rather than leaving them implicit
 </physics_planning_requirements>
 
 <contract_completion_requirements>
@@ -95,6 +97,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - Contract-complete claim, deliverable, reference, acceptance-test, forbidden-proxy, and uncertainty-marker coverage
 - must_haves derived from the selected contract slice and phase goal
 - Contract-critical anchors and benchmarks surfaced wherever the plan depends on them
+- Selected protocol bundle guidance reflected in tasks, verification paths, and decisive artifact choices
 </downstream_consumer>
 
 <quality_gate>
@@ -107,6 +110,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - [ ] Waves assigned for parallel execution
 - [ ] must_haves derived from the contract and phase goal including limiting case recovery
 - [ ] Required refs, prior outputs, and baselines are surfaced in `<context>` or verification paths
+- [ ] Selected protocol bundle guidance is reflected in the task structure, estimator guards, or decisive artifacts when applicable
 - [ ] Forbidden proxies are rejected explicitly in `<done>` or `<success_criteria>`
 - [ ] Dimensional analysis check specified for each quantitative result
 - [ ] Validation checkpoints placed after each major derivation step
@@ -125,6 +129,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
 **Project Contract:** {project_contract}
+**Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 
@@ -154,6 +159,7 @@ Return what changed.
 | `{project_contract}` | `project_contract` from init JSON |
 | `{roadmap_content}` | `roadmap_content` from init JSON |
 | `{requirements_content}` | `requirements_content` from init JSON |
+| `{protocol_bundle_context}` | `protocol_bundle_context` from init JSON |
 | `{active_reference_context}` | `active_reference_context` from init JSON |
 | `{reference_artifacts_content}` | `reference_artifacts_content` from init JSON |
 | `{context_content}` | phase `*-CONTEXT.md`, if present |

@@ -53,7 +53,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `active_reference_context`, `reference_artifacts_content`.
+Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause after each verification round for user review. Present findings and wait for confirmation before writing `VERIFICATION.md`.
@@ -83,6 +83,14 @@ Use `active_reference_context` from init JSON as a mandatory input to verificati
 - If it names a benchmark, prior artifact, or must-read reference, verification must explicitly check it or report why it could not.
 - Treat `reference_artifacts_content` as supporting evidence for what comparisons remain decisive.
 - Background literature may be reduced by mode; anchor checks may not.
+</step>
+
+<step name="load_protocol_bundle_context">
+Use `protocol_bundle_context` from init JSON as additive specialized guidance.
+
+- If `selected_protocol_bundle_ids` is non-empty, load the bundle checklist extensions through the verification server and treat them as extra prompts for evidence gathering.
+- Bundle guidance may add estimator checks, decisive artifact expectations, or domain-specific audits, but it does NOT replace the plan contract or reduce anchor obligations.
+- Use `protocol_bundle_verifier_extensions` as a machine-readable quick map when deciding which contract-aware checks deserve deeper scrutiny first.
 </step>
 
 <step name="check_active_session">

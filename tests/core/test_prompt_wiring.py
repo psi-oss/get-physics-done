@@ -729,6 +729,30 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
     assert "rollback primitive" in checkpoint_flow
 
 
+def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_verification() -> None:
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    continuation = (TEMPLATES_DIR / "continuation-prompt.md").read_text(encoding="utf-8")
+    planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+    executor_guide = (REFERENCES_DIR / "execution" / "executor-subfield-guide.md").read_text(encoding="utf-8")
+
+    assert "**Protocol Bundles:** {protocol_bundle_context}" in planner_prompt
+    assert "protocol_bundle_context" in execute_phase
+    assert "selected_protocol_bundle_ids" in execute_plan
+    assert "protocol_bundle_verifier_extensions" in verify_work
+    assert "{protocol_bundle_context}" in continuation
+    assert "selected protocol bundle context" in planner_agent
+    assert "protocol_bundle_coverage" in checker_agent
+    assert "selected protocol bundles first" in executor_agent
+    assert "bundle checklist extensions" in verifier_agent
+    assert "preferred way to decide which specialized files to load" in executor_guide
+
+
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
     assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
     assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))

@@ -1368,6 +1368,26 @@ class TestVerificationServer:
             result = get_checklist(domain)
             assert result["found"] is True, f"Checklist for {domain} should exist"
 
+    def test_get_bundle_checklist_returns_additive_extensions(self):
+        from gpd.mcp.servers.verification_server import get_bundle_checklist
+
+        result = get_bundle_checklist(["stat-mech-simulation"])
+
+        assert result["found"] is True
+        assert result["bundle_count"] == 1
+        assert result["bundles"][0]["bundle_id"] == "stat-mech-simulation"
+        assert result["bundle_check_count"] == 2
+        assert result["bundle_checks"][0]["check_ids"] == ["5.4", "5.14", "5.16"]
+
+    def test_get_bundle_checklist_reports_missing_ids(self):
+        from gpd.mcp.servers.verification_server import get_bundle_checklist
+
+        result = get_bundle_checklist(["missing-bundle"])
+
+        assert result["found"] is False
+        assert result["bundle_count"] == 0
+        assert result["missing_bundle_ids"] == ["missing-bundle"]
+
     # --- get_verification_coverage ---
 
     def test_verification_coverage_full(self):
