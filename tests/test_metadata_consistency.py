@@ -113,6 +113,22 @@ def test_release_inventory_counts_match_repo_contents() -> None:
     assert mcp_server_count == mcp_script_count
 
 
+def test_agent_metadata_inventory_uses_valid_enums_without_changing_skill_surface() -> None:
+    content_registry.invalidate_cache()
+
+    valid_surfaces = set(content_registry.VALID_AGENT_SURFACES)
+    valid_role_families = set(content_registry.VALID_AGENT_ROLE_FAMILIES)
+    valid_artifact_authorities = set(content_registry.VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES)
+    valid_shared_state_authorities = set(content_registry.VALID_AGENT_SHARED_STATE_AUTHORITIES)
+
+    for name in content_registry.list_agents():
+        agent = content_registry.get_agent(name)
+        assert agent.surface in valid_surfaces, name
+        assert agent.role_family in valid_role_families, name
+        assert agent.artifact_write_authority in valid_artifact_authorities, name
+        assert agent.shared_state_authority in valid_shared_state_authorities, name
+
+
 def test_convention_field_counts_match_source_of_truth() -> None:
     convention_count = len(ConventionLock.model_fields) - 1  # exclude custom_conventions
     assert convention_count == 18

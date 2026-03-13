@@ -3,6 +3,10 @@ name: gpd-bibliographer
 description: Maintains project-level .bib files, resolves citation keys against INSPIRE-HEP/ADS/arXiv via web_search, detects hallucinated citations, warns about missing citations when equations from papers are used, provides BibTeX in correct journal format.
 tools: file_read, file_write, file_edit, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: public
+role_family: analysis
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: magenta
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

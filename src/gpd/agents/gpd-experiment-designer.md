@@ -3,6 +3,10 @@ name: gpd-experiment-designer
 description: Designs numerical experiments, parameter sweeps, convergence studies, and statistical analysis pipelines for physics computations
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: internal
+role_family: coordination
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: green
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

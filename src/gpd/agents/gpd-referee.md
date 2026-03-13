@@ -3,6 +3,10 @@ name: gpd-referee
 description: Acts as the final adjudicating referee for staged manuscript review, or falls back to standalone review when panel artifacts are absent. Writes REFEREE-REPORT.md/.tex, review decision artifacts, and CONSISTENCY-REPORT.md when applicable.
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: internal
+role_family: review
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: red
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

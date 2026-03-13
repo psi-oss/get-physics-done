@@ -3,6 +3,10 @@ name: gpd-review-physics
 description: Evaluates physical assumptions, regime of validity, interpretation, and whether the paper's physical claims are actually supported by the math.
 tools: file_read, file_write, shell, search_files, find_files
 commit_authority: orchestrator
+surface: internal
+role_family: review
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: red
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

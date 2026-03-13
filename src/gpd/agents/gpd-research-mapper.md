@@ -3,6 +3,10 @@ name: gpd-research-mapper
 description: Explores a physics research project and writes structured analysis documents. Spawned by map-research with a focus area (theory, computation, methodology, status). Writes documents directly to reduce orchestrator context load.
 tools: file_read, file_write, shell, search_files, find_files
 commit_authority: orchestrator
+surface: internal
+role_family: analysis
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: cyan
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

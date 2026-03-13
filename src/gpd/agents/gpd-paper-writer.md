@@ -3,6 +3,10 @@ name: gpd-paper-writer
 description: Drafts and revises physics paper sections from research results with proper LaTeX, equations, and citations. Spawned by the write-paper and respond-to-referees workflows.
 tools: file_read, file_write, file_edit, shell, find_files, search_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: public
+role_family: worker
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: purple
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

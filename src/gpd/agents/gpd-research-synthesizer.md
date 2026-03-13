@@ -3,6 +3,10 @@ name: gpd-research-synthesizer
 description: Synthesizes research outputs from parallel researcher agents into SUMMARY.md. Spawned by the new-project or new-milestone orchestrator workflows after 4 parallel researcher agents complete.
 tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: internal
+role_family: analysis
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: purple
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

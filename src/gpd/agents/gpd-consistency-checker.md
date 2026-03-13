@@ -3,6 +3,10 @@ name: gpd-consistency-checker
 description: Verifies cross-phase research consistency using semantic physics reasoning. Checks all accumulated conventions against current work, traces provides/consumes chains with test-value verification, and detects convention drift across arbitrarily distant phases.
 tools: file_read, file_write, shell, search_files, find_files
 commit_authority: orchestrator
+surface: internal
+role_family: verification
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: blue
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

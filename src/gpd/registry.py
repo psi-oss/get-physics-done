@@ -42,6 +42,10 @@ class AgentDef:
     path: str
     source: str  # "agents"
     commit_authority: str = "orchestrator"
+    surface: str = "internal"
+    role_family: str = "analysis"
+    artifact_write_authority: str = "scoped_write"
+    shared_state_authority: str = "return_only"
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +193,10 @@ def _parse_non_negative_int_field(raw: object, *, field_name: str, command_name:
 
 VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
 VALID_AGENT_COMMIT_AUTHORITIES: tuple[str, ...] = ("direct", "orchestrator")
+VALID_AGENT_SURFACES: tuple[str, ...] = ("public", "internal")
+VALID_AGENT_ROLE_FAMILIES: tuple[str, ...] = ("worker", "analysis", "verification", "review", "coordination")
+VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES: tuple[str, ...] = ("scoped_write", "read_only")
+VALID_AGENT_SHARED_STATE_AUTHORITIES: tuple[str, ...] = ("return_only", "direct")
 
 
 def _parse_context_mode(raw: object, *, command_name: str) -> str:
@@ -217,6 +225,27 @@ def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
         valid = ", ".join(VALID_AGENT_COMMIT_AUTHORITIES)
         raise ValueError(f"Invalid commit_authority {authority!r} for {agent_name}; expected one of: {valid}")
     return authority
+
+
+def _parse_agent_metadata_enum(
+    raw: object,
+    *,
+    field_name: str,
+    agent_name: str,
+    valid_values: tuple[str, ...],
+    default: str,
+) -> str:
+    """Normalize additive agent metadata fields with explicit validation."""
+    if raw is None:
+        return default
+
+    value = str(raw).strip().lower()
+    if not value:
+        return default
+    if value not in valid_values:
+        valid = ", ".join(valid_values)
+        raise ValueError(f"Invalid {field_name} {value!r} for {agent_name}; expected one of: {valid}")
+    return value
 
 
 _DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
@@ -387,12 +416,41 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         meta, body = _parse_frontmatter(text)
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
+    agent_name = str(meta.get("name", path.stem))
     return AgentDef(
-        name=meta.get("name", path.stem),
+        name=agent_name,
         description=str(meta.get("description", "")),
         system_prompt=body.strip(),
         tools=_parse_tools(meta.get("tools", "")),
-        commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=str(meta.get("name", path.stem))),
+        commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=agent_name),
+        surface=_parse_agent_metadata_enum(
+            meta.get("surface"),
+            field_name="surface",
+            agent_name=agent_name,
+            valid_values=VALID_AGENT_SURFACES,
+            default="internal",
+        ),
+        role_family=_parse_agent_metadata_enum(
+            meta.get("role_family"),
+            field_name="role_family",
+            agent_name=agent_name,
+            valid_values=VALID_AGENT_ROLE_FAMILIES,
+            default="analysis",
+        ),
+        artifact_write_authority=_parse_agent_metadata_enum(
+            meta.get("artifact_write_authority"),
+            field_name="artifact_write_authority",
+            agent_name=agent_name,
+            valid_values=VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES,
+            default="scoped_write",
+        ),
+        shared_state_authority=_parse_agent_metadata_enum(
+            meta.get("shared_state_authority"),
+            field_name="shared_state_authority",
+            agent_name=agent_name,
+            valid_values=VALID_AGENT_SHARED_STATE_AUTHORITIES,
+            default="return_only",
+        ),
         color=str(meta.get("color", "")),
         path=str(path),
         source=source,
@@ -739,6 +797,11 @@ __all__ = [
     "ReviewCommandContract",
     "SkillDef",
     "SPECS_DIR",
+    "VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES",
+    "VALID_AGENT_COMMIT_AUTHORITIES",
+    "VALID_AGENT_ROLE_FAMILIES",
+    "VALID_AGENT_SHARED_STATE_AUTHORITIES",
+    "VALID_AGENT_SURFACES",
     "VALID_CONTEXT_MODES",
     "get_agent",
     "get_command",

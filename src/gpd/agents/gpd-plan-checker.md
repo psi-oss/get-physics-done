@@ -3,6 +3,10 @@ name: gpd-plan-checker
 description: Verifies plans will achieve phase goal before execution. Goal-backward analysis of plan quality for physics research. Spawned by the plan-phase and verify-work workflows.
 tools: file_read, file_write, shell, find_files, search_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: internal
+role_family: verification
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: green
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

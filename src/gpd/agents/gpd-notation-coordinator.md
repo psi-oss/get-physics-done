@@ -3,6 +3,10 @@ name: gpd-notation-coordinator
 description: Owns and manages CONVENTIONS.md lifecycle — establishes, validates, and evolves notation conventions across phases
 tools: file_read, file_write, file_edit, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
+surface: public
+role_family: coordination
+artifact_write_authority: scoped_write
+shared_state_authority: direct
 color: cyan
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

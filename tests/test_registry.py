@@ -123,7 +123,9 @@ class TestParseAgentFile:
     def test_full_agent_file(self, tmp_path: Path) -> None:
         f = tmp_path / "my-agent.md"
         f.write_text(
-            "---\nname: my-agent\ndescription: A test agent\ntools: file_read, file_write\ncolor: blue\n---\nSystem prompt.",
+            "---\nname: my-agent\ndescription: A test agent\ntools: file_read, file_write\n"
+            "surface: public\nrole_family: worker\nartifact_write_authority: scoped_write\n"
+            "shared_state_authority: direct\ncolor: blue\n---\nSystem prompt.",
             encoding="utf-8",
         )
         agent = _parse_agent_file(f, source="agents")
@@ -131,6 +133,10 @@ class TestParseAgentFile:
         assert agent.description == "A test agent"
         assert agent.tools == ["file_read", "file_write"]
         assert agent.commit_authority == "orchestrator"
+        assert agent.surface == "public"
+        assert agent.role_family == "worker"
+        assert agent.artifact_write_authority == "scoped_write"
+        assert agent.shared_state_authority == "direct"
         assert agent.color == "blue"
         assert agent.system_prompt == "System prompt."
         assert agent.source == "agents"
@@ -152,6 +158,10 @@ class TestParseAgentFile:
         assert agent.description == ""
         assert agent.tools == []
         assert agent.commit_authority == "orchestrator"
+        assert agent.surface == "internal"
+        assert agent.role_family == "analysis"
+        assert agent.artifact_write_authority == "scoped_write"
+        assert agent.shared_state_authority == "return_only"
         assert agent.color == ""
         assert agent.source == "agents"
 
@@ -168,6 +178,28 @@ class TestParseAgentFile:
         f.write_text("---\nname: bad\ncommit_authority: someday\n---\nPrompt.", encoding="utf-8")
 
         with pytest.raises(ValueError, match="Invalid commit_authority"):
+            _parse_agent_file(f, source="agents")
+
+    @pytest.mark.parametrize(
+        ("field_name", "field_value", "expected_error"),
+        [
+            ("surface", "sometimes", "Invalid surface"),
+            ("role_family", "planner", "Invalid role_family"),
+            ("artifact_write_authority", "shared_write", "Invalid artifact_write_authority"),
+            ("shared_state_authority", "scoped", "Invalid shared_state_authority"),
+        ],
+    )
+    def test_agent_file_invalid_spawn_metadata_raises(
+        self,
+        tmp_path: Path,
+        field_name: str,
+        field_value: str,
+        expected_error: str,
+    ) -> None:
+        f = tmp_path / "bad-metadata.md"
+        f.write_text(f"---\nname: bad\n{field_name}: {field_value}\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=expected_error):
             _parse_agent_file(f, source="agents")
 
     def test_agent_file_unexpected_extra_fields(self, tmp_path: Path) -> None:
@@ -678,7 +710,9 @@ class TestPublicAPI:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "test-agent.md").write_text(
-            "---\nname: test-agent\ndescription: Tested\ntools: file_read\ncolor: red\n---\nTest prompt.",
+            "---\nname: test-agent\ndescription: Tested\ntools: file_read\nsurface: public\n"
+            "role_family: coordination\nartifact_write_authority: scoped_write\n"
+            "shared_state_authority: direct\ncolor: red\n---\nTest prompt.",
             encoding="utf-8",
         )
 
@@ -690,6 +724,10 @@ class TestPublicAPI:
         assert agent.name == "test-agent"
         assert agent.description == "Tested"
         assert agent.tools == ["file_read"]
+        assert agent.surface == "public"
+        assert agent.role_family == "coordination"
+        assert agent.artifact_write_authority == "scoped_write"
+        assert agent.shared_state_authority == "direct"
 
     def test_get_command_returns_correct_def(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"

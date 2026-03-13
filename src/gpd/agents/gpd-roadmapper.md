@@ -3,6 +3,10 @@ name: gpd-roadmapper
 description: Creates research roadmaps with phase breakdown, objective mapping, success criteria derivation, and coverage validation. Spawned by the new-project or new-milestone orchestrator workflows.
 tools: file_read, file_write, file_edit, shell, find_files, search_files
 commit_authority: orchestrator
+surface: public
+role_family: coordination
+artifact_write_authority: scoped_write
+shared_state_authority: direct
 color: purple
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.

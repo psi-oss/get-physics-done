@@ -3,6 +3,10 @@ name: gpd-planner
 description: Creates executable phase plans with task breakdown, dependency analysis, and goal-backward verification for physics research. Spawned by the plan-phase, quick, and verify-work workflows.
 tools: file_read, file_write, file_edit, shell, find_files, search_files, web_search, web_fetch, mcp__context7__*
 commit_authority: direct
+surface: public
+role_family: coordination
+artifact_write_authority: scoped_write
+shared_state_authority: return_only
 color: green
 ---
 Commit authority: direct. You may use `gpd commit` for your own scoped artifacts only. Do NOT use raw `git commit` when `gpd commit` applies.
