@@ -78,7 +78,8 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 **INCLUDE in verification context:**
 
 - Phase goal from ROADMAP.md
-- `must_haves` from PLAN.md frontmatter only (truths, artifacts, key_links)
+- `contract` from PLAN.md frontmatter (primary verification target definition)
+- `must_haves` from PLAN.md frontmatter only as a legacy fallback when no `contract` exists
 - Artifact file paths (the actual research outputs to inspect)
 - .gpd/STATE.md (project conventions, active approximations, unit system)
 - .gpd/config.json (project configuration)
@@ -89,18 +90,23 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 - SUMMARY.md files (what executors claimed they did)
 - Execution logs or agent conversation history
 
-Extract must_haves from frontmatter only:
+Extract the contract target definition from frontmatter only:
 
 ```bash
 for plan in "$phase_dir"/*-PLAN.md; do
+  gpd frontmatter get "$plan" --field contract
   gpd frontmatter get "$plan" --field must_haves
 done
 ```
 
 </step>
 
-<step name="establish_must_haves">
-**Option A: Must-haves in PLAN frontmatter**
+<step name="establish_contract_targets">
+**Primary option: contract in PLAN frontmatter**
+
+Use the PLAN `contract` block as the canonical target definition. Verification must be keyed to contract IDs (`claim`, `deliverable`, `acceptance_test`, `reference`, `forbidden_proxy`) instead of re-deriving names from prose.
+
+**Legacy fallback: must_haves in PLAN frontmatter**
 
 Use gpd to extract must_haves from each PLAN:
 
@@ -113,11 +119,11 @@ done
 
 Returns JSON: `{ truths: [...], artifacts: [...], key_links: [...] }`
 
-Aggregate all must_haves across plans for phase-level verification.
+Aggregate all contract-backed targets across plans for phase-level verification. Use `must_haves` only if a historical plan has no `contract`.
 
 **Option B: Derive from phase goal**
 
-If no must_haves in frontmatter (MUST_HAVES returns error or empty):
+If no `contract` or `must_haves` is available in frontmatter:
 
 1. State the goal from ROADMAP.md
 2. Derive **truths** (3-7 verifiable physics claims, each testable by computation)
@@ -131,7 +137,7 @@ If no must_haves in frontmatter (MUST_HAVES returns error or empty):
 <step name="batch_verification_triage">
 **For phases with 10+ checks, use batch verification to reduce researcher burden.**
 
-Count total checks across all must_haves (truths + artifacts + key_links):
+Count total checks across all contract-backed targets (claims + deliverables + acceptance tests + must-surface references). For legacy plans, fall back to must_haves (truths + artifacts + key_links):
 
 ```bash
 TOTAL_CHECKS=$(echo "$ALL_MUST_HAVES" | gpd json sum-lengths .truths .artifacts .key_links)
@@ -520,7 +526,7 @@ If gaps_found:
 REPORT_PATH="$phase_dir/${phase_number}-VERIFICATION.md"
 ```
 
-Fill template sections: frontmatter (phase/timestamp/status/score/independently_confirmed), goal achievement, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata.
+Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results/comparison_verdicts/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata.
 
 See {GPD_INSTALL_DIR}/templates/verification-report.md for complete template.
 </step>
@@ -564,7 +570,7 @@ Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute
 
 <success_criteria>
 
-- [ ] Must-haves established (from frontmatter or derived)
+- [ ] Contract-backed targets established from PLAN frontmatter (with `must_haves` used only as a legacy fallback)
 - [ ] All truths verified with status, computation evidence, and confidence rating
 - [ ] All artifacts checked at all four levels (exists, substantive, content-validated, integrated)
 - [ ] **Numerical spot-checks performed** on key expressions (2-3 test points each)

@@ -16,7 +16,7 @@ The AI does not just present what the research SHOULD show — it COMPUTES what 
 
 Walk through derivation logic, perform numerical spot-checks, re-derive limiting cases, probe edge cases with actual computations. No formal review forms. Just: "Here is what I independently computed. Does your result match?"
 
-**Verification independence:** Derive validation checks from the phase goal and the actual research artifacts — not from SUMMARY.md claims about what was accomplished. SUMMARY.md tells you WHERE to look (file paths, deliverable names), but expected physics outcomes come from the phase goal and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
+**Verification independence:** Derive validation checks from the phase goal, the PLAN `contract`, and the actual research artifacts — not from SUMMARY.md claims about what was accomplished. SUMMARY.md `contract_results` and `comparison_verdicts` tell you WHERE evidence lives, but expected physics outcomes come from the phase goal, contract IDs, and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 </philosophy>
 
 <template>
@@ -143,6 +143,8 @@ ls "$phase_dir"/*-SUMMARY.md 2>/dev/null
 
 Read each SUMMARY.md to extract **deliverable names and file paths only**. Do NOT trust SUMMARY.md claims about correctness, convergence, or agreement with literature — those are exactly what you are validating. Use SUMMARY.md as a map to find artifacts, not as evidence that they are correct.
 
+If a SUMMARY has `contract_results` or `comparison_verdicts`, use them only as evidence maps keyed to contract IDs. The PLAN `contract` remains the source of truth for what must be verified.
+
 Also load the phase goal from ROADMAP.md to derive expected physics outcomes independently:
 
 ```bash
@@ -152,7 +154,7 @@ gpd roadmap get-phase "${phase_number}"
 </step>
 
 <step name="extract_checks">
-**Extract validatable deliverables from SUMMARY.md:**
+**Extract validatable deliverables from PLAN `contract` first, then use SUMMARY.md as an evidence map:**
 
 Parse for:
 
@@ -161,7 +163,7 @@ Parse for:
 3. **Plots and figures** - Visualizations of results, comparison plots
 4. **Physical claims** - Statements about physics supported by the work
 
-Focus on VERIFIABLE RESEARCH OUTCOMES, not implementation details.
+Focus on VERIFIABLE RESEARCH OUTCOMES, not implementation details. Use contract IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`) as canonical names throughout the verification file.
 
 For each deliverable, create a validation check that includes **both qualitative expectations and a concrete computational test:**
 
@@ -258,6 +260,8 @@ If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase`
 If no existing VERIFICATION.md exists, create a new one from scratch.
 
 Build check list from extracted deliverables, including computational test specifications.
+
+If the PLAN has a `contract`, every check in this file must carry the relevant `claim_id`, `deliverable_id`, `acceptance_test_id`, and `reference_ids` when applicable.
 
 Create file (or extend existing):
 

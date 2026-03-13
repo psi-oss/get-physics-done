@@ -17,6 +17,7 @@ A conversational walkthrough of research results, checking derivation logic, phy
 status: validating | completed | diagnosed
 phase: XX-name
 source: [list of SUMMARY.md files validated]
+plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
 started: [ISO timestamp]
 updated: [ISO timestamp]
 ---
@@ -27,6 +28,10 @@ updated: [ISO timestamp]
 
 number: [N]
 name: [check name]
+claim_id: [claim-id or ""]
+deliverable_id: [deliverable-id or ""]
+acceptance_test_id: [acceptance-test-id or ""]
+reference_ids: [reference-id, ...]
 expected: |
 [what the researcher should confirm or evaluate]
 awaiting: researcher response
@@ -35,6 +40,10 @@ awaiting: researcher response
 
 ### 1. [Check Name]
 
+claim_id: [claim-id or ""]
+deliverable_id: [deliverable-id or ""]
+acceptance_test_id: [acceptance-test-id or ""]
+reference_ids: [reference-id, ...]
 expected: [what should hold - physical reasoning, derivation step, or result property]
 result: [pending]
 
@@ -71,6 +80,10 @@ skipped: [N]
 <!-- YAML format for plan-phase --gaps consumption -->
 
 - truth: "[expected physics property from check]"
+  claim_id: "claim-id"
+  deliverable_id: "deliverable-id"
+  acceptance_test_id: "acceptance-test-id"
+  reference_ids: ["reference-id"]
   status: failed
   reason: "Researcher reported: [verbatim response]"
   severity: blocker | major | minor | cosmetic
@@ -211,6 +224,7 @@ Probe how sensitive results are to assumptions and approximations.
 **Creation:** When /gpd:verify-work starts new verification session
 
 - Extract checks from SUMMARY.md files and verification report
+- Use PLAN `contract` IDs as canonical check names. SUMMARY `contract_results` tells you where evidence lives, not what counts as success.
 - Organize by check category (derivation logic, intuition, limits, edges, consistency, robustness)
 - Set status to "validating"
 - Current Check points to check 1

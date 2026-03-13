@@ -676,6 +676,37 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
     assert "active_reference_context" in verify_workflow
 
 
+def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_ledgers() -> None:
+    summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
+    verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
+    research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")
+    compare_workflow = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
+    comparison_template = (
+        TEMPLATES_DIR / "paper" / "experimental-comparison.md"
+    ).read_text(encoding="utf-8")
+    executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+
+    assert "contract_results" in summary_template
+    assert "comparison_verdicts" in summary_template
+    assert "plan_contract_ref" in summary_template
+    assert "`verification_inputs` remains as a legacy compatibility projection" in summary_template
+    assert "contract_results" in verification_template
+    assert "comparison_verdicts" in verification_template
+    assert "claim_id" in research_verification
+    assert "acceptance_test_id" in research_verification
+    assert "`contract_results` is authoritative." in execute_plan
+    assert "Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission." in execute_plan
+    assert "contract_results" in verify_phase
+    assert "must_haves` used only as a legacy fallback" in verify_phase
+    assert "comparison_verdicts" in compare_workflow
+    assert "subject_role" in comparison_template
+    assert "Profiles and autonomy modes may compress prose or cadence, but they do NOT relax contract-result emission" in executor_agent
+    assert "Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block." in verifier_agent
+
+
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:
     assert parse_scope_count("src/gpd/commands/*.md") == len(list(COMMANDS_DIR.glob("*.md")))
     assert parse_scope_count("src/gpd/agents/*.md") == len(list(AGENTS_DIR.glob("*.md")))

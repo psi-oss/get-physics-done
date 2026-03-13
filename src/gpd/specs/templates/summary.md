@@ -27,6 +27,8 @@ This single template covers all summary depths. The `depth` field in frontmatter
 
 Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `depth`, `provides`, `completed`. All other fields are optional and should be populated as relevant.
 
+**Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref` and `contract_results`. `verification_inputs` remains as a legacy compatibility projection, but `contract_results` is the authoritative machine-readable outcome ledger.
+
 ```markdown
 ---
 phase: XX-name
@@ -87,7 +89,63 @@ conventions:
   - "metric = (+,-,-,-)"
   - "Fourier = e^{-ikx} forward"
 
-# Verification contract (for downstream verifier)
+# Canonical contract outcome ledger (required when source PLAN has a contract)
+plan_contract_ref (optional): ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
+contract_results (optional):
+  claims:
+    claim-id:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[what was actually established]"
+      linked_ids: [deliverable-id, acceptance-test-id, reference-id]
+      evidence:
+        - verifier: gpd-verifier
+          method: benchmark reproduction
+          confidence: high
+          claim_id: claim-id
+          deliverable_id: deliverable-id
+          acceptance_test_id: acceptance-test-id
+          reference_id: reference-id
+          evidence_path: ".gpd/phases/XX-name/{phase}-VERIFICATION.md"
+  deliverables:
+    deliverable-id:
+      status: passed|partial|failed|blocked|not_attempted
+      path: path/to/artifact
+      summary: "[what artifact exists]"
+      linked_ids: [claim-id, acceptance-test-id]
+  acceptance_tests:
+    acceptance-test-id:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[what test actually happened]"
+      linked_ids: [claim-id, deliverable-id, reference-id]
+  references:
+    reference-id:
+      status: completed|missing|not_applicable
+      completed_actions: [read, use, compare, cite]
+      missing_actions: []
+      summary: "[how the anchor was surfaced]"
+  forbidden_proxies:
+    forbidden-proxy-id:
+      status: rejected|violated|unresolved|not_applicable
+      notes: "[why this proxy was or was not allowed]"
+  uncertainty_markers:
+    weakest_anchors: []
+    unvalidated_assumptions: []
+    competing_explanations: []
+    disconfirming_observations: []
+
+# Optional decisive comparison verdict ledger
+comparison_verdicts (optional):
+  - subject_id: claim-id
+    subject_kind: claim|deliverable|acceptance_test|reference|artifact
+    subject_role: decisive|supporting|supplemental
+    reference_id: reference-id
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: pass|tension|fail|inconclusive
+    recommended_action: "[what to do next]"
+
+# Legacy verifier compatibility view (derive from contract_results when possible)
 verification_inputs:
   truths:
     - claim: "[testable physics claim]"
@@ -146,6 +204,15 @@ _Note: Validation tasks may have multiple commits (derive -> compute -> cross-ch
 ## Next Phase Readiness
 
 [What's ready for next phase; key quantity available for downstream use]
+
+## Contract Coverage
+
+- Claim IDs advanced: [claim-id -> status]
+- Deliverable IDs produced: [deliverable-id -> path/status]
+- Acceptance test IDs run: [acceptance-test-id -> status]
+- Reference IDs surfaced: [reference-id -> actions completed]
+- Forbidden proxies rejected or violated: [proxy-id -> status]
+- Decisive comparison verdicts: [subject-id -> verdict]
 
 <!-- depth:minimal stops here. Sections below require depth:standard or higher. -->
 

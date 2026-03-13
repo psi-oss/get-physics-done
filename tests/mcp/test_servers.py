@@ -1282,6 +1282,65 @@ class TestVerificationServer:
         result = run_check("5.9", "qft", "Ward identity computation")
         assert len(result["domain_specific_checks"]) > 0
 
+    def test_run_check_contract_limit_recovery(self):
+        from gpd.mcp.servers.verification_server import run_check
+
+        result = run_check("contract.limit_recovery", "qft", "This derivation includes the asymptotic scaling limit.")
+        assert result["check_id"] == "5.15"
+        assert result["check_key"] == "contract.limit_recovery"
+        assert result["contract_aware"] is True
+
+    def test_run_check_contract_benchmark_reproduction_flags_missing_anchor(self):
+        from gpd.mcp.servers.verification_server import run_check
+
+        result = run_check("5.16", "qft", "Computed a result but did not compare it to anything.")
+        assert any("benchmark" in issue.lower() or "baseline" in issue.lower() for issue in result["automated_issues"])
+
+    def test_run_contract_check_benchmark_reproduction(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.benchmark_reproduction",
+                "binding": {"claim_ids": ["claim-benchmark"], "reference_ids": ["ref-benchmark"]},
+                "metadata": {"source_reference_id": "ref-benchmark"},
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            }
+        )
+
+        assert result["status"] == "pass"
+        assert result["check_id"] == "5.16"
+        assert result["binding"]["claim_ids"] == ["claim-benchmark"]
+
+    def test_run_contract_check_direct_proxy_consistency_fails_on_proxy_only(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.direct_proxy_consistency",
+                "binding": {"claim_ids": ["claim-benchmark"], "forbidden_proxy_ids": ["fp-benchmark"]},
+                "observed": {"proxy_only": True, "proxy_available": True, "direct_available": False},
+            }
+        )
+
+        assert result["status"] == "fail"
+        assert any("proxy" in issue.lower() for issue in result["automated_issues"])
+
+    def test_suggest_contract_checks_from_contract(self):
+        import json
+        from pathlib import Path
+
+        from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+        fixture = Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "project_contract.json"
+        contract = json.loads(fixture.read_text(encoding="utf-8"))
+
+        result = suggest_contract_checks(contract)
+        suggested = {entry["check_key"] for entry in result["suggested_checks"]}
+
+        assert "contract.benchmark_reproduction" in suggested
+        assert "contract.direct_proxy_consistency" in suggested
+
     # --- get_checklist ---
 
     def test_get_checklist_qft(self):
@@ -1291,7 +1350,7 @@ class TestVerificationServer:
         assert result["found"] is True
         assert result["schema_version"] == 1
         assert result["domain_check_count"] > 0
-        assert result["universal_check_count"] == 14
+        assert result["universal_check_count"] == 19
         assert result["universal_checks"][0]["check_id"] == "5.1"
         assert "evidence_kind" in result["universal_checks"][0]
 

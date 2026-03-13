@@ -95,6 +95,18 @@ class FiguresQualityInput(BaseModel):
     referenced_in_text: CoverageMetric = Field(default_factory=CoverageMetric)
     captions_self_contained: CoverageMetric = Field(default_factory=CoverageMetric)
     colorblind_safe: CoverageMetric = Field(default_factory=CoverageMetric)
+    decisive_artifacts_labeled_with_units: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
+    decisive_artifacts_uncertainty_qualified: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
+    decisive_artifacts_referenced_in_text: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
+    decisive_artifact_roles_clear: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
 
 
 class CitationsQualityInput(BaseModel):
@@ -119,6 +131,7 @@ class VerificationQualityInput(BaseModel):
 
     report_passed: BinaryCheck = Field(default_factory=BinaryCheck)
     must_haves_verified: CoverageMetric = Field(default_factory=CoverageMetric)
+    contract_targets_verified: CoverageMetric = Field(default_factory=lambda: CoverageMetric(not_applicable=True))
     key_result_confidences: list[VerificationConfidence] = Field(default_factory=list)
 
 
@@ -137,6 +150,13 @@ class ResultsQualityInput(BaseModel):
     uncertainties_present: CoverageMetric = Field(default_factory=CoverageMetric)
     comparison_with_prior_work_present: BinaryCheck = Field(default_factory=BinaryCheck)
     physical_interpretation_present: BinaryCheck = Field(default_factory=BinaryCheck)
+    decisive_artifacts_with_explicit_verdicts: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
+    decisive_artifacts_benchmark_anchored: CoverageMetric = Field(
+        default_factory=lambda: CoverageMetric(not_applicable=True)
+    )
+    decisive_comparison_failures_scoped: BinaryCheck = Field(default_factory=lambda: BinaryCheck(not_applicable=True))
 
 
 class PaperQualityInput(BaseModel):
@@ -265,6 +285,14 @@ def _ratio_points(ratio: float, full_points: float) -> float:
     return 0.0
 
 
+def _metric_is_explicit(metric: CoverageMetric) -> bool:
+    return metric.not_applicable is False or metric.total > 0
+
+
+def _metric_or_fallback(primary: CoverageMetric, fallback: CoverageMetric) -> CoverageMetric:
+    return primary if _metric_is_explicit(primary) else fallback
+
+
 def _confidence_ratio(confidences: list[VerificationConfidence]) -> float:
     if not confidences:
         return 0.0
@@ -301,6 +329,36 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
 
     issues: list[PaperQualityIssue] = []
 
+    decisive_labels = _metric_or_fallback(
+        data.figures.decisive_artifacts_labeled_with_units,
+        data.figures.axes_labeled_with_units,
+    )
+    decisive_uncertainty = _metric_or_fallback(
+        data.figures.decisive_artifacts_uncertainty_qualified,
+        data.figures.error_bars_present,
+    )
+    decisive_references = _metric_or_fallback(
+        data.figures.decisive_artifacts_referenced_in_text,
+        data.figures.referenced_in_text,
+    )
+    contract_targets = _metric_or_fallback(
+        data.verification.contract_targets_verified,
+        data.verification.must_haves_verified,
+    )
+
+    decisive_result_ratios: list[float] = []
+    if _metric_is_explicit(data.results.decisive_artifacts_with_explicit_verdicts):
+        decisive_result_ratios.append(data.results.decisive_artifacts_with_explicit_verdicts.ratio)
+    if _metric_is_explicit(data.results.decisive_artifacts_benchmark_anchored):
+        decisive_result_ratios.append(data.results.decisive_artifacts_benchmark_anchored.ratio)
+    if not data.results.decisive_comparison_failures_scoped.not_applicable:
+        decisive_result_ratios.append(data.results.decisive_comparison_failures_scoped.ratio)
+    comparison_ratio = (
+        min(decisive_result_ratios)
+        if decisive_result_ratios
+        else data.results.comparison_with_prior_work_present.ratio
+    )
+
     eq_checks = {
         "labeled": _ratio_points(data.equations.labeled.ratio, 4.0),
         "symbols_defined": _ratio_points(data.equations.symbols_defined.ratio, 4.0),
@@ -308,11 +366,12 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         "limiting_cases_verified": _ratio_points(data.equations.limiting_cases_verified.ratio, 6.0),
     }
     figures_checks = {
-        "axes_labeled_with_units": _ratio_points(data.figures.axes_labeled_with_units.ratio, 3.0),
-        "error_bars_present": _ratio_points(data.figures.error_bars_present.ratio, 4.0),
-        "referenced_in_text": _ratio_points(data.figures.referenced_in_text.ratio, 3.0),
+        "axes_labeled_with_units": _ratio_points(decisive_labels.ratio, 3.0),
+        "error_bars_present": _ratio_points(decisive_uncertainty.ratio, 4.0),
+        "referenced_in_text": _ratio_points(decisive_references.ratio, 2.0),
         "captions_self_contained": _ratio_points(data.figures.captions_self_contained.ratio, 3.0),
-        "colorblind_safe": _ratio_points(data.figures.colorblind_safe.ratio, 2.0),
+        "colorblind_safe": _ratio_points(data.figures.colorblind_safe.ratio, 1.0),
+        "decisive_artifact_roles_clear": _ratio_points(data.figures.decisive_artifact_roles_clear.ratio, 2.0),
     }
     citation_checks = {
         "citation_keys_resolve": _ratio_points(data.citations.citation_keys_resolve.ratio, 3.0),
@@ -329,7 +388,7 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     unreliable_count = sum(1 for c in data.verification.key_result_confidences if c == VerificationConfidence.unreliable)
     verification_checks = {
         "report_passed": 5.0 * data.verification.report_passed.ratio,
-        "must_haves_verified": _ratio_points(data.verification.must_haves_verified.ratio, 5.0),
+        "contract_targets_verified": _ratio_points(contract_targets.ratio, 5.0),
         "key_result_confidence": 5.0 * _confidence_ratio(data.verification.key_result_confidences),
         "no_unreliable_results": 5.0 if unreliable_count == 0 else 0.0,
     }
@@ -341,7 +400,7 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     }
     results_checks = {
         "uncertainties_present": _ratio_points(data.results.uncertainties_present.ratio, 4.0),
-        "comparison_with_prior_work_present": 3.0 * data.results.comparison_with_prior_work_present.ratio,
+        "comparison_with_prior_work_present": 3.0 * comparison_ratio,
         "physical_interpretation_present": 3.0 * data.results.physical_interpretation_present.ratio,
     }
 
@@ -423,10 +482,24 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
             ),
             _metric_issue(
                 "verification",
-                "must_haves_verified",
-                verification_checks["must_haves_verified"],
+                "contract_targets_verified",
+                verification_checks["contract_targets_verified"],
                 5.0,
-                "Not all must-haves are verified.",
+                "Not all contract-defined targets are verified.",
+            ),
+            _metric_issue(
+                "figures",
+                "decisive_artifact_roles_clear",
+                figures_checks["decisive_artifact_roles_clear"],
+                2.0,
+                "Decisive figures or tables are not clearly marked as such.",
+            ),
+            _metric_issue(
+                "results",
+                "comparison_with_prior_work_present",
+                results_checks["comparison_with_prior_work_present"],
+                3.0,
+                "Decisive comparison coverage is incomplete.",
             ),
             _metric_issue(
                 "completeness",
@@ -474,6 +547,34 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
                 check="report_passed",
                 severity=Severity.blocker,
                 summary="Verification status is not passed.",
+                blocking=True,
+            )
+        )
+    if (
+        _metric_is_explicit(data.results.decisive_artifacts_with_explicit_verdicts)
+        and data.results.decisive_artifacts_with_explicit_verdicts.total > 0
+        and data.results.decisive_artifacts_with_explicit_verdicts.satisfied
+        < data.results.decisive_artifacts_with_explicit_verdicts.total
+    ):
+        blockers.append(
+            PaperQualityIssue(
+                category="results",
+                check="decisive_artifacts_with_explicit_verdicts",
+                severity=Severity.blocker,
+                summary="Decisive artifacts are missing explicit comparison verdicts.",
+                blocking=True,
+            )
+        )
+    if (
+        not data.results.decisive_comparison_failures_scoped.not_applicable
+        and not data.results.decisive_comparison_failures_scoped.passed
+    ):
+        blockers.append(
+            PaperQualityIssue(
+                category="results",
+                check="decisive_comparison_failures_scoped",
+                severity=Severity.blocker,
+                summary="Decisive comparison failures or tensions are not explicitly scoped.",
                 blocking=True,
             )
         )

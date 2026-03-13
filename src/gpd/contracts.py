@@ -9,6 +9,17 @@ from pydantic import BaseModel, ConfigDict, Field
 __all__ = [
     "ConventionLock",
     "VerificationEvidence",
+    "ContractEvidenceStatus",
+    "ContractEvidenceEntry",
+    "ContractResultEntry",
+    "ContractReferenceActionStatus",
+    "ContractReferenceUsage",
+    "ContractForbiddenProxyStatus",
+    "ContractForbiddenProxyResult",
+    "ContractContextUsageStatus",
+    "ContractContextUsageEntry",
+    "ContractResults",
+    "ComparisonVerdict",
     "ContractScope",
     "ContractContextIntake",
     "ContractObservable",
@@ -69,6 +80,99 @@ class VerificationEvidence(BaseModel):
     deliverable_id: str | None = None
     acceptance_test_id: str | None = None
     reference_id: str | None = None
+
+
+ContractEvidenceStatus = Literal["passed", "partial", "failed", "blocked", "not_attempted"]
+
+
+class ContractEvidenceEntry(BaseModel):
+    """Structured evidence item tied back to contract IDs."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    summary: str | None = None
+    evidence: list[VerificationEvidence] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class ContractResultEntry(ContractEvidenceEntry):
+    """Execution or verification outcome for a contract subject."""
+
+    status: ContractEvidenceStatus = "not_attempted"
+    linked_ids: list[str] = Field(default_factory=list)
+    path: str | None = None
+
+
+ContractReferenceActionStatus = Literal["completed", "missing", "not_applicable"]
+
+
+class ContractReferenceUsage(BaseModel):
+    """Status for required actions on a contract reference anchor."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    status: ContractReferenceActionStatus = "missing"
+    completed_actions: list[str] = Field(default_factory=list)
+    missing_actions: list[str] = Field(default_factory=list)
+    summary: str | None = None
+    evidence: list[VerificationEvidence] = Field(default_factory=list)
+
+
+ContractForbiddenProxyStatus = Literal["rejected", "violated", "unresolved", "not_applicable"]
+
+
+class ContractForbiddenProxyResult(BaseModel):
+    """Status for a forbidden-proxy guardrail."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    status: ContractForbiddenProxyStatus = "unresolved"
+    notes: str | None = None
+    evidence: list[VerificationEvidence] = Field(default_factory=list)
+
+
+ContractContextUsageStatus = Literal["consulted", "not_consulted", "superseded", "conflicted", "matched", "mismatched", "not_checked"]
+
+
+class ContractContextUsageEntry(BaseModel):
+    """Tracks whether a carry-forward input or baseline was actually used."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    status: ContractContextUsageStatus = "not_checked"
+    summary: str | None = None
+    evidence: list[VerificationEvidence] = Field(default_factory=list)
+
+
+class ContractResults(BaseModel):
+    """Execution-facing outcome ledger keyed to canonical contract IDs."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    claims: dict[str, ContractResultEntry] = Field(default_factory=dict)
+    deliverables: dict[str, ContractResultEntry] = Field(default_factory=dict)
+    acceptance_tests: dict[str, ContractResultEntry] = Field(default_factory=dict)
+    references: dict[str, ContractReferenceUsage] = Field(default_factory=dict)
+    forbidden_proxies: dict[str, ContractForbiddenProxyResult] = Field(default_factory=dict)
+    context_usage: dict[str, ContractContextUsageEntry] = Field(default_factory=dict)
+    uncertainty_markers: ContractUncertaintyMarkers = Field(default_factory=lambda: ContractUncertaintyMarkers())
+
+
+class ComparisonVerdict(BaseModel):
+    """Machine-readable verdict for an internal or external comparison."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    subject_id: str
+    subject_kind: Literal["claim", "deliverable", "acceptance_test", "reference", "artifact", "other"] = "other"
+    subject_role: Literal["decisive", "supporting", "supplemental", "other"] = "other"
+    reference_id: str | None = None
+    comparison_kind: Literal["benchmark", "prior_work", "experiment", "cross_method", "baseline", "other"] = "other"
+    metric: str | None = None
+    threshold: str | None = None
+    verdict: Literal["pass", "tension", "fail", "inconclusive"] = "inconclusive"
+    recommended_action: str | None = None
+    notes: str | None = None
 
 
 class ContractScope(BaseModel):

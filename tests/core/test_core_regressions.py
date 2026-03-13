@@ -301,8 +301,9 @@ def test_verification_checks_api_handles_valid_and_invalid_ids() -> None:
     from gpd.core.verification_checks import get_verification_check, list_verification_checks
 
     assert get_verification_check("5.1") is not None
+    assert get_verification_check("contract.benchmark_reproduction") is not None
     assert get_verification_check("99.99") is None
-    assert len(list_verification_checks()) >= 10
+    assert len(list_verification_checks()) >= 15
 
 
 def test_error_class_3_maps_to_expected_primary_checks() -> None:

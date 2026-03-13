@@ -192,9 +192,9 @@ Pattern B only (verify-only checkpoints). Skip for A/C.
 
 1. Parse segment map: checkpoint locations and types
 2. Per segment:
-   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, NO SUMMARY/commit. Track via agent protocol.
+   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs. Track via agent protocol.
    - Main route: execute tasks using standard flow (step name="execute")
-3. After ALL segments: aggregate files/deviations/decisions -> create SUMMARY.md -> commit -> self-check:
+3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> commit -> self-check:
 
    - Verify key-files.created exist on disk with `[ -f ]`
    - Check `git log --oneline --grep="{phase}-{plan}"` returns >=1 commit
@@ -398,6 +398,14 @@ Note: DERIVATION-STATE.md is updated by /gpd:pause-work for session handoff. On 
 
 **Frontmatter:** phase, plan, depth (minimal/standard/full/complex), subsystem, tags | requires/provides/affects | methods.added/approximations | key-files.created/modified | key-decisions | duration ($DURATION), completed ($PLAN_END_TIME date).
 
+**Contract-backed plans:** if the PLAN frontmatter includes `contract`, SUMMARY frontmatter must also include:
+- `plan_contract_ref`
+- `contract_results` keyed by claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs
+- `comparison_verdicts` for decisive internal/external comparisons when they exist
+- `verification_inputs` derived from `contract_results` for legacy verifier compatibility
+
+`contract_results` is authoritative. `verification_inputs` is compatibility-only and must not invent targets that are absent from the PLAN contract.
+
 Title: `# Phase [X] Plan [Y]: [Name] Summary`
 
 One-liner SUBSTANTIVE: "Exact diagonalization of XXZ chain yields gapless spectrum with central charge c=1 confirmed by entanglement entropy scaling" not "Hamiltonian diagonalized"
@@ -412,6 +420,8 @@ Include: duration, start/end times, task count, file count.
 - **Open Questions:** Unresolved issues or unexpected findings for future phases
 
 Next: more plans -> "Ready for {next-plan}" | last -> "Phase complete, ready for transition".
+
+Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission.
 </step>
 
 <step name="update_current_position">
@@ -430,6 +440,11 @@ gpd_return:
       duration: "${DURATION}"
       tasks: "${TASK_COUNT}"
       files: "${FILE_COUNT}"
+  contract_updates:
+    plan_contract_ref: ".gpd/phases/${phase_dir_name}/${phase}-${plan}-PLAN.md#/contract"
+    contract_results: { ... keyed by claim/deliverable/test/reference/proxy ids ... }
+    comparison_verdicts: []
+    contract_completion_status: complete | partial | blocked
 ```
 
 **Exception:** If executing in Pattern C (main context, no subagent), you ARE the orchestrator — apply state updates directly:
@@ -569,6 +584,7 @@ When plan execution fails, see `execute-plan-recovery.md` for the full recovery 
 - Dimensional consistency verified for all quantitative results
 - Limiting cases checked where specified
 - SUMMARY.md created with substantive content including key results
+- Contract-backed plans emit contract_results, comparison_verdicts when applicable, and legacy verification_inputs derived from those results
 - STATE.md updated (position, decisions, issues, session)
 - ROADMAP.md updated
 - Validation events documented

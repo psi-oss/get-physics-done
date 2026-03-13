@@ -318,6 +318,21 @@ class TestVerificationServerIntegration:
             assert entry["matched_type"] is not None
             assert entry["strategy"] is not None
 
+    def test_run_contract_check_fit_family_with_partial_metadata(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"declared_family": "power_law", "allowed_families": ["power_law", "scaling_form"]},
+                "observed": {"selected_family": "power_law", "competing_family_checked": False},
+            }
+        )
+
+        assert result["check_id"] == "5.18"
+        assert result["status"] == "warning"
+        assert "competing_family_checked" in result["metrics"]
+
 
 # ===========================================================================
 # 4. Errors MCP Server

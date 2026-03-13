@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "VERIFICATION_SCHEMA_VERSION",
@@ -40,6 +40,7 @@ class VerificationCheckDef(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     check_id: str
+    check_key: str
     name: str
     description: str
     tier: int
@@ -47,6 +48,19 @@ class VerificationCheckDef(BaseModel):
     evidence_kind: Literal["computational", "structural", "hybrid"]
     machine_supported: bool = True
     oracle_hint: str
+    check_class: Literal[
+        "universal",
+        "contract_limit_recovery",
+        "contract_benchmark_reproduction",
+        "contract_direct_proxy_consistency",
+        "contract_fit_family_mismatch",
+        "contract_estimator_family_mismatch",
+    ] = "universal"
+    contract_aware: bool = False
+    binding_targets: list[
+        Literal["observable", "claim", "deliverable", "acceptance_test", "reference", "forbidden_proxy"]
+    ] = Field(default_factory=list)
+    legacy_aliases: list[str] = Field(default_factory=list)
 
 
 class ErrorClassCoverageDef(BaseModel):
@@ -63,6 +77,7 @@ class ErrorClassCoverageDef(BaseModel):
 VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     VerificationCheckDef(
         check_id="5.1",
+        check_key="universal.dimensional_analysis",
         name="Dimensional analysis",
         description="Verify all terms have matching dimensions; units propagate correctly",
         tier=1,
@@ -72,6 +87,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.2",
+        check_key="universal.numerical_spot_check",
         name="Numerical spot-check",
         description="Substitute known parameter values and verify result",
         tier=1,
@@ -81,6 +97,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.3",
+        check_key="universal.limiting_cases",
         name="Limiting cases",
         description="General result must reduce to known special cases",
         tier=1,
@@ -90,6 +107,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.4",
+        check_key="universal.conservation_laws",
         name="Conservation laws",
         description="Energy/momentum/charge/probability conservation verified",
         tier=2,
@@ -99,6 +117,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.5",
+        check_key="universal.numerical_convergence",
         name="Numerical convergence",
         description="Result converges with refinement; correct convergence order",
         tier=2,
@@ -108,6 +127,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.6",
+        check_key="universal.literature_cross_check",
         name="Cross-check with literature",
         description="Compare against published results or independent derivation",
         tier=2,
@@ -117,6 +137,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.7",
+        check_key="universal.order_of_magnitude_estimation",
         name="Order-of-magnitude estimation",
         description="Result within expected orders of magnitude of estimate",
         tier=2,
@@ -126,6 +147,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.8",
+        check_key="universal.physical_plausibility",
         name="Physical plausibility",
         description="Positive probabilities, causal signals, stable systems",
         tier=2,
@@ -135,6 +157,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.9",
+        check_key="universal.ward_identities_sum_rules",
         name="Ward identities / sum rules",
         description="Gauge invariance and spectral weight constraints satisfied",
         tier=3,
@@ -144,6 +167,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.10",
+        check_key="universal.unitarity_bounds",
         name="Unitarity bounds",
         description="Scattering amplitudes respect unitarity; |S| <= 1",
         tier=3,
@@ -153,6 +177,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.11",
+        check_key="universal.causality_constraints",
         name="Causality constraints",
         description="Retarded Green's functions vanish for t<0; correct analyticity",
         tier=3,
@@ -162,6 +187,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.12",
+        check_key="universal.positivity_constraints",
         name="Positivity constraints",
         description="Spectral weight, cross sections, density matrices are non-negative",
         tier=3,
@@ -171,6 +197,7 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.13",
+        check_key="universal.kramers_kronig_consistency",
         name="Kramers-Kronig consistency",
         description="Real/imaginary parts of response functions consistent",
         tier=4,
@@ -180,12 +207,78 @@ VERIFICATION_CHECK_DEFS: tuple[VerificationCheckDef, ...] = (
     ),
     VerificationCheckDef(
         check_id="5.14",
+        check_key="universal.statistical_validation",
         name="Statistical validation",
         description="Autocorrelation, thermalization, error estimation for stochastic methods",
         tier=4,
         catches="Underestimated errors from autocorrelation",
         evidence_kind="computational",
         oracle_hint="Check thermalization, autocorrelation, ESS, and uncertainty estimation.",
+    ),
+    VerificationCheckDef(
+        check_id="5.15",
+        check_key="contract.limit_recovery",
+        name="Asymptotic / limit recovery",
+        description="Decisive observable or deliverable recovers the contracted limit, boundary case, or asymptotic family",
+        tier=2,
+        catches="Wrong asymptotic regime, unchecked boundary behavior, unsupported extrapolation",
+        evidence_kind="hybrid",
+        oracle_hint="Evaluate the required limit or asymptotic regime directly and compare against the contracted behavior.",
+        check_class="contract_limit_recovery",
+        contract_aware=True,
+        binding_targets=["observable", "claim", "deliverable", "acceptance_test", "reference"],
+    ),
+    VerificationCheckDef(
+        check_id="5.16",
+        check_key="contract.benchmark_reproduction",
+        name="Benchmark reproduction",
+        description="Reproduce the decisive benchmark, baseline, or prior-art anchor within the stated tolerance",
+        tier=2,
+        catches="Benchmark drift, normalization mismatch, hidden convention mismatch",
+        evidence_kind="computational",
+        oracle_hint="Compare against the benchmark anchor with explicit metric, tolerance, and normalization notes.",
+        check_class="contract_benchmark_reproduction",
+        contract_aware=True,
+        binding_targets=["claim", "deliverable", "acceptance_test", "reference"],
+    ),
+    VerificationCheckDef(
+        check_id="5.17",
+        check_key="contract.direct_proxy_consistency",
+        name="Direct-vs-proxy consistency",
+        description="Ensure proxy evidence is calibrated against the decisive direct observable and does not substitute for it",
+        tier=2,
+        catches="False progress through proxy-only validation, uncoupled surrogate metrics",
+        evidence_kind="hybrid",
+        oracle_hint="Check the direct observable and compare any proxy against it; fail when only the proxy is validated.",
+        check_class="contract_direct_proxy_consistency",
+        contract_aware=True,
+        binding_targets=["claim", "deliverable", "acceptance_test", "forbidden_proxy"],
+    ),
+    VerificationCheckDef(
+        check_id="5.18",
+        check_key="contract.fit_family_mismatch",
+        name="Fit-family mismatch",
+        description="Verify that the chosen fit or extrapolation family matches the contracted behavior and competing families were considered when needed",
+        tier=3,
+        catches="Wrong extrapolation family, unsupported fit form, overfit proxy success",
+        evidence_kind="hybrid",
+        oracle_hint="Compare the declared fit family against required asymptotics, residual structure, and competing families.",
+        check_class="contract_fit_family_mismatch",
+        contract_aware=True,
+        binding_targets=["observable", "claim", "deliverable", "acceptance_test"],
+    ),
+    VerificationCheckDef(
+        check_id="5.19",
+        check_key="contract.estimator_family_mismatch",
+        name="Estimator-family mismatch",
+        description="Verify that the estimator family matches the observable, representation, and uncertainty assumptions required by the contract",
+        tier=3,
+        catches="Biased estimator choice, formulation-mismatched uncertainty claims, invalid aggregation family",
+        evidence_kind="hybrid",
+        oracle_hint="Compare the estimator family against observable requirements, diagnostics, and competing estimators.",
+        check_class="contract_estimator_family_mismatch",
+        contract_aware=True,
+        binding_targets=["observable", "claim", "deliverable", "acceptance_test"],
     ),
 )
 
@@ -288,6 +381,36 @@ ERROR_CLASS_COVERAGE_DEFS: tuple[ErrorClassCoverageDef, ...] = (
         primary_checks=["5.6", "5.8"],
         domains=["fluid_plasma"],
     ),
+    ErrorClassCoverageDef(
+        error_class_id=95,
+        name="Asymptotic mismatch",
+        primary_checks=["5.15"],
+        domains=["all"],
+    ),
+    ErrorClassCoverageDef(
+        error_class_id=96,
+        name="Benchmark reproduction failure",
+        primary_checks=["5.16"],
+        domains=["all"],
+    ),
+    ErrorClassCoverageDef(
+        error_class_id=97,
+        name="Proxy-only success path",
+        primary_checks=["5.17"],
+        domains=["all"],
+    ),
+    ErrorClassCoverageDef(
+        error_class_id=98,
+        name="Fit family mismatch",
+        primary_checks=["5.18"],
+        domains=["all"],
+    ),
+    ErrorClassCoverageDef(
+        error_class_id=99,
+        name="Estimator family mismatch",
+        primary_checks=["5.19"],
+        domains=["all"],
+    ),
 )
 
 
@@ -296,7 +419,12 @@ ERROR_CLASS_COVERAGE: dict[int, dict[str, object]] = {
 }
 
 
-_VERIFICATION_CHECK_INDEX = {spec.check_id: spec for spec in VERIFICATION_CHECK_DEFS}
+_VERIFICATION_CHECK_INDEX: dict[str, VerificationCheckDef] = {}
+for _spec in VERIFICATION_CHECK_DEFS:
+    _VERIFICATION_CHECK_INDEX[_spec.check_id] = _spec
+    _VERIFICATION_CHECK_INDEX[_spec.check_key] = _spec
+    for _alias in _spec.legacy_aliases:
+        _VERIFICATION_CHECK_INDEX[_alias] = _spec
 _ERROR_CLASS_COVERAGE_INDEX = {spec.error_class_id: spec for spec in ERROR_CLASS_COVERAGE_DEFS}
 
 

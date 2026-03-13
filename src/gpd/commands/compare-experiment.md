@@ -26,6 +26,8 @@ Systematically compare theoretical predictions with experimental or observationa
 **Why a dedicated command:** Theory-experiment comparison is not just plotting two curves on the same axes. It requires rigorous treatment of units, uncertainties, systematic effects, and statistical significance. A "good agreement" by eye may be a 3-sigma discrepancy when uncertainties are properly accounted for. Conversely, a visually poor fit may be statistically acceptable when systematic uncertainties are included.
 
 **The principle:** Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
+
+For contract-backed work, the comparison must also state which decisive output or contract target is being tested and emit an explicit verdict ledger keyed by `subject_id` / `reference_id`, not just a prose comparison.
 </objective>
 
 <context>

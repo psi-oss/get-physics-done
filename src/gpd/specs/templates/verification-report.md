@@ -49,6 +49,40 @@ phase: XX-name
 verified: YYYY-MM-DDTHH:MM:SSZ
 status: passed | gaps_found | expert_needed | human_needed
 score: N/M checks verified
+plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
+contract_results:
+  claims:
+    claim-id:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[verification verdict for this claim]"
+  deliverables:
+    deliverable-id:
+      status: passed|partial|failed|blocked|not_attempted
+      path: path/to/artifact
+      summary: "[artifact verification verdict]"
+  acceptance_tests:
+    acceptance-test-id:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[test verification verdict]"
+  references:
+    reference-id:
+      status: completed|missing|not_applicable
+      completed_actions: [read, compare, cite]
+      missing_actions: []
+      summary: "[how the anchor was checked]"
+  forbidden_proxies:
+    forbidden-proxy-id:
+      status: rejected|violated|unresolved|not_applicable
+      notes: "[proxy status]"
+comparison_verdicts:
+  - subject_id: claim-id
+    subject_kind: claim|deliverable|acceptance_test|reference|artifact
+    subject_role: decisive|supporting|supplemental
+    reference_id: reference-id
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: pass|tension|fail|inconclusive
 ---
 
 # Phase {X}: {Name} Verification Report
@@ -56,6 +90,17 @@ score: N/M checks verified
 **Phase Goal:** {goal from ROADMAP.md}
 **Verified:** {timestamp}
 **Status:** {passed | gaps_found | expert_needed | human_needed}
+
+## Contract Targets
+
+| ID | Kind | Status | Decisive? | Evidence Path | Notes |
+| -- | ---- | ------ | --------- | ------------- | ----- |
+| {claim-id} | claim | {passed/failed} | {yes/no} | {path} | {why} |
+| {deliverable-id} | deliverable | {passed/failed} | {yes/no} | {path} | {why} |
+| {acceptance-test-id} | acceptance test | {passed/failed} | {yes/no} | {path} | {why} |
+| {reference-id} | reference anchor | {completed/missing} | {yes/no} | {path} | {why} |
+
+Use contract IDs consistently throughout the report. The PLAN contract defines what must be verified. `SUMMARY.md` `contract_results` and `comparison_verdicts` tell you what evidence was produced, not what success means.
 
 ## Dimensional Analysis
 

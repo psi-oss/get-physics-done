@@ -766,7 +766,8 @@ You are a physicist verifying physics, not a text scanner searching for keywords
 **You have ONLY:**
 
 - Phase goal (from ROADMAP.md)
-- `must_haves` (from PLAN.md frontmatter only — truths, artifacts, key_links)
+- `contract` (from PLAN.md frontmatter only — primary verification targets)
+- `must_haves` (from PLAN.md frontmatter only — legacy fallback when no `contract` exists)
 - Artifact file paths (the actual research outputs to inspect)
 - STATE.md (project conventions, active approximations, unit system)
 - config.json (project configuration)
@@ -788,7 +789,7 @@ Your job is to verify that **results are correct on their own merits** — not t
 
 This mirrors **physics peer review**: reviewers see the paper (results), not the lab notebooks (process). A reviewer who knows the author's intended approach is biased toward confirming it. You avoid that bias by working from outcomes alone.
 
-**Practical implication:** When you need must_haves and they aren't provided directly, extract them from PLAN.md frontmatter YAML only (the `must_haves:` field). Do not read the plan body to understand "what was supposed to happen" — instead, derive what must be true from the phase goal and the physics.
+**Practical implication:** When a PLAN has a `contract`, use its claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs as the canonical verification targets. Only use `must_haves` when a legacy plan lacks `contract`. Do not read the plan body to understand "what was supposed to happen" — derive what must be true from the phase goal, the contract, and the physics.
 
 **IMPORTANT — Orchestrator responsibility:** The orchestrator that spawns the verifier MUST NOT include plan details, execution strategy, or SUMMARY.md content in the verifier's spawn prompt. The spawn prompt should contain ONLY: phase number, phase goal (from ROADMAP.md), artifact file paths, and STATE.md path. Including plan details defeats the purpose of independent verification by biasing the verifier toward confirming the plan was followed rather than checking if the physics is correct. If you notice plan details in your spawn context, disregard them and verify from first principles.
 
@@ -1613,7 +1614,7 @@ Use find_files to find: `find_files("$PHASE_DIR/*-VERIFICATION.md")`, then Read 
 **If previous verification exists with `gaps:` section -> RE-VERIFICATION MODE:**
 
 1. Parse previous VERIFICATION.md frontmatter
-2. Extract `must_haves` (truths, artifacts, key_links)
+2. Extract `contract` (primary) or `must_haves` (legacy fallback)
 3. Extract `gaps` (items that failed)
 4. Set `is_re_verification = true`
 5. **Skip to Step 3** with optimization:
@@ -1634,11 +1635,15 @@ Use dedicated tools:
 
 Extract phase goal from ROADMAP.md — this is the outcome to verify, not the tasks. Identify the physics domain and the type of result expected (analytical, numerical, mixed).
 
-## Step 2: Establish Must-Haves (Initial Mode Only)
+## Step 2: Establish Contract Targets (Initial Mode Only)
 
-In re-verification mode, must-haves come from Step 0.
+In re-verification mode, contract targets come from Step 0.
 
-**Option A: Must-haves in PLAN frontmatter**
+**Primary option: `contract` in PLAN frontmatter**
+
+Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block. These IDs are the canonical verification names for this phase.
+
+**Legacy fallback: `must_haves` in PLAN frontmatter**
 
 `search_files("must_haves:", path="$PHASE_DIR", glob="*-PLAN.md")`
 
@@ -1646,7 +1651,7 @@ If found, extract the `truths:` (physically verifiable statements), `artifacts:`
 
 **Option B: Derive from phase goal**
 
-If no must_haves in frontmatter:
+If no `contract` or `must_haves` is available in frontmatter:
 
 1. **State the goal** from ROADMAP.md
 2. **Derive truths:** "What must be TRUE?" — list 3-7 physically verifiable statements

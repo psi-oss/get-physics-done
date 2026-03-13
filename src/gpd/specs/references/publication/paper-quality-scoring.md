@@ -21,11 +21,11 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 
 | Check | Points | How to verify |
 |-------|--------|---------------|
-| All axes labeled with units | 3 | Visual inspection of each figure |
-| Error bars or uncertainty bands present | 4 | Check every data plot |
-| Every figure referenced in text (`Fig.~\ref{}`) | 3 | Cross-reference figure labels with `\ref` calls |
+| Decisive figures/tables labeled with units | 3 | Visual inspection of the decisive artifacts first |
+| Decisive figures/tables carry uncertainty bands or error bars | 4 | Check every decisive data plot |
+| Decisive figures/tables referenced in text and role is clear | 4 | Cross-reference figure labels with `\ref` calls and confirm the decisive role is explicit |
 | Captions are self-contained (understandable without reading text) | 3 | Read each caption in isolation |
-| Colorblind-safe palette used | 2 | Check against viridis/Wong palette |
+| Colorblind-safe palette used | 1 | Check against viridis/Wong palette |
 
 ### 3. Citations (10 points)
 
@@ -49,7 +49,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | VERIFICATION.md exists with status: passed | 5 | File exists and frontmatter status = passed |
-| All must-haves verified (score = N/N) | 5 | VERIFICATION.md score field |
+| All contract-defined targets verified (score = N/N) | 5 | VERIFICATION.md `contract_results` / score field |
 | Key results have INDEPENDENTLY CONFIRMED confidence | 5 | Count independently confirmed vs total |
 | No UNRELIABLE confidence ratings on any result | 5 | Use `search_files` on VERIFICATION.md for "UNRELIABLE" |
 
@@ -67,7 +67,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | Key numerical results include uncertainties | 4 | Every number in results section has ± or error bar |
-| Comparison with prior work in a table or figure | 3 | At least one comparison figure/table exists |
+| Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors |
 | Physical interpretation provided (not just math) | 3 | Discussion section explains meaning of results |
 
 ## Total Score Interpretation

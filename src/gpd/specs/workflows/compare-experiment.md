@@ -3,7 +3,7 @@ Systematically compare theoretical predictions with experimental or observationa
 
 Called from /gpd:compare-experiment command. Produces COMPARISON.md with quantified agreement metrics.
 
-Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
+Agreement between theory and experiment must be quantified. "Looks about right" is not physics. The comparison must state: (1) what decisive output or contract target was predicted, (2) what was measured, (3) what the uncertainties are on both sides, (4) whether the agreement is statistically significant, and (5) if not, what the discrepancy tells us.
 </purpose>
 
 <required_reading>
@@ -44,6 +44,15 @@ fi
 ```
 
 ## 1. Identify What to Compare
+
+If the project is contract-backed, first resolve the comparison target against the approved contract:
+- `subject_id`
+- `subject_kind` (`claim`, `deliverable`, `acceptance_test`, or artifact)
+- `subject_role` (`decisive`, `supporting`, `supplemental`)
+- `reference_id` for the benchmark / prior-work / data anchor
+- the pass condition or tolerance that makes this comparison decisive
+
+Do not write a generic comparison report without this mapping when a decisive comparison target exists.
 
 ### 1a. Theoretical predictions
 
@@ -221,6 +230,16 @@ overall_agreement: good | tension | discrepancy
 chi2_ndof: { value }
 p_value: { value }
 max_tension_sigma: { value }
+comparison_verdicts:
+  - subject_id: claim-id
+    subject_kind: claim|deliverable|acceptance_test|artifact
+    subject_role: decisive|supporting|supplemental
+    reference_id: ref-id
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    metric: chi2_ndof | relative_error | pull
+    threshold: "<= 2 sigma"
+    verdict: pass | tension | fail | inconclusive
+    recommended_action: { what to do next }
 ---
 
 # Theory-Experiment Comparison
@@ -272,6 +291,8 @@ max_tension_sigma: { value }
 
 {Summary of agreement/disagreement and its significance}
 ```
+
+The `comparison_verdicts` block is the authoritative machine-readable ledger. The tables and prose explain it; they do not replace it.
 
 Save to:
 
@@ -355,6 +376,7 @@ COMPARISON.md written to `.gpd/analysis/comparison-{slug}.md` with full quantifi
 - [ ] Discrepancies classified and quantified (in sigma)
 - [ ] Root cause analysis for any significant discrepancy
 - [ ] Comparison report generated
+- [ ] Contract-backed comparisons include `comparison_verdicts` keyed by subject ID / reference ID
 - [ ] Comparison figures generated (or scripts provided)
 - [ ] Comparison report committed (if commit_docs enabled)
 - [ ] Results routed appropriately (paper writing or debugging)

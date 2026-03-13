@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from gpd.contracts import ComparisonVerdict, ContractResults
 from gpd.core.constants import (
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
@@ -84,11 +85,17 @@ class SummaryExtractResult(BaseModel):
     path: str
     one_liner: str | None = None
     key_files: list[str] = Field(default_factory=list)
+    key_files_created: list[str] = Field(default_factory=list)
+    key_files_modified: list[str] = Field(default_factory=list)
     methods_added: list[str] = Field(default_factory=list)
     patterns: list[str] = Field(default_factory=list)
     decisions: list[SummaryDecision] = Field(default_factory=list)
     affects: list[str] = Field(default_factory=list)
     conventions: dict[str, str] | list[str] | str | None = None
+    verification_inputs: dict[str, object] | None = None
+    plan_contract_ref: str | None = None
+    contract_results: ContractResults | None = None
+    comparison_verdicts: list[ComparisonVerdict] = Field(default_factory=list)
     key_results: str | None = None
     equations: str | None = None
 
@@ -259,6 +266,64 @@ def _extract_section(content: str, heading: str) -> str | None:
     return rest[: next_heading.start()].strip() if next_heading else rest.strip()
 
 
+def _normalize_string_list(value: object) -> list[str]:
+    """Normalize a YAML field into a list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if isinstance(value, list):
+        result: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                stripped = item.strip()
+                if stripped:
+                    result.append(stripped)
+            elif item is not None:
+                rendered = str(item).strip()
+                if rendered:
+                    result.append(rendered)
+        return result
+    return []
+
+
+def _extract_key_files(value: object) -> tuple[list[str], list[str], list[str]]:
+    """Return flattened, created, and modified file lists from summary frontmatter."""
+    if isinstance(value, dict):
+        created = _normalize_string_list(value.get("created"))
+        modified = _normalize_string_list(value.get("modified"))
+        flattened = list(dict.fromkeys(created + modified))
+        return flattened, created, modified
+
+    flattened = _normalize_string_list(value)
+    return flattened, flattened, []
+
+
+def _parse_contract_results(value: object, summary_path: str) -> ContractResults | None:
+    """Validate the optional contract-results block in a summary."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValidationError(f"Invalid contract_results in {summary_path}: expected an object")
+    try:
+        return ContractResults.model_validate(value)
+    except Exception as exc:  # pragma: no cover - pydantic version specifics
+        raise ValidationError(f"Invalid contract_results in {summary_path}: {exc}") from exc
+
+
+def _parse_comparison_verdicts(value: object, summary_path: str) -> list[ComparisonVerdict]:
+    """Validate the optional comparison-verdict ledger in a summary."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValidationError(f"Invalid comparison_verdicts in {summary_path}: expected a list")
+    try:
+        return [ComparisonVerdict.model_validate(item) for item in value]
+    except Exception as exc:  # pragma: no cover - pydantic version specifics
+        raise ValidationError(f"Invalid comparison_verdicts in {summary_path}: {exc}") from exc
+
+
 _BODY_ONE_LINER_RE = re.compile(r"\A---[\s\S]*?---\s*(?:#[^\n]*\n\s*)?\*\*(.+?)\*\*")
 
 
@@ -296,15 +361,29 @@ def cmd_summary_extract(
         if body_match:
             one_liner = body_match.group(1)
 
+    raw_key_files = fm.get("key-files")
+    key_files, key_files_created, key_files_modified = _extract_key_files(raw_key_files)
+    contract_results = _parse_contract_results(
+        fm.get("contract_results", fm.get("contract_evidence")),
+        summary_path,
+    )
+    comparison_verdicts = _parse_comparison_verdicts(fm.get("comparison_verdicts"), summary_path)
+
     full_result = SummaryExtractResult(
         path=summary_path,
         one_liner=one_liner,
-        key_files=fm.get("key-files", []) if isinstance(fm.get("key-files"), list) else [],
+        key_files=key_files,
+        key_files_created=key_files_created,
+        key_files_modified=key_files_modified,
         methods_added=((fm.get("methods", {}) or {}).get("added", []) if isinstance(fm.get("methods"), dict) else []),
         patterns=fm.get("patterns-established", []) if isinstance(fm.get("patterns-established"), list) else [],
         decisions=_parse_decisions(fm.get("key-decisions")),
         affects=fm.get("affects", []) if isinstance(fm.get("affects"), list) else [],
         conventions=fm.get("conventions"),
+        verification_inputs=fm.get("verification_inputs") if isinstance(fm.get("verification_inputs"), dict) else None,
+        plan_contract_ref=fm.get("plan_contract_ref") if isinstance(fm.get("plan_contract_ref"), str) else None,
+        contract_results=contract_results,
+        comparison_verdicts=comparison_verdicts,
         key_results=_extract_section(content, "Key Results"),
         equations=_extract_section(content, "Equations Derived"),
     )

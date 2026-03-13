@@ -280,3 +280,116 @@ def test_category_max_scores_match_constant():
             f"Category {name!r}: max_score={cat.max_score} does not match "
             f"CATEGORY_MAX[{name!r}]={CATEGORY_MAX[name]}"
         )
+
+
+def test_score_paper_quality_blocks_missing_decisive_comparison_verdicts():
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Missing decisive verdicts",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                contract_targets_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(1),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+                decisive_artifacts_with_explicit_verdicts=CoverageMetric(satisfied=0, total=1),
+                decisive_artifacts_benchmark_anchored=_full_metric(1),
+                decisive_comparison_failures_scoped=BinaryCheck(passed=True),
+            ),
+        )
+    )
+
+    assert report.ready_for_submission is False
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "decisive_artifacts_with_explicit_verdicts" in blocking_checks
+
+
+def test_score_paper_quality_prefers_contract_targets_and_decisive_figure_metrics():
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Contract-aware scorer",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(2),
+                error_bars_present=_full_metric(2),
+                referenced_in_text=_full_metric(2),
+                captions_self_contained=_full_metric(2),
+                colorblind_safe=_full_metric(2),
+                decisive_artifacts_labeled_with_units=CoverageMetric(satisfied=0, total=1),
+                decisive_artifacts_uncertainty_qualified=CoverageMetric(satisfied=0, total=1),
+                decisive_artifacts_referenced_in_text=CoverageMetric(satisfied=0, total=1),
+                decisive_artifact_roles_clear=CoverageMetric(satisfied=0, total=1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                must_haves_verified=_full_metric(2),
+                contract_targets_verified=CoverageMetric(satisfied=1, total=2),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(1),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+        )
+    )
+
+    assert report.categories["verification"].checks["contract_targets_verified"] == 0.0
+    assert report.categories["figures"].score < report.categories["figures"].max_score

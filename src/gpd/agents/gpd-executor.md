@@ -900,7 +900,8 @@ After all tasks complete, load the completion protocols reference for detailed S
 
 Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
-- Frontmatter MUST declare `verification_inputs` with test values for every result
+- If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
+- `verification_inputs` remains for compatibility, but it should be derived from `contract_results`, not invented independently
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
 - Include conventions table, key results with confidence tags, deviation documentation
@@ -972,6 +973,14 @@ grep -l "metric" derivations/*.tex | xargs grep -h "metric" | sort -u
 If the plan type does not match any domain, skip this check. If multiple domains match, apply all matching rows.
 
 **8. Append result to SUMMARY.md:** `## Self-Check: PASSED` or `## Self-Check: FAILED` with missing items listed.
+
+**9. Contract coverage self-check (required for contract-backed plans):**
+- Every decisive claim ID in the PLAN contract has a `contract_results.claims` entry
+- Every deliverable ID has a produced / partial / failed status and path when applicable
+- Every acceptance test ID has an explicit outcome plus evidence or notes
+- Every must-surface reference has completed or missing required actions recorded
+- Every forbidden proxy is explicitly rejected, violated, or marked unresolved
+- Profiles and autonomy modes may compress prose or cadence, but they do NOT relax contract-result emission
 
 Do NOT skip. Do NOT proceed to state updates if self-check fails.
 </self_check>

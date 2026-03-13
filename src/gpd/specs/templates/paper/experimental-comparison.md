@@ -12,6 +12,19 @@ Template for systematic comparison of theoretical predictions with experimental 
 ## File Template
 
 ```markdown
+---
+comparison_verdicts:
+  - subject_id: claim-id
+    subject_kind: claim|deliverable|acceptance_test|artifact
+    subject_role: decisive|supporting|supplemental
+    reference_id: ref-id
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    metric: relative_error | chi2_ndof | pull
+    threshold: "<= 2 sigma"
+    verdict: pass | tension | fail | inconclusive
+    recommended_action: "[what to do next]"
+---
+
 # Experimental Comparison: [Observable/Quantity]
 
 **Date:** [YYYY-MM-DD]
@@ -151,3 +164,5 @@ _Data: [sources with years]_
 - Using outdated PDG/experimental values when updated measurements exist
 - Forgetting radiative corrections when comparing with precision data
 - Comparing lattice results at finite spacing/volume with continuum experimental values
+
+When the comparison is decisive for a contract-backed claim or deliverable, the `comparison_verdicts` block is required. It is the machine-readable answer to "did the decisive output pass its benchmark?".

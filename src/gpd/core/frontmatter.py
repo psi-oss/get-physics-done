@@ -16,7 +16,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ResearchContract, contract_to_legacy_must_haves
+from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract, contract_to_legacy_must_haves
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -380,6 +380,112 @@ def _validate_plan_contract(contract: ResearchContract) -> list[str]:
     return issues
 
 
+def _parse_contract_results(meta: dict) -> ContractResults | None:
+    """Parse a summary contract-results block when present."""
+    raw = meta.get("contract_results", meta.get("contract_evidence"))
+    if raw is None:
+        return None
+    return ContractResults.model_validate(raw)
+
+
+def _parse_comparison_verdicts(meta: dict) -> list[ComparisonVerdict]:
+    """Parse the optional summary comparison-verdict ledger."""
+    raw = meta.get("comparison_verdicts")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("expected a list")
+    return [ComparisonVerdict.model_validate(entry) for entry in raw]
+
+
+def _summary_contract_errors(
+    contract: ResearchContract,
+    contract_results: ContractResults,
+    comparison_verdicts: list[ComparisonVerdict],
+) -> list[str]:
+    """Return summary-to-contract alignment issues for a contract-backed plan."""
+
+    errors: list[str] = []
+
+    claim_ids = {claim.id for claim in contract.claims}
+    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
+    acceptance_test_ids = {test.id for test in contract.acceptance_tests}
+    reference_ids = {reference.id for reference in contract.references}
+    forbidden_proxy_ids = {proxy.id for proxy in contract.forbidden_proxies}
+    known_subject_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+
+    def _missing(expected: set[str], actual: set[str], label: str) -> None:
+        for item_id in sorted(expected - actual):
+            errors.append(f"Missing {label} contract_results entry: {item_id}")
+
+    def _unknown(actual: set[str], expected: set[str], label: str) -> None:
+        for item_id in sorted(actual - expected):
+            errors.append(f"Unknown {label} contract_results entry: {item_id}")
+
+    _missing(claim_ids, set(contract_results.claims), "claim")
+    _missing(deliverable_ids, set(contract_results.deliverables), "deliverable")
+    _missing(acceptance_test_ids, set(contract_results.acceptance_tests), "acceptance_test")
+    _missing(reference_ids, set(contract_results.references), "reference")
+    _missing(forbidden_proxy_ids, set(contract_results.forbidden_proxies), "forbidden_proxy")
+
+    _unknown(set(contract_results.claims), claim_ids, "claim")
+    _unknown(set(contract_results.deliverables), deliverable_ids, "deliverable")
+    _unknown(set(contract_results.acceptance_tests), acceptance_test_ids, "acceptance_test")
+    _unknown(set(contract_results.references), reference_ids, "reference")
+    _unknown(set(contract_results.forbidden_proxies), forbidden_proxy_ids, "forbidden_proxy")
+
+    for reference in contract.references:
+        usage = contract_results.references.get(reference.id)
+        if reference.must_surface and usage is None:
+            errors.append(f"Missing must_surface reference coverage in summary: {reference.id}")
+            continue
+        if usage is None:
+            continue
+        completed = set(usage.completed_actions)
+        missing = set(reference.required_actions) - completed
+        if reference.must_surface and missing:
+            errors.append(
+                f"Reference {reference.id} missing required_actions in summary: {', '.join(sorted(missing))}"
+            )
+
+    for verdict in comparison_verdicts:
+        if verdict.subject_id not in known_subject_ids:
+            errors.append(f"comparison_verdict references unknown subject_id {verdict.subject_id}")
+        if verdict.reference_id is not None and verdict.reference_id not in reference_ids:
+            errors.append(f"comparison_verdict references unknown reference_id {verdict.reference_id}")
+
+    return errors
+
+
+def _find_matching_plan_contract(summary_dir: Path, summary_meta: dict) -> ResearchContract | None:
+    """Return the sibling plan contract for a summary when one can be resolved."""
+
+    summary_plan = summary_meta.get("plan")
+    if summary_plan is None:
+        return None
+
+    for candidate in sorted(summary_dir.iterdir()):
+        if not candidate.is_file() or not (candidate.name.endswith(PLAN_SUFFIX) or candidate.name == STANDALONE_PLAN):
+            continue
+        content = safe_read_file(candidate)
+        if content is None:
+            continue
+        try:
+            meta, _body = extract_frontmatter(content)
+        except FrontmatterParseError:
+            continue
+        if str(meta.get("plan", "")).strip() != str(summary_plan).strip():
+            continue
+        contract_data = meta.get("contract")
+        if not isinstance(contract_data, dict):
+            continue
+        try:
+            return ResearchContract.model_validate(contract_data)
+        except PydanticValidationError:
+            return None
+    return None
+
+
 @instrument_gpd_function("frontmatter.validate")
 def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidation:
     """Validate frontmatter against a named schema.
@@ -408,6 +514,21 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
         else:
             if schema_name == "plan":
                 errors.extend(f"contract: {issue}" for issue in _validate_plan_contract(contract))
+
+    if schema_name in {"summary", "verification"}:
+        plan_contract_ref = meta.get("plan_contract_ref")
+        if plan_contract_ref is not None and not isinstance(plan_contract_ref, str):
+            errors.append("plan_contract_ref: expected a string")
+
+        try:
+            _parse_contract_results(meta)
+        except (PydanticValidationError, TypeError, ValueError) as exc:
+            errors.append(f"contract_results: {exc}")
+
+        try:
+            _parse_comparison_verdicts(meta)
+        except (PydanticValidationError, TypeError, ValueError) as exc:
+            errors.append(f"comparison_verdicts: {exc}")
 
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,
@@ -564,7 +685,7 @@ def verify_summary(
             errors=[f"Cannot read file (invalid UTF-8): {exc}"],
         )
     try:
-        extract_frontmatter(content)
+        meta, _body = extract_frontmatter(content)
     except FrontmatterParseError as exc:
         return SummaryVerification(
             passed=False,
@@ -574,8 +695,45 @@ def verify_summary(
 
     errors: list[str] = []
 
+    try:
+        contract_results = _parse_contract_results(meta)
+    except (PydanticValidationError, TypeError, ValueError) as exc:
+        return SummaryVerification(
+            passed=False,
+            summary_exists=True,
+            errors=[f"Invalid contract_results: {exc}"],
+        )
+
+    try:
+        comparison_verdicts = _parse_comparison_verdicts(meta)
+    except (PydanticValidationError, TypeError, ValueError) as exc:
+        return SummaryVerification(
+            passed=False,
+            summary_exists=True,
+            errors=[f"Invalid comparison_verdicts: {exc}"],
+        )
+
+    plan_contract = _find_matching_plan_contract(full_path.parent, meta)
+    if plan_contract is not None:
+        if contract_results is None:
+            errors.append("Contract-backed plan requires summary contract_results")
+        else:
+            errors.extend(_summary_contract_errors(plan_contract, contract_results, comparison_verdicts))
+
     # --- Spot-check files mentioned in summary ---
     mentioned: set[str] = set()
+    raw_key_files = meta.get("key-files")
+    if isinstance(raw_key_files, dict):
+        for key in ("created", "modified"):
+            value = raw_key_files.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str) and "/" in item:
+                        mentioned.add(item)
+    elif isinstance(raw_key_files, list):
+        for item in raw_key_files:
+            if isinstance(item, str) and "/" in item:
+                mentioned.add(item)
     for pattern in (_FILE_MENTION_BACKTICK, _FILE_MENTION_VERB):
         for m in pattern.finditer(content):
             fp = m.group(1)
@@ -613,7 +771,7 @@ def verify_summary(
     if self_check == "failed":
         errors.append("Self-check section indicates failure")
 
-    passed = len(missing_files) == 0 and self_check != "failed" and not (not commits_exist and hashes)
+    passed = len(errors) == 0 and len(missing_files) == 0 and self_check != "failed" and not (not commits_exist and hashes)
     return SummaryVerification(
         passed=passed,
         summary_exists=True,

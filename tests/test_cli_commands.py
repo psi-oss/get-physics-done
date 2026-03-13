@@ -1065,6 +1065,42 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["ready_for_submission"] is False
 
+    def test_validate_paper_quality_command_blocks_missing_decisive_verdicts(self, gpd_project: Path) -> None:
+        quality_path = gpd_project / "paper-quality-decisive-blocked.json"
+        quality_path.write_text(
+            json.dumps(
+                {
+                    "title": "Decisive blocker",
+                    "journal": "generic",
+                    "verification": {
+                        "report_passed": {"passed": True},
+                        "contract_targets_verified": {"satisfied": 1, "total": 1},
+                        "key_result_confidences": ["INDEPENDENTLY CONFIRMED"],
+                    },
+                    "results": {
+                        "uncertainties_present": {"satisfied": 1, "total": 1},
+                        "comparison_with_prior_work_present": {"passed": True},
+                        "physical_interpretation_present": {"passed": True},
+                        "decisive_artifacts_with_explicit_verdicts": {"satisfied": 0, "total": 1},
+                        "decisive_artifacts_benchmark_anchored": {"satisfied": 1, "total": 1},
+                        "decisive_comparison_failures_scoped": {"passed": True},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "paper-quality", str(quality_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        blocker_checks = {issue["check"] for issue in payload["blocking_issues"]}
+        assert "decisive_artifacts_with_explicit_verdicts" in blocker_checks
+
     def test_validate_referee_decision_command_accepts_consistent_major_revision(self, gpd_project: Path) -> None:
         decision_path = gpd_project / "referee-decision.json"
         decision_path.write_text(
