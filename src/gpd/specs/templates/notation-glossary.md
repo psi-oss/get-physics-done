@@ -108,7 +108,7 @@ _Update when new symbols are introduced or conventions change_
 
 **What does NOT belong here:**
 
-- Theoretical framework (that's THEORETICAL_FRAMEWORK.md)
+- Broad theoretical framing (that's PRIOR-WORK.md or FORMALISM.md)
 - Computational methods (that's METHODS.md)
 - File organization (that's STRUCTURE.md)
 - Full derivations (those live in phase files)

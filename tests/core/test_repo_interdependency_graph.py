@@ -207,6 +207,18 @@ def test_live_repo_file_count_ignores_untracked_worktree_files(tmp_path: Path) -
     assert live_repo_file_count(tmp_path) == 1
 
 
+def test_live_repo_file_count_ignores_deleted_tracked_files(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    tracked_file = tmp_path / "tracked.txt"
+    tracked_file.write_text("tracked\n", encoding="utf-8")
+    subprocess.run(["git", "add", tracked_file.name], cwd=tmp_path, check=True, capture_output=True, text=True)
+
+    tracked_file.unlink()
+
+    assert live_repo_file_count(tmp_path) == 0
+
+
 def test_live_repo_file_count_ignores_runtime_mirror_dirs(tmp_path: Path) -> None:
     for rel_path in (".claude/a.txt", ".codex/b.txt", ".gemini/c.txt", ".opencode/d.txt"):
         path = tmp_path / rel_path

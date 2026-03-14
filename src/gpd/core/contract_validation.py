@@ -139,7 +139,25 @@ def _has_explicit_anchor_unknown(contract: ResearchContract) -> bool:
         *contract.uncertainty_markers.weakest_anchors,
         *contract.approach_policy.stop_and_rethink_conditions,
     ]
-    needles = ("anchor unknown", "ground truth unknown", "must establish later", "need anchor", "missing anchor")
+    needles = (
+        "anchor unknown",
+        "anchor unclear",
+        "anchor is unclear",
+        "anchor not established",
+        "ground truth unknown",
+        "ground truth unclear",
+        "ground truth still unclear",
+        "ground truth not established",
+        "no ground truth yet",
+        "smoking gun unknown",
+        "smoking gun unclear",
+        "smoking gun still unclear",
+        "smoking gun not established",
+        "no smoking gun yet",
+        "must establish later",
+        "need anchor",
+        "missing anchor",
+    )
     return any(any(needle in item.casefold() for needle in needles) for item in candidates if isinstance(item, str))
 
 

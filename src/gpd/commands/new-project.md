@@ -24,6 +24,8 @@ allowed-tools:
 <objective>
 Initialize a new physics research project through unified flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → roadmap.
 
+If no project config exists yet, the workflow offers an early interaction-style choice before long setup steps so `babysit` can affect initialization rather than only later phases.
+
 **Creates:**
 
 - `.gpd/PROJECT.md` — research project context

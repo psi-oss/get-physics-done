@@ -581,6 +581,20 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in command_text
 
 
+def test_new_project_offers_early_setup_cadence_before_long_running_steps() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
+
+    assert "Before `.gpd/config.json` exists, the `autonomy` and `research_mode` values from `gpd init new-project` are defaults" in workflow_text
+    assert "## 2.5 Early Workflow Setup" in workflow_text
+    assert "Before we scope the project, should I use the standard balanced flow or check in more often while we build the contract?" in workflow_text
+    assert '"Babysit this setup" -- use babysit autonomy immediately for the remaining setup steps' in workflow_text
+    assert '"Customize now" -- jump to Step 5 now, choose settings, write `.gpd/config.json`, then resume at Step 3' in workflow_text
+    assert "use those values for Steps 3-9 even before `config.json` exists" in workflow_text
+    assert "present them as the current choices and ask whether to keep or revise them before writing `config.json`" in workflow_text
+    assert "early interaction-style choice before long setup steps so `babysit` can affect initialization" in command_text
+
+
 def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> None:
     guide_text = (REFERENCES_DIR / "research" / "questioning.md").read_text(encoding="utf-8")
 
@@ -594,6 +608,22 @@ def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> Non
     assert "Lack of a full phase list is not itself a blocker." in guide_text
     assert "Do not count turns mechanically." in guide_text
     assert "What would be a misleading proxy for success" in guide_text
+
+
+def test_new_project_questioning_requires_smoking_gun_and_rejects_proxy_only_readiness() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    guide_text = (REFERENCES_DIR / "research" / "questioning.md").read_text(encoding="utf-8")
+
+    assert "What first smoking-gun observable, curve, benchmark reproduction, or scaling law they would trust before softer sanity checks" in workflow_text
+    assert "Whether passing limiting cases, generic expectations, or qualitative agreement without that smoking gun should still count as failure" in workflow_text
+    assert 'Demand the smoking gun ("What exact check would make you trust this over softer sanity checks?")' in workflow_text
+    assert "If you only have limiting cases, sanity checks, or generic benchmark language with no decisive smoking-gun observable" in workflow_text
+    assert "especially the first smoking-gun check they would trust over softer proxies or limiting cases" in workflow_text
+    assert "If the only checks captured so far are limiting cases, sanity checks, or qualitative expectations, treat the contract as still underspecified" in workflow_text
+    assert "Push until you know the first hard correctness check or smoking-gun signal they would trust" in guide_text
+    assert "What is the first smoking-gun observable, scaling law, curve, or benchmark" in guide_text
+    assert "If the result passed a few limiting cases or sanity checks but missed the smoking-gun check" in guide_text
+    assert "Do not offer the gate if you only have proxy checks, sanity checks, or limiting cases with no decisive smoking-gun observable" in guide_text
 
 
 def test_project_and_context_templates_surface_contract_and_skeptical_review() -> None:

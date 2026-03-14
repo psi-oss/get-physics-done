@@ -126,7 +126,7 @@ _Update when parameters change or new ones are introduced_
 **What does NOT belong here:**
 
 - Notation conventions (that's NOTATION_GLOSSARY.md or CONVENTIONS.md)
-- Theoretical framework (that's THEORETICAL_FRAMEWORK.md)
+- Broad theoretical framing (that's PRIOR-WORK.md or FORMALISM.md)
 - Derivation details (those live in phase files)
 
 **When filling this template:**

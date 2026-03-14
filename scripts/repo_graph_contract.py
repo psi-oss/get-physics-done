@@ -90,7 +90,11 @@ def _tracked_repo_files(repo_root: Path) -> list[Path] | None:
 def _repo_files_in_scope(repo_root: Path) -> list[Path]:
     tracked_files = _tracked_repo_files(repo_root)
     if tracked_files is not None:
-        return [path for path in tracked_files if not _is_excluded_path(path)]
+        return [
+            path
+            for path in tracked_files
+            if not _is_excluded_path(path) and (repo_root / path).is_file()
+        ]
 
     return [
         path.relative_to(repo_root)

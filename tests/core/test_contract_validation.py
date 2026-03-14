@@ -100,6 +100,29 @@ def test_validate_project_contract_approved_mode_accepts_explicit_anchor_unknown
     assert result.mode == "approved"
 
 
+def test_validate_project_contract_approved_mode_accepts_ground_truth_unclear_aliases() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    for claim in contract.get("claims", []):
+        claim["references"] = []
+    for target in contract.get("acceptance_tests", []):
+        target["evidence_required"] = [item for item in target.get("evidence_required", []) if item != "ref-benchmark"]
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": ["Ground truth still unclear; no smoking gun yet for this setup"],
+        "crucial_inputs": [],
+    }
+    contract["scope"]["unresolved_questions"] = ["Anchor is unclear and must establish later before planning"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+
+
 def test_validate_project_contract_rejects_unknown_must_read_ref() -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"]["must_read_refs"] = ["ref-missing"]

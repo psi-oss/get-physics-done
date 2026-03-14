@@ -562,6 +562,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start broad enough to compare viable approaches while scoping the project. Narrow the roadmap only after anchors or decisive evidence make one method family clearly preferable.
+- Before `.gpd/config.json` exists, the `autonomy` and `research_mode` values from `gpd init new-project` are defaults, not a durable user choice. Run the early setup gate in Step 2.5 so the user can opt into `babysit` or customization before long questioning or research steps.
 
 **If `project_exists` is true:** Error — project already initialized. Use `/gpd:progress`.
 
@@ -645,6 +646,23 @@ Exit command.
 
 **If "Skip mapping" OR `needs_research_map` is false:** Continue to Step 3.
 
+## 2.5 Early Workflow Setup
+
+If `.gpd/config.json` does not exist yet, offer one lightweight setup gate before any long questioning or research step so the user can control interaction cadence early:
+
+Use ask_user:
+
+- header: "Interaction Style"
+- question: "Before we scope the project, should I use the standard balanced flow or check in more often while we build the contract?"
+- options:
+  - "Balanced (Recommended)" -- keep balanced autonomy and balanced research mode for setup
+  - "Babysit this setup" -- use babysit autonomy immediately for the remaining setup steps
+  - "Customize now" -- jump to Step 5 now, choose settings, write `.gpd/config.json`, then resume at Step 3
+
+Store the result in setup-scoped variables (for example `SETUP_AUTONOMY` and `SETUP_RESEARCH_MODE`) and use those values for Steps 3-9 even before `config.json` exists.
+If the user picks "Customize now", run Step 5 immediately, write `.gpd/config.json`, then return to Step 3 with those persisted settings.
+If the user picks "Balanced (Recommended)" or "Babysit this setup", defer writing `config.json` until Step 5, but do NOT revert to the original init defaults in the meantime.
+
 ## 3. Deep Questioning
 
 **If auto mode:** Skip. Extract research context from provided document instead and proceed to Step 4.
@@ -678,7 +696,9 @@ Keep following threads. Each answer opens new threads to explore. Ask about:
 - What observable or measurable quantities they care about
 - What exact output, artifact, or benchmark would count as success
 - What exact observable, figure, derivation, dataset, or note they would personally look for first
+- What first smoking-gun observable, curve, benchmark reproduction, or scaling law they would trust before softer sanity checks
 - What would look like progress but should not count as success
+- Whether passing limiting cases, generic expectations, or qualitative agreement without that smoking gun should still count as failure
 - What references, benchmark results, datasets, or prior internal outputs must stay visible
 - What prior plots, notebooks, code outputs, or existing artifacts already matter and must not be ignored
 - What should make the system stop, re-scope, or ask them again before a long execution branch
@@ -697,6 +717,7 @@ Consult `{GPD_INSTALL_DIR}/references/research/questioning.md` for techniques:
 - Find edges ("What happens at strong coupling?")
 - Reveal motivation ("What would change if you solved this?")
 - Surface anchors ("What do we trust as ground truth here?")
+- Demand the smoking gun ("What exact check would make you trust this over softer sanity checks?")
 - Force one disconfirming question ("What would make this framing look wrong?")
 - Reject proxies ("What should not count as done?")
 
@@ -737,6 +758,7 @@ When you could write a clear scoping contract, use ask_user:
 If "Keep exploring" — ask what they want to add, or identify gaps and probe naturally.
 
 Avoid rigid turn-counting. After several substantive exchanges, if you can state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note), offer to proceed. If those blocking fields are still missing after roughly 6 follow-ups, summarize what is missing and ask whether to keep exploring or proceed with explicit open questions. A full phase breakdown is not required at this stage; if only the first grounded investigation chunk is clear, say so and carry later decomposition as an open question. Do not force closure just because a counter was hit, and do not imply certainty where there is still ambiguity.
+If you only have limiting cases, sanity checks, or generic benchmark language with no decisive smoking-gun observable, curve, or benchmark reproduction, keep exploring unless the user explicitly says that is the decisive standard.
 
 ## 4. Synthesize The Approved Project Contract And Write PROJECT.md
 
@@ -754,7 +776,7 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 - `context_intake.known_good_baselines`
 - `context_intake.context_gaps`
 - `context_intake.crucial_inputs` for user-stated observables, deliverables, stop conditions, or anything the user said must stay visible
-- `observables` for any user-named decisive quantity, signal, or behavior
+- `observables` for any user-named decisive quantity, signal, or behavior, especially the first smoking-gun check they would trust over softer proxies or limiting cases
 - at least one decisive claim, observable, or deliverable
 - any forbidden proxy or false-progress signal that the user called out
 - `uncertainty_markers.weakest_anchors`
@@ -767,6 +789,7 @@ If the user does not know the anchor yet, record that explicitly as an unresolve
 If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
 If the user named a prior output, review checkpoint, or "come back to me before continuing" condition, carry it into `context_intake.must_include_prior_outputs` or `context_intake.crucial_inputs` rather than leaving it only in prose.
 Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders. The approved contract must preserve the user guidance that downstream planning needs.
+If the only checks captured so far are limiting cases, sanity checks, or qualitative expectations, treat the contract as still underspecified unless the user explicitly states that these are the decisive standard.
 
 Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
 
@@ -985,6 +1008,8 @@ CHECKPOINT
 ## 5. Workflow Preferences
 
 **Quick setup gate — offer recommended defaults before individual questions:**
+
+If Step 2.5 already captured provisional setup preferences, present them as the current choices and ask whether to keep or revise them before writing `config.json`. Do not silently discard an earlier babysit choice just because the durable config file has not been written yet.
 
 Use ask_user:
 

@@ -41,7 +41,7 @@ A vague PROJECT.md forces every downstream phase to guess. The cost compounds --
 
 **Clarify scope.** "When you say you want to study X, do you mean the equilibrium properties or the dynamics?" "Are you interested in the ground state or finite temperature?"
 
-**Surface anchors early.** Ask what references, prior outputs, benchmarks, datasets, or known results should remain visible if the project goes well. If none are known yet, record that explicitly instead of inventing one.
+**Surface anchors early.** Ask what references, prior outputs, benchmarks, datasets, or known results should remain visible if the project goes well. Push until you know the first hard correctness check or smoking-gun signal they would trust; do not settle for loose agreement or generic limiting cases if they expect a sharper benchmark. If none are known yet, record that explicitly instead of inventing one.
 
 **Preserve the user's guidance.** If they name a specific figure, dataset, derivation, notebook, prior run, paper, benchmark, stop condition, or review checkpoint, keep that wording recognizable. Do not flatten it into generic "artifact" or "benchmark" language unless they asked you to broaden it.
 
@@ -89,6 +89,7 @@ Use these as inspiration, not a checklist. Pick what's relevant to the physics.
 
 - "What does a successful result look like?"
 - "What exact output or deliverable would count as done?"
+- "What is the first smoking-gun observable, scaling law, curve, or benchmark that would convince you this is genuinely right rather than merely plausible?"
 - "What known result should this reduce to in some limit?"
 - "Is there experimental data to compare against?"
 - "What would make you confident the calculation is correct?"
@@ -98,6 +99,7 @@ Use these as inspiration, not a checklist. Pick what's relevant to the physics.
 - "Is there a known result, benchmark, prior output, or reference that you would treat as non-negotiable here?"
 - "What should a correct result agree with, reduce to, or reproduce?"
 - "Are there papers, datasets, or internal artifacts that must stay visible throughout the work?"
+- "If the result passed a few limiting cases or sanity checks but missed the smoking-gun check, would you still treat it as wrong?"
 
 **Disconfirmation and failure -- how the current framing could be wrong:**
 
@@ -181,6 +183,7 @@ If "Keep exploring" -- ask what they want to add or identify gaps in the physica
 Lack of a full phase list is not itself a blocker. If only the first grounded investigation chunk is clear, that is enough to offer the gate.
 
 Do not count turns mechanically. Keep exploring while the conversation is materially sharpening the scoping contract, and re-offer the gate when the picture becomes clearer.
+Do not offer the gate if you only have proxy checks, sanity checks, or limiting cases with no decisive smoking-gun observable or explicit note that the anchor is still unknown.
 
 </decision_gate>
 

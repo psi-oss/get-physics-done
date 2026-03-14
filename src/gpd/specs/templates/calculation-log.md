@@ -183,7 +183,7 @@ _Last updated: [date]_
 
 - Final polished results (those go in SUMMARY.md)
 - Project-wide notation (that's NOTATION_GLOSSARY.md)
-- Theoretical framework (that's THEORETICAL_FRAMEWORK.md)
+- Broad theoretical framing (that's PRIOR-WORK.md or FORMALISM.md)
 - Code documentation (that lives in source files)
 
 **When filling this template:**

@@ -26,12 +26,12 @@ This graph therefore includes:
 
 <!-- repo-graph-scope:start -->
 
-- Live repo files analyzed in the current tree: `621`
+- Live repo files analyzed in the current tree: `616`
 - Python files under `src/` and `tests/`: `192`
 - `src/gpd/commands/*.md`: `61`
 - `src/gpd/agents/*.md`: `23`
 - `src/gpd/specs/workflows/*.md`: `62`
-- `src/gpd/specs/templates/**/*.md`: `75`
+- `src/gpd/specs/templates/**/*.md`: `70`
 - `src/gpd/specs/references/**/*.md`: `156`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `5`
