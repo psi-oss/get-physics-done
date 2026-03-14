@@ -125,3 +125,50 @@ def test_missing_stage_artifacts_reject_decision_when_project_root_supplied(tmp_
 
     assert report.valid is False
     assert any("listed staged review artifacts do not exist" in reason for reason in report.reasons)
+
+
+def test_unresolved_critical_ledger_issues_count_toward_major_issue_total():
+    report = evaluate_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.major_revision,
+            stage_artifacts=[f".gpd/review/STAGE-{name}.json" for name in ("reader", "literature", "math", "physics", "interestingness")],
+            unresolved_major_issues=0,
+        ),
+        strict=True,
+        review_ledger=ReviewLedger(
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-CRIT",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.critical,
+                    blocking=False,
+                    summary="A critical unresolved issue remains.",
+                    status=ReviewIssueStatus.open,
+                )
+            ],
+        ),
+    )
+
+    assert report.valid is False
+    assert any("unresolved_major_issues does not match review ledger count" in reason for reason in report.reasons)
+
+
+def test_manuscript_path_comparison_normalizes_equivalent_paths():
+    report = evaluate_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="./paper//main.tex",
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.major_revision,
+            stage_artifacts=[f".gpd/review/STAGE-{name}.json" for name in ("reader", "literature", "math", "physics", "interestingness")],
+        ),
+        strict=True,
+        review_ledger=ReviewLedger(
+            manuscript_path="paper/main.tex",
+            issues=[],
+        ),
+    )
+
+    assert report.valid is True

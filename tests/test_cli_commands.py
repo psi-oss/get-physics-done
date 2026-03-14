@@ -1570,6 +1570,18 @@ class TestReviewValidationCommands:
         assert payload["valid"] is False
         assert any("blocking_issue_ids not found in review ledger" in reason for reason in payload["reasons"])
 
+    def test_validate_referee_decision_command_rejects_dual_stdin_inputs(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", "-", "--ledger", "-"],
+            input="{}\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "Cannot read both referee-decision and review-ledger from stdin" in payload["error"]
+
     def test_validate_referee_decision_command_rejects_omitted_unresolved_blocking_ledger_issues(
         self, gpd_project: Path
     ) -> None:

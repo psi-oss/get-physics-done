@@ -101,20 +101,28 @@ def _missing_stage_artifacts(stage_artifacts: list[str], *, project_root: Path |
     if project_root is None:
         return []
 
+    resolved_root = project_root.resolve(strict=False)
     missing: list[str] = []
     for artifact_path in stage_artifacts:
         target = Path(artifact_path)
         if not target.is_absolute():
             target = project_root / target
-        if not target.exists():
+        resolved_target = target.resolve(strict=False)
+        if not resolved_target.is_relative_to(resolved_root) or not target.exists():
             missing.append(artifact_path)
     return missing
+
+
+def _normalize_path_label(path_text: str) -> str:
+    return Path(path_text.strip()).as_posix()
 
 
 def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger: ReviewLedger) -> list[str]:
     errors: list[str] = []
 
-    if data.manuscript_path and review_ledger.manuscript_path and data.manuscript_path != review_ledger.manuscript_path:
+    normalized_decision_path = _normalize_path_label(data.manuscript_path) if data.manuscript_path.strip() else ""
+    normalized_ledger_path = _normalize_path_label(review_ledger.manuscript_path) if review_ledger.manuscript_path.strip() else ""
+    if normalized_decision_path and normalized_ledger_path and normalized_decision_path != normalized_ledger_path:
         errors.append("referee decision manuscript_path does not match review ledger manuscript_path")
 
     issue_ids = [issue.issue_id for issue in review_ledger.issues]
@@ -123,7 +131,8 @@ def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger:
         errors.append("review ledger contains duplicate issue IDs: " + ", ".join(duplicate_issue_ids))
 
     ledger_issue_ids = set(issue_ids)
-    unknown_blocking_issue_ids = sorted(set(data.blocking_issue_ids) - ledger_issue_ids)
+    blocking_issue_ids = set(data.blocking_issue_ids)
+    unknown_blocking_issue_ids = sorted(blocking_issue_ids - ledger_issue_ids)
     if unknown_blocking_issue_ids:
         errors.append("blocking_issue_ids not found in review ledger: " + ", ".join(unknown_blocking_issue_ids))
 
@@ -132,7 +141,7 @@ def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger:
         for issue in review_ledger.issues
         if issue.blocking and issue.status != ReviewIssueStatus.resolved
     )
-    missing_blocking_issue_ids = [issue_id for issue_id in unresolved_blocking_issue_ids if issue_id not in set(data.blocking_issue_ids)]
+    missing_blocking_issue_ids = [issue_id for issue_id in unresolved_blocking_issue_ids if issue_id not in blocking_issue_ids]
     if missing_blocking_issue_ids:
         errors.append(
             "unresolved blocking review-ledger issues missing from blocking_issue_ids: "
@@ -142,7 +151,8 @@ def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger:
     unresolved_major_issues = sum(
         1
         for issue in review_ledger.issues
-        if issue.severity == ReviewIssueSeverity.major and issue.status != ReviewIssueStatus.resolved
+        if issue.severity in {ReviewIssueSeverity.critical, ReviewIssueSeverity.major}
+        and issue.status != ReviewIssueStatus.resolved
     )
     if data.unresolved_major_issues != unresolved_major_issues:
         errors.append(

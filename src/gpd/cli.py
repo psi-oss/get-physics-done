@@ -2951,6 +2951,9 @@ def validate_referee_decision(
     from gpd.core.referee_policy import RefereeDecisionInput, evaluate_referee_decision
     from gpd.mcp.paper.models import ReviewLedger
 
+    if input_path == "-" and ledger_path == "-":
+        _error("Cannot read both referee-decision and review-ledger from stdin in the same command.")
+
     payload = _load_json_document(input_path)
     try:
         decision = RefereeDecisionInput.model_validate(payload)
@@ -3405,7 +3408,7 @@ def commit(
 
     result = cmd_commit(_get_cwd(), message, files=_collect_file_option_args(ctx, files) or None)
     _output(result)
-    if not result.committed:
+    if not result.committed and not getattr(result, "skipped", False):
         raise typer.Exit(code=1)
 
 
