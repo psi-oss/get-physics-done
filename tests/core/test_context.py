@@ -572,6 +572,22 @@ class TestInitNewMilestone:
         assert ctx["current_milestone"] == "v1.0"
         assert ctx["current_milestone_name"] == "Setup Phase"
 
+    def test_surfaces_project_contract_and_effective_reference_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_roadmap(tmp_path, "## Milestone v1.0: Setup Phase\n")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_new_milestone(tmp_path)
+
+        assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "Benchmark Ref 2024" in ctx["active_reference_context"]
+        assert ".gpd/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
+
 
 # ─── init_quick ───────────────────────────────────────────────────────────────
 
@@ -703,6 +719,32 @@ class TestInitResume:
         assert candidate["weakest_unchecked_anchor"] == "Ref-01 benchmark figure"
         assert candidate["disconfirming_observation"] == "Direct observable misses the literature band."
         assert candidate["downstream_locked"] is True
+
+    def test_resume_candidate_keeps_clear_without_unlock_as_bounded_segment_state(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_id": "seg-8",
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "pre_fanout_review_cleared": True,
+                "downstream_locked": True,
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["resume_mode"] == "bounded_segment"
+        assert ctx["execution_pre_fanout_review_pending"] is True
+        assert ctx["execution_downstream_locked"] is True
+        assert ctx["active_execution_segment"]["pre_fanout_review_cleared"] is True
+        assert ctx["segment_candidates"][0]["checkpoint_reason"] == "pre_fanout"
 
     def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

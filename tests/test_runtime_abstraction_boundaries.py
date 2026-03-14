@@ -13,6 +13,7 @@ Everywhere else, shared code should stay runtime-agnostic.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -60,6 +61,18 @@ _ALLOWED_RUNTIME_ADAPTER_FILES = {
 _SHARED_ADAPTER_RUNTIME_BRANCH_PATTERN = (
     r'(runtime\s*==\s*"|runtime\s+in\s+\(|runtime_name\s*==\s*"|runtime_name\s+in\s+\()'
 )
+_RUNTIME_INSTALL_ARTIFACT_PATTERN = re.compile(
+    r"(SKILL\.md|CODEX_SKILLS_DIR|~\/\.agents/skills|\.claude/agents|\.codex/agents|"
+    r"\.gemini/agents|\.opencode/agents|\.claude/commands|\.gemini/commands|\.opencode/commands)"
+)
+_SHARED_RUNTIME_AGNOSTIC_PATHS = (
+    REPO_ROOT / "src/gpd/agents",
+    REPO_ROOT / "src/gpd/commands",
+    REPO_ROOT / "src/gpd/specs",
+    REPO_ROOT / "src/gpd/registry.py",
+    REPO_ROOT / "src/gpd/mcp/servers/skills_server.py",
+)
+_TEXT_SURFACE_SUFFIXES = {".md", ".py"}
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -112,6 +125,25 @@ def _is_allowed_shared_python_runtime_file(rel_path: Path) -> bool:
 def _format_failures(matches: list[tuple[Path, int, str]]) -> str:
     lines = [f"{path}:{line_no}: {snippet}" for path, line_no, snippet in matches]
     return "\n".join(lines)
+
+
+def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -> list[tuple[Path, int, str]]:
+    matches: list[tuple[Path, int, str]] = []
+    for path in paths:
+        if path.is_file():
+            candidates = [path]
+        else:
+            candidates = sorted(
+                candidate for candidate in path.rglob("*") if candidate.is_file() and candidate.suffix in _TEXT_SURFACE_SUFFIXES
+            )
+        for candidate in candidates:
+            if candidate.suffix not in _TEXT_SURFACE_SUFFIXES:
+                continue
+            rel_path = candidate.relative_to(REPO_ROOT)
+            for line_no, line in enumerate(candidate.read_text(encoding="utf-8").splitlines(), start=1):
+                if pattern.search(line):
+                    matches.append((rel_path, line_no, line))
+    return matches
 
 
 def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> None:
@@ -168,5 +200,14 @@ def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
 
     assert leaks == [], (
         "Shared adapter infrastructure should not hardcode runtime-specific terms:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_canonical_surfaces_do_not_reference_runtime_install_artifacts() -> None:
+    leaks = _scan_paths_for_pattern(_SHARED_RUNTIME_AGNOSTIC_PATHS, _RUNTIME_INSTALL_ARTIFACT_PATTERN)
+
+    assert leaks == [], (
+        "Shared commands, agents, specs, and canonical registry/MCP surfaces should not reference runtime install artifacts:\n"
         f"{_format_failures(leaks)}"
     )

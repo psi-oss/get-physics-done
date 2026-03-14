@@ -25,12 +25,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
+Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `requirements_content`, `context_content`, `research_content`, `verification_content`, `validation_content`, plus reference-artifact fields from init JSON. These are null if files don't exist.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Present the plan draft for user review before writing it to disk.
+- `autonomy=babysit`: Present the written draft plans for user review before treating them as approved or moving on to execution. Do not weaken the contract gate just because the draft is human-reviewed.
 - `autonomy=balanced` (default): Write the plan and pause only if the plan-checker raises issues or the planning choices need user judgment.
 - `autonomy=yolo`: Write the plan and proceed without pausing.
 - `research_mode=explore`: Always run research step even if research exists. Expand wave count for thorough coverage.
@@ -48,6 +48,10 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
 
 **If `planning_exists` is false:** Error -- run `/gpd:new-project` first.
+
+**If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `.gpd/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone.
+
+Treat `effective_reference_intake` as the machine-readable carry-forward anchor ledger for this phase. Do not rely only on the rendered `active_reference_context` prose when deciding what must stay visible.
 
 ## 2. Parse and Normalize Arguments
 
@@ -483,6 +487,8 @@ Planner prompt:
 **Research mode:** {RESEARCH_MODE}
 **Autonomy:** {AUTONOMY}
 
+Planning requires an approved project contract. If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of writing or revising plans from inferred scope.
+
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
 **Roadmap:** {roadmap_content}
@@ -519,14 +525,14 @@ Each plan MUST include:
 </physics_planning_requirements>
 
 <contract_requirements>
-If `project_contract` is non-empty:
+Planning requires `project_contract`:
 
+- If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of writing a weak or guessed plan.
 - Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
 - Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.
 - Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
-- If the planner cannot determine the right contract slice for the phase, return `## CHECKPOINT REACHED` instead of writing a weak plan.
 </contract_requirements>
 
 <light_mode_instructions>
@@ -590,7 +596,7 @@ task(
 
 **If the planner agent fails to spawn or returns an error:** Check if any PLAN.md files were written to the phase directory (agents write files first). If plans exist, proceed as if PLANNING COMPLETE. If no plans, offer: 1) Retry planner, 2) Create plans in the main context, 3) Abort.
 
-- **`## PLANNING COMPLETE`:** Display plan count. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
+- **`## PLANNING COMPLETE`:** Display plan count. If `AUTONOMY=babysit`, show the written draft plans and get user confirmation before advancing to checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
 - **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation (step 12)
 - **`## PLANNING INCONCLUSIVE`:** Show attempts, offer: Add context / Retry / Manual
 
@@ -747,6 +753,7 @@ Revisions MUST still honor user decisions.
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental (e.g., wrong physical regime, missing conservation law, incorrect symmetry).
+If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `## CHECKPOINT REACHED` instead of patching plans against guessed scope.
 Pay special attention to:
 - Dimensional consistency fixes
 - Missing limiting case checks

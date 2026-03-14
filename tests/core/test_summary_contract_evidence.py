@@ -47,3 +47,24 @@ def test_summary_extract_rejects_invalid_contract_results_shape(tmp_path: Path) 
 
     with pytest.raises(ValidationError, match="Invalid contract_results"):
         cmd_summary_extract(tmp_path, "broken-SUMMARY.md")
+
+
+def test_summary_extract_rejects_legacy_comparison_verdict_mapping(tmp_path: Path) -> None:
+    summary_path = tmp_path / "broken-SUMMARY.md"
+    summary_path.write_text(
+        "---\n"
+        "phase: 01\n"
+        "plan: 01\n"
+        "depth: full\n"
+        "provides: []\n"
+        "completed: 2026-03-13\n"
+        "comparison_verdicts:\n"
+        "  claim-benchmark:\n"
+        "    verdict: pass\n"
+        "---\n\n"
+        "# Summary\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Invalid comparison_verdicts"):
+        cmd_summary_extract(tmp_path, "broken-SUMMARY.md")

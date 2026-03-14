@@ -34,6 +34,8 @@ Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_ex
 **If `planning_exists` is false:** This is a new project - route to /gpd:new-project
 
 If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target. Do not infer a second resume system from ad hoc handoff files.
+
+If `active_execution_segment.pre_fanout_review_pending` is true, the gate is still live even when a resume file exists. If `active_execution_segment.pre_fanout_review_cleared` is true, the review outcome was recorded but the separate fanout unlock is still missing.
 </step>
 
 <step name="load_state">
@@ -188,6 +190,8 @@ fi
 
 **Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
 
+Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
+
 **Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than the current execution snapshot, warn: "Auto-checkpoint detected -- work may have continued after the last recorded gate. Review state.json auto_checkpoint for details."
 
 **Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
@@ -241,6 +245,7 @@ Present complete research project status to user:
     - Gate: [checkpoint_reason]
     - First result ready: [yes/no]
     - Downstream fanout locked: [yes/no]
+    - Review accepted but unlock still pending: [yes/no from pre_fanout_review_cleared && downstream_locked]
     - Skeptical re-questioning required: [yes/no]
     - Why the gate fired: [skeptical_requestioning_summary if present]
     - Weakest unchecked anchor: [if present]
@@ -278,7 +283,7 @@ Based on project state, determine the most logical next action:
 **If `resume_mode="bounded_segment"` and `active_execution_segment` exists:**
 -> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
 -> If `checkpoint_reason=pre_fanout` or skeptical re-questioning is required: treat the next action as a review/replan decision, not a routine execution resume
--> Do not resume downstream fanout until the gate has an explicit clear/override outcome
+-> Do not resume downstream fanout until the gate has an explicit clear/override outcome and, for `pre_fanout`, the matching fanout-unlock transition
 -> Option: Review another ranked resume candidate from `segment_candidates`
 
 **If interrupted agent exists:**

@@ -266,6 +266,7 @@ Gather all research outputs that could contribute to the paper:
 6. **Internal comparisons and decisive evidence** -- From `.gpd/comparisons/*-COMPARISON.md`, `FIGURE_TRACKER.md`, and bundle context
 
    - Which comparisons carry decisive `comparison_verdicts` for the paper's core claims?
+   - Which decisive comparisons are actually needed for the claims the manuscript intends to make, and which checks are merely supportive?
    - Which figures or tables are benchmark-anchored versus only supportive?
    - If protocol bundles are selected, do their decisive-artifact expectations match what the manuscript plans to surface?
 
@@ -290,17 +291,19 @@ fi
 
 ### Check 1: SUMMARY.md completeness
 
-Every contributing phase must have a SUMMARY.md with `verification_status` and `confidence` fields.
+Every contributing phase must have a SUMMARY.md that tells the paper what user-visible result it contributes. For contract-backed phases, `contract_results` and any decisive `comparison_verdicts` are the readiness anchors; generic `verification_status` / `confidence` tags are optional hints, not gates.
 
 For each phase directory:
 
 1. Verify SUMMARY.md exists
-2. Check for a `verification_status`, `contract_results`, or `comparison_verdicts` entry (any format: YAML frontmatter, markdown heading, or inline)
-3. Check for a `confidence` tag (e.g., "high", "medium", "low", or a numerical score)
+2. If the phase is contract-backed and supports a paper claim, check for `plan_contract_ref` and `contract_results`
+3. If a contract-backed target depends on a decisive comparison, check for the corresponding `comparison_verdicts` entry and an evidence path the manuscript can surface
+4. Confirm the summary or verification artifacts identify where the substantive evidence lives
 
 **Missing SUMMARY.md** → CRITICAL gap (phase results not summarized).
-**Missing verification status** → WARNING (results may not have been verified).
-**Missing confidence** → WARNING (cannot assess result reliability for the paper).
+**Contract-backed phase missing `contract_results` for a paper-relevant target** → CRITICAL gap.
+**Decisive comparison required by the contract but no verdict/evidence path is surfaced** → CRITICAL gap.
+**Missing generic `verification_status` / `confidence` tags alone are not blockers.**
 
 ### Check 2: Convention consistency
 
@@ -368,6 +371,7 @@ Check that the manuscript can surface the decisive evidence, not just supporting
 1. Read `.gpd/comparisons/*-COMPARISON.md` and note every decisive `comparison_verdicts` entry
 2. Read `.gpd/paper/FIGURE_TRACKER.md` and confirm those decisive claims have a planned figure, table, or explicit textual comparison path
 3. If `selected_protocol_bundle_ids` is non-empty, use `protocol_bundle_context` only as an additive expectation map for which anchors, estimator caveats, or benchmark comparisons should stay visible in the paper
+4. Only require the manuscript to surface decisive comparisons for claims it actually makes. Honest narrowing is acceptable; silent omission is not.
 
 **Decisive comparison missing for a central claim** → CRITICAL gap.
 **Bundle guidance suggests a decisive comparison that is absent, but the manuscript narrows the claim honestly** → WARNING, not blocker.
@@ -850,6 +854,8 @@ The score should be artifact-driven, not manually estimated. Use:
 - `.gpd/paper/FIGURE_TRACKER.md` frontmatter `figure_registry`
 - `.gpd/comparisons/*-COMPARISON.md`
 - phase `SUMMARY.md` / `VERIFICATION.md` `contract_results` and `comparison_verdicts`
+
+Treat paper-support artifacts as scaffolding, not as proof that a claim is established. Missing decisive comparison evidence still blocks a strong submission recommendation even if manifests and audits are complete.
 
 Present the quality score report. If score < journal minimum, list specific items to fix before submission. If score >= minimum, recommend proceeding to `/gpd:arxiv-submission`.
 

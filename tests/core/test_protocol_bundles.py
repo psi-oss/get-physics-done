@@ -83,6 +83,34 @@ def _stat_mech_contract() -> ResearchContract:
     )
 
 
+def _benchmark_only_contract() -> ResearchContract:
+    return ResearchContract.model_validate(
+        {
+            "scope": {
+                "question": "Does the output match a benchmark?",
+            },
+            "acceptance_tests": [
+                {
+                    "id": "test-benchmark",
+                    "subject": "claim-generic",
+                    "kind": "benchmark",
+                    "procedure": "Compare against a benchmark.",
+                    "pass_condition": "Matches benchmark.",
+                }
+            ],
+            "references": [
+                {
+                    "id": "ref-benchmark",
+                    "kind": "paper",
+                    "locator": "Benchmark paper",
+                    "role": "benchmark",
+                    "why_it_matters": "Reference comparison.",
+                }
+            ],
+        }
+    )
+
+
 def test_bundle_registry_lists_exemplar_bundle() -> None:
     bundle_ids = {bundle.bundle_id for bundle in list_protocol_bundles()}
     assert "stat-mech-simulation" in bundle_ids
@@ -92,6 +120,8 @@ def test_get_protocol_bundle_returns_verifier_extensions() -> None:
     bundle = get_protocol_bundle("stat-mech-simulation")
 
     assert bundle is not None
+    assert bundle.trigger.min_term_matches == 2
+    assert bundle.trigger.min_tag_matches == 1
     assert bundle.assets.subfield_guides[0].path == "references/subfields/stat-mech.md"
     assert bundle.verifier_extensions[0].check_ids == ["5.4", "5.14", "5.16"]
 
@@ -138,3 +168,21 @@ def test_render_protocol_bundle_context_surfaces_guidance() -> None:
     assert "Estimator policies:" in rendered
     assert "Verifier extensions:" in rendered
     assert "{GPD_INSTALL_DIR}/references/protocols/monte-carlo.md" in rendered
+
+
+def test_select_protocol_bundles_rejects_weak_text_only_overlap() -> None:
+    selected = select_protocol_bundles(
+        "Monte Carlo autocorrelation study with some benchmark notes.",
+        None,
+    )
+
+    assert selected == []
+
+
+def test_select_protocol_bundles_rejects_benchmark_tags_without_enough_distinctive_terms() -> None:
+    selected = select_protocol_bundles(
+        "Monte Carlo benchmark comparison for a generic model.",
+        _benchmark_only_contract(),
+    )
+
+    assert selected == []

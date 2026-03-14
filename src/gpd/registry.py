@@ -1,9 +1,9 @@
-"""GPD content registry — single source of truth for discovering commands and agents.
+"""GPD content registry — canonical source for commands and agents.
 
 Primary GPD commands and agents live in markdown files with YAML frontmatter.
 This module parses them once, caches the results, and exposes typed dataclass
-definitions so every consumer (adapters, CLI, MCP skills server) gets the
-same data without re-parsing.
+definitions so shared consumers can project runtime-specific install or
+discovery surfaces without re-parsing the canonical content.
 """
 
 from __future__ import annotations
@@ -673,8 +673,7 @@ def _canonical_skill_name_for_command(registry_name: str, command: CommandDef) -
 
 
 def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef]) -> dict[str, SkillDef]:
-    """Build the canonical skill surface from primary commands and agents.
-    """
+    """Build the canonical registry/MCP skill index from primary commands and agents."""
     result: dict[str, SkillDef] = {}
 
     for registry_name, command in sorted(commands.items()):

@@ -87,6 +87,8 @@ class BundleTrigger(BaseModel):
     all_terms: list[str] = Field(default_factory=list)
     any_tags: list[str] = Field(default_factory=list)
     all_tags: list[str] = Field(default_factory=list)
+    min_term_matches: int = 0
+    min_tag_matches: int = 0
     min_score: int = 1
 
 
@@ -324,6 +326,13 @@ def select_protocol_bundles(
                 matched_terms.append(term)
                 score += 3
 
+        unique_tag_matches = set(matched_tags)
+        unique_term_matches = set(matched_terms)
+
+        if len(unique_tag_matches) < bundle.trigger.min_tag_matches:
+            continue
+        if len(unique_term_matches) < bundle.trigger.min_term_matches:
+            continue
         if score < bundle.trigger.min_score:
             continue
 
@@ -333,8 +342,8 @@ def select_protocol_bundles(
                 title=bundle.title,
                 summary=bundle.summary,
                 score=score,
-                matched_tags=sorted(set(matched_tags)),
-                matched_terms=sorted(set(matched_terms)),
+                matched_tags=sorted(unique_tag_matches),
+                matched_terms=sorted(unique_term_matches),
                 selection_tags=bundle.selection_tags,
                 supports=bundle.supports,
                 assets=bundle.assets,

@@ -50,6 +50,7 @@ verified: YYYY-MM-DDTHH:MM:SSZ
 status: passed | gaps_found | expert_needed | human_needed
 score: N/M contract targets verified
 plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
+# Use `contract_results` only for user-visible contract targets. Do not encode internal tool/process milestones here.
 contract_results:
   claims:
     claim-id:
@@ -107,6 +108,7 @@ suggested_contract_checks:
 | {reference-id} | reference anchor | {completed/missing} | {yes/no} | {path} | {why} |
 
 Use contract IDs consistently throughout the report. The PLAN contract defines what must be verified. `SUMMARY.md` `contract_results` and `comparison_verdicts` tell you what evidence was produced, not what success means.
+Record only user-visible contract targets here: things a researcher could point to in the promised outcome or artifact set. Internal workflow steps, tool invocations, and generic "validation happened" statements do not belong in this table.
 
 If the verifier identifies a decisive check that the contract omitted, record it under `suggested_contract_checks` instead of silently treating the missing check as acceptable.
 
@@ -126,9 +128,11 @@ If the verifier identifies a decisive check that the contract omitted, record it
 | {claim-id} | claim | benchmark | {reference-id or prior artifact} | {relative_error} | {<= 0.01} | {pass/tension/fail/inconclusive} | {why} |
 | {deliverable-id} | deliverable | cross_method | {reference-id or artifact path} | {difference} | {threshold} | {verdict} | {notes} |
 
-Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison.
+Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison. If a comparison is decisive, absence of a verdict is itself a gap; a prose claim like "agrees with literature" is not a substitute.
 
 ## Suggested Contract Checks
+
+Reserve this section for obvious missing decisive checks on user-visible targets. Do not populate it with style requests, paperwork wishes, or generic process polish.
 
 | Suggested Check | Why It Seems Required | Suggested Subject Kind | Suggested Subject ID | Evidence Path |
 | --------------- | --------------------- | ---------------------- | -------------------- | ------------- |

@@ -133,6 +133,18 @@ class TestExecutionBadge:
         badge = _execution_badge({"segment_status": "paused", "resume_file": ".gpd/phases/02/.continue-here.md"})
         assert badge == "RESUME"
 
+    def test_review_badge_wins_over_resume_for_bounded_gate_state(self) -> None:
+        badge = _execution_badge(
+            {
+                "segment_status": "paused",
+                "resume_file": ".gpd/phases/02/.continue-here.md",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "downstream_locked": True,
+            }
+        )
+        assert "REVIEW:pre-fanout" in badge
+
     def test_pre_fanout_review_badge_uses_checkpoint_reason_label(self) -> None:
         badge = _execution_badge(
             {
@@ -157,6 +169,17 @@ class TestExecutionBadge:
             }
         )
         assert "REVIEW:skeptical" in badge
+
+    def test_pre_fanout_review_badge_persists_until_clear_even_if_lock_was_removed(self) -> None:
+        badge = _execution_badge(
+            {
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "downstream_locked": False,
+            }
+        )
+        assert "REVIEW:pre-fanout" in badge
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────

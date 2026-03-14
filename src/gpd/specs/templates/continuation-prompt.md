@@ -40,7 +40,11 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 
 If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
 
+If the execution segment also indicates `pre_fanout_review_cleared: true`, treat that as "review accepted, unlock still outstanding" rather than "gate retired." The continuation must preserve the separate fanout-unlock transition.
+
 If the execution segment indicates `skeptical_requestioning_required: true`, treat the user response as a framing decision. Carry forward the skeptical summary, weakest unchecked anchor, and disconfirming observation into the resumed plan logic instead of treating this as a routine approval.
+
+Do not assume a `first_result` or `pre_fanout` clear also clears skeptical re-questioning. If skeptical state was present, it must be retired explicitly in the continuation path.
 
 If the execution segment indicates `first_result_gate_pending: true`, do not reinterpret that gate as passed just because the result looks plausible. Continue only after the review outcome has been made explicit in this continuation.
 
@@ -74,8 +78,8 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 
 - the checkpoint cause is understood
 - any required user decision or review outcome is now present
-- any pre-fanout lock or skeptical re-questioning outcome has been incorporated into the continuation path
-- any first-result gate has an explicit clear/override outcome before dependent work resumes
+- any first-result, skeptical, or pre-fanout gate has the matching explicit clear/override outcome
+- any pre-fanout lock has the separate fanout-unlock transition before dependent work resumes
 - the segment has not already been superseded by a newer continuation state
 </verification_before_continuing>
 
@@ -107,7 +111,7 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 | `{checkpoint_type}`       | From checkpoint return              | `human-verify`                                                            |
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
-| `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, downstream-lock status, skeptical re-questioning fields, and resume preconditions |
+| `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, downstream-lock status, any `pre_fanout_review_cleared` marker, skeptical re-questioning fields, and resume preconditions |
 | `{protocol_bundle_context}` | Selected protocol bundle summary | Additive specialized-loading guidance carried across continuations |
 | `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |

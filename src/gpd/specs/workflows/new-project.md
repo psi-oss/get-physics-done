@@ -14,6 +14,7 @@ Check if `--auto` flag is present in $ARGUMENTS.
 
 **If auto mode:**
 
+- Auto mode compresses intake; it does not override autonomy review gates after the scoping contract is approved
 - Do not assume scope is already correct just because a document exists
 - Existing-work routing may be compressed to one lightweight question, but cannot be skipped when prior artifacts are detected
 - Skip full deep questioning, but still synthesize a scoping contract from the supplied document
@@ -24,7 +25,7 @@ Check if `--auto` flag is present in $ARGUMENTS.
   - Literature survey: Always yes
   - Research questions: Include all from provided document
   - Research questions approval: Use approved scoping contract as source of truth
-  - Roadmap approval: Auto-approve
+  - Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=babysit`, present the draft roadmap before commit
 
 **Document requirement:**
 Auto mode requires a research document via @ reference (e.g., `/gpd:new-project --auto @proposal.md`). If no document provided, error:
@@ -68,20 +69,20 @@ Parse the input markdown for:
 
 - **Research question** — Look for headings like "Research Question", "Objective", "Goal", or the first substantive paragraph
 - **Decisive observables and deliverables** — Look for explicit plots, figures, datasets, calculations, derivations, or benchmark outputs the user says matter
-- **List of phases** — Look for numbered lists, headings like "Phases", "Plan", "Steps", or "Milestones"
+- **Stages or work chunks** — Look for numbered lists, headings like "Phases", "Plan", "Steps", "Milestones", or any clear sequence of major investigation chunks
 - **Key parameters** — Look for mentions of physical parameters, coupling constants, energy scales, system sizes
 - **Theoretical framework** — Infer from terminology (QFT, condensed matter, GR, statistical mechanics, etc.)
 - **Computational tools** — Any mentioned software, libraries, or numerical methods
 - **Must-keep context** — Look for must-read references, benchmark values, prior outputs, figures, notebooks, and any stop/rethink conditions
 
-If the file cannot be parsed (no discernible research question or phases), error:
+If the file cannot be parsed (no discernible research question or no plausible first major stage/work chunk), error:
 
 ```
 Error: Could not extract research context from the provided file.
 
 The file should contain at minimum:
 - A research question or objective
-- A list of investigation phases or steps
+- A list of investigation phases or steps, OR enough structure to infer the first major investigation chunk
 
 Example structure:
   # Research Question
@@ -103,7 +104,7 @@ Wait for response. From the single response, extract:
 
 - Research question
 - Theoretical framework
-- Phases of investigation
+- Phases, milestones, or first-pass work chunks of investigation
 - Any mentioned parameters, tools, or constraints
 
 #### M1.5. Synthesize And Approve The Scoping Contract
@@ -114,7 +115,7 @@ Build a canonical scoping contract from the extracted input.
 
 - Core question
 - At least one decisive output, claim, or deliverable
-- At least one major phase or stage
+- At least one major phase, stage, or clearly defined first investigation chunk
 
 **Fields to capture even if still uncertain:**
 
@@ -275,7 +276,7 @@ _Last updated: [today's date] after initialization (minimal)_
 
 #### M3. Create REQUIREMENTS.md
 
-Auto-generate REQ-IDs from the phase goals extracted in M1.
+Auto-generate REQ-IDs from the phase goals or major work chunks extracted in M1.
 
 For each phase, create one or more requirements using the standard format:
 
@@ -286,12 +287,12 @@ For each phase, create one or more requirements using the standard format:
 
 ### Phase-Derived Requirements
 
-[For each phase, generate requirements with REQ-IDs:]
+[For each confirmed phase or work chunk, generate requirements with REQ-IDs:]
 
 - [ ] **REQ-01**: [Goal of phase 1, made specific and testable]
 - [ ] **REQ-02**: [Goal of phase 2, made specific and testable]
 - [ ] **REQ-03**: [Goal of phase 3, made specific and testable]
-      [... one per phase minimum ...]
+      [... one per confirmed phase or work chunk minimum ...]
 
 ## Future Work
 
@@ -312,7 +313,9 @@ For each phase, create one or more requirements using the standard format:
 
 #### M4. Create ROADMAP.md
 
-Create `.gpd/ROADMAP.md` directly from the phase descriptions (no roadmapper agent).
+Create `.gpd/ROADMAP.md` directly from the phase descriptions or inferred work chunks (no roadmapper agent).
+
+Use the coarsest decomposition the approved contract actually supports. If the input only supports one grounded stage so far, create a one-phase roadmap and carry later decomposition as an open question instead of inventing filler phases.
 
 Use the standard roadmap template structure:
 
@@ -328,7 +331,7 @@ Use the standard roadmap template structure:
 - [ ] **Phase 1: [Phase name]** - [One-line description]
 - [ ] **Phase 2: [Phase name]** - [One-line description]
 - [ ] **Phase 3: [Phase name]** - [One-line description]
-      [... from extracted phases ...]
+      [... from extracted or inferred stages/work chunks ...]
 
 ## Phase Details
 
@@ -530,9 +533,10 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `autonomy=babysit`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
 - `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
 - `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate. Do NOT skip the requirement to show contract coverage in the roadmap.
+- `--auto` changes how intake happens, not who owns later review gates. If `autonomy=babysit`, keep the roadmap approval checkpoint even in auto mode.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
-- `research_mode=adaptive`: Start with exploit-depth survey, expand to explore if initial results reveal unexpected complexity.
+- `research_mode=adaptive`: Start broad enough to compare viable approaches while scoping the project. Narrow the roadmap only after anchors or decisive evidence make one method family clearly preferable.
 
 **If `project_exists` is true:** Error — project already initialized. Use `/gpd:progress`.
 
@@ -707,7 +711,7 @@ When you could write a clear scoping contract, use ask_user:
 
 If "Keep exploring" — ask what they want to add, or identify gaps and probe naturally.
 
-**Maximum 6 questioning iterations.** After iteration 6, you may proceed only if you can still state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note). Record all unresolved questions and weak-anchor gaps in the scoping contract and the project's `open_questions`. Do not imply certainty where there is still ambiguity.
+Avoid rigid turn-counting. After several substantive exchanges, if you can state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note), offer to proceed. If those blocking fields are still missing after roughly 6 follow-ups, summarize what is missing and ask whether to keep exploring or proceed with explicit open questions. Do not force closure just because a counter was hit, and do not imply certainty where there is still ambiguity.
 
 ## 4. Synthesize The Approved Project Contract And Write PROJECT.md
 
@@ -1607,12 +1611,7 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 
 <instructions>
 Create research roadmap:
-1. Derive phases from requirements AND the approved project contract — typical physics research phases:
-   - Literature deep-dive and framework setup
-   - Analytical derivations (ordered by dependency)
-   - Numerical implementation and validation
-   - Parameter exploration and phenomenology
-   - Paper drafting and peer review preparation
+1. Derive phases from requirements AND the approved project contract. Use the smallest decomposition that keeps decisive outputs, anchor handoffs, and verification legible. A tightly scoped project may have a single phase or a coarse early roadmap. Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them.
 2. Map every requirement to exactly one phase
 3. For each phase, include explicit contract coverage in ROADMAP.md showing the decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase
 4. Derive 2-5 success criteria per phase (concrete, verifiable results) that respect the decisive outputs, anchors, and forbidden proxies in the approved project contract
@@ -1677,7 +1676,7 @@ Success criteria:
 ---
 ```
 
-**If auto mode:** Skip approval gate — auto-approve and commit directly.
+**If auto mode and `autonomy` is not `babysit`:** Skip approval gate — auto-approve and commit directly.
 
 **CRITICAL: Ask for approval before committing (interactive mode only):**
 

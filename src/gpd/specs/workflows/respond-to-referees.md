@@ -118,6 +118,7 @@ Use `protocol_bundle_context` from init JSON as additive revision guidance.
 - If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact expectations, benchmark anchors, estimator caveats, and reference prompts visible while triaging referee requests.
 - Use bundle guidance to distinguish "missing decisive evidence we already owed" from "new side quest the referee is asking for."
 - Do **not** let bundle guidance justify broader claims, waive review-ledger blockers, or replace the manuscript's actual evidence trail in `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, phase `SUMMARY.md`, or `VERIFICATION.md`.
+- Keep revisions tied to claims the manuscript still intends to make. Review ledgers and bundle hints help prioritize, but they do not force new side analyses once honest claim narrowing resolves the concern.
 </step>
 
 <step name="parse_referee_reports">
@@ -258,6 +259,7 @@ Sort all comments into three groups:
 **Mandatory override from staged peer-review artifacts:**
 
 If `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json` marks an issue as blocking, unsupported, or central to the recommendation floor, classify it as Must Address even if the prose report sounds mild. If the decision artifacts say the paper's claims outrun the evidence, do not triage that as response-only; it requires either manuscript revision, claim narrowing, or new evidence.
+Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap for a claim you still want to keep.
 
 Present triage:
 
@@ -314,6 +316,7 @@ The user should run `/gpd:plan-phase` and `/gpd:execute-phase` for each new phas
 
 If the staged decision artifacts indicate that the main problem is overclaiming rather than missing computation, prefer narrowing the claim set or venue framing before creating new research phases.
 If selected protocol bundles already identify a decisive comparison, benchmark anchor, or estimator caveat that the manuscript failed to surface, prefer fulfilling that existing obligation or narrowing the claim before creating broader new-computation work.
+Do not create new phases solely to satisfy a speculative side quest once narrowing the manuscript claim would fully resolve the issue.
 
 </step>
 

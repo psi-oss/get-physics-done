@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gpd.core.paper_quality import score_paper_quality
 from gpd.core.paper_quality_artifacts import build_paper_quality_input
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage4"
@@ -143,8 +144,101 @@ def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tm
 
     assert result.journal == "generic"
     assert result.verification.report_passed.passed is False
+    assert result.verification.contract_targets_verified.not_applicable is True
     assert result.results.decisive_artifacts_with_explicit_verdicts.not_applicable is True
     assert result.completeness.required_sections_present.satisfied == 1
+
+    report = score_paper_quality(result)
+    assert report.categories["verification"].checks["contract_targets_verified"] == 5.0
+
+
+def test_build_paper_quality_input_merges_comparison_artifact_scope_details(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Comparison summary.
+\end{abstract}
+\section{Introduction}
+See Fig.~\ref{fig:benchmark}.
+\section{Conclusion}
+The benchmark remains under active tension.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        """---
+figure_registry:
+  - id: fig-benchmark
+    label: "Fig. 1"
+    kind: figure
+    role: benchmark
+    path: paper/figures/benchmark.pdf
+    contract_ids: [claim-benchmark]
+    decisive: true
+    has_units: true
+    has_uncertainty: true
+    referenced_in_text: true
+    caption_self_contained: true
+    colorblind_safe: true
+    comparison_sources:
+      - .gpd/comparisons/benchmark-COMPARISON.md
+---
+
+# Figure Tracker
+""",
+    )
+    _write(
+        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
+        """---
+phase: 01-benchmark
+plan: 01
+depth: full
+provides: [benchmark comparison]
+completed: 2026-03-13
+comparison_verdicts:
+  - subject_id: claim-benchmark
+    subject_kind: claim
+    subject_role: decisive
+    reference_id: ref-benchmark
+    comparison_kind: benchmark
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: fail
+---
+
+# Summary
+""",
+    )
+    _write(
+        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        """---
+comparison_kind: benchmark
+comparison_verdicts:
+  - subject_id: claim-benchmark
+    subject_kind: claim
+    subject_role: decisive
+    reference_id: ref-benchmark
+    comparison_kind: benchmark
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: fail
+    recommended_action: Narrow the claim to the verified regime.
+---
+
+# Internal Comparison
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 1
+    assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
+    assert result.results.decisive_comparison_failures_scoped.passed is True
 
 
 def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() -> None:
@@ -160,15 +254,19 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     assert "additive specialized-publication guidance" in write_paper
     assert ".gpd/comparisons/*-COMPARISON.md" in write_paper
     assert "Do **not** let bundle guidance invent new claims" in write_paper
+    assert "Missing generic `verification_status` / `confidence` tags alone are not blockers." in write_paper
+    assert "Treat paper-support artifacts as scaffolding, not as proof that a claim is established." in write_paper
 
     assert "protocol_bundle_context" in peer_review
     assert ".gpd/paper/FIGURE_TRACKER.md" in peer_review
     assert ".gpd/comparisons/*-COMPARISON.md" in peer_review
     assert "Treat bundle guidance as additive skepticism only." in peer_review
+    assert "Review-support artifacts are scaffolding, not substitutes for contract-backed evidence." in peer_review
 
     assert "protocol_bundle_context" in respond
     assert "missing decisive evidence we already owed" in respond
     assert "prefer fulfilling that existing obligation or narrowing the claim" in respond
+    assert "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap" in respond
 
     assert "protocol_bundle_ids (optional):" in internal_template
     assert "bundle_expectations (optional):" in internal_template

@@ -726,18 +726,33 @@ class TestResolveModelCommand:
         parsed = json.loads(result.output)
         assert parsed["error"] == "Unknown agent 'not-an-agent'"
 
-    def test_resolve_model_uses_active_runtime_override(self, gpd_project: Path) -> None:
+    def test_resolve_model_prefers_installed_runtime_override(self, gpd_project: Path) -> None:
         config_path = gpd_project / ".gpd" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["model_overrides"] = {"codex": {"tier-1": "gpt-5"}}
         config_path.write_text(json.dumps(config), encoding="utf-8")
-        (gpd_project / ".codex").mkdir()
+        (gpd_project / ".claude").mkdir()
+        (gpd_project / ".codex" / "get-physics-done").mkdir(parents=True)
 
         result = _invoke("resolve-model", "gpd-executor")
         assert result.output.strip() == ""
 
         planner_result = _invoke("resolve-model", "gpd-planner")
         assert planner_result.output.strip() == "gpt-5"
+
+    def test_init_execute_phase_prefers_installed_runtime_for_model_fields(self, gpd_project: Path) -> None:
+        config_path = gpd_project / ".gpd" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["model_overrides"] = {"codex": {"tier-1": "gpt-5", "tier-2": "gpt-5-mini"}}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        (gpd_project / ".claude").mkdir()
+        (gpd_project / ".codex" / "get-physics-done").mkdir(parents=True)
+
+        result = _invoke("--raw", "init", "execute-phase", "1")
+        payload = json.loads(result.output)
+
+        assert payload["executor_model"] == "gpt-5-mini"
+        assert payload["verifier_model"] == "gpt-5"
 
     def test_resolve_model_rejects_unknown_agent(self) -> None:
         result = _invoke("--raw", "resolve-model", "not-an-agent", "--runtime", "codex", expect_ok=False)

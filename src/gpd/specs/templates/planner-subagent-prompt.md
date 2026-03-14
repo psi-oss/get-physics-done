@@ -18,8 +18,12 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 **Research mode:** {research_mode}
 **Autonomy:** {autonomy}
 
+Planning requires an approved scoping contract. If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of inferring scope from roadmap text alone.
+
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
 **Roadmap:** {roadmap_content}
 **Requirements:** {requirements_content}
 **Protocol Bundles:** {protocol_bundle_context}
@@ -54,14 +58,15 @@ Each plan MUST include:
 </physics_planning_requirements>
 
 <contract_completion_requirements>
-If `project_contract` is non-empty:
+Planning requires `project_contract`:
 
+- If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of writing a weak or guessed plan.
 - Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
+- Treat `effective_reference_intake` as the machine-readable carry-forward ledger. Use `active_reference_context` to interpret it, not to replace it.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
 - Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.
 - Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
-- If the planner cannot determine the right contract slice for the phase, return `## CHECKPOINT REACHED` instead of writing a weak plan.
 </contract_completion_requirements>
 
 <light_mode_instructions>
@@ -141,6 +146,7 @@ Revisions MUST still honor user decisions.
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
+If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `## CHECKPOINT REACHED` instead of patching around guessed scope.
 Fix contract-gate blockers first: missing decisive outputs, missing acceptance tests, missing anchor refs, forbidden-proxy misses, and missing disconfirming paths.
 Return what changed.
 </instructions>

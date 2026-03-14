@@ -47,7 +47,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `active_reference_context`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`.
 
 **Read mode settings:**
 
@@ -60,6 +60,7 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=exploit`: Map narrowly — focus on primary formalism, established results, direct computational needs.
 - `research_mode=adaptive`: Start with primary framework, expand mapping if connections to other domains appear.
 - Regardless of mode, do not drop contract-critical anchors, prior baselines, or user-mandated references.
+- Treat `effective_reference_intake` as the machine-readable carry-forward registry for anchors, prior outputs, baselines, and unresolved gaps. Use `active_reference_context` to render and explain it, not to replace it.
 </step>
 
 <step name="check_existing">

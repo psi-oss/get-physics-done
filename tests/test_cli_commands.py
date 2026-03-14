@@ -318,6 +318,42 @@ review_summary:
         assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["active_reference_context"]
         assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
 
+    def test_new_milestone_surfaces_contract_and_effective_reference_context(self, gpd_project: Path) -> None:
+        (gpd_project / ".gpd" / "ROADMAP.md").write_text(
+            "# Roadmap\n\n## Milestone v1.1: Scaling Study\n",
+            encoding="utf-8",
+        )
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        (gpd_project / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        literature_dir = gpd_project / ".gpd" / "literature"
+        literature_dir.mkdir(parents=True)
+        (literature_dir / "benchmark-REVIEW.md").write_text(
+            "## Active Anchor Registry\n\n"
+            "| Anchor | Type | Why It Matters | Required Action | Downstream Use |\n"
+            "| ------ | ---- | -------------- | --------------- | -------------- |\n"
+            "| Benchmark Ref 2024 | benchmark | Published benchmark curve for the decisive observable | read/compare/cite | planning/execution |\n",
+            encoding="utf-8",
+        )
+        map_dir = gpd_project / ".gpd" / "research-map"
+        map_dir.mkdir(parents=True)
+        (map_dir / "CONCERNS.md").write_text(
+            "## Prior Outputs\n\n"
+            "- `.gpd/phases/01-test-phase/01-SUMMARY.md`\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["--raw", "init", "new-milestone"], catch_exceptions=False)
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+
+        assert payload["current_milestone"] == "v1.1"
+        assert payload["project_contract"]["references"][0]["id"] == "ref-benchmark"
+        assert "Benchmark Ref 2024" in payload["active_reference_context"]
+        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
+        assert ".gpd/research-map/CONCERNS.md" in payload["research_map_reference_files"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Phase commands
@@ -473,6 +509,9 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
+        assert "phase summaries or milestone digest" in payload["review_contract"]["required_evidence"]
+        assert "verification reports" in payload["review_contract"]["required_evidence"]
+        assert "bibliography audit" in payload["review_contract"]["required_evidence"]
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
 
     def test_review_contract_peer_review_uses_typed_registry_surface(self) -> None:
@@ -499,7 +538,13 @@ class TestReviewValidationCommands:
             "research_artifacts",
             "manuscript",
         ]
+        assert "existing manuscript" in payload["review_contract"]["required_evidence"]
+        assert "phase summaries or milestone digest" in payload["review_contract"]["required_evidence"]
+        assert "verification reports" in payload["review_contract"]["required_evidence"]
+        assert "bibliography audit" in payload["review_contract"]["required_evidence"]
         assert "artifact manifest" in payload["review_contract"]["required_evidence"]
+        assert "reproducibility manifest" in payload["review_contract"]["required_evidence"]
+        assert "stage review artifacts" in payload["review_contract"]["required_evidence"]
         assert payload["review_contract"]["stage_ids"] == [
             "reader",
             "literature",
@@ -535,8 +580,11 @@ class TestReviewValidationCommands:
         assert payload["review_contract"]["review_mode"] == "publication"
         assert ".gpd/paper/REFEREE_RESPONSE.md" in payload["review_contract"]["required_outputs"]
         assert ".gpd/AUTHOR-RESPONSE.md" in payload["review_contract"]["required_outputs"]
+        assert "existing manuscript" in payload["review_contract"]["required_evidence"]
+        assert "structured referee issues" in payload["review_contract"]["required_evidence"]
         assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
         assert "peer-review decision artifacts when available" in payload["review_contract"]["required_evidence"]
+        assert "revision verification evidence" in payload["review_contract"]["required_evidence"]
 
     def test_command_context_project_required_fails_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

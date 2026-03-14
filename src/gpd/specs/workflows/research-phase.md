@@ -25,7 +25,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 **Mode-aware behavior:**
 - `research_mode=explore`: Comprehensive research — survey all viable methods, include failed approaches from literature, 10+ papers.
 - `research_mode=exploit`: Focused research — direct methods only, 3-5 key papers, skip speculative approaches.
-- `research_mode=adaptive`: Start focused, expand if initial search reveals unexpected complexity or multiple competing methods.
+- `research_mode=adaptive`: Start broad enough to compare viable method families, then narrow only after prior decisive evidence or an explicit approach lock shows the method is stable.
 - `autonomy=babysit`: Present the `RESEARCH.md` draft for user review before treating the handoff as complete.
 - `autonomy=balanced/yolo`: Accept the researcher handoff automatically once `RESEARCH.md` exists and passes the artifact check.
 

@@ -419,6 +419,21 @@ class TestHelperDirs:
         assert dirs[0] == tmp_path / ".codex" / "todos"
         assert dirs[1] == home / ".codex" / "todos"
 
+    def test_todo_dirs_prefer_installed_runtime_when_higher_priority_runtime_is_uninstalled(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (tmp_path / ".claude").mkdir()
+        _mark_gpd_install(tmp_path / ".codex")
+
+        with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_todo_dirs(prefer_active=True)
+
+        assert dirs[0] == tmp_path / ".codex" / "todos"
+        assert dirs[1] == home / ".codex" / "todos"
+
 
 class TestDetectInstallScope:
     """Tests for local/global install-scope detection."""
@@ -534,6 +549,21 @@ class TestGPDInstallDirs:
         assert tmp_path / "gemini-custom" / "get-physics-done" in dirs
         assert tmp_path / "opencode-custom" / "get-physics-done" in dirs
 
+    def test_prefer_active_uses_installed_runtime_when_higher_priority_runtime_is_uninstalled(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        (tmp_path / ".claude").mkdir()
+        _mark_gpd_install(tmp_path / ".codex")
+
+        with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            dirs = get_gpd_install_dirs(prefer_active=True)
+
+        assert dirs[0] == tmp_path / ".codex" / "get-physics-done"
+        assert dirs[1] == home / ".codex" / "get-physics-done"
+
 
 class TestUpdateCacheFiles:
     """Tests for get_update_cache_files."""
@@ -554,6 +584,18 @@ class TestUpdateCacheFiles:
         workspace.mkdir()
         (workspace / ".codex" / "cache").mkdir(parents=True)
         (home / ".claude" / "cache").mkdir(parents=True)
+
+        files = get_update_cache_files(cwd=workspace, home=home, preferred_runtime=RUNTIME_UNKNOWN)
+
+        assert files[0] == workspace / ".codex" / "cache" / "gpd-update-check.json"
+        assert files[1] == home / ".codex" / "cache" / "gpd-update-check.json"
+
+    def test_unknown_preferred_runtime_uses_installed_runtime_for_gpd_surfaces(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        home = tmp_path / "home"
+        workspace.mkdir()
+        (workspace / ".claude" / "cache").mkdir(parents=True)
+        _mark_gpd_install(workspace / ".codex")
 
         files = get_update_cache_files(cwd=workspace, home=home, preferred_runtime=RUNTIME_UNKNOWN)
 

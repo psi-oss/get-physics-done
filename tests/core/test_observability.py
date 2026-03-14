@@ -206,7 +206,7 @@ def test_pre_fanout_gate_records_skeptical_review_state(tmp_path: Path, monkeypa
     assert snapshot.disconfirming_observation == "Direct benchmark reproduction misses the published tolerance band."
 
 
-def test_gate_clear_clears_pre_fanout_and_skeptical_flags(tmp_path: Path, monkeypatch) -> None:
+def test_gate_clear_requires_matching_unlock_for_pre_fanout_state(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
@@ -231,10 +231,6 @@ def test_gate_clear_clears_pre_fanout_and_skeptical_flags(tmp_path: Path, monkey
                 "checkpoint_reason": "pre_fanout",
                 "pre_fanout_review_pending": True,
                 "waiting_for_review": True,
-                "skeptical_requestioning_required": True,
-                "skeptical_requestioning_summary": "Need to re-check anchor coverage.",
-                "weakest_unchecked_anchor": "Ref-01",
-                "disconfirming_observation": "Benchmark mismatch",
                 "downstream_locked": True,
             }
         },
@@ -254,12 +250,29 @@ def test_gate_clear_clears_pre_fanout_and_skeptical_flags(tmp_path: Path, monkey
 
     snapshot = get_current_execution(project)
     assert snapshot is not None
+    assert snapshot.waiting_for_review is True
+    assert snapshot.pre_fanout_review_pending is True
+    assert snapshot.pre_fanout_review_cleared is True
+    assert snapshot.downstream_locked is True
+
+    observe_event(
+        project,
+        category="execution",
+        name="fanout",
+        action="unlock",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="03",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "pre_fanout"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
     assert snapshot.waiting_for_review is False
     assert snapshot.pre_fanout_review_pending is False
-    assert snapshot.skeptical_requestioning_required is False
-    assert snapshot.skeptical_requestioning_summary is None
-    assert snapshot.weakest_unchecked_anchor is None
-    assert snapshot.disconfirming_observation is None
+    assert snapshot.pre_fanout_review_cleared is False
     assert snapshot.downstream_locked is False
 
 
@@ -293,6 +306,156 @@ def test_fanout_lock_normalizes_to_pre_fanout_review_stop(tmp_path: Path, monkey
     assert snapshot.review_required is True
     assert snapshot.downstream_locked is True
     assert snapshot.segment_status == "waiting_review"
+
+
+def test_fanout_unlock_does_not_clear_pre_fanout_review_without_gate_clear(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="06",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "pre_fanout", "pre_fanout_review_pending": True, "downstream_locked": True}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="fanout",
+        action="unlock",
+        status="ok",
+        command="execute-phase",
+        phase="06",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "pre_fanout"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.pre_fanout_review_pending is True
+    assert snapshot.pre_fanout_review_cleared is False
+    assert snapshot.waiting_for_review is True
+    assert snapshot.downstream_locked is False
+    assert snapshot.checkpoint_reason == "pre_fanout"
+
+
+def test_unrelated_gate_clear_preserves_pre_fanout_and_skeptical_state(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="07",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "first_result", "first_result_gate_pending": True, "downstream_locked": True}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="07",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "skeptical_requestioning_required": True,
+                "skeptical_requestioning_summary": "Need decisive anchor evidence before fanout.",
+                "weakest_unchecked_anchor": "Benchmark table",
+                "downstream_locked": True,
+            }
+        },
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="clear",
+        status="ok",
+        command="execute-phase",
+        phase="07",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "first_result"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.first_result_gate_pending is False
+    assert snapshot.pre_fanout_review_pending is True
+    assert snapshot.skeptical_requestioning_required is True
+    assert snapshot.skeptical_requestioning_summary == "Need decisive anchor evidence before fanout."
+    assert snapshot.downstream_locked is True
+    assert snapshot.waiting_for_review is True
+    assert snapshot.checkpoint_reason == "pre_fanout"
+
+
+def test_gate_clear_without_explicit_target_leaves_first_result_gate_pending(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="08",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"checkpoint_reason": "first_result", "first_result_gate_pending": True}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="clear",
+        status="ok",
+        command="execute-phase",
+        phase="08",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.first_result_gate_pending is True
+    assert snapshot.waiting_for_review is True
+    assert snapshot.checkpoint_reason == "first_result"
 
 
 def test_skeptical_review_without_explicit_reason_normalizes_checkpoint_reason(tmp_path: Path, monkeypatch) -> None:

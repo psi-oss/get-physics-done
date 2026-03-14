@@ -53,15 +53,15 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
+Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `contract_intake`, `effective_reference_intake`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause after each verification round for user review. Present findings and wait for confirmation before writing `VERIFICATION.md`.
 - `autonomy=balanced` (default): Run the full verification pipeline. Pause only if verification reveals critical issues that require user judgment or claim-level decisions.
 - `autonomy=yolo`: Run verification but skip optional cross-checks and literature comparison. Do NOT skip contract-critical anchors, decisive benchmarks, or user-mandated references.
 - `research_mode=explore`: Thorough verification — run all check types, compare against literature, verify intermediate steps. More spawned verifier agents.
-- `research_mode=exploit`: Focused verification — run priority checks only, verify final results. Minimal agent spawning.
-- `research_mode=adaptive`: Start with exploit-level checks, escalate to explore if any check fails.
+- `research_mode=exploit`: Keep the full contract-critical floor, but narrow optional breadth around the already-validated method family. Favor decisive comparisons over extra exploratory audits.
+- `research_mode=adaptive`: Keep the same contract-critical floor at all times. Start with explore-style skepticism until prior decisive evidence or an explicit approach lock exists, then narrow only the optional breadth that no longer serves the locked method.
 
 **If `phase_found` is false:**
 
@@ -81,6 +81,7 @@ Exit.
 Use `active_reference_context` from init JSON as a mandatory input to verification.
 
 - If it names a benchmark, prior artifact, or must-read reference, verification must explicitly check it or report why it could not.
+- Treat `effective_reference_intake` as the structured source of must-read refs, prior outputs, baselines, user anchors, and context gaps. `active_reference_context` is the readable rendering of that ledger, not its substitute.
 - Treat `reference_artifacts_content` as supporting evidence for what comparisons remain decisive.
 - Background literature may be reduced by mode; anchor checks may not.
 </step>
@@ -174,7 +175,8 @@ Parse for:
 5. **Forbidden proxies** - Outputs that would look like progress but do not establish success
 6. **Suggested contract checks** - Decisive checks the verifier thinks should exist if the contract is incomplete
 
-Focus on VERIFIABLE RESEARCH OUTCOMES, not implementation details. Use contract IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) as canonical names throughout the verification file.
+Focus on VERIFIABLE RESEARCH OUTCOMES the researcher can recognize in the phase promise, not implementation details. Use contract IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) as canonical names throughout the verification file.
+If a contract item is only meaningful as an internal process milestone, do not make it a researcher-facing check; map it to the user-visible claim or deliverable it was supposed to establish, or drop it from validation.
 
 For each contract-backed check, create a validation record that includes **both qualitative expectations and a concrete computational test:**
 
@@ -186,9 +188,10 @@ For each contract-backed check, create a validation record that includes **both 
 
 Rules:
 
-- If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`.
+- If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved.
 - If a forbidden proxy exists, create an explicit rejection check rather than assuming silence means success.
 - If the contract lacks an obvious decisive check, create a `suggested_contract_check` entry with a short rationale instead of silently dropping the concern.
+- Only create `suggested_contract_check` entries for obvious decisive gaps on user-visible targets, not for paperwork preferences or generic workflow niceties.
 
 **Examples with computational verification:**
 
@@ -212,7 +215,7 @@ Rules:
   -> Expected: "G(k, omega) should reduce to 1/(omega - epsilon_k + i\*eta) when interaction V -> 0."
   -> Computation: "I will take V=0 in the expression from the artifact, simplify, and verify it equals the free-particle propagator. Then I will evaluate both at k=pi/2, omega=1.0 and compare numerically."
 
-Skip internal/non-observable items (code refactors, file reorganization, etc.).
+Skip internal/non-observable items (code refactors, file reorganization, checklist completion, etc.).
 </step>
 
 <step name="minimum_verification_floor">
@@ -279,6 +282,7 @@ If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase`
 If no existing VERIFICATION.md exists, create a new one from scratch.
 
 Build check list from extracted contract-backed checks, including computational test specifications.
+Checks with non-empty `comparison_kind` are decisive and must end with either a recorded `comparison_verdict` or a recorded gap before the file can finish.
 
 If the PLAN has a `contract`, every check in this file must carry the relevant `subject_kind`, `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_ids`, and `forbidden_proxy_id` when applicable.
 
@@ -1047,6 +1051,7 @@ Default to **major** if unclear. Researcher can correct if needed.
 <success_criteria>
 
 - [ ] Verification file created with checks sourced from the PLAN `contract` first, then SUMMARY evidence maps, including computational test specifications
+- [ ] Checks stay grounded in user-visible contract targets rather than internal process markers
 - [ ] **Minimum verification floor met**: dimensional analysis + limiting case + numerical spot-check with code execution
 - [ ] **VERIFICATION.md contains at least one code output block** (actual execution result, not just text analysis)
 - [ ] **Pre-computation performed** on each check before presenting to researcher
@@ -1061,6 +1066,7 @@ Default to **major** if unclear. Researcher can correct if needed.
 - [ ] Committed on completion
 - [ ] Forbidden proxies explicitly checked and rejected or escalated
 - [ ] Decisive comparison outcomes recorded as `comparison_verdicts` when applicable
+- [ ] Parent claims / acceptance tests do not pass while decisive comparisons remain unresolved
 - [ ] Missing decisive checks recorded as `suggested_contract_checks`
 - [ ] Cross-phase uncertainty audit performed (or N/A noted for Phase 1)
 - [ ] Catastrophic cancellation check for subtracted inherited quantities

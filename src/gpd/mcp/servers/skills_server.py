@@ -1,7 +1,9 @@
-"""MCP server for GPD skill discovery and routing.
+"""MCP server for the canonical GPD skill index.
 
-Reads skill definitions from the shared GPD registry and provides discovery,
-content retrieval, auto-routing, and prompt injection support.
+Reads shared skill definitions from the GPD registry and provides discovery,
+content retrieval, auto-routing, and prompt injection support. Runtime
+adapters may project different installed or discoverable surfaces, but they
+all derive from this shared index.
 
 Usage:
     python -m gpd.mcp.servers.skills_server
@@ -26,8 +28,7 @@ mcp = FastMCP("gpd-skills")
 
 
 def _load_skill_index() -> list[content_registry.SkillDef]:
-    """Load available skills from the canonical commands/agents registry.
-    """
+    """Load the canonical registry/MCP skill index from shared commands and agents."""
     return [content_registry.get_skill(name) for name in content_registry.list_skills()]
 
 
@@ -55,7 +56,7 @@ def _skill_index_label(skill: content_registry.SkillDef) -> str:
 
 
 def _resolve_skill_content(content: str) -> str:
-    """Resolve runtime path placeholders to the local package paths."""
+    """Resolve shared path placeholders to local package paths for returned content."""
     specs_path = content_registry.SPECS_DIR.resolve().as_posix()
     agents_path = content_registry.AGENTS_DIR.resolve().as_posix()
     return content.replace("{GPD_INSTALL_DIR}", specs_path).replace("{GPD_AGENTS_DIR}", agents_path)
@@ -63,7 +64,7 @@ def _resolve_skill_content(content: str) -> str:
 
 @mcp.tool()
 def list_skills(category: str | None = None) -> dict:
-    """List available GPD skills with optional category filter.
+    """List canonical GPD skills with optional category filter.
 
     Skills are organized by category: execution, planning, verification,
     debugging, research, paper, analysis, diagnostics, management, etc.
@@ -90,7 +91,7 @@ def list_skills(category: str | None = None) -> dict:
 
 @mcp.tool()
 def get_skill(name: str) -> dict:
-    """Get the full content of a specific skill definition.
+    """Get the full content of a canonical skill definition.
 
     Returns the skill prompt and metadata for injection into agent context.
 
@@ -215,7 +216,7 @@ def route_skill(task_description: str) -> dict:
 
 @mcp.tool()
 def get_skill_index() -> dict:
-    """Return a formatted skill index for actor prompt injection.
+    """Return a formatted canonical skill index for actor prompt injection.
 
     Returns a compact summary suitable for injecting into LLM context
     to make it aware of available GPD capabilities.

@@ -425,6 +425,31 @@ def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> No
     assert "Pre-fanout review due for 05-03" in stderr.getvalue()
 
 
+def test_emit_execution_notification_prefers_review_over_resume_for_bounded_gate_state(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "05",
+            "plan": "03",
+            "segment_id": "seg-9",
+            "segment_status": "paused",
+            "resume_file": ".gpd/phases/05/.continue-here.md",
+            "checkpoint_reason": "pre_fanout",
+            "pre_fanout_review_pending": True,
+            "downstream_locked": True,
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    assert "Pre-fanout review due for 05-03" in stderr.getvalue()
+    assert "Resume ready" not in stderr.getvalue()
+
+
 def test_emit_execution_notification_for_skeptical_review_uses_anchor_focus(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -450,6 +475,29 @@ def test_emit_execution_notification_for_skeptical_review_uses_anchor_focus(tmp_
     output = stderr.getvalue()
     assert "Skeptical pre-fanout review due for 05-04" in output
     assert "Direct observable benchmark" in output
+
+
+def test_emit_execution_notification_keeps_pre_fanout_review_until_clear_even_if_unlocked(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "05",
+            "plan": "05",
+            "segment_id": "seg-11",
+            "segment_status": "waiting_review",
+            "checkpoint_reason": "pre_fanout",
+            "pre_fanout_review_pending": True,
+            "downstream_locked": False,
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    assert "Pre-fanout review due for 05-05" in stderr.getvalue()
 
 
 def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Path) -> None:

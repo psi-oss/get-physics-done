@@ -28,6 +28,7 @@ This single template covers all summary depths. The `depth` field in frontmatter
 Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `depth`, `provides`, `completed`. All other fields are optional and should be populated as relevant.
 
 **Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts`. `contract_results` is the authoritative machine-readable outcome ledger.
+Keep this ledger user-visible: record what claim was established, what artifact exists, and what decisive comparison passed or failed. Do not use it to log administrative progress such as "ran verifier" or "completed task."
 
 ```markdown
 ---
@@ -95,7 +96,7 @@ contract_results (optional):
   claims:
     claim-id:
       status: passed|partial|failed|blocked|not_attempted
-      summary: "[what was actually established]"
+      summary: "[what was actually established in user-visible terms]"
       linked_ids: [deliverable-id, acceptance-test-id, reference-id]
       evidence:
         - verifier: gpd-verifier
@@ -110,19 +111,19 @@ contract_results (optional):
     deliverable-id:
       status: passed|partial|failed|blocked|not_attempted
       path: path/to/artifact
-      summary: "[what artifact exists]"
+      summary: "[what artifact exists and why it matters]"
       linked_ids: [claim-id, acceptance-test-id]
   acceptance_tests:
     acceptance-test-id:
       status: passed|partial|failed|blocked|not_attempted
-      summary: "[what test actually happened]"
+      summary: "[what decisive test actually happened and what it showed]"
       linked_ids: [claim-id, deliverable-id, reference-id]
   references:
     reference-id:
       status: completed|missing|not_applicable
       completed_actions: [read, use, compare, cite]
       missing_actions: []
-      summary: "[how the anchor was surfaced]"
+      summary: "[how the anchor was surfaced for a visible claim]"
   forbidden_proxies:
     forbidden-proxy-id:
       status: rejected|violated|unresolved|not_applicable
@@ -134,6 +135,7 @@ contract_results (optional):
     disconfirming_observations: []
 
 # Optional decisive comparison verdict ledger
+# Required whenever a contract-backed claim / deliverable / acceptance test depends on a decisive comparison.
 comparison_verdicts (optional):
   - subject_id: claim-id
     subject_kind: claim|deliverable|acceptance_test|reference|artifact
@@ -144,6 +146,8 @@ comparison_verdicts (optional):
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
     recommended_action: "[what to do next]"
+
+[When a decisive comparison is required by the contract, omitting the corresponding `comparison_verdicts` entry makes the summary incomplete.]
 
 # Metrics
 duration: Xmin

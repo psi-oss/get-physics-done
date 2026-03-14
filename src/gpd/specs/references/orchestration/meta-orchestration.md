@@ -177,7 +177,7 @@ On verification failure:
 
 ## 4. Adaptive Transition Detection
 
-For `research_mode: adaptive`, the orchestrator needs to detect when to switch from explore to exploit.
+For `research_mode: adaptive`, the orchestrator needs to detect when to narrow from explore-style behavior toward exploit-style behavior.
 
 ### Transition Criteria
 
@@ -194,8 +194,8 @@ The explore-to-exploit transition fires when ALL of the following are met:
 After each phase completion:
   1. CHECK transition criteria
   2. IF all met:
-     - Set internal flag: explore_phase_complete = true
-     - Log transition: "Adaptive mode: switching from explore to exploit at phase N"
+     - Keep `research_mode=adaptive`; record that the approach is now locked by evidence
+     - Log transition: "Adaptive mode: narrowing toward exploit behavior at phase N"
      - From next phase onward:
        - Planner uses exploit-mode planning (single focused plan)
        - Researcher uses exploit-mode search (narrow)

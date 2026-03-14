@@ -2,7 +2,7 @@
 bundle_id: stat-mech-simulation
 bundle_version: 1
 title: Statistical Mechanics Simulation
-summary: Benchmark-driven simulation work with thermalization, autocorrelation, finite-size scaling, and universality checks.
+summary: Benchmark-anchored simulation work with thermalization, autocorrelation, finite-size scaling, and universality checks.
 selection_tags:
   - "framework:statistical-mechanics"
   - "work-mode:numerical-simulation"
@@ -13,19 +13,18 @@ supports:
   - verification
 trigger:
   any_terms:
-    - statistical mechanics
     - monte carlo
     - finite-size scaling
     - binder cumulant
     - autocorrelation
     - thermalization
     - universality class
-    - critical exponent
   any_tags:
-    - deliverable-kind:dataset
-    - deliverable-kind:figure
     - acceptance-kind:benchmark
-  min_score: 4
+    - reference-role:benchmark
+  min_term_matches: 2
+  min_tag_matches: 1
+  min_score: 10
 assets:
   project_types:
     - path: templates/project-types/stat-mech-simulation.md

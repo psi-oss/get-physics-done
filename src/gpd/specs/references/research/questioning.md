@@ -43,7 +43,7 @@ A vague PROJECT.md forces every downstream phase to guess. The cost compounds --
 
 **Surface anchors early.** Ask what references, prior outputs, benchmarks, datasets, or known results should remain visible if the project goes well. If none are known yet, record that explicitly instead of inventing one.
 
-**Pressure-test the first story.** Treat the first framing as a working hypothesis, not as truth. After 1-2 productive exchanges, restate the current picture in one sentence and ask one question that could narrow, overturn, or falsify it.
+**Pressure-test the first story.** Treat the first framing as a working hypothesis, not as truth. Once you have a plausible framing on the table, restate the current picture in one sentence and ask one question that could narrow, overturn, or falsify it.
 
 **Separate decisive outputs from proxies.** Ask what exact output, figure, table, proof obligation, or benchmark would count as success, and what might look like progress but should not count as success.
 
@@ -173,7 +173,7 @@ Then offer to proceed:
 
 If "Keep exploring" -- ask what they want to add or identify gaps in the physical picture and probe naturally.
 
-Loop until "Create PROJECT.md" selected.
+Do not count turns mechanically. Keep exploring while the conversation is materially sharpening the scoping contract, and re-offer the gate when the picture becomes clearer.
 
 </decision_gate>
 

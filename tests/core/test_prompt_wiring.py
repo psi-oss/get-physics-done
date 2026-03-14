@@ -553,7 +553,9 @@ def test_new_project_requires_scoping_contract_across_setup_modes() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
+    assert "Auto mode compresses intake; it does not override autonomy review gates after the scoping contract is approved" in workflow_text
     assert "Require one explicit scoping approval gate before requirements and roadmap generation" in workflow_text
+    assert "Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=babysit`, present the draft roadmap before commit" in workflow_text
     assert "Minimal mode is still allowed to be lean, but it is not allowed to be contract-free." in workflow_text
     assert "Do NOT skip the initial scoping-contract approval gate." in workflow_text
     assert "scoping contract with decisive outputs, anchors, and explicit approval" in command_text
@@ -567,6 +569,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     assert "gpd --raw validate project-contract /tmp/gpd-project-contract.json" in workflow_text
     assert "Read PROJECT.md and `.gpd/state.json` and extract" in workflow_text
     assert "Derive phases from requirements AND the approved project contract" in workflow_text
+    assert "If auto mode and `autonomy` is not `babysit`" in workflow_text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in command_text
 
 
@@ -575,8 +578,10 @@ def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> Non
 
     assert "Surface anchors early." in guide_text
     assert "Pressure-test the first story." in guide_text
+    assert "Once you have a plausible framing on the table" in guide_text
     assert "Ground-truth anchors -- what reality should constrain this:" in guide_text
     assert "Disconfirmation and failure -- how the current framing could be wrong:" in guide_text
+    assert "Do not count turns mechanically." in guide_text
     assert "What would be a misleading proxy for success" in guide_text
 
 
@@ -620,9 +625,11 @@ def test_planning_and_phase_templates_surface_active_reference_context() -> None
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
+    assert "Planning requires an approved scoping contract." in planner_prompt
     assert "**Project Contract:** {project_contract}" in planner_prompt
     assert "**Active References:** {active_reference_context}" in planner_prompt
     assert "@path/to/reference-or-benchmark-anchor.md" in phase_prompt
+    assert "Planning requires an approved scoping contract in `.gpd/state.json`" in workflow_text
     assert "**Project Contract:** {project_contract}" in workflow_text
     assert "**Active References:** {active_reference_context}" in workflow_text
     assert "**Anchor coverage:** Required references, baselines, and prior outputs are surfaced" in workflow_text
@@ -665,6 +672,9 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "**Contract Coverage:**" in roadmap_template
     assert "Contract coverage" in roadmapper_agent
     assert "forbidden proxies a phase must carry" in roadmapper_agent
+    assert "Phase counts are heuristics, not quotas" in roadmapper_agent
+    assert "Do not pad the roadmap with speculative phases just to make it look complete." in roadmapper_agent
+    assert "return `## ROADMAP BLOCKED`" in roadmapper_agent
     assert (
         "Treat `context_intake.must_read_refs`, `must_include_prior_outputs`, "
         "`user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` "
@@ -674,6 +684,16 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
     assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
+
+
+def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomposition() -> None:
+    workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+
+    assert "At least one major phase, stage, or clearly defined first investigation chunk" in workflow_text
+    assert "Use the coarsest decomposition the approved contract actually supports." in workflow_text
+    assert "Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them." in workflow_text
+    assert "If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`" in planner_prompt
 
 
 def test_reference_workflows_require_anchor_registry_propagation() -> None:
@@ -723,14 +743,19 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "contract_results" in summary_template
     assert "comparison_verdicts" in summary_template
     assert "plan_contract_ref" in summary_template
+    assert "Keep this ledger user-visible" in summary_template
+    assert "omitting the corresponding `comparison_verdicts` entry makes the summary incomplete" in summary_template
     assert "verification_inputs" not in summary_template
     assert "contract_results" in verification_template
     assert "comparison_verdicts" in verification_template
+    assert "Record only user-visible contract targets here" in verification_template
+    assert "absence of a verdict is itself a gap" in verification_template
     assert "claim_id" in research_verification
     assert "acceptance_test_id" in research_verification
     assert "`contract_results` is authoritative." in execute_plan
     assert "Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission." in execute_plan
     assert "contract_results" in verify_phase
+    assert "Verification targets must stay user-visible" in verify_phase
     assert "must_haves" not in verify_phase
     assert "comparison_verdicts" in compare_workflow
     assert "subject_role" in comparison_template
@@ -849,6 +874,44 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "Do NOT change conventions mid-project without an explicit checkpoint" in planner
     assert "Required first-result, anchor, and pre-fanout gates still apply even in yolo mode" in executor
     assert "live machine source of truth is the verifier registry" in verifier_agent
+
+
+def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
+    research_phase = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
+    verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
+    set_profile = (WORKFLOWS_DIR / "set-profile.md").read_text(encoding="utf-8")
+    settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    research_modes = (REFERENCES_DIR / "research" / "research-modes.md").read_text(encoding="utf-8")
+    meta_orchestration = (REFERENCES_DIR / "orchestration" / "meta-orchestration.md").read_text(encoding="utf-8")
+
+    expected_anchor = "prior decisive evidence or an explicit approach lock"
+
+    assert expected_anchor in research_phase
+    assert expected_anchor in research_modes
+    assert expected_anchor in meta_orchestration
+    assert "anchors or decisive evidence make one method family clearly preferable" in new_project
+    assert "prior milestones already provide decisive evidence or an explicit approach lock" in new_milestone
+    assert "same contract-critical floor at all times" in verify_work
+    assert "does NOT rewrite `execution.review_cadence`" in set_profile
+    assert "verify_between_waves" not in set_profile
+    assert "independent of `model_profile` and `research_mode`" in settings
+    assert "There is no separate `adaptive_transition` block" in research_modes
+
+
+def test_verification_and_publication_prompts_keep_decisive_contract_targets_reader_visible() -> None:
+    verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+
+    assert "researcher can recognize in the phase promise" in verify_work
+    assert "Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved." in verify_work
+    assert "Missing generic `verification_status` / `confidence` tags alone are not blockers." in write_paper
+    assert "Only require the manuscript to surface decisive comparisons for claims it actually makes." in write_paper
+    assert "Review-support artifacts are scaffolding, not substitutes for contract-backed evidence." in peer_review
+    assert "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap" in respond
 
 
 def test_repo_graph_prompt_scope_counts_match_repo_inventory() -> None:

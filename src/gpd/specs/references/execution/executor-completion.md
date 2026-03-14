@@ -138,6 +138,8 @@ Or: "None --- plan executed exactly as written."
 
 ## State Updates
 
+Before recording completion, verify that no live first-result, skeptical, or pre-fanout gate remains in the bounded execution state. A pre-fanout review is not retired until both the matching gate clear and the matching fanout unlock have been recorded.
+
 After SUMMARY.md, update STATE.md using gpd CLI:
 
 ```bash

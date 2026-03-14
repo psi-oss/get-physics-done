@@ -124,6 +124,7 @@ class CurrentExecutionState(BaseModel):
     first_result_ready: bool = False
     first_result_gate_pending: bool = False
     pre_fanout_review_pending: bool = False
+    pre_fanout_review_cleared: bool = False
     skeptical_requestioning_required: bool = False
     downstream_locked: bool = False
     skeptical_requestioning_summary: str | None = None
@@ -321,6 +322,56 @@ def _normalized_checkpoint_reason(value: object) -> str | None:
     return reason.strip().replace("-", "_")
 
 
+_EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
+
+
+def _review_clear_targets(execution: dict[str, object]) -> set[str]:
+    targets: set[str] = set()
+    checkpoint_reason = _normalized_checkpoint_reason(execution.get("checkpoint_reason"))
+    if checkpoint_reason in _EXECUTION_REVIEW_REASONS:
+        targets.add(checkpoint_reason)
+    if execution.get("first_result_gate_pending") is False:
+        targets.add("first_result")
+    if execution.get("pre_fanout_review_pending") is False:
+        targets.add("pre_fanout")
+    if execution.get("skeptical_requestioning_required") is False:
+        targets.add("skeptical_requestioning")
+    return targets
+
+
+def _review_gate_pending(current: dict[str, object]) -> bool:
+    return bool(
+        current.get("first_result_gate_pending")
+        or current.get("pre_fanout_review_pending")
+        or current.get("skeptical_requestioning_required")
+    )
+
+
+def _clear_skeptical_review(current: dict[str, object]) -> None:
+    current["skeptical_requestioning_required"] = False
+    current["skeptical_requestioning_summary"] = None
+    current["weakest_unchecked_anchor"] = None
+    current["disconfirming_observation"] = None
+
+
+def _refresh_checkpoint_reason(current: dict[str, object]) -> None:
+    active_reasons: list[str] = []
+    if current.get("first_result_gate_pending"):
+        active_reasons.append("first_result")
+    if current.get("pre_fanout_review_pending"):
+        active_reasons.append("pre_fanout")
+    if current.get("skeptical_requestioning_required"):
+        active_reasons.append("skeptical_requestioning")
+
+    if active_reasons:
+        if current.get("checkpoint_reason") not in active_reasons:
+            current["checkpoint_reason"] = active_reasons[0]
+        return
+
+    if current.get("checkpoint_reason") in _EXECUTION_REVIEW_REASONS:
+        current["checkpoint_reason"] = None
+
+
 def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: ObservabilityEvent, execution: dict[str, object]) -> bool:
     if _bool_or_none(execution.get("preserve_current")):
         return False
@@ -329,7 +380,14 @@ def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: Obser
     if snapshot.segment_status in waiting_statuses:
         return False
 
-    if snapshot.waiting_for_review or snapshot.first_result_gate_pending or snapshot.blocked_reason:
+    if (
+        snapshot.waiting_for_review
+        or snapshot.first_result_gate_pending
+        or snapshot.pre_fanout_review_pending
+        or snapshot.skeptical_requestioning_required
+        or snapshot.downstream_locked
+        or snapshot.blocked_reason
+    ):
         return False
 
     return payload.action in {"finish", "stop"} or snapshot.segment_status == "completed"
@@ -344,6 +402,7 @@ def _updated_execution_state(
 
     execution = _execution_data(payload.data)
     current = existing.model_dump(mode="json") if existing is not None else {}
+    prior_downstream_locked = bool(current.get("downstream_locked"))
 
     current["session_id"] = payload.session_id
     current["command"] = payload.command
@@ -407,6 +466,8 @@ def _updated_execution_state(
         value = _bool_or_none(execution.get(key))
         if value is not None:
             current[key] = value
+    if execution.get("pre_fanout_review_pending") is True:
+        current["pre_fanout_review_cleared"] = False
 
     if payload.name == "segment" and payload.action == "start":
         current.setdefault("segment_started_at", payload.timestamp)
@@ -425,6 +486,7 @@ def _updated_execution_state(
             current["first_result_ready"] = True
         if current.get("checkpoint_reason") in {"pre_fanout", "pre-fanout"}:
             current["pre_fanout_review_pending"] = True
+            current["pre_fanout_review_cleared"] = False
         if (
             "skeptical_requestioning_required" not in execution
             and (
@@ -437,36 +499,43 @@ def _updated_execution_state(
         if "downstream_locked" not in execution:
             current["downstream_locked"] = True
     elif payload.name == "gate" and payload.action in {"clear", "override"}:
-        current["waiting_for_review"] = False
-        current["review_required"] = False
-        current["first_result_gate_pending"] = False
-        current["pre_fanout_review_pending"] = False
-        current["skeptical_requestioning_required"] = False
-        current["skeptical_requestioning_summary"] = None
-        current["weakest_unchecked_anchor"] = None
-        current["disconfirming_observation"] = None
-        current["waiting_reason"] = None
-        if payload.action == "clear":
-            current["downstream_locked"] = False
-        if current.get("segment_status") == "waiting_review":
-            current["segment_status"] = "active"
+        clear_targets = _review_clear_targets(execution)
+        if "first_result" in clear_targets:
+            current["first_result_gate_pending"] = False
+        if "skeptical_requestioning" in clear_targets:
+            _clear_skeptical_review(current)
+        if "pre_fanout" in clear_targets:
+            current["pre_fanout_review_cleared"] = True
+            current["downstream_locked"] = prior_downstream_locked
+            if current.get("downstream_locked"):
+                current["pre_fanout_review_pending"] = True
+            else:
+                current["pre_fanout_review_pending"] = False
+                current["pre_fanout_review_cleared"] = False
+        if clear_targets:
+            current["waiting_reason"] = None
+            if "pre_fanout" not in clear_targets and not _review_gate_pending(current):
+                current["downstream_locked"] = False
+            if current.get("segment_status") == "waiting_review" and not _review_gate_pending(current):
+                current["segment_status"] = "active"
 
     if payload.name == "fanout" and payload.action == "lock":
         current["downstream_locked"] = True
         current.setdefault("checkpoint_reason", "pre_fanout")
         current["pre_fanout_review_pending"] = True
+        current["pre_fanout_review_cleared"] = False
         current["waiting_for_review"] = True
         current["review_required"] = True
         if current.get("segment_status") in {None, "", "active"}:
             current["segment_status"] = "waiting_review"
     elif payload.name == "fanout" and payload.action == "unlock":
         current["downstream_locked"] = False
-        current["pre_fanout_review_pending"] = False
-        if not current.get("first_result_gate_pending") and not current.get("skeptical_requestioning_required"):
+        if current.get("pre_fanout_review_pending") and current.get("pre_fanout_review_cleared"):
+            current["pre_fanout_review_pending"] = False
+            current["pre_fanout_review_cleared"] = False
+        if not _review_gate_pending(current):
             current["waiting_for_review"] = False
             current["review_required"] = False
-            if current.get("checkpoint_reason") == "pre_fanout":
-                current["checkpoint_reason"] = None
             if current.get("segment_status") == "waiting_review":
                 current["segment_status"] = "active"
 
@@ -474,17 +543,20 @@ def _updated_execution_state(
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
 
-    if current.get("first_result_gate_pending") and not current.get("checkpoint_reason"):
-        current["checkpoint_reason"] = "first_result"
-    if current.get("pre_fanout_review_pending") and not current.get("checkpoint_reason"):
-        current["checkpoint_reason"] = "pre_fanout"
-    if current.get("skeptical_requestioning_required") and not current.get("checkpoint_reason"):
-        current["checkpoint_reason"] = "skeptical_requestioning"
+    _refresh_checkpoint_reason(current)
     if current.get("skeptical_requestioning_required") and not current.get("waiting_for_review"):
         current["waiting_for_review"] = True
         current["review_required"] = True
-    if current.get("pre_fanout_review_pending") and not current.get("downstream_locked"):
-        current["downstream_locked"] = True
+    if current.get("pre_fanout_review_pending") and current.get("pre_fanout_review_cleared") and not current.get("downstream_locked"):
+        current["pre_fanout_review_pending"] = False
+        current["pre_fanout_review_cleared"] = False
+        _refresh_checkpoint_reason(current)
+    if _review_gate_pending(current):
+        current["waiting_for_review"] = True
+        current["review_required"] = True
+    elif current.get("checkpoint_reason") in _EXECUTION_REVIEW_REASONS:
+        current["waiting_for_review"] = False
+        current["review_required"] = False
 
     if current.get("blocked_reason"):
         current["segment_status"] = "blocked"

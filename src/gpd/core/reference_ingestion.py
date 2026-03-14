@@ -16,16 +16,33 @@ __all__ = [
 ]
 
 _ALLOWED_ACTIONS = {"read", "use", "compare", "cite", "avoid"}
+_ACTION_ALIASES = {
+    "carry_forward": "use",
+    "consult": "read",
+    "cross_reference": "cite",
+    "inspect": "read",
+    "keep_visible": "use",
+    "preserve": "use",
+    "reference": "cite",
+    "reuse": "use",
+    "review": "read",
+}
 _ROLE_MAP = {
     "benchmark": "benchmark",
+    "benchmark target": "benchmark",
     "baseline": "benchmark",
+    "comparison target": "benchmark",
     "method": "method",
+    "methods": "method",
     "definition": "definition",
     "background": "background",
     "prior artifact": "must_consider",
+    "prior output": "must_consider",
+    "prior result": "must_consider",
     "prior_artifact": "must_consider",
     "prior-artifact": "must_consider",
     "artifact": "must_consider",
+    "required anchor": "must_consider",
     "user anchor": "must_consider",
     "must consider": "must_consider",
     "must_consider": "must_consider",
@@ -34,6 +51,7 @@ _KIND_MAP = {
     "paper": "paper",
     "dataset": "dataset",
     "prior artifact": "prior_artifact",
+    "prior output": "prior_artifact",
     "prior_artifact": "prior_artifact",
     "prior-artifact": "prior_artifact",
     "artifact": "prior_artifact",
@@ -41,7 +59,68 @@ _KIND_MAP = {
     "user anchor": "user_anchor",
     "user_anchor": "user_anchor",
 }
-_PATH_HINT_RE = re.compile(r"(?:^|[`\s])(?:\.gpd/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|tex|ipynb|py)(?:$|[`)\s])")
+_PATH_HINT_RE = re.compile(
+    r"(?P<path>(?:\.gpd/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
+)
+_ACTIVE_REFERENCE_REGISTRY_HEADINGS = (
+    "Active Anchor Registry",
+    "Active Reference Registry",
+    "Anchor Registry",
+    "Reference Registry",
+    "Active Anchors",
+    "Active References",
+)
+_OPEN_QUESTION_HEADINGS = (
+    "Open Questions",
+    "Open Reference Questions",
+    "Context Gaps",
+    "Outstanding Questions",
+)
+_BENCHMARK_HEADINGS = (
+    "Benchmarks and Comparison Targets",
+    "Comparison Targets",
+    "Known Good Baselines",
+    "Baseline Targets",
+    "Benchmarks",
+)
+_PRIOR_OUTPUT_HEADINGS = (
+    "Prior Artifacts and Baselines",
+    "Prior Outputs and Baselines",
+    "Prior Outputs",
+    "Prior Artifacts",
+    "Carry-Forward Outputs",
+)
+_VALIDATION_COMPARISON_HEADINGS = (
+    "Comparison with Literature",
+    "Comparison to Literature",
+    "Literature Comparison",
+    "External Comparison",
+)
+_DIRECT_INTAKE_SECTION_ALIASES = {
+    "must_read_refs": (
+        "Must-Read References",
+        "Must Read References",
+        "References To Read",
+        "Required References",
+    ),
+    "must_include_prior_outputs": _PRIOR_OUTPUT_HEADINGS,
+    "user_asserted_anchors": (
+        "User-Asserted Anchors",
+        "Required Anchors",
+        "Anchors To Preserve",
+    ),
+    "known_good_baselines": (
+        "Known-Good Baselines",
+        "Known Good Baselines",
+        "Baseline Targets",
+    ),
+    "context_gaps": _OPEN_QUESTION_HEADINGS,
+    "crucial_inputs": (
+        "Crucial Inputs",
+        "Critical Inputs",
+        "Required Inputs",
+    ),
+}
 
 
 @dataclass
@@ -117,18 +196,22 @@ def _clean_text(value: object) -> str:
     return text.strip()
 
 
+def _normalize_token(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", _clean_text(value).lower()).strip()
+
+
 def _normalize_role(value: str | None) -> str:
-    raw = _clean_text(value).lower()
+    raw = _normalize_token(value)
     if not raw:
         return "other"
-    return _ROLE_MAP.get(raw, _ROLE_MAP.get(raw.replace("/", " ").replace("-", " "), "other"))
+    return _ROLE_MAP.get(raw, "other")
 
 
 def _normalize_kind(value: str | None) -> str:
-    raw = _clean_text(value).lower()
+    raw = _normalize_token(value)
     if not raw:
         return "other"
-    return _KIND_MAP.get(raw, _KIND_MAP.get(raw.replace("/", " ").replace("-", " "), "other"))
+    return _KIND_MAP.get(raw, "other")
 
 
 def _normalize_actions(value: object) -> list[str]:
@@ -140,6 +223,7 @@ def _normalize_actions(value: object) -> list[str]:
     for token in tokens:
         normalized = token.replace(" ", "_").replace("-", "_").strip("_")
         normalized = normalized.replace("must_", "")
+        normalized = _ACTION_ALIASES.get(normalized, normalized)
         if normalized in _ALLOWED_ACTIONS and normalized not in result:
             result.append(normalized)
     return result
@@ -167,8 +251,15 @@ def _first_non_empty(mapping: dict[str, str], *keys: str) -> str:
 
 
 def _looks_like_path(value: str | None) -> bool:
+    return bool(_extract_paths(value))
+
+
+def _extract_paths(value: object) -> list[str]:
     text = _clean_text(value)
-    return bool(text and _PATH_HINT_RE.search(text))
+    paths: list[str] = []
+    for match in _PATH_HINT_RE.finditer(text):
+        _append_unique(paths, match.group("path"))
+    return paths
 
 
 def _slug(text: str) -> str:
@@ -185,13 +276,118 @@ def _reference_id(label: str, locator: str, prefix: str) -> str:
 
 
 def _extract_section(content: str, heading: str) -> str | None:
-    pattern = re.compile(rf"^##+\s+{re.escape(heading)}\s*$", re.MULTILINE)
-    match = pattern.search(content)
-    if not match:
-        return None
-    remainder = content[match.end() :]
-    next_heading = re.search(r"^##+\s+", remainder, re.MULTILINE)
-    return remainder[: next_heading.start()].strip() if next_heading else remainder.strip()
+    target = _normalize_token(heading)
+    for match in re.finditer(r"^(?P<marks>#{1,6})\s+(?P<title>[^\n]+?)\s*$", content, re.MULTILINE):
+        if _normalize_token(match.group("title")) != target:
+            continue
+        remainder = content[match.end() :]
+        next_heading = re.search(r"^#{1,6}\s+", remainder, re.MULTILINE)
+        return remainder[: next_heading.start()].strip() if next_heading else remainder.strip()
+    return None
+
+
+def _extract_first_section(content: str, headings: tuple[str, ...]) -> str | None:
+    for heading in headings:
+        section = _extract_section(content, heading)
+        if section:
+            return section
+    return None
+
+
+def _canonical_mapping(mapping: dict[str, str]) -> dict[str, str]:
+    return {_normalize_token(key): value for key, value in mapping.items()}
+
+
+def _mapping_value(mapping: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = _clean_text(mapping.get(_normalize_token(key)))
+        if value:
+            return value
+    return ""
+
+
+def _detail_mapping(details: object) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    freeform: list[str] = []
+    if not isinstance(details, list):
+        return mapping
+    for detail in details:
+        detail_text = _clean_text(detail)
+        if not detail_text:
+            continue
+        if ":" not in detail_text:
+            freeform.append(detail_text)
+            continue
+        key, value = detail_text.split(":", 1)
+        canonical_key = _normalize_token(key)
+        cleaned_value = _clean_text(value)
+        if not canonical_key or not cleaned_value:
+            continue
+        if canonical_key in mapping:
+            if cleaned_value not in mapping[canonical_key]:
+                mapping[canonical_key] = f"{mapping[canonical_key]}; {cleaned_value}"
+        else:
+            mapping[canonical_key] = cleaned_value
+    if freeform:
+        mapping["freeform"] = "; ".join(freeform)
+    return mapping
+
+
+def _section_bullet_items(section: str) -> list[dict[str, object]]:
+    return [block for block in _parse_bullet_blocks(section) if _clean_text(block.get("title"))]
+
+
+def _append_paths(target: list[str], value: object) -> None:
+    for path in _extract_paths(value):
+        _append_unique(target, path)
+
+
+def _parse_reference_block(
+    block: dict[str, object],
+    *,
+    source_path: str,
+    prefix: str,
+) -> ArtifactReference:
+    detail_map = _detail_mapping(block.get("details"))
+    title = _clean_text(block.get("title"))
+    label = _mapping_value(detail_map, "anchor", "reference", "label", "title") or title
+    locator = _mapping_value(
+        detail_map,
+        "source / locator",
+        "locator",
+        "source",
+        "path",
+        "reference path",
+    )
+    if not locator and ":" in title:
+        head, tail = title.split(":", 1)
+        if _normalize_token(head) in {"anchor", "reference", "source", "locator"}:
+            label = _clean_text(tail)
+        elif _looks_like_path(head):
+            locator = _clean_text(head)
+            label = _clean_text(tail) or locator
+    why = _mapping_value(
+        detail_map,
+        "why it matters",
+        "what it constrains",
+        "description",
+        "notes",
+        "reason",
+    )
+    if not why:
+        why = _mapping_value(detail_map, "freeform")
+    return _reference_from_active_anchor(
+        anchor_id=_mapping_value(detail_map, "anchor id", "reference id", "id"),
+        label=label,
+        locator=locator or label,
+        kind=_mapping_value(detail_map, "kind", "artifact kind"),
+        role=_mapping_value(detail_map, "type", "role", "kind"),
+        why_it_matters=why,
+        actions=_mapping_value(detail_map, "required action", "required actions", "action"),
+        downstream=_mapping_value(detail_map, "downstream use", "carry forward to", "applies to"),
+        source_path=source_path,
+        prefix=prefix,
+    )
 
 
 def _parse_markdown_table(section: str) -> list[dict[str, str]]:
@@ -244,8 +440,16 @@ def _parse_bullet_blocks(section: str) -> list[dict[str, object]]:
 
 
 def _parse_yaml_review_summary(content: str) -> dict[str, object] | None:
+    yaml_bodies: list[str] = []
     for match in re.finditer(r"```yaml\s*\n(?P<body>.*?)```", content, re.DOTALL):
-        body = match.group("body").strip()
+        yaml_bodies.append(match.group("body").strip())
+    stripped = content.lstrip()
+    if stripped.startswith("---"):
+        _, _, remainder = stripped.partition("---")
+        body, separator, _ = remainder.partition("\n---")
+        if separator:
+            yaml_bodies.append(body.strip())
+    for body in yaml_bodies:
         if "review_summary:" not in body:
             continue
         try:
@@ -273,6 +477,10 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
         records[reference.id] = reference
         return
 
+    if reference.kind != "other" and target.kind == "other":
+        target.kind = reference.kind
+    if reference.locator and not target.locator:
+        target.locator = reference.locator
     if reference.role != "other" and target.role == "other":
         target.role = reference.role
     if reference.why_it_matters:
@@ -303,15 +511,20 @@ def _reference_from_active_anchor(
     prefix: str,
 ) -> ArtifactReference:
     locator_value = _clean_text(locator) or _clean_text(label)
+    normalized_kind = _normalize_kind(kind)
     normalized_role = _normalize_role(role)
     normalized_actions = _normalize_actions(actions)
+    if normalized_kind == "other" and _looks_like_path(locator_value):
+        normalized_kind = "prior_artifact"
+    if normalized_role == "other" and normalized_kind in {"prior_artifact", "user_anchor"}:
+        normalized_role = "must_consider"
     must_surface = normalized_role in {"benchmark", "definition", "method", "must_consider"} or bool(
         {"use", "compare", "avoid"} & set(normalized_actions)
     )
     return ArtifactReference(
         id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
         locator=locator_value,
-        kind=_normalize_kind(kind),
+        kind=normalized_kind,
         role=normalized_role,
         why_it_matters=_clean_text(why_it_matters),
         applies_to=_normalize_multi_value(downstream),
@@ -322,12 +535,130 @@ def _reference_from_active_anchor(
     )
 
 
+def _ingest_reference_registry_section(
+    section: str,
+    *,
+    source_path: str,
+    prefix: str,
+    result: ArtifactReferenceIngestion,
+) -> None:
+    merged = {ref.id: ref for ref in result.references}
+    for row in _parse_markdown_table(section):
+        canonical_row = _canonical_mapping(row)
+        reference = _reference_from_active_anchor(
+            anchor_id=_mapping_value(canonical_row, "anchor id", "reference id", "id"),
+            label=_mapping_value(canonical_row, "anchor", "reference", "label", "source / locator"),
+            locator=_mapping_value(canonical_row, "source / locator", "locator", "source", "reference", "anchor"),
+            kind=_mapping_value(canonical_row, "kind", "artifact kind"),
+            role=_mapping_value(canonical_row, "type", "role", "kind"),
+            why_it_matters=_mapping_value(canonical_row, "why it matters", "what it constrains", "description"),
+            actions=_mapping_value(canonical_row, "required action", "required actions", "action"),
+            downstream=_mapping_value(canonical_row, "downstream use", "carry forward to", "applies to"),
+            source_path=source_path,
+            prefix=prefix,
+        )
+        _merge_reference(merged, reference)
+    for block in _section_bullet_items(section):
+        _merge_reference(merged, _parse_reference_block(block, source_path=source_path, prefix=prefix))
+    result.references = list(merged.values())
+
+
+def _ingest_direct_intake_sections(content: str, result: ArtifactReferenceIngestion) -> None:
+    for intake_key, headings in _DIRECT_INTAKE_SECTION_ALIASES.items():
+        section = _extract_first_section(content, headings)
+        if not section:
+            continue
+        items = _section_bullet_items(section)
+        target = getattr(result.intake, intake_key)
+        for block in items:
+            title = _clean_text(block.get("title"))
+            detail_map = _detail_mapping(block.get("details"))
+            if intake_key in {"must_include_prior_outputs", "crucial_inputs"}:
+                _append_paths(target, title)
+                for detail_value in detail_map.values():
+                    _append_paths(target, detail_value)
+                if title and not _looks_like_path(title):
+                    _append_unique(target, title)
+                continue
+            if intake_key == "known_good_baselines" and title:
+                _append_unique(target, title)
+                continue
+            if title:
+                _append_unique(target, title)
+
+
+def _ingest_benchmark_section(section: str, result: ArtifactReferenceIngestion) -> None:
+    for block in _parse_bullet_blocks(section):
+        title = _clean_text(block.get("title"))
+        source = ""
+        compared_in = ""
+        status = ""
+        details = block.get("details")
+        if isinstance(details, list):
+            for detail in details:
+                detail_text = _clean_text(detail)
+                lower = detail_text.lower()
+                if lower.startswith("source:"):
+                    source = _clean_text(detail_text.split(":", 1)[1])
+                elif lower.startswith("compared in:") or lower.startswith("comparison in:") or lower.startswith("file:"):
+                    compared_in = _clean_text(detail_text.split(":", 1)[1])
+                elif lower.startswith("status:"):
+                    status = _clean_text(detail_text.split(":", 1)[1])
+        baseline = " — ".join(part for part in [title, f"source: {source}" if source else "", status] if part)
+        _append_unique(result.intake.known_good_baselines, baseline)
+        if compared_in:
+            _append_paths(result.intake.must_include_prior_outputs, compared_in)
+            _append_paths(result.intake.crucial_inputs, compared_in)
+
+
+def _ingest_prior_outputs_section(section: str, result: ArtifactReferenceIngestion) -> None:
+    for block in _parse_bullet_blocks(section):
+        title = _clean_text(block.get("title"))
+        match = re.match(r"^`?(?P<path>[^:`]+)`?\s*:\s*(?P<desc>.+)$", title)
+        if match:
+            path = _clean_text(match.group("path"))
+            desc = _clean_text(match.group("desc"))
+            _append_unique(result.intake.must_include_prior_outputs, path)
+            _append_unique(result.intake.known_good_baselines, f"{path} — {desc}")
+            _append_unique(result.intake.crucial_inputs, path)
+            continue
+        paths = _extract_paths(title)
+        if paths:
+            for path in paths:
+                _append_unique(result.intake.must_include_prior_outputs, path)
+                _append_unique(result.intake.crucial_inputs, path)
+            _append_unique(result.intake.known_good_baselines, title)
+            continue
+        if title:
+            _append_unique(result.intake.known_good_baselines, title)
+
+
+def _ingest_gap_section(section: str, result: ArtifactReferenceIngestion) -> None:
+    for block in _parse_bullet_blocks(section):
+        _append_unique(result.intake.context_gaps, str(block.get("title") or ""))
+
+
+def _ingest_validation_comparison_section(section: str, result: ArtifactReferenceIngestion) -> None:
+    for block in _parse_bullet_blocks(section):
+        _append_unique(result.intake.known_good_baselines, str(block.get("title") or ""))
+        details = block.get("details")
+        if isinstance(details, list):
+            for detail in details:
+                detail_text = _clean_text(detail)
+                lower = detail_text.lower()
+                if lower.startswith("comparison in:") or lower.startswith("compared in:") or lower.startswith("file:"):
+                    path_text = detail_text.split(":", 1)[1]
+                    _append_paths(result.intake.must_include_prior_outputs, path_text)
+                    _append_paths(result.intake.crucial_inputs, path_text)
+
+
 def _ingest_literature_review(content: str, source_path: str, result: ArtifactReferenceIngestion) -> None:
     summary = _parse_yaml_review_summary(content)
     if isinstance(summary, dict):
-        if summary.get("active_anchors"):
+        active_anchors = summary.get("active_anchors") or summary.get("active_references")
+        if active_anchors:
             merged: dict[str, ArtifactReference] = {ref.id: ref for ref in result.references}
-            for entry in summary.get("active_anchors", []):
+            for entry in active_anchors:
                 if not isinstance(entry, dict):
                     continue
                 reference = _reference_from_active_anchor(
@@ -344,102 +675,53 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                 )
                 _merge_reference(merged, reference)
             result.references = list(merged.values())
-        for benchmark in summary.get("benchmark_values", []):
+        for benchmark in summary.get("benchmark_values") or summary.get("known_good_baselines", []):
             if not isinstance(benchmark, dict):
+                if isinstance(benchmark, str):
+                    _append_unique(result.intake.known_good_baselines, benchmark)
                 continue
             quantity = _clean_text(benchmark.get("quantity"))
             value = _clean_text(benchmark.get("value"))
             source = _clean_text(benchmark.get("source") or benchmark.get("source_ref"))
             baseline = " — ".join(part for part in [quantity, value, f"source: {source}" if source else ""] if part)
             _append_unique(result.intake.known_good_baselines, baseline)
+        for token in _normalize_multi_value(summary.get("must_read_refs") or summary.get("must_read_references")):
+            _append_unique(result.intake.must_read_refs, token)
+        for token in _normalize_multi_value(summary.get("context_gaps")):
+            _append_unique(result.intake.context_gaps, token)
 
-    section = _extract_section(content, "Active Anchor Registry")
+    section = _extract_first_section(content, _ACTIVE_REFERENCE_REGISTRY_HEADINGS)
     if section:
-        merged = {ref.id: ref for ref in result.references}
-        for row in _parse_markdown_table(section):
-            reference = _reference_from_active_anchor(
-                anchor_id=_first_non_empty(row, "Anchor ID", "ID"),
-                label=_first_non_empty(row, "Anchor", "Reference", "Label", "Source / Locator"),
-                locator=_first_non_empty(row, "Source / Locator", "Locator", "Source", "Reference", "Anchor"),
-                kind=_first_non_empty(row, "Kind"),
-                role=_first_non_empty(row, "Type", "Role"),
-                why_it_matters=_first_non_empty(row, "Why It Matters", "What It Constrains"),
-                actions=_first_non_empty(row, "Required Action", "Required Actions"),
-                downstream=_first_non_empty(row, "Downstream Use", "Carry Forward To"),
-                source_path=source_path,
-                prefix="lit-anchor",
-            )
-            _merge_reference(merged, reference)
-        result.references = list(merged.values())
+        _ingest_reference_registry_section(section, source_path=source_path, prefix="lit-anchor", result=result)
 
-    open_questions = _extract_section(content, "Open Questions")
+    open_questions = _extract_first_section(content, _OPEN_QUESTION_HEADINGS)
     if open_questions:
-        for block in _parse_bullet_blocks(open_questions):
-            _append_unique(result.intake.context_gaps, str(block.get("title") or ""))
+        _ingest_gap_section(open_questions, result)
+    _ingest_direct_intake_sections(content, result)
 
 
 def _ingest_reference_map(content: str, source_path: str, result: ArtifactReferenceIngestion) -> None:
-    section = _extract_section(content, "Active Anchor Registry")
+    section = _extract_first_section(content, _ACTIVE_REFERENCE_REGISTRY_HEADINGS)
     if section:
-        merged = {ref.id: ref for ref in result.references}
-        for row in _parse_markdown_table(section):
-            reference = _reference_from_active_anchor(
-                anchor_id=_first_non_empty(row, "Anchor ID", "ID"),
-                label=_first_non_empty(row, "Anchor", "Source / Locator", "Label"),
-                locator=_first_non_empty(row, "Source / Locator", "Locator", "Source", "Anchor"),
-                kind=_first_non_empty(row, "Kind"),
-                role=_first_non_empty(row, "Type", "Role"),
-                why_it_matters=_first_non_empty(row, "Why It Matters", "What It Constrains"),
-                actions=_first_non_empty(row, "Required Action", "Required Actions"),
-                downstream=_first_non_empty(row, "Downstream Use", "Carry Forward To"),
-                source_path=source_path,
-                prefix="map-anchor",
-            )
-            _merge_reference(merged, reference)
-        result.references = list(merged.values())
+        _ingest_reference_registry_section(section, source_path=source_path, prefix="map-anchor", result=result)
 
-    benchmark_section = _extract_section(content, "Benchmarks and Comparison Targets")
+    benchmark_section = _extract_first_section(content, _BENCHMARK_HEADINGS)
     if benchmark_section:
-        for block in _parse_bullet_blocks(benchmark_section):
-            title = _clean_text(block.get("title"))
-            source = ""
-            compared_in = ""
-            status = ""
-            details = block.get("details")
-            if isinstance(details, list):
-                for detail in details:
-                    detail_text = _clean_text(detail)
-                    lower = detail_text.lower()
-                    if lower.startswith("source:"):
-                        source = _clean_text(detail_text.split(":", 1)[1])
-                    elif lower.startswith("compared in:"):
-                        compared_in = _clean_text(detail_text.split(":", 1)[1])
-                    elif lower.startswith("status:"):
-                        status = _clean_text(detail_text.split(":", 1)[1])
-            baseline = " — ".join(part for part in [title, f"source: {source}" if source else "", status] if part)
-            _append_unique(result.intake.known_good_baselines, baseline)
-            if compared_in:
-                _append_unique(result.intake.must_include_prior_outputs, compared_in)
-                _append_unique(result.intake.crucial_inputs, compared_in)
+        _ingest_benchmark_section(benchmark_section, result)
 
-    prior_section = _extract_section(content, "Prior Artifacts and Baselines")
+    prior_section = _extract_first_section(content, _PRIOR_OUTPUT_HEADINGS)
     if prior_section:
-        for block in _parse_bullet_blocks(prior_section):
-            title = _clean_text(block.get("title"))
-            match = re.match(r"^`?(?P<path>[^:`]+)`?\s*:\s*(?P<desc>.+)$", title)
-            if match:
-                path = _clean_text(match.group("path"))
-                desc = _clean_text(match.group("desc"))
-                _append_unique(result.intake.must_include_prior_outputs, path)
-                _append_unique(result.intake.known_good_baselines, f"{path} — {desc}")
-                _append_unique(result.intake.crucial_inputs, path)
-            elif title:
-                _append_unique(result.intake.known_good_baselines, title)
+        _ingest_prior_outputs_section(prior_section, result)
 
-    open_questions = _extract_section(content, "Open Reference Questions")
+    open_questions = _extract_first_section(content, _OPEN_QUESTION_HEADINGS)
     if open_questions:
-        for block in _parse_bullet_blocks(open_questions):
-            _append_unique(result.intake.context_gaps, str(block.get("title") or ""))
+        _ingest_gap_section(open_questions, result)
+
+    comparison_section = _extract_first_section(content, _VALIDATION_COMPARISON_HEADINGS)
+    if comparison_section:
+        _ingest_validation_comparison_section(comparison_section, result)
+
+    _ingest_direct_intake_sections(content, result)
 
 
 def _populate_intake_from_references(result: ArtifactReferenceIngestion) -> None:
@@ -482,22 +764,7 @@ def ingest_reference_artifacts(
             content = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        upper_name = path.name.upper()
-        if upper_name == "REFERENCES.MD":
-            _ingest_reference_map(content, rel_path, result)
-        elif upper_name == "VALIDATION.MD":
-            comparison_section = _extract_section(content, "Comparison with Literature")
-            if comparison_section:
-                for block in _parse_bullet_blocks(comparison_section):
-                    _append_unique(result.intake.known_good_baselines, str(block.get("title") or ""))
-                    details = block.get("details")
-                    if isinstance(details, list):
-                        for detail in details:
-                            detail_text = _clean_text(detail)
-                            lower = detail_text.lower()
-                            if lower.startswith("comparison in:") or lower.startswith("file:"):
-                                _append_unique(result.intake.must_include_prior_outputs, detail_text.split(":", 1)[1])
-                                _append_unique(result.intake.crucial_inputs, detail_text.split(":", 1)[1])
+        _ingest_reference_map(content, rel_path, result)
 
     _populate_intake_from_references(result)
     result.references.sort(key=lambda item: (item.must_surface is False, item.role, item.id))

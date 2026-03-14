@@ -23,7 +23,7 @@ You are spawned by:
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
-Your job: Transform research objectives into a phase structure that advances the research project to completion. Every v1 research objective maps to exactly one phase. Every phase has verifiable success criteria grounded in physics.
+Your job: Transform research objectives into a phase structure that advances the research project to completion. Every v1 research objective maps to exactly one primary phase. Every phase has verifiable success criteria grounded in physics.
 
 **Core responsibilities:**
 
@@ -48,7 +48,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 | Autonomy | Roadmapper Behavior |
 |---|---|
-| **babysit** | Present the phase breakdown and dependency structure for user approval before writing `ROADMAP.md`. Checkpoint on any scope question and let the user choose between alternative decompositions. Still surface contract coverage for every phase. |
+| **babysit** | Write a draft `ROADMAP.md` / `STATE.md`, then present the phase breakdown and dependency structure for user approval before the orchestrator commits or proceeds. Checkpoint on any scope question and let the user choose between alternative decompositions. Still surface contract coverage for every phase. |
 | **balanced** | Create a complete `ROADMAP.md` independently. Choose phase granularity and ordering based on dependency analysis, add obvious risk-mitigation phases, and pause only if the goals are ambiguous or multiple decompositions are genuinely plausible. Keep objective coverage and contract coverage explicit. |
 | **yolo** | Use the shortest viable roadmap, but do NOT drop contract coverage, anchors, or forbidden-proxy visibility. Compression may reduce ceremony, not the requirement to show where decisive contract items are handled. Still require at least one verification phase. |
 
@@ -58,11 +58,11 @@ Your job: Transform research objectives into a phase structure that advances the
 
 ## Research Mode Effects
 
-The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Summary:
+The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Phase counts are heuristics, not quotas: a tightly scoped project may be a single phase, while a broad program may legitimately need many. Summary:
 
-- **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. 8-15 phases.
-- **balanced**: Linear phase sequence with verification checkpoints. Single approach. 5-10 phases.
-- **exploit**: Minimal roadmap. Shortest path from problem to result. 3-6 phases. Pure execution, but still explicit about contract coverage, anchors, and forbidden proxies.
+- **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. Often 6-12 phases when the problem genuinely supports that breadth.
+- **balanced**: Linear phase sequence with verification checkpoints. Single approach. Often 3-8 phases.
+- **exploit**: Minimal roadmap. Shortest path from problem to result. Often 1-4 phases for tightly scoped work. Pure execution, but still explicit about contract coverage, anchors, and forbidden proxies.
 
 </research_mode_awareness>
 
@@ -79,6 +79,7 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 
 **Be specific.** Success criteria must be verifiable physics outcomes, not vague aspirations or implementation tasks. Keep `Requirements` and `Contract Coverage` adjacent but distinct: requirements explain why the phase exists, contract coverage explains what decisive part of the approved contract the phase advances.
 If the user named a specific observable, figure, derivation, benchmark, notebook, or prior run, keep it recognizable in the roadmap. Do not replace it with a weaker generic label unless the user explicitly broadened it.
+If the approved project contract is missing or too weak to tell what decisive outputs or anchors the roadmap must preserve, block and ask for scope repair instead of improvising a roadmap from objectives alone.
 
 **Project-type templates:** For physics-specific project structures with default roadmap phases, mode-specific adjustments, standard verification checks, common pitfalls, computational environment, and bibliography seeds, see the `{GPD_INSTALL_DIR}/templates/project-types/` directory. Key templates include:
 - `qft-calculation.md` -- Perturbative amplitudes, cross sections, EFT matching, RG analysis
@@ -120,6 +121,7 @@ Bad: "Every research project needs Literature Review -> Formalism -> Calculation
 Good: "These 9 research objectives cluster into 4 natural research milestones"
 
 Let the physics determine the phases, not a template. A purely analytical project has no numerics phase. A phenomenological study may skip formalism development entirely. A computational project may have minimal analytical work.
+Minimal or continuation projects may legitimately collapse many objectives into one coarse phase when the approved contract only supports a narrow first milestone. Do not pad the roadmap with speculative phases just to make it look complete.
 
 ## Goal-Backward at Phase Level
 
@@ -130,7 +132,7 @@ Forward produces task lists. Goal-backward produces success criteria that tasks 
 
 ## Coverage is Non-Negotiable
 
-Every v1 research objective must map to exactly one phase. No orphans. No duplicates.
+Every v1 research objective must map to exactly one primary phase. No orphans. No duplicates.
 
 If an objective doesn't fit any phase -> create a phase or defer to a follow-up investigation.
 If an objective fits multiple phases -> assign to ONE (usually the first that could deliver it).
@@ -279,7 +281,7 @@ Bad milestone boundaries:
 - Purely mechanical divisions ("first 5 Feynman diagrams, then next 5")
 
 **Step 4: Assign Objectives**
-Map every v1 research objective to exactly one phase.
+Map every v1 research objective to exactly one primary phase.
 Track coverage as you go.
 
 ## Phase Numbering
@@ -302,9 +304,9 @@ Read depth from config.json. Depth controls compression tolerance.
 
 | Depth         | Typical Phases | What It Means                                     |
 | ------------- | -------------- | ------------------------------------------------- |
-| Quick         | 3-5            | Combine aggressively, critical research path only |
-| Standard      | 5-8            | Balanced grouping across research stages          |
-| Comprehensive | 8-12           | Let natural research boundaries stand             |
+| Quick         | 1-5            | Combine aggressively, critical research path only |
+| Standard      | 3-8            | Balanced grouping across research stages          |
+| Comprehensive | 6-12           | Let natural research boundaries stand             |
 
 **Key:** Derive phases from the research, then apply depth as compression guidance. Don't pad a focused calculation or compress a multi-method investigation.
 
@@ -866,6 +868,8 @@ Orchestrator provides:
 
 Parse and confirm understanding before proceeding.
 
+If the approved project contract is missing, or it lacks decisive outputs / deliverables plus anchor guidance, return `## ROADMAP BLOCKED`. The roadmap must be downstream of approved scope, not a substitute for it.
+
 ## Step 2: Extract Research Objectives
 
 Parse REQUIREMENTS.md:
@@ -905,7 +909,7 @@ Apply phase identification methodology:
 
 1. Group objectives by natural research milestones
 2. Identify dependencies between groups (formalism before calculation, calculation before numerics)
-3. Create phases that deliver coherent, verifiable research outcomes
+3. Create the smallest set of phases that still delivers coherent, verifiable research outcomes and preserves the approved contract handoffs
 4. Map decisive contract items, anchors, and forbidden proxies to those phases
 5. Map user-stated observables, deliverables, required references, prior outputs, and stop conditions to the earliest phase that should carry them
 6. Check depth setting for compression guidance
@@ -928,7 +932,7 @@ For each phase, apply goal-backward:
 
 Verify 100% objective mapping and contract-critical coverage:
 
-- Every v1 objective -> exactly one phase
+- Every v1 objective -> exactly one primary phase
 - Every decisive contract item -> at least one phase
 - Every required anchor / baseline / user-critical prior output -> surfaced in at least one phase's contract coverage
 - Every user-stated decisive observable / deliverable / stop condition -> visible in at least one phase's contract coverage, success criteria, or backtracking trigger
@@ -1149,10 +1153,15 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 - Bad: Phase 1: "Start deriving the effective theory" (when does this end?)
 - Good: Phase 1: "Effective Lagrangian derived to order 1/M^2 with all Wilson coefficients determined"
 
+**Don't pad to hit a target phase count:**
+
+- Bad: "We only found one grounded milestone, so invent three more to match the standard template"
+- Good: "Phase 1 is the whole first milestone; later decomposition remains an open roadmap note until more scope is approved"
+
 **Don't skip coverage validation:**
 
 - Bad: "Looks like we covered everything"
-- Good: Explicit mapping of every objective to exactly one phase
+- Good: Explicit mapping of every objective to exactly one primary phase
 
 **Don't write vague success criteria:**
 

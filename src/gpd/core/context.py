@@ -48,6 +48,7 @@ from gpd.core.errors import ValidationError
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
 from gpd.core.reference_ingestion import ingest_reference_artifacts
 from gpd.core.state import load_state_json as _load_state_json
+from gpd.core.state import save_state_json as _save_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
 )
@@ -66,6 +67,7 @@ _RUNTIME_CONFIG_DIRS = frozenset(adapter.local_config_dir_name for adapter in it
 _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
+_RESEARCH_MAP_INCLUDE_LIMIT = 4
 _REFERENCE_ROLE_PRIORITY = {
     "benchmark": 0,
     "must_consider": 1,
@@ -354,6 +356,77 @@ def _merge_reference_intake(
     return merged
 
 
+def _canonical_contract_reference_payload(
+    active_references: list[dict[str, object]],
+    *,
+    allowed_subject_ids: set[str],
+) -> list[dict[str, object]]:
+    """Return contract-safe reference payloads derived from active references."""
+
+    payloads: list[dict[str, object]] = []
+    for ref in active_references:
+        ref_id = str(ref.get("id") or "").strip()
+        locator = str(ref.get("locator") or "").strip()
+        if not ref_id or not locator:
+            continue
+        payloads.append(
+            {
+                "id": ref_id,
+                "kind": str(ref.get("kind") or "other"),
+                "locator": locator,
+                "role": str(ref.get("role") or "other"),
+                "why_it_matters": str(ref.get("why_it_matters") or "").strip() or locator,
+                "applies_to": [item for item in list(ref.get("applies_to") or []) if item in allowed_subject_ids],
+                "must_surface": bool(ref.get("must_surface")),
+                "required_actions": list(ref.get("required_actions") or []),
+            }
+        )
+    return payloads
+
+
+def _canonicalize_project_contract(
+    contract: ResearchContract | None,
+    *,
+    active_references: list[dict[str, object]],
+    effective_reference_intake: dict[str, list[str]],
+) -> ResearchContract | None:
+    """Return the canonical contract after merging durable anchor context."""
+
+    if contract is None:
+        return None
+
+    payload = contract.model_dump(mode="json")
+    payload["context_intake"] = effective_reference_intake
+    allowed_subject_ids = {
+        str(item.get("id") or "").strip()
+        for item in [*payload.get("claims", []), *payload.get("deliverables", [])]
+        if str(item.get("id") or "").strip()
+    }
+    payload["references"] = _canonical_contract_reference_payload(
+        active_references,
+        allowed_subject_ids=allowed_subject_ids,
+    )
+    try:
+        return ResearchContract.model_validate(payload)
+    except Exception:
+        return contract
+
+
+def _persist_canonical_project_contract(cwd: Path, contract: ResearchContract | None) -> None:
+    """Persist the canonicalized project contract when it changed."""
+
+    if contract is None:
+        return
+    state = _load_state_json(cwd)
+    if not isinstance(state, dict):
+        return
+    payload = contract.model_dump(mode="json")
+    if state.get("project_contract") == payload:
+        return
+    state["project_contract"] = payload
+    _save_state_json(cwd, state)
+
+
 def _render_active_reference_context(
     active_references: list[dict[str, object]],
     effective_intake: dict[str, list[str]],
@@ -437,13 +510,21 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
     literature_paths = _sorted_markdown_files(literature_dir)
     research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
-    research_map_paths = [research_map_dir / name for name in _REFERENCE_MAP_DOCS if (research_map_dir / name).is_file()]
+    research_map_paths = _sorted_markdown_files(research_map_dir)
+    prioritized_research_map_paths = [
+        research_map_dir / name for name in _REFERENCE_MAP_DOCS if (research_map_dir / name).is_file()
+    ]
+    prioritized_names = {path.name for path in prioritized_research_map_paths}
+    prioritized_research_map_paths.extend(path for path in research_map_paths if path.name not in prioritized_names)
 
     literature_review_files = [_relative_posix(cwd, path) for path in literature_paths]
-    research_map_reference_files = [_relative_posix(cwd, path) for path in research_map_paths]
+    research_map_reference_files = [_relative_posix(cwd, path) for path in prioritized_research_map_paths]
 
     content_sections: list[str] = []
-    selected_artifacts = [*research_map_paths, *literature_paths[:_LITERATURE_INCLUDE_LIMIT]]
+    selected_artifacts = [
+        *prioritized_research_map_paths[:_RESEARCH_MAP_INCLUDE_LIMIT],
+        *literature_paths[:_LITERATURE_INCLUDE_LIMIT],
+    ]
     for path in selected_artifacts:
         content = _safe_read_file_truncated(path)
         if not content:
@@ -476,8 +557,14 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
         artifact_ingestion.intake.to_dict(),
         active_references,
     )
+    canonical_contract = _canonicalize_project_contract(
+        contract,
+        active_references=active_references,
+        effective_reference_intake=effective_reference_intake,
+    )
+    _persist_canonical_project_contract(cwd, canonical_contract)
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
-    selected_protocol_bundles = select_protocol_bundles(project_text, contract)
+    selected_protocol_bundles = select_protocol_bundles(project_text, canonical_contract)
 
     bundle_asset_paths: list[str] = []
     bundle_verifier_extensions: list[dict[str, object]] = []
@@ -498,8 +585,8 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             )
 
     return {
-        "project_contract": contract.model_dump(mode="json") if contract is not None else None,
-        "contract_intake": contract.context_intake.model_dump(mode="json") if contract is not None else None,
+        "project_contract": canonical_contract.model_dump(mode="json") if canonical_contract is not None else None,
+        "contract_intake": canonical_contract.context_intake.model_dump(mode="json") if canonical_contract is not None else None,
         "effective_reference_intake": effective_reference_intake,
         "derived_active_references": derived_references,
         "derived_active_reference_count": len(derived_references),
@@ -628,7 +715,14 @@ def _resolve_model(
     runtime: str | None = None,
 ) -> str | None:
     """Resolve the runtime-specific model override for an agent type."""
-    active_runtime = runtime or _detect_platform(cwd)
+    active_runtime = runtime
+    if active_runtime is None:
+        try:
+            from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
+
+            active_runtime = detect_runtime_for_gpd_use(cwd=cwd)
+        except Exception:
+            active_runtime = _detect_platform(cwd)
     if active_runtime == "unknown":
         active_runtime = None
 
@@ -911,8 +1005,7 @@ def init_new_milestone(cwd: Path) -> dict:
     """Assemble context for new milestone creation."""
     config = load_config(cwd)
     milestone = _try_get_milestone_info(cwd)
-
-    return {
+    result = {
         # Models
         "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
         "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
@@ -932,6 +1025,8 @@ def init_new_milestone(cwd: Path) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
+    return result
 
 
 def init_quick(cwd: Path, description: str | None = None) -> dict:

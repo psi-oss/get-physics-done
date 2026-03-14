@@ -147,3 +147,72 @@ def test_context_surfaces_derived_reference_registry_without_project_contract(tm
     assert any(ref["source_kind"] == "artifact" for ref in ctx["derived_active_references"])
     assert ".gpd/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
     assert "Benchmark note" in ctx["active_reference_context"]
+
+
+def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_sections(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "ALT-REVIEW.md").write_text(
+        "# Review\n\n"
+        "## Active References\n\n"
+        "- Benchmark Ref 2025\n"
+        "  - Type: benchmark target\n"
+        "  - Why It Matters: Decisive comparison target\n"
+        "  - Required Actions: review/compare/reference\n"
+        "  - Carry Forward To: planning/verification\n"
+        "\n"
+        "## Must Read References\n\n"
+        "- Benchmark Ref 2025\n"
+        "\n"
+        "## Context Gaps\n\n"
+        "- Need the definitive normalization note\n",
+        encoding="utf-8",
+    )
+
+    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir.mkdir(parents=True)
+    (research_map_dir / "CONCERNS.md").write_text(
+        "# Reference Context\n\n"
+        "## Prior Outputs\n\n"
+        "- `.gpd/phases/00-baseline/00-SUMMARY.md`\n"
+        "\n"
+        "## Known Good Baselines\n\n"
+        "- Control window from the accepted benchmark run\n"
+        "\n"
+        "## Critical Inputs\n\n"
+        "- `notes/reference-intake.md`\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=[".gpd/literature/ALT-REVIEW.md"],
+        research_map_reference_files=[".gpd/research-map/CONCERNS.md"],
+    )
+
+    ref = next(ref for ref in result.references if ref.locator == "Benchmark Ref 2025")
+    assert ref.role == "benchmark"
+    assert ref.required_actions == ["read", "compare", "cite"]
+    assert any(token in result.intake.must_read_refs for token in {"Benchmark Ref 2025", "lit-anchor-benchmark-ref-2025"})
+    assert ".gpd/phases/00-baseline/00-SUMMARY.md" in result.intake.must_include_prior_outputs
+    assert "notes/reference-intake.md" in result.intake.crucial_inputs
+    assert "Need the definitive normalization note" in result.intake.context_gaps
+    assert "Control window from the accepted benchmark run" in result.intake.known_good_baselines
+
+
+def test_context_discovers_additional_research_map_reference_artifacts(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir.mkdir(parents=True)
+    (research_map_dir / "CONCERNS.md").write_text(
+        "# Reference Context\n\n"
+        "## Prior Outputs\n\n"
+        "- `.gpd/phases/00-baseline/00-SUMMARY.md`\n",
+        encoding="utf-8",
+    )
+
+    ctx = init_verify_work(tmp_path, "1")
+
+    assert ".gpd/research-map/CONCERNS.md" in ctx["research_map_reference_files"]
+    assert ".gpd/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]

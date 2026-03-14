@@ -580,7 +580,9 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    If the runtime or agent only emits a fanout-lock event, normalize it into the same live review stop: treat the lock as `checkpoint_reason=pre_fanout`, mark `waiting_for_review=true`, and keep downstream locked until the review is explicitly cleared.
 
-   When review passes cleanly, emit the matching gate-clear plus fanout-unlock transition so live status, notify, and resume surfaces stop showing the wave as blocked. Do not silently continue on "looks fine" prose alone.
+   Gate clears are reason-scoped: clearing `first_result` must not erase `pre_fanout` or skeptical review flags, and skeptical re-questioning should be cleared explicitly when it is resolved.
+
+   For `pre_fanout`, the matching gate-clear and `fanout unlock` are separate transitions: the clear records the review outcome, the unlock releases downstream work. Keep the segment live on status, notify, and resume surfaces until both have been observed. Do not silently continue on "looks fine" prose alone.
 
 9. **Inter-wave verification gate (if more waves remain):**
 
@@ -856,6 +858,7 @@ Plans with `interactive: true` require user interaction.
    - For first-result or pre-fanout pauses, the bounded segment envelope must also carry:
      - `checkpoint_reason`
      - `first_result_gate_pending` or `pre_fanout_review_pending`
+     - `pre_fanout_review_cleared` when review was accepted but downstream unlock is still outstanding
      - `skeptical_requestioning_required`
      - `skeptical_requestioning_summary`
      - `weakest_unchecked_anchor`

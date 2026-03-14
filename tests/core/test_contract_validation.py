@@ -58,6 +58,26 @@ def test_validate_project_contract_warns_when_user_guidance_signals_are_missing(
     assert any("no user guidance signals recorded yet" in warning for warning in result.warnings)
 
 
+def test_validate_project_contract_rejects_unknown_must_read_ref() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_read_refs"] = ["ref-missing"]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "context_intake.must_read_refs references unknown reference ref-missing" in result.errors
+
+
+def test_validate_project_contract_rejects_cross_link_inconsistency() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["deliverables"] = ["missing-deliverable"]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "claim claim-benchmark references unknown deliverable missing-deliverable" in result.errors
+
+
 def test_validate_project_contract_propagates_schema_errors() -> None:
     result = validate_project_contract({"scope": {"question": "x"}})
 

@@ -47,12 +47,14 @@ Parse current values (default to `true` / first option if not present):
 - `physics.default_precision` -- numerical precision (default: `"double"`)
 - `physics.preferred_tools` -- computational tools (default: `["python", "numpy", "scipy"]`)
 - `physics.fourier_convention` -- Fourier transform sign (default: `"physics"`)
+
+`execution.review_cadence` is independent of `model_profile` and `research_mode`: it controls bounded review stop density, not agent tiering or verification rigor.
   </step>
 
 <step name="determine_runtime_for_model_overrides">
 Infer the active runtime before prompting for explicit model IDs.
 
-Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install.
+Use the current command syntax, tool names, environment, and local runtime config directories to infer the active runtime identifier for this install. For GPD-owned model resolution surfaces, prefer the runtime with a concrete GPD install when a higher-priority runtime appears active but is not actually installed for this workspace.
 
 If the runtime is still ambiguous, ask the user which runtime they want to configure before continuing with model override questions.
 
@@ -207,7 +209,7 @@ ask_user([
     header: "Cadence",
     multiSelect: false,
     options: [
-      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue." },
+      { label: "Adaptive (Recommended)", description: "Inject first-result and risky-fanout gates automatically while letting clean segments continue. Independent of profile choice." },
       { label: "Dense", description: "Frequent bounded review points for high-risk or high-touch work." },
       { label: "Sparse", description: "Fewest review stops, but required correctness gates still run." }
     ]

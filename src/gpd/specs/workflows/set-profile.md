@@ -85,7 +85,7 @@ Focus: Rigorous analytical derivations, formal proofs, exact results
 
 Best for: Deriving new results, proving identities, establishing exact relations, formal perturbation theory, renormalization group calculations.
 
-Behavioral highlights: Verification checkpoints after every derivation step. Planner inserts derivation checkpoint every 2 steps. All 15 physics checks run (5.1-5.15). All 16 plan dimensions checked. Paper-writer includes proofs in main text (not appendices). Full investigation debugging with formal proof of root cause. Inter-wave verification enabled by default.
+Behavioral highlights: Verification checkpoints after every derivation step. Planner inserts derivation checkpoint every 2 steps. All 15 physics checks run (5.1-5.15). All 16 plan dimensions checked. Paper-writer includes proofs in main text (not appendices). Full investigation debugging with formal proof of root cause. Pair with `execution.review_cadence=dense` when you want more bounded review stops, but `set-profile` does not change cadence automatically.
 
 **numerical**
 Focus: Computational implementation, optimization, convergence, performance
@@ -102,7 +102,7 @@ Focus: Computational implementation, optimization, convergence, performance
 
 Best for: Implementing solvers, running simulations, optimizing code, convergence studies, parallelization, data pipeline construction.
 
-Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. Inter-wave verification disabled by default.
+Behavioral highlights: Convergence testing task added to every numerical computation. Grid/basis/timestep refinement required before results accepted. Richardson extrapolation automatic. Plan-checker emphasizes numerical stability and error budgets. `execution.review_cadence` stays independent; `adaptive` is usually the right default unless you explicitly want denser review gates.
 
 **exploratory**
 Focus: Rapid prototyping, hypothesis testing, parameter space exploration
@@ -118,7 +118,7 @@ Focus: Rapid prototyping, hypothesis testing, parameter space exploration
 
 Best for: Early-stage investigation, scanning parameter spaces, testing new ideas, order-of-magnitude estimates, dimensional analysis, building intuition.
 
-Behavioral highlights: 3-4 tasks per plan, larger tasks (up to 90 min), only final results verified (skips intermediate checkpoints). Plan-checker reduced to 9 core dimensions. Quick-triage debugging (max 2 rounds). Verifier runs only dimensional analysis + limiting cases + spot-checks + plausibility. Inter-wave verification disabled by default.
+Behavioral highlights: 3-4 tasks per plan, larger tasks (up to 90 min), only final results verified (skips intermediate checkpoints). Plan-checker reduced to 9 core dimensions. Quick-triage debugging (max 2 rounds). Verifier runs only dimensional analysis + limiting cases + spot-checks + plausibility. Use `execution.review_cadence=sparse` or `adaptive` if you want fewer bounded review stops, but required correctness gates still remain.
 
 **review** (default)
 Focus: Critical assessment, error checking, literature comparison
@@ -136,7 +136,7 @@ Focus: Critical assessment, error checking, literature comparison
 
 Best for: Pre-submission review, debugging wrong results, resolving discrepancies, preparing referee responses, validating collaborator work.
 
-Behavioral highlights: Exhaustive debugging documentation. All verifier checks run plus cross-validation against 2+ literature values. Plan-checker runs all 16 dimensions plus testability checks. Every step cross-references the literature source it implements. Inter-wave verification enabled by default.
+Behavioral highlights: Exhaustive debugging documentation. All verifier checks run plus cross-validation against 2+ literature values. Plan-checker runs all 16 dimensions plus testability checks. Every step cross-references the literature source it implements. This profile often benefits from `execution.review_cadence=dense`, but cadence remains a separate setting.
 
 **paper-writing**
 Focus: Clear exposition, LaTeX production, figure generation, narrative flow
@@ -154,21 +154,19 @@ Focus: Clear exposition, LaTeX production, figure generation, narrative flow
 
 Best for: Writing manuscripts, preparing talks, generating figures, formatting for journal submission, writing supplementary material.
 
-Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. Inter-wave verification disabled by default.
+Behavioral highlights: Plans organized by paper sections with tasks mapped to figures, tables, and equations. Narrative-focused execution with clean intermediate expressions. Publication-readiness verification (figures match data, notation consistent, all symbols defined). All 16 plan dimensions checked with emphasis on publication readiness. Full BibTeX formatting against target journal style. Rapid first drafts with multiple revision passes. `execution.review_cadence=adaptive` or `sparse` usually fits, but cadence is not profile-owned.
 
 ---
 
-**Inter-wave verification interaction:**
+**Review cadence interaction:**
 
-| Profile        | `verify_between_waves` default |
-| -------------- | ------------------------------ |
-| deep-theory    | enabled                        |
-| numerical      | disabled                       |
-| exploratory    | disabled                       |
-| review         | enabled                        |
-| paper-writing  | disabled                       |
+`set-profile` changes abstract tier assignments and behavior depth. It does NOT rewrite `execution.review_cadence`.
 
-Override with `/gpd:settings` or by editing `.gpd/config.json` (`workflow.verify_between_waves`: `"auto"` / `true` / `false`).
+- `dense`: more bounded review stops during execution
+- `adaptive` (default): inject first-result and risky-fanout gates while letting clean segments continue
+- `sparse`: fewest bounded review stops beyond the required correctness gates
+
+Change cadence with `/gpd:settings` or by editing `.gpd/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).
 
 If you also want to pin concrete runtime model strings for `tier-1`, `tier-2`, or `tier-3`, use `/gpd:settings`. `set-profile` changes the abstract tier assignments, not the runtime-native model IDs.
 

@@ -128,9 +128,46 @@ def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
     return entries
 
 
-def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
+def _parse_comparison_verdict_entries(value: object) -> list[ComparisonVerdict]:
+    if not isinstance(value, list):
+        return []
+
     verdicts: list[ComparisonVerdict] = []
-    seen: set[tuple[str, str | None, str | None, str]] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            verdicts.append(ComparisonVerdict.model_validate(item))
+        except PydanticValidationError:
+            continue
+    return verdicts
+
+
+def _comparison_verdict_key(verdict: ComparisonVerdict) -> tuple[str, str | None, str | None, str]:
+    return (verdict.subject_id, verdict.reference_id, verdict.metric, verdict.verdict)
+
+
+def _merge_comparison_verdict(existing: ComparisonVerdict, incoming: ComparisonVerdict) -> ComparisonVerdict:
+    updates: dict[str, object] = {}
+
+    if existing.subject_kind == "other" and incoming.subject_kind != "other":
+        updates["subject_kind"] = incoming.subject_kind
+    if existing.subject_role == "other" and incoming.subject_role != "other":
+        updates["subject_role"] = incoming.subject_role
+    if existing.comparison_kind == "other" and incoming.comparison_kind != "other":
+        updates["comparison_kind"] = incoming.comparison_kind
+
+    for field in ("reference_id", "metric", "threshold", "recommended_action", "notes"):
+        existing_value = getattr(existing, field)
+        incoming_value = getattr(incoming, field)
+        if existing_value in (None, "") and incoming_value not in (None, ""):
+            updates[field] = incoming_value
+
+    return existing.model_copy(update=updates) if updates else existing
+
+
+def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
+    verdicts_by_key: dict[tuple[str, str | None, str | None, str], ComparisonVerdict] = {}
 
     candidate_roots = [
         project_root / ".gpd" / "phases",
@@ -142,22 +179,11 @@ def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
             continue
         for path in sorted(root.rglob("*.md")):
             meta = _extract_meta(path)
-            raw = meta.get("comparison_verdicts")
-            if not isinstance(raw, list):
-                continue
-            for item in raw:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    verdict = ComparisonVerdict.model_validate(item)
-                except PydanticValidationError:
-                    continue
-                key = (verdict.subject_id, verdict.reference_id, verdict.metric, verdict.verdict)
-                if key in seen:
-                    continue
-                seen.add(key)
-                verdicts.append(verdict)
-    return verdicts
+            for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts")):
+                key = _comparison_verdict_key(verdict)
+                existing = verdicts_by_key.get(key)
+                verdicts_by_key[key] = verdict if existing is None else _merge_comparison_verdict(existing, verdict)
+    return list(verdicts_by_key.values())
 
 
 def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
@@ -239,26 +265,23 @@ def _find_verdict_for_entry(
     verdicts: list[ComparisonVerdict],
     project_root: Path,
 ) -> list[ComparisonVerdict]:
-    by_key = [verdict for verdict in verdicts if verdict.subject_id in entry.stable_keys]
-    if by_key:
-        return by_key
+    matched: dict[tuple[str, str | None, str | None, str], ComparisonVerdict] = {}
 
-    matched: list[ComparisonVerdict] = []
+    def _record(verdict: ComparisonVerdict) -> None:
+        key = _comparison_verdict_key(verdict)
+        existing = matched.get(key)
+        matched[key] = verdict if existing is None else _merge_comparison_verdict(existing, verdict)
+
+    for verdict in verdicts:
+        if verdict.subject_id in entry.stable_keys:
+            _record(verdict)
+
     for rel_path in entry.comparison_sources:
         path = project_root / rel_path
         meta = _extract_meta(path)
-        raw = meta.get("comparison_verdicts")
-        if not isinstance(raw, list):
-            continue
-        for item in raw:
-            if not isinstance(item, dict):
-                continue
-            try:
-                verdict = ComparisonVerdict.model_validate(item)
-            except PydanticValidationError:
-                continue
-            matched.append(verdict)
-    return matched
+        for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts")):
+            _record(verdict)
+    return list(matched.values())
 
 
 def _build_figures_input(
@@ -406,7 +429,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         report_passed=BinaryCheck(passed=contract_coverage.latest_report_passed),
         contract_targets_verified=_coverage_metric(contract_coverage.satisfied_targets, contract_coverage.total_targets)
         if contract_coverage.total_targets
-        else CoverageMetric(),
+        else CoverageMetric(not_applicable=True),
         key_result_confidences=contract_coverage.confidences,
     )
 

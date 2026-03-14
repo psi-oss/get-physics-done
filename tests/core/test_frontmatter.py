@@ -449,6 +449,33 @@ class TestValidateFrontmatter:
         assert result.valid is True
         assert result.errors == []
 
+    def test_scoping_plan_contract_can_preserve_open_questions_before_decomposition(self):
+        content = (
+            "---\n"
+            "phase: 01-setup\n"
+            "plan: 01\n"
+            "type: discuss\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: true\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: Which formulation and anchors deserve a first serious pass?\n"
+            "    unresolved_questions:\n"
+            "      - Which benchmark should anchor the first computation?\n"
+            "  context_intake:\n"
+            "    must_include_prior_outputs: [.gpd/phases/00-scan/00-01-SUMMARY.md]\n"
+            "    context_gaps: [Need a decisive benchmark before committing to fanout]\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [The current framing may still be proxy-heavy]\n"
+            "    disconfirming_observations: [The first decisive benchmark points to a different formulation]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is True
+        assert result.errors == []
+
     def test_incomplete_plan_contract_requires_must_surface_anchor(self):
         content = (
             "---\n"

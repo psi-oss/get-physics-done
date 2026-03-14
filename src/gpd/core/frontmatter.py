@@ -278,15 +278,40 @@ def _has_contract_grounding_context(contract: ResearchContract) -> bool:
     )
 
 
+def _is_scoping_contract(contract: ResearchContract) -> bool:
+    """Return whether the contract is still framing the work rather than proving it."""
+
+    return (
+        not contract.claims
+        and not contract.acceptance_tests
+        and (
+            bool(contract.observables)
+            or bool(contract.deliverables)
+            or bool(contract.scope.unresolved_questions)
+            or _has_contract_grounding_context(contract)
+        )
+    )
+
+
 def _is_exploratory_contract(contract: ResearchContract) -> bool:
     """Return whether the contract semantics describe setup/exploratory work."""
 
-    exploratory_test_kinds = {"existence", "schema", "human_review", "other"}
-    exploratory_deliverable_kinds = {"code", "note", "report", "other"}
+    exploratory_test_kinds = {
+        "existence",
+        "schema",
+        "human_review",
+        "consistency",
+        "limiting_case",
+        "symmetry",
+        "dimensional_analysis",
+        "convergence",
+        "other",
+    }
+    exploratory_deliverable_kinds = {"code", "note", "report", "derivation", "figure", "table", "dataset", "data", "other"}
 
     return (
-        bool(contract.acceptance_tests)
-        and bool(contract.deliverables)
+        not _is_scoping_contract(contract)
+        and (bool(contract.acceptance_tests) or _has_contract_grounding_context(contract))
         and all(test.kind in exploratory_test_kinds for test in contract.acceptance_tests)
         and all(deliverable.kind in exploratory_deliverable_kinds for deliverable in contract.deliverables)
     )
@@ -295,22 +320,30 @@ def _is_exploratory_contract(contract: ResearchContract) -> bool:
 def _validate_plan_contract(contract: ResearchContract) -> list[str]:
     """Return completeness issues for contract-backed PLAN.md frontmatter."""
     issues: list[str] = []
+    scoping_contract = _is_scoping_contract(contract)
     exploratory_contract = _is_exploratory_contract(contract)
 
-    if not contract.claims:
+    if not contract.claims and not scoping_contract:
         issues.append("missing claims")
-    if not contract.deliverables:
+    if not contract.deliverables and not scoping_contract:
         issues.append("missing deliverables")
-    if not contract.acceptance_tests:
+    if not contract.acceptance_tests and not scoping_contract:
         issues.append("missing acceptance_tests")
-    if not contract.references and not (_has_contract_grounding_context(contract) or exploratory_contract):
+    if not contract.references and not (_has_contract_grounding_context(contract) or exploratory_contract or scoping_contract):
         issues.append("missing references or explicit grounding context")
-    if not contract.forbidden_proxies and not exploratory_contract:
+    if not contract.forbidden_proxies and not (exploratory_contract or scoping_contract):
         issues.append("missing forbidden_proxies")
     if not contract.uncertainty_markers.weakest_anchors:
         issues.append("missing uncertainty_markers.weakest_anchors")
     if not contract.uncertainty_markers.disconfirming_observations:
         issues.append("missing uncertainty_markers.disconfirming_observations")
+    if scoping_contract and not (
+        contract.observables
+        or contract.deliverables
+        or contract.scope.unresolved_questions
+        or _has_contract_grounding_context(contract)
+    ):
+        issues.append("scoping contracts must preserve at least one target, open question, or carry-forward input")
 
     def _append_duplicate_ids(kind: str, ids: list[str]) -> None:
         seen: set[str] = set()
@@ -347,8 +380,6 @@ def _validate_plan_contract(contract: ResearchContract) -> list[str]:
             issues.append(f"claim {claim.id} missing deliverables")
         if not claim.acceptance_tests:
             issues.append(f"claim {claim.id} missing acceptance_tests")
-        if reference_ids and not claim.references:
-            issues.append(f"claim {claim.id} missing references")
         for observable_id in claim.observables:
             if observable_id not in observable_ids:
                 issues.append(f"claim {claim.id} references unknown observable {observable_id}")
@@ -439,19 +470,9 @@ def _summary_contract_errors(
     forbidden_proxy_ids = {proxy.id for proxy in contract.forbidden_proxies}
     known_subject_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
 
-    def _missing(expected: set[str], actual: set[str], label: str) -> None:
-        for item_id in sorted(expected - actual):
-            errors.append(f"Missing {label} contract_results entry: {item_id}")
-
     def _unknown(actual: set[str], expected: set[str], label: str) -> None:
         for item_id in sorted(actual - expected):
             errors.append(f"Unknown {label} contract_results entry: {item_id}")
-
-    _missing(claim_ids, set(contract_results.claims), "claim")
-    _missing(deliverable_ids, set(contract_results.deliverables), "deliverable")
-    _missing(acceptance_test_ids, set(contract_results.acceptance_tests), "acceptance_test")
-    _missing(reference_ids, set(contract_results.references), "reference")
-    _missing(forbidden_proxy_ids, set(contract_results.forbidden_proxies), "forbidden_proxy")
 
     _unknown(set(contract_results.claims), claim_ids, "claim")
     _unknown(set(contract_results.deliverables), deliverable_ids, "deliverable")
@@ -479,11 +500,54 @@ def _summary_contract_errors(
         if verdict.reference_id is not None and verdict.reference_id not in reference_ids:
             errors.append(f"comparison_verdict references unknown reference_id {verdict.reference_id}")
 
+    decisive_comparison_groups: list[tuple[set[str], str]] = []
+    attempted_statuses = {"passed", "partial", "failed"}
+    for test in contract.acceptance_tests:
+        if test.kind not in {"benchmark", "cross_method"}:
+            continue
+        result = contract_results.acceptance_tests.get(test.id)
+        if result is None or result.status not in attempted_statuses:
+            continue
+        decisive_comparison_groups.append(({test.id, test.subject, *result.linked_ids}, f"acceptance test {test.id}"))
+    for reference in contract.references:
+        usage = contract_results.references.get(reference.id)
+        if usage is None:
+            continue
+        if reference.role != "benchmark" and "compare" not in reference.required_actions and "compare" not in usage.completed_actions:
+            continue
+        if "compare" not in usage.completed_actions and usage.status != "completed":
+            continue
+        decisive_comparison_groups.append(({reference.id, *reference.applies_to}, f"reference {reference.id}"))
+
+    verdict_subject_ids = {verdict.subject_id for verdict in comparison_verdicts}
+    for subject_ids, source in decisive_comparison_groups:
+        if not subject_ids.intersection(verdict_subject_ids):
+            errors.append(f"Missing decisive comparison_verdict for {source}")
+
     return errors
 
 
 def _find_matching_plan_contract(summary_dir: Path, summary_meta: dict) -> ResearchContract | None:
     """Return the sibling plan contract for a summary when one can be resolved."""
+
+    plan_contract_ref = summary_meta.get("plan_contract_ref")
+    if isinstance(plan_contract_ref, str):
+        plan_ref_path = plan_contract_ref.split("#", 1)[0].strip()
+        if plan_ref_path:
+            candidate = summary_dir.parent.parent.parent / plan_ref_path.lstrip("./")
+            if candidate.exists():
+                content = safe_read_file(candidate)
+                if content is not None:
+                    try:
+                        meta, _body = extract_frontmatter(content)
+                    except FrontmatterParseError:
+                        meta = {}
+                    contract_data = meta.get("contract")
+                    if isinstance(contract_data, dict):
+                        try:
+                            return ResearchContract.model_validate(contract_data)
+                        except PydanticValidationError:
+                            return None
 
     summary_plan = summary_meta.get("plan")
     if summary_plan is None:
@@ -546,6 +610,10 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
         plan_contract_ref = meta.get("plan_contract_ref")
         if plan_contract_ref is not None and not isinstance(plan_contract_ref, str):
             errors.append("plan_contract_ref: expected a string")
+        if (meta.get("contract_results") is not None or meta.get("comparison_verdicts") is not None) and not isinstance(
+            plan_contract_ref, str
+        ):
+            errors.append("plan_contract_ref: required when contract_results or comparison_verdicts are present")
 
         try:
             _parse_contract_results(meta)
@@ -742,6 +810,8 @@ def verify_summary(
 
     plan_contract = _find_matching_plan_contract(full_path.parent, meta)
     if plan_contract is not None:
+        if not isinstance(meta.get("plan_contract_ref"), str):
+            errors.append("Contract-backed plan requires summary plan_contract_ref")
         if contract_results is None:
             errors.append("Contract-backed plan requires summary contract_results")
         else:

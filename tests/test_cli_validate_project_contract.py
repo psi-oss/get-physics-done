@@ -40,3 +40,17 @@ def test_validate_project_contract_command_blocks_missing_skeptical_fields(tmp_p
     assert payload["valid"] is False
     assert any("weakest_anchors" in error for error in payload["errors"])
     assert any("disconfirming_observations" in error for error in payload["errors"])
+
+
+def test_validate_project_contract_command_blocks_invalid_reference_links(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_read_refs"] = ["ref-missing"]
+    contract_path = tmp_path / "project-contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(app, ["--raw", "validate", "project-contract", str(contract_path)], catch_exceptions=False)
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is False
+    assert any("must_read_refs references unknown reference ref-missing" in error for error in payload["errors"])

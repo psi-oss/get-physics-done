@@ -24,11 +24,11 @@ task(
 | Method | Agent Spawn Method |
 |--------|-------------------|
 | **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", prompt="...")` or equivalent; omit `model` when it resolves empty |
-| **Skill invocation** | Invoke `/gpd:{agent}` — the installer adapts the command surface for your runtime |
-| **Tool discovery** | Agents are registered as callable tools via SKILL.md discovery |
-| **Fallback** | Execute the agent's SKILL.md instructions sequentially in the main context |
+| **Projected command surface** | Invoke the runtime's installed GPD command or agent action surface. For example, some runtimes expose `/gpd:{agent}` slash commands. |
+| **Tool discovery** | Agents may appear on the runtime's discoverable action/tool surface after installation |
+| **Fallback** | Execute the installed agent prompt instructions sequentially in the main context |
 
-> The installer translates agent references to the correct format for your runtime. Source files use the generic `task()` pattern.
+> The installer projects agent references onto the correct runtime-specific command/tool surface. Source files use the generic `task()` pattern.
 
 ## Rules
 

@@ -151,6 +151,7 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
   - Deviation rule 6: proceed only if the change stays inside the approved contract and does not bypass a required anchor or first-result gate
   - Convention conflict: STOP and return to orchestrator; do not auto-adopt a majority convention
 - Required first-result, anchor, and pre-fanout gates still apply even in yolo mode
+- When a bounded first-result, skeptical, or pre-fanout gate resolves, emit the matching reason-scoped clear. If downstream work was fanout-locked, emit the separate `fanout unlock` transition instead of assuming the clear released it.
 - Hard stops: unrecoverable computation error, failed required sanity gate, context pressure RED, explicit user STOP
 - Trade-off: fastest clean execution path, but still bounded by the contract and review-cadence safety rails
 

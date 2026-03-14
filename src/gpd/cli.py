@@ -3072,14 +3072,14 @@ def resolve_model_cmd(
     runtime model parameter and let the platform use its default model.
     """
     from gpd.core.config import resolve_model, validate_agent_name
-    from gpd.hooks.runtime_detect import detect_active_runtime
+    from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 
     supported_runtimes = _supported_runtime_names()
     if runtime is not None and runtime not in supported_runtimes:
         supported = ", ".join(supported_runtimes)
         _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
-    active_runtime = runtime or detect_active_runtime(cwd=_get_cwd())
+    active_runtime = runtime or detect_runtime_for_gpd_use(cwd=_get_cwd())
     try:
         validate_agent_name(agent_name)
         _output(resolve_model(_get_cwd(), agent_name, runtime=active_runtime))

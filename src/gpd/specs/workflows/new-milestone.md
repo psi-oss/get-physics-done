@@ -22,7 +22,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`.
+Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation after requirements gathering and before roadmap generation.
@@ -30,7 +30,7 @@ Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `co
 - `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap, but do NOT skip phase-level contract coverage and anchor visibility.
 - `research_mode=explore`: Broader research survey for new milestone, consider alternative approaches, include speculative phases.
 - `research_mode=exploit`: Focused research on direct extensions of prior milestone, lean phase structure.
-- `research_mode=adaptive`: Start focused, expand if gap analysis reveals significant unknowns.
+- `research_mode=adaptive`: Reuse a focused path only when prior milestones already provide decisive evidence or an explicit approach lock. Otherwise refresh broader gap analysis before narrowing the new milestone.
 
 Run centralized context preflight before continuing:
 
@@ -42,6 +42,16 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+Treat `project_contract` as the authoritative machine-readable project contract when present. Treat `active_reference_context` and `effective_reference_intake` as binding carry-forward context even when `project_contract` is empty.
+
+Before defining scope, inspect these carry-forward inputs and keep them visible through milestone planning:
+- `effective_reference_intake.must_read_refs`
+- `effective_reference_intake.must_include_prior_outputs`
+- `effective_reference_intake.user_asserted_anchors`
+- `effective_reference_intake.known_good_baselines`
+- `effective_reference_intake.context_gaps`
+- `effective_reference_intake.crucial_inputs`
+
 **If `roadmap_exists` is true:** Note — existing ROADMAP.md will be replaced by this milestone's roadmap.
 
 Load project files:
@@ -50,6 +60,8 @@ Load project files:
 - Read MILESTONES.md (if exists — may not exist for first milestone)
 - Read STATE.md (if `state_exists` — pending items, blockers)
 - Check for MILESTONE-CONTEXT.md (from milestone discussion)
+- If `reference_artifact_files` is non-empty, read the listed reference artifacts or use `reference_artifacts_content` as a compact fallback
+- Keep `active_reference_context` available while gathering goals, defining objectives, and reviewing roadmap coverage
 
 ## 2. Gather Milestone Goals
 
@@ -260,6 +272,7 @@ gpd commit "docs: complete literature survey" --files .gpd/research/PRIOR-WORK.m
 ```
 
 Read PROJECT.md: core research question, current milestone goals, answered questions (what is established).
+Read `active_reference_context` and `effective_reference_intake` before drafting objectives so contract-critical anchors, prior outputs, baselines, and unresolved gaps carry forward explicitly.
 
 **If literature survey exists:** Read METHODS.md and PRIOR-WORK.md, extract available approaches and known results.
 
@@ -354,18 +367,29 @@ Read these files using the file_read tool before proceeding:
 - .gpd/research/SUMMARY.md (if exists, skip if not found)
 - .gpd/config.json
 - .gpd/MILESTONES.md (if exists, skip if not found)
+- Files named in `effective_reference_intake.must_include_prior_outputs` when they exist
+- Files named in `reference_artifact_files` when they exist and are relevant to anchor coverage
 </files_to_read>
+
+<contract_context>
+Project contract: {project_contract}
+Contract intake: {contract_intake}
+Active references: {active_reference_context}
+Effective reference intake: {effective_reference_intake}
+Reference artifacts: {reference_artifacts_content}
+</contract_context>
 
 <instructions>
 Create research roadmap for milestone v[X.Y]:
 1. Start phase numbering from [N]
-2. Derive phases from THIS MILESTONE's objectives and the approved project contract
+2. Derive phases from THIS MILESTONE's objectives, the approved project contract, and the effective reference intake
 3. Map every objective to exactly one phase
-4. For each phase, include explicit contract coverage in ROADMAP.md showing decisive contract items, deliverables, anchor coverage, and forbidden proxies advanced by that phase
-5. Derive 2-5 success criteria per phase (concrete, verifiable results)
-6. Validate 100% objective coverage and surface all contract-critical items touched by this milestone
-7. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving existing `.gpd/state.json` fields, especially `project_contract`
-8. Return ROADMAP CREATED with summary
+4. For each phase, include explicit contract coverage in ROADMAP.md showing decisive contract items, anchor coverage, required prior outputs, and forbidden proxies advanced by that phase
+5. Treat `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` as binding milestone context, and surface unresolved `context_gaps`
+6. Derive 2-5 success criteria per phase (concrete, verifiable results)
+7. Validate 100% objective coverage and surface all contract-critical items touched by this milestone
+8. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving existing `.gpd/state.json` fields, especially `project_contract`
+9. Return ROADMAP CREATED with summary
 
 Write files first, then return.
 </instructions>

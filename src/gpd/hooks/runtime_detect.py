@@ -279,10 +279,10 @@ def _resolved_priority_runtime(
     cwd: Path,
     home: Path,
 ) -> str:
-    """Return an explicit preferred runtime when valid, else detect the active runtime."""
+    """Return an explicit preferred runtime when valid, else detect the GPD-serving runtime."""
     if preferred_runtime in ALL_RUNTIMES:
         return preferred_runtime
-    return detect_active_runtime(cwd=cwd, home=home)
+    return detect_runtime_for_gpd_use(cwd=cwd, home=home)
 
 
 def _runtime_dirs_in_priority_order(
@@ -438,7 +438,7 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
     dirs: list[Path] = []
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    prioritized_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    prioritized_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
 
     if prioritized_runtime in ALL_RUNTIMES:
         for runtime_dir, _scope in _ordered_runtime_dirs_for_lookup(

@@ -76,6 +76,7 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 
 - If `selected_protocol_bundle_ids` is non-empty, treat the bundle summary as a quick map of which decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should make visible.
 - Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or phase `SUMMARY.md` / `VERIFICATION.md` evidence.
+- Judge the paper by reader-visible claims and surfaced evidence first. Review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
 - If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
 </step>
 
@@ -89,6 +90,7 @@ gpd validate review-preflight peer-review --strict
 If preflight exits nonzero because of missing project state, missing manuscript, degraded review integrity, or missing review-grade paper artifacts, STOP and show the blocking issues.
 
 In strict peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. Peer review is expected to fail closed when those review-support artifacts are absent or not review-ready.
+Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent contract-backed evidence.
 </step>
 
 <step name="artifact_discovery">

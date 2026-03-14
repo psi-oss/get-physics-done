@@ -92,6 +92,8 @@ When spawned via task and hitting checkpoint: return structured state (cannot in
 
 **Required return:** 1) Completed Tasks table (hashes + files) 2) Current task (what's blocking) 3) Checkpoint Details (user-facing content) 4) Awaiting (what's needed from user) 5) `execution_segment` payload with cursor, checkpoint cause, completed tasks, resume preconditions, and any first-result or pre-fanout gate state.
 
+If the stop is tied to first-result, skeptical, or pre-fanout review, the `execution_segment` must say which gate is still pending. A gate clear must name the specific reason being retired, and `fanout unlock` never substitutes for that clear. For `pre_fanout`, return `pre_fanout_review_cleared: true` when the review outcome is known but downstream unlock is still outstanding.
+
 Orchestrator parses -> presents to user -> spawns fresh continuation with your completed tasks state plus the `execution_segment` payload. You will NOT be resumed. In main context: use checkpoint protocol above.
 
 ## Cleanup Checkpoint

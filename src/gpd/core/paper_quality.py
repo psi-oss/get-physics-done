@@ -130,7 +130,7 @@ class VerificationQualityInput(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     report_passed: BinaryCheck = Field(default_factory=BinaryCheck)
-    contract_targets_verified: CoverageMetric = Field(default_factory=CoverageMetric)
+    contract_targets_verified: CoverageMetric = Field(default_factory=lambda: CoverageMetric(not_applicable=True))
     key_result_confidences: list[VerificationConfidence] = Field(default_factory=list)
 
 

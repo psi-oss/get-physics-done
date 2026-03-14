@@ -227,7 +227,7 @@ class ContractDeliverable(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     id: str
-    kind: Literal["figure", "table", "dataset", "derivation", "code", "note", "report", "other"] = "other"
+    kind: Literal["figure", "table", "dataset", "data", "derivation", "code", "note", "report", "other"] = "other"
     path: str | None = None
     description: str
     must_contain: list[str] = Field(default_factory=list)
@@ -246,6 +246,12 @@ class ContractAcceptanceTest(BaseModel):
         "benchmark",
         "consistency",
         "cross_method",
+        "limiting_case",
+        "symmetry",
+        "dimensional_analysis",
+        "convergence",
+        "oracle",
+        "proxy",
         "reproducibility",
         "human_review",
         "other",
@@ -290,7 +296,7 @@ class ContractLink(BaseModel):
     id: str
     source: str
     target: str
-    relation: Literal["supports", "computes", "visualizes", "benchmarks", "depends_on", "other"] = "other"
+    relation: Literal["supports", "computes", "visualizes", "benchmarks", "depends_on", "evaluated_by", "other"] = "other"
     verified_by: list[str] = Field(default_factory=list)
 
 

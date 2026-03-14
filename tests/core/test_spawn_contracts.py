@@ -119,6 +119,9 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     assert "write_scope:" in content
     assert "expected_artifacts:" in content
     assert "shared_state_policy:" in content
+    assert "SKILL.md" not in content
+    assert "discoverable action/tool surface" in content
+    assert "installed agent prompt instructions" in content
 
 
 def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap() -> None:

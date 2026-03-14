@@ -165,6 +165,8 @@ Set:
 
 Required gates are only considered passed when an explicit clear/override transition is recorded. "No obvious issue" prose is not enough to resume fanout.
 
+Clear transitions are reason-scoped: clearing `first_result` must not silently clear `pre_fanout` or skeptical review state, and a `fanout unlock` never substitutes for the matching review clear.
+
 </step>
 
 <step name="create_checkpoint">
@@ -290,11 +292,25 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
        --data "{\"execution\":{\"checkpoint_reason\":\"first_result\",\"review_cadence\":\"${REVIEW_CADENCE}\",\"first_result_ready\":true,\"first_result_gate_pending\":true,\"current_task\":\"${TASK_DESCRIPTION}\"}}" 2>/dev/null || true
      ```
 
+     When the first-result stop is accepted, record the matching clear before any dependent work resumes:
+
+     ```bash
+     gpd observe event execution gate --action clear --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"first_result\"}}" 2>/dev/null || true
+     ```
+
      If the first result is still proxy-only or anchor-thin, strengthen the same stop into skeptical review instead of silently continuing:
 
      ```bash
      gpd observe event execution gate --action enter --phase "${phase}" --plan "${plan}" \
        --data "{\"execution\":{\"checkpoint_reason\":\"first_result\",\"review_cadence\":\"${REVIEW_CADENCE}\",\"first_result_ready\":true,\"first_result_gate_pending\":true,\"skeptical_requestioning_required\":true,\"skeptical_requestioning_summary\":\"${SKEPTICAL_SUMMARY}\",\"weakest_unchecked_anchor\":\"${WEAKEST_ANCHOR}\",\"disconfirming_observation\":\"${DISCONFIRMING_OBSERVATION}\",\"downstream_locked\":true,\"current_task\":\"${TASK_DESCRIPTION}\"}}" 2>/dev/null || true
+     ```
+
+     When skeptical re-questioning is resolved, clear that state explicitly. Do not assume the first-result clear retires it:
+
+     ```bash
+     gpd observe event execution gate --action clear --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"skeptical_requestioning\"}}" 2>/dev/null || true
      ```
 
      Before any downstream dependent tasks or fanout continue, emit an explicit pre-fanout stop:
@@ -306,7 +322,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
        --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\",\"pre_fanout_review_pending\":true,\"downstream_locked\":true,\"last_result_label\":\"${FIRST_RESULT_LABEL}\"}}" 2>/dev/null || true
      ```
 
-     Only after the review outcome is accepted should execution unlock fanout:
+     Only after the review outcome is accepted should execution retire the pre-fanout gate and unlock fanout. These are separate transitions; neither one implies the other:
 
      ```bash
      gpd observe event execution gate --action clear --phase "${phase}" --plan "${plan}" \
@@ -314,6 +330,8 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      gpd observe event execution fanout --action unlock --phase "${phase}" --plan "${plan}" \
        --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\"}}" 2>/dev/null || true
      ```
+
+     If the pre-fanout stop also carried skeptical re-questioning, clear that state explicitly before or alongside the pre-fanout clear; a `pre_fanout` clear must not wipe skeptical fields implicitly.
 
      **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
