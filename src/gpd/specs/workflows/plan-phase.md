@@ -227,7 +227,7 @@ Display banner:
 ```
 
 ### Spawn gpd-phase-researcher
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```bash
 PHASE_DESC=$(gpd roadmap get-phase "${PHASE}" | gpd json get .section --default "")
@@ -293,6 +293,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + research_prompt,
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",
+  readonly=false,
   description="Research Phase {phase}"
 )
 ```
@@ -395,6 +396,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-experiment-designer.md for your role and instructions.\n\n" + experiment_prompt,
   subagent_type="gpd-experiment-designer",
   model="{experiment_model}",
+  readonly=false,
   description="Design experiment for Phase {phase}"
 )
 ```
@@ -590,6 +592,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
+  readonly=false,
   description="Plan Phase {phase}"
 )
 ```
@@ -674,6 +677,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-plan-checker.md for your role and instructions.\n\n" + checker_prompt,
   subagent_type="gpd-plan-checker",
   model="{checker_model}",
+  readonly=false,
   description="Verify Phase {phase} plans"
 )
 ```
@@ -773,6 +777,7 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
+  readonly=false,
   description="Revise Phase {phase} plans"
 )
 ```

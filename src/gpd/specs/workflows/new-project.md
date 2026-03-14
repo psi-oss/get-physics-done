@@ -759,6 +759,7 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
 If the user does not know the anchor yet, record that explicitly as an unresolved question or context gap rather than fabricating a paper, dataset, benchmark, or baseline.
 If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
+If the user named a prior output, review checkpoint, or "come back to me before continuing" condition, carry it into `context_intake.must_include_prior_outputs` or `context_intake.crucial_inputs` rather than leaving it only in prose.
 Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders. The approved contract must preserve the user guidance that downstream planning needs.
 
 Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
@@ -1210,7 +1211,7 @@ Display spawning indicator:
 ```
 
 Spawn 4 parallel gpd-project-researcher agents with rich context:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
@@ -1252,7 +1253,7 @@ Your PRIOR-WORK.md feeds into research planning. Be precise:
 Write to: .gpd/research/PRIOR-WORK.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PRIOR-WORK.md
 </output>
-", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Prior work research")
+", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Prior work research")
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1293,7 +1294,7 @@ Your METHODS.md feeds into approach selection. Categorize clearly:
 Write to: .gpd/research/METHODS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/METHODS.md
 </output>
-", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Methods research")
+", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Methods research")
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1335,7 +1336,7 @@ Your COMPUTATIONAL.md informs the computational strategy. Include:
 Write to: .gpd/research/COMPUTATIONAL.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/COMPUTATIONAL.md
 </output>
-", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Computational approaches research")
+", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Computational approaches research")
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1377,7 +1378,7 @@ Your PITFALLS.md prevents wasted effort. For each pitfall:
 Write to: .gpd/research/PITFALLS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PITFALLS.md
 </output>
-", subagent_type="gpd-project-researcher", model="{researcher_model}", description="Pitfalls research")
+", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Pitfalls research")
 ```
 
 **If any research agent fails to spawn or returns an error:** Check which output files were created (PRIOR-WORK.md, METHODS.md, COMPUTATIONAL.md, PITFALLS.md). For each missing file, note the gap and continue with available outputs. If 3+ agents failed, offer: 1) Retry all agents, 2) Skip literature survey and proceed with manual research context, 3) Stop initialization. If 1-2 agents failed, proceed with the synthesizer using available files — the synthesis will be partial but usable.
@@ -1404,7 +1405,7 @@ Write to: .gpd/research/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
-", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", description="Synthesize research")
+", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", readonly=false, description="Synthesize research")
 ```
 
 **If the synthesizer agent fails to spawn or returns an error:** Check if individual research files exist. If they do, create a minimal SUMMARY.md in the main context by reading each file's key findings. The individual research files are more important than the synthesis — proceed with what exists.
@@ -1653,7 +1654,7 @@ Create research roadmap:
 
 Write files first, then return. This ensures artifacts persist even if context is lost.
 </instructions>
-", subagent_type="gpd-roadmapper", model="{roadmapper_model}", description="Create research roadmap")
+", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Create research roadmap")
 ```
 
 **Handle roadmapper return:**
@@ -1740,7 +1741,7 @@ Use ask_user:
   Update the roadmap based on feedback. Edit files in place.
   Return ROADMAP REVISED with changes made.
   </revision>
-  ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", description="Revise roadmap")
+  ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Revise roadmap")
   ```
 
   **If the revision roadmapper agent fails to spawn or returns an error:** Check if ROADMAP.md was updated (compare with pre-revision content). If changes were made, proceed to present the revised roadmap. If no changes, offer: 1) Retry the revision agent, 2) Apply the user's adjustment notes manually in the main context by editing ROADMAP.md directly.
@@ -1817,7 +1818,7 @@ Interactive mode: Present suggested conventions, wait for user confirmation/over
 2. Lock conventions via: gpd convention set
 3. Return CONVENTIONS ESTABLISHED with summary
 </output>
-", subagent_type="gpd-notation-coordinator", model="{notation_model}", description="Establish project conventions")
+", subagent_type="gpd-notation-coordinator", model="{notation_model}", readonly=false, description="Establish project conventions")
 ```
 
 **Handle notation-coordinator return:**

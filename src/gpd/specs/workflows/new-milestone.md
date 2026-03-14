@@ -171,7 +171,7 @@ mkdir -p .gpd/research
 ```
 
 Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dimension-specific fields:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **Common structure for all 4 scouts:**
 
@@ -198,7 +198,7 @@ Focus ONLY on what's needed for the NEW research questions.
 Write to: .gpd/research/{FILE}
 Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 </output>
-", subagent_type="gpd-project-researcher", model="{researcher_model}", description="{DIMENSION} survey")
+", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="{DIMENSION} survey")
 ```
 
 Add this contract inside each spawned scout prompt when adapting it:
@@ -253,7 +253,7 @@ Write to: .gpd/research/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
-", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", description="Synthesize literature survey")
+", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", readonly=false, description="Synthesize literature survey")
 ```
 
 Add this contract inside the spawned synthesizer prompt when adapting it:
@@ -427,7 +427,7 @@ Create research roadmap for milestone v[X.Y]:
 
 Write files first, then return.
 </instructions>
-", subagent_type="gpd-roadmapper", model="{roadmapper_model}", description="Create research roadmap")
+", subagent_type="gpd-roadmapper", model="{roadmapper_model}", readonly=false, description="Create research roadmap")
 ```
 
 Add this contract inside the spawned roadmapper prompt when adapting it:

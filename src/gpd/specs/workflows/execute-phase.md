@@ -452,12 +452,13 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    Pass paths only -- executors read files themselves with their fresh 200k context.
    This keeps orchestrator context lean (~10-15%).
 
-   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+   > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
    ```
    task(
      subagent_type="gpd-executor",
      model="{executor_model}",
+     readonly=false,
      prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
        <objective>
@@ -1251,6 +1252,7 @@ TOTAL_COUNT=$(grep -c "status:" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || 
 task(
   subagent_type="gpd-executor",
   model="{executor_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-executor.md for your role and instructions.
 
   Re-execute plan {FAILED_PLAN} with focus on fixing: {FAILURE_DESCRIPTION}.
@@ -1283,11 +1285,12 @@ DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 task(
   subagent_type="gpd-debugger",
+  model="{debugger_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.
   Investigate why gap closure did not resolve this verification failure.
   file_read: {VERIFICATION_FILE}, {GAP_CLOSURE_SUMMARY}, {ORIGINAL_SUMMARY}
   Identify the root cause and recommend: fix-and-retry vs re-plan vs escalate.",
-  model="{debugger_model}",
   description="Diagnose persistent verification failure"
 )
 ```
@@ -1334,6 +1337,7 @@ VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 task(
   subagent_type="gpd-verifier",
   model="{verifier_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-verifier.md for your role and instructions.
 
 Re-verify Phase {PHASE_NUMBER} after gap closure.
@@ -1388,7 +1392,7 @@ file_read: .gpd/STATE.md, .gpd/state.json
 file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 
 Return consistency_status with any issues found.
-", subagent_type="gpd-consistency-checker", model="{consistency_model}", description="Rapid consistency check")
+", subagent_type="gpd-consistency-checker", model="{consistency_model}", readonly=false, description="Rapid consistency check")
 
 **If the consistency checker agent fails to spawn or returns an error:** Proceed without cross-phase consistency checking for this wave. Note in the phase status that consistency verification was skipped. The user should run `/gpd:validate-conventions` after execution completes to catch any convention drift.
 
@@ -1419,6 +1423,7 @@ NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 task(
   subagent_type="gpd-notation-coordinator",
   model="{notation_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.
 
 <task>
