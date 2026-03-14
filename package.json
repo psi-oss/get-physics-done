@@ -12,11 +12,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/psi-opensource/get-physics-done"
+    "url": "https://github.com/psi-oss/get-physics-done"
   },
-  "homepage": "https://github.com/psi-opensource/get-physics-done#readme",
+  "homepage": "https://github.com/psi-oss/get-physics-done#readme",
   "bugs": {
-    "url": "https://github.com/psi-opensource/get-physics-done/issues"
+    "url": "https://github.com/psi-oss/get-physics-done/issues"
   },
   "author": "Physical Superintelligence PBC (PSI)",
   "keywords": [

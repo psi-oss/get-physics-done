@@ -58,10 +58,10 @@ gpd = "gpd.cli:entrypoint"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
 
 [project.urls]
-Homepage = "https://github.com/psi-opensource/get-physics-done"
-Documentation = "https://github.com/psi-opensource/get-physics-done#readme"
-Repository = "https://github.com/psi-opensource/get-physics-done"
-Issues = "https://github.com/psi-opensource/get-physics-done/issues"
+Homepage = "https://github.com/psi-oss/get-physics-done"
+Documentation = "https://github.com/psi-oss/get-physics-done#readme"
+Repository = "https://github.com/psi-oss/get-physics-done"
+Issues = "https://github.com/psi-oss/get-physics-done/issues"
 
 [build-system]
 requires = ["hatchling"]

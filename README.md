@@ -2,8 +2,8 @@
 
 ### Built by physicists, for physicists
 
-[![CI](https://github.com/psi-opensource/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/psi-opensource/get-physics-done/actions/workflows/test.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/psi-opensource/get-physics-done/blob/main/LICENSE)
+[![CI](https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/psi-oss/get-physics-done/blob/main/LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![npm](https://img.shields.io/npm/v/get-physics-done)](https://www.npmjs.com/package/get-physics-done)
 
@@ -66,7 +66,7 @@ Typical new-project workflow:
 Install directly from GitHub:
 
 ```bash
-npx -y github:psi-opensource/get-physics-done
+npx -y github:psi-oss/get-physics-done
 ```
 
 </details>
@@ -514,7 +514,7 @@ GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github
 
 ## Citation
 
-If GPD contributes to published research, please cite the software using [`CITATION.cff`](https://github.com/psi-opensource/get-physics-done/blob/main/CITATION.cff). Copy-ready formats:
+If GPD contributes to published research, please cite the software using [`CITATION.cff`](https://github.com/psi-oss/get-physics-done/blob/main/CITATION.cff). Copy-ready formats:
 
 ```bibtex
 @software{physical_superintelligence_2026_gpd,
@@ -522,15 +522,15 @@ If GPD contributes to published research, please cite the software using [`CITAT
   title = {Get Physics Done (GPD)},
   version = {0.1.5},
   year = {2026},
-  url = {https://github.com/psi-opensource/get-physics-done},
+  url = {https://github.com/psi-oss/get-physics-done},
   license = {Apache-2.0}
 }
 ```
 
 ```text
-Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 0.1.5). https://github.com/psi-opensource/get-physics-done
+Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 0.1.5). https://github.com/psi-oss/get-physics-done
 ```
 
 ## License
 
-GPD is released under the Apache License 2.0. See [`LICENSE`](https://github.com/psi-opensource/get-physics-done/blob/main/LICENSE).
+GPD is released under the Apache License 2.0. See [`LICENSE`](https://github.com/psi-oss/get-physics-done/blob/main/LICENSE).
