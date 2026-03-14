@@ -51,7 +51,7 @@ def test_score_paper_quality_full_prd_ready():
             ),
             verification=VerificationQualityInput(
                 report_passed=BinaryCheck(passed=True),
-                must_haves_verified=_full_metric(5),
+                contract_targets_verified=_full_metric(5),
                 key_result_confidences=[
                     VerificationConfidence.independently_confirmed,
                     VerificationConfidence.independently_confirmed,
@@ -110,7 +110,7 @@ def test_score_paper_quality_flags_blockers():
             ),
             verification=VerificationQualityInput(
                 report_passed=BinaryCheck(passed=False),
-                must_haves_verified=CoverageMetric(satisfied=2, total=5),
+                contract_targets_verified=CoverageMetric(satisfied=2, total=5),
                 key_result_confidences=[
                     VerificationConfidence.unreliable,
                     VerificationConfidence.structurally_present,
@@ -167,7 +167,7 @@ def test_score_paper_quality_applies_journal_adjustments():
         ),
         verification=VerificationQualityInput(
             report_passed=BinaryCheck(passed=True),
-            must_haves_verified=_full_metric(3),
+            contract_targets_verified=_full_metric(3),
             key_result_confidences=[VerificationConfidence.independently_confirmed],
         ),
         completeness=CompletenessQualityInput(
@@ -258,7 +258,7 @@ def test_category_max_scores_match_constant():
             ),
             verification=VerificationQualityInput(
                 report_passed=BinaryCheck(passed=True),
-                must_haves_verified=_full_metric(1),
+                contract_targets_verified=_full_metric(1),
                 key_result_confidences=[VerificationConfidence.independently_confirmed],
             ),
             completeness=CompletenessQualityInput(
@@ -373,7 +373,6 @@ def test_score_paper_quality_prefers_contract_targets_and_decisive_figure_metric
             ),
             verification=VerificationQualityInput(
                 report_passed=BinaryCheck(passed=True),
-                must_haves_verified=_full_metric(2),
                 contract_targets_verified=CoverageMetric(satisfied=1, total=2),
                 key_result_confidences=[VerificationConfidence.independently_confirmed],
             ),

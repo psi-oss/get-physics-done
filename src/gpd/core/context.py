@@ -241,6 +241,27 @@ def _append_unique_strings(target: list[str], values: list[object] | tuple[objec
             target.append(text)
 
 
+def _build_active_reference_lookup(
+    active_references: list[dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, str]]:
+    """Return active-reference lookup tables by ID and canonicalizable token."""
+    by_id: dict[str, dict[str, object]] = {}
+    token_to_id: dict[str, str] = {}
+    for ref in active_references:
+        ref_id = str(ref.get("id") or "").strip()
+        locator = str(ref.get("locator") or "").strip()
+        if ref_id:
+            by_id[ref_id] = ref
+            token_to_id.setdefault(ref_id.casefold(), ref_id)
+        if ref_id and locator:
+            token_to_id.setdefault(locator.casefold(), ref_id)
+        for alias in ref.get("aliases", []):
+            alias_text = str(alias).strip()
+            if alias_text and ref_id:
+                token_to_id.setdefault(alias_text.casefold(), ref_id)
+    return by_id, token_to_id
+
+
 def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str, object]) -> None:
     """Merge one active-reference record into the merged registry."""
     ref_id = str(ref.get("id") or "").strip()
@@ -259,11 +280,15 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
         payload["required_actions"] = list(ref.get("required_actions") or [])
         payload["applies_to"] = list(ref.get("applies_to") or [])
         payload["source_artifacts"] = list(ref.get("source_artifacts") or [])
+        payload["aliases"] = list(ref.get("aliases") or [])
         if ref_id:
             merged[ref_id] = payload
         else:
             merged[f"derived-{len(merged) + 1:03d}"] = payload
         return
+
+    if ref_id and ref_id != str(target.get("id") or "").strip():
+        _append_unique_strings(target.setdefault("aliases", []), [ref_id])
 
     if str(ref.get("role") or "").strip() and str(target.get("role") or "other").strip() == "other":
         target["role"] = ref.get("role")
@@ -303,6 +328,7 @@ def _merge_active_references(
 def _merge_reference_intake(
     contract: ResearchContract | None,
     derived_intake: dict[str, list[str]],
+    active_references: list[dict[str, object]],
 ) -> dict[str, list[str]]:
     """Return the effective carry-forward intake from contract + parsed artifacts."""
     merged = {
@@ -313,12 +339,18 @@ def _merge_reference_intake(
         "context_gaps": [],
         "crucial_inputs": [],
     }
+    _, token_to_id = _build_active_reference_lookup(active_references)
     if contract is not None:
         intake = contract.context_intake.model_dump(mode="json")
         for key in merged:
             _append_unique_strings(merged[key], list(intake.get(key) or []))
     for key in merged:
         _append_unique_strings(merged[key], list(derived_intake.get(key) or []))
+    canonical_must_read_refs: list[str] = []
+    for token in merged["must_read_refs"]:
+        resolved = token_to_id.get(token.casefold(), token)
+        _append_unique_strings(canonical_must_read_refs, [resolved])
+    merged["must_read_refs"] = canonical_must_read_refs
     return merged
 
 
@@ -330,16 +362,18 @@ def _render_active_reference_context(
 ) -> str:
     """Render a compact text block of anchors and carry-forward inputs."""
     lines: list[str] = ["## Active Reference Registry"]
+    refs_by_id, _ = _build_active_reference_lookup(active_references)
 
     if active_references:
         for ref in active_references:
             actions = ", ".join(str(action) for action in ref.get("required_actions", [])) or "review"
             applies_to = ", ".join(str(item) for item in ref.get("applies_to", [])) or "global"
+            kind = str(ref.get("kind") or "other")
             must_surface = " | must surface" if ref.get("must_surface") else ""
             source_artifacts = ", ".join(str(item) for item in ref.get("source_artifacts", []) if item)
             source_note = f" | source: {source_artifacts}" if source_artifacts else ""
             lines.append(
-                f"- [{ref['id']}] {ref['locator']} | role: {ref['role']}{must_surface} | "
+                f"- [{ref['id']}] {ref['locator']} | kind: {kind} | role: {ref['role']}{must_surface} | "
                 f"actions: {actions} | applies_to: {applies_to} | why: {ref['why_it_matters']}{source_note}"
             )
     else:
@@ -356,7 +390,13 @@ def _render_active_reference_context(
         ]
     )
     if effective_intake["must_read_refs"]:
-        lines.extend(f"- {item}" for item in effective_intake["must_read_refs"])
+        for item in effective_intake["must_read_refs"]:
+            ref = refs_by_id.get(item)
+            if ref is None:
+                lines.append(f"- {item} | unresolved reference token")
+                continue
+            actions = ", ".join(str(action) for action in ref.get("required_actions", [])) or "review"
+            lines.append(f"- [{item}] {ref['locator']} | actions: {actions} | role: {ref.get('role', 'other')}")
     else:
         lines.append("- None confirmed yet.")
 
@@ -431,7 +471,11 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     )
     derived_references = [ref.to_context_dict() for ref in artifact_ingestion.references]
     active_references = _merge_active_references(_serialize_active_references(contract), derived_references)
-    effective_reference_intake = _merge_reference_intake(contract, artifact_ingestion.intake.to_dict())
+    effective_reference_intake = _merge_reference_intake(
+        contract,
+        artifact_ingestion.intake.to_dict(),
+        active_references,
+    )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, contract)
 
@@ -942,9 +986,6 @@ def init_resume(cwd: Path) -> dict:
     """Assemble context for resuming work."""
     config = load_config(cwd)
     execution_context = _build_execution_runtime_context(cwd)
-    state = _load_state_json(cwd)
-    session = state.get("session") if isinstance(state, dict) else {}
-    position = state.get("position") if isinstance(state, dict) else {}
 
     # Check for interrupted agent
     interrupted_agent_id = None
@@ -987,18 +1028,12 @@ def init_resume(cwd: Path) -> dict:
                 "agent_id": interrupted_agent_id,
             }
         )
-    resume_file = session.get("resume_file") if isinstance(session, dict) else None
-    if isinstance(resume_file, str) and resume_file and resume_file != "\u2014":
-        segment_candidates.append(
-            {
-                "source": "session_resume_file",
-                "status": "paused",
-                "resume_file": resume_file,
-                "paused_at": position.get("paused_at") if isinstance(position, dict) else None,
-            }
-        )
-
-    resume_mode = "bounded_segment" if segment_candidates else None
+    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
+        resume_mode = "bounded_segment"
+    elif interrupted_agent_id is not None:
+        resume_mode = "interrupted_agent"
+    else:
+        resume_mode = None
 
     return {
         # File existence

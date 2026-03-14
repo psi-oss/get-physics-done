@@ -361,7 +361,10 @@ def _render_asset_line(role: str, assets: list[BundleAsset]) -> str | None:
 
 def render_protocol_bundle_context(selected: list[ResolvedProtocolBundle]) -> str:
     """Render a compact prompt-facing protocol-bundle summary."""
-    lines = ["## Selected Protocol Bundles"]
+    lines = [
+        "## Selected Protocol Bundles",
+        "- Usage contract: additive specialized guidance only. Bundles do not replace the approved contract, required anchors, acceptance tests, or decisive evidence obligations.",
+    ]
     if not selected:
         lines.append("- None selected from project metadata. Fall back to shared protocols and on-demand routing.")
         return "\n".join(lines)

@@ -49,7 +49,7 @@ Phase number: $ARGUMENTS (optional -- auto-detects next unplanned phase if omitt
 - `--skip-research` -- Skip research, go straight to planning
 - `--gaps` -- Gap closure mode (reads VERIFICATION.md, skips research)
 - `--skip-verify` -- Skip verification loop
-- `--light` -- Produce simplified plans: must_haves + constraints + high-level approach only (no code snippets, no detailed implementation steps)
+- `--light` -- Produce simplified plans: contract + constraints + high-level approach only (no code snippets, no detailed implementation steps)
 
 Normalize phase input in step 2 before any directory lookups.
 </context>

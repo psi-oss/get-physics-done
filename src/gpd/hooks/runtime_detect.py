@@ -191,6 +191,21 @@ def detect_active_runtime_with_gpd_install(*, cwd: Path | None = None, home: Pat
     return resolve_effective_runtime(cwd=cwd, home=home, require_gpd_install=True).runtime
 
 
+def detect_runtime_for_gpd_use(*, cwd: Path | None = None, home: Path | None = None) -> str:
+    """Return the runtime GPD should target for installed surfaces.
+
+    Prefer a runtime that both appears active and has a concrete GPD install.
+    Fall back to the plain active-runtime heuristic when no installed runtime
+    can be identified. This keeps GPD-owned command formatting and runtime-
+    scoped lookup surfaces aligned with the install that can actually service
+    them, without redefining the broader notion of the active runtime.
+    """
+    installed_runtime = detect_active_runtime_with_gpd_install(cwd=cwd, home=home)
+    if installed_runtime != RUNTIME_UNKNOWN:
+        return installed_runtime
+    return detect_active_runtime(cwd=cwd, home=home)
+
+
 def detect_install_scope(
     runtime: str | None = None,
     *,
@@ -198,7 +213,7 @@ def detect_install_scope(
     home: Path | None = None,
 ) -> str | None:
     """Detect whether the active install for *runtime* is local or global."""
-    resolved_runtime = runtime or resolve_effective_runtime(cwd=cwd, home=home).runtime
+    resolved_runtime = runtime or detect_runtime_for_gpd_use(cwd=cwd, home=home)
     if resolved_runtime not in ALL_RUNTIMES:
         return None
 
@@ -472,6 +487,7 @@ __all__ = [
     "detect_install_scope",
     "detect_active_runtime",
     "detect_active_runtime_with_gpd_install",
+    "detect_runtime_for_gpd_use",
     "get_cache_dirs",
     "get_update_cache_candidates",
     "get_gpd_install_dirs",

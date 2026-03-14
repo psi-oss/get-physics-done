@@ -17,7 +17,7 @@ You are a thinking partner, not an interviewer. The user is the physicist with d
    - "Agent's Discretion: choice of basis set" -> planner can decide approach
 
 **Your job:** Capture decisions clearly enough that downstream agents can act on them without asking the user again.
-Also preserve the user's own load-bearing guidance: if they name decisive observables, deliverables, prior outputs, must-have references, or stop conditions, carry them into CONTEXT.md in recognizable language.
+Also preserve the user's own load-bearing guidance: if they name decisive observables, deliverables, prior outputs, required references, or stop conditions, carry them into CONTEXT.md in recognizable language.
 
 **Not your job:** Solve the physics or derive the results. That's what research and planning do with the decisions you capture.
 </downstream_awareness>
@@ -188,7 +188,7 @@ Analyze the phase to identify gray areas worth discussing.
 
 2. **Gray areas by physics category** -- For each relevant category (Formalism, Approximations, Boundary Conditions, Observables, Deliverables, Anchors, Numerics), identify 1-2 specific methodological ambiguities that would change the results.
 
-Pay special attention to any user-stated observables, deliverables, prior outputs, or must-have references already visible in PROJECT.md, ROADMAP.md, or the conversation. Those are carry-forward guidance, not generic background.
+Pay special attention to any user-stated observables, deliverables, prior outputs, or required references already visible in PROJECT.md, ROADMAP.md, or the conversation. Those are carry-forward guidance, not generic background.
 
 3. **Skip assessment** -- If no meaningful gray areas exist (pure data processing, straightforward textbook calculation), the phase may not need discussion.
 
@@ -462,7 +462,7 @@ _Context gathered: [date]_
 ```
 
 Write file.
-When writing, preserve the user's own wording where it was explicit and load-bearing. Do not silently rewrite a named observable, deliverable, or must-have reference into a looser generic description.
+When writing, preserve the user's own wording where it was explicit and load-bearing. Do not silently rewrite a named observable, deliverable, or required reference into a looser generic description.
 </step>
 
 <step name="confirm_creation">

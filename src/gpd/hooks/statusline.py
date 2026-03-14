@@ -400,6 +400,7 @@ def _check_update(workspace_dir: str | None = None) -> str:
         from gpd.adapters import get_adapter
         from gpd.hooks.runtime_detect import (
             RUNTIME_UNKNOWN,
+            _runtime_dir_has_gpd_install,
             detect_active_runtime_with_gpd_install,
             detect_install_scope,
             update_command_for_runtime,
@@ -408,13 +409,9 @@ def _check_update(workspace_dir: str | None = None) -> str:
         workspace_path = Path(workspace_dir) if workspace_dir else None
         runtime = getattr(cache_candidate, "runtime", None) or RUNTIME_UNKNOWN
         scope = getattr(cache_candidate, "scope", None)
-        if runtime != RUNTIME_UNKNOWN:
-            installed_scope = detect_install_scope(runtime, cwd=workspace_path)
-            if installed_scope is None:
-                runtime = RUNTIME_UNKNOWN
-                scope = None
-            else:
-                scope = installed_scope
+        if runtime != RUNTIME_UNKNOWN and not _runtime_dir_has_gpd_install(runtime, cwd=workspace_path):
+            runtime = RUNTIME_UNKNOWN
+            scope = None
         if runtime == RUNTIME_UNKNOWN:
             runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
         try:

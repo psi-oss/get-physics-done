@@ -187,9 +187,9 @@ def _format_command(action: str, *, cwd: Path | None = None) -> str:
     """Format a GPD command name."""
     try:
         from gpd.adapters import get_adapter
-        from gpd.hooks.runtime_detect import detect_active_runtime
+        from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 
-        return get_adapter(detect_active_runtime(cwd=cwd)).format_command(action)
+        return get_adapter(detect_runtime_for_gpd_use(cwd=cwd)).format_command(action)
     except Exception:
         return f"gpd {action}"
 

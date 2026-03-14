@@ -1,7 +1,7 @@
 <purpose>
-Re-verify all previously verified physics truths across completed phases to detect regressions. Finds VERIFICATION.md files, extracts VERIFIED truths, re-checks each against the current project state, and produces a regression report.
+Re-verify all previously verified physics claims, checks, and decisive evidence across completed phases to detect regressions. Finds VERIFICATION.md files, extracts VERIFIED targets, re-checks each against the current project state, and produces a regression report.
 
-A regression is a truth that was VERIFIED at phase completion but no longer holds given the current state of the project. Common causes: notation drift, convention changes, modified shared derivations, approximation regime violations from later phases.
+A regression is a previously VERIFIED claim, check, or decisive comparison that no longer holds given the current state of the project. Common causes: notation drift, convention changes, modified shared derivations, approximation regime violations from later phases.
 </purpose>
 
 <process>
@@ -50,8 +50,8 @@ fi
 
 Determine scope:
 
-- **Single phase:** Re-check truths only from that phase's VERIFICATION.md
-- **All phases:** Re-check truths from all completed phases
+- **Single phase:** Re-check verified targets only from that phase's VERIFICATION.md
+- **All phases:** Re-check verified targets from all completed phases
   </step>
 
 <step name="chunking_strategy">
@@ -75,7 +75,7 @@ echo "Found $PHASE_COUNT VERIFICATION.md files"
 1. Divide phases into batches (sorted numerically by phase number)
 2. For each batch:
    a. Read the VERIFICATION.md files in the batch
-   b. Extract truths and run re-checks (steps discover_verifications through recheck_remaining)
+   b. Extract verified targets and run re-checks (steps discover_verifications through recheck_remaining)
    c. Record batch results: `{still_verified: N, regressions: [...], needs_recheck: [...]}`
    d. Release the batch file contents from working memory before loading the next batch
 3. After all batches complete, merge the running tallies into a single result set
@@ -86,7 +86,7 @@ echo "Found $PHASE_COUNT VERIFICATION.md files"
 ```
 tally = {
   phases_checked: 0,
-  truths_checked: 0,
+  targets_checked: 0,
   still_verified: 0,
   regressions: [],       # accumulated across batches
   needs_recheck: [],     # accumulated across batches
@@ -112,8 +112,8 @@ gpd frontmatter get "$VERIF_FILE" --field status
 
 **Filter:**
 
-- Include files with `status: passed` or `status: gaps_found` (both contain verified truths)
-- Skip files with `status: human_needed` that have no VERIFIED truths
+- Include files with `status: passed` or `status: gaps_found` (both contain verified targets)
+- Skip files with `status: human_needed` that have no VERIFIED targets
 - If scoped to a single phase, filter to that phase directory only
 
 Build verification inventory:
@@ -139,22 +139,22 @@ Run /gpd:verify-work <phase> to verify a completed phase first.
 Exit.
 </step>
 
-<step name="extract_truths">
-**Extract all verified truths from each VERIFICATION.md:**
+<step name="extract_verified_targets">
+**Extract all verified targets from each VERIFICATION.md:**
 
-Read each file's "Observable Truths" section (the `must_haves` truths table):
+Read each file's contract-target coverage and verified-outcomes sections:
 
 ```markdown
-## Observable Truths (from must_haves)
+## Contract Coverage
 
-| #   | Truth                                                 | Status   | Evidence                         |
-| --- | ----------------------------------------------------- | -------- | -------------------------------- |
-| 1   | Dispersion relation is correct in all limiting cases  | VERIFIED | derivation.tex + limits_check.py |
-| 2   | Energy spectrum matches exact diagonalization for N=8 | VERIFIED | exact_diag_comparison.py         |
-| 3   | Spectral function satisfies sum rule                  | FAILED   | ...                              |
+| ID                 | Kind  | Expectation                                          | Status   | Evidence                         |
+| ------------------ | ----- | ---------------------------------------------------- | -------- | -------------------------------- |
+| claim-dispersion   | claim | Dispersion relation is correct in all limiting cases | VERIFIED | derivation.tex + limits_check.py |
+| claim-spectrum     | claim | Energy spectrum matches exact diagonalization for N=8| VERIFIED | exact_diag_comparison.py         |
+| claim-sum-rule     | claim | Spectral function satisfies sum rule                 | FAILED   | ...                              |
 ```
 
-**Extract only truths with status: VERIFIED.**
+**Extract only targets with status: VERIFIED.**
 
 Also extract from each VERIFICATION.md:
 
@@ -164,14 +164,14 @@ Also extract from each VERIFICATION.md:
 - **Conservation Laws** section -- conservation laws verified
 - **Required Artifacts** section -- artifacts confirmed to exist
 
-Build master truth registry:
+Build master target registry:
 
 ```
-truths = [
+targets = [
   {
     phase: "01-setup",
     number: 1,
-    truth: "Hamiltonian dimensions are [Energy]",
+    expectation: "Hamiltonian dimensions are [Energy]",
     evidence: "dimensional_check.md",
     verification_file: ".gpd/phases/01-setup/01-VERIFICATION.md",
     category: "dimensional"
@@ -179,7 +179,7 @@ truths = [
   {
     phase: "02-derivation",
     number: 1,
-    truth: "Dispersion relation is correct in all limiting cases",
+    expectation: "Dispersion relation is correct in all limiting cases",
     evidence: "derivation.tex + limits_check.py",
     verification_file: ".gpd/phases/02-derivation/02-VERIFICATION.md",
     category: "limiting_case"
@@ -188,7 +188,7 @@ truths = [
 ]
 ```
 
-Categorize each truth:
+Categorize each target:
 
 - **dimensional** -- Claims about dimensions/units
 - **limiting_case** -- Claims about behavior in specific limits
@@ -206,7 +206,7 @@ Display extraction summary:
  GPD > REGRESSION CHECK
 ====================================================
 
-Extracted {N} verified truths from {M} phases:
+Extracted {N} verified targets from {M} phases:
 
 | Category | Count |
 |----------|-------|
@@ -219,15 +219,15 @@ Extracted {N} verified truths from {M} phases:
 | analytical | 4 |
 | comparison | 3 |
 
-Re-checking all truths against current project state...
+Re-checking all targets against current project state...
 ```
 
 </step>
 
 <step name="recheck_artifacts">
-**Re-check artifact truths first (fast, filesystem-only):**
+**Re-check artifact-backed targets first (fast, filesystem-only):**
 
-For each truth with category `artifact`:
+For each target with category `artifact`:
 
 1. Parse the evidence field for file paths
 2. Check each path still exists:
@@ -252,9 +252,9 @@ For each truth with category `artifact`:
   </step>
 
 <step name="recheck_dimensional">
-**Re-check dimensional truths:**
+**Re-check dimensional targets:**
 
-For each truth with category `dimensional`:
+For each target with category `dimensional`:
 
 1. Locate the equation or expression referenced in the evidence
 2. Read the current version of the file containing the expression
@@ -278,11 +278,11 @@ For each truth with category `dimensional`:
   </step>
 
 <step name="recheck_limiting_cases">
-**Re-check limiting case truths:**
+**Re-check limiting-case targets:**
 
-For each truth with category `limiting_case`:
+For each target with category `limiting_case`:
 
-1. Identify the result and the limit from the truth statement
+1. Identify the result and the limit from the target expectation
 2. Read the current version of the derivation or computation
 3. Check if the result expression has been modified since verification
 4. Check if any upstream dependency was modified:
@@ -308,7 +308,7 @@ This is the most important regression check -- later phases can silently break e
 
 1. **Notation consistency:**
    Read STATE.md "Convention Lock" and each phase's SUMMARY.md "Convention Changes" section.
-   For each verified truth, check that symbols used in the truth statement still mean the same thing:
+   For each verified target, check that symbols used in the target expectation still mean the same thing:
 
    ```bash
    grep -n "$SYMBOL" .gpd/phases/*/SUMMARY.md 2>/dev/null
@@ -317,13 +317,13 @@ This is the most important regression check -- later phases can silently break e
    Flag if a symbol was redefined in a later phase.
 
 2. **Approximation regime overlap:**
-   For each verified truth that assumes a specific regime (e.g., "valid for T >> Tc"):
+   For each verified target that assumes a specific regime (e.g., "valid for T >> Tc"):
 
    - Check if later phases explored parameter values outside that regime
    - Check STATE.md "Active Approximations" for regime updates
 
 3. **Shared derivation integrity:**
-   For truths that depend on shared derivations or results from other phases:
+   For verified targets that depend on shared derivations or results from other phases:
    - Check if the upstream result was modified after the downstream verification
    ```bash
    git log --oneline --since="$DOWNSTREAM_VERIFICATION_DATE" -- "$UPSTREAM_FILE" 2>/dev/null
@@ -340,14 +340,14 @@ This is the most important regression check -- later phases can silently break e
 <step name="recheck_cross_phase_consistency">
 ## Cross-Phase Consistency Check
 
-After re-verifying individual truths, run a rapid cross-phase consistency check:
+After re-verifying individual targets, run a rapid cross-phase consistency check:
 
-For each truth whose supporting artifacts were modified since last verification:
+For each target whose supporting artifacts were modified since last verification:
 1. Trace the provides/consumes chain across phases
 2. Verify convention consistency at each transfer point
 3. Check that sign conventions, unit systems, and normalization match
 
-This catches compensating errors where two changes individually preserve truths but together break cross-phase transfers.
+This catches compensating errors where two changes individually preserve local checks but together break cross-phase transfers.
 
 Use the convention diff to compare the last verified phase against the current phase:
 ```bash
@@ -356,24 +356,24 @@ gpd convention diff <last-verified-phase> <current-phase>
 </step>
 
 <step name="recheck_remaining">
-**Re-check symmetry, conservation, numerical, analytical, and comparison truths:**
+**Re-check symmetry, conservation, numerical, analytical, and comparison targets:**
 
-For each remaining truth:
+For each remaining target:
 
 1. Locate the supporting evidence (files referenced in the Evidence column)
 2. Check if the evidence files were modified since verification:
    ```bash
    git log --oneline --since="$VERIFICATION_DATE" -- "$EVIDENCE_PATH" 2>/dev/null
    ```
-3. If modified, read the current content and assess whether the truth still holds
-4. For numerical truths: check if computation code or input parameters changed
-5. For comparison truths: check if the result being compared changed
+3. If modified, read the current content and assess whether the previously verified target still holds
+4. For numerical targets: check if computation code or input parameters changed
+5. For comparison targets: check if the result being compared changed
 
 **Status assignment:**
 
 - Evidence unchanged -> **STILL_VERIFIED**
-- Evidence modified but truth still holds on re-examination -> **STILL_VERIFIED** (note: "re-confirmed after modification")
-- Evidence modified and truth no longer holds -> **REGRESSION**
+- Evidence modified but the target still holds on re-examination -> **STILL_VERIFIED** (note: "re-confirmed after modification")
+- Evidence modified and the target no longer holds -> **REGRESSION**
 - Evidence modified, cannot determine -> **NEEDS_RECHECK**
   </step>
 
@@ -412,7 +412,7 @@ grep -rl "phase.*${PHASE_NUM}\|${PHASE_NAME}" .gpd/phases/*/SUMMARY.md 2>/dev/nu
 checked: YYYY-MM-DDTHH:MM:SSZ
 scope: all | phase-{N}
 phases_checked: N
-truths_checked: M
+targets_checked: M
 regressions_found: K
 needs_recheck: J
 status: clean | regressions_found
@@ -429,7 +429,7 @@ status: clean | regressions_found
 | Metric               | Count |
 | -------------------- | ----- |
 | Phases checked       | {N}   |
-| Truths re-verified   | {M}   |
+| Targets re-verified  | {M}   |
 | Still verified       | {V}   |
 | Regressions found    | {K}   |
 | Needs manual recheck | {J}   |
@@ -437,33 +437,33 @@ status: clean | regressions_found
 ## Regressions
 
 {If no regressions:}
-**No regressions detected.** All {M} verified truths still hold against the current project state.
+**No regressions detected.** All {M} verified targets still hold against the current project state.
 
 {If regressions found:}
 
 ### CRITICAL
 
-| #   | Phase   | Truth             | Regression Type | Details        | Affected Phases     |
+| #   | Phase   | Target            | Regression Type | Details        | Affected Phases     |
 | --- | ------- | ----------------- | --------------- | -------------- | ------------------- |
-| 1   | {phase} | {truth statement} | {type}          | {what changed} | {downstream phases} |
+| 1   | {phase} | {target summary}  | {type}          | {what changed} | {downstream phases} |
 
 ### MAJOR
 
-| #   | Phase   | Truth             | Regression Type | Details        | Affected Phases     |
+| #   | Phase   | Target            | Regression Type | Details        | Affected Phases     |
 | --- | ------- | ----------------- | --------------- | -------------- | ------------------- |
-| 1   | {phase} | {truth statement} | {type}          | {what changed} | {downstream phases} |
+| 1   | {phase} | {target summary}  | {type}          | {what changed} | {downstream phases} |
 
 ### MINOR
 
-| #   | Phase   | Truth             | Regression Type | Details        | Affected Phases     |
+| #   | Phase   | Target            | Regression Type | Details        | Affected Phases     |
 | --- | ------- | ----------------- | --------------- | -------------- | ------------------- |
-| 1   | {phase} | {truth statement} | {type}          | {what changed} | {downstream phases} |
+| 1   | {phase} | {target summary}  | {type}          | {what changed} | {downstream phases} |
 
 ## Needs Manual Recheck
 
-| #   | Phase   | Truth             | Reason                                |
+| #   | Phase   | Target            | Reason                                |
 | --- | ------- | ----------------- | ------------------------------------- |
-| 1   | {phase} | {truth statement} | {why automated check is insufficient} |
+| 1   | {phase} | {target summary}  | {why automated check is insufficient} |
 
 ## Phase Impact Map
 
@@ -488,16 +488,16 @@ status: clean | regressions_found
 ### Regression {N}: {Brief title}
 
 - **Phase:** {phase number and name}
-- **Truth:** {the verified truth that regressed}
+- **Target:** {the verified claim, deliverable, or check that regressed}
 - **Category:** {dimensional | limiting_case | symmetry | ...}
 - **Original verification:** {date from VERIFICATION.md}
-- **What changed:** {specific description of what broke the truth}
+- **What changed:** {specific description of what broke the target}
 - **Evidence:**
   - Original: {what the verification found}
   - Current: {what the re-check found}
 - **Severity:** {CRITICAL | MAJOR | MINOR}
 - **Affected downstream phases:** {list}
-- **Recommended fix:** {specific action to restore the truth}
+- **Recommended fix:** {specific action to restore the target}
 
 ---
 
@@ -519,7 +519,7 @@ Commit:
 PRE_CHECK=$(gpd pre-commit-check --files ".gpd/REGRESSION-REPORT.md" 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "verify: regression check - {V}/{M} truths hold, {K} regressions" --files ".gpd/REGRESSION-REPORT.md"
+gpd commit "verify: regression check - {V}/{M} verified targets hold, {K} regressions" --files ".gpd/REGRESSION-REPORT.md"
 ```
 
 </step>
@@ -534,7 +534,7 @@ gpd commit "verify: regression check - {V}/{M} truths hold, {K} regressions" --f
  GPD > REGRESSION CHECK: CLEAN
 ====================================================
 
-Re-verified {M} truths across {N} phases.
+Re-verified {M} targets across {N} phases.
 All previously verified results still hold.
 
 Report: .gpd/REGRESSION-REPORT.md
@@ -547,7 +547,7 @@ Report: .gpd/REGRESSION-REPORT.md
  GPD > REGRESSION CHECK: {K} REGRESSIONS FOUND
 ====================================================
 
-Re-verified {M} truths across {N} phases.
+Re-verified {M} targets across {N} phases.
 
 | Severity | Count |
 |----------|-------|
@@ -556,7 +556,7 @@ Re-verified {M} truths across {N} phases.
 | MINOR    | {I}   |
 
 {For each CRITICAL regression:}
-**CRITICAL: Phase {X} -- {truth}**
+**CRITICAL: Phase {X} -- {target}**
   {what changed} -> affects phases {downstream}
 
 Report: .gpd/REGRESSION-REPORT.md
@@ -586,12 +586,12 @@ Report: .gpd/REGRESSION-REPORT.md
 
 - [ ] Chunking strategy determined based on phase count (batches of 3-5 for 6+ phases)
 - [ ] All VERIFICATION.md files discovered and inventoried
-- [ ] All VERIFIED truths extracted with category and evidence
+- [ ] All VERIFIED targets extracted with category and evidence
 - [ ] Artifact integrity checked (existence, modification, substantiveness)
-- [ ] Dimensional truths re-checked against current conventions
-- [ ] Limiting case truths re-checked against current parameter regimes
+- [ ] Dimensional targets re-checked against current conventions
+- [ ] Limiting-case targets re-checked against current parameter regimes
 - [ ] Cross-phase consistency verified (notation, approximations, shared derivations)
-- [ ] Remaining truths re-checked against current evidence files
+- [ ] Remaining targets re-checked against current evidence files
 - [ ] Regressions classified by severity (CRITICAL / MAJOR / MINOR)
 - [ ] Affected downstream phases identified for each regression
 - [ ] REGRESSION-REPORT.md generated with full results

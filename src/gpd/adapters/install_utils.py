@@ -1331,7 +1331,7 @@ def _is_hook_command_for_script(
     if managed_paths:
         if any(managed_path in normalized_command for managed_path in managed_paths):
             return True
-        # Legacy installs sometimes used bare filenames like `python3 check_update.py`.
+        # Some installs use bare filenames like `python3 check_update.py`.
         # Match only filename tokens, not third-party paths ending in the same basename.
         return re.search(rf"(^|[\s'\"`]){re.escape(hook_filename)}(['\"`]|$)", normalized_command) is not None
 

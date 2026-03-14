@@ -81,7 +81,7 @@ With diagnosis: "Result disagrees with literature" -> "Missing factor of 2 from 
 Read the "Gaps" section (YAML format):
 
 ```yaml
-- truth: "Energy is conserved to machine precision"
+- expectation: "Energy is conserved to machine precision"
   status: failed
   reason: "Researcher reported: energy drifts by 1% over 1000 timesteps"
   severity: major
@@ -96,8 +96,8 @@ Build gap list:
 
 ```
 gaps = [
-  {truth: "Energy is conserved...", severity: "major", check_num: 2, reason: "..."},
-  {truth: "Critical temperature matches literature...", severity: "blocker", check_num: 5, reason: "..."},
+  {expectation: "Energy is conserved...", severity: "major", check_num: 2, reason: "..."},
+  {expectation: "Critical temperature matches literature...", severity: "blocker", check_num: 5, reason: "..."},
   ...
 ]
 ```
@@ -247,7 +247,7 @@ If agent returns `## INVESTIGATION INCONCLUSIVE`:
 For each gap in the Gaps section, add artifacts and missing fields:
 
 ```yaml
-- truth: "Energy is conserved to machine precision"
+- expectation: "Energy is conserved to machine precision"
   status: failed
   reason: "Researcher reported: energy drifts by 1% over 1000 timesteps"
   severity: major

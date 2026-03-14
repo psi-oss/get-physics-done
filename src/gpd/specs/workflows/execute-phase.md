@@ -1199,7 +1199,7 @@ All automated checks passed. {N} items need human review:
 ```
 ## Phase {X}: {Name} -- Gaps Found
 
-**Score:** {N}/{M} must-haves verified
+**Score:** {N}/{M} contract targets verified
 **Report:** {phase_dir}/{phase}-VERIFICATION.md
 
 ### What's Missing
@@ -1226,19 +1226,19 @@ Gap closure cycle: `/gpd:plan-phase {X} --gaps` reads VERIFICATION.md -> creates
 Before triggering gap closure, classify the failure to select the minimum-cost recovery strategy. See `agent-infrastructure.md` Meta-Orchestration Intelligence > Feedback Loop Intelligence for the full classification table.
 
 ```bash
-# Count failed must-haves and classify
+# Count failed contract targets and classify
 FAILED_COUNT=$(grep -c "status: failed" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || echo 0)
 TOTAL_COUNT=$(grep -c "status:" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || echo 0)
 ```
 
 | Failure Pattern | Recovery | Cost |
 |---|---|---|
-| 1 must-have failed, rest passed | Re-execute the specific failing plan only | 1 subagent |
+| 1 contract target failed, rest passed | Re-execute the specific failing plan only | 1 subagent |
 | Multiple failures, same error type (e.g., all sign errors) | Spawn notation-coordinator to check conventions, then re-execute | 2 subagents |
 | Multiple failures, different error types | Escalate to user -- approach may be fundamentally wrong | 0 (user decides) |
 | Same gap persists after 1 gap-closure | Spawn debugger to identify root cause before 2nd attempt | 1-2 subagents |
 
-**For localized failures (1 must-have):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
+**For localized failures (1 contract target):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
 ```
 task(

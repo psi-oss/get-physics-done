@@ -1002,6 +1002,7 @@ flowchart TD
 
 - `src/gpd/adapters/codex.py -> ~/.agents/skills`
   `partial-ownership`
+  Discoverable Codex skills live here: commands plus public agents.
 
 - `src/gpd/adapters/codex.py -> gpd-file-manifest.json::codex_skills_dir`
   `manifest-contract`
@@ -1460,13 +1461,14 @@ They explicitly preserve:
 
 - `tests/test_install_lifecycle.py -> gpd-file-manifest.json`
   `manifest-contract`
-  Includes `version`, `timestamp`, `file_hash`, stale-file cleanup, Codex skills entries, and OpenCode path-shape constraints.
+  Includes `version`, `timestamp`, `file_hash`, stale-file cleanup, Codex discoverable-skill entries, and OpenCode path-shape constraints.
 
 - `tests/adapters/test_install_roundtrip.py -> installed runtime gpd-file-manifest.json families under {.claude,.gemini,.codex,.opencode}`
   `manifest-contract`
 
 - `tests/adapters/test_install_roundtrip.py -> adapter source-command inventory versus Gemini .toml command count and Codex skill count`
   `count-contract`
+  Codex count here means discoverable skills, not the canonical registry/MCP skill index.
 
 - `tests/adapters/test_install_roundtrip.py -> src/gpd/adapters/{claude_code,gemini,codex,opencode}.py`
   `typed-roundtrip`

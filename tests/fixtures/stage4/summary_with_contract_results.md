@@ -10,10 +10,6 @@ key-files:
     - figures/benchmark.png
   modified:
     - src/benchmark.py
-verification_inputs:
-  truths:
-    - claim: Recover benchmark value within tolerance
-      expected: match within 1 percent
 plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:

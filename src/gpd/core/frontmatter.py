@@ -25,7 +25,7 @@ from gpd.core.constants import (
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import safe_parse_int, safe_read_file
+from gpd.core.utils import safe_read_file
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -235,6 +235,20 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
     },
 }
 
+UNSUPPORTED_FRONTMATTER_FIELDS: dict[str, dict[str, str]] = {
+    "plan": {
+        "must_haves": "must_haves is not part of the contract-first plan schema; encode verification targets in contract claims, deliverables, links, references, and acceptance_tests",
+    },
+    "summary": {
+        "verification_inputs": "verification_inputs is not part of the contract-first summary schema; use contract_results and comparison_verdicts instead",
+        "contract_evidence": "contract_evidence is not part of the contract-first summary schema; use contract_results instead",
+    },
+    "verification": {
+        "verification_inputs": "verification_inputs is not part of the contract-first verification schema; use contract_results and comparison_verdicts instead",
+        "contract_evidence": "contract_evidence is not part of the contract-first verification schema; use contract_results instead",
+    },
+}
+
 
 class FrontmatterValidation(BaseModel):
     """Result of frontmatter schema validation."""
@@ -384,7 +398,7 @@ def _validate_plan_contract(contract: ResearchContract) -> list[str]:
 
 def _parse_contract_results(meta: dict) -> ContractResults | None:
     """Parse a summary contract-results block when present."""
-    raw = meta.get("contract_results", meta.get("contract_evidence"))
+    raw = meta.get("contract_results")
     if raw is None:
         return None
     return ContractResults.model_validate(raw)
@@ -398,6 +412,15 @@ def _parse_comparison_verdicts(meta: dict) -> list[ComparisonVerdict]:
     if not isinstance(raw, list):
         raise ValueError("expected a list")
     return [ComparisonVerdict.model_validate(entry) for entry in raw]
+
+
+def _unsupported_frontmatter_errors(schema_name: str, meta: dict[str, object]) -> list[str]:
+    """Return explicit errors for unsupported frontmatter fields."""
+    return [
+        f"{unsupported_field}: {message}"
+        for unsupported_field, message in UNSUPPORTED_FRONTMATTER_FIELDS.get(schema_name, {}).items()
+        if unsupported_field in meta
+    ]
 
 
 def _summary_contract_errors(
@@ -507,6 +530,8 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
     missing = [f for f in required if _resolve_field(meta, f) is None]
     present = [f for f in required if _resolve_field(meta, f) is not None]
     errors: list[str] = []
+
+    errors.extend(_unsupported_frontmatter_errors(schema_name, meta))
 
     if isinstance(meta.get("contract"), dict):
         try:
@@ -809,6 +834,11 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
 
     errors: list[str] = []
     warnings: list[str] = []
+
+    if "must_haves" in meta:
+        errors.append(
+            "Unsupported frontmatter field: must_haves. Encode execution and verification targets in the contract block."
+        )
 
     # Required frontmatter fields use the canonical underscore schema.
     for fname in FRONTMATTER_SCHEMAS["plan"]["required"]:

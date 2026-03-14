@@ -486,9 +486,8 @@ Note: DERIVATION-STATE.md is updated by /gpd:pause-work for session handoff. On 
 - `plan_contract_ref`
 - `contract_results` keyed by claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs
 - `comparison_verdicts` for decisive internal/external comparisons when they exist
-- `verification_inputs` derived from `contract_results` for legacy verifier compatibility
 
-`contract_results` is authoritative. `verification_inputs` is compatibility-only and must not invent targets that are absent from the PLAN contract.
+`contract_results` is authoritative. Do not reintroduce ad hoc summary-side success criteria that are absent from the PLAN contract.
 
 Title: `# Phase [X] Plan [Y]: [Name] Summary`
 
@@ -668,7 +667,7 @@ When plan execution fails, see `execute-plan-recovery.md` for the full recovery 
 - Dimensional consistency verified for all quantitative results
 - Limiting cases checked where specified
 - SUMMARY.md created with substantive content including key results
-- Contract-backed plans emit contract_results, comparison_verdicts when applicable, and legacy verification_inputs derived from those results
+- Contract-backed plans emit contract_results and comparison_verdicts when applicable
 - STATE.md updated (position, decisions, issues, session)
 - ROADMAP.md updated
 - Validation events documented

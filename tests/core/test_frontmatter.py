@@ -297,6 +297,31 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "summary")
         assert result.valid is True
 
+    def test_plan_rejects_unsupported_must_haves_field(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "---\n\n",
+            "must_haves:\n  truths: [Obsolete block]\n---\n\n",
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is False
+        assert any(error.startswith("must_haves:") for error in result.errors)
+
+    def test_summary_rejects_unsupported_verification_inputs(self):
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: standard\n"
+            "provides: []\n"
+            "completed: 2025-01-01\n"
+            "verification_inputs:\n"
+            "  truths: []\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "summary")
+        assert result.valid is False
+        assert any(error.startswith("verification_inputs:") for error in result.errors)
+
     def test_valid_plan_with_contract_only(self):
         content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
         result = validate_frontmatter(content, "plan")
@@ -382,7 +407,7 @@ class TestValidateFrontmatter:
             "contract:\n"
             "  scope:\n"
             "    question: What setup output should be ready for later comparison?\n"
-            "    unresolved_questions: [Which benchmark will be authoritative?]\n"
+            "    unresolved_questions: [\"Which benchmark will be authoritative?\"]\n"
             "  context_intake:\n"
             "    must_include_prior_outputs: [.gpd/phases/00-setup/00-01-SUMMARY.md]\n"
             "    known_good_baselines: [Smoke-test CLI output]\n"
@@ -859,17 +884,9 @@ class TestVerifyArtifacts:
         (tmp_path / "figures").mkdir()
         (tmp_path / "figures" / "main.png").write_text("benchmark evidence\nreference within tolerance\n")
         f = tmp_path / "plan.md"
-        content = (
-            _valid_plan_contract_frontmatter(
-                "  deliverables:\n"
-                "    - id: deliv-main\n"
-                "      kind: figure\n"
-                "      path: figures/main.png\n"
-                "      description: Main benchmark figure\n"
-                "      must_contain: [benchmark evidence, reference within tolerance]\n"
-            )
-            + "Body.\n"
-        )
+        content = _valid_plan_contract_frontmatter(
+            deliverable_must_contain=["benchmark evidence", "reference within tolerance"]
+        ) + "Body.\n"
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
@@ -880,17 +897,9 @@ class TestVerifyArtifacts:
         (tmp_path / "figures").mkdir()
         (tmp_path / "figures" / "main.png").write_text("benchmark evidence only\n")
         f = tmp_path / "plan.md"
-        content = (
-            _valid_plan_contract_frontmatter(
-                "  deliverables:\n"
-                "    - id: deliv-main\n"
-                "      kind: figure\n"
-                "      path: figures/main.png\n"
-                "      description: Main benchmark figure\n"
-                "      must_contain: [benchmark evidence, reference within tolerance]\n"
-            )
-            + "Body.\n"
-        )
+        content = _valid_plan_contract_frontmatter(
+            deliverable_must_contain=["benchmark evidence", "reference within tolerance"]
+        ) + "Body.\n"
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
@@ -1015,10 +1024,8 @@ class TestVerifyPlanStructure:
         from gpd.core.frontmatter import verify_plan_structure
 
         content = (
-            "---\n"
-            "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
-            "---\n\n"
+            _valid_plan_contract_frontmatter()
+            +
             '<task type="code">\n'
             "  <action>Do something</action>\n"
             "</task>\n"
@@ -1031,12 +1038,7 @@ class TestVerifyPlanStructure:
     def test_wave_gt1_empty_deps_warns(self, tmp_path):
         from gpd.core.frontmatter import verify_plan_structure
 
-        content = (
-            "---\n"
-            "phase: 01-test\nplan: 01\ntype: execute\nwave: 2\n"
-            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
-            "---\n\nBody.\n"
-        )
+        content = _valid_plan_contract_frontmatter().replace("wave: 1\n", "wave: 2\n") + "Body.\n"
         f = tmp_path / "plan.md"
         f.write_text(content)
         result = verify_plan_structure(tmp_path, f)
@@ -1046,10 +1048,8 @@ class TestVerifyPlanStructure:
         from gpd.core.frontmatter import verify_plan_structure
 
         content = (
-            "---\n"
-            "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: false\nmust_haves: {}\n"
-            "---\n\n"
+            _valid_plan_contract_frontmatter()
+            +
             '<task type="checkpoint">\n'
             "  <name>Review</name>\n"
             "  <action>Review code</action>\n"
@@ -1064,10 +1064,8 @@ class TestVerifyPlanStructure:
         from gpd.core.frontmatter import verify_plan_structure
 
         content = (
-            "---\n"
-            "phase: 01-test\nplan: 01\ntype: execute\nwave: 1\n"
-            "depends_on: []\nfiles_modified: []\ncontract: {}\ninteractive: true\nmust_haves: {}\n"
-            "---\n\n"
+            _valid_plan_contract_frontmatter(interactive="true")
+            +
             '<task type="code">\n'
             "  <name>Implement feature</name>\n"
             "  <files>src/main.py</files>\n"
@@ -1111,73 +1109,6 @@ class TestVerifyPlanStructure:
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any("Invalid contract: missing acceptance_tests" in error for error in result.errors)
-
-    def test_warns_when_must_haves_drift_from_contract(self, tmp_path):
-        from gpd.core.frontmatter import verify_plan_structure
-
-        content = (
-            "---\n"
-            "phase: 01-test\n"
-            "plan: 01\n"
-            "type: execute\n"
-            "wave: 1\n"
-            "depends_on: []\n"
-            "files_modified: []\n"
-            "interactive: false\n"
-            "contract:\n"
-            "  scope:\n"
-            "    question: What benchmark must this plan recover?\n"
-            "  claims:\n"
-            "    - id: claim-main\n"
-            "      statement: Recover the benchmark value within tolerance\n"
-            "      deliverables: [deliv-main]\n"
-            "      acceptance_tests: [test-main]\n"
-            "      references: [ref-main]\n"
-            "  deliverables:\n"
-            "    - id: deliv-main\n"
-            "      kind: figure\n"
-            "      path: figures/main.png\n"
-            "      description: Main benchmark figure\n"
-            "  references:\n"
-            "    - id: ref-main\n"
-            "      kind: paper\n"
-            "      locator: Author et al., Journal, 2024\n"
-            "      role: benchmark\n"
-            "      why_it_matters: Published comparison target\n"
-            "      applies_to: [claim-main]\n"
-            "      must_surface: true\n"
-            "      required_actions: [read, compare, cite]\n"
-            "  acceptance_tests:\n"
-            "    - id: test-main\n"
-            "      subject: claim-main\n"
-            "      kind: benchmark\n"
-            "      procedure: Compare against the benchmark reference\n"
-            "      pass_condition: Matches reference within tolerance\n"
-            "      evidence_required: [deliv-main, ref-main]\n"
-            "  forbidden_proxies:\n"
-            "    - id: fp-main\n"
-            "      subject: claim-main\n"
-            "      proxy: Qualitative trend match without numerical comparison\n"
-            "      reason: Would allow false progress without the decisive benchmark\n"
-            "  uncertainty_markers:\n"
-            "    weakest_anchors: [Reference tolerance interpretation]\n"
-            "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]\n"
-            "must_haves:\n"
-            "  truths: [Wrong compatibility view]\n"
-            "---\n\n"
-            '<task type="code">\n'
-            "  <name>Implement feature</name>\n"
-            "  <files>src/main.py</files>\n"
-            "  <action>Write the code</action>\n"
-            "  <verify>Run tests</verify>\n"
-            "  <done>Tests pass</done>\n"
-            "</task>\n"
-        )
-        f = tmp_path / "plan.md"
-        f.write_text(content)
-        result = verify_plan_structure(tmp_path, f)
-        assert result.valid is True
-        assert any("must_haves does not match" in warning for warning in result.warnings)
 
     def test_invalid_reference_targets_are_reported(self, tmp_path):
         from gpd.core.frontmatter import verify_plan_structure
@@ -1243,6 +1174,28 @@ class TestVerifyPlanStructure:
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any("applies_to unknown target claim-missing" in error for error in result.errors)
+
+    def test_rejects_unsupported_must_haves_field(self, tmp_path):
+        from gpd.core.frontmatter import verify_plan_structure
+
+        content = (
+            _valid_plan_contract_frontmatter().replace(
+                "---\n\n",
+                "must_haves:\n  truths: [Obsolete block]\n---\n\n",
+            )
+            + '<task type="code">\n'
+            + "  <name>Implement feature</name>\n"
+            + "  <files>src/main.py</files>\n"
+            + "  <action>Write the code</action>\n"
+            + "  <verify>Run tests</verify>\n"
+            + "  <done>Tests pass</done>\n"
+            + "</task>\n"
+        )
+        f = tmp_path / "plan.md"
+        f.write_text(content)
+        result = verify_plan_structure(tmp_path, f)
+        assert result.valid is False
+        assert any("Unsupported frontmatter field: must_haves" in error for error in result.errors)
 
 
 

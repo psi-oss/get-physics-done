@@ -130,8 +130,7 @@ class VerificationQualityInput(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     report_passed: BinaryCheck = Field(default_factory=BinaryCheck)
-    must_haves_verified: CoverageMetric = Field(default_factory=CoverageMetric)
-    contract_targets_verified: CoverageMetric = Field(default_factory=lambda: CoverageMetric(not_applicable=True))
+    contract_targets_verified: CoverageMetric = Field(default_factory=CoverageMetric)
     key_result_confidences: list[VerificationConfidence] = Field(default_factory=list)
 
 
@@ -341,11 +340,6 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         data.figures.decisive_artifacts_referenced_in_text,
         data.figures.referenced_in_text,
     )
-    contract_targets = _metric_or_fallback(
-        data.verification.contract_targets_verified,
-        data.verification.must_haves_verified,
-    )
-
     decisive_result_ratios: list[float] = []
     if _metric_is_explicit(data.results.decisive_artifacts_with_explicit_verdicts):
         decisive_result_ratios.append(data.results.decisive_artifacts_with_explicit_verdicts.ratio)
@@ -388,7 +382,7 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
     unreliable_count = sum(1 for c in data.verification.key_result_confidences if c == VerificationConfidence.unreliable)
     verification_checks = {
         "report_passed": 5.0 * data.verification.report_passed.ratio,
-        "contract_targets_verified": _ratio_points(contract_targets.ratio, 5.0),
+        "contract_targets_verified": _ratio_points(data.verification.contract_targets_verified.ratio, 5.0),
         "key_result_confidence": 5.0 * _confidence_ratio(data.verification.key_result_confidences),
         "no_unreliable_results": 5.0 if unreliable_count == 0 else 0.0,
     }

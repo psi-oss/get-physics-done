@@ -198,7 +198,7 @@ ask_user([
     header: "Verifier",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Verify must-haves after execution" },
+      { label: "Yes", description: "Verify contract targets after execution" },
       { label: "No", description: "Skip post-execution verification" }
     ]
   },

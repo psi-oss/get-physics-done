@@ -237,23 +237,43 @@ provides:
 affects:
   - "02-02: vertex correction (needs δZ₂ for Ward identity check)"
   - "02-03: renormalized propagator"
-verification_inputs:
-  truths:
-    - claim: "Mass counterterm coefficient is 3α/(4π)"
-      test_value: "δm/m at the pole"
-      expected: "-(3α/4π)(1/ε̄)"
-    - claim: "Massless limit has no mass renormalization"
-      test_value: "Σ(p) at m=0"
-      expected: "Pure ṗ structure, no constant term"
-  limiting_cases:
-    - limit: "m → 0"
-      expected_behavior: "Σ → A(p²)ṗ only, B=0 (chiral symmetry)"
-      reference: "Peskin & Schroeder §7.1"
-  key_equations:
-    - label: "Eq. (02.1)"
-      expression: "\\Sigma(p) = \\frac{\\alpha}{4\\pi} \\int_0^1 dx\\, [2(1-x)\\slashed{p} + 4m][1/\\bar{\\epsilon} - \\ln(\\Delta/\\mu^2)]"
-      test_point: "p² = m², ε-pole only"
-      expected_value: "δZ₂ = -(α/4π)/ε̄, δm/m = -3(α/4π)/ε̄"
+plan_contract_ref: ".gpd/phases/02-self-energy/02-01-PLAN.md#/contract"
+contract_results:
+  claims:
+    claim-mass-counterterm:
+      status: passed
+      evidence:
+        - verifier: "gpd-executor"
+          method: "pole extraction"
+          confidence: high
+          evidence_path: "derivations/self_energy.tex"
+          notes: "Pole extraction gives the expected coefficient."
+    claim-massless-limit:
+      status: passed
+      evidence:
+        - verifier: "gpd-executor"
+          method: "massless-limit spot-check"
+          confidence: high
+          evidence_path: "checks/massless_limit.py"
+          notes: "Spot-check confirms no additive mass term at m=0."
+  acceptance_tests:
+    test-pole:
+      status: passed
+      evidence:
+        - verifier: "gpd-executor"
+          method: "benchmark comparison"
+          confidence: high
+          evidence_path: "checks/pole_limit.py"
+          notes: "Pole limit matches the published coefficient."
+comparison_verdicts:
+  - subject_id: "claim-mass-counterterm"
+    subject_kind: "claim"
+    subject_role: "decisive"
+    reference_id: "ref-qed-benchmark"
+    comparison_kind: "benchmark"
+    metric: "coefficient_match"
+    threshold: "exact"
+    verdict: "pass"
 ---
 
 # Phase 02 Plan 01: One-Loop Electron Self-Energy Summary
@@ -287,4 +307,4 @@ Computed the one-loop QED electron self-energy Σ(p) in dimensional regularizati
 
 ---
 
-This example demonstrates: convention loading via state.json, ASSERT_CONVENTION declaration, step-by-step derivation, self-critique checkpoints with all four checks, dimensional analysis at each step, a limiting case (m→0), a deviation (Rule 4), overconfidence calibration, SUMMARY.md with proper frontmatter including verification_inputs, and confidence assessment with explicit rationale.
+This example demonstrates: convention loading via state.json, ASSERT_CONVENTION declaration, step-by-step derivation, self-critique checkpoints with all four checks, dimensional analysis at each step, a limiting case (m→0), a deviation (Rule 4), overconfidence calibration, SUMMARY.md with proper contract-backed frontmatter, and confidence assessment with explicit rationale.

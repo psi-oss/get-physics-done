@@ -197,7 +197,7 @@ Phases execute in numeric order: 2 -> 2.1 -> 2.2 -> 3 -> 3.1 -> 4
 
 - 2-5 observable outcomes per phase (from the researcher's perspective)
 - Cross-checked against requirements during roadmap creation
-- Flow downstream to plan `contract` first, then to derived `must_haves` in plan-phase
+- Flow downstream to plan `contract` directly in plan-phase
 - Verified by verify-phase after execution
 - Format: "[Result] obtained/derived/verified" or "[Comparison] shows agreement"
 

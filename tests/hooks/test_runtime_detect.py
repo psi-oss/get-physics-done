@@ -25,6 +25,7 @@ from gpd.hooks.runtime_detect import (
     detect_active_runtime,
     detect_active_runtime_with_gpd_install,
     detect_install_scope,
+    detect_runtime_for_gpd_use,
     get_cache_dirs,
     get_gpd_install_dirs,
     get_todo_dirs,
@@ -287,6 +288,33 @@ class TestDetectActiveRuntimeWithInstall:
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_CODEX
+
+
+class TestDetectRuntimeForGpdUse:
+    """Tests for the install-aware runtime selection used by GPD-owned surfaces."""
+
+    def test_prefers_installed_runtime_over_uninstalled_higher_priority_runtime(self, tmp_path: Path) -> None:
+        (tmp_path / ".claude").mkdir()
+        _mark_gpd_install(tmp_path / ".codex")
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_runtime_for_gpd_use() == RUNTIME_CODEX
+
+    def test_falls_back_to_plain_active_runtime_when_no_install_is_found(self, tmp_path: Path) -> None:
+        (tmp_path / ".gemini").mkdir()
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_runtime_for_gpd_use() == RUNTIME_GEMINI
 
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 

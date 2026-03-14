@@ -120,7 +120,7 @@ forbidden_proxies_rejected: [N]
 
 - subject_kind: "claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check"
   subject_id: "contract-id"
-  truth: "[expected physics property from check]" # legacy compatibility label for older gap consumers
+  expectation: "[expected physics property from check]"
   expected_check: "[expected physics property from check]"
   claim_id: "claim-id"
   deliverable_id: "deliverable-id"
@@ -267,7 +267,7 @@ Probe how sensitive results are to assumptions and approximations.
 
 - subject_kind: "claim"
   subject_id: "claim-critical-decay"
-  truth: "Correlation function decays as power law at criticality"
+  expectation: "Correlation function decays as power law at criticality"
   expected_check: "Correlation function decays as power law at criticality"
   status: failed
   reason: "Researcher reported: decay looks exponential, not power-law - probably not at the critical point"
@@ -408,7 +408,7 @@ forbidden_proxies_rejected: 0
 
 - subject_kind: "claim"
   subject_id: "claim-order-parameter-zero-T"
-  truth: "Order parameter reaches saturation value 1.0 at T=0"
+  expectation: "Order parameter reaches saturation value 1.0 at T=0"
   expected_check: "Order parameter reaches saturation value 1.0 at T=0"
   status: failed
   reason: "Researcher reported: Order parameter at T=0 is 0.87 but exact is 1.0. Not fully equilibrated."
@@ -425,7 +425,7 @@ forbidden_proxies_rejected: 0
 
 - subject_kind: "acceptance_test"
   subject_id: "test-equilibration-convergence"
-  truth: "Results are insensitive to doubling the equilibration time"
+  expectation: "Results are insensitive to doubling the equilibration time"
   expected_check: "Results are insensitive to doubling the equilibration time"
   status: failed
   reason: "Researcher reported: doubling equilibration changed order parameter from 0.87 to 0.94"

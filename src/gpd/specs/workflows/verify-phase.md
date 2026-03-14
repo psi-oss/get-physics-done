@@ -80,7 +80,6 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 
 - Phase goal from ROADMAP.md
 - `contract` from PLAN.md frontmatter (primary verification target definition)
-- `must_haves` from PLAN.md frontmatter only as a legacy fallback when no `contract` exists
 - Artifact file paths (the actual research outputs to inspect)
 - .gpd/STATE.md (project conventions, active approximations, unit system)
 - .gpd/config.json (project configuration)
@@ -96,7 +95,6 @@ Extract the contract target definition from frontmatter only:
 ```bash
 for plan in "$phase_dir"/*-PLAN.md; do
   gpd frontmatter get "$plan" --field contract
-  gpd frontmatter get "$plan" --field must_haves
 done
 ```
 
@@ -118,24 +116,9 @@ Treat these as separate verification obligations:
 If the phase depends on a decisive comparison (benchmark, prior work, experiment, cross-method, baseline), emit a `comparison_verdicts` entry in the report keyed to the relevant contract IDs.
 Before finalizing the check list, call `suggest_contract_checks(contract)` through the verification server and fold the returned contract-aware checks into the verification plan unless they are clearly inapplicable.
 
-**Legacy fallback: must_haves in PLAN frontmatter**
-
-Use gpd to extract must_haves from each PLAN:
-
-```bash
-for plan in "$phase_dir"/*-PLAN.md; do
-  MUST_HAVES=$(gpd frontmatter get "$plan" --field must_haves)
-  echo "=== $plan ===" && echo "$MUST_HAVES"
-done
-```
-
-Returns JSON: `{ truths: [...], artifacts: [...], key_links: [...] }`
-
-Aggregate all contract-backed targets across plans for phase-level verification. Use `must_haves` only if a historical plan has no `contract`.
-
 **Option B: Derive contract-like targets from phase goal**
 
-If no `contract` or `must_haves` is available in frontmatter:
+If no `contract` is available in frontmatter:
 
 1. State the goal from ROADMAP.md
 2. Derive **claims** (3-7 verifiable physics outcomes, each testable by computation)
@@ -153,11 +136,7 @@ If the plan contract is materially incomplete but the verifier can see an obviou
 <step name="batch_verification_triage">
 **For phases with 10+ checks, use batch verification to reduce researcher burden.**
 
-Count total checks across all contract-backed targets (claims + deliverables + acceptance tests + must-surface references + forbidden proxies + decisive comparisons). For legacy plans, fall back to must_haves (truths + artifacts + key_links):
-
-```bash
-TOTAL_CHECKS=$(echo "$ALL_MUST_HAVES" | gpd json sum-lengths .truths .artifacts .key_links)
-```
+Count total checks across all contract-backed targets (claims + deliverables + acceptance tests + must-surface references + forbidden proxies + decisive comparisons).
 
 **If TOTAL_CHECKS >= 10:**
 
@@ -594,7 +573,7 @@ Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute
 
 <success_criteria>
 
-- [ ] Contract-backed targets established from PLAN frontmatter (with `must_haves` used only as a legacy fallback)
+- [ ] Contract-backed targets established from PLAN frontmatter
 - [ ] All contract-backed claims / deliverables / acceptance tests verified with status, computation evidence, and confidence rating
 - [ ] All artifacts checked at all four levels (exists, substantive, content-validated, integrated)
 - [ ] **Numerical spot-checks performed** on key expressions (2-3 test points each)

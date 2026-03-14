@@ -689,12 +689,14 @@ class TestSkillsServer:
             yield
             invalidate_cache()
 
-    def test_list_skills(self):
+    def test_list_skills_returns_canonical_registry_index(self):
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
         assert result["count"] == 6
         names = {s["name"] for s in result["skills"]}
+        # The MCP skills server exposes the canonical registry index, not a
+        # runtime-specific discoverable install surface.
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
         assert "gpd-peer-review" in names
@@ -727,6 +729,7 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-debugger")
+        # Agent-backed entries remain part of the canonical MCP skill index.
         assert result["name"] == "gpd-debugger"
         assert "Primary debugger agent" in result["content"]
 

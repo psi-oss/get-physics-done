@@ -1092,7 +1092,7 @@ class TestReviewValidationCommands:
                     },
                     "verification": {
                         "report_passed": {"passed": True},
-                        "must_haves_verified": {"satisfied": 3, "total": 3},
+                        "contract_targets_verified": {"satisfied": 3, "total": 3},
                         "key_result_confidences": ["INDEPENDENTLY CONFIRMED"],
                     },
                     "completeness": {
@@ -1134,7 +1134,7 @@ class TestReviewValidationCommands:
                     },
                     "verification": {
                         "report_passed": {"passed": False},
-                        "must_haves_verified": {"satisfied": 0, "total": 2},
+                        "contract_targets_verified": {"satisfied": 0, "total": 2},
                         "key_result_confidences": ["UNRELIABLE"],
                     },
                 }

@@ -27,7 +27,7 @@ This single template covers all summary depths. The `depth` field in frontmatter
 
 Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `depth`, `provides`, `completed`. All other fields are optional and should be populated as relevant.
 
-**Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref` and `contract_results`. `verification_inputs` remains as a legacy compatibility projection, but `contract_results` is the authoritative machine-readable outcome ledger.
+**Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts`. `contract_results` is the authoritative machine-readable outcome ledger.
 
 ```markdown
 ---
@@ -144,22 +144,6 @@ comparison_verdicts (optional):
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
     recommended_action: "[what to do next]"
-
-# Legacy verifier compatibility view (derive from contract_results when possible)
-verification_inputs:
-  truths:
-    - claim: "[testable physics claim]"
-      test_value: "[concrete numerical test]"
-      expected: "[expected result]"
-  key_equations:
-    - label: "Eq. ({phase}.N)"
-      expression: "[LaTeX]"
-      test_point: "[parameter values for spot-check]"
-      expected_value: "[numerical result at test point]"
-  limiting_cases:
-    - limit: "[parameter -> value]"
-      expected_behavior: "[what should happen]"
-      reference: "[source]"
 
 # Metrics
 duration: Xmin
@@ -514,7 +498,7 @@ _Completed: 2025-01-15_
 <guidelines>
 **Depth selection:** Default to `full`. Use `minimal` only for pure setup phases (convention setup, tool config) with a single clear result. Use `complex` for multi-step derivations, parameter sweeps, or plans with cross-phase dependencies. When in doubt, use `full`.
 
-**Frontmatter:** Required fields: `phase`, `plan`, `depth`, `provides`, `completed`. Populate optional fields (`subsystem`, `tags`, `requires`, `affects`, `methods`, `key-files`, `key-decisions`, `patterns-established`, `verification_inputs`, `duration`) as relevant. Enables automatic context assembly for future planning.
+**Frontmatter:** Required fields: `phase`, `plan`, `depth`, `provides`, `completed`. Populate optional fields (`subsystem`, `tags`, `requires`, `affects`, `methods`, `key-files`, `key-decisions`, `patterns-established`, `contract_results`, `comparison_verdicts`, `duration`) as relevant. Enables automatic context assembly for future planning.
 
 **One-liner:** Must be substantive. "Derived RG flow equations for phi-4 theory to two-loop order" not "Derivation finished".
 

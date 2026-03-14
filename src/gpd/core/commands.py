@@ -28,7 +28,7 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.frontmatter import UNSUPPORTED_FRONTMATTER_FIELDS, FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import (
     compare_phase_numbers,
@@ -92,7 +92,6 @@ class SummaryExtractResult(BaseModel):
     decisions: list[SummaryDecision] = Field(default_factory=list)
     affects: list[str] = Field(default_factory=list)
     conventions: dict[str, str] | list[str] | str | None = None
-    verification_inputs: dict[str, object] | None = None
     plan_contract_ref: str | None = None
     contract_results: ContractResults | None = None
     comparison_verdicts: list[ComparisonVerdict] = Field(default_factory=list)
@@ -354,6 +353,14 @@ def cmd_summary_extract(
     except FrontmatterParseError as exc:
         raise ValidationError(f"YAML parse error in {summary_path}: {exc}") from exc
 
+    unsupported_summary_fields = [
+        f"{field}: {message}"
+        for field, message in UNSUPPORTED_FRONTMATTER_FIELDS.get("summary", {}).items()
+        if field in fm
+    ]
+    if unsupported_summary_fields:
+        raise ValidationError(f"Unsupported summary frontmatter in {summary_path}: {'; '.join(unsupported_summary_fields)}")
+
     # Extract one-liner: frontmatter first, fall back to body bold text
     one_liner = fm.get("one-liner")
     if not one_liner:
@@ -364,7 +371,7 @@ def cmd_summary_extract(
     raw_key_files = fm.get("key-files")
     key_files, key_files_created, key_files_modified = _extract_key_files(raw_key_files)
     contract_results = _parse_contract_results(
-        fm.get("contract_results", fm.get("contract_evidence")),
+        fm.get("contract_results"),
         summary_path,
     )
     comparison_verdicts = _parse_comparison_verdicts(fm.get("comparison_verdicts"), summary_path)
@@ -380,7 +387,6 @@ def cmd_summary_extract(
         decisions=_parse_decisions(fm.get("key-decisions")),
         affects=fm.get("affects", []) if isinstance(fm.get("affects"), list) else [],
         conventions=fm.get("conventions"),
-        verification_inputs=fm.get("verification_inputs") if isinstance(fm.get("verification_inputs"), dict) else None,
         plan_contract_ref=fm.get("plan_contract_ref") if isinstance(fm.get("plan_contract_ref"), str) else None,
         contract_results=contract_results,
         comparison_verdicts=comparison_verdicts,

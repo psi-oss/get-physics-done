@@ -10,23 +10,47 @@ After all tasks complete, create `{phase}-{plan}-SUMMARY.md` at `${phase_dir}/`.
 
 **Frontmatter:** phase, plan, physics-area, tags, dependency graph (requires/provides/affects), methods (analytical/numerical/computational), key-files (created/modified), decisions, metrics (duration, completed date).
 
-**Verification contract:** The SUMMARY.md frontmatter MUST declare `verification_inputs` so the verifier can test results without re-reading the full derivation. Every numerical result needs a test value. Every equation needs a spot-check point.
+**Verification contract:** For contract-backed work, the SUMMARY.md frontmatter MUST declare `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts` so the verifier can test results without re-reading the full derivation. Every decisive numerical result needs concrete evidence. Every equation that matters downstream needs a spot-check or limiting-case anchor.
 
 ```yaml
-verification_inputs:
-  truths:
-    - claim: "[testable physics claim]"
-      test_value: "[concrete numerical test]"
-      expected: "[expected result]"
-  limiting_cases:
-    - limit: "[parameter -> value]"
-      expected_behavior: "[what should happen]"
-      reference: "[source]"
-  key_equations:
-    - label: "Eq. ({phase}.N)"
-      expression: "[LaTeX]"
-      test_point: "[parameter values for spot-check]"
-      expected_value: "[numerical result at test point]"
+plan_contract_ref: ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
+contract_results:
+  claims:
+    claim-main:
+      status: passed
+      evidence:
+        - verifier: gpd-executor
+          method: benchmark reproduction
+          confidence: high
+          evidence_path: "paper/benchmark.dat"
+          notes: "[How the decisive claim was checked]"
+  deliverables:
+    deliv-main:
+      status: passed
+      evidence:
+        - verifier: gpd-executor
+          method: artifact creation
+          confidence: high
+          evidence_path: "paper/figures/main.pdf"
+          notes: "[Artifact produced]"
+  acceptance_tests:
+    test-main:
+      status: passed
+      evidence:
+        - verifier: gpd-executor
+          method: acceptance test execution
+          confidence: high
+          evidence_path: "analysis/benchmark_check.py"
+          notes: "[Executed check and outcome]"
+comparison_verdicts:
+  - subject_id: "claim-main"
+    subject_kind: "claim"
+    subject_role: "decisive"
+    reference_id: "ref-main"
+    comparison_kind: "benchmark"
+    metric: "relative_error"
+    threshold: "<= 0.01"
+    verdict: "pass"
 ```
 
 **Title:** `# Phase [X] Plan [Y]: [Name] Summary`

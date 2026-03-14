@@ -286,7 +286,8 @@ def test_planner_templates_exist():
     assert "template_version: 1" in phase_prompt.read_text(encoding="utf-8")
     assert "<planning_context>" in planner_prompt.read_text(encoding="utf-8")
     assert "contract:" in phase_prompt.read_text(encoding="utf-8")
-    assert "must_haves:" in phase_prompt.read_text(encoding="utf-8")
+    assert "acceptance_tests:" in phase_prompt.read_text(encoding="utf-8")
+    assert "uncertainty_markers:" in phase_prompt.read_text(encoding="utf-8")
 
 
 def test_referee_latex_template_exists() -> None:
@@ -722,7 +723,7 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "contract_results" in summary_template
     assert "comparison_verdicts" in summary_template
     assert "plan_contract_ref" in summary_template
-    assert "`verification_inputs` remains as a legacy compatibility projection" in summary_template
+    assert "verification_inputs" not in summary_template
     assert "contract_results" in verification_template
     assert "comparison_verdicts" in verification_template
     assert "claim_id" in research_verification
@@ -730,7 +731,7 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "`contract_results` is authoritative." in execute_plan
     assert "Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission." in execute_plan
     assert "contract_results" in verify_phase
-    assert "must_haves` used only as a legacy fallback" in verify_phase
+    assert "must_haves" not in verify_phase
     assert "comparison_verdicts" in compare_workflow
     assert "subject_role" in comparison_template
     assert "Profiles and autonomy modes may compress prose or cadence, but they do NOT relax contract-result emission" in executor_agent

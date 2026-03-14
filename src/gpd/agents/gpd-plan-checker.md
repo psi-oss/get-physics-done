@@ -36,7 +36,7 @@ Goal-backward verification of PLANS before execution. Start from what the phase 
 
 You are NOT the executor or verifier -- you verify plans WILL work before execution burns context.
 
-**Canonical plan surface:** Treat the `contract` frontmatter block as the authoritative plan contract. `must_haves` is a derived compatibility view during the transition and should not be treated as the source of truth when the two differ.
+**Canonical plan surface:** Treat the `contract` frontmatter block as the authoritative plan contract. Do not invent, infer, or consult a second success schema.
 
 **Domain breadth:** This system applies to ALL areas of physics -- experimental design, data analysis, phenomenology, condensed matter, AMO, high-energy, astrophysics, biophysics, and beyond. However, it is particularly powerful for theoretical, computational, and mathematical physics where the chain from formulation to publishable result can be rigorously checked at the plan stage.
 </role>
@@ -142,7 +142,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 
 **Question:** Do these plans carry the approved contract into execution without allowing false progress?
 
-**Authority order:** `plan frontmatter contract` -> `verification_context project_contract` -> `active_reference_context` and derived `must_haves`.
+**Authority order:** `plan frontmatter contract` -> `verification_context project_contract` -> `active_reference_context`.
 
 Reject with `blocker` if any of the following is true:
 
@@ -871,7 +871,7 @@ Map errors/warnings to verification dimensions:
 - Wave/depends_on inconsistency -> `dependency_correctness`
 - Checkpoint/analytical mismatch -> `task_completeness`
 
-## Step 3: Parse contract and compatibility view
+## Step 3: Parse the contract
 
 Extract the contract from each plan frontmatter using gpd:
 
@@ -879,13 +879,7 @@ Extract the contract from each plan frontmatter using gpd:
 PLAN_CONTRACT=$(gpd frontmatter get "$PLAN_PATH" --field contract)
 ```
 
-If present, treat it as the canonical planning surface. Then extract the compatibility view:
-
-```bash
-MUST_HAVES=$(gpd frontmatter get "$PLAN_PATH" --field must_haves)
-```
-
-Returns JSON: `{ truths: [...], artifacts: [...], key_links: [...] }`
+If present, treat it as the canonical planning surface.
 
 **Expected contract structure** (field names match gpd-planner canonical output):
 
@@ -922,30 +916,7 @@ contract:
     disconfirming_observations: ["Benchmark agreement disappears after normalization fix"]
 ```
 
-**Expected compatibility structure** (derived from the contract):
-
-```yaml
-must_haves:
-  truths:
-    - "Ground state energy converged to within 0.1% of exact value"
-    - "Phase boundary determined for 0 < J'/J < 2"
-  artifacts:
-    - path: "results/ground_state_energy.py"
-      provides: "Exact diagonalization of Heisenberg model"
-      validates: "Comparison with Bethe ansatz for 1D chain"
-    - path: "figures/phase_diagram.py"
-      provides: "Phase boundary plot"
-      validates: "Reproduces known limits at J'/J=0 and J'/J->infinity"
-  key_links:
-    - from: "hamiltonian_construction.py"
-      to: "exact_diag.py"
-      via: "Sparse matrix representation of H"
-    - from: "exact_diag.py"
-      to: "phase_diagram.py"
-      via: "Ground state energy as function of J'/J"
-```
-
-Reject plans when the contract is missing or incomplete. Use `must_haves` to check compatibility and executor-readiness, not as the main semantic source.
+Reject plans when the contract is missing or incomplete. The contract is the only machine-readable source for executor-readiness and verification coverage.
 
 Aggregate across plans for full picture of what phase delivers.
 
@@ -1050,10 +1021,10 @@ Every task should have at least levels 1-3. Computational tasks should also have
 
 ## Step 10: Check Result Wiring
 
-For each contract `link` and each derived `key_link` in must_haves: find the source task, check if the plan mentions the connection, and flag missing wiring.
+For each contract `link`: find the source task, check if the plan mentions the connection, and flag missing wiring.
 
 ```
-key_link: hamiltonian.py -> diag.py via sparse matrix
+link: hamiltonian.py -> diag.py via sparse matrix
 Task 1 method: "Construct Hamiltonian using Pauli matrices..."
 Task 2 method: "Diagonalize using Lanczos..."
 Missing: No mention of sparse format conversion -> Issue: Key link not planned
@@ -1329,7 +1300,7 @@ issue:
 **warning** - Should fix, execution may work
 
 - Scope 4 tasks (borderline)
-- Method-focused truths instead of physics-focused
+- Method-focused claims instead of physics-focused outcomes
 - Incomplete validation (some checks present, key ones missing)
 - Minor notation inconsistency
 - Missing literature reference for standard result
@@ -1580,17 +1551,17 @@ Plan verification complete when:
 - [ ] All PLAN.md files in phase directory loaded
 - [ ] Contract parsed from each plan frontmatter
 - [ ] Contract gate checked for decisive outputs, anchors, acceptance tests, forbidden proxies, and disconfirming paths
-- [ ] must_haves parsed from each plan frontmatter as a compatibility view
+- [ ] contract parsed from each plan frontmatter as the only machine-readable target set
 - [ ] Research question coverage checked (all requirements have tasks)
 - [ ] Task completeness validated (formulation, method, validation, deliverable present)
 - [ ] Mathematical prerequisites verified (tools and identities available)
 - [ ] Approximation validity assessed (appropriate for regime of interest)
 - [ ] Computational feasibility confirmed (scaling, memory, convergence criteria)
 - [ ] Validation strategy checked against hierarchy (dimensions, symmetry, limits, conservation, literature)
-- [ ] Result wiring verified (notation consistent, artifacts connected via key_links)
+- [ ] Result wiring verified (notation consistent, artifacts connected via contract links)
 - [ ] Dependency graph verified (no cycles, valid references, correct ordering)
 - [ ] Scope assessed (within context budget)
-- [ ] Artifact derivation verified (physics-meaningful truths)
+- [ ] Artifact derivation verified (physics-meaningful claims and deliverables)
 - [ ] Literature awareness confirmed (not rediscovering known results)
 - [ ] Path to publication assessed (interpretable, communicable results)
 - [ ] Failure modes identified (contingency for critical paths)

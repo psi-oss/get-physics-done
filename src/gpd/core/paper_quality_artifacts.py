@@ -404,12 +404,9 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     )
     verification = VerificationQualityInput(
         report_passed=BinaryCheck(passed=contract_coverage.latest_report_passed),
-        must_haves_verified=_coverage_metric(contract_coverage.satisfied_targets, contract_coverage.total_targets)
-        if contract_coverage.total_targets
-        else CoverageMetric(),
         contract_targets_verified=_coverage_metric(contract_coverage.satisfied_targets, contract_coverage.total_targets)
         if contract_coverage.total_targets
-        else CoverageMetric(not_applicable=True),
+        else CoverageMetric(),
         key_result_confidences=contract_coverage.confidences,
     )
 

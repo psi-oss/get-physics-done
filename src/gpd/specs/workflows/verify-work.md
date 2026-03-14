@@ -503,7 +503,7 @@ Append to Gaps section (structured YAML for plan-phase --gaps):
 ```yaml
 - subject_kind: "{subject_kind}"
   subject_id: "{subject_id}"
-  truth: "{expected physics outcome from check}" # legacy compatibility label for older gap consumers
+  expectation: "{expected physics outcome from check}"
   expected_check: "{expected physics outcome from check}"
   claim_id: "{claim_id}"
   deliverable_id: "{deliverable_id}"

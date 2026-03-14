@@ -60,7 +60,6 @@ class VerificationCheckDef(BaseModel):
     binding_targets: list[
         Literal["observable", "claim", "deliverable", "acceptance_test", "reference", "forbidden_proxy"]
     ] = Field(default_factory=list)
-    legacy_aliases: list[str] = Field(default_factory=list)
 
 
 class ErrorClassCoverageDef(BaseModel):
@@ -423,8 +422,6 @@ _VERIFICATION_CHECK_INDEX: dict[str, VerificationCheckDef] = {}
 for _spec in VERIFICATION_CHECK_DEFS:
     _VERIFICATION_CHECK_INDEX[_spec.check_id] = _spec
     _VERIFICATION_CHECK_INDEX[_spec.check_key] = _spec
-    for _alias in _spec.legacy_aliases:
-        _VERIFICATION_CHECK_INDEX[_alias] = _spec
 _ERROR_CLASS_COVERAGE_INDEX = {spec.error_class_id: spec for spec in ERROR_CLASS_COVERAGE_DEFS}
 
 

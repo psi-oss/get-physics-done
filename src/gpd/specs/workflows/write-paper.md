@@ -295,7 +295,7 @@ Every contributing phase must have a SUMMARY.md with `verification_status` and `
 For each phase directory:
 
 1. Verify SUMMARY.md exists
-2. Check for a `verification_status` or `verification_inputs` entry (any format: YAML frontmatter, markdown heading, or inline)
+2. Check for a `verification_status`, `contract_results`, or `comparison_verdicts` entry (any format: YAML frontmatter, markdown heading, or inline)
 3. Check for a `confidence` tag (e.g., "high", "medium", "low", or a numerical score)
 
 **Missing SUMMARY.md** → CRITICAL gap (phase results not summarized).

@@ -52,7 +52,7 @@ These gaps remain outside the current 104-class catalog but are still worth trac
 |---|---|---|
 | deep-theory / review | All 15 | None |
 | numerical / paper-writing | All 15 | None |
-| exploratory (7-check floor) | 5.1,5.2,5.3,5.6,5.7,5.8,5.10 | ~33 classes lose ONLY defense |
+| exploratory (contract gate + all applicable decisive/falsifying checks) | phase-dependent | Risk now depends on whether the right phase-specific checks are surfaced, not on a hardcoded reduced floor |
 | quick (3-check) | 5.1,5.3,5.10 | ~81 classes lose ONLY defense |
 
 **Bottom line:** In exploratory/quick profiles, classes #3, #9, #17, #42 (all HIGH risk) have **zero** reliable coverage. Always run full verification for publishable results.

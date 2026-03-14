@@ -576,7 +576,7 @@ class TestSkillsServerIntegration:
         yield
         invalidate_cache()
 
-    def test_list_skills_returns_real_skills(self):
+    def test_list_skills_returns_real_canonical_skill_index(self):
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
@@ -584,7 +584,7 @@ class TestSkillsServerIntegration:
         assert isinstance(result, dict)
         assert result["count"] > 10  # we saw many gpd-* dirs
         names = {s["name"] for s in result["skills"]}
-        # Spot-check known skills
+        # Spot-check known canonical command and agent-backed skills.
         assert "gpd-debug" in names or "gpd-debugger" in names
         assert "gpd-discover" in names
         assert "gpd-peer-review" in names
@@ -605,7 +605,7 @@ class TestSkillsServerIntegration:
         for skill in result["skills"]:
             assert skill["category"] == "verification"
 
-    def test_get_skill_real_skill(self):
+    def test_get_skill_real_agent_backed_canonical_skill(self):
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-debugger")

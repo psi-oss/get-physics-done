@@ -33,7 +33,7 @@ Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_ex
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
 **If `planning_exists` is false:** This is a new project - route to /gpd:new-project
 
-If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target before falling back to legacy `.continue-here` or interrupted-agent heuristics.
+If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target. Do not infer a second resume system from ad hoc handoff files.
 </step>
 
 <step name="load_state">
@@ -174,9 +174,6 @@ If convention check fails, flag in the status presentation (step present_status)
 Look for incomplete work that needs attention:
 
 ```bash
-# Check for continue-here files (mid-plan resumption)
-ls .gpd/phases/*/.continue-here*.md 2>/dev/null
-
 # Check for plans without summaries (incomplete execution)
 for plan in .gpd/phases/*/*-PLAN.md; do
   summary="${plan/PLAN/SUMMARY}"
@@ -189,46 +186,11 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, `.continue-here`, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
+**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
 
-**Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than last `.continue-here.md`, warn: "Auto-checkpoint detected -- work may have continued after the last formal pause. Review state.json auto_checkpoint for details."
+**Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than the current execution snapshot, warn: "Auto-checkpoint detected -- work may have continued after the last recorded gate. Review state.json auto_checkpoint for details."
 
-**Orphaned .continue-here.md detection:** Check for `.continue-here.md` files from crashed sessions (where the plan was already completed but the handoff file was never cleaned up):
-
-```bash
-for CONTINUE_FILE in .gpd/phases/*/.continue-here*.md; do
-  [ ! -f "$CONTINUE_FILE" ] && continue
-  PHASE_DIR=$(dirname "$CONTINUE_FILE")
-  PLAN_NUM=$(grep "^task:" "$CONTINUE_FILE" | head -1 | grep -oE '[0-9]+')
-  # Zero-pad plan number to match SUMMARY filename convention (e.g., 03-01-SUMMARY.md)
-  PADDED_PLAN=$(printf "%02d" "$PLAN_NUM" 2>/dev/null || echo "$PLAN_NUM")
-  # Extract phase prefix from directory name, escaping dots for grep
-  PHASE_PREFIX=$(basename "$PHASE_DIR" | cut -d- -f1)
-  GREP_PATTERN=$(echo "$PHASE_PREFIX" | sed 's/\./\\./g')
-  # Check if a SUMMARY.md exists for this plan (meaning it was completed after the pause)
-  if ls "$PHASE_DIR"/*-SUMMARY.md 2>/dev/null | grep -q "${GREP_PATTERN}-${PADDED_PLAN}"; then
-    echo "ORPHANED: $CONTINUE_FILE (plan already has SUMMARY.md)"
-    echo "  This file is from a crashed session. Safe to remove."
-    ORPHANED_FILES+=("$CONTINUE_FILE")
-  fi
-done
-```
-
-If orphaned files found: offer to clean them up — "Found {N} orphaned .continue-here.md file(s) from crashed sessions. Remove them? (They refer to already-completed plans.)"
-
-**Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, .continue-here.md, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
-
-**If .continue-here file exists but no active execution segment exists:**
-
-- This is a mid-plan resumption point
-- Read the file for specific resumption context, especially:
-  - Derivation state and where the calculation was paused
-  - Parameter values and variable definitions in scope
-  - Intermediate results obtained so far
-  - Approximations and assumptions active at pause time
-  - Planned next steps from previous session
-- Cross-reference with DERIVATION-STATE.md (loaded in previous step) to confirm consistency
-- Flag: "Found mid-plan checkpoint"
+**Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
 
 **If PLAN without SUMMARY exists:**
 
@@ -265,9 +227,10 @@ Present complete research project status to user:
     - Intermediate results: [Z] recorded
     - Approximations: [W] catalogued
 
-[If .continue-here file found:]
+[If active_execution_segment has a resume file:]
 >> Research checkpoint detected:
-    - Derivation state: [brief summary from .continue-here.md]
+    - Resume artifact: [resume_file]
+    - Derivation state: [brief summary from the active execution snapshot]
     - Parameters in scope: [key parameter values]
     - Last result obtained: [most recent intermediate result]
     - Next planned step: [what was planned before pausing]
@@ -284,7 +247,7 @@ Present complete research project status to user:
 
 [If incomplete work found:]
 >> Incomplete work detected:
-    - [.continue-here file or incomplete plan]
+    - [active execution gate or incomplete plan]
 
 [If interrupted agent found:]
 >> Interrupted agent detected:
@@ -315,15 +278,11 @@ Based on project state, determine the most logical next action:
 -> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
 -> If `checkpoint_reason=pre_fanout` or skeptical re-questioning is required: treat the next action as a review/replan decision, not a routine execution resume
 -> Do not resume downstream fanout until the gate has an explicit clear/override outcome
--> Option: Review a lower-priority legacy candidate from `segment_candidates`
+-> Option: Review another ranked resume candidate from `segment_candidates`
 
 **If interrupted agent exists:**
 -> Primary: Resume interrupted agent (Task tool with resume parameter)
 -> Option: Start fresh (abandon agent work)
-
-**If .continue-here file exists:**
--> Primary: Resume from checkpoint (with full physics context restoration)
--> Option: Start fresh on current plan
 
 **If incomplete plan (PLAN without SUMMARY):**
 -> Primary: Complete the incomplete plan
@@ -452,7 +411,7 @@ If STATE.md is missing but other artifacts exist:
 2. Read ROADMAP.md -> Determine phases, find current position
 3. Scan \*-SUMMARY.md files -> Extract decisions, concerns
 4. Count pending todos in .gpd/todos/pending/
-5. Check for .continue-here files -> Session continuity
+5. Check current execution snapshot -> Session continuity
 
 Reconstruct and write STATE.md, then proceed normally.
 

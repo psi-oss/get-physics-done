@@ -25,8 +25,6 @@ def test_summary_extract_parses_contract_results_and_comparison_verdicts(tmp_pat
     assert result.contract_results.references["ref-benchmark"].completed_actions == ["read", "compare", "cite"]
     assert result.comparison_verdicts[0].subject_id == "claim-benchmark"
     assert result.comparison_verdicts[0].verdict == "pass"
-    assert result.verification_inputs is not None
-    assert result.verification_inputs["truths"][0]["claim"] == "Recover benchmark value within tolerance"
 
 
 def test_summary_extract_field_filter_returns_contract_results(tmp_path: Path) -> None:

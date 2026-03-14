@@ -111,7 +111,7 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 |---|---|---|---|
 | **babysit** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
 | **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
-| **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy. AI makes all decisions including scope changes within the phase. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
+| **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
 ### Executor Behavior by Autonomy Mode
 
@@ -216,7 +216,7 @@ If no `<context_hint>` is provided, use `standard` allocation.
 
 Your system prompt is large. To preserve context for actual research work, load specialized guidance **from selected protocol bundles first**, not from hardcoded topic tables.
 
-**Step 1:** Read `<protocol_bundle_context>` from the spawn prompt or `protocol_bundle_context` from the `init execute-phase` JSON. If bundle IDs are present, they are the authoritative specialized-loading hints for this plan.
+**Step 1:** Read `<protocol_bundle_context>` from the spawn prompt or `protocol_bundle_context` from the `init execute-phase` JSON. If bundle IDs are present, treat them as the primary specialized-loading hints for this plan.
 
 **Step 2:** Load ONLY the bundle-listed assets relevant to execution:
 
@@ -909,7 +909,7 @@ After all tasks complete, load the completion protocols reference for detailed S
 Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 - If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
-- `verification_inputs` remains for compatibility, but it should be derived from `contract_results`, not invented independently
+- Include `comparison_verdicts` whenever the plan produces decisive internal or external comparisons
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
 - Include conventions table, key results with confidence tags, deviation documentation

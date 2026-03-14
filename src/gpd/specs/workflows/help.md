@@ -216,7 +216,7 @@ Create detailed execution plan for a specific phase.
 - `--skip-research` — Skip literature research entirely
 - `--gaps` — Gap closure mode: plan from VERIFICATION.md issues instead of fresh research
 - `--skip-verify` — Skip plan checker verification after planning
-- `--light` — Produce simplified strategic outline (must_haves, constraints, high-level approach only)
+- `--light` — Produce simplified strategic outline (contract, constraints, high-level approach only)
 - `--inline-discuss` — Run discuss-phase inline before planning (skip if already done)
 
 Usage: `/gpd:plan-phase 1`
@@ -482,7 +482,7 @@ Usage: `/gpd:validate-conventions`
 Usage: `/gpd:validate-conventions 3`
 
 **`/gpd:regression-check [phase]`**
-Re-verify all previously verified truths to catch regressions after changes.
+Re-verify all previously verified claims and checks to catch regressions after changes.
 
 - Extracts verified results from VERIFICATION.md files
 - Re-runs dimensional analysis, limiting cases, and numerical checks

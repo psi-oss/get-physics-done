@@ -186,7 +186,7 @@ _Last updated: [date] after [trigger]_
 - Capture contract coverage, user guidance, active anchors, carry-forward inputs, skeptical review items, and open contract questions
 - Keep this concise and concrete so later workflows can scan it quickly
 - If an anchor or prior artifact is unknown, say so explicitly instead of implying certainty
-- Preserve the user's wording when they explicitly name an observable, deliverable, prior output, or must-have reference
+- Preserve the user's wording when they explicitly name an observable, deliverable, prior output, or required reference
 - Record user-stated pause / rethink conditions rather than only abstract risks
 
 **Research Questions:**

@@ -24,7 +24,7 @@ Spawned by:
 
 Your job: Produce PLAN.md files that the AI executors can carry out without interpretation. Plans are prompts, not documents that become prompts.
 
-**Plan template:** Use `{GPD_INSTALL_DIR}/templates/phase-prompt.md` for the canonical PLAN.md format (frontmatter fields, task XML structure, must-haves schema, scope guidance, and worked examples).
+**Plan template:** Use `{GPD_INSTALL_DIR}/templates/phase-prompt.md` for the canonical PLAN.md format (frontmatter fields, task XML structure, contract schema, scope guidance, and worked examples).
 
 **Planner prompt template:** The orchestrator fills `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md` to spawn you with planning context, return markers, and revision-mode prompts.
 
@@ -33,7 +33,7 @@ Your job: Produce PLAN.md files that the AI executors can carry out without inte
 - **FIRST: Parse and honor user decisions from CONTEXT.md** (locked decisions are NON-NEGOTIABLE)
 - Decompose research phases into parallel-optimized plans with 2-3 tasks each
 - Build dependency graphs reflecting mathematical and computational prerequisites
-- Derive a contract-complete plan first, then derive the legacy must_haves compatibility view from that contract
+- Derive a contract-complete plan that carries decisive outputs, anchors, and disconfirming paths directly in frontmatter
 - Keep the approved contract, anchor set, and forbidden proxies intact across all autonomy modes and profiles
 - Use selected protocol bundle context to surface specialized guidance without hardcoding topic names into the plan logic
 - Ensure every plan includes notation conventions, coordinate/gauge choices, and approximation validity
@@ -53,7 +53,7 @@ Your system prompt (this agent definition + @-included references) consumes appr
 |---|---|---|
 | System prompt | ~15-20% | This agent definition, shared protocols, @-included references |
 | Reading project files | ~30% | STATE.md, ROADMAP.md, CONTEXT.md, RESEARCH.md, SUMMARYs, DISCOVERY.md, INSIGHTS.md, ERROR-PATTERNS.md |
-| Plan creation output | ~40-50% | PLAN.md files, dependency graphs, must-haves, return format |
+| Plan creation output | ~40-50% | PLAN.md files, dependency graphs, contract coverage, return format |
 
 **Practical implications:**
 
@@ -852,10 +852,6 @@ contract:
     weakest_anchors: []
     disconfirming_observations: []
 
-must_haves:
-  truths: [] # Derived compatibility view from contract.claims
-  artifacts: [] # Derived compatibility view from contract.deliverables/tests
-  key_links: [] # Derived compatibility view from contract.links
 ---
 
 <objective>
@@ -921,7 +917,6 @@ After completion, create `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 | `contract`         | Yes      | Canonical machine-readable plan contract  |
 | `dimensional_check`| If any   | Expected dimensions of key results (e.g., `{E_0: '[energy]', sigma: '[area]'}`) — executor verifies at completion, verifier gets independent expectation |
 | `approximations`   | If any   | Active approximation schemes              |
-| `must_haves`       | Derived   | Legacy compatibility view derived from `contract` |
 | `researcher_setup` | No       | Human-required setup items                |
 
 Wave numbers are pre-computed during planning. Execute-phase reads `wave` directly from frontmatter.
@@ -997,19 +992,6 @@ approximations:
     breaks_when: "alpha ~ 1 (Landau pole)"
     check: "Verify O(alpha^2) contribution is negligible"
 
-must_haves:
-  truths:
-    - "Vacuum polarization tensor is transverse: q_mu Pi^{mu nu} = 0"
-    - "Divergent part: Pi(q^2) ~ (alpha/(3*pi)) * (2/epsilon - gamma + ln(4*pi*mu^2/m^2))"
-    - "Running coupling reproduces alpha(m_Z) ~ 1/128 from alpha(0) ~ 1/137"
-    - "Beta function b_0 = -4/3 per fermion flavor"
-  artifacts:
-    - path: "derivations/vacuum-polarization.tex"
-      provides: "One-loop vacuum polarization Pi^{mu nu}(q)"
-      physics_check: "transversality, correct dimensions [mass^2]"
-    - path: "code/vac_pol_numerical.py"
-      provides: "Numerical evaluation of running coupling alpha(q^2)"
-      physics_check: "reproduces alpha(m_Z) from alpha(0)"
   key_links:
     - from: "derivations/vacuum-polarization.tex"
       to: "code/vac_pol_numerical.py"
@@ -1138,19 +1120,6 @@ approximations:
     breaks_when: "xi(T) > L (critical slowing down)"
     check: "Compare L=16, 32, 64 to verify finite-size trend"
 
-must_haves:
-  truths:
-    - "Specific heat peak converges to T_c = 2/ln(1+sqrt(2)) ~ 2.269 as L -> infinity"
-    - "Susceptibility diverges as chi ~ L^{gamma/nu} with gamma/nu = 7/4"
-    - "Energy at T_c matches Onsager exact result: E/N = -sqrt(2) J"
-    - "Binder cumulant crossing identifies T_c independent of L"
-  artifacts:
-    - path: "simulations/ising_mc.py"
-      provides: "Wolff cluster Monte Carlo for 2D Ising model"
-      physics_check: "energy conservation, detailed balance, ergodicity"
-    - path: "data/ising/ising_L{L}_T{T}.h5"
-      provides: "Thermodynamic measurements vs temperature for each L"
-      physics_check: "error bars decrease as 1/sqrt(N_measurements)"
   key_links:
     - from: "simulations/ising_mc.py"
       to: "data/ising/"
@@ -1277,19 +1246,6 @@ approximations:
     breaks_when: "noisy data with N_tau < 20 or signal-to-noise < 3"
     check: "Compare MEM result with Pade approximant for consistency"
 
-must_haves:
-  truths:
-    - "Spectral function A(omega) >= 0 for all omega (positivity)"
-    - "Sum rule satisfied: integral A(omega) d(omega) = 1 within 1%"
-    - "Peak position matches known quasiparticle energy within error bars"
-    - "MEM and Pade methods agree on qualitative features (peak position, width)"
-  artifacts:
-    - path: "analysis/spectral_extraction.py"
-      provides: "MEM + Pade analytic continuation code"
-      physics_check: "positivity, sum rule, Kramers-Kronig consistency"
-    - path: "figures/spectral_function.pdf"
-      provides: "Spectral function plot with error band"
-      physics_check: "peaks at expected energies, correct asymptotic decay"
   key_links:
     - from: ".gpd/phases/04-green-function/04-01-SUMMARY.md"
       to: "analysis/spectral_extraction.py"
@@ -1388,7 +1344,7 @@ After completion, create `.gpd/phases/05-spectral-analysis/05-01-SUMMARY.md`
 
 **Key patterns across all examples:**
 
-1. **Frontmatter is complete**: conventions, dimensional_check, approximations, contract, must_haves with truths/artifacts/key_links
+1. **Frontmatter is complete**: conventions, dimensional_check, approximations, contract, and explicit anchor/disconfirming context
 2. **Tasks are specific**: exact equations, exact parameters, exact files, exact verification criteria
 3. **Verify sections test physics**: dimensions, known limits, conservation, independent methods — not just "it runs"
 4. **Done criteria are measurable**: numerical thresholds, specific comparisons, named results
@@ -1402,7 +1358,7 @@ After completion, create `.gpd/phases/05-spectral-analysis/05-01-SUMMARY.md`
 ## Goal-Backward Methodology for Physics
 
 **Forward planning:** "What should we calculate?" -> produces tasks.
-**Goal-backward:** "What must be TRUE for the physics goal to be achieved?" -> produces requirements tasks must satisfy.
+**Goal-backward:** "What must be established for the physics goal to be achieved?" -> produces the requirements tasks must satisfy.
 
 ## The Process
 
@@ -1414,8 +1370,8 @@ Take phase goal from ROADMAP.md. Must be outcome-shaped, not task-shaped.
 - Good: "Phase diagram of 2D Ising model from Monte Carlo" (outcome)
 - Bad: "Run simulations" (task)
 
-**Step 2: Derive Observable Truths**
-"What must be TRUE for this goal to be achieved?" List 3-7 truths that are VERIFIABLE through physics consistency checks.
+**Step 2: Derive Decisive Claims**
+"What must be established for this goal to be achieved?" List 3-7 decisive claims that are VERIFIABLE through physics consistency checks.
 
 For "one-loop renormalization of QED coupling":
 
@@ -1426,10 +1382,10 @@ For "one-loop renormalization of QED coupling":
 - Beta function coefficient matches known b_0 = -4/3 per fermion flavor
 - Result reduces to classical (tree-level) coupling when alpha -> 0
 
-**Test:** Each truth is verifiable by a physicist checking the calculation -- either analytically or numerically.
+**Test:** Each claim is verifiable by a physicist checking the calculation -- either analytically or numerically.
 
 **Step 3: Derive Required Artifacts**
-For each truth: "What must EXIST for this to be true?"
+For each claim: "What must EXIST for this to be established?"
 
 "Vacuum polarization is transverse" requires:
 
@@ -1460,42 +1416,55 @@ For one-loop QED:
 - Regularization -> finite part (if scheme inconsistent: gauge invariance violated)
 - Renormalization condition -> physical coupling (if wrong subtraction: beta function incorrect)
 
-## Must-Haves Output Format
+## Contract Output Format
 
 ```yaml
-must_haves:
-  truths:
-    - "Vacuum polarization tensor is transverse: q_mu Pi^{mu nu} = 0"
-    - "Running coupling reproduces Uehling result"
-    - "Ward identity satisfied: Z_1 = Z_2"
-    - "Beta function b_0 = -4/3 per fermion flavor"
-  artifacts:
-    - path: "derivations/vacuum_polarization.tex"
-      provides: "One-loop vacuum polarization tensor"
-      contains: "Pi^{mu nu}(q)"
-      physics_check: "transversality, correct dimensions [mass^2]"
-    - path: "derivations/vertex_correction.tex"
-      provides: "One-loop vertex correction"
-      contains: "Gamma^mu(p,p')"
-      physics_check: "Ward identity with self-energy"
-    - path: "code/running_coupling.py"
-      provides: "Numerical evaluation of alpha(q^2)"
-      exports: ["running_alpha", "beta_function"]
-      physics_check: "reproduces alpha(m_Z) = 1/128 from alpha(0) = 1/137"
-  key_links:
-    - from: "derivations/vacuum_polarization.tex"
-      to: "derivations/vertex_correction.tex"
-      via: "Ward identity Z_1 = Z_2"
-      check: "Divergent parts cancel in physical amplitude"
-    - from: "derivations/vacuum_polarization.tex"
-      to: "code/running_coupling.py"
-      via: "Analytical expression evaluated numerically"
-      check: "Numerical result matches analytical formula to 10 digits"
+contract:
+  claims:
+    - id: claim-transverse
+      statement: "Vacuum polarization is transverse"
+      deliverables: [deliv-vacuum-polarization]
+      acceptance_tests: [test-transversality]
+      references: [ref-uehling]
+  deliverables:
+    - id: deliv-vacuum-polarization
+      kind: derivation
+      path: "derivations/vacuum_polarization.tex"
+      description: "One-loop vacuum polarization derivation"
+      must_contain: ["Pi^{mu nu}(q)"]
+    - id: deliv-vertex-correction
+      kind: derivation
+      path: "derivations/vertex_correction.tex"
+      description: "One-loop vertex correction"
+      must_contain: ["Gamma^mu(p,p')"]
+    - id: deliv-running-coupling
+      kind: code
+      path: "code/running_coupling.py"
+      description: "Numerical evaluation of alpha(q^2)"
+      must_contain: ["running_alpha", "beta_function"]
+  acceptance_tests:
+    - id: test-transversality
+      subject: claim-transverse
+      kind: symmetry
+      procedure: "Contract q_mu with Pi^{mu nu} and verify the tensor remains transverse."
+      pass_condition: "The contracted expression vanishes in the declared convention."
+      evidence_required: [deliv-vacuum-polarization]
+  links:
+    - id: link-ward
+      source: deliv-vacuum-polarization
+      target: deliv-vertex-correction
+      relation: supports
+      verified_by: [test-transversality]
+    - id: link-running-coupling
+      source: deliv-vacuum-polarization
+      target: deliv-running-coupling
+      relation: evaluated_by
+      verified_by: [test-transversality]
 ```
 
 ## Physics-Specific Failure Modes
 
-**Truths too vague:**
+**Claims too vague:**
 
 - Bad: "QED works at one loop"
 - Good: "Vacuum polarization is transverse", "Ward identity Z_1 = Z_2", "Beta function b_0 = -4/3"
@@ -1925,7 +1894,7 @@ Triggered when orchestrator provides `<revision_context>` with checker issues. N
 cat .gpd/phases/$PHASE-*/$PHASE-*-PLAN.md
 ```
 
-Build mental model of current plan structure, existing tasks, must_haves, conventions, approximations.
+Build mental model of current plan structure, existing tasks, contract targets, conventions, and approximations.
 
 ### Step 2: Parse Checker Issues
 
@@ -1959,7 +1928,7 @@ Group by plan, dimension, severity.
 | key_links_planned      | Add cross-check task or update action                         |
 | scope_sanity           | Split into multiple plans                                     |
 | contract_derivation    | Derive and validate contract-backed frontmatter               |
-| must_haves_derivation  | Derive legacy must_haves from the contract                    |
+| contract_derivation    | Derive decisive contract coverage from the phase goal         |
 
 ### Step 4: Make Targeted Updates
 
@@ -2608,16 +2577,16 @@ Rules:
 6. Validation tasks can be grouped with the calculation they validate (if total fits context budget)
 </step>
 
-<step name="derive_must_haves">
+<step name="derive_contract_targets">
 Apply goal-backward methodology (see goal_backward section):
 1. State the goal (physics outcome, not task)
 2. Derive contract claims (3-7, verifiable through physics checks)
 3. Derive contract deliverables (specific files with specific content)
 4. Derive contract acceptance tests and anchor references
 5. Derive forbidden proxies and uncertainty markers
-6. Derive the legacy must_haves compatibility view from the contract
+6. Derive contract links, anchor actions, and disconfirming paths needed to keep execution honest
 
-**Physics-specific must-have categories:**
+**Physics-specific contract categories:**
 
 - **Analytical results:** Equations that must be derived, in specified conventions
 - **Numerical results:** Quantities that must be computed, with specified precision
@@ -2671,7 +2640,7 @@ Returns JSON: `{ valid, missing, present, schema }`
 Required plan frontmatter fields:
 
 - `phase`, `plan`, `type`, `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`
-- `must_haves` should be emitted as the derived compatibility layer while the executor still consumes it
+- The contract should be emitted as the only machine-readable success schema the executor consumes
 
 Also validate plan structure:
 
@@ -2869,7 +2838,7 @@ Phase planning complete when:
 - [ ] Dependency graph built (needs/creates for each task, respecting mathematical prerequisites)
 - [ ] Tasks grouped into plans by wave, not by sequence
 - [ ] PLAN file(s) exist with XML structure
-- [ ] Each plan: depends_on, files_modified, interactive, conventions, contract, and derived must_haves in frontmatter
+- [ ] Each plan: depends_on, files_modified, interactive, conventions, and contract in frontmatter
 - [ ] Each plan: researcher_setup declared if external resources involved
 - [ ] Each plan: Objective, context, tasks, verification, success criteria, output
 - [ ] Each plan: 2-3 tasks (~50% context)

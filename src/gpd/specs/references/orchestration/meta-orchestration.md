@@ -48,7 +48,7 @@ Phase Type → Agent Selection (in order of invocation)
 literature:
   ALWAYS:  phase-researcher, bibliographer
   IF explore: + project-researcher (broader context)
-  IF exploit: bibliographer only (phase-researcher optional)
+  IF exploit: bibliographer only when current contract, anchors, and prior research already cover the method family
   POST:    consistency-checker (convention import from literature)
 
 formulation:
@@ -68,9 +68,9 @@ numerical:
   POST:    verifier (convergence + statistics checks), consistency-checker
 
 validation:
-  ALWAYS:  verifier (full 15-check), consistency-checker
+  ALWAYS:  verifier (full contract-aware checklist), consistency-checker
   IF explore: + phase-researcher (find additional cross-checks)
-  IF exploit: verifier only (publication-grade rigor)
+  IF exploit: verifier only after the decisive comparison path is already well established
 
 writing:
   ALWAYS:  paper-writer, bibliographer, notation-coordinator
@@ -82,12 +82,12 @@ writing:
 
 | Setting | Effect on Agent Selection |
 |---|---|
-| `research_mode: explore` | Add phase-researcher and research-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verifier uses 7-check floor (feasibility, not perfection). |
-| `research_mode: exploit` | Skip phase-researcher for well-known methods. Bibliographer uses narrow search (5-10 refs). Planner creates single focused plan. Verifier uses full 15-check with strict thresholds. |
-| `research_mode: adaptive` | Start with explore selection for phases 1-3, auto-switch to exploit after first verification pass with >= 3 INDEPENDENTLY CONFIRMED results. |
+| `research_mode: explore` | Add phase-researcher and research-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verification can stage breadth over multiple passes, but contract-critical checks stay mandatory. |
+| `research_mode: exploit` | Skip phase-researcher only when the current contract, anchors, and prior outputs already make the method family obvious. Bibliographer uses narrow search (5-10 refs). Planner creates single focused plan. Verification stays full-strength on contract-critical checks and decisive comparisons. |
+| `research_mode: adaptive` | Start broad, then narrow only after prior decisive evidence or an explicit approach lock shows the method family is stable. Do not switch purely because the phase number increased. |
 | `autonomy: babysit` | All agents produce detailed explanations. Orchestrator pauses for user review at every major phase transition and key decision. |
 | `autonomy: balanced` | Standard depth. Orchestrator auto-runs routine work and pauses at major decision points, ambiguities, or blocker states. |
-| `autonomy: yolo` | Maximum speed. Skip optional agents (research-mapper, experiment-designer). Reduce verification to 7-check floor. Still maintain physics correctness. |
+| `autonomy: yolo` | Maximum speed. Skip only optional breadth agents when the contract is already well scoped. Keep the same contract-critical verification bar; autonomy changes pause cadence, not decisiveness. |
 
 ---
 
@@ -112,7 +112,7 @@ Different phase types have different context consumption patterns. The orchestra
 
 2. **Literature exceeds 60% researcher budget:** The researcher should write a structured literature summary to a file and return. A second researcher invocation can process remaining papers.
 
-3. **Verification exceeds 50% verifier budget:** Reduce to the 7-check floor. Flag skipped checks in VERIFICATION.md for follow-up in a separate verifier invocation.
+3. **Verification exceeds 50% verifier budget:** Split verifier work into multiple passes. Keep the contract-critical, anchor, and decisive-comparison checks in the current pass and queue optional depth for follow-up.
 
 4. **Numerical debugging exceeds 20% debugger budget:** Write a debugging report with hypotheses and return. The orchestrator should re-invoke the debugger with fresh context and the report.
 
@@ -183,10 +183,10 @@ For `research_mode: adaptive`, the orchestrator needs to detect when to switch f
 
 The explore-to-exploit transition fires when ALL of the following are met:
 
-1. **Approach validated:** At least one derivation or numerical phase has passed verification with >= 3 INDEPENDENTLY CONFIRMED key results
+1. **Approach locked by evidence:** At least one prior phase has recorded decisive comparison or contract-result evidence that makes the current method family trustworthy for follow-on work
 2. **Conventions locked:** The convention_lock in state.json has >= 5 entries and no unresolved convention conflicts
 3. **No fundamental objections:** The consistency-checker has not flagged any cross-phase inconsistencies in the last 2 phases
-4. **Method converging:** For numerical work, the target observable shows monotonic improvement with resolution/iteration. For analytical work, the perturbation series shows decreasing corrections
+4. **Method converging:** For numerical work, the target observable shows monotonic improvement with resolution/iteration. For analytical work, the planned approximation path still has a credible validation story and no unresolved anchor failures
 
 ### Transition Mechanics
 
@@ -199,10 +199,10 @@ After each phase completion:
      - From next phase onward:
        - Planner uses exploit-mode planning (single focused plan)
        - Researcher uses exploit-mode search (narrow)
-       - Verifier uses exploit-mode thresholds (strict)
-  3. IF criteria not met but phase > 4:
-     - Consider partial transition: lock the approach but keep explore-level verification
-     - Log: "Adaptive mode: partial transition — approach locked but verification remains exploratory"
+     - Verifier keeps the same contract-critical checks and narrows only optional breadth
+  3. IF criteria not met but there is partial evidence:
+     - Consider partial transition: lock the approach but keep broader research or verifier depth
+     - Log: "Adaptive mode: partial transition — approach locked but broader skepticism remains active"
 ```
 
 ### Reverse Transition (Exploit to Explore)
@@ -231,7 +231,7 @@ Guidance for the orchestrator on how to handle agent-specific patterns.
 | Situation | Action |
 |---|---|
 | Executor returns CHECKPOINT (context full) | Re-invoke with checkpoint file. This is normal for long derivations. |
-| Verifier returns incomplete (< 7 checks) | Re-invoke with remaining checks. Budget a fresh context. |
+| Verifier returns incomplete contract-aware coverage | Re-invoke with remaining checks. Budget a fresh context. |
 | Researcher returns "insufficient literature" | Try: (a) broader search terms, (b) adjacent subfield, (c) web_search with different query. |
 | Planner produces > 8 tasks in one plan | Split: plans with > 8 tasks risk executor context overflow. Split into 2 plans at a natural boundary. |
 | Debugger returns "unknown failure mode" | Escalate to phase-researcher for alternative method. The current approach may be fundamentally unsuitable. |

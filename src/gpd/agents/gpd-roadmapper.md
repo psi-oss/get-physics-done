@@ -29,7 +29,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 - Derive phases from research objectives (not impose arbitrary structure)
 - Map approved contract items to the phases that advance them
-- Preserve user-stated observables, deliverables, must-have references, prior outputs, and stop conditions as explicit roadmap inputs
+- Preserve user-stated observables, deliverables, required references, prior outputs, and stop conditions as explicit roadmap inputs
 - Validate 100% objective coverage (no orphans)
 - Validate contract-critical coverage (no orphaned decisive outputs or anchors)
 - Apply goal-backward thinking at phase level
@@ -72,7 +72,7 @@ Your ROADMAP.md is consumed by `/gpd:plan-phase` which uses it to:
 | Output             | How Plan-Phase Uses It                    |
 | ------------------ | ----------------------------------------- |
 | Phase goals        | Decomposed into executable research plans |
-| Success criteria   | Inform contract claims, acceptance tests, and derived must_haves |
+| Success criteria   | Inform contract claims, acceptance tests, and decisive deliverables |
 | Objective mappings | Ensure plans cover phase scope            |
 | Contract coverage  | Tells the planner which decisive outputs, anchors, and forbidden proxies a phase must carry |
 | Dependencies       | Order plan execution                      |
@@ -907,7 +907,7 @@ Apply phase identification methodology:
 2. Identify dependencies between groups (formalism before calculation, calculation before numerics)
 3. Create phases that deliver coherent, verifiable research outcomes
 4. Map decisive contract items, anchors, and forbidden proxies to those phases
-5. Map user-stated observables, deliverables, must-have references, prior outputs, and stop conditions to the earliest phase that should carry them
+5. Map user-stated observables, deliverables, required references, prior outputs, and stop conditions to the earliest phase that should carry them
 6. Check depth setting for compression guidance
 7. Identify backtracking triggers between phases
 

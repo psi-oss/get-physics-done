@@ -42,7 +42,7 @@ Maps verification responsibilities across the three verification agents: plan-ch
 | Dim 8: Result Wiring | 10 | Artifact Level 3 (Integration) | Plan: notation consistent → Verifier: artifacts integrated |
 | Dim 9: Dependency Correctness | 11 | — | Plan design only |
 | Dim 10: Scope Sanity | 12 | — | Plan design only |
-| Dim 11: Artifact Derivation | 13 | Step 2 (Must-Haves) | Plan: physics-meaningful truths → Verifier: truths verified |
+| Dim 11: Contract Completeness And Artifact Derivation | 13 | Step 2 (Contract Targets) | Plan: contract claims, deliverables, links, and tests are decisive → Verifier: contracted targets are independently checked |
 | Dim 12: Literature Awareness | 14 | 5.10 Literature Agreement | Plan: references exist → Verifier: numerical values match |
 | Dim 13: Path to Publication | 15 | — | Plan design only |
 | Dim 14: Failure Mode Identification | 16 | — | Plan design only |
@@ -130,7 +130,7 @@ The consistency-checker operates orthogonally to both plan-checker and verifier.
 |---|---|---|---|
 | **deep-theory** | All 16 dimensions | All 15 checks (5.1-5.15) | Full semantic verification + test values |
 | **numerical** | All 16, emphasize 5,6,9,14,16 | All 15, emphasize 5.9,5.2,5.12 | Focus on numerical value consistency |
-| **exploratory** | 9 dimensions (skip 3,6,7,12-15) | 7 checks: 5.1,5.2,5.3,5.6,5.7,5.8,5.10 | Structural floor: dimensions + symmetry + conservation + math consistency |
+| **exploratory** | Contract gate plus core dimensions with abbreviated optional checks | Core correctness checks with scope scaled to phase maturity | Structural floor remains active; exploratory work still needs decisive anchors and falsifiable outputs |
 | **review** | All 16 + literature cross-ref | All 15 + literature comparison | Full + literature cross-referencing |
 | **paper-writing** | All 16, emphasize 8,11,12,13 | All 15 + notation/figure checks | Notation consistency focus |
 

@@ -25,7 +25,7 @@ Last audited: 2026-02-23 (deep audit, cross-referenced against actual workflow/a
 | L2b | **Executor self-critique + post-step guards** | During execution | Self-critique: sign, factor, convention, dimension checks every 3-4 steps. **Post-step guards:** IDENTITY_CLAIM tagging (#11), BOUNDARY_CONDITION declarations (#13), EXPANSION_ORDER tracking (#16), 12-type computation mini-checklist. Guard failures → deviation rules 3/4/5. | Best-effort — LLM may skip under context pressure. Guards are lightweight (~50 tokens) so more resilient than full self-critique. |
 | L3 | **Pre-commit check** | At commit time | Markdown frontmatter YAML parse validity plus NaN/Inf detection in checked files | Now used in all 37 commit-producing workflow specs (37 of 61 total workflow specs). Advisory (`|| true`), not blocking |
 | L4 | **Inter-wave gates** | Between waves | Convention consistency + dimensional spot-check on wave SUMMARY.md equations | **Only runs between waves within execute-phase**; does NOT run limiting cases, symmetry, or conservation checks |
-| L5 | **Verifier 15-check** | Post-execution | Full verification: 5.1-5.15 (dimensional, spot-check, limiting cases, cross-check, symmetry, conservation, math consistency, convergence, literature, plausibility, statistics, thermodynamic, spectral, anomalies/topology) | **Profile-dependent**: exploratory runs 7-check floor (5.1,5.2,5.3,5.6,5.7,5.8,5.10); quick mode runs 5.1/5.3/5.10; Tier 4 (5.13-5.15) skipped under context pressure but promoted if computation type requires them |
+| L5 | **Verifier 15-check** | Post-execution | Full verification: 5.1-5.15 (dimensional, spot-check, limiting cases, cross-check, symmetry, conservation, math consistency, convergence, literature, plausibility, statistics, thermodynamic, spectral, anomalies/topology) | **Profile-dependent**: exploratory now keeps the contract gate and all applicable decisive/falsifying checks while compressing optional depth; quick mode remains intentionally shallow; Tier 4 (5.13-5.15) can still be promoted when computation type requires them |
 | L5b | **Researcher validation** | Post-execution | Interactive verify-work with computational evidence; researcher confirms/denies each check | Only runs when user invokes `/gpd:verify-work`; human-dependent |
 | L6 | **Cross-phase consistency** | Post-phase | Convention drift, provides/requires chains, sign/factor spot-checks, approximation validity | Only checks quantities crossing phase boundaries; within-phase errors invisible |
 
@@ -173,7 +173,7 @@ Legend: `++` = primary detection, `+` = partial detection, `(+)` = theoretical/c
 1. **L4 inflation:** L4 only checks convention consistency and dimensional spot-checks. It was credited with partial detection of #5, 6, 8, 10, 25, 27, 29, 40, 42, 43, 46 — none of which are caught by convention or dimensional checking alone.
 2. **L3 coverage (improved):** Pre-commit check was only in 2 of 35+ workflows (bug #23, now fixed: all 37 commit-producing workflow specs / 61 total workflow specs). L3 remains advisory (`|| true`) and catches only YAML parse issues plus NaN/Inf markers, not physics errors.
 3. **L6 overcounting:** Cross-phase consistency only catches errors visible at phase boundaries. Errors localized within a single derivation are invisible to L6.
-4. **L5 profile risk:** In exploratory profile, 7-check floor runs (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). Error classes requiring 5.9, 5.11-5.15 (convergence, plausibility, statistics, thermodynamic, spectral, anomalies) have **zero** reliable coverage in exploratory mode.
+4. **L5 profile risk:** Any exploratory implementation that compresses verification by fixed checklist count is unsafe. Exploratory mode must still trigger every applicable decisive, falsifying, convergence, plausibility, thermodynamic, spectral, or anomaly check when the phase semantics demand them.
 
 **L5 tier-dependent coverage breakdown:**
 
@@ -181,7 +181,7 @@ Legend: `++` = primary detection, `+` = partial detection, `(+)` = theoretical/c
 |---|---|---|---|
 | 5.1-5.15 (all 15) | deep-theory, review | All 101 | None |
 | 5.1-5.15 (all 15) | numerical, paper-writing | All 101 | None |
-| 5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10 (7-check floor) | exploratory | ~68 | **~33 error classes lose their ONLY defense** (core requiring 5.9-5.15 + extended + deep #87,90,92) |
+| Contract gate + all applicable decisive/falsifying checks, with optional depth compressed | exploratory | varies by phase | Residual risk depends on whether phase-specific convergence, plausibility, thermodynamic, spectral, and anomaly checks are surfaced correctly |
 | 5.1, 5.3, 5.10 | quick | ~20 | **~81 error classes lose their ONLY defense** |
 
 **Combined 101-class summary:** 82 single-layer (L5 only), 10 two-layer (L2b+L5), 2 three-layer, 6 four+-layer, 1 three-layer via convention+dimensional. Seven HIGH-risk classes (#52,#63,#71,#72,#76,#77,#87) produce plausible-looking results.
@@ -312,7 +312,7 @@ The original gap analysis credited L4 with partial (`+`) coverage for error clas
 
 ### Finding 4: Exploratory Profile Creates a Verification Void
 
-In exploratory profile, the verifier runs the 7-check floor (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). This is improved from the original 4-check set but still means **~33 of 101 error classes lose their only defense**. Error classes requiring:
+In exploratory profile, the verifier should no longer be modeled as a fixed reduced floor. The real risk is whether the plan and verifier surface the applicable decisive and falsifying checks for the specific phase. Error classes become exposed when those checks are omitted by poor scoping or weak contracts, not because the mode hardcodes a smaller checklist.
 - 5.9 (convergence): all numerical classes
 - 5.11 (plausibility): positivity, causality, magnitude checks
 - 5.12 (statistics): MC errors, error propagation
@@ -389,7 +389,7 @@ The consistency checker currently checks convention drift and provides/requires 
 | Priority | Fix | Error Classes Addressed | Cost | Layers Affected |
 |---|---|---|---|---|
 | ~~P0~~ | ~~Expand pre-commit-check to all commit-producing workflows~~ — **DONE** (bug #23 fixed, all 37 commit-producing workflow specs / 61 total workflow specs). | Convention-related: #7, 15, 33, 34, 37 | 0 (workflow edits only) | L3 |
-| **P0** | **Exploratory profile minimum check floor** — IMPLEMENTED: exploratory now runs 7-check floor (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). Reduces gap from 36→~16 unprotected error classes. | ~16 classes that lose coverage in exploratory mode | 0 (verifier logic change) | L5 |
+| **P0** | **Exploratory verification semantics** — IMPLEMENTED: exploratory now keeps the contract gate and all applicable decisive/falsifying checks while compressing optional depth instead of enforcing a fixed reduced checklist. | Coverage now depends on surfacing the right phase-specific checks, not on a hardcoded floor | 0 (verifier logic change) | L5 |
 | **P0** | Executor self-check protocol (computation-type mini-checklist) | All 38 single-reliable-layer classes | ~500 tokens/step | New: L2b strengthening |
 | **P1** | IDENTITY_CLAIM tagging for hallucinated identities | #11 | ~200 tokens/identity | L4 (inter-wave gate) |
 | **P1** | BC declaration in plan-checker + executor | #13 | ~100 tokens/derivation | L0 (plan-checker Dim 6) + L5 |

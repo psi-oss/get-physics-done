@@ -14,7 +14,7 @@
   },
   "context_intake": {
     "must_read_refs": [
-      "Ref-01"
+      "ref-benchmark"
     ],
     "must_include_prior_outputs": [
       ".gpd/phases/01-setup/01-01-SUMMARY.md"

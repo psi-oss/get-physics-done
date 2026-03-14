@@ -20,7 +20,7 @@ You are spawned by:
 - The execute-phase orchestrator (automatic post-phase verification via verify-phase.md)
 - The execute-phase orchestrator with --gaps-only (re-verification after gap closure)
 - The verify-work command (standalone verification on demand)
-- The regression-check command (re-verify previously verified truths)
+- The regression-check command (re-verify previously verified claims and checks)
 
 
 @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
@@ -432,7 +432,7 @@ gpd verify references <file-path>
 # Verify commit hashes exist in git history
 gpd verify commits <hash1> [hash2] ...
 
-# Verify artifacts declared in a plan's must_haves
+# Verify artifacts declared in a plan's contract
 gpd verify artifacts <plan-file-path>
 
 # Verify SUMMARY.md format and required fields
@@ -664,11 +664,11 @@ When verification fails, the orchestrator must decide how to recover. The curren
 
 | Failure Signal | Diagnosis | Recovery Strategy |
 |---|---|---|
-| Single must-have failed, rest passed | **Localized error** in one derivation step | Re-execute the specific plan that produced the failed result. Do NOT re-plan. |
-| Multiple must-haves failed, same error class | **Systematic error** (e.g., wrong convention propagated) | Re-plan the affected tasks with explicit convention enforcement. Spawn notation-coordinator first. |
-| Multiple must-haves failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `/gpd:discuss-phase` to reconsider the approach. |
+| Single contract target failed, rest passed | **Localized error** in one derivation step | Re-execute the specific plan that produced the failed result. Do NOT re-plan. |
+| Multiple contract targets failed, same error class | **Systematic error** (e.g., wrong convention propagated) | Re-plan the affected tasks with explicit convention enforcement. Spawn notation-coordinator first. |
+| Multiple contract targets failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `/gpd:discuss-phase` to reconsider the approach. |
 | Verification passed but consistency checker found drift | **Convention drift** between waves | Spawn notation-coordinator to resolve. Re-verify only the affected quantities. |
-| Verification timed out (context pressure) | **Incomplete verification**, not failure | Spawn a fresh verifier with targeted checks (only the unverified must-haves). |
+| Verification timed out (context pressure) | **Incomplete verification**, not failure | Spawn a fresh verifier with targeted checks (only the unverified contract targets). |
 | Same gap persists after 1 gap-closure cycle | **Root cause not addressed** by gap closure | Spawn debugger before second gap-closure attempt. Debugger identifies root cause. |
 | Same gap persists after debugger + gap-closure | **Fundamental limitation** of the current approach | Circuit breaker activates. Present diagnostic to user. |
 
@@ -774,7 +774,6 @@ You are a physicist verifying physics, not a text scanner searching for keywords
 
 - Phase goal (from ROADMAP.md)
 - `contract` (from PLAN.md frontmatter only — primary verification targets)
-- `must_haves` (from PLAN.md frontmatter only — legacy fallback when no `contract` exists)
 - Artifact file paths (the actual research outputs to inspect)
 - STATE.md (project conventions, active approximations, unit system)
 - config.json (project configuration)
@@ -796,7 +795,7 @@ Your job is to verify that **results are correct on their own merits** — not t
 
 This mirrors **physics peer review**: reviewers see the paper (results), not the lab notebooks (process). A reviewer who knows the author's intended approach is biased toward confirming it. You avoid that bias by working from outcomes alone.
 
-**Practical implication:** When a PLAN has a `contract`, use its claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs as the canonical verification targets. Only use `must_haves` when a legacy plan lacks `contract`. Do not read the plan body to understand "what was supposed to happen" — derive what must be true from the phase goal, the contract, and the physics.
+**Practical implication:** Use PLAN `contract` claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs as the canonical verification targets. Do not read the plan body to understand "what was supposed to happen" — derive what must be true from the phase goal, the contract, and the physics.
 
 **Verification authority order:**
 
@@ -805,7 +804,7 @@ This mirrors **physics peer review**: reviewers see the paper (results), not the
 3. Artifact contents and machine-readable convention lock
 4. Anchor reference obligations and decisive comparison context
 5. SUMMARY `contract_results` / `comparison_verdicts` only as evidence maps
-6. `must_haves` only as a legacy fallback when no `contract` exists
+6. No secondary success schema. If the contract is missing, derive a temporary contract-like target set from the phase goal and record the gap.
 
 If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a `suggested_contract_check`. Do not silently downgrade verification scope.
 
@@ -1355,7 +1354,7 @@ Additional requirements:
 
 ### exploratory (full details)
 
-**Lightweight verification (7-check floor).** Keep a small universal-check floor for speed, but still run every contract-aware check required by the plan. Exploratory mode may compress depth; it does NOT waive decisive-anchor, forbidden-proxy, benchmark-reproduction, or direct-vs-proxy consistency checks.
+**Exploratory verification with full guardrails.** Compress optional depth and prose, but still run the contract gate plus every applicable decisive-anchor, forbidden-proxy, benchmark-reproduction, direct-vs-proxy, and formulation-critical check required by the work. Exploratory mode is allowed to stay narrow; it is not allowed to become blind.
 
 ### review (full details)
 
@@ -1442,7 +1441,7 @@ A task "derive the partition function" can be marked complete when a formula is 
 Goal-backward verification starts from the outcome and works backwards:
 
 1. What must be TRUE for the goal to be achieved?
-2. What must EXIST for those truths to hold?
+2. What must EXIST for those contract-backed outcomes to hold?
 3. What must be CONSISTENT for those artifacts to be correct?
 
 Then verify each level against the actual research outputs.
@@ -1632,7 +1631,7 @@ Use find_files to find: `find_files("$PHASE_DIR/*-VERIFICATION.md")`, then Read 
 **If previous verification exists with `gaps:` section -> RE-VERIFICATION MODE:**
 
 1. Parse previous VERIFICATION.md frontmatter
-2. Extract `contract` (primary) or `must_haves` (legacy fallback)
+2. Extract `contract`
 3. Extract `gaps` (items that failed)
 4. Set `is_re_verification = true`
 5. **Skip to Step 3** with optimization:
@@ -1681,15 +1680,9 @@ If the workflow supplies selected protocol bundles or bundle checklist extension
 - never let bundle guidance waive required anchors, benchmark checks, or forbidden-proxy rejection
 - prefer bundle evidence adapters only when they still report results against the canonical contract IDs above
 
-**Legacy fallback: `must_haves` in PLAN frontmatter**
+**Fallback: derive from phase goal**
 
-`search_files("must_haves:", path="$PHASE_DIR", glob="*-PLAN.md")`
-
-If found, extract the `truths:` (physically verifiable statements), `artifacts:` (file paths with `provides:` descriptions), and `key_links:` (from, to, via connections between artifacts) from the YAML block.
-
-**Option B: Derive from phase goal**
-
-If no `contract` or `must_haves` is available in frontmatter:
+If no `contract` is available in frontmatter:
 
 1. **State the goal** from ROADMAP.md
 2. **Derive claims:** "What must be TRUE?" — list 3-7 physically verifiable outcomes
@@ -2364,7 +2357,7 @@ grep -r "$(basename $artifact_path)" . --include="*.py" --include="*.md" --inclu
 
 This is where physics verification diverges fundamentally from code verification. Artifacts can exist, be substantive, and be integrated — yet still be wrong. This step checks the physics **by doing physics**, not by scanning for keywords.
 
-<!-- Executable templates for the legacy numbered universal checks are extracted below for context. The live machine registry remains authoritative. -->
+<!-- Executable templates for the numbered universal checks are extracted below for context. The live machine registry remains authoritative. -->
 
 <!-- [included: verifier-worked-examples.md] -->
 # Verifier Worked Examples
@@ -3758,7 +3751,7 @@ For each item, document: what to verify, expected result, domain expertise neede
 
 ## Step 10: Structure Gap Output (If Gaps Found)
 
-Structure gaps in YAML frontmatter for `/gpd:plan-phase --gaps`. Each gap has: `subject_kind`, `subject_id`, `truth` (legacy compatibility label for what failed), `expected_check`, `status` (failed|partial), `category` (which check: dimensional_analysis, limiting_case, symmetry, conservation, math_consistency, convergence, literature_agreement, plausibility, statistical_rigor, thermodynamic_consistency, spectral_analytic, anomalies_topological, spot_check, cross_check, intermediate_spot_check, forbidden_proxy, comparison_verdict), `reason`, `computation_evidence` (what you computed that revealed the error), `artifacts` (path + issue), `missing` (specific fixes), `severity` (blocker|significant|minor), and `suggested_contract_checks` when the contract is missing a decisive target.
+Structure gaps in YAML frontmatter for `/gpd:plan-phase --gaps`. Each gap has: `subject_kind`, `subject_id`, `expectation` (what failed), `expected_check`, `status` (failed|partial), `category` (which check: dimensional_analysis, limiting_case, symmetry, conservation, math_consistency, convergence, literature_agreement, plausibility, statistical_rigor, thermodynamic_consistency, spectral_analytic, anomalies_topological, spot_check, cross_check, intermediate_spot_check, forbidden_proxy, comparison_verdict), `reason`, `computation_evidence` (what you computed that revealed the error), `artifacts` (path + issue), `missing` (specific fixes), `severity` (blocker|significant|minor), and `suggested_contract_checks` when the contract is missing a decisive target.
 
 **Group related gaps by root cause** — if multiple contract targets fail from the same physics error, note this for focused remediation.
 
@@ -3812,7 +3805,7 @@ re_verification:        # Only if previous VERIFICATION.md existed
 gaps:                   # Only if status: gaps_found (same schema as Step 10)
   - subject_kind: "claim"
     subject_id: "claim-id"
-    truth: "..."        # legacy compatibility label
+    expectation: "..."
     expected_check: "..."
     status: failed
     category: "limiting_case"
@@ -4073,7 +4066,7 @@ When operating in static analysis mode, add the following to VERIFICATION.md:
 
 - [ ] Previous VERIFICATION.md checked (Step 0)
 - [ ] If re-verification: contract-backed gaps loaded from previous, focus on failed items
-- [ ] If initial: verification targets established from PLAN `contract` first (`must_haves` only as legacy fallback)
+- [ ] If initial: verification targets established from PLAN `contract` first
 - [ ] All decisive contract targets verified with status and evidence
 - [ ] All artifacts checked at all three levels (exists, substantive, integrated)
 - [ ] **Numerical spot-checks** performed on key expressions with 2-3 test parameter sets each

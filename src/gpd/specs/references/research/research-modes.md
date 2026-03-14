@@ -45,7 +45,7 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 
 | Mode | Behavior |
 |---|---|
-| **explore** | 7-check floor (5.1, 5.2, 5.3, 5.6, 5.7, 5.8, 5.10). Focus on detecting WRONG APPROACHES early, not polishing correct ones. Key question: "Is this approach viable?" not "Is this result perfect?" Accept approximate results if they demonstrate feasibility. Flag approaches that fail basic sanity checks. |
+| **explore** | Fast, contract-aware viability testing. Focus on detecting WRONG APPROACHES early, not polishing correct ones. Key question: "Is this approach viable?" not "Is this result perfect?" Compress optional depth, but still run the contract gate and every applicable decisive-anchor, forbidden-proxy, benchmark-reproduction, direct-vs-proxy, and formulation-critical check. Flag approaches that fail basic sanity checks. |
 | **balanced** | Full 15-check verification per profile. Standard confidence requirements. |
 | **exploit** | Full 15-check verification but with STRICTER thresholds. Require INDEPENDENTLY CONFIRMED for all key results (even in non-deep-theory profiles). Publication-grade rigor because the approach is assumed correct — errors are in execution, not methodology. |
 | **adaptive** | Uses explore verification until approach is validated, then switches to exploit verification. Transition criterion: first phase passes verification with ≥3 INDEPENDENTLY CONFIRMED key results. |

@@ -303,7 +303,7 @@ class TestCodexLifecycle:
 
         result = adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
 
-        # Skills installed (skill directories with SKILL.md)
+        # Discoverable Codex skills installed (commands + public agents).
         gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
         assert len(gpd_skills) > 0, "No GPD skill directories installed"
         for skill_dir in gpd_skills:
@@ -312,7 +312,7 @@ class TestCodexLifecycle:
         assert help_skill.exists()
         assert "context_mode:" in help_skill.read_text(encoding="utf-8")
 
-        # Agents installed as .md files
+        # The full GPD agent catalog still installs as agent .md files.
         agents_dir = target / "agents"
         assert agents_dir.is_dir()
 
@@ -359,7 +359,7 @@ class TestCodexLifecycle:
         adapter.install(gpd_root, target, is_global=True, skills_dir=skills_dir)
         result = adapter.uninstall(target, skills_dir=skills_dir)
 
-        # GPD skills removed
+        # Discoverable Codex skills removed
         gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
         assert len(gpd_skills) == 0, f"Skills not removed: {[d.name for d in gpd_skills]}"
 
@@ -394,7 +394,7 @@ class TestCodexLifecycle:
         assert (target / MANIFEST_NAME).exists()
 
     def test_manifest_includes_skills(self, tmp_path: Path, gpd_root: Path) -> None:
-        """Codex manifest should include skill SKILL.md hashes."""
+        """Codex manifest should include discoverable skill SKILL.md hashes."""
         adapter = get_adapter("codex")
         target = tmp_path / ".codex"
         target.mkdir()

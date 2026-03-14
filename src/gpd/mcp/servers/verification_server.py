@@ -170,7 +170,7 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
         check_meta = get_verification_check(check_id)
         if check_meta is None:
             return {
-                "error": f"Unknown check_id: {check_id}. Valid legacy ids: {list(VERIFICATION_CHECK_IDS)}",
+                "error": f"Unknown check_id: {check_id}. Valid check ids: {list(VERIFICATION_CHECK_IDS)}",
                 "schema_version": VERIFICATION_SCHEMA_VERSION,
             }
 

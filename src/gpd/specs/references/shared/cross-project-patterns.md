@@ -137,7 +137,7 @@ During the `consult_learned_patterns` step of plan creation:
 5. Incorporate prevention guidance into plan structure:
    - Add explicit convention checks to task descriptions
    - Include known pitfall warnings in `@context` sections
-   - Add specific key_links to `must_haves` that would catch the pattern
+   - Add specific contract links, acceptance tests, or forbidden-proxy guards that would catch the pattern
 
 ### Executor reads before starting work
 
@@ -216,7 +216,7 @@ Each agent integrates with the pattern library at specific points in its workflo
 
 | Agent        | When                            | What it reads                  | What it does with patterns                                   |
 | ------------ | ------------------------------- | ------------------------------ | ------------------------------------------------------------ |
-| gpd-planner  | `consult_learned_patterns` step | Top 5 by relevance             | Adds prevention steps to plans, key_links to must_haves      |
+| gpd-planner  | `consult_learned_patterns` step | Top 5 by relevance             | Adds prevention steps to plans, contract links, and acceptance-test guards |
 | gpd-executor | Before starting task execution  | All critical/high for domain   | Watches for trigger conditions during derivation             |
 | gpd-verifier | During verification setup       | All patterns matching domain   | Adds pattern-specific checks to verification report          |
 | gpd-debugger | After confirming root cause     | Existing patterns for matching | Writes new pattern or updates existing one                   |

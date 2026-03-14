@@ -361,8 +361,6 @@ Emit comparison verdicts whenever the contract or decisive anchor context requir
 
 **Score:** {N}/{M} contract claims verified
 
-{If the phase uses a legacy plan with no contract: "Legacy note: claim coverage above was derived from `must_haves` because the plan has no `contract` block."}
-
 ## Required Artifacts
 
 | Artifact    | Expected                 | Status                                | Details    |
@@ -458,7 +456,7 @@ Emit comparison verdicts whenever the contract or decisive anchor context requir
 ## Verification Metadata
 
 **Verification approach:** Goal-backward + contract-first + physics-first (dimensional analysis, limits, symmetries, decisive comparisons, forbidden-proxy rejection)
-**Verification target source:** {PLAN `contract` | legacy `must_haves` fallback | derived contract-like target set from ROADMAP.md goal}
+**Verification target source:** {PLAN `contract` | derived contract-like target set from ROADMAP.md goal}
 **Dimensional checks:** {N} performed
 **Limiting cases checked:** {N} checked, {M} passed
 **Symmetry checks:** {N} performed
@@ -660,7 +658,7 @@ score: 8/11 contract targets verified
 ## Verification Metadata
 
 **Verification approach:** Physics-first (dimensional analysis, limits, symmetries, conservation) + goal-backward
-**Must-haves source:** 02-01-PLAN.md frontmatter
+**Contract source:** 02-01-PLAN.md frontmatter
 **Dimensional checks:** 3 performed, 3 passed
 **Limiting cases checked:** 4 checked, 3 passed
 **Symmetry checks:** 2 performed, 2 passed

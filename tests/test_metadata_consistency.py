@@ -99,21 +99,23 @@ def test_python_floor_is_consistent_across_install_surfaces() -> None:
     assert "Python 3.11+ is required" in installer
 
 
-def test_release_inventory_counts_match_repo_contents() -> None:
+def test_canonical_registry_skill_inventory_counts_match_repo_contents() -> None:
     repo_root = _repo_root()
     commands_count = len(list((repo_root / "src" / "gpd" / "commands").glob("*.md")))
     agents_count = len(list((repo_root / "src" / "gpd" / "agents").glob("*.md")))
     content_registry.invalidate_cache()
-    skills_count = len(content_registry.list_skills())
+    canonical_skills_count = len(content_registry.list_skills())
     mcp_server_count = len([p for p in (repo_root / "src" / "gpd" / "mcp" / "servers").glob("*.py") if p.name != "__init__.py"])
     mcp_script_count = sum(1 for line in _project_script_lines(repo_root) if line.startswith('"gpd-mcp-'))
 
     assert commands_count >= 50
-    assert skills_count == commands_count + agents_count
+    # The canonical registry/MCP skill index remains commands + agents even
+    # when a runtime projects a narrower discoverable install surface.
+    assert canonical_skills_count == commands_count + agents_count
     assert mcp_server_count == mcp_script_count
 
 
-def test_agent_metadata_inventory_uses_valid_enums_without_changing_skill_surface() -> None:
+def test_agent_metadata_inventory_uses_valid_enums_without_changing_canonical_skill_surface() -> None:
     content_registry.invalidate_cache()
 
     valid_surfaces = set(content_registry.VALID_AGENT_SURFACES)

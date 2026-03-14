@@ -20,7 +20,7 @@ Restore complete research context and resume work seamlessly from previous sessi
 Routes to the resume-work workflow which handles:
 
 - STATE.md loading (or reconstruction if missing)
-- Checkpoint detection (.continue-here files)
+- Active execution checkpoint detection
 - Incomplete work detection (PLAN without SUMMARY)
 - Full awareness of where the calculation or derivation left off
 - Restoration of parameter values, intermediate results, and assumptions

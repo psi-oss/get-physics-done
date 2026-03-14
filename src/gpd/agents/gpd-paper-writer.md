@@ -1575,12 +1575,13 @@ ls .gpd/phases/*-*/*-SUMMARY.md
 # For each phase, check verification status
 for f in .gpd/phases/*-*/*-SUMMARY.md; do
   echo "=== $f ==="
-  grep -A3 "verification_inputs:" "$f" 2>/dev/null || echo "NO VERIFICATION INPUTS"
+  grep -A12 "contract_results:" "$f" 2>/dev/null || echo "NO CONTRACT RESULTS"
+  grep -A6 "comparison_verdicts:" "$f" 2>/dev/null || echo "NO COMPARISON VERDICTS"
   grep "CONFIDENCE:" "$f" 2>/dev/null || echo "NO CONFIDENCE TAGS"
 done
 ```
 
-If any contributing phase lacks `verification_inputs` or confidence tags, the research is not paper-ready. Return WRITING BLOCKED.
+If any contributing phase lacks contract-backed outcome evidence or confidence tags, the research is not paper-ready. Return WRITING BLOCKED.
 
 **2. Convention consistency across phases:**
 

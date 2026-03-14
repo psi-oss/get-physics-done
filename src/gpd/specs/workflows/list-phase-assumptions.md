@@ -184,7 +184,7 @@ For each: state why it matters and how confident you are that it should constrai
 **Feeds into:** [what future phases need from this]
 
 ### User Guidance I Am Treating As Binding
-[List the observables, deliverables, prior outputs, must-have references, and stop conditions I believe the user explicitly cares about]
+[List the observables, deliverables, prior outputs, required references, and stop conditions I believe the user explicitly cares about]
 For each: state why I think it is binding and where I might be paraphrasing too loosely
 
 ---
@@ -200,7 +200,7 @@ Probe these assumptions critically:
 - What should we check early so a wrong framing does not survive too long?
 - What result would look like progress here but should not count as success?
 - Which of your explicit requests am I at risk of generalizing away or weakening?
-- Did I miss any must-have reference, prior output, decisive observable, or stop condition?
+- Did I miss any required reference, prior output, decisive observable, or stop condition?
 ```
 
 Wait for user response.

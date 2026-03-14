@@ -50,7 +50,7 @@ When the project profile is known (from PROJECT.md or orchestrator context), app
 | ------------- | ------------------------------------------------------------------------------------------------------ |
 | deep-theory   | Add derivation checkpoint every 2 steps (not 3-4). Require INDEPENDENTLY_CONFIRMED for all key results |
 | numerical     | Add convergence testing task for every numerical computation. Require error budget task                |
-| exploratory   | Reduce verification to limiting cases + dimensional analysis only. Allow larger tasks                  |
+| exploratory   | Compress optional detail, keep decisive anchor and acceptance-test coverage explicit, and allow somewhat larger tasks when that speeds first-result learning without hiding risk |
 | review        | Add cross-reference task comparing every result to literature. Require 2+ independent checks           |
 | paper-writing | Add notation consistency task per plan. Verify equations match derivation files                        |
 
@@ -60,7 +60,7 @@ When the project profile is known (from PROJECT.md or orchestrator context), app
 
 **numerical:** Computationally intensive work where numerical accuracy is the primary concern. Every task that produces a numerical result must have a paired convergence testing sub-task (grid refinement, time step halving, or statistical bootstrap). Additionally, include one `error_budget` task per plan that tracks how numerical errors propagate through the calculation chain and verifies the final uncertainty is within acceptable bounds.
 
-**exploratory:** Early-stage investigation where breadth matters more than rigor. Relax verification to only Tier 1 (dimensional analysis) and Tier 2 (limiting cases) checks. Allow tasks up to 90 minutes (instead of 60) to reduce plan fragmentation. Accept 3-4 tasks per plan. The goal is rapid coverage, not exhaustive proof.
+**exploratory:** Early-stage investigation where breadth matters more than exhaustive polish. Keep decisive claims, anchors, forbidden proxies, and disconfirming paths explicit, but allow lighter prose, fewer optional cross-checks, and tasks up to 90 minutes (instead of 60) to reduce plan fragmentation. Accept 3-4 tasks per plan when the plan still surfaces what would quickly falsify the current framing. The goal is rapid coverage with honest skepticism, not exhaustive proof.
 
 **review:** Systematic validation of existing results against literature. Every plan must include a cross-reference task that compares each derived or computed result to at least one published source (with full bibliographic reference and equation numbers). Require a minimum of 2 independent verification methods for every result (e.g., analytical + numerical, or two different analytical approaches).
 

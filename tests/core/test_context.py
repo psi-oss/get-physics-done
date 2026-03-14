@@ -487,7 +487,7 @@ class TestInitPlanPhase:
         ctx = init_plan_phase(tmp_path, "2")
 
         assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
-        assert ctx["contract_intake"]["must_read_refs"] == ["Ref-01"]
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert ctx["active_reference_count"] == 1
         assert "[ref-benchmark]" in ctx["active_reference_context"]
         assert ".gpd/literature/benchmark-REVIEW.md" in ctx["literature_review_files"]
@@ -505,12 +505,14 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2")
 
-        assert ctx["contract_intake"]["must_read_refs"] == ["Ref-01"]
-        assert "Ref-01" in ctx["effective_reference_intake"]["must_read_refs"]
-        assert "Benchmark Ref 2024" in "\n".join(ctx["effective_reference_intake"]["must_read_refs"])
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
+        assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
+        assert "benchmark-paper" not in ctx["effective_reference_intake"]["must_read_refs"]
         assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         assert ctx["active_reference_count"] >= ctx["derived_active_reference_count"]
         assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
+        assert "unresolved reference token" not in ctx["active_reference_context"]
 
     def test_reports_missing_active_references_explicitly(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -852,7 +854,7 @@ class TestInitMapResearch:
         ctx = init_map_research(tmp_path)
 
         assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
-        assert "Ref-01" in ctx["active_reference_context"]
+        assert "ref-benchmark" in ctx["active_reference_context"]
 
     def test_surfaces_artifact_derived_reference_context_without_contract(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

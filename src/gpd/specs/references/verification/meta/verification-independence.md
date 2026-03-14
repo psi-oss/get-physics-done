@@ -26,15 +26,16 @@ Structural separation eliminates these failure modes by ensuring the verifier ca
 
 ### RECEIVES (outcome information)
 
-| Item              | Source                                        | Purpose                                                       |
-| ----------------- | --------------------------------------------- | ------------------------------------------------------------- |
-| Phase goal        | ROADMAP.md                                    | What the research should achieve                              |
-| Must-haves        | PLAN.md frontmatter only (`must_haves:` YAML) | Testable success criteria (truths, artifacts, key_links)      |
-| Artifact files    | Disk (paths from must_haves)                  | The actual research outputs to inspect                        |
-| STATE.md          | .gpd/STATE.md                            | Project conventions, active approximations, unit system       |
-| config.json       | .gpd/config.json                         | Project configuration                                         |
-| INSIGHTS.md       | .gpd/INSIGHTS.md (if exists)             | Known problem patterns for extra scrutiny                     |
-| ERROR-PATTERNS.md | .gpd/ERROR-PATTERNS.md (if exists)       | Previous error patterns to check against                      |
+| Item                    | Source                                | Purpose                                                            |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------------ |
+| Phase goal              | ROADMAP.md                            | What the research should achieve                                   |
+| Plan contract           | PLAN.md frontmatter `contract` block  | Decisive claims, deliverables, anchors, acceptance tests, links    |
+| Artifact files          | Disk (paths from contract deliverables) | The actual research outputs to inspect                           |
+| Active reference context | init/verification context             | Approved anchors, baselines, must-read references, prior outputs   |
+| STATE.md                | .gpd/STATE.md                         | Project conventions, active approximations, unit system            |
+| config.json             | .gpd/config.json                      | Project configuration                                              |
+| INSIGHTS.md             | .gpd/INSIGHTS.md (if exists)          | Known problem patterns for extra scrutiny                          |
+| ERROR-PATTERNS.md       | .gpd/ERROR-PATTERNS.md (if exists)    | Previous error patterns to check against                           |
 
 ### DOES NOT RECEIVE (process information)
 
@@ -116,7 +117,7 @@ grep -cE "(np\.|scipy\.|solve|integrate)" artifact.py
 The verifier's job:
 
 1. Read the phase goal -- what should be true when this phase succeeds?
-2. Read the must_haves -- what specific, testable claims must hold?
+2. Read the approved contract -- what specific, testable outcomes must hold?
 3. Inspect the actual artifacts -- do the derivations, calculations, and results support those claims?
 4. **Perform computational verification** -- substitute test values, take limits, check dimensions, cross-check by independent methods
 5. Report what holds and what doesn't -- with **computation evidence** from independent verification
@@ -167,69 +168,96 @@ GPD's verification separation follows the same principle, combined with the requ
 
 ## Practical Implications for Plan Authors
 
-Because the verifier only sees `must_haves` from the PLAN.md frontmatter, these must be **self-contained, independently testable, and computationally verifiable**:
+Because the verifier only sees the PLAN frontmatter contract plus final artifacts, those contract targets must be **self-contained, independently testable, and computationally verifiable**:
 
-### Good must_haves (computationally testable)
+### Good contract-backed targets (computationally testable)
 
 ```yaml
-must_haves:
-  truths:
-    - "Partition function reduces to ideal gas result when coupling g -> 0"
-    - "Ground state energy agrees with exact diagonalization to 0.1% for N<=8"
-    - "Spectral density integrates to 1 (sum rule)"
-    - "At T=2J/k_B, specific heat C_V = 0.4396 * N * k_B (2D Ising exact)"
-  artifacts:
-    - path: "derivations/partition_function.py"
-      provides: "Analytical partition function with saddle-point expansion"
-  key_links:
-    - from: "derivations/partition_function.py"
-      to: "analysis/thermodynamics.py"
-      via: "Partition function Z(T,N) evaluation"
-      check: "Free-particle limit (g -> 0) recovers ideal gas: Z(T=1, N=4) = 4^4 = 256"
-    - from: "derivations/partition_function.py"
-      to: "analysis/specific_heat.py"
-      via: "Free energy F = -k_B T ln Z"
-      check: "Two-site model: Z(T=J/k_B, N=2) = 2*cosh(1) + 2 = 5.086"
+contract:
+  claims:
+    - id: claim-partition-limit
+      statement: "Partition function reduces to the ideal-gas result when coupling g -> 0"
+      deliverables: [deliv-partition]
+      acceptance_tests: [test-free-limit]
+    - id: claim-ground-state
+      statement: "Ground state energy agrees with exact diagonalization to 0.1% for N<=8"
+      deliverables: [deliv-spectrum]
+      acceptance_tests: [test-ed-match]
+  deliverables:
+    - id: deliv-partition
+      kind: derivation
+      path: derivations/partition_function.py
+      description: "Analytical partition function with saddle-point expansion"
+    - id: deliv-spectrum
+      kind: table
+      path: analysis/ground_state.json
+      description: "Ground-state energies across N<=8"
+  acceptance_tests:
+    - id: test-free-limit
+      subject: claim-partition-limit
+      kind: limiting_case
+      procedure: "Evaluate Z at g=0 and compare with ideal-gas closed form"
+      pass_condition: "Z(T=1, N=4, g=0) = 256"
+      evidence_required: [deliv-partition]
+    - id: test-ed-match
+      subject: claim-ground-state
+      kind: benchmark
+      procedure: "Compare ground-state energies to exact diagonalization for N<=8"
+      pass_condition: "relative error <= 1e-3 at every tested N"
+      evidence_required: [deliv-spectrum]
+  links:
+    - id: link-thermo
+      source: claim-partition-limit
+      target: deliv-partition
+      relation: supports
+      verified_by: [test-free-limit]
 ```
 
 The verifier can check these by performing the specified computations, without knowing anything about the plan's task structure.
 
-### Bad must_haves (only pattern-matchable)
+### Bad contract-backed targets (only pattern-matchable)
 
 ```yaml
-must_haves:
-  truths:
-    - "Task 3 was completed successfully" # Process, not outcome
-    - "The approach from the plan works" # Self-referential
-    - "Dimensional analysis was performed" # Claims process, not outcome
-    - "Limiting cases were checked" # Claims process, not outcome
-    - "The result is consistent with literature" # Vague -- which value? what precision?
-  artifacts:
-    - path: "output.dat"
-      provides: "Output from the simulation" # What does it provide physically?
-  key_links:
-    - from: "output.dat"
-      to: "analysis.py"
-      via: "Matches the SUMMARY.md claim" # Circular -- no specific check
-      check: "Limits are correct" # No specific test
+contract:
+  claims:
+    - id: claim-task-done
+      statement: "Task 3 was completed successfully" # Process, not outcome
+    - id: claim-plan-works
+      statement: "The approach from the plan works" # Self-referential
+    - id: claim-dimensions
+      statement: "Dimensional analysis was performed" # Claims process, not outcome
+    - id: claim-limits
+      statement: "Limiting cases were checked" # Claims process, not outcome
+  deliverables:
+    - id: deliv-output
+      kind: data
+      path: output.dat
+      description: "Output from the simulation" # What does it provide physically?
+  acceptance_tests:
+    - id: test-circular
+      subject: claim-plan-works
+      kind: proxy
+      procedure: "Confirm the output matches the SUMMARY.md claim" # Circular
+      pass_condition: "Limits are correct" # No specific test
+      evidence_required: [deliv-output]
 ```
 
-**Rule of thumb:** If a must_have cannot be verified by someone who has never seen the plan AND who can only verify by performing a computation (not by reading), it needs to be rewritten.
+**Rule of thumb:** If a contract target cannot be verified by someone who has never seen the plan body and who must check it by performing a computation rather than by reading prose, rewrite it.
 
-### The test for a good must_have
+### The test for a good contract target
 
-Ask: "Can a verifier check this by substituting numbers, taking a limit, or computing something?" If the answer is no -- if the only way to check it is to grep for keywords or read a claim -- then it is not a good must_have.
+Ask: "Can a verifier check this by substituting numbers, taking a limit, tracing dimensions, or computing something?" If the answer is no, then it is not a good contract target.
 
-| Must_have                                            | Can verify by computation?  | Verdict |
-| ---------------------------------------------------- | --------------------------- | ------- |
-| "Z(T=1, N=2, g=0) = 4"                               | Yes (evaluate expression)   | Good    |
-| "Classical limit (hbar->0) gives Z = kT/omega"       | Yes (take limit)            | Good    |
-| "Ground state energy E0(N=6) = -1.7726 (exact diag)" | Yes (compare values)        | Good    |
-| "All equations are dimensionally consistent"         | Yes (trace dimensions)      | Good    |
-| "Spectral function is non-negative for all omega"    | Yes (evaluate on grid)      | Good    |
-| "Convergence was tested"                             | No (process claim)          | Bad     |
-| "The derivation is correct"                          | No (too vague)              | Bad     |
-| "Literature references are cited"                    | No (text search only)       | Bad     |
-| "The result is physically reasonable"                | Partially (needs specifics) | Rewrite |
+| Contract target                                       | Can verify by computation?  | Verdict |
+| ----------------------------------------------------- | --------------------------- | ------- |
+| "Z(T=1, N=2, g=0) = 4"                                | Yes (evaluate expression)   | Good    |
+| "Classical limit (hbar->0) gives Z = kT/omega"        | Yes (take limit)            | Good    |
+| "Ground state energy E0(N=6) = -1.7726 (exact diag)"  | Yes (compare values)        | Good    |
+| "All equations are dimensionally consistent"          | Yes (trace dimensions)      | Good    |
+| "Spectral function is non-negative for all omega"     | Yes (evaluate on grid)      | Good    |
+| "Convergence was tested"                              | No (process claim)          | Bad     |
+| "The derivation is correct"                           | No (too vague)              | Bad     |
+| "Literature references are cited"                     | No (text search only)       | Bad     |
+| "The result is physically reasonable"                 | Partially (needs specifics) | Rewrite |
 
 **See also:** `../errors/llm-physics-errors.md` — pattern-matching (checking for keywords rather than computing) is exactly the LLM failure mode this document guards against; the error catalog provides concrete computational checks to replace pattern-matching.

@@ -18,7 +18,40 @@ def _bootstrap_project(tmp_path: Path) -> Path:
     phase_dir = planning / "phases" / "01-demo"
     phase_dir.mkdir(parents=True)
     (phase_dir / "01-01-PLAN.md").write_text(
-        "---\nphase: 01\nplan: 01\ndepth: full\nwave: 1\nstatus: ready\nmust_haves: {}\n---\n\n# Plan\n",
+        "---\n"
+        "phase: 01\n"
+        "plan: 01\n"
+        "type: execute\n"
+        "depth: full\n"
+        "wave: 1\n"
+        "status: ready\n"
+        "depends_on: []\n"
+        "files_modified: []\n"
+        "interactive: false\n"
+        "contract:\n"
+        "  scope:\n"
+        "    question: What benchmark anchor must remain visible during verification?\n"
+        "  claims:\n"
+        "    - id: claim-anchor\n"
+        "      statement: Keep the decisive benchmark and prior baseline in scope during verification.\n"
+        "      deliverables: [deliv-note]\n"
+        "      acceptance_tests: [test-anchor]\n"
+        "  deliverables:\n"
+        "    - id: deliv-note\n"
+        "      kind: note\n"
+        "      path: notes/anchor-context.md\n"
+        "      description: Note capturing the benchmark and carry-forward baseline.\n"
+        "  acceptance_tests:\n"
+        "    - id: test-anchor\n"
+        "      subject: claim-anchor\n"
+        "      kind: human_review\n"
+        "      procedure: Confirm that the benchmark anchor and prior artifact are both surfaced before verification.\n"
+        "      pass_condition: The verification context names the decisive benchmark and baseline artifact.\n"
+        "      evidence_required: [deliv-note]\n"
+        "  uncertainty_markers:\n"
+        "    weakest_anchors: [Benchmark source still needs to be read in full]\n"
+        "    disconfirming_observations: [Verification proceeds without naming the decisive benchmark]\n"
+        "---\n\n# Plan\n",
         encoding="utf-8",
     )
     return tmp_path
@@ -82,9 +115,10 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
     ids = {ref.id for ref in result.references}
     assert ids
     assert any(ref.role == "benchmark" for ref in result.references)
+    assert any(ref.locator == "Ref Benchmark" for ref in result.references)
     assert any(".gpd/phases/00-baseline/00-SUMMARY.md" in item for item in result.intake.must_include_prior_outputs)
     assert any("critical exponent" in item for item in result.intake.known_good_baselines)
-    assert any("Ref Benchmark" in item for item in result.intake.must_read_refs)
+    assert "lit-anchor-ref-benchmark" in result.intake.must_read_refs
 
 
 def test_context_surfaces_derived_reference_registry_without_project_contract(tmp_path: Path) -> None:

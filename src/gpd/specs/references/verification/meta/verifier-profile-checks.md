@@ -3,6 +3,7 @@
 Subfield-specific verification checklists for the GPD verifier agent. Load ONLY the checklist(s) matching the phase's physics domain.
 
 **For every checklist item: perform the CHECK, do not grep for the CONCEPT.**
+Profiles may change breadth, but they still run every contract-aware check required by the plan.
 
 ---
 
@@ -492,7 +493,7 @@ Additional requirements:
 
 ### exploratory (full details)
 
-**Lightweight verification (7-check floor).** Keep a small universal-check floor for speed, but still run every contract-aware check required by the plan. Exploratory mode may compress depth; it does NOT waive decisive-anchor, forbidden-proxy, benchmark-reproduction, or direct-vs-proxy consistency checks.
+**Exploratory verification with full guardrails.** Keep the contract gate and every applicable decisive-anchor, forbidden-proxy, benchmark-reproduction, direct-vs-proxy, and formulation-critical check. Exploratory mode may compress optional depth; it does NOT waive the checks that would catch false progress.
 
 ### review (full details)
 

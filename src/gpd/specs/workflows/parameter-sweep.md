@@ -151,11 +151,45 @@ sweep_value_2: {p_i_2}
 files_modified:
   - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
   - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
-must_haves:
-  truths:
-    - "{observable} computed at {param_name}={p_i}"
-  artifacts:
-    - results/point-{PADDED_INDEX}.json
+contract:
+  scope:
+    question: "What does {observable} evaluate to at {param_name}={p_i}?"
+  claims:
+    - id: claim-sweep-point
+      statement: "{observable} computed at {param_name}={p_i}"
+      deliverables: [deliv-sweep-point]
+      acceptance_tests: [test-sweep-point]
+      references: [ref-sweep-anchor]
+  deliverables:
+    - id: deliv-sweep-point
+      kind: dataset
+      path: ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
+      description: "Recorded sweep result for this parameter point"
+      must_contain: ["{observable}", "{param_name}", "status"]
+  references:
+    - id: ref-sweep-anchor
+      kind: other
+      locator: "{approved sweep observable or baseline anchor}"
+      role: must_consider
+      why_it_matters: "Keeps the sweep point tied to the approved observable, regime, and comparison path."
+      applies_to: [claim-sweep-point]
+      must_surface: true
+      required_actions: [compare]
+  acceptance_tests:
+    - id: test-sweep-point
+      subject: claim-sweep-point
+      kind: existence
+      procedure: "Check that the result file contains the configured parameter values, computed observable, and status."
+      pass_condition: "Result file exists, encodes the requested point, and records {observable} for downstream comparison."
+      evidence_required: [deliv-sweep-point, ref-sweep-anchor]
+  forbidden_proxies:
+    - id: fp-sweep-point
+      subject: claim-sweep-point
+      proxy: "Recording a number without regime checks or parameter metadata."
+      reason: "Would allow false progress by logging an uninterpretable sweep point."
+  uncertainty_markers:
+    weakest_anchors: ["Numerical stability at this sweep point"]
+    disconfirming_observations: ["The observable falls outside the valid regime or fails the comparison anchor"]
 ---
 
 <objective>

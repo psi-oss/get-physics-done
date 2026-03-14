@@ -300,7 +300,7 @@ gpd verify references <file-path>
 # Verify commit hashes exist in git history
 gpd verify commits <hash1> [hash2] ...
 
-# Verify artifacts declared in a plan's must_haves
+# Verify artifacts declared in a plan's contract-backed deliverables
 gpd verify artifacts <plan-file-path>
 
 # Verify SUMMARY.md format and required fields
@@ -552,11 +552,11 @@ When verification fails, the orchestrator must decide how to recover. The curren
 
 | Failure Signal | Diagnosis | Recovery Strategy |
 |---|---|---|
-| Single must-have failed, rest passed | **Localized error** in one derivation step | Re-execute the specific plan that produced the failed result. Do NOT re-plan. |
-| Multiple must-haves failed, same error class | **Systematic error** (e.g., wrong convention propagated) | Re-plan the affected tasks with explicit convention enforcement. Spawn notation-coordinator first. |
-| Multiple must-haves failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `/gpd:discuss-phase` to reconsider the approach. |
+| Single contract target failed, rest passed | **Localized error** in one derivation step | Re-execute the specific plan that produced the failed result. Do NOT re-plan. |
+| Multiple contract targets failed, same error class | **Systematic error** (e.g., wrong convention propagated) | Re-plan the affected tasks with explicit convention enforcement. Spawn notation-coordinator first. |
+| Multiple contract targets failed, different error classes | **Approach problem** -- the methodology has fundamental issues | Escalate to user. Suggest `/gpd:discuss-phase` to reconsider the approach. |
 | Verification passed but consistency checker found drift | **Convention drift** between waves | Spawn notation-coordinator to resolve. Re-verify only the affected quantities. |
-| Verification timed out (context pressure) | **Incomplete verification**, not failure | Spawn a fresh verifier with targeted checks (only the unverified must-haves). |
+| Verification timed out (context pressure) | **Incomplete verification**, not failure | Spawn a fresh verifier with targeted checks (only the unverified contract targets). |
 | Same gap persists after 1 gap-closure cycle | **Root cause not addressed** by gap closure | Spawn debugger before second gap-closure attempt. Debugger identifies root cause. |
 | Same gap persists after debugger + gap-closure | **Fundamental limitation** of the current approach | Circuit breaker activates. Present diagnostic to user. |
 

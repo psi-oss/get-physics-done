@@ -131,7 +131,9 @@ def test_sync_state_json_core_preserves_markdown_round_trip_sections(tmp_path: P
     assert result["pending_todos"] == ["Verify normalization", "Check sign convention"]
 
 
-def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_is_legacy(tmp_path: Path) -> None:
+def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_lacks_structured_blocks(
+    tmp_path: Path,
+) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / ".gpd"
 
@@ -160,7 +162,7 @@ def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_i
     existing["pending_todos"] = ["Verify normalization"]
     (planning / "state.json").write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
-    legacy_markdown = """\
+    markdown_without_structured_blocks = """\
 # Research State
 
 ## Project Reference
@@ -210,7 +212,7 @@ None yet.
 **Resume file:** —
 """
 
-    result = sync_state_json_core(cwd, legacy_markdown)
+    result = sync_state_json_core(cwd, markdown_without_structured_blocks)
 
     assert result["approximations"] == existing["approximations"]
     assert result["convention_lock"]["metric_signature"] == "-+++"
