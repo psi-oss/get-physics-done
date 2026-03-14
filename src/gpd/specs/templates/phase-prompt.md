@@ -6,6 +6,8 @@ template_version: 1
 
 Canonical PLAN.md structure for `gpd-planner`. PLAN.md is the executor prompt, so every field must be specific enough to execute and verify without interpretation.
 
+Before authoring or revising the `contract:` block, use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the schema source of truth. The contract must stay a YAML object with object arrays and fully resolved ID cross-links.
+
 ---
 
 ## File Template

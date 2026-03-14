@@ -90,6 +90,10 @@ gpd --raw validate paper-quality --from-project .
 
 This path derives the machine-readable `PaperQualityInput` from the manuscript, bibliography audit, figure tracker, comparison artifacts, and contract-backed summary / verification ledgers before scoring it.
 
+If you need to provide a manual JSON instead, use `@{GPD_INSTALL_DIR}/templates/paper/paper-quality-input-schema.md` as the schema source of truth.
+
+The artifact-driven path is intentionally conservative: it can infer many figure, citation, verification, completeness, and comparison checks, but equation and convention evidence may still need explicit manual review. Do not paper over missing evidence by inventing perfect scores.
+
 ## Integration Points
 
 - **`/gpd:write-paper`**: Runs quality scoring after all sections drafted, before generating submission package

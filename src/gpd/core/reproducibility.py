@@ -6,7 +6,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError, field_validator
 
 __all__ = [
     "RequiredPackage",
@@ -199,6 +199,44 @@ class ReproducibilityValidationResult(BaseModel):
     ready_for_review: bool = False
 
 
+def _format_schema_issue(error: dict[str, object]) -> ReproducibilityIssue:
+    """Return one schema-validation issue in reproducibility-result format."""
+
+    location = ".".join(str(part) for part in error.get("loc", ()) if str(part)) or "manifest"
+    message = str(error.get("msg", "validation failed")).strip() or "validation failed"
+    input_value = error.get("input")
+
+    if message == "Field required":
+        detail = f"{location} is required."
+    elif "valid dictionary" in message.lower():
+        detail = f"{location} must be an object, not {type(input_value).__name__}."
+    elif "valid list" in message.lower():
+        detail = f"{location} must be an array, not {type(input_value).__name__}."
+    else:
+        detail = message[0].upper() + message[1:] + ("." if not message.endswith(".") else "")
+
+    return ReproducibilityIssue(
+        severity="error",
+        field=location,
+        message=detail,
+    )
+
+
+def _schema_validation_result(exc: PydanticValidationError) -> ReproducibilityValidationResult:
+    """Convert manifest schema errors into a structured validation result."""
+
+    issues: list[ReproducibilityIssue] = []
+    seen: set[tuple[str, str]] = set()
+    for error in exc.errors():
+        issue = _format_schema_issue(error)
+        key = (issue.field, issue.message)
+        if key in seen:
+            continue
+        seen.add(key)
+        issues.append(issue)
+    return ReproducibilityValidationResult(valid=False, issues=issues)
+
+
 def compute_sha256(path: Path) -> str:
     """Compute a SHA-256 checksum for a file."""
     digest = hashlib.sha256()
@@ -233,7 +271,24 @@ def verify_output_checksum(path: Path, expected_checksum: str) -> bool:
 
 def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) -> ReproducibilityValidationResult:
     """Validate a structured reproducibility manifest."""
-    manifest_obj = manifest if isinstance(manifest, ReproducibilityManifest) else ReproducibilityManifest.model_validate(manifest)
+    if isinstance(manifest, ReproducibilityManifest):
+        manifest_obj = manifest
+    else:
+        if not isinstance(manifest, dict):
+            return ReproducibilityValidationResult(
+                valid=False,
+                issues=[
+                    ReproducibilityIssue(
+                        severity="error",
+                        field="manifest",
+                        message="reproducibility manifest must be a JSON object.",
+                    )
+                ],
+            )
+        try:
+            manifest_obj = ReproducibilityManifest.model_validate(manifest)
+        except PydanticValidationError as exc:
+            return _schema_validation_result(exc)
 
     issues: list[ReproducibilityIssue] = []
     warnings: list[ReproducibilityIssue] = []

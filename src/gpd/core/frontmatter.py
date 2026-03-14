@@ -195,9 +195,11 @@ def parse_contract_block(content: str) -> ResearchContract | None:
     """Extract and validate the optional ``contract`` block from frontmatter."""
 
     meta, _ = extract_frontmatter(content)
+    if "contract" not in meta:
+        return None
     contract_data = meta.get("contract")
     if not isinstance(contract_data, dict):
-        return None
+        raise FrontmatterValidationError("Invalid contract frontmatter: expected an object")
     try:
         contract = ResearchContract.model_validate(contract_data)
     except PydanticValidationError as exc:
@@ -577,7 +579,7 @@ def _find_matching_plan_contract(summary_dir: Path, summary_meta: dict) -> Resea
 
 
 @instrument_gpd_function("frontmatter.validate")
-def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidation:
+def validate_frontmatter(content: str, schema_name: str, source_path: Path | None = None) -> FrontmatterValidation:
     """Validate frontmatter against a named schema.
 
     Raises:
@@ -616,15 +618,29 @@ def validate_frontmatter(content: str, schema_name: str) -> FrontmatterValidatio
         ):
             errors.append("plan_contract_ref: required when contract_results or comparison_verdicts are present")
 
+        contract_results = None
+        comparison_verdicts: list[ComparisonVerdict] = []
         try:
-            _parse_contract_results(meta)
+            contract_results = _parse_contract_results(meta)
         except (PydanticValidationError, TypeError, ValueError) as exc:
             errors.append(f"contract_results: {exc}")
 
         try:
-            _parse_comparison_verdicts(meta)
+            comparison_verdicts = _parse_comparison_verdicts(meta)
         except (PydanticValidationError, TypeError, ValueError) as exc:
             errors.append(f"comparison_verdicts: {exc}")
+
+        if source_path is not None:
+            plan_contract = _find_matching_plan_contract(Path(source_path).parent, meta)
+            if isinstance(plan_contract_ref, str) and plan_contract is None:
+                errors.append("plan_contract_ref: could not resolve matching plan contract")
+            if plan_contract is not None:
+                if not isinstance(plan_contract_ref, str):
+                    errors.append("plan_contract_ref: required for contract-backed plan")
+                if contract_results is None:
+                    errors.append("contract_results: required for contract-backed plan")
+                else:
+                    errors.extend(_summary_contract_errors(plan_contract, contract_results, comparison_verdicts))
 
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,

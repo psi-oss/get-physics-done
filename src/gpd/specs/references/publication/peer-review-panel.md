@@ -157,6 +157,57 @@ Additionally:
 - The final adjudicator must emit `REVIEW-LEDGER.json` and `REFEREE-DECISION.json`.
 - The artifact should stay compact. It is a decision handoff, not a second manuscript.
 
+The final adjudicator JSON artifacts must follow these canonical schemas:
+
+- `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`
+- `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`
+
+Minimal final artifact shapes:
+
+```json
+{
+  "version": 1,
+  "round": 1,
+  "manuscript_path": "paper/main.tex",
+  "issues": [
+    {
+      "issue_id": "REF-001",
+      "opened_by_stage": "physics",
+      "severity": "major",
+      "blocking": true,
+      "claim_ids": ["CLM-001"],
+      "summary": "What remains wrong",
+      "required_action": "What must change",
+      "status": "open"
+    }
+  ]
+}
+```
+
+```json
+{
+  "manuscript_path": "paper/main.tex",
+  "target_journal": "jhep",
+  "final_recommendation": "major_revision",
+  "final_confidence": "medium",
+  "stage_artifacts": [
+    ".gpd/review/STAGE-reader.json",
+    ".gpd/review/STAGE-literature.json",
+    ".gpd/review/STAGE-math.json",
+    ".gpd/review/STAGE-physics.json",
+    ".gpd/review/STAGE-interestingness.json"
+  ],
+  "blocking_issue_ids": ["REF-001"]
+}
+```
+
+Validate both files before trusting the final recommendation:
+
+```bash
+gpd validate review-ledger .gpd/review/REVIEW-LEDGER.json
+gpd validate referee-decision .gpd/review/REFEREE-DECISION.json --strict
+```
+
 ## Recommendation Guardrails For The Final Referee
 
 ### `accept`

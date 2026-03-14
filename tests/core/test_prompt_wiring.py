@@ -557,6 +557,11 @@ def test_new_project_requires_scoping_contract_across_setup_modes() -> None:
     assert "Require one explicit scoping approval gate before requirements and roadmap generation" in workflow_text
     assert "Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=babysit`, present the draft roadmap before commit" in workflow_text
     assert "Minimal mode is still allowed to be lean, but it is not allowed to be contract-free." in workflow_text
+    assert (
+        'At least one anchor, reference/prior-output constraint, or an explicit "anchor unknown / must establish later" note'
+        in workflow_text
+    )
+    assert "Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders." in workflow_text
     assert "Do NOT skip the initial scoping-contract approval gate." in workflow_text
     assert "scoping contract with decisive outputs, anchors, and explicit approval" in command_text
 
@@ -577,10 +582,13 @@ def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> Non
     guide_text = (REFERENCES_DIR / "research" / "questioning.md").read_text(encoding="utf-8")
 
     assert "Surface anchors early." in guide_text
+    assert "Preserve the user's guidance." in guide_text
     assert "Pressure-test the first story." in guide_text
     assert "Once you have a plausible framing on the table" in guide_text
+    assert "Do not force decomposition too early." in guide_text
     assert "Ground-truth anchors -- what reality should constrain this:" in guide_text
     assert "Disconfirmation and failure -- how the current framing could be wrong:" in guide_text
+    assert "Lack of a full phase list is not itself a blocker." in guide_text
     assert "Do not count turns mechanically." in guide_text
     assert "What would be a misleading proxy for success" in guide_text
 
@@ -690,7 +698,8 @@ def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomp
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
 
-    assert "At least one major phase, stage, or clearly defined first investigation chunk" in workflow_text
+    assert "Do not force a phase list just to make the scoping contract look complete." in workflow_text
+    assert "A full phase breakdown is not required at this stage;" in workflow_text
     assert "Use the coarsest decomposition the approved contract actually supports." in workflow_text
     assert "Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them." in workflow_text
     assert "If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`" in planner_prompt
@@ -763,6 +772,37 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block." in verifier_agent
 
 
+def test_contract_schema_references_stay_wired_into_templates_and_review_docs() -> None:
+    phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
+    verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
+    scoring = (REFERENCES_DIR / "publication" / "paper-quality-scoring.md").read_text(encoding="utf-8")
+    reproducibility_template = (TEMPLATES_DIR / "paper" / "reproducibility-manifest.md").read_text(encoding="utf-8")
+    reproducibility_protocol = (REFERENCES_DIR / "protocols" / "reproducibility.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "templates/plan-contract-schema.md" in phase_prompt
+    assert "templates/contract-results-schema.md" in summary_template
+    assert "templates/contract-results-schema.md" in verification_template
+    assert "templates/paper/review-ledger-schema.md" in referee
+    assert "templates/paper/referee-decision-schema.md" in referee
+    assert "gpd validate review-ledger" in peer_review
+    assert "templates/paper/review-ledger-schema.md" in panel
+    assert "templates/paper/referee-decision-schema.md" in panel
+    assert "templates/paper/paper-quality-input-schema.md" in scoring
+    assert "random_seeds[].computation" in reproducibility_template
+    assert "resource_requirements[].step" in reproducibility_template
+    assert "templates/paper/reproducibility-manifest.md" in reproducibility_protocol
+    assert "gpd validate summary-contract" in execute_plan
+    assert "gpd validate verification-contract" in verify_work
+    assert "gpd validate plan-contract" in plan_phase
+
+
 def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_gates() -> None:
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
@@ -778,6 +818,10 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
     assert "bounded_execution" in execute_phase
     assert "autonomy` changes who is asked and when. It does NOT disable first-result sanity checks" in execute_plan
     assert "Required first-result sanity gate" in execute_plan
+    assert "phase ordering, prior momentum, or \"we are already deep into execution\" never waive a required bounded stop" in execute_plan
+    assert "uninterrupted wall-clock time since the current segment started reaches `MAX_UNATTENDED_MINUTES_PER_PLAN`" in execute_plan
+    assert "Do NOT narrow just because a wave advanced or one proxy passed." in execute_phase
+    assert "What decisive evidence is still owed before downstream work is trustworthy?" in resume_work
     assert "Pattern D: Auto-bounded" in executor_agent
     assert "active_execution_segment" in resume_work
     assert "execution_segment" in continuation
@@ -804,9 +848,22 @@ def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_v
     assert "{protocol_bundle_context}" in continuation
     assert "selected protocol bundle context" in planner_agent
     assert "protocol_bundle_coverage" in checker_agent
-    assert "selected protocol bundles first" in executor_agent
+    assert "additive routing hints" in executor_agent
+    assert "first additive specialization pass" in executor_agent
     assert "bundle checklist extensions" in verifier_agent
-    assert "preferred way to decide which specialized files to load" in executor_guide
+    assert "fallback index or a manual cross-check" in executor_guide
+    assert "not a default route" in executor_guide
+
+
+def test_stage6_executor_bundle_fallback_stays_generic_when_no_bundle_fits() -> None:
+    executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    executor_guide = (REFERENCES_DIR / "execution" / "executor-subfield-guide.md").read_text(encoding="utf-8")
+
+    assert "If no bundle is selected" in executor_agent
+    assert "stay with the generic execution flow plus contract-backed anchors and checks" in executor_agent
+    assert "instead of forcing the work into a topic bucket" in executor_agent
+    assert "Do not stay trapped in the original bundle or fallback subfield" in executor_agent
+    assert "If no row cleanly fits, stay with generic execution guidance plus core verification expectations instead of guessing." in executor_guide
 
 
 def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_handoff_rules() -> None:
@@ -864,7 +921,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "validate paper-quality --from-project ." in write_paper
     assert '"review_cadence": "adaptive"' in new_project
     assert "Adaptive review cadence" in new_project
-    assert "Start with explore-style coverage, then switch to exploit" in execute_phase
+    assert "prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock" in execute_phase
     assert "figure_registry" in scoring
     assert "Review (Recommended)" in settings
     assert "all required contract-aware checks" in profiles
@@ -884,6 +941,7 @@ def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
     new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
     set_profile = (WORKFLOWS_DIR / "set-profile.md").read_text(encoding="utf-8")
     settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    planning_config = (REFERENCES_DIR / "planning" / "planning-config.md").read_text(encoding="utf-8")
     research_modes = (REFERENCES_DIR / "research" / "research-modes.md").read_text(encoding="utf-8")
     meta_orchestration = (REFERENCES_DIR / "orchestration" / "meta-orchestration.md").read_text(encoding="utf-8")
 
@@ -902,7 +960,11 @@ def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
     assert "does NOT rewrite `execution.review_cadence`" in set_profile
     assert "verify_between_waves" not in set_profile
     assert "independent of `model_profile` and `research_mode`" in settings
+    assert "wall-clock and task budgets still create bounded segments in every autonomy mode" in planning_config
+    assert "phase number, wave number, and `model_profile` do not create or retire these gates by themselves" in planning_config
     assert "There is no separate `adaptive_transition` block" in research_modes
+    assert "The decision is evidence-driven, not phase-count-driven." in meta_orchestration
+    assert "Proxy-only or sanity-only passes do NOT satisfy this." in meta_orchestration
 
 
 def test_verification_and_publication_prompts_keep_decisive_contract_targets_reader_visible() -> None:

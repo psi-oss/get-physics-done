@@ -1209,6 +1209,8 @@ Organize findings:
 Create `.gpd/REFEREE-REPORT.md` as the canonical machine-readable artifact.
 Also create `.gpd/REFEREE-REPORT.tex` as the default polished presentation artifact using `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
 When operating as the final panel adjudicator, also write `.gpd/review/REVIEW-LEDGER.json` and `.gpd/review/REFEREE-DECISION.json`.
+Use `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
+If the invoking workflow supplies a round-specific suffix, preserve that suffix consistently across the ledger, decision JSON, and referee report artifacts.
 
 Keep the two files semantically aligned:
 
@@ -1216,6 +1218,7 @@ Keep the two files semantically aligned:
 - Same major/minor issue titles and remediation guidance
 - Markdown remains the source of truth for the YAML `actionable_items` block
 - LaTeX should render the same issue IDs and action matrix in presentation-friendly tables/boxes
+- Every unresolved blocking issue in `REVIEW-LEDGER.json` should appear in `REFEREE-DECISION.json` `blocking_issue_ids`
 
 Markdown structure:
 

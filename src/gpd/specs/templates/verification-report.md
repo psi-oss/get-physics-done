@@ -43,6 +43,9 @@ Not all verification sections apply to every project. Select based on physics do
 
 ## File Template
 
+Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`.
+For exploratory or partial phases, keep the report honest without inventing certainty: leave affected contract targets at `partial` when decisive work remains open, and use explicit `comparison_verdicts` entries such as `inconclusive` or `tension` when a decisive comparison was attempted but not resolved.
+
 ```markdown
 ---
 phase: XX-name
@@ -75,7 +78,10 @@ contract_results:
     forbidden-proxy-id:
       status: rejected|violated|unresolved|not_applicable
       notes: "[proxy status]"
-comparison_verdicts:
+  # Required whenever a decisive comparison was required or attempted for a user-visible target.
+  # If the comparison was started but not resolved, record `verdict: inconclusive` or `verdict: tension`
+  # instead of omitting the entry or upgrading the parent target to `passed`.
+  comparison_verdicts:
   - subject_id: claim-id
     subject_kind: claim|deliverable|acceptance_test|reference|artifact
     subject_role: decisive|supporting|supplemental
@@ -84,7 +90,9 @@ comparison_verdicts:
     metric: relative_error
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
-suggested_contract_checks:
+  # Required when the verifier can name a missing decisive check on a user-visible target.
+  # Keep these entries structured; do not replace them with freeform prose.
+  suggested_contract_checks:
   - check: "[short description of missing decisive check]"
     reason: "[why the verifier believes it should exist]"
     suggested_subject_kind: claim|deliverable|acceptance_test|reference
@@ -111,6 +119,7 @@ Use contract IDs consistently throughout the report. The PLAN contract defines w
 Record only user-visible contract targets here: things a researcher could point to in the promised outcome or artifact set. Internal workflow steps, tool invocations, and generic "validation happened" statements do not belong in this table.
 
 If the verifier identifies a decisive check that the contract omitted, record it under `suggested_contract_checks` instead of silently treating the missing check as acceptable.
+When a decisive comparison was attempted but remains unresolved, keep the affected target at `partial` and emit a `comparison_verdict` with `inconclusive` or `tension`; do not convert promising trends or proxy evidence into a pass.
 
 ## Forbidden Proxy Audit
 
@@ -128,11 +137,11 @@ If the verifier identifies a decisive check that the contract omitted, record it
 | {claim-id} | claim | benchmark | {reference-id or prior artifact} | {relative_error} | {<= 0.01} | {pass/tension/fail/inconclusive} | {why} |
 | {deliverable-id} | deliverable | cross_method | {reference-id or artifact path} | {difference} | {threshold} | {verdict} | {notes} |
 
-Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison. If a comparison is decisive, absence of a verdict is itself a gap; a prose claim like "agrees with literature" is not a substitute.
+Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison. If a comparison is decisive, absence of a verdict is itself a gap; a prose claim like "agrees with literature" is not a substitute. For partial or exploratory phases, `inconclusive` and `tension` are valid honest outcomes when the check was started but not closed.
 
 ## Suggested Contract Checks
 
-Reserve this section for obvious missing decisive checks on user-visible targets. Do not populate it with style requests, paperwork wishes, or generic process polish.
+Reserve this section for obvious missing decisive checks on user-visible targets. Do not populate it with style requests, paperwork wishes, or generic process polish. Each row should name one missing check, why it matters, which user-visible target it affects, and the artifact or evidence path that would close it.
 
 | Suggested Check | Why It Seems Required | Suggested Subject Kind | Suggested Subject ID | Evidence Path |
 | --------------- | --------------------- | ---------------------- | -------------------- | ------------- |

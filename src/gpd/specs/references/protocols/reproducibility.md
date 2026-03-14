@@ -2,6 +2,8 @@
 
 Computational reproducibility is a minimum standard for credible physics research. If a calculation cannot be reproduced -- by you, by a colleague, or by a future AI session -- the result is not reliable.
 
+When you need a machine-readable manifest for submission or review preflight, use `@{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md` as the canonical schema/example. In that manifest, stochastic `random_seeds[].computation` values must exactly match `execution_steps[].name`, and `environment.lock_file` should name the real lock file used to pin dependencies (for example `uv.lock`).
+
 <core_principle>
 
 **A result without a reproducibility trail is a result you cannot trust.**

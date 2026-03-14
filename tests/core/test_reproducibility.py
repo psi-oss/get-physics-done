@@ -108,6 +108,14 @@ def test_validate_reproducibility_manifest_valid():
     assert result.issues == []
 
 
+def test_validate_reproducibility_manifest_reports_schema_errors_without_raising():
+    result = validate_reproducibility_manifest({"paper_title": "Demo", "environment": []})
+
+    assert result.valid is False
+    assert any(issue.field == "date" and "required" in issue.message.lower() for issue in result.issues)
+    assert any(issue.field == "environment" and "object" in issue.message.lower() for issue in result.issues)
+
+
 def test_validate_reproducibility_manifest_flags_missing_requirements():
     manifest = _manifest().model_copy(
         update={

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel
 
 from gpd.mcp.paper.models import ClaimIndex, ReviewLedger, ReviewPanelBundle, StageReviewReport
+
+if TYPE_CHECKING:
+    from gpd.core.referee_policy import RefereeDecisionInput
 
 _T = TypeVar("_T", bound=BaseModel)
 
@@ -57,6 +60,20 @@ def read_review_ledger(input_path: Path) -> ReviewLedger:
     """Load a review-ledger JSON artifact."""
 
     return _read_model(ReviewLedger, input_path)
+
+
+def write_referee_decision(decision: RefereeDecisionInput, output_path: Path) -> None:
+    """Persist a referee-decision JSON artifact."""
+
+    _write_model(decision, output_path)
+
+
+def read_referee_decision(input_path: Path) -> RefereeDecisionInput:
+    """Load a referee-decision JSON artifact."""
+
+    from gpd.core.referee_policy import RefereeDecisionInput
+
+    return _read_model(RefereeDecisionInput, input_path)
 
 
 def write_review_panel_bundle(bundle: ReviewPanelBundle, output_path: Path) -> None:

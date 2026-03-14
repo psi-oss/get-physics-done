@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.mcp.paper.models import (
     ClaimIndex,
     ClaimRecord,
@@ -19,10 +20,12 @@ from gpd.mcp.paper.models import (
 )
 from gpd.mcp.paper.review_artifacts import (
     read_claim_index,
+    read_referee_decision,
     read_review_ledger,
     read_review_panel_bundle,
     read_stage_review_report,
     write_claim_index,
+    write_referee_decision,
     write_review_ledger,
     write_review_panel_bundle,
     write_stage_review_report,
@@ -80,6 +83,17 @@ def test_review_artifact_round_trip(tmp_path: Path) -> None:
             )
         ],
     )
+    decision = RefereeDecisionInput(
+        manuscript_path="paper/main.tex",
+        target_journal="jhep",
+        final_recommendation=ReviewRecommendation.major_revision,
+        final_confidence=ReviewConfidence.high,
+        stage_artifacts=[".gpd/review/STAGE-interestingness.json"],
+        novelty="adequate",
+        significance="weak",
+        venue_fit="adequate",
+        blocking_issue_ids=["REF-001"],
+    )
     bundle = ReviewPanelBundle(
         manuscript_path="paper/main.tex",
         claim_index_path=".gpd/review/CLAIMS.json",
@@ -95,14 +109,17 @@ def test_review_artifact_round_trip(tmp_path: Path) -> None:
     claims_path = tmp_path / "CLAIMS.json"
     stage_path = tmp_path / "STAGE-interestingness.json"
     ledger_path = tmp_path / "REVIEW-LEDGER.json"
+    decision_path = tmp_path / "REFEREE-DECISION.json"
     bundle_path = tmp_path / "PANEL-BUNDLE.json"
 
     write_claim_index(claim_index, claims_path)
     write_stage_review_report(stage_report, stage_path)
     write_review_ledger(ledger, ledger_path)
+    write_referee_decision(decision, decision_path)
     write_review_panel_bundle(bundle, bundle_path)
 
     assert read_claim_index(claims_path) == claim_index
     assert read_stage_review_report(stage_path) == stage_report
     assert read_review_ledger(ledger_path) == ledger
+    assert read_referee_decision(decision_path) == decision
     assert read_review_panel_bundle(bundle_path) == bundle

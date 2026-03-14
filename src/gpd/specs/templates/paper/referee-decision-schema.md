@@ -42,6 +42,8 @@ This JSON is the machine-readable adjudication summary consumed by `gpd validate
 }
 ```
 
+Only `final_recommendation` is strictly required by the runtime model. Most other fields have defaults, but you should set them explicitly whenever they materially affect the recommendation floor, issue accounting, or strict staged-review validation.
+
 ---
 
 ## Field Rules

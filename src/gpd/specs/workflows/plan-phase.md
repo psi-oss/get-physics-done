@@ -532,6 +532,7 @@ Planning requires `project_contract`:
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
 - Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.
+- Validate each finished plan with `gpd validate plan-contract <PLAN.md>` before treating it as approved.
 - Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
 </contract_requirements>
 
@@ -571,6 +572,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - [ ] PLAN.md files created in phase directory
 - [ ] Each plan has valid frontmatter
 - [ ] Each plan has a complete contract block (claims, deliverables, references, acceptance tests, forbidden proxies, uncertainty markers)
+- [ ] Each plan passes `gpd validate plan-contract <PLAN.md>`
 - [ ] Tasks are specific and actionable with clear mathematical deliverables
 - [ ] Dependencies correctly identified (including prerequisite derivations)
 - [ ] Waves assigned for parallel execution

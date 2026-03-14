@@ -236,6 +236,12 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="Invalid contract frontmatter"):
             parse_contract_block(content)
 
+    def test_non_object_contract_raises(self):
+        content = "---\ncontract: claim-main\n---\n\nBody."
+
+        with pytest.raises(FrontmatterValidationError, match="expected an object"):
+            parse_contract_block(content)
+
     def test_semantically_incomplete_contract_raises(self):
         content = (
             "---\n"

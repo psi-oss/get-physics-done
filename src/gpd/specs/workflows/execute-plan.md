@@ -152,16 +152,18 @@ Resolve plan-local bounds using orchestrator tags first, then plan shape:
 - if the orchestrator passed `<first_result_gate>true</first_result_gate>`, honor it
 - if the orchestrator passed `<segment_task_cap>N</segment_task_cap>`, honor it
 - otherwise require bounded execution when the plan has no authored checkpoints and `task_count >= CHECKPOINT_AFTER_N_TASKS`
-- also require bounded execution when the plan establishes a new baseline, new estimator, new ansatz, or a result that many downstream tasks depend on
+- also require bounded execution when the uninterrupted segment is likely to exceed `MAX_UNATTENDED_MINUTES_PER_PLAN`, even if the work feels smooth
+- also require bounded execution when the plan establishes a new baseline, new estimator, new ansatz, or a first decisive-comparison path that many downstream tasks depend on
+- phase ordering, prior momentum, or "we are already deep into execution" never waive a required bounded stop
 
 Set:
 
 - `FIRST_RESULT_GATE_REQUIRED=true|false`
 - `SEGMENT_TASK_CAP=${CHECKPOINT_AFTER_N_TASKS}` unless overridden
 - `BOUNDED_EXECUTION=true|false`
-- `PRE_FANOUT_REVIEW_REQUIRED=${CHECKPOINT_BEFORE_DOWNSTREAM}`
+- `PRE_FANOUT_REVIEW_REQUIRED=${CHECKPOINT_BEFORE_DOWNSTREAM}` when downstream work would rely on a not-yet-decisive result
 
-**Skeptical re-questioning rule:** if the first material result only validates a proxy while decisive anchors remain unchecked, STOP and ask whether the framing still deserves belief before continuing.
+**Skeptical re-questioning rule:** if the first material result only validates a proxy, internal consistency check, or supporting artifact while the contract still owes a decisive comparison, benchmark anchor, or acceptance-test outcome, STOP and ask whether the framing still deserves belief before continuing.
 
 Required gates are only considered passed when an explicit clear/override transition is recorded. "No obvious issue" prose is not enough to resume fanout.
 
@@ -238,9 +240,9 @@ Run for Pattern A/B before spawning. Pattern C: skip.
 <step name="segment_execution">
 Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 
-1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, and context pressure
+1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, `MAX_UNATTENDED_MINUTES_PER_PLAN`, and context pressure
 2. Per segment:
-   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs. Track via agent protocol.
+   - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs and any `execution_segment` fields needed to keep bounded gates live across continuation. Track via agent protocol.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> apply returned state updates in main context -> final metadata commit -> self-check:
 
@@ -280,10 +282,11 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      gpd trace log checkpoint --data "{\"description\":\"Task ${TASK_NUM} done: ${TASK_DESCRIPTION}\"}" 2>/dev/null || true
      ```
      **Required first-result sanity gate:** At the earliest of (a) first quantitative result, (b) first derived core equation, (c) first produced artifact, (d) first benchmark-style comparison, or (e) two completed auto tasks, STOP and check:
+     - which claim, deliverable, or acceptance test would this result unlock if it held up?
      - is this a load-bearing result or only a proxy?
      - did one quick sanity/benchmark/convention check already pass?
-     - do decisive anchors remain unchecked?
-     - if anchors remain unchecked, what is the disconfirming observation that would most quickly break the current framing?
+     - which decisive comparison, benchmark anchor, or user-visible acceptance-test result is still missing?
+     - if decisive evidence is still missing, what is the disconfirming observation that would most quickly break the current framing?
 
      Record this gate with:
 
@@ -299,7 +302,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
        --data "{\"execution\":{\"checkpoint_reason\":\"first_result\"}}" 2>/dev/null || true
      ```
 
-     If the first result is still proxy-only or anchor-thin, strengthen the same stop into skeptical review instead of silently continuing:
+     If the first result is still proxy-only, benchmark-thin, or otherwise lacks the decisive evidence the contract still owes, strengthen the same stop into skeptical review instead of silently continuing:
 
      ```bash
      gpd observe event execution gate --action enter --phase "${phase}" --plan "${plan}" \
@@ -313,7 +316,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
        --data "{\"execution\":{\"checkpoint_reason\":\"skeptical_requestioning\"}}" 2>/dev/null || true
      ```
 
-     Before any downstream dependent tasks or fanout continue, emit an explicit pre-fanout stop:
+     Before any downstream dependent tasks or fanout continue, emit an explicit pre-fanout stop whenever later work would rely on this result as if the decisive evidence already existed:
 
      ```bash
      gpd observe event execution fanout --action lock --phase "${phase}" --plan "${plan}" \
@@ -336,8 +339,8 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
      **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
      - **babysit:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
-     - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, and any checkpoint tied to deviation rules 5-6 or unresolved convergence failure. Log routine checkpoint markers and continue when no judgment is needed.
-     - **yolo:** Do NOT skip required first-result, bounded-segment, skeptical, or pre-fanout checkpoints. Auto-continue only after the gate is explicitly cleared. STOP on failed sanity, unresolved skeptical review, anchor-gate failure, or unrecoverable computation error.
+     - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, any checkpoint tied to deviation rules 5-6 or unresolved convergence failure, and any case where decisive evidence is still missing but the next tasks would assume it. Log routine checkpoint markers and continue when no judgment is needed.
+     - **yolo:** Do NOT skip required first-result, bounded-segment, skeptical, or pre-fanout checkpoints. Auto-continue only after the gate is explicitly cleared and the remaining work is genuinely independent of the unresolved decisive comparison. STOP on failed sanity, unresolved skeptical review, anchor-gate failure, or unrecoverable computation error.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
    gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
@@ -386,6 +389,13 @@ CHECKPOINT
    - Update STATE.md session info
   - **babysit/balanced:** Suggest `/clear` + `/gpd:resume-work`
   - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `/gpd:resume-work`
+
+Also stop when either bound is hit, even if context looks healthy:
+
+- uninterrupted wall-clock time since the current segment started reaches `MAX_UNATTENDED_MINUTES_PER_PLAN`
+- completed tasks since the last bounded checkpoint reach `SEGMENT_TASK_CAP`
+
+These are bounded-segment stops, not optional hints. They exist to keep long runs reviewable before a wrong early assumption fans out.
 
 This prevents quality degradation and ensures no work is lost if the session ends unexpectedly.
 </step>
@@ -506,6 +516,7 @@ Note: DERIVATION-STATE.md is updated by /gpd:pause-work for session handoff. On 
 - `comparison_verdicts` for decisive internal/external comparisons when they exist
 
 `contract_results` is authoritative. Do not reintroduce ad hoc summary-side success criteria that are absent from the PLAN contract.
+Before treating the summary as complete, run `gpd validate summary-contract ${phase_dir}/${phase}-${plan}-SUMMARY.md` and fix any contract-linkage or verdict-ledger errors.
 
 Title: `# Phase [X] Plan [Y]: [Name] Summary`
 

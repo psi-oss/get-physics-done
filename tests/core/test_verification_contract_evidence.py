@@ -26,6 +26,159 @@ def test_validate_frontmatter_verification_accepts_contract_results() -> None:
     assert result.errors == []
 
 
+def test_validate_frontmatter_summary_with_source_path_checks_plan_alignment(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_validate_frontmatter_summary_with_source_path_rejects_unknown_contract_ids(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+            "claim-benchmark:",
+            "claim-unknown:",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any("Unknown claim contract_results entry: claim-unknown" in error for error in result.errors)
+
+
+def test_validate_frontmatter_verification_with_source_path_requires_contract_results(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        "---\n"
+        "phase: 01-benchmark\n"
+        "verified: 2026-03-13T00:00:00Z\n"
+        "status: passed\n"
+        "score: 1/1 contract targets verified\n"
+        "plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract\n"
+        "---\n\n"
+        "# Verification\n",
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert "contract_results: required for contract-backed plan" in result.errors
+
+
+def test_validate_frontmatter_verification_with_source_path_accepts_structured_suggested_contract_checks(
+    tmp_path: Path,
+) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        (FIXTURES_STAGE4 / "verification_with_contract_results.md").read_text(encoding="utf-8").replace(
+            "---\n\n# Verification\n",
+            "suggested_contract_checks:\n"
+            "  - check: Add decisive normalization benchmark comparison\n"
+            "    reason: The reported agreement depends on a normalization-sensitive benchmark that is not yet explicit\n"
+            "    suggested_subject_kind: acceptance_test\n"
+            "    suggested_subject_id: test-benchmark\n"
+            "    evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md\n"
+            "---\n\n# Verification\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_validate_frontmatter_verification_with_source_path_accepts_partial_results_with_inconclusive_verdict(
+    tmp_path: Path,
+) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        (FIXTURES_STAGE4 / "verification_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace(
+            "status: passed\nscore: 3/3 contract targets verified\n",
+            "status: gaps_found\nscore: 1/3 contract targets verified\n",
+            1,
+        )
+        .replace(
+            "      status: passed\n      summary: Claim independently verified.\n",
+            "      status: partial\n      summary: Benchmark comparison started but is not yet decisive.\n",
+            1,
+        )
+        .replace(
+            "      status: passed\n      summary: Acceptance test executed and passed.\n",
+            "      status: partial\n      summary: Initial benchmark comparison run completed.\n",
+            1,
+        )
+        .replace(
+            "    verdict: pass\n",
+            "    verdict: inconclusive\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is True
+    assert result.errors == []
+
+
 def test_verify_summary_requires_contract_results_for_contract_backed_plan(tmp_path: Path) -> None:
     plan_path = tmp_path / "01-01-PLAN.md"
     plan_path.write_text((FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"), encoding="utf-8")

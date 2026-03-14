@@ -227,6 +227,23 @@ class TestStateCommands:
         state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
 
+    def test_set_project_contract_resolves_relative_path_against_cwd(self, gpd_project: Path) -> None:
+        contract_path = gpd_project / "contract.json"
+        contract_path.write_text(
+            (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "state", "set-project-contract", "contract.json"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+
     def test_set_project_contract_rejects_semantically_invalid_contract(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["uncertainty_markers"]["weakest_anchors"] = []
@@ -1416,6 +1433,192 @@ class TestReviewValidationCommands:
         assert payload["valid"] is False
         assert payload["most_positive_allowed_recommendation"] == "reject"
 
+    def test_validate_paper_quality_command_reports_shape_errors_without_traceback(self, gpd_project: Path) -> None:
+        input_path = gpd_project / "paper-quality-invalid.json"
+        input_path.write_text(
+            json.dumps(
+                {
+                    "title": "Bad Input",
+                    "journal": "prd",
+                    "equations": "broken",
+                    "figures": {},
+                    "citations": {},
+                    "conventions": {},
+                    "verification": {},
+                    "completeness": {},
+                    "results": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "paper-quality", str(input_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "paper-quality input.equations must be an object, not str" in payload["error"]
+
+    def test_validate_referee_decision_command_reports_shape_errors_without_traceback(self, gpd_project: Path) -> None:
+        decision_path = gpd_project / "referee-decision-invalid.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": "not-a-list",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", str(decision_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "referee-decision.stage_artifacts must be an array, not str" in payload["error"]
+
+    def test_validate_review_ledger_command_accepts_valid_ledger(self, gpd_project: Path) -> None:
+        ledger_path = gpd_project / "review-ledger.json"
+        ledger_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "round": 1,
+                    "manuscript_path": "paper/main.tex",
+                    "issues": [
+                        {
+                            "issue_id": "REF-001",
+                            "opened_by_stage": "physics",
+                            "severity": "major",
+                            "blocking": True,
+                            "claim_ids": ["CLM-001"],
+                            "summary": "Evidence is incomplete.",
+                            "required_action": "Add the missing benchmark comparison.",
+                            "status": "open",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-ledger", str(ledger_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["issues"][0]["issue_id"] == "REF-001"
+
+    def test_validate_review_ledger_command_reports_shape_errors_without_traceback(self, gpd_project: Path) -> None:
+        ledger_path = gpd_project / "review-ledger-invalid.json"
+        ledger_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "round": 1,
+                    "manuscript_path": "paper/main.tex",
+                    "issues": "not-a-list",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-ledger", str(ledger_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "review-ledger.issues must be an array, not str" in payload["error"]
+
+    def test_validate_plan_contract_command_accepts_valid_plan(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        plan_path = phase_dir / "01-01-PLAN.md"
+        plan_path.write_text(
+            (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "plan-contract", str(plan_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+
+    def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        (phase_dir / "01-01-PLAN.md").write_text(
+            (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        summary_path = phase_dir / "01-SUMMARY.md"
+        summary_path.write_text(
+            (FIXTURES_DIR.parent / "stage4" / "summary_with_contract_results.md")
+            .read_text(encoding="utf-8")
+            .replace("claim-benchmark:", "claim-unknown:", 1),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "summary-contract", str(summary_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert any("Unknown claim contract_results entry: claim-unknown" in error for error in payload["errors"])
+
+    def test_validate_verification_contract_command_requires_contract_results(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        (phase_dir / "01-01-PLAN.md").write_text(
+            (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        verification_path = phase_dir / "01-VERIFICATION.md"
+        verification_path.write_text(
+            "---\n"
+            "phase: 01-benchmark\n"
+            "verified: 2026-03-13T00:00:00Z\n"
+            "status: passed\n"
+            "score: 1/1 contract targets verified\n"
+            "plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract\n"
+            "---\n\n"
+            "# Verification\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "verification-contract", str(verification_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "contract_results: required for contract-backed plan" in payload["errors"]
+
     def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
         manifest_path = gpd_project / "reproducibility-ready.json"
         manifest_path.write_text(
@@ -1471,6 +1674,24 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is True
         assert payload["ready_for_review"] is True
+
+    def test_validate_reproducibility_manifest_reports_shape_errors_without_traceback(self, gpd_project: Path) -> None:
+        manifest_path = gpd_project / "reproducibility-invalid.json"
+        manifest_path.write_text(
+            json.dumps({"paper_title": "Bad Input", "environment": []}),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "reproducibility-manifest", str(manifest_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any(issue["field"] == "environment" and "object" in issue["message"].lower() for issue in payload["issues"])
 
     def test_validate_reproducibility_manifest_stdin_strict_fails_when_not_review_ready(self) -> None:
         manifest = {

@@ -188,10 +188,11 @@ For each contract-backed check, create a validation record that includes **both 
 
 Rules:
 
-- If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved.
+- If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved. If the comparison was attempted but is still open, record `inconclusive` or `tension` instead of silently dropping it.
 - If a forbidden proxy exists, create an explicit rejection check rather than assuming silence means success.
 - If the contract lacks an obvious decisive check, create a `suggested_contract_check` entry with a short rationale instead of silently dropping the concern.
 - Only create `suggested_contract_check` entries for obvious decisive gaps on user-visible targets, not for paperwork preferences or generic workflow niceties.
+- Each `suggested_contract_check` entry must stay structured: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id` when known, and `evidence_path`.
 
 **Examples with computational verification:**
 
@@ -282,7 +283,7 @@ If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase`
 If no existing VERIFICATION.md exists, create a new one from scratch.
 
 Build check list from extracted contract-backed checks, including computational test specifications.
-Checks with non-empty `comparison_kind` are decisive and must end with either a recorded `comparison_verdict` or a recorded gap before the file can finish.
+Checks with non-empty `comparison_kind` are decisive and must end with either a recorded `comparison_verdict` or a recorded gap before the file can finish. Exploratory or partial verification is allowed to end at `inconclusive` or `tension`; it is not allowed to imply a pass from suggestive but non-decisive evidence.
 
 If the PLAN has a `contract`, every check in this file must carry the relevant `subject_kind`, `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_ids`, and `forbidden_proxy_id` when applicable.
 
@@ -320,7 +321,11 @@ computation: |
 precomputed_result: |
 [result of AI's independent computation]
 suggested_contract_checks:
-  - [check id or description if the contract appears incomplete]
+  - check: [missing decisive check]
+    reason: [why the missing check matters]
+    suggested_subject_kind: [claim | deliverable | acceptance_test | reference]
+    suggested_subject_id: [contract id or ""]
+    evidence_path: [artifact path or expected evidence path]
 awaiting: researcher response
 
 ## Checks
@@ -340,7 +345,11 @@ expected: [verifiable physics outcome]
 computation: [specific numerical test performed]
 precomputed_result: [AI's independent computation result]
 suggested_contract_checks:
-  - [check id or description if the contract appears incomplete]
+  - check: [missing decisive check]
+    reason: [why the missing check matters]
+    suggested_subject_kind: [claim | deliverable | acceptance_test | reference]
+    suggested_subject_id: [contract id or ""]
+    evidence_path: [artifact path or expected evidence path]
 result: [pending]
 
 ### 2. [Check Name]
@@ -687,6 +696,8 @@ Clear Current Check section:
 Commit the verification file:
 
 ```bash
+gpd validate verification-contract "${phase_dir}/{phase}-VERIFICATION.md"
+
 PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/{phase}-VERIFICATION.md" 2>&1) || true
 echo "$PRE_CHECK"
 
@@ -1065,9 +1076,9 @@ Default to **major** if unclear. Researcher can correct if needed.
 - [ ] Batched writes: on issue, every 5 passes, or completion
 - [ ] Committed on completion
 - [ ] Forbidden proxies explicitly checked and rejected or escalated
-- [ ] Decisive comparison outcomes recorded as `comparison_verdicts` when applicable
+- [ ] Decisive comparison outcomes recorded as `comparison_verdicts` when applicable, including `inconclusive` / `tension` when that is the honest state
 - [ ] Parent claims / acceptance tests do not pass while decisive comparisons remain unresolved
-- [ ] Missing decisive checks recorded as `suggested_contract_checks`
+- [ ] Missing decisive checks recorded as structured `suggested_contract_checks`
 - [ ] Cross-phase uncertainty audit performed (or N/A noted for Phase 1)
 - [ ] Catastrophic cancellation check for subtracted inherited quantities
 - [ ] If issues: parallel investigation agents diagnose root causes (with computation evidence)

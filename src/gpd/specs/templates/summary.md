@@ -29,6 +29,7 @@ Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `dep
 
 **Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts`. `contract_results` is the authoritative machine-readable outcome ledger.
 Keep this ledger user-visible: record what claim was established, what artifact exists, and what decisive comparison passed or failed. Do not use it to log administrative progress such as "ran verifier" or "completed task."
+Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for these fields. If a decisive comparison is required, omitting its `comparison_verdicts` entry is a validation failure, not a stylistic omission.
 
 ```markdown
 ---

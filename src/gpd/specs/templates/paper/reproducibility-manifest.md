@@ -115,6 +115,14 @@ Template for `paper/reproducibility-manifest.json` — the machine-readable mani
   ],
   "resource_requirements": [
     {
+      "step": "prepare-data",
+      "cpu_cores": 2,
+      "memory_gb": 4.0,
+      "gpu": "",
+      "wall_time": "5 min",
+      "notes": "Light preprocessing"
+    },
+    {
       "step": "run-main",
       "cpu_cores": 8,
       "memory_gb": 16.0,
@@ -127,7 +135,7 @@ Template for `paper/reproducibility-manifest.json` — the machine-readable mani
   "recommended": "8+ cores, 16 GB RAM, ~90 minutes",
   "random_seeds": [
     {
-      "computation": "Monte Carlo sampling",
+      "computation": "run-main",
       "seed": "42",
       "purpose": "Reproducible disorder realizations"
     }
@@ -164,6 +172,12 @@ Template for `paper/reproducibility-manifest.json` — the machine-readable mani
 **Current artifact path and validator:**
 - Store this file as `paper/reproducibility-manifest.json`
 - Validate with `gpd validate reproducibility-manifest paper/reproducibility-manifest.json --strict`
+- Use this template as the schema source of truth for manual manifests
+
+**Field linkage rules:**
+- `random_seeds[].computation` must exactly match the `execution_steps[].name` of each stochastic step
+- `resource_requirements[].step` should cover every execution step, not only the expensive ones
+- `environment.lock_file` may be `uv.lock`, `poetry.lock`, or another real lock file path, but it must name the file actually used to pin the environment
 
 **What can be approximate:**
 - Figure checksums (font rendering varies)

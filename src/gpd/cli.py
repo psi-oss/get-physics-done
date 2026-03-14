@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 import typer
+from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -306,6 +307,48 @@ def _json_cli_output(data: object) -> None:
         console.print(data, highlight=False)
 
 
+def _format_pydantic_schema_error(error: dict[str, object], *, root_label: str) -> str:
+    """Return a concise, user-facing schema error."""
+
+    location = ".".join(str(part) for part in error.get("loc", ()) if str(part))
+    label = f"{root_label}.{location}" if location else root_label
+    message = str(error.get("msg", "validation failed")).strip() or "validation failed"
+    input_value = error.get("input")
+
+    if message == "Field required":
+        return f"{label} is required"
+    if "valid dictionary" in message.lower():
+        return f"{label} must be an object, not {type(input_value).__name__}"
+    if "valid list" in message.lower():
+        return f"{label} must be an array, not {type(input_value).__name__}"
+    return f"{label}: {message}"
+
+
+def _raise_pydantic_schema_error(
+    *,
+    label: str,
+    exc: PydanticValidationError,
+    schema_reference: str | None = None,
+) -> NoReturn:
+    """Render Pydantic payload errors without a traceback and exit."""
+
+    rendered: list[str] = []
+    seen: set[str] = set()
+    for error in exc.errors():
+        formatted = _format_pydantic_schema_error(error, root_label=label)
+        if formatted in seen:
+            continue
+        seen.add(formatted)
+        rendered.append(formatted)
+
+    message = "; ".join(rendered[:5]) or f"{label} validation failed"
+    if len(rendered) > 5:
+        message += f" (+{len(rendered) - 5} more)"
+    if schema_reference:
+        message += f". See `{schema_reference}`"
+    _error(message)
+
+
 def _collect_file_option_args(ctx: typer.Context, files: list[str] | None) -> list[str]:
     """Return normalized file args, allowing multiple paths after one ``--files``."""
 
@@ -526,16 +569,7 @@ def state_set_project_contract_cmd(
     from gpd.core.contract_validation import validate_project_contract
     from gpd.core.state import state_set_project_contract
 
-    try:
-        if source == "-":
-            raw = sys.stdin.read()
-        else:
-            raw = Path(source).read_text(encoding="utf-8")
-        contract_data = json.loads(raw)
-    except FileNotFoundError:
-        _error(f"Contract file not found: {source}")
-    except json.JSONDecodeError as exc:
-        _error(f"Invalid JSON project contract: {exc}")
+    contract_data = _load_json_document(source)
 
     validation = validate_project_contract(contract_data)
     if not validation.valid:
@@ -1262,14 +1296,16 @@ def frontmatter_validate(
     schema: str = typer.Option(..., "--schema", help="Schema name to validate against"),
 ) -> None:
     """Validate frontmatter against a schema."""
+    _run_frontmatter_validation(file, schema)
+
+
+def _run_frontmatter_validation(file: str, schema: str) -> None:
+    """Validate one markdown file against a named frontmatter schema."""
+
     from gpd.core.frontmatter import validate_frontmatter
 
-    file_path = _get_cwd() / file
-    try:
-        fm_content = file_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        _error(f"File not found: {file}")
-    result = validate_frontmatter(fm_content, schema)
+    file_path, fm_content = _load_text_document(file)
+    result = validate_frontmatter(fm_content, schema, source_path=file_path)
     _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
@@ -2184,6 +2220,8 @@ def _load_json_document(input_path: str) -> object:
         source = _format_display_path(target)
         try:
             raw = target.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise GPDError(f"JSON input not found: {source}") from exc
         except OSError as exc:
             raise GPDError(f"Failed to read JSON input from {source}: {exc}") from exc
 
@@ -2191,6 +2229,21 @@ def _load_json_document(input_path: str) -> object:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
         raise GPDError(f"Invalid JSON from {source}: {exc}") from exc
+
+
+def _load_text_document(input_path: str) -> tuple[Path, str]:
+    """Load a UTF-8 text document relative to the effective CLI cwd."""
+
+    target = Path(input_path)
+    if not target.is_absolute():
+        target = _get_cwd() / target
+    source = _format_display_path(target)
+    try:
+        return target, target.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise GPDError(f"Text input not found: {source}") from exc
+    except OSError as exc:
+        raise GPDError(f"Failed to read text input from {source}: {exc}") from exc
 
 
 def _resolve_existing_input_path(input_path: str | None, *, candidates: tuple[str, ...], label: str) -> Path:
@@ -2774,7 +2827,7 @@ def validate_review_preflight(
 
 @validate_app.command("paper-quality")
 def validate_paper_quality(
-    input_path: str | None = typer.Argument(None, help="Path to a PaperQualityInput JSON file, or '-' for stdin"),
+    input_path: str | None = typer.Argument(None, help="Path to a paper-quality JSON file, or '-' for stdin"),
     from_project: str | None = typer.Option(
         None,
         "--from-project",
@@ -2791,7 +2844,15 @@ def validate_paper_quality(
         if not input_path:
             _error("Provide a PaperQualityInput path or use --from-project <root>")
         payload = _load_json_document(input_path)
-        report = score_paper_quality(PaperQualityInput.model_validate(payload))
+        try:
+            paper_quality_input = PaperQualityInput.model_validate(payload)
+        except PydanticValidationError as exc:
+            _raise_pydantic_schema_error(
+                label="paper-quality input",
+                exc=exc,
+                schema_reference="templates/paper/paper-quality-input-schema.md",
+            )
+        report = score_paper_quality(paper_quality_input)
     _output(report)
     if not report.ready_for_submission:
         raise typer.Exit(code=1)
@@ -2811,9 +2872,55 @@ def validate_project_contract_cmd(
         raise typer.Exit(code=1)
 
 
+@validate_app.command("plan-contract")
+def validate_plan_contract_cmd(
+    input_path: str = typer.Argument(..., help="Path to a PLAN.md file"),
+) -> None:
+    """Validate PLAN frontmatter, including the contract block and cross-links."""
+
+    _run_frontmatter_validation(input_path, "plan")
+
+
+@validate_app.command("summary-contract")
+def validate_summary_contract_cmd(
+    input_path: str = typer.Argument(..., help="Path to a SUMMARY.md file"),
+) -> None:
+    """Validate SUMMARY frontmatter and contract-result alignment."""
+
+    _run_frontmatter_validation(input_path, "summary")
+
+
+@validate_app.command("verification-contract")
+def validate_verification_contract_cmd(
+    input_path: str = typer.Argument(..., help="Path to a VERIFICATION.md file"),
+) -> None:
+    """Validate VERIFICATION frontmatter and contract-result alignment."""
+
+    _run_frontmatter_validation(input_path, "verification")
+
+
+@validate_app.command("review-ledger")
+def validate_review_ledger_cmd(
+    input_path: str = typer.Argument(..., help="Path to a review-ledger JSON file, or '-' for stdin"),
+) -> None:
+    """Validate a staged peer-review issue ledger."""
+    from gpd.mcp.paper.models import ReviewLedger
+
+    payload = _load_json_document(input_path)
+    try:
+        ledger = ReviewLedger.model_validate(payload)
+    except PydanticValidationError as exc:
+        _raise_pydantic_schema_error(
+            label="review-ledger",
+            exc=exc,
+            schema_reference="templates/paper/review-ledger-schema.md",
+        )
+    _output(ledger)
+
+
 @validate_app.command("referee-decision")
 def validate_referee_decision(
-    input_path: str = typer.Argument(..., help="Path to a RefereeDecisionInput JSON file, or '-' for stdin"),
+    input_path: str = typer.Argument(..., help="Path to a referee-decision JSON file, or '-' for stdin"),
     strict: bool = typer.Option(
         False,
         "--strict",
@@ -2824,7 +2931,15 @@ def validate_referee_decision(
     from gpd.core.referee_policy import RefereeDecisionInput, evaluate_referee_decision
 
     payload = _load_json_document(input_path)
-    report = evaluate_referee_decision(RefereeDecisionInput.model_validate(payload), strict=strict)
+    try:
+        decision = RefereeDecisionInput.model_validate(payload)
+    except PydanticValidationError as exc:
+        _raise_pydantic_schema_error(
+            label="referee-decision",
+            exc=exc,
+            schema_reference="templates/paper/referee-decision-schema.md",
+        )
+    report = evaluate_referee_decision(decision, strict=strict)
     _output(report)
     if not report.valid:
         raise typer.Exit(code=1)

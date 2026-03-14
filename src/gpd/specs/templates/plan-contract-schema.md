@@ -157,7 +157,7 @@ Rules:
 - IDs must be unique across each section.
 - A cross-reference must fail loudly if it points to an undeclared ID.
 - A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.
-- Scoping-only or exploratory plans may omit some strict execution-only fields only when the plan schema explicitly allows that mode.
+- Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly says so.
 
 ---
 

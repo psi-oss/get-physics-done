@@ -117,6 +117,8 @@ Rules:
 
 ## Validation Commands
 
+Prefer the contract-specific commands below for contract-backed summaries and verification reports because they resolve the referenced PLAN from disk and enforce ID alignment, not just bare YAML shape.
+
 ```bash
 gpd frontmatter validate .gpd/phases/XX-name/SUMMARY.md --schema summary
 gpd validate summary-contract .gpd/phases/XX-name/SUMMARY.md
