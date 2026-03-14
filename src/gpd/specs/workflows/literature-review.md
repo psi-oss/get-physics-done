@@ -52,7 +52,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `active_reference_context`, `reference_artifact_files`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
 
 **Read mode settings:**
 
@@ -71,6 +71,8 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 
 - **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic, phase context, and any contract-critical references from `active_reference_context`.
 - **If `state_exists` is false** (standalone usage): Proceed — the user will specify the topic directly.
+- Treat `effective_reference_intake` as the machine-readable carry-forward ledger for anchors, prior outputs, baselines, user-mandated context, and unresolved gaps. Re-surface those items in the review even if the broader search expands beyond them.
+- Use `reference_artifacts_content` as supporting evidence when existing literature/research-map artifacts already pin down benchmark values, prior outputs, or anchor wording that should remain stable.
 
 Project context helps focus the review on conventions and methods relevant to the current research.
 </step>
@@ -82,6 +84,7 @@ Establish scope from command context:
 - **Depth**: Quick (~10 refs) | Standard (~30 refs) | Comprehensive (~50+ refs)
 - **Time range**: All time | Last N years | Since specific result
 - **Purpose**: Background | Method selection | Gap identification | Manuscript prep
+- List the seed anchors already present in `project_contract`, `contract_intake`, `effective_reference_intake`, and `active_reference_context` before broadening the search
 
 Define explicit include/exclude boundaries:
 
@@ -111,6 +114,7 @@ Every subfield has seminal papers that defined the field. Identify them:
 3. For each foundational work, record:
 
    - Full citation (authors, title, journal, year)
+   - Stable `anchor_id` and concrete `locator` if the work is contract-critical or likely to be reused downstream
    - Key contribution (what they showed/computed/proved)
    - Method used
    - Conventions (units, metric signature, normalization)
@@ -352,9 +356,11 @@ status: completed | checkpoint
 
 ## Active Anchor Registry
 
-| Anchor | Type | Why It Matters | Required Action | Downstream Use |
-| ------ | ---- | -------------- | --------------- | -------------- |
-| {reference or artifact} | {benchmark/method/background/prior artifact} | {claim, observable, or deliverable constrained} | {read/use/compare/cite} | {planning/execution/verification/writing} |
+| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |
+| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |
+| {stable-anchor-id} | {reference or artifact} | {benchmark/method/background/prior artifact} | {citation, dataset id, or path} | {claim, observable, deliverable, or convention constrained} | {claim-id, deliverable-id, or blank} | {read/use/compare/cite} | {planning/execution/verification/writing} |
+
+`Carry Forward To` is workflow stage scope only. If exact contract subject IDs are known, store them in `Contract Subject IDs` instead of collapsing them into stage labels.
 
 ## Convention Catalog
 

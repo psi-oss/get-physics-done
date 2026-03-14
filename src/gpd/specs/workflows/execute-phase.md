@@ -38,7 +38,7 @@ When `parallelization` is false, plans within a wave execute sequentially.
 - `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, skeptical review stops, or anchor-gated fanout reviews. A clean pass may auto-continue only after the gate is explicitly cleared.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
 - `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget, but never skip required first-result, skeptical, or pre-fanout review gates.
-- `research_mode=adaptive`: Start with explore-style coverage, then switch to exploit after the first anchor-confirmed or benchmark-confirmed result validates the approach.
+- `research_mode=adaptive`: Start with explore-style coverage, then narrow only after prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock show that the method family is stable. Do NOT narrow just because a wave advanced or one proxy passed.
 - Model profile and research mode may change depth, task granularity, or prose volume. They do NOT waive first-result, skeptical, or pre-fanout review gates.
 - `review_cadence`: Controls when bounded review gates appear. `autonomy` controls who must approve or inspect those gates. These are separate axes.
 </step>
@@ -369,9 +369,11 @@ These gates are task-level safety rails, not line-by-line interruptions. Even in
 For each wave, classify whether downstream fanout is risky:
 
 - risky when a wave has multiple plans and any later wave depends on it
-- risky when any plan has `task_count >= CHECKPOINT_AFTER_N_TASKS` and no authored checkpoints
+- risky when any plan has `task_count >= CHECKPOINT_AFTER_N_TASKS`, no authored checkpoints, or is likely to exceed `MAX_UNATTENDED_MINUTES_PER_PLAN`
 - risky for `derivation`, `formalism`, `numerical`, or `validation` phase classes
 - risky when file conflicts, convention-lock requirements, or benchmark-critical anchors are present
+- risky when the wave creates a new estimator, baseline, or branch point whose downstream usefulness depends on a decisive comparison still to be earned
+- never mark a wave "safe" merely because it happens later in the phase or follows an earlier partial pass
 
 When a wave is risky:
 
@@ -382,14 +384,15 @@ When a wave is risky:
 
 When a wave is not risky:
 
-- keep bounded execution available for long plans and context pressure
+- keep bounded execution available for long plans, wall-clock budgets, and context pressure
 - allow checkpoint-free plans to run normally when task count is small and fanout is low
 
-**Skeptical re-questioning rule:** if the first material result only validates a proxy while decisive anchors or benchmark references remain unchecked, stop and explicitly re-question the framing before allowing downstream fanout. Record:
+**Skeptical re-questioning rule:** if the first material result only validates a proxy, internal consistency story, or supporting artifact while decisive anchors, benchmark references, or contract-backed acceptance tests remain unresolved, stop and explicitly re-question the framing before allowing downstream fanout. Record:
 
 - weakest unchecked anchor
 - what still looks assumed rather than verified
 - the disconfirming observation that would most quickly break the current path
+- which downstream plans would become wasted work if that decisive evidence failed
 </step>
 
 <step name="execute_waves">
@@ -440,8 +443,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    **If this wave is marked risky fanout:** run `probe_then_fanout` instead of blind full-wave scaleout.
 
    - First launch each risky plan only to its first-result gate or bounded segment boundary
-   - Collect first-result sanity outcomes and anchor status
-   - Only unlock the remainder of the wave when those gates pass cleanly
+   - Collect first-result sanity outcomes, decisive-evidence status, and anchor status
+   - Only unlock the remainder of the wave when those gates pass with decisive evidence or the remaining work is explicitly independent of the unresolved comparison
    - If any plan fails the gate or requires re-questioning, STOP the wave before spawning more downstream work
 
 4. **Spawn executor agents:**
@@ -566,6 +569,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - the result is tied to a contract-relevant output, not only a proxy
    - one quick sanity/benchmark/convention check passed
    - decisive anchors still missing were explicitly named and re-questioned if necessary
+   - if the contract owed a decisive comparison, either that comparison now has a pass verdict or the downstream work was explicitly scoped so it does not rely on that unresolved claim
 
    If this gate fails: STOP — do not let wrong early assumptions scale out.
 
@@ -575,7 +579,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - `pre_fanout_review_pending: true`
    - `downstream_locked: true`
    - `last_result_label` or `last_artifact_path` for the first load-bearing output being reviewed
-   - `skeptical_requestioning_required: true` when the first result still looks proxy-only or anchor-thin
+   - `skeptical_requestioning_required: true` when the first result still looks proxy-only, anchor-thin, or otherwise short of the decisive evidence the contract still owes
    - `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, and `disconfirming_observation` whenever skeptical re-questioning is required
 
    If the runtime or agent only emits a fanout-lock event, normalize it into the same live review stop: treat the lock as `checkpoint_reason=pre_fanout`, mark `waiting_for_review=true`, and keep downstream locked until the review is explicitly cleared.
@@ -591,7 +595,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    **Determine if gate is enabled from init/context fields only:**
 
    - if `review_cadence == dense`: enable inter-wave verification
-   - if `review_cadence == adaptive`: enable it when the completed wave established a first result, a new baseline/estimator, or a contract-critical artifact
+   - if `review_cadence == adaptive`: enable it when the completed wave established or challenged a decisive evidence path, introduced a new baseline/estimator that later waves depend on, or left any skeptical or pre-fanout state unresolved
    - if `review_cadence == sparse`: skip the routine gate unless the just-completed wave triggered a failed sanity check, anchor gap, or pre-fanout dependency warning
 
    **If enabled:**

@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
     _do_check,
@@ -96,8 +98,8 @@ class TestReadInstalledVersion:
         with patch("gpd.version.__version__", "1.2.3.dev4"):
             assert _read_installed_version() == "1.2.3.dev4"
 
-    def test_version_file_fallback_prefers_active_runtime(self, tmp_path: Path) -> None:
-        """Fallback VERSION scan checks the active runtime's install before unrelated runtimes."""
+    def test_version_file_fallback_prefers_prioritized_runtime_candidate(self, tmp_path: Path) -> None:
+        """Fallback VERSION scan checks the prioritized runtime candidate before unrelated runtimes."""
         home = tmp_path / "home"
         claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
         codex_version = home / ".codex" / "get-physics-done" / "VERSION"
@@ -109,6 +111,36 @@ class TestReadInstalledVersion:
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
             patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            assert _read_installed_version() == "2.0.0"
+
+    @pytest.mark.xfail(
+        reason=(
+            "VERSION fallback still keys off the raw active runtime ordering instead of the "
+            "effective installed runtime used by GPD-owned surfaces."
+        ),
+        strict=False,
+    )
+    def test_version_file_fallback_should_ignore_uninstalled_higher_priority_runtime(self, tmp_path: Path) -> None:
+        """Install-aware expectation: a stale higher-priority runtime must not mask the installed runtime's VERSION."""
+        home = tmp_path / "home"
+        stale_claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
+        installed_codex_dir = tmp_path / ".codex"
+        installed_codex_version = installed_codex_dir / "get-physics-done" / "VERSION"
+        stale_claude_version.parent.mkdir(parents=True)
+        installed_codex_version.parent.mkdir(parents=True)
+        stale_claude_version.write_text("1.0.0\n")
+        installed_codex_version.write_text("2.0.0\n")
+        (installed_codex_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.version.__version__", "0.0.0-dev"),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
@@ -386,6 +418,49 @@ class TestMainThrottle:
             main()
 
         mock_popen.assert_not_called()
+
+    @pytest.mark.xfail(
+        reason=(
+            "Throttle still treats a fresh workspace-local cache as authoritative even when the "
+            "installed runtime scope is global."
+        ),
+        strict=False,
+    )
+    def test_fresh_wrong_scope_cache_should_not_suppress_global_install_refresh(self, tmp_path: Path) -> None:
+        """Install-aware expectation: a fresh cache from the wrong scope must not suppress refresh for the live install."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        local_cache = workspace / ".codex" / "cache"
+        local_cache.mkdir(parents=True)
+        (local_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()), "update_available": False}),
+            encoding="utf-8",
+        )
+
+        global_runtime_dir = home / ".codex"
+        global_cache = global_runtime_dir / "cache"
+        global_cache.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "global"}),
+            encoding="utf-8",
+        )
+        (global_cache / "gpd-update-check.json").write_text(
+            json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=workspace),
+            patch("gpd.hooks.check_update.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            main()
+
+        mock_popen.assert_called_once()
 
     def test_non_dict_cache_json_spawns_check(self, tmp_path: Path) -> None:
         """If cache file contains valid JSON but not a dict (e.g. a list), main() spawns background check."""

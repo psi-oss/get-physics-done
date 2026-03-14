@@ -154,6 +154,7 @@ def test_render_protocol_bundle_context_is_explicit_when_none_selected() -> None
     rendered = render_protocol_bundle_context([])
 
     assert "None selected from project metadata" in rendered
+    assert "Fall back to shared protocols and on-demand routing." in rendered
 
 
 def test_render_protocol_bundle_context_surfaces_guidance() -> None:
@@ -165,6 +166,7 @@ def test_render_protocol_bundle_context_surfaces_guidance() -> None:
     rendered = render_protocol_bundle_context(selected)
 
     assert "Statistical Mechanics Simulation [stat-mech-simulation]" in rendered
+    assert "Usage contract: additive specialized guidance only." in rendered
     assert "Estimator policies:" in rendered
     assert "Verifier extensions:" in rendered
     assert "{GPD_INSTALL_DIR}/references/protocols/monte-carlo.md" in rendered
@@ -186,3 +188,21 @@ def test_select_protocol_bundles_rejects_benchmark_tags_without_enough_distincti
     )
 
     assert selected == []
+
+
+def test_mismatched_project_metadata_keeps_bundle_context_in_generic_fallback_mode() -> None:
+    selected = select_protocol_bundles(
+        """
+        # Test Project
+
+        ## What This Is
+        Quantum-gravity saddle bookkeeping with Page-curve comparisons and holographic entropy arguments.
+        """,
+        _benchmark_only_contract(),
+    )
+
+    assert selected == []
+    rendered = render_protocol_bundle_context(selected)
+    assert "Usage contract: additive specialized guidance only." in rendered
+    assert "None selected from project metadata" in rendered
+    assert "Fall back to shared protocols and on-demand routing." in rendered

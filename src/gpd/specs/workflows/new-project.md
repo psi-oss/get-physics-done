@@ -69,43 +69,48 @@ Parse the input markdown for:
 
 - **Research question** — Look for headings like "Research Question", "Objective", "Goal", or the first substantive paragraph
 - **Decisive observables and deliverables** — Look for explicit plots, figures, datasets, calculations, derivations, or benchmark outputs the user says matter
-- **Stages or work chunks** — Look for numbered lists, headings like "Phases", "Plan", "Steps", "Milestones", or any clear sequence of major investigation chunks
+- **Existing decomposition, if any** — Look for numbered lists, headings like "Phases", "Plan", "Steps", "Milestones", or any clear sequence of investigation chunks. Treat these as optional grounding, not as a setup prerequisite.
 - **Key parameters** — Look for mentions of physical parameters, coupling constants, energy scales, system sizes
 - **Theoretical framework** — Infer from terminology (QFT, condensed matter, GR, statistical mechanics, etc.)
 - **Computational tools** — Any mentioned software, libraries, or numerical methods
 - **Must-keep context** — Look for must-read references, benchmark values, prior outputs, figures, notebooks, and any stop/rethink conditions
 
-If the file cannot be parsed (no discernible research question or no plausible first major stage/work chunk), error:
+If the file cannot be parsed (no discernible research question or objective), error:
 
 ```
 Error: Could not extract research context from the provided file.
 
 The file should contain at minimum:
 - A research question or objective
-- A list of investigation phases or steps, OR enough structure to infer the first major investigation chunk
+
+It should ideally also name at least one decisive output, anchor, prior output, or explicit "anchor unknown / need grounding" note so any repair prompt can stay narrow.
 
 Example structure:
   # Research Question
   What is the critical exponent of the 3D Ising model?
 
-  # Phases
-  1. Set up Monte Carlo simulation
-  2. Run finite-size scaling analysis
-  3. Extract critical exponent and compare with known results
+  # Success Signal
+  Extract the critical exponent and compare it against a trusted benchmark.
+
+  # Anchors
+  Compare against the known 3D Ising result from the literature.
+
+  # Optional First Investigation Chunk
+  Set up the Monte Carlo simulation and finite-size scaling workflow.
 ```
 
 **If `--minimal` without file** (`/gpd:new-project --minimal`):
 
 Ask ONE question inline (freeform, NOT ask_user):
 
-"Describe your research project in one pass: what's the core question, what outputs would count as success, what are the main phases, what references or prior outputs must stay visible, and what would make you rethink the approach?"
+"Describe your research project in one pass: what's the core question, what output, claim, or deliverable would count as success, what references, prior outputs, or known results must stay visible, whether the anchor is still unknown, any first investigation chunk you already know, and what would make you rethink the approach?"
 
 Wait for response. From the single response, extract:
 
 - Research question
 - Theoretical framework
-- Phases, milestones, or first-pass work chunks of investigation
-- Any mentioned parameters, tools, or constraints
+- Any decisive outputs, anchors, prior outputs, or explicit context gaps
+- Any mentioned parameters, tools, constraints, or initial investigation chunk
 
 #### M1.5. Synthesize And Approve The Scoping Contract
 
@@ -115,7 +120,7 @@ Build a canonical scoping contract from the extracted input.
 
 - Core question
 - At least one decisive output, claim, or deliverable
-- At least one major phase, stage, or clearly defined first investigation chunk
+- At least one anchor, reference/prior-output constraint, or an explicit "anchor unknown / must establish later" note
 
 **Fields to capture even if still uncertain:**
 
@@ -123,12 +128,15 @@ Build a canonical scoping contract from the extracted input.
 - Must-read references, benchmarks, or prior outputs
 - User-stated observables, deliverables, decisive plots, or artifact expectations
 - User-stated stop conditions, rethink triggers, or "come back to me before continuing" guidance
+- Initial investigation chunk or decomposition sketch if the user already knows it
 - Weakest anchor
 - What would look like progress but should not count as success
 - What result would make the current framing look wrong or incomplete
 - Unresolved questions / context gaps
 
 **Preservation rule:** If the user names a specific observable, figure, dataset, derivation, paper, benchmark, notebook, prior run, or stop condition, keep that wording recognizable in the contract. Do not generalize it away into a vague proxy.
+If the user does not know the anchor yet, preserve that explicitly in `scope.unresolved_questions` or `context_intake.context_gaps` rather than inventing a paper, benchmark, or baseline.
+Do not force a phase list just to make the scoping contract look complete. If decomposition is still unclear, record that uncertainty and let `ROADMAP.md` start with a single coarse phase or first grounded investigation chunk.
 
 If a blocking field is missing, ask exactly one repair prompt that targets only the missing field. Do not silently continue with placeholders.
 
@@ -722,7 +730,7 @@ When you could write a clear scoping contract, use ask_user:
 
 If "Keep exploring" — ask what they want to add, or identify gaps and probe naturally.
 
-Avoid rigid turn-counting. After several substantive exchanges, if you can state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note), offer to proceed. If those blocking fields are still missing after roughly 6 follow-ups, summarize what is missing and ask whether to keep exploring or proceed with explicit open questions. Do not force closure just because a counter was hit, and do not imply certainty where there is still ambiguity.
+Avoid rigid turn-counting. After several substantive exchanges, if you can state the core question, one decisive output or deliverable, and at least one anchor (or an explicit "anchor unknown" note), offer to proceed. If those blocking fields are still missing after roughly 6 follow-ups, summarize what is missing and ask whether to keep exploring or proceed with explicit open questions. A full phase breakdown is not required at this stage; if only the first grounded investigation chunk is clear, say so and carry later decomposition as an open question. Do not force closure just because a counter was hit, and do not imply certainty where there is still ambiguity.
 
 ## 4. Synthesize The Approved Project Contract And Write PROJECT.md
 
@@ -749,7 +757,9 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 - `uncertainty_markers.disconfirming_observations`
 
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
+If the user does not know the anchor yet, record that explicitly as an unresolved question or context gap rather than fabricating a paper, dataset, benchmark, or baseline.
 If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
+Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders. The approved contract must preserve the user guidance that downstream planning needs.
 
 Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
 

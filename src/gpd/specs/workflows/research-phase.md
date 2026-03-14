@@ -141,11 +141,13 @@ shared_state_policy: return_only
 </spawn_contract>
 ```
 
+Accept the researcher handoff automatically only once `expected_artifacts` exist and pass the artifact check. Do not trust the runtime handoff status by itself.
+
 ## Step 5: Handle Return
 
 **If the researcher agent fails to spawn or returns an error:** Report the failure. Offer: 1) Retry with the same context, 2) Execute the research in the main context (slower but reliable), 3) Skip research and proceed to `/gpd:plan-phase` directly (planner will work with less context). Do not silently continue without research output.
 
-- **Artifact gate:** If the researcher reports `## RESEARCH COMPLETE` but no `RESEARCH.md` exists in the phase directory, treat the handoff as incomplete. Offer: 1) Retry researcher, 2) Execute research in the main context, 3) Abort.
+- **Artifact gate:** If the researcher reports `## RESEARCH COMPLETE` but the `expected_artifacts` entry (`RESEARCH.md`) is missing from the phase directory, treat the handoff as incomplete. Offer: 1) Retry researcher, 2) Execute research in the main context, 3) Abort.
 - `## RESEARCH COMPLETE` -- Display summary, offer: Plan/Dig deeper/Review/Done
 - `## CHECKPOINT REACHED` -- Present to user, spawn continuation
 - `## RESEARCH INCONCLUSIVE` -- Show attempts, offer: Add context/Try different approach/Manual

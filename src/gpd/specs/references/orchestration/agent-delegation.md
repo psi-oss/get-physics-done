@@ -49,9 +49,12 @@ Every runtime-specific delegation surface must preserve these workflow semantics
 2. **Model semantics:** The `model` parameter is omitted when `gpd resolve-model` returns empty.
 3. **Write-scope isolation:** Parallel subagents get disjoint writable targets.
 4. **Blocking completion semantics:** The orchestrator treats the handoff as incomplete until artifacts or structured return data are present.
-5. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
+5. **Success-path artifact gate:** A reported success is not sufficient by itself. If `expected_artifacts` are missing, the handoff is incomplete even when the runtime says it finished cleanly.
+6. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
 
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
+
+For GPD-owned runtime surfaces, use the effective installed runtime rather than a merely active but uninstalled higher-priority runtime. This applies to `gpd resolve-model`, runtime-native command rendering, and other installer-backed workflow surfaces.
 
 ## Prompt Contract Addendum
 

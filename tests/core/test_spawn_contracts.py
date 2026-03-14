@@ -115,10 +115,12 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     assert "Model semantics:" in content
     assert "Write-scope isolation:" in content
     assert "Blocking completion semantics:" in content
+    assert "Success-path artifact gate:" in content
     assert "Return-envelope parity:" in content
     assert "write_scope:" in content
     assert "expected_artifacts:" in content
     assert "shared_state_policy:" in content
+    assert "effective installed runtime" in content
     assert "SKILL.md" not in content
     assert "discoverable action/tool surface" in content
     assert "installed agent prompt instructions" in content
@@ -188,10 +190,12 @@ def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_upda
 def test_research_phase_verifies_research_artifact_before_accepting_handoff() -> None:
     content = _read(WORKFLOWS_DIR / "research-phase.md")
 
-    assert "Accept the researcher handoff automatically once `RESEARCH.md` exists and passes the artifact check." in content
+    assert "Accept the researcher handoff automatically only once `expected_artifacts` exist and pass the artifact check." in content
+    assert "Do not trust the runtime handoff status by itself." in content
     assert "Artifact gate:" in content
-    assert "If the researcher reports `## RESEARCH COMPLETE` but no `RESEARCH.md` exists" in content
+    assert "If the researcher reports `## RESEARCH COMPLETE` but the `expected_artifacts` entry (`RESEARCH.md`) is missing" in content
     assert "<spawn_contract>" in content
+    assert "expected_artifacts:" in content
     assert "shared_state_policy: return_only" in content
 
 
@@ -210,6 +214,17 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     assert expected <= outputs
     assert len(outputs) == len(set(outputs))
     assert "If 1-2 agents failed, proceed with the synthesizer using available files" in _read(path)
+
+
+def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> None:
+    content = _read(WORKFLOWS_DIR / "new-milestone.md")
+
+    assert content.count("<spawn_contract>") >= 3
+    assert "Do not trust the runtime handoff status by itself." in content
+    assert "If a scout reports success but its `expected_artifacts` entry (`.gpd/research/{FILE}`) is missing" in content
+    assert "If the synthesizer reports success but `.gpd/research/SUMMARY.md` is missing" in content
+    assert "If the roadmapper reports `## ROADMAP CREATED` but `.gpd/ROADMAP.md` or `.gpd/STATE.md` is missing" in content
+    assert "shared_state_policy: return_only" in content
 
 
 def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:

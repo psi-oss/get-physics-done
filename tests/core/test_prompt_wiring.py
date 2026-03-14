@@ -698,7 +698,9 @@ def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomp
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
 
+    assert "whether the anchor is still unknown" in workflow_text
     assert "Do not force a phase list just to make the scoping contract look complete." in workflow_text
+    assert "If the user does not know the anchor yet, preserve that explicitly in `scope.unresolved_questions` or `context_intake.context_gaps` rather than inventing a paper, benchmark, or baseline." in workflow_text
     assert "A full phase breakdown is not required at this stage;" in workflow_text
     assert "Use the coarsest decomposition the approved contract actually supports." in workflow_text
     assert "Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them." in workflow_text

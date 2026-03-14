@@ -806,7 +806,7 @@ This mirrors **physics peer review**: reviewers see the paper (results), not the
 5. SUMMARY `contract_results` / `comparison_verdicts` only as evidence maps
 6. No secondary success schema. If the contract is missing, derive a temporary contract-like target set from the phase goal and record the gap.
 
-If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a `suggested_contract_check`. Do not silently downgrade verification scope.
+If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a `suggested_contract_check`. Do not silently downgrade verification scope. Keep it structured with `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id` when known, and `evidence_path`.
 
 **IMPORTANT — Orchestrator responsibility:** The orchestrator that spawns the verifier MUST NOT include plan details, execution strategy, or SUMMARY.md content in the verifier's spawn prompt. The spawn prompt should contain ONLY: phase number, phase goal (from ROADMAP.md), artifact file paths, and STATE.md path. Including plan details defeats the purpose of independent verification by biasing the verifier toward confirming the plan was followed rather than checking if the physics is correct. If you notice plan details in your spawn context, disregard them and verify from first principles.
 
@@ -826,7 +826,7 @@ The research mode adjusts your verification STRATEGY (what question you're answe
 
 | Mode | Verification Strategy | Confidence Threshold | Gap Handling |
 |---|---|---|---|
-| **explore** | "Is this approach VIABLE?" — detect wrong approaches early | STRUCTURALLY PRESENT sufficient | Gaps are expected (approach not finalized); report but don't block |
+| **explore** | "Is this approach VIABLE?" — detect wrong approaches early | STRUCTURALLY PRESENT sufficient | Gaps are expected (approach not finalized); report them honestly as PARTIAL / INCONCLUSIVE and block only when decisive evidence fails or proxy-only progress is being mistaken for success |
 | **balanced** | "Is this result CORRECT?" — standard verification | INDEPENDENTLY CONFIRMED for key results | Standard gap closure loop |
 | **exploit** | "Is this result PUBLICATION-READY?" — maximum rigor | INDEPENDENTLY CONFIRMED for ALL results | Gaps are BLOCKERS (method is assumed correct) |
 | **adaptive** | Use explore strategy until transition, then exploit strategy | Matches current sub-mode | Lenient → strict at transition |
@@ -1668,8 +1668,8 @@ Treat the contract as a typed checklist, not a prose hint:
 - `references` tell you which anchor actions must be completed
 - `forbidden_proxies` tell you what must not be mistaken for success
 
-Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs.
-Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. If the contract still appears to miss a decisive check after that pass, record it as a `suggested_contract_check`.
+Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs. If the comparison was attempted but remains unresolved, record `inconclusive` or `tension` rather than omitting the verdict or upgrading the parent target to pass.
+Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. If the contract still appears to miss a decisive check after that pass, record it as a structured `suggested_contract_check`.
 
 **Protocol bundle guidance (additive, not authoritative)**
 
@@ -1731,8 +1731,8 @@ For each claim / deliverable / acceptance test / reference / forbidden proxy, de
 
 **Verification status:**
 
-- VERIFIED: All supporting artifacts pass all checks with consistent physics
-- PARTIAL: Some evidence exists but decisive checks or anchor actions remain open
+- VERIFIED: All supporting artifacts pass all decisive checks with consistent physics
+- PARTIAL: Some evidence exists but decisive checks, decisive comparisons, or anchor actions remain open
 - FAILED: One or more artifacts missing, incomplete, physically inconsistent, or contradicted by decisive comparisons
 - UNCERTAIN: Cannot verify programmatically (needs expert review or additional computation)
 
@@ -3732,9 +3732,9 @@ For each item, document: what to verify, expected result, domain expertise neede
 
 ## Step 9: Determine Overall Status
 
-**Status: passed** -- All decisive contract targets VERIFIED, required comparison verdicts acceptable, required references handled, forbidden proxies rejected, all artifacts pass levels 1-3, and no blocker anti-patterns.
+**Status: passed** -- All decisive contract targets VERIFIED, required comparison verdicts acceptable, required references handled, forbidden proxies rejected, no unresolved `suggested_contract_checks` remain on decisive targets, all artifacts pass levels 1-3, and no blocker anti-patterns.
 
-**Status: gaps_found** -- One or more decisive contract targets FAILED, artifacts MISSING/STUB, required comparisons failed or remain unresolved, required reference actions missing, forbidden proxies violated, or blocker anti-patterns found.
+**Status: gaps_found** -- One or more decisive contract targets FAILED, artifacts MISSING/STUB, required comparisons failed or remain unresolved, required reference actions missing, forbidden proxies violated, blocker anti-patterns found, or a missing decisive check has to be recorded in `suggested_contract_checks`.
 
 **Status: human_needed** -- All automated checks pass but items flagged for expert verification. This is common for novel theoretical results.
 
@@ -3815,7 +3815,7 @@ gaps:                   # Only if status: gaps_found (same schema as Step 10)
     missing: ["..."]
     severity: blocker
     suggested_contract_checks: []
-comparison_verdicts:    # Optional but expected when decisive comparisons were required
+comparison_verdicts:    # Optional but expected when decisive comparisons were required or attempted
   - subject_kind: claim
     subject_id: "claim-id"
     reference_id: "ref-id"
@@ -4083,9 +4083,9 @@ When operating in static analysis mode, add the following to VERIFICATION.md:
 - [ ] **Mathematical consistency** verified by tracing algebra and substituting test values
 - [ ] **Numerical convergence** verified by running at multiple resolutions (or examining stored convergence data)
 - [ ] **Agreement with literature** checked by numerical comparison against benchmark values
-- [ ] Required `comparison_verdicts` recorded for decisive benchmark / prior-work / experiment / cross-method checks
+- [ ] Required `comparison_verdicts` recorded for decisive benchmark / prior-work / experiment / cross-method checks, including `inconclusive` / `tension` when that is the honest state
 - [ ] Forbidden proxies explicitly rejected or escalated
-- [ ] Missing decisive checks recorded as `suggested_contract_checks`
+- [ ] Missing decisive checks recorded as structured `suggested_contract_checks`
 - [ ] **Physical plausibility** assessed by evaluating constraints (positivity, boundedness, causality)
 - [ ] **Statistical rigor** evaluated by recomputing error bars where possible
 - [ ] **Subfield-specific checklist** applied with computational checks (not just grep)

@@ -36,6 +36,8 @@ Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_ex
 If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target. Do not infer a second resume system from ad hoc handoff files.
 
 If `active_execution_segment.pre_fanout_review_pending` is true, the gate is still live even when a resume file exists. If `active_execution_segment.pre_fanout_review_cleared` is true, the review outcome was recorded but the separate fanout unlock is still missing.
+
+If `active_execution_segment.first_result_gate_pending` is true, do not treat later routine work or a resume artifact as proof that the first-result gate passed. Resume must still verify whether decisive evidence was actually produced or explicitly waived.
 </step>
 
 <step name="load_state">
@@ -192,6 +194,8 @@ fi
 
 Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
 
+When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
+
 **Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than the current execution snapshot, warn: "Auto-checkpoint detected -- work may have continued after the last recorded gate. Review state.json auto_checkpoint for details."
 
 **Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
@@ -282,7 +286,7 @@ Based on project state, determine the most logical next action:
 
 **If `resume_mode="bounded_segment"` and `active_execution_segment` exists:**
 -> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
--> If `checkpoint_reason=pre_fanout` or skeptical re-questioning is required: treat the next action as a review/replan decision, not a routine execution resume
+-> If `checkpoint_reason=first_result`, `checkpoint_reason=pre_fanout`, or skeptical re-questioning is required: treat the next action as a review/replan decision whenever decisive evidence is still missing, not a routine execution resume
 -> Do not resume downstream fanout until the gate has an explicit clear/override outcome and, for `pre_fanout`, the matching fanout-unlock transition
 -> Option: Review another ranked resume candidate from `segment_candidates`
 

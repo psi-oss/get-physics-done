@@ -47,7 +47,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
 
 **Read mode settings:**
 
@@ -61,6 +61,9 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=adaptive`: Start with primary framework, expand mapping if connections to other domains appear.
 - Regardless of mode, do not drop contract-critical anchors, prior baselines, or user-mandated references.
 - Treat `effective_reference_intake` as the machine-readable carry-forward registry for anchors, prior outputs, baselines, and unresolved gaps. Use `active_reference_context` to render and explain it, not to replace it.
+- Use `reference_artifacts_content` when the existing literature/research-map artifacts already contain stable citations, prior-output paths, or benchmark wording that should be preserved verbatim.
+- Preserve stable anchor identity when you rewrite or merge references: every durable anchor in `REFERENCES.md` should carry a reusable `Anchor ID` and a concrete `Source / Locator`.
+- Keep workflow carry-forward scope separate from canonical contract subject linkage. `Carry Forward To` names workflow stages; if exact claim/deliverable IDs are known, record them in a dedicated `Contract Subject IDs` field instead of overloading the stage field.
 </step>
 
 <step name="check_existing">
@@ -141,12 +144,21 @@ First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructio
 Focus: theory
 
 Analyze this research project for theoretical content and literature foundations.
+Treat the machine-readable intake below as binding carry-forward context:
+{effective_reference_intake}
+
 Keep this active reference context visible while mapping:
 {active_reference_context}
 
+Existing reference artifact excerpts:
+{reference_artifacts_content}
+
+If `project_contract` is present, use its existing IDs as the preferred canonical names for anchors and contract subject references:
+{project_contract}
+
 Write these documents to .gpd/research-map/:
 - FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
-- REFERENCES.md - Active anchor registry: papers cited, benchmarks, prior artifacts, required carry-forward actions, open questions from literature, experimental data sources, collaboration context
+- REFERENCES.md - Active anchor registry: papers cited, benchmarks, prior artifacts, required carry-forward actions, open questions from literature, experimental data sources, collaboration context. Every row must have a stable `Anchor ID` and concrete `Source / Locator`. Use `Carry Forward To` for workflow stages only; if exact contract claim/deliverable IDs are known, record them separately as `Contract Subject IDs`.
 
 Explore thoroughly: read LaTeX files, markdown notes, code comments, docstrings, README files, BibTeX databases, and any documentation. Write documents directly using templates. Return confirmation only.
 ```

@@ -64,19 +64,22 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
     (literature_dir / "REVIEW.md").write_text(
         "# Review\n\n"
         "## Active Anchor Registry\n\n"
-        "| Anchor | Type | Why It Matters | Required Action | Downstream Use |\n"
-        "| ------ | ---- | -------------- | --------------- | -------------- |\n"
-        "| Ref Benchmark | benchmark | Decisive benchmark | read/use/compare | planning/verification |\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |\n"
+        "| ref-benchmark | Ref Benchmark | benchmark | Benchmark Paper | Decisive benchmark | claim-anchor | read/use/compare | planning/verification |\n"
         "\n"
         "```yaml\n"
         "---\n"
         "review_summary:\n"
         "  active_anchors:\n"
-        "    - anchor: \"Ref Benchmark\"\n"
+        "    - anchor_id: \"ref-benchmark\"\n"
+        "      anchor: \"Ref Benchmark\"\n"
+        "      locator: \"Benchmark Paper\"\n"
         "      type: \"benchmark\"\n"
         "      why_it_matters: \"Decisive benchmark\"\n"
+        "      contract_subject_ids: [\"claim-anchor\"]\n"
         "      required_action: \"read/use/compare\"\n"
-        "      downstream_use: \"planning/verification\"\n"
+        "      carry_forward_to: \"planning/verification\"\n"
         "  benchmark_values:\n"
         "    - quantity: \"critical exponent\"\n"
         "      value: \"1.23\"\n"
@@ -91,9 +94,9 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
     (research_map_dir / "REFERENCES.md").write_text(
         "# Reference and Anchor Map\n\n"
         "## Active Anchor Registry\n\n"
-        "| Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |\n"
-        "| ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |\n"
-        "| prior-figure | prior artifact | `.gpd/phases/00-baseline/00-SUMMARY.md` | Carry forward baseline plot | use/compare | execution/writing |\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |\n"
+        "| prior-figure | Baseline summary | prior artifact | `.gpd/phases/00-baseline/00-SUMMARY.md` | Carry forward baseline plot | deliv-note | use/compare | execution/writing |\n"
         "\n"
         "## Benchmarks and Comparison Targets\n\n"
         "- Published threshold\n"
@@ -114,11 +117,12 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
 
     ids = {ref.id for ref in result.references}
     assert ids
+    assert "ref-benchmark" in ids
     assert any(ref.role == "benchmark" for ref in result.references)
-    assert any(ref.locator == "Ref Benchmark" for ref in result.references)
+    assert any(ref.locator == "Benchmark Paper" for ref in result.references)
     assert any(".gpd/phases/00-baseline/00-SUMMARY.md" in item for item in result.intake.must_include_prior_outputs)
     assert any("critical exponent" in item for item in result.intake.known_good_baselines)
-    assert "lit-anchor-ref-benchmark" in result.intake.must_read_refs
+    assert "ref-benchmark" in result.intake.must_read_refs
 
 
 def test_context_surfaces_derived_reference_registry_without_project_contract(tmp_path: Path) -> None:
@@ -157,13 +161,16 @@ def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_
         "# Review\n\n"
         "## Active References\n\n"
         "- Benchmark Ref 2025\n"
+        "  - Anchor ID: ref-benchmark-2025\n"
+        "  - Source / Locator: Benchmark Ref 2025, J. Phys. 2025\n"
         "  - Type: benchmark target\n"
         "  - Why It Matters: Decisive comparison target\n"
+        "  - Contract Subject IDs: claim-anchor\n"
         "  - Required Actions: review/compare/reference\n"
         "  - Carry Forward To: planning/verification\n"
         "\n"
         "## Must Read References\n\n"
-        "- Benchmark Ref 2025\n"
+        "- ref-benchmark-2025\n"
         "\n"
         "## Context Gaps\n\n"
         "- Need the definitive normalization note\n",
@@ -191,10 +198,11 @@ def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_
         research_map_reference_files=[".gpd/research-map/CONCERNS.md"],
     )
 
-    ref = next(ref for ref in result.references if ref.locator == "Benchmark Ref 2025")
+    ref = next(ref for ref in result.references if ref.id == "ref-benchmark-2025")
     assert ref.role == "benchmark"
+    assert ref.locator == "Benchmark Ref 2025, J. Phys. 2025"
     assert ref.required_actions == ["read", "compare", "cite"]
-    assert any(token in result.intake.must_read_refs for token in {"Benchmark Ref 2025", "lit-anchor-benchmark-ref-2025"})
+    assert "ref-benchmark-2025" in result.intake.must_read_refs
     assert ".gpd/phases/00-baseline/00-SUMMARY.md" in result.intake.must_include_prior_outputs
     assert "notes/reference-intake.md" in result.intake.crucial_inputs
     assert "Need the definitive normalization note" in result.intake.context_gaps

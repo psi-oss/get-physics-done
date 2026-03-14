@@ -78,10 +78,10 @@ contract_results:
     forbidden-proxy-id:
       status: rejected|violated|unresolved|not_applicable
       notes: "[proxy status]"
-  # Required whenever a decisive comparison was required or attempted for a user-visible target.
-  # If the comparison was started but not resolved, record `verdict: inconclusive` or `verdict: tension`
-  # instead of omitting the entry or upgrading the parent target to `passed`.
-  comparison_verdicts:
+# Required whenever a decisive comparison was required or attempted for a user-visible target.
+# If the comparison was started but not resolved, record `verdict: inconclusive` or `verdict: tension`
+# instead of omitting the entry or upgrading the parent target to `passed`.
+comparison_verdicts:
   - subject_id: claim-id
     subject_kind: claim|deliverable|acceptance_test|reference|artifact
     subject_role: decisive|supporting|supplemental
@@ -90,9 +90,9 @@ contract_results:
     metric: relative_error
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
-  # Required when the verifier can name a missing decisive check on a user-visible target.
-  # Keep these entries structured; do not replace them with freeform prose.
-  suggested_contract_checks:
+# Required when the verifier can name a missing decisive check on a user-visible target.
+# Keep these entries structured; do not replace them with freeform prose.
+suggested_contract_checks:
   - check: "[short description of missing decisive check]"
     reason: "[why the verifier believes it should exist]"
     suggested_subject_kind: claim|deliverable|acceptance_test|reference

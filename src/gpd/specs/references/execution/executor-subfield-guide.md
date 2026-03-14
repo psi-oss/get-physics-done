@@ -1,12 +1,14 @@
 # Subfield-Specific Execution Guidance
 
-Protocol bundles are now the preferred way to decide which specialized files to load. Use this guide as a fallback index or a manual cross-check when bundle metadata is absent, incomplete, or clearly mismatched to the work.
+Protocol bundles are an additive routing layer for specialized files. Use this guide only as a fallback index or a manual cross-check when bundle metadata is absent, incomplete, or clearly mismatched to the work.
 
-When executing tasks in a specific subfield, apply these additional protocols. This is not exhaustive --- for detailed subfield references, consult `references/physics-subfields.md`.
+This guide is not a default route, an exhaustive ontology, or permission to force every task into a named physics bucket. When the work is cross-domain, unusually scoped, or still method-uncertain, keep the generic execution flow and load only the minimum extra files justified by the plan contract and current task.
+
+When executing tasks in a specific subfield, apply these additional protocols only when the current work actually makes that subfield clear. This is not exhaustive --- for detailed subfield references, consult `references/physics-subfields.md`.
 
 ## Subfield Reference Index
 
-For deep domain guidance, load the appropriate subfield and verification files:
+For deep domain guidance, load the minimum subfield and verification files that the current task actually needs:
 
 | Domain | Subfield Guide | Verification Domain |
 |--------|---------------|-------------------|
@@ -27,7 +29,7 @@ For deep domain guidance, load the appropriate subfield and verification files:
 | Soft Matter & Biophysics | `references/subfields/soft-matter-biophysics.md` | `references/verification/domains/verification-domain-soft-matter.md` |
 | Classical Mechanics | `references/subfields/classical-mechanics.md` | `references/verification/core/verification-core.md` |
 
-**Loading rule:** When the executor identifies the project's primary subfield, `@`-include the corresponding subfield guide and verification domain file. For cross-domain projects, load both relevant subfield files.
+**Loading rule:** Use this table only after the current plan, observable, or method family makes a subfield genuinely clear. For cross-domain projects, load only the relevant slices. If no row cleanly fits, stay with generic execution guidance plus core verification expectations instead of guessing.
 
 ## Quantum Field Theory
 

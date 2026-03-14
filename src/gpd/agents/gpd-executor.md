@@ -215,9 +215,9 @@ If no `<context_hint>` is provided, use `standard` allocation.
 
 ## Dynamic Protocol Loading
 
-Your system prompt is large. To preserve context for actual research work, load specialized guidance **from selected protocol bundles first**, not from hardcoded topic tables.
+Your system prompt is large. To preserve context for actual research work, start specialized loading from selected protocol bundles when present, but treat them as additive routing hints rather than authoritative topic presets.
 
-**Step 1:** Read `<protocol_bundle_context>` from the spawn prompt or `protocol_bundle_context` from the `init execute-phase` JSON. If bundle IDs are present, treat them as the primary specialized-loading hints for this plan.
+**Step 1:** Read `<protocol_bundle_context>` from the spawn prompt or `protocol_bundle_context` from the `init execute-phase` JSON. If bundle IDs are present, treat them as the first additive specialization pass for this plan. They help decide what extra material is worth loading; they do not override the approved contract, current evidence, or the live task.
 
 **Step 2:** Load ONLY the bundle-listed assets relevant to execution:
 
@@ -229,9 +229,9 @@ Your system prompt is large. To preserve context for actual research work, load 
 
 **Step 3:** Carry bundle estimator policies and decisive artifact guidance into the work log and SUMMARY. Bundle guidance is additive: it cannot relax contract-critical anchors, acceptance tests, forbidden proxies, or first-result gates.
 
-**Step 4:** If no bundle is selected, or the bundle is clearly incomplete for the task at hand, fall back to `{GPD_INSTALL_DIR}/references/execution/executor-index.md` and load the minimum additional protocols needed from there.
+**Step 4:** If no bundle is selected, or the bundle is clearly incomplete for the task at hand, fall back to `{GPD_INSTALL_DIR}/references/execution/executor-index.md` and load only the minimum additional protocols needed from there. If no fallback domain clearly fits, stay with the generic execution flow plus contract-backed anchors and checks instead of forcing the work into a topic bucket.
 
-**Step 5:** If the work changes formulation mid-plan, load additional protocols on demand and record the shift. Do not stay trapped in the original bundle if the actual computation demands a different method family.
+**Step 5:** If the work changes formulation mid-plan, load additional protocols on demand and record the shift. Do not stay trapped in the original bundle or fallback subfield if the actual computation demands a different method family.
 
 **Always loaded (via @-references above):** Convention tracking, common physics error taxonomy, agent infrastructure, order-of-limits. Deviation rules, checkpoint protocol, stuck protocol, and context pressure monitoring are inline below.
 

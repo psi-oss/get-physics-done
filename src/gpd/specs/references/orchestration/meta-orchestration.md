@@ -84,10 +84,10 @@ writing:
 |---|---|
 | `research_mode: explore` | Add phase-researcher and research-mapper to formulation phases. Bibliographer uses broad search (20+ refs). Planner creates parallel plans. Verification can stage breadth over multiple passes, but contract-critical checks stay mandatory. |
 | `research_mode: exploit` | Skip phase-researcher only when the current contract, anchors, and prior outputs already make the method family obvious. Bibliographer uses narrow search (5-10 refs). Planner creates single focused plan. Verification stays full-strength on contract-critical checks and decisive comparisons. |
-| `research_mode: adaptive` | Start broad, then narrow only after prior decisive evidence or an explicit approach lock shows the method family is stable. Do not switch purely because the phase number increased. |
-| `autonomy: babysit` | All agents produce detailed explanations. Orchestrator pauses for user review at every major phase transition and key decision. |
-| `autonomy: balanced` | Standard depth. Orchestrator auto-runs routine work and pauses at major decision points, ambiguities, or blocker states. |
-| `autonomy: yolo` | Maximum speed. Skip only optional breadth agents when the contract is already well scoped. Keep the same contract-critical verification bar; autonomy changes pause cadence, not decisiveness. |
+| `research_mode: adaptive` | Start broad, then narrow only after prior decisive evidence or an explicit approach lock shows the method family is stable. Do not switch purely because the phase number increased, a wave completed, or a proxy comparison passed. |
+| `autonomy: babysit` | All agents produce detailed explanations. Orchestrator pauses for user review at every major phase transition, every required bounded gate, and each key decision, but not after every algebraic micro-step. |
+| `autonomy: balanced` | Standard depth. Orchestrator auto-runs routine work and pauses at major decision points, ambiguities, blocker states, or whenever decisive evidence is still missing and the next work would assume it. |
+| `autonomy: yolo` | Maximum speed. Skip only optional breadth agents when the contract is already well scoped. Keep the same contract-critical verification bar; autonomy changes pause cadence, not decisiveness, and it never auto-continues past an uncleared first-result, skeptical, or pre-fanout gate. |
 
 ---
 
@@ -179,19 +179,27 @@ On verification failure:
 
 For `research_mode: adaptive`, the orchestrator needs to detect when to narrow from explore-style behavior toward exploit-style behavior.
 
+The decision is evidence-driven, not phase-count-driven. Reaching a later phase, finishing one wave, or seeing one internal proxy pass is not enough on its own.
+
 ### Transition Criteria
 
 The explore-to-exploit transition fires when ALL of the following are met:
 
-1. **Approach locked by evidence:** At least one prior phase has recorded decisive comparison or contract-result evidence that makes the current method family trustworthy for follow-on work
+1. **Approach locked by evidence:** At least one prior phase has recorded decisive comparison or contract-result evidence that makes the current method family trustworthy for follow-on work. Proxy-only or sanity-only passes do NOT satisfy this.
 2. **Conventions locked:** The convention_lock in state.json has >= 5 entries and no unresolved convention conflicts
 3. **No fundamental objections:** The consistency-checker has not flagged any cross-phase inconsistencies in the last 2 phases
 4. **Method converging:** For numerical work, the target observable shows monotonic improvement with resolution/iteration. For analytical work, the planned approximation path still has a credible validation story and no unresolved anchor failures
 
+For criterion 1, prefer explicit evidence such as:
+
+- a decisive `comparison_verdicts` entry that passes for the method family now being reused
+- a `contract_results` acceptance test or claim result that the user would recognize as decisive for this method choice
+- an explicit `approach_lock` / `approach_locked` marker tied to the same evidence
+
 ### Transition Mechanics
 
 ```
-After each phase completion:
+After each phase completion or any explicit decisive-evidence update:
   1. CHECK transition criteria
   2. IF all met:
      - Keep `research_mode=adaptive`; record that the approach is now locked by evidence
@@ -201,7 +209,7 @@ After each phase completion:
        - Researcher uses exploit-mode search (narrow)
      - Verifier keeps the same contract-critical checks and narrows only optional breadth
   3. IF criteria not met but there is partial evidence:
-     - Consider partial transition: lock the approach but keep broader research or verifier depth
+     - Consider partial transition: lock the approach locally but keep broader research or verifier depth wherever decisive evidence is still missing
      - Log: "Adaptive mode: partial transition — approach locked but broader skepticism remains active"
 ```
 

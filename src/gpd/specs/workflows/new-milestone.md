@@ -201,6 +201,20 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", description="{DIMENSION} survey")
 ```
 
+Add this contract inside each spawned scout prompt when adapting it:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - .gpd/research/{FILE}
+expected_artifacts:
+  - .gpd/research/{FILE}
+shared_state_policy: return_only
+</spawn_contract>
+```
+
 **Dimension-specific fields:**
 
 | Field            | Prior Work                                                             | Methods                                                                     | Computational                                                                       | Pitfalls                                                                             |
@@ -211,7 +225,11 @@ Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 | GATES            | References specific, conditions stated, relevance explained            | Methods specific to this physics domain, cost noted, limitations identified | Algorithms defined with convergence criteria, versions current, dependencies mapped | Pitfalls specific to this extension, numerical issues covered, prevention actionable |
 | FILE             | PRIOR-WORK.md                                                          | METHODS.md                                                                  | COMPUTATIONAL.md                                                                    | PITFALLS.md                                                                          |
 
+Before trusting the scout handoff, re-read the expected output files from disk and count only artifacts that actually exist. Do not trust the runtime handoff status by itself.
+
 **If any research agent fails to spawn or returns an error:** Check which output files were created. For each missing file, note the gap and continue with available outputs. If 3+ agents failed, offer: 1) Retry all agents, 2) Skip literature survey entirely (user selects "Skip survey"), 3) Stop. If 1-2 agents failed, proceed with the synthesizer using available files.
+
+**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`.gpd/research/{FILE}`) is missing, treat that scout as incomplete. Offer: 1) Retry the missing scout in the same write scope, 2) Execute that scout's research in the main context, 3) Continue without that artifact only if the remaining survey still answers the milestone decision.
 
 After all 4 complete (or partial completion handled), spawn synthesizer:
 
@@ -238,7 +256,23 @@ Do NOT commit — the orchestrator handles commits.
 ", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", description="Synthesize literature survey")
 ```
 
+Add this contract inside the spawned synthesizer prompt when adapting it:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - .gpd/research/SUMMARY.md
+expected_artifacts:
+  - .gpd/research/SUMMARY.md
+shared_state_policy: return_only
+</spawn_contract>
+```
+
 **If the synthesizer agent fails to spawn or returns an error:** Check if individual research files exist. If they do, create a minimal SUMMARY.md in the main context by extracting key findings from each file. Proceed with available research.
+
+**Artifact gate:** If the synthesizer reports success but `.gpd/research/SUMMARY.md` is missing, treat the handoff as incomplete. Offer: 1) Retry synthesizer, 2) Create SUMMARY.md in the main context from the scout artifacts, 3) Stop and review the missing inputs.
 
 Display key findings from SUMMARY.md:
 
@@ -396,9 +430,28 @@ Write files first, then return.
 ", subagent_type="gpd-roadmapper", model="{roadmapper_model}", description="Create research roadmap")
 ```
 
+Add this contract inside the spawned roadmapper prompt when adapting it:
+
+```markdown
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - .gpd/ROADMAP.md
+    - .gpd/STATE.md
+    - .gpd/REQUIREMENTS.md
+expected_artifacts:
+  - .gpd/ROADMAP.md
+  - .gpd/STATE.md
+shared_state_policy: return_only
+</spawn_contract>
+```
+
 **Handle return:**
 
 **If the roadmapper agent fails to spawn or returns an error:** Check if ROADMAP.md was partially written. If it exists and has phases, offer to proceed with it. If no ROADMAP.md, offer: 1) Retry the roadmapper, 2) Create ROADMAP.md in the main context using PROJECT.md and REQUIREMENTS.md.
+
+**Artifact gate:** If the roadmapper reports `## ROADMAP CREATED` but `.gpd/ROADMAP.md` or `.gpd/STATE.md` is missing, treat the handoff as incomplete. Do not trust the runtime handoff status by itself. Offer: 1) Retry the roadmapper, 2) Create the missing artifacts in the main context, 3) Abort and inspect the partial write.
 
 **If `## ROADMAP BLOCKED`:** Present blocker, work with user, re-spawn.
 

@@ -114,7 +114,7 @@ Treat these as separate verification obligations:
 - `references` -> determine whether must-read anchors were read/compared/cited as required
 - `forbidden_proxies` -> determine whether tempting but non-decisive substitutes were explicitly rejected
 
-If the phase depends on a decisive comparison (benchmark, prior work, experiment, cross-method, baseline), emit a `comparison_verdicts` entry in the report keyed to the relevant contract IDs. Missing or purely implicit comparison evidence keeps the supported target below VERIFIED.
+If the phase depends on a decisive comparison (benchmark, prior work, experiment, cross-method, baseline), emit a `comparison_verdicts` entry in the report keyed to the relevant contract IDs. Missing or purely implicit comparison evidence keeps the supported target below VERIFIED. If the comparison was attempted but not closed, record that honestly with `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
 Before finalizing the check list, call `suggest_contract_checks(contract)` through the verification server and fold the returned contract-aware checks into the verification plan unless they are clearly inapplicable.
 
 **Option B: Derive contract-like targets from phase goal**
@@ -132,7 +132,7 @@ If no `contract` is available in frontmatter:
 **Important: every derived claim must be testable by substituting values, taking limits, or performing an independent computation. Outcomes that can only be checked by grepping are process claims, not verification targets.**
 
 If the plan contract is materially incomplete but the verifier can see an obvious decisive check that should exist, record it as a `suggested_contract_check` in the report rather than silently ignoring the gap.
-Record `suggested_contract_checks` only for clearly decisive, user-visible gaps. Do not use them for administrative preferences, nicer formatting, or generic paperwork.
+Record `suggested_contract_checks` only for clearly decisive, user-visible gaps. Do not use them for administrative preferences, nicer formatting, or generic paperwork. Every such entry must stay structured with `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id` when known, and `evidence_path`.
 </step>
 
 <step name="batch_verification_triage">
@@ -170,7 +170,7 @@ Count total checks across all contract-backed targets (claims + deliverables + a
 <step name="verify_contract_targets">
 For each contract-backed target, determine if the research artifacts support it.
 
-**Status:** VERIFIED (all supporting artifacts and checks pass) | PARTIAL (some evidence exists but decisive checks remain open) | FAILED (artifact missing/incomplete/unvalidated or decisive comparison fails) | UNCERTAIN (needs human expert)
+**Status:** VERIFIED (all supporting artifacts and decisive checks pass) | PARTIAL (some evidence exists but decisive checks, anchor actions, or decisive comparisons remain open) | FAILED (artifact missing/incomplete/unvalidated or decisive comparison fails) | UNCERTAIN (needs human expert)
 
 For each claim or acceptance test: identify supporting artifacts -> check artifact status -> run computational physics checks -> determine target status. State the verdict in terms of the user-visible outcome, not internal task completion.
 
@@ -178,7 +178,7 @@ For each reference target: verify the required actions (`read`, `compare`, `cite
 
 For each forbidden proxy: verify the phase did not treat the proxy as success evidence. A forbidden proxy must be explicitly rejected, not merely omitted from prose.
 
-For each decisive comparison: emit a `comparison_verdict` (`pass`, `tension`, `fail`, `inconclusive`) with the relevant subject ID, reference ID if applicable, comparison kind, metric, threshold, and outcome. A nearby sentence like "agrees with literature" or an unlabeled plot does not satisfy a decisive comparison.
+For each decisive comparison: emit a `comparison_verdict` (`pass`, `tension`, `fail`, `inconclusive`) with the relevant subject ID, reference ID if applicable, comparison kind, metric, threshold, and outcome. A nearby sentence like "agrees with literature" or an unlabeled plot does not satisfy a decisive comparison. Use `inconclusive` or `tension` for exploratory or partial verification when the comparison was started but does not yet justify a decisive pass.
 
 **Example:** Claim "Dispersion relation is correct in all limiting cases" depends on derivation.tex (full derivation), limits_check.py (numerical verification), dispersion_plot.pdf (visual confirmation).
 
@@ -189,7 +189,7 @@ Verification approach:
 3. **Take limits** independently: long-wavelength limit (should give acoustic dispersion omega ~ v\*k), tight-binding limit, etc.
 4. **Cross-check**: evaluate omega(k) numerically at several k points and compare with independent calculation
 
-If the limits you compute do not match known results -> FAILED. If some supporting evidence exists but a decisive comparison or anchor action is still missing -> PARTIAL. If all independently-computed checks pass -> VERIFIED.
+If the limits you compute do not match known results -> FAILED. If some supporting evidence exists but a decisive comparison, anchor action, or suggested decisive check is still open -> PARTIAL. If all independently-computed checks pass -> VERIFIED.
 </step>
 
 <step name="verify_artifacts">
@@ -502,9 +502,9 @@ Format each as: Check Name -> What to verify -> Expected result -> Why cannot ve
 </step>
 
 <step name="determine_status">
-**passed:** All decisive contract targets VERIFIED with computation evidence, all artifacts pass levels 1-4, all required comparison verdicts are acceptable, all must-surface references are handled, all forbidden proxies are rejected, no blocker anti-patterns, no cross-phase blockers.
+**passed:** All decisive contract targets VERIFIED with computation evidence, all artifacts pass levels 1-4, all required comparison verdicts are acceptable, all must-surface references are handled, all forbidden proxies are rejected, no unresolved `suggested_contract_checks` remain on decisive targets, no blocker anti-patterns, no cross-phase blockers.
 
-**gaps_found:** Any decisive contract target FAILED, artifact MISSING/INCOMPLETE/INCORRECT, required comparison verdict missing/FAIL/TENSION without resolution, required reference action missing, forbidden proxy VIOLATED/UNRESOLVED, physics check NOT_PERFORMED/FAILED, blocker anti-pattern found, or cross-phase blocker found.
+**gaps_found:** Any decisive contract target FAILED, artifact MISSING/INCOMPLETE/INCORRECT, required comparison verdict missing/FAIL/TENSION without resolution, required reference action missing, forbidden proxy VIOLATED/UNRESOLVED, physics check NOT_PERFORMED/FAILED, blocker anti-pattern found, cross-phase blocker found, or an omitted decisive check is recorded in `suggested_contract_checks` without an equivalent closing check elsewhere.
 
 **human_needed:** All automated and computational checks pass but expert verification items remain.
 
@@ -531,7 +531,7 @@ REPORT_PATH="$phase_dir/${phase_number}-VERIFICATION.md"
 
 Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results/comparison_verdicts/suggested_contract_checks/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata. The contract targets table should read like a user-visible outcome ledger, not a workflow checklist.
 
-If the verifier identifies a decisive check that the contract omitted but downstream work clearly depends on, record it under `suggested_contract_checks` with a reason and recommended evidence path.
+If the verifier identifies a decisive check that the contract omitted but downstream work clearly depends on, record it under `suggested_contract_checks` with a reason and recommended evidence path. Do not hide this by marking the parent target VERIFIED; keep the target PARTIAL or FAILED until the missing decisive check is resolved or explicitly re-scoped.
 
 See {GPD_INSTALL_DIR}/templates/verification-report.md for complete template.
 </step>
@@ -586,10 +586,10 @@ Orchestrator routes: `passed` -> update_roadmap | `gaps_found` -> create/execute
 - [ ] All physics checks verified computationally (not just structurally)
 - [ ] Convergence tested at multiple resolutions for numerical results
 - [ ] Literature benchmarks compared with actual numerical values
-- [ ] Required `comparison_verdicts` emitted for decisive benchmarks / prior-work / experiment / cross-method checks
+- [ ] Required `comparison_verdicts` emitted for decisive benchmarks / prior-work / experiment / cross-method checks, including `inconclusive` / `tension` when honest
 - [ ] Missing decisive comparison verdicts keep the supported target below VERIFIED
 - [ ] Required references handled and forbidden proxies explicitly audited
-- [ ] Missing decisive checks recorded as `suggested_contract_checks`
+- [ ] Missing decisive checks recorded as structured `suggested_contract_checks`
 - [ ] Requirements coverage assessed (if applicable)
 - [ ] Anti-patterns scanned and categorized
 - [ ] Cross-phase consistency checked (notation, conventions, approximations, units) if 2+ phases exist

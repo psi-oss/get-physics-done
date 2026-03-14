@@ -44,11 +44,11 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
 | `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"babysit"`, `"balanced"`, `"yolo"`                                    |
 | `execution.review_cadence`      | `"adaptive"`                 | How aggressively long-running execution injects bounded review points                            |
-| `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a continuation segment should be created                                |
+| `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a bounded continuation segment must be created, even if the run feels smooth |
 | `execution.max_unattended_minutes_per_wave` | `90`             | Wave-level unattended budget before forcing a bounded review                                     |
 | `execution.checkpoint_after_n_tasks` | `3`                    | Task budget before forcing a bounded continuation segment                                        |
-| `execution.checkpoint_after_first_load_bearing_result` | `true` | Require a first-result sanity gate before fanout                                                 |
-| `execution.checkpoint_before_downstream_dependent_tasks` | `true` | Require review before dependent downstream work unlocks                                          |
+| `execution.checkpoint_after_first_load_bearing_result` | `true` | Require a first-result sanity gate before fanout, especially when decisive evidence is not yet in hand |
+| `execution.checkpoint_before_downstream_dependent_tasks` | `true` | Require review before dependent downstream work unlocks when later tasks would assume unresolved decisive evidence |
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
 | `parallelization`               | `true`                       | Execute plans within a wave in parallel (`true`) or sequentially (`false`)                     |
 | `model_profile`                 | `"review"`                   | Research profile: `"deep-theory"`, `"numerical"`, `"exploratory"`, `"review"`, `"paper-writing"` |
@@ -114,14 +114,17 @@ The CLI checks `commit_docs` config and gitignore status internally -- no manual
 | Value        | Behavior |
 | ------------ | -------- |
 | `"dense"`    | Frequent bounded review points and short unattended segments |
-| `"adaptive"` | Default. Insert first-result and risky-fanout gates automatically |
-| `"sparse"`   | Fewest review stops, but required correctness gates still run |
+| `"adaptive"` | Default. Insert first-result and risky-fanout gates automatically when results become load-bearing or decisive evidence remains unresolved |
+| `"sparse"`   | Fewest review stops, but required correctness gates still run when a result becomes load-bearing, decisive evidence is still missing, or a wall-clock/task budget trips |
 
 `autonomy` and `execution.review_cadence` are separate axes:
 
 - `autonomy` controls who must review or approve a gate
 - `execution.review_cadence` controls when the system must create a bounded gate
 - even in `yolo`, first-result and failed-sanity gates are not skipped
+- wall-clock and task budgets still create bounded segments in every autonomy mode
+- `babysit` means each required gate is shown for approval; `balanced` pauses on non-routine or unresolved cases; `yolo` may auto-continue only after the gate is explicitly cleared
+- phase number, wave number, and `model_profile` do not create or retire these gates by themselves
 
 When cadence logic injects a gate, the orchestrator still runs lightweight convention and sanity checks before unlocking downstream work.
 

@@ -43,9 +43,13 @@ A vague PROJECT.md forces every downstream phase to guess. The cost compounds --
 
 **Surface anchors early.** Ask what references, prior outputs, benchmarks, datasets, or known results should remain visible if the project goes well. If none are known yet, record that explicitly instead of inventing one.
 
+**Preserve the user's guidance.** If they name a specific figure, dataset, derivation, notebook, prior run, paper, benchmark, stop condition, or review checkpoint, keep that wording recognizable. Do not flatten it into generic "artifact" or "benchmark" language unless they asked you to broaden it.
+
 **Pressure-test the first story.** Treat the first framing as a working hypothesis, not as truth. Once you have a plausible framing on the table, restate the current picture in one sentence and ask one question that could narrow, overturn, or falsify it.
 
 **Separate decisive outputs from proxies.** Ask what exact output, figure, table, proof obligation, or benchmark would count as success, and what might look like progress but should not count as success.
+
+**Do not force decomposition too early.** If the question, decisive output, and anchors are becoming clear but the roadmap is still fuzzy, record that as an open decomposition question instead of pushing for fake phases.
 
 **Know when to stop.** When you understand what they want to establish, why it matters, what regime or scope they care about, what outputs count as success, and what anchors or disconfirming checks should constrain the work -- offer to proceed.
 
@@ -150,6 +154,7 @@ Use this as a **background checklist**, not a conversation structure. Check thes
 - [ ] What would be a misleading proxy for success
 
 These are background checks, not a script. If they volunteer more -- scales, known limits, relevant references, prior outputs, likely failure modes -- capture it.
+If they already know only the first grounded investigation chunk, that is enough. Carry the rest as open decomposition rather than forcing a full roadmap during setup.
 
 </context_checklist>
 
@@ -161,7 +166,8 @@ Only offer to proceed when you can state, in concrete terms:
 - the decisive output or deliverable,
 - at least one anchor (or an explicit "anchor unknown; must establish later"),
 - the weakest assumption,
-- one failure signal or forbidden proxy.
+- one failure signal or forbidden proxy,
+- and any user-stated prior outputs, stop conditions, or review triggers that must stay visible.
 
 Then offer to proceed:
 
@@ -172,6 +178,7 @@ Then offer to proceed:
   - "Keep exploring" -- I want to clarify more / ask me more
 
 If "Keep exploring" -- ask what they want to add or identify gaps in the physical picture and probe naturally.
+Lack of a full phase list is not itself a blocker. If only the first grounded investigation chunk is clear, that is enough to offer the gate.
 
 Do not count turns mechanically. Keep exploring while the conversation is materially sharpening the scoping contract, and re-offer the gate when the picture becomes clearer.
 

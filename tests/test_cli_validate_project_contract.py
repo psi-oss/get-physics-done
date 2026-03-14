@@ -22,8 +22,36 @@ def test_validate_project_contract_command_accepts_valid_fixture(tmp_path: Path)
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["valid"] is True
+    assert payload["warnings"] == []
+    assert payload["question"] == "What benchmark must the project recover?"
     assert payload["decisive_target_count"] > 0
     assert payload["guidance_signal_count"] > 0
+    assert payload["reference_count"] > 0
+
+
+def test_validate_project_contract_command_warns_when_user_guidance_is_missing(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    contract_path = tmp_path / "project-contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(app, ["--raw", "validate", "project-contract", str(contract_path)], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is True
+    assert payload["guidance_signal_count"] == 0
+    assert (
+        "no user guidance signals recorded yet (must_read_refs, prior outputs, anchors, baselines, gaps, or crucial inputs)"
+        in payload["warnings"]
+    )
 
 
 def test_validate_project_contract_command_blocks_missing_skeptical_fields(tmp_path: Path) -> None:

@@ -33,6 +33,8 @@ Your job: Survey the physics literature on a given topic and produce a structure
 - Detect and diagnose controversies
 - Produce a structured review document with explicit confidence assessments
 - Identify which references are contract-critical anchors versus background
+- Assign every contract-critical anchor a stable `anchor_id` plus a concrete `locator` (citation, dataset identifier, or file path)
+- Keep workflow carry-forward scope (`planning/execution/verification/writing`) separate from any claim/deliverable subject IDs
   </role>
 
 <autonomy_awareness>
@@ -889,9 +891,11 @@ status: completed | checkpoint | blocked | failed
 
 ## Active Anchor Registry
 
-| Anchor | Type | Why It Matters | Required Action | Downstream Use |
-| ------ | ---- | -------------- | --------------- | -------------- |
-| {reference or artifact} | {benchmark/method/background/prior artifact} | {claim, observable, or deliverable constrained} | {read/use/compare/cite} | {planning/execution/verification/writing} |
+| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |
+| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |
+| {stable-anchor-id} | {reference or artifact} | {benchmark/method/background/prior artifact} | {citation, dataset id, or path} | {claim, observable, deliverable, or convention constrained} | {claim-id, deliverable-id, or blank} | {read/use/compare/cite} | {planning/execution/verification/writing} |
+
+`Carry Forward To` names workflow stages only. If you know exact contract claim/deliverable IDs, record them in `Contract Subject IDs` instead of overloading the stage field.
 
 ## Full Reference List
 
@@ -913,11 +917,14 @@ review_summary:
       value: "[value ± uncertainty]"
       source: "[paper]"
   active_anchors:
-    - anchor: "[reference or artifact]"
+    - anchor_id: "[stable-anchor-id]"
+      anchor: "[reference or artifact]"
+      locator: "[citation, dataset id, or file path]"
       type: "[benchmark/method/background/prior artifact]"
       why_it_matters: "[claim, observable, or deliverable constrained]"
+      contract_subject_ids: ["claim-id", "deliverable-id"]
       required_action: "[read/use/compare/cite]"
-      downstream_use: "[planning/execution/verification/writing]"
+      carry_forward_to: "[planning/execution/verification/writing]"
   recommended_methods:
     - method: "[name]"
       regime: "[where it works]"
@@ -925,7 +932,7 @@ review_summary:
 ---
 \`\`\`
 
-**Purpose:** This structured block enables gpd-phase-researcher and gpd-project-researcher to quickly extract key findings without parsing the full review.
+**Purpose:** This structured block enables gpd-phase-researcher and gpd-project-researcher to quickly extract key findings without parsing the full review. `anchor_id` and `locator` are the durable identity pair; `carry_forward_to` is workflow-stage scope, not contract subject linkage.
 ```
 
 ### Downstream Consumers
