@@ -1,0 +1,12 @@
+{
+  "autonomy": "babysit",
+  "research_mode": "explore",
+  "parallelization": true,
+  "commit_docs": true,
+  "model_profile": "deep-theory",
+  "workflow": {
+    "research": true,
+    "plan_checker": true,
+    "verifier": true
+  }
+}
