@@ -262,6 +262,65 @@ def _truthy(value: object) -> bool:
     return value in (True, "true", "True", 1, "1", "yes", "YES")
 
 
+def _binding_id_values(binding: dict[str, object]) -> list[str]:
+    values: list[str] = []
+    for value in binding.values():
+        if isinstance(value, str):
+            values.append(value)
+        elif isinstance(value, list):
+            values.extend(str(item) for item in value if isinstance(item, str))
+    return values
+
+
+def _with_contract_policy_defaults(
+    check_key: str,
+    *,
+    contract: ResearchContract | None,
+    binding: dict[str, object],
+    metadata: dict[str, object],
+) -> dict[str, object]:
+    """Fill contract-check metadata from structured contract policy when missing."""
+
+    if contract is None:
+        return metadata
+
+    enriched = dict(metadata)
+    if check_key == "contract.benchmark_reproduction" and not enriched.get("source_reference_id"):
+        binding_ids = set(_binding_id_values(binding))
+        benchmark_refs = [
+            reference.id
+            for reference in contract.references
+            if reference.role == "benchmark" or "compare" in reference.required_actions
+        ]
+        for candidate in benchmark_refs:
+            if candidate in binding_ids:
+                enriched["source_reference_id"] = candidate
+                break
+        else:
+            if benchmark_refs:
+                enriched["source_reference_id"] = benchmark_refs[0]
+
+    if check_key == "contract.fit_family_mismatch":
+        if not enriched.get("allowed_families") and contract.approach_policy.allowed_fit_families:
+            enriched["allowed_families"] = list(contract.approach_policy.allowed_fit_families)
+        if not enriched.get("forbidden_families") and contract.approach_policy.forbidden_fit_families:
+            enriched["forbidden_families"] = list(contract.approach_policy.forbidden_fit_families)
+
+    if check_key == "contract.estimator_family_mismatch":
+        if not enriched.get("allowed_families") and contract.approach_policy.allowed_estimator_families:
+            enriched["allowed_families"] = list(contract.approach_policy.allowed_estimator_families)
+        if not enriched.get("forbidden_families") and contract.approach_policy.forbidden_estimator_families:
+            enriched["forbidden_families"] = list(contract.approach_policy.forbidden_estimator_families)
+
+    if check_key == "contract.limit_recovery":
+        if not enriched.get("regime_label"):
+            regimes = [observable.regime for observable in contract.observables if observable.regime]
+            if regimes:
+                enriched["regime_label"] = regimes[0]
+
+    return enriched
+
+
 @mcp.tool()
 def run_contract_check(request: dict) -> dict:
     """Run a contract-aware verification check using structured metadata."""
@@ -301,6 +360,12 @@ def run_contract_check(request: dict) -> dict:
         metadata = request.get("metadata") if isinstance(request.get("metadata"), dict) else {}
         observed = request.get("observed") if isinstance(request.get("observed"), dict) else {}
         artifact_content = str(request.get("artifact_content") or "")
+        metadata = _with_contract_policy_defaults(
+            check_meta.check_key,
+            contract=contract,
+            binding=binding,
+            metadata=metadata,
+        )
 
         missing_inputs: list[str] = []
         automated_issues: list[str] = []
@@ -538,14 +603,14 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
             keyword in " ".join([test.procedure, test.pass_condition]).lower()
             for test in parsed.acceptance_tests
             for keyword in ("fit", "residual", "extrapolat", "ansatz")
-        ):
+        ) or parsed.approach_policy.allowed_fit_families or parsed.approach_policy.forbidden_fit_families:
             _add("contract.fit_family_mismatch", "Acceptance tests mention fitting or extrapolation families")
 
         if any(
             keyword in " ".join([test.procedure, test.pass_condition]).lower()
             for test in parsed.acceptance_tests
             for keyword in ("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance")
-        ):
+        ) or parsed.approach_policy.allowed_estimator_families or parsed.approach_policy.forbidden_estimator_families:
             _add("contract.estimator_family_mismatch", "Acceptance tests mention estimator-family assumptions")
 
         return {

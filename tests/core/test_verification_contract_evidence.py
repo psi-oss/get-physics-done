@@ -68,6 +68,21 @@ def test_validate_frontmatter_summary_with_source_path_rejects_unknown_contract_
     assert any("Unknown claim contract_results entry: claim-unknown" in error for error in result.errors)
 
 
+def test_validate_frontmatter_summary_with_source_path_reports_unresolved_plan_contract_ref(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+
+
 def test_validate_frontmatter_verification_with_source_path_requires_contract_results(tmp_path: Path) -> None:
     phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
@@ -164,6 +179,17 @@ def test_validate_frontmatter_verification_with_source_path_accepts_partial_resu
         .replace(
             "    verdict: pass\n",
             "    verdict: inconclusive\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    verification_path.write_text(
+        verification_path.read_text(encoding="utf-8").replace(
+            "comparison_verdicts:\n",
+            "suggested_contract_checks:\n"
+            "  - check_id: contract.benchmark_recovery\n"
+            "    reason: Need a decisive benchmark comparison before this target can pass.\n"
+            "comparison_verdicts:\n",
             1,
         ),
         encoding="utf-8",

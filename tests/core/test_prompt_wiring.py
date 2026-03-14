@@ -800,9 +800,13 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "templates/paper/review-ledger-schema.md" in referee
     assert "templates/paper/referee-decision-schema.md" in referee
     assert "gpd validate review-ledger" in peer_review
+    assert "--ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json" in peer_review
     assert "templates/paper/review-ledger-schema.md" in panel
     assert "templates/paper/referee-decision-schema.md" in panel
+    assert "--ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json" in panel
     assert "templates/paper/paper-quality-input-schema.md" in scoring
+    assert "XX-VERIFICATION.md" in contract_results_schema
+    assert "REFEREE-DECISION{round_suffix}.json --strict --ledger" in referee_decision_schema
     assert "random_seeds[].computation" in reproducibility_template
     assert "resource_requirements[].step" in reproducibility_template
     assert "templates/paper/reproducibility-manifest.md" in reproducibility_protocol

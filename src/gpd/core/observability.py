@@ -372,6 +372,138 @@ def _refresh_checkpoint_reason(current: dict[str, object]) -> None:
         current["checkpoint_reason"] = None
 
 
+def _load_execution_policy(cwd: Path | None) -> dict[str, object]:
+    """Load the bounded-execution policy for one project root."""
+
+    if cwd is None:
+        return {}
+    try:
+        from gpd.core.config import load_config
+
+        cfg = load_config(cwd)
+    except Exception:
+        return {}
+    return {
+        "max_unattended_minutes_per_plan": int(getattr(cfg, "max_unattended_minutes_per_plan", 0) or 0),
+        "max_unattended_minutes_per_wave": int(getattr(cfg, "max_unattended_minutes_per_wave", 0) or 0),
+        "checkpoint_after_n_tasks": int(getattr(cfg, "checkpoint_after_n_tasks", 0) or 0),
+        "checkpoint_after_first_load_bearing_result": bool(
+            getattr(cfg, "checkpoint_after_first_load_bearing_result", True)
+        ),
+    }
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _ensure_manual_review_stop(
+    current: dict[str, object],
+    *,
+    checkpoint_reason: str,
+    waiting_reason: str,
+) -> None:
+    """Promote the current segment into a resumable review stop."""
+
+    current["checkpoint_reason"] = checkpoint_reason
+    current["waiting_for_review"] = True
+    current["review_required"] = True
+    current["waiting_reason"] = waiting_reason
+    current["segment_status"] = "waiting_review"
+
+
+def _apply_automatic_execution_guards(
+    current: dict[str, object],
+    payload: ObservabilityEvent,
+    execution: dict[str, object],
+    *,
+    cwd: Path | None,
+) -> None:
+    """Apply guardrails that should not rely entirely on prompt compliance."""
+
+    policy = _load_execution_policy(cwd)
+
+    load_bearing = _bool_or_none(execution.get("load_bearing")) is True
+    skeptical_hints = any(
+        (
+            _bool_or_none(execution.get("proxy_only")) is True,
+            _bool_or_none(execution.get("direct_anchor_missing")) is True,
+            _bool_or_none(execution.get("comparison_gap")) is True,
+            bool(current.get("weakest_unchecked_anchor")),
+            bool(current.get("disconfirming_observation")),
+        )
+    )
+
+    if (
+        payload.name == "result"
+        and payload.action in {"produce", "log"}
+        and load_bearing
+        and policy.get("checkpoint_after_first_load_bearing_result")
+        and not current.get("first_result_gate_pending")
+    ):
+        current["first_result_ready"] = True
+        current["first_result_gate_pending"] = True
+        _ensure_manual_review_stop(
+            current,
+            checkpoint_reason="first_result",
+            waiting_reason="first_result_review_required",
+        )
+
+    if skeptical_hints and not current.get("skeptical_requestioning_required"):
+        current["skeptical_requestioning_required"] = True
+        if not current.get("checkpoint_reason"):
+            current["checkpoint_reason"] = "skeptical_requestioning"
+        current["downstream_locked"] = True
+        _ensure_manual_review_stop(
+            current,
+            checkpoint_reason=current.get("checkpoint_reason") or "skeptical_requestioning",
+            waiting_reason="skeptical_requestioning_required",
+        )
+
+    task_cap = int(policy.get("checkpoint_after_n_tasks") or 0)
+    task_index = _int_or_none(current.get("current_task_index"))
+    if (
+        task_cap > 0
+        and task_index is not None
+        and task_index > 0
+        and task_index % task_cap == 0
+        and not _review_gate_pending(current)
+        and not current.get("blocked_reason")
+    ):
+        _ensure_manual_review_stop(
+            current,
+            checkpoint_reason=str(current.get("checkpoint_reason") or "segment_boundary"),
+            waiting_reason="task_budget_reached",
+        )
+
+    started_at = _parse_iso_datetime(current.get("segment_started_at"))
+    observed_at = _parse_iso_datetime(payload.timestamp)
+    if started_at is None or observed_at is None or current.get("blocked_reason"):
+        return
+
+    elapsed_minutes = (observed_at - started_at).total_seconds() / 60.0
+    max_minutes = int(policy.get("max_unattended_minutes_per_wave") or 0) if current.get("wave") else 0
+    if max_minutes <= 0:
+        max_minutes = int(policy.get("max_unattended_minutes_per_plan") or 0)
+    if max_minutes > 0 and elapsed_minutes >= max_minutes and not _review_gate_pending(current):
+        _ensure_manual_review_stop(
+            current,
+            checkpoint_reason=str(current.get("checkpoint_reason") or "segment_boundary"),
+            waiting_reason="time_budget_exceeded",
+        )
+
+
 def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: ObservabilityEvent, execution: dict[str, object]) -> bool:
     if _bool_or_none(execution.get("preserve_current")):
         return False
@@ -421,6 +553,8 @@ def _matches_active_execution(
 def _updated_execution_state(
     existing: CurrentExecutionState | None,
     payload: ObservabilityEvent,
+    *,
+    cwd: Path | None = None,
 ) -> CurrentExecutionState | None:
     if payload.category != "execution":
         return existing
@@ -545,6 +679,12 @@ def _updated_execution_state(
                 current["downstream_locked"] = False
             if current.get("segment_status") == "waiting_review" and not _review_gate_pending(current):
                 current["segment_status"] = "active"
+        elif not _review_gate_pending(current):
+            current["waiting_for_review"] = False
+            current["review_required"] = False
+            current["waiting_reason"] = None
+            if current.get("segment_status") == "waiting_review":
+                current["segment_status"] = "active"
 
     if payload.name == "fanout" and payload.action == "lock":
         current["downstream_locked"] = True
@@ -569,6 +709,8 @@ def _updated_execution_state(
     if payload.name == "result" and payload.action in {"produce", "log"}:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
+
+    _apply_automatic_execution_guards(current, payload, execution, cwd=cwd)
 
     _refresh_checkpoint_reason(current)
     if current.get("skeptical_requestioning_required") and not current.get("waiting_for_review"):
@@ -942,7 +1084,7 @@ def observe_event(
         data=data or {},
     )
     _append_event(_session_log(layout, session.session_id), payload.model_dump(mode="json"))
-    next_execution = _updated_execution_state(get_current_execution(layout.root), payload)
+    next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
     if next_execution is None:
         _clear_current_execution(layout)
     else:

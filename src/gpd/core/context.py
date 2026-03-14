@@ -243,6 +243,19 @@ def _append_unique_strings(target: list[str], values: list[object] | tuple[objec
             target.append(text)
 
 
+def _reference_identity_tokens(values: list[object]) -> set[str]:
+    """Return normalized identity tokens for matching related anchor records."""
+    tokens: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        normalized = re.sub(r"[^a-z0-9]+", " ", text.casefold()).strip()
+        if normalized:
+            tokens.add(normalized)
+    return tokens
+
+
 def _build_active_reference_lookup(
     active_references: list[dict[str, object]],
 ) -> tuple[dict[str, dict[str, object]], dict[str, str]]:
@@ -276,11 +289,25 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
             if str(candidate.get("locator") or "").strip().casefold() == locator_key:
                 target = candidate
                 break
+    if target is None:
+        incoming_tokens = _reference_identity_tokens([ref_id, locator, *list(ref.get("aliases") or [])])
+        for candidate in merged.values():
+            candidate_tokens = _reference_identity_tokens(
+                [
+                    candidate.get("id"),
+                    candidate.get("locator"),
+                    *list(candidate.get("aliases") or []),
+                ]
+            )
+            if incoming_tokens and candidate_tokens and incoming_tokens.intersection(candidate_tokens):
+                target = candidate
+                break
 
     if target is None:
         payload = dict(ref)
         payload["required_actions"] = list(ref.get("required_actions") or [])
         payload["applies_to"] = list(ref.get("applies_to") or [])
+        payload["carry_forward_to"] = list(ref.get("carry_forward_to") or [])
         payload["source_artifacts"] = list(ref.get("source_artifacts") or [])
         payload["aliases"] = list(ref.get("aliases") or [])
         if ref_id:
@@ -303,7 +330,9 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
             target["why_it_matters"] = why
     _append_unique_strings(target.setdefault("required_actions", []), list(ref.get("required_actions") or []))
     _append_unique_strings(target.setdefault("applies_to", []), list(ref.get("applies_to") or []))
+    _append_unique_strings(target.setdefault("carry_forward_to", []), list(ref.get("carry_forward_to") or []))
     _append_unique_strings(target.setdefault("source_artifacts", []), list(ref.get("source_artifacts") or []))
+    _append_unique_strings(target.setdefault("aliases", []), list(ref.get("aliases") or []))
     target["must_surface"] = bool(target.get("must_surface") or ref.get("must_surface"))
 
 
@@ -374,9 +403,13 @@ def _canonical_contract_reference_payload(
                 "id": ref_id,
                 "kind": str(ref.get("kind") or "other"),
                 "locator": locator,
+                "aliases": [str(item).strip() for item in list(ref.get("aliases") or []) if str(item).strip()],
                 "role": str(ref.get("role") or "other"),
                 "why_it_matters": str(ref.get("why_it_matters") or "").strip() or locator,
                 "applies_to": [item for item in list(ref.get("applies_to") or []) if item in allowed_subject_ids],
+                "carry_forward_to": [
+                    str(item).strip() for item in list(ref.get("carry_forward_to") or []) if str(item).strip()
+                ],
                 "must_surface": bool(ref.get("must_surface")),
                 "required_actions": list(ref.get("required_actions") or []),
             }
@@ -397,6 +430,9 @@ def _merge_contract_reference_payload(
         payload["kind"] = derived.get("kind")
     if not str(payload.get("locator") or "").strip():
         payload["locator"] = derived.get("locator")
+    merged_aliases: list[str] = [str(item).strip() for item in list(payload.get("aliases") or []) if str(item).strip()]
+    _append_unique_strings(merged_aliases, list(derived.get("aliases") or []))
+    payload["aliases"] = merged_aliases
     if str(payload.get("role") or "other").strip() == "other" and str(derived.get("role") or "").strip():
         payload["role"] = derived.get("role")
 
@@ -413,6 +449,11 @@ def _merge_contract_reference_payload(
         [item for item in list(derived.get("applies_to") or []) if item in allowed_subject_ids],
     )
     payload["applies_to"] = merged_applies_to
+    merged_carry_forward_to: list[str] = [
+        str(item).strip() for item in list(payload.get("carry_forward_to") or []) if str(item).strip()
+    ]
+    _append_unique_strings(merged_carry_forward_to, list(derived.get("carry_forward_to") or []))
+    payload["carry_forward_to"] = merged_carry_forward_to
 
     merged_actions: list[str] = list(payload.get("required_actions") or [])
     _append_unique_strings(merged_actions, list(derived.get("required_actions") or []))
@@ -425,10 +466,22 @@ def _canonical_contract_intake(
     contract: ResearchContract,
     *,
     active_references: list[dict[str, object]],
+    effective_reference_intake: dict[str, list[str]],
 ) -> dict[str, list[str]]:
-    """Return the user-authored contract intake with canonicalized ref IDs only."""
+    """Return additive canonical intake with canonicalized reference IDs."""
 
-    intake = contract.context_intake.model_dump(mode="json")
+    intake = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    contract_intake = contract.context_intake.model_dump(mode="json")
+    for key in intake:
+        _append_unique_strings(intake[key], list(contract_intake.get(key) or []))
+        _append_unique_strings(intake[key], list(effective_reference_intake.get(key) or []))
     _, token_to_id = _build_active_reference_lookup(active_references)
     canonical_must_read_refs: list[str] = []
     for token in list(intake.get("must_read_refs") or []):
@@ -450,7 +503,11 @@ def _canonicalize_project_contract(
         return None
 
     payload = contract.model_dump(mode="json")
-    payload["context_intake"] = _canonical_contract_intake(contract, active_references=active_references)
+    payload["context_intake"] = _canonical_contract_intake(
+        contract,
+        active_references=active_references,
+        effective_reference_intake=effective_reference_intake,
+    )
     allowed_subject_ids = {
         str(item.get("id") or "").strip()
         for item in [*payload.get("claims", []), *payload.get("deliverables", [])]
@@ -531,13 +588,16 @@ def _render_active_reference_context(
         for ref in active_references:
             actions = ", ".join(str(action) for action in ref.get("required_actions", [])) or "review"
             applies_to = ", ".join(str(item) for item in ref.get("applies_to", [])) or "global"
+            carry_forward_to = ", ".join(str(item) for item in ref.get("carry_forward_to", []))
             kind = str(ref.get("kind") or "other")
             must_surface = " | must surface" if ref.get("must_surface") else ""
+            carry_forward_note = f" | carry forward: {carry_forward_to}" if carry_forward_to else ""
             source_artifacts = ", ".join(str(item) for item in ref.get("source_artifacts", []) if item)
             source_note = f" | source: {source_artifacts}" if source_artifacts else ""
             lines.append(
                 f"- [{ref['id']}] {ref['locator']} | kind: {kind} | role: {ref['role']}{must_surface} | "
-                f"actions: {actions} | applies_to: {applies_to} | why: {ref['why_it_matters']}{source_note}"
+                f"actions: {actions} | applies_to: {applies_to}{carry_forward_note} | "
+                f"why: {ref['why_it_matters']}{source_note}"
             )
     else:
         if literature_review_files or research_map_reference_files:

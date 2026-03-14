@@ -129,10 +129,12 @@ class ArtifactReference:
 
     id: str
     locator: str
+    aliases: list[str] = field(default_factory=list)
     kind: str = "other"
     role: str = "other"
     why_it_matters: str = ""
     applies_to: list[str] = field(default_factory=list)
+    carry_forward_to: list[str] = field(default_factory=list)
     must_surface: bool = True
     required_actions: list[str] = field(default_factory=list)
     source_artifacts: list[str] = field(default_factory=list)
@@ -142,10 +144,12 @@ class ArtifactReference:
         return {
             "id": self.id,
             "locator": self.locator,
+            "aliases": list(self.aliases),
             "kind": self.kind,
             "role": self.role,
             "why_it_matters": self.why_it_matters,
             "applies_to": list(self.applies_to),
+            "carry_forward_to": list(self.carry_forward_to),
             "must_surface": self.must_surface,
             "required_actions": list(self.required_actions),
             "source_artifacts": list(self.source_artifacts),
@@ -275,6 +279,18 @@ def _reference_id(label: str, locator: str, prefix: str) -> str:
     return f"{prefix}-{slug or 'anchor'}"
 
 
+def _reference_identity_tokens(*values: object) -> list[str]:
+    tokens: list[str] = []
+    for value in values:
+        cleaned = _clean_text(value)
+        if not cleaned:
+            continue
+        normalized = _normalize_token(cleaned)
+        if normalized and normalized not in tokens:
+            tokens.append(normalized)
+    return tokens
+
+
 def _extract_section(content: str, heading: str) -> str | None:
     target = _normalize_token(heading)
     for match in re.finditer(r"^(?P<marks>#{1,6})\s+(?P<title>[^\n]+?)\s*$", content, re.MULTILINE):
@@ -380,6 +396,7 @@ def _parse_reference_block(
         anchor_id=_mapping_value(detail_map, "anchor id", "reference id", "id"),
         label=label,
         locator=locator or label,
+        applies_to=_mapping_value(detail_map, "applies to", "subject ids", "subject ids / applies to"),
         kind=_mapping_value(detail_map, "kind", "artifact kind"),
         role=_mapping_value(detail_map, "type", "role", "kind"),
         why_it_matters=why,
@@ -473,6 +490,25 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
             if candidate.locator.casefold() == locator_key:
                 target = candidate
                 break
+        if target is None:
+            incoming_tokens = set(
+                _reference_identity_tokens(
+                    reference.id,
+                    reference.locator,
+                    *reference.aliases,
+                )
+            )
+            for candidate in records.values():
+                candidate_tokens = set(
+                    _reference_identity_tokens(
+                        candidate.id,
+                        candidate.locator,
+                        *candidate.aliases,
+                    )
+                )
+                if incoming_tokens and candidate_tokens and incoming_tokens.intersection(candidate_tokens):
+                    target = candidate
+                    break
     if target is None:
         records[reference.id] = reference
         return
@@ -490,10 +526,14 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
             target.why_it_matters = reference.why_it_matters
     for value in reference.applies_to:
         _append_unique(target.applies_to, value)
+    for value in reference.carry_forward_to:
+        _append_unique(target.carry_forward_to, value)
     for value in reference.required_actions:
         _append_unique(target.required_actions, value)
     for value in reference.source_artifacts:
         _append_unique(target.source_artifacts, value)
+    for value in reference.aliases:
+        _append_unique(target.aliases, value)
     target.must_surface = target.must_surface or reference.must_surface
 
 
@@ -502,6 +542,7 @@ def _reference_from_active_anchor(
     anchor_id: str | None,
     label: str,
     locator: str | None,
+    applies_to: object | None = None,
     kind: str | None,
     role: str | None,
     why_it_matters: str | None,
@@ -518,16 +559,22 @@ def _reference_from_active_anchor(
         normalized_kind = "prior_artifact"
     if normalized_role == "other" and normalized_kind in {"prior_artifact", "user_anchor"}:
         normalized_role = "must_consider"
+    alias_values: list[str] = []
+    for alias in {_clean_text(label), _clean_text(locator), _clean_text(anchor_id)}:
+        if alias and alias not in {locator_value, _clean_text(anchor_id)}:
+            alias_values.append(alias)
     must_surface = normalized_role in {"benchmark", "definition", "method", "must_consider"} or bool(
         {"use", "compare", "avoid"} & set(normalized_actions)
     )
     return ArtifactReference(
         id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
         locator=locator_value,
+        aliases=alias_values,
         kind=normalized_kind,
         role=normalized_role,
         why_it_matters=_clean_text(why_it_matters),
-        applies_to=_normalize_multi_value(downstream),
+        applies_to=_normalize_multi_value(applies_to),
+        carry_forward_to=_normalize_multi_value(downstream),
         must_surface=must_surface,
         required_actions=normalized_actions,
         source_artifacts=[source_path],
@@ -549,6 +596,7 @@ def _ingest_reference_registry_section(
             anchor_id=_mapping_value(canonical_row, "anchor id", "reference id", "id"),
             label=_mapping_value(canonical_row, "anchor", "reference", "label", "source / locator"),
             locator=_mapping_value(canonical_row, "source / locator", "locator", "source", "reference", "anchor"),
+            applies_to=_mapping_value(canonical_row, "applies to", "subject ids"),
             kind=_mapping_value(canonical_row, "kind", "artifact kind"),
             role=_mapping_value(canonical_row, "type", "role", "kind"),
             why_it_matters=_mapping_value(canonical_row, "why it matters", "what it constrains", "description"),
@@ -665,6 +713,7 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     anchor_id=str(entry.get("anchor_id") or ""),
                     label=str(entry.get("anchor") or entry.get("label") or entry.get("locator") or "literature-anchor"),
                     locator=str(entry.get("locator") or entry.get("source") or entry.get("anchor") or ""),
+                    applies_to=entry.get("applies_to") or entry.get("subject_ids"),
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),

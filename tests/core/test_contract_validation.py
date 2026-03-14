@@ -51,11 +51,53 @@ def test_validate_project_contract_warns_when_user_guidance_signals_are_missing(
         "crucial_inputs": [],
     }
 
-    result = validate_project_contract(contract)
+    result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
     assert result.guidance_signal_count == 0
     assert any("no user guidance signals recorded yet" in warning for warning in result.warnings)
+
+
+def test_validate_project_contract_approved_mode_requires_anchor_signal_or_explicit_anchor_unknown() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    contract["scope"]["unresolved_questions"] = ["Need to decide which ground-truth anchor matters most"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+
+
+def test_validate_project_contract_approved_mode_accepts_explicit_anchor_unknown_blocker() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    for claim in contract.get("claims", []):
+        claim["references"] = []
+    for target in contract.get("acceptance_tests", []):
+        target["evidence_required"] = [item for item in target.get("evidence_required", []) if item != "ref-benchmark"]
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": ["anchor unknown; must establish later before planning"],
+        "crucial_inputs": [],
+    }
+    contract["scope"]["unresolved_questions"] = ["Anchor unknown; must establish later"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
 
 
 def test_validate_project_contract_rejects_unknown_must_read_ref() -> None:

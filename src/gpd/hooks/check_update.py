@@ -38,12 +38,12 @@ def _version_files() -> list[Path]:
         ALL_RUNTIMES,
         _global_runtime_dir,
         _local_runtime_dir,
-        detect_active_runtime,
+        detect_runtime_for_gpd_use,
     )
 
     resolved_cwd = Path.cwd()
     resolved_home = Path.home()
-    active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    active_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
     runtimes = [active_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != active_runtime]
 
     install_dirs: list[Path] = []
@@ -141,46 +141,50 @@ def _do_check(cache_file: Path) -> None:
         _debug(f"Failed to write update cache: {exc}")
 
 
-def _throttle_cache_candidates(cache_candidates: list[Path]) -> list[Path]:
-    """Return cache files that are relevant for throttling this refresh."""
-    fallback_cache = Path.home() / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
-    relevant: list[Path] = []
-    preferred_runtime_group: str | None = None
-
-    for candidate in cache_candidates:
-        runtime_group = candidate.parent.parent.name if len(candidate.parents) >= 2 else ""
-        if runtime_group == ".gpd":
-            relevant.append(candidate)
-            if candidate == fallback_cache:
-                break
-            continue
-        if preferred_runtime_group is None and runtime_group.startswith("."):
-            preferred_runtime_group = runtime_group
-        if preferred_runtime_group is None or runtime_group == preferred_runtime_group:
-            relevant.append(candidate)
-        if candidate == fallback_cache:
-            break
-
-    return relevant
-
-
 def main() -> None:
     """Entry point: throttle-check for updates, spawn background worker if needed."""
-    from gpd.hooks.runtime_detect import get_update_cache_files
+    from gpd.hooks.runtime_detect import (
+        ALL_RUNTIMES,
+        detect_active_runtime_with_gpd_install,
+        detect_runtime_for_gpd_use,
+        get_update_cache_candidates,
+        should_consider_update_cache_candidate,
+    )
 
-    cache_candidates = get_update_cache_files()
+    resolved_cwd = Path.cwd()
+    resolved_home = Path.home()
+    cache_candidates = get_update_cache_candidates(cwd=resolved_cwd, home=resolved_home)
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=resolved_cwd, home=resolved_home)
+    preferred_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
+    relevant_candidates = [
+        candidate
+        for candidate in cache_candidates
+        if should_consider_update_cache_candidate(
+            candidate,
+            active_installed_runtime=active_installed_runtime,
+            cwd=resolved_cwd,
+            home=resolved_home,
+        )
+    ]
+    if active_installed_runtime in (None, "", "unknown") and preferred_runtime in ALL_RUNTIMES:
+        relevant_candidates = [
+            candidate
+            for candidate in relevant_candidates
+            if candidate.runtime in (None, preferred_runtime)
+        ]
     cache_file = (
-        cache_candidates[0]
-        if cache_candidates
-        else (Path.home() / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+        relevant_candidates[0].path
+        if relevant_candidates
+        else (resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
     )
 
     # Throttle: skip only when the preferred runtime/home cache set is still fresh.
-    for candidate in _throttle_cache_candidates(cache_candidates):
-        if not candidate.exists():
+    for candidate in relevant_candidates:
+        candidate_path = candidate.path
+        if not candidate_path.exists():
             continue
         try:
-            cache = json.loads(candidate.read_text(encoding="utf-8"))
+            cache = json.loads(candidate_path.read_text(encoding="utf-8"))
             if not isinstance(cache, dict):
                 continue
             checked = cache.get("checked")
@@ -189,7 +193,7 @@ def main() -> None:
                 if 0 <= age < UPDATE_CHECK_TTL_SECONDS:
                     return
         except Exception as exc:
-            _debug(f"Failed to read update cache {candidate}: {exc}")
+            _debug(f"Failed to read update cache {candidate_path}: {exc}")
 
     # Spawn background child to do the actual check
     try:

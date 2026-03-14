@@ -4,19 +4,18 @@
 
 See: .gpd/PROJECT.md
 
-**Core research question:** Can the Witten index of Z_k orbifold daughter theories of N=4 SYM be computed non-perturbatively using the CKKU lattice construction?
-**Current focus:** Phase 1 — Setup & Parent Theory Validation
+**Core research question:** [Not set]
+**Current focus:** [Not set]
 
 ## Current Position
 
-**Current Phase:** 1
-**Current Phase Name:** Setup & Parent Theory Validation
-**Total Phases:** 6
-**Current Plan:** 0
-**Total Plans in Phase:** 0
-**Status:** Ready to plan
-**Last Activity:** 2026-03-13
-**Last Activity Description:** Project initialized
+**Current Phase:** —
+**Current Phase Name:** —
+**Total Phases:** —
+**Current Plan:** —
+**Total Plans in Phase:** —
+**Status:** —
+**Last Activity:** —
 
 **Progress:** [░░░░░░░░░░] 0%
 
@@ -52,7 +51,12 @@ None yet.
 
 **Convention Lock:**
 
-No conventions locked yet.
+- Metric signature: (+,+,+,+) Euclidean
+- Natural units: hbar=c=1, lattice units a=1
+- Gauge choice: No gauge fixing (Q-exact action)
+- Coordinate system: A_4* body-centered hypercubic, 4D Euclidean
+- Coupling convention: lambda_lat = g^2 N (t Hooft); action prefactor N/lambda_lat
+- Generator normalization: Tr(T^a T^b) = (1/2) delta^{ab}
 
 ### Propagated Uncertainties
 

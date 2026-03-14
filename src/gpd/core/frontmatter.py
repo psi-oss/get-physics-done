@@ -275,7 +275,10 @@ def _has_contract_grounding_context(contract: ResearchContract) -> bool:
             contract.context_intake.must_include_prior_outputs,
             contract.context_intake.user_asserted_anchors,
             contract.context_intake.known_good_baselines,
+            contract.context_intake.context_gaps,
             contract.context_intake.crucial_inputs,
+            contract.approach_policy.formulations,
+            contract.approach_policy.stop_and_rethink_conditions,
         )
     )
 
@@ -447,6 +450,21 @@ def _parse_comparison_verdicts(meta: dict) -> list[ComparisonVerdict]:
     return [ComparisonVerdict.model_validate(entry) for entry in raw]
 
 
+def _parse_suggested_contract_checks(meta: dict) -> list[dict[str, object]]:
+    """Parse the optional structured verification suggestions."""
+    raw = meta.get("suggested_contract_checks")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("expected a list")
+    suggestions: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("entries must be objects")
+        suggestions.append(item)
+    return suggestions
+
+
 def _unsupported_frontmatter_errors(schema_name: str, meta: dict[str, object]) -> list[str]:
     """Return explicit errors for unsupported frontmatter fields."""
     return [
@@ -503,7 +521,7 @@ def _summary_contract_errors(
             errors.append(f"comparison_verdict references unknown reference_id {verdict.reference_id}")
 
     decisive_comparison_groups: list[tuple[set[str], str]] = []
-    attempted_statuses = {"passed", "failed", "blocked"}
+    attempted_statuses = {"passed", "partial", "failed", "blocked"}
     for test in contract.acceptance_tests:
         if test.kind not in {"benchmark", "cross_method"}:
             continue
@@ -525,6 +543,34 @@ def _summary_contract_errors(
     for subject_ids, source in decisive_comparison_groups:
         if not subject_ids.intersection(verdict_subject_ids):
             errors.append(f"Missing decisive comparison_verdict for {source}")
+
+    return errors
+
+
+def _verification_contract_errors(
+    contract: ResearchContract,
+    contract_results: ContractResults,
+    comparison_verdicts: list[ComparisonVerdict],
+    suggested_contract_checks: list[dict[str, object]],
+) -> list[str]:
+    """Return verification-specific alignment issues for contract-backed plans."""
+
+    errors = _summary_contract_errors(contract, contract_results, comparison_verdicts)
+
+    decisive_incomplete = False
+    for test in contract.acceptance_tests:
+        if test.kind not in {"benchmark", "cross_method"}:
+            continue
+        result = contract_results.acceptance_tests.get(test.id)
+        if result is None or result.status in {"partial", "not_attempted"}:
+            decisive_incomplete = True
+            break
+
+    missing_decisive_coverage = decisive_incomplete or any(
+        "Missing decisive comparison_verdict" in error for error in errors
+    )
+    if missing_decisive_coverage and not suggested_contract_checks:
+        errors.append("suggested_contract_checks: required when decisive checks remain missing or incomplete")
 
     return errors
 
@@ -620,6 +666,7 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
 
         contract_results = None
         comparison_verdicts: list[ComparisonVerdict] = []
+        suggested_contract_checks: list[dict[str, object]] = []
         try:
             contract_results = _parse_contract_results(meta)
         except (PydanticValidationError, TypeError, ValueError) as exc:
@@ -629,6 +676,12 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
             comparison_verdicts = _parse_comparison_verdicts(meta)
         except (PydanticValidationError, TypeError, ValueError) as exc:
             errors.append(f"comparison_verdicts: {exc}")
+
+        if schema_name == "verification":
+            try:
+                suggested_contract_checks = _parse_suggested_contract_checks(meta)
+            except ValueError as exc:
+                errors.append(f"suggested_contract_checks: {exc}")
 
         if source_path is not None:
             plan_contract = _find_matching_plan_contract(Path(source_path).parent, meta)
@@ -640,7 +693,17 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
                 if contract_results is None:
                     errors.append("contract_results: required for contract-backed plan")
                 else:
-                    errors.extend(_summary_contract_errors(plan_contract, contract_results, comparison_verdicts))
+                    if schema_name == "verification":
+                        errors.extend(
+                            _verification_contract_errors(
+                                plan_contract,
+                                contract_results,
+                                comparison_verdicts,
+                                suggested_contract_checks,
+                            )
+                        )
+                    else:
+                        errors.extend(_summary_contract_errors(plan_contract, contract_results, comparison_verdicts))
 
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,

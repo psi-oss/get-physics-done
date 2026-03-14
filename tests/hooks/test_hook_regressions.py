@@ -34,12 +34,14 @@ def test_notify_update_skips_non_dict_or_invalid_cache_files(tmp_path: Path, cac
 
 def test_check_update_passes_cache_file_via_sys_argv() -> None:
     from gpd.hooks.check_update import main
+    from gpd.hooks.runtime_detect import UpdateCacheCandidate
 
     cache_path = Path("/tmp/test-cache.json")
 
-    with patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_path]), patch(
-        "gpd.hooks.check_update.subprocess.Popen"
-    ) as mock_popen, patch.object(Path, "exists", return_value=False):
+    with patch(
+        "gpd.hooks.runtime_detect.get_update_cache_candidates",
+        return_value=[UpdateCacheCandidate(path=cache_path)],
+    ), patch("gpd.hooks.check_update.subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=False):
         mock_popen.return_value = MagicMock()
         main()
 

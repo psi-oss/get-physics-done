@@ -50,6 +50,14 @@
         "Catterall's public SUSY lattice code as computational starting point"
       ]
     },
+    "approach_policy": {
+      "formulations": [],
+      "allowed_estimator_families": [],
+      "forbidden_estimator_families": [],
+      "allowed_fit_families": [],
+      "forbidden_fit_families": [],
+      "stop_and_rethink_conditions": []
+    },
     "observables": [
       {
         "id": "OBS-01",
@@ -178,12 +186,14 @@
         "id": "REF-01",
         "kind": "paper",
         "locator": "Cohen-Kaplan-Katz-\u00dcnsal, CKKU orbifold lattice construction",
+        "aliases": [],
         "role": "method",
         "why_it_matters": "Defines the lattice formulation used for the orbifold construction",
         "applies_to": [
           "CLM-01",
           "DLV-03"
         ],
+        "carry_forward_to": [],
         "must_surface": true,
         "required_actions": [
           "read",
@@ -195,12 +205,14 @@
         "id": "REF-02",
         "kind": "paper",
         "locator": "Catterall's papers and public code for lattice N=4 SYM",
+        "aliases": [],
         "role": "method",
         "why_it_matters": "Provides the computational foundation code being extended",
         "applies_to": [
           "CLM-01",
           "DLV-03"
         ],
+        "carry_forward_to": [],
         "must_surface": true,
         "required_actions": [
           "read",
@@ -295,21 +307,21 @@
   "decisions": [],
   "approximations": [],
   "convention_lock": {
-    "metric_signature": null,
+    "metric_signature": "(+,+,+,+) Euclidean",
     "fourier_convention": null,
-    "natural_units": null,
-    "gauge_choice": null,
+    "natural_units": "hbar=c=1, lattice units a=1",
+    "gauge_choice": "No gauge fixing (Q-exact action)",
     "regularization_scheme": null,
     "renormalization_scheme": null,
-    "coordinate_system": null,
+    "coordinate_system": "A_4* body-centered hypercubic, 4D Euclidean",
     "spin_basis": null,
     "state_normalization": null,
-    "coupling_convention": null,
+    "coupling_convention": "lambda_lat = g^2 N (t Hooft); action prefactor N/lambda_lat",
     "index_positioning": null,
     "time_ordering": null,
     "commutation_convention": null,
     "levi_civita_sign": null,
-    "generator_normalization": null,
+    "generator_normalization": "Tr(T^a T^b) = (1/2) delta^{ab}",
     "covariant_derivative_sign": null,
     "gamma_matrix_convention": null,
     "creation_annihilation_order": null,

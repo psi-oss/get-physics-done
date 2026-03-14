@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from gpd.mcp.paper.models import ReviewConfidence, ReviewRecommendation
+from gpd.mcp.paper.models import (
+    ReviewConfidence,
+    ReviewIssueSeverity,
+    ReviewIssueStatus,
+    ReviewLedger,
+    ReviewRecommendation,
+)
 
 __all__ = [
     "ReviewAdequacy",
@@ -89,19 +97,97 @@ def _at_or_below(value: ReviewAdequacy, floor: ReviewAdequacy) -> bool:
     return _ADEQUACY_ORDER.get(value, 99) >= _ADEQUACY_ORDER.get(floor, 99)
 
 
-def evaluate_referee_decision(data: RefereeDecisionInput, *, strict: bool = False) -> RefereeDecisionReport:
+def _missing_stage_artifacts(stage_artifacts: list[str], *, project_root: Path | None) -> list[str]:
+    if project_root is None:
+        return []
+
+    missing: list[str] = []
+    for artifact_path in stage_artifacts:
+        target = Path(artifact_path)
+        if not target.is_absolute():
+            target = project_root / target
+        if not target.exists():
+            missing.append(artifact_path)
+    return missing
+
+
+def _review_ledger_consistency_errors(data: RefereeDecisionInput, review_ledger: ReviewLedger) -> list[str]:
+    errors: list[str] = []
+
+    if data.manuscript_path and review_ledger.manuscript_path and data.manuscript_path != review_ledger.manuscript_path:
+        errors.append("referee decision manuscript_path does not match review ledger manuscript_path")
+
+    issue_ids = [issue.issue_id for issue in review_ledger.issues]
+    duplicate_issue_ids = sorted(issue_id for issue_id, count in Counter(issue_ids).items() if count > 1)
+    if duplicate_issue_ids:
+        errors.append("review ledger contains duplicate issue IDs: " + ", ".join(duplicate_issue_ids))
+
+    ledger_issue_ids = set(issue_ids)
+    unknown_blocking_issue_ids = sorted(set(data.blocking_issue_ids) - ledger_issue_ids)
+    if unknown_blocking_issue_ids:
+        errors.append("blocking_issue_ids not found in review ledger: " + ", ".join(unknown_blocking_issue_ids))
+
+    unresolved_blocking_issue_ids = sorted(
+        issue.issue_id
+        for issue in review_ledger.issues
+        if issue.blocking and issue.status != ReviewIssueStatus.resolved
+    )
+    missing_blocking_issue_ids = [issue_id for issue_id in unresolved_blocking_issue_ids if issue_id not in set(data.blocking_issue_ids)]
+    if missing_blocking_issue_ids:
+        errors.append(
+            "unresolved blocking review-ledger issues missing from blocking_issue_ids: "
+            + ", ".join(missing_blocking_issue_ids)
+        )
+
+    unresolved_major_issues = sum(
+        1
+        for issue in review_ledger.issues
+        if issue.severity == ReviewIssueSeverity.major and issue.status != ReviewIssueStatus.resolved
+    )
+    if data.unresolved_major_issues != unresolved_major_issues:
+        errors.append(
+            "unresolved_major_issues does not match review ledger count "
+            f"({data.unresolved_major_issues} != {unresolved_major_issues})"
+        )
+
+    unresolved_minor_issues = sum(
+        1
+        for issue in review_ledger.issues
+        if issue.severity == ReviewIssueSeverity.minor and issue.status != ReviewIssueStatus.resolved
+    )
+    if data.unresolved_minor_issues != unresolved_minor_issues:
+        errors.append(
+            "unresolved_minor_issues does not match review ledger count "
+            f"({data.unresolved_minor_issues} != {unresolved_minor_issues})"
+        )
+
+    return errors
+
+
+def evaluate_referee_decision(
+    data: RefereeDecisionInput,
+    *,
+    strict: bool = False,
+    review_ledger: ReviewLedger | None = None,
+    project_root: Path | None = None,
+) -> RefereeDecisionReport:
     """Evaluate whether a final recommendation is consistent with hard referee gates."""
 
     allowed = ReviewRecommendation.accept
     reasons: list[str] = []
     warnings: list[str] = []
     high_impact = _is_high_impact(data.target_journal)
+    consistency_errors: list[str] = []
 
     if not data.stage_artifacts:
         warnings.append("No staged review artifacts were listed in the final decision input.")
     elif strict and len(data.stage_artifacts) < 5:
         reasons.append("Strict staged peer review requires at least five specialist stage artifacts before adjudication.")
         allowed = _worse_recommendation(allowed, ReviewRecommendation.major_revision)
+
+    missing_stage_artifacts = _missing_stage_artifacts(data.stage_artifacts, project_root=project_root)
+    if missing_stage_artifacts:
+        consistency_errors.append("listed staged review artifacts do not exist: " + ", ".join(missing_stage_artifacts))
 
     if not data.central_claims_supported:
         reasons.append("Central manuscript claims are not directly supported by the available evidence.")
@@ -180,12 +266,17 @@ def evaluate_referee_decision(data: RefereeDecisionInput, *, strict: bool = Fals
     if data.unresolved_minor_issues > 0:
         allowed = _worse_recommendation(allowed, ReviewRecommendation.minor_revision)
 
-    valid = _RECOMMENDATION_ORDER.get(data.final_recommendation, 99) >= _RECOMMENDATION_ORDER.get(allowed, 99)
+    if review_ledger is not None:
+        consistency_errors.extend(_review_ledger_consistency_errors(data, review_ledger))
 
-    if not valid:
+    recommendation_valid = _RECOMMENDATION_ORDER.get(data.final_recommendation, 99) >= _RECOMMENDATION_ORDER.get(allowed, 99)
+    valid = recommendation_valid and not consistency_errors
+
+    if not recommendation_valid:
         reasons.append(
             f"Proposed recommendation `{data.final_recommendation}` is too favorable; the most positive allowed outcome is `{allowed}`."
         )
+    reasons = consistency_errors + reasons
 
     return RefereeDecisionReport(
         manuscript_path=data.manuscript_path,

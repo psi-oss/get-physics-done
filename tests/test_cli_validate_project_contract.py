@@ -29,6 +29,23 @@ def test_validate_project_contract_command_accepts_valid_fixture(tmp_path: Path)
     assert payload["reference_count"] > 0
 
 
+def test_validate_project_contract_command_accepts_valid_fixture_via_stdin() -> None:
+    contract_text = (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "project-contract", "-"],
+        input=contract_text,
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is True
+    assert payload["question"] == "What benchmark must the project recover?"
+    assert payload["reference_count"] > 0
+
+
 def test_validate_project_contract_command_warns_when_user_guidance_is_missing(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"] = {
@@ -48,6 +65,7 @@ def test_validate_project_contract_command_warns_when_user_guidance_is_missing(t
     payload = json.loads(result.output)
     assert payload["valid"] is True
     assert payload["guidance_signal_count"] == 0
+    assert payload["reference_count"] > 0
     assert (
         "no user guidance signals recorded yet (must_read_refs, prior outputs, anchors, baselines, gaps, or crucial inputs)"
         in payload["warnings"]

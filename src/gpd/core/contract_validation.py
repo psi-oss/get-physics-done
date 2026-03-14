@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -22,6 +23,7 @@ class ProjectContractValidationResult(BaseModel):
     decisive_target_count: int = 0
     guidance_signal_count: int = 0
     reference_count: int = 0
+    mode: Literal["draft", "approved"] = "draft"
 
 
 def _append_duplicates(errors: list[str], kind: str, ids: list[str]) -> None:
@@ -128,7 +130,24 @@ def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
     return errors
 
 
-def validate_project_contract(contract: ResearchContract | dict[str, object]) -> ProjectContractValidationResult:
+def _has_explicit_anchor_unknown(contract: ResearchContract) -> bool:
+    """Return whether the contract explicitly records that anchors are still unknown."""
+
+    candidates = [
+        *contract.scope.unresolved_questions,
+        *contract.context_intake.context_gaps,
+        *contract.uncertainty_markers.weakest_anchors,
+        *contract.approach_policy.stop_and_rethink_conditions,
+    ]
+    needles = ("anchor unknown", "ground truth unknown", "must establish later", "need anchor", "missing anchor")
+    return any(any(needle in item.casefold() for needle in needles) for item in candidates if isinstance(item, str))
+
+
+def validate_project_contract(
+    contract: ResearchContract | dict[str, object],
+    *,
+    mode: Literal["draft", "approved"] = "draft",
+) -> ProjectContractValidationResult:
     """Validate that a project-level contract is strong enough to guide planning.
 
     This gate is intentionally lighter than full PLAN contract validation. It
@@ -179,6 +198,19 @@ def validate_project_contract(contract: ResearchContract | dict[str, object]) ->
 
     errors.extend(_light_contract_consistency_errors(parsed))
 
+    has_anchor_signal = any(
+        (
+            parsed.references,
+            parsed.context_intake.must_read_refs,
+            parsed.context_intake.user_asserted_anchors,
+            parsed.context_intake.known_good_baselines,
+        )
+    )
+    if mode == "approved" and decisive_target_count > 0 and not (has_anchor_signal or _has_explicit_anchor_unknown(parsed)):
+        errors.append(
+            "approved project contract requires at least one concrete anchor/reference/baseline or an explicit 'anchor unknown' blocker"
+        )
+
     if not parsed.acceptance_tests:
         warnings.append("no acceptance_tests recorded yet")
     if not parsed.references:
@@ -198,4 +230,5 @@ def validate_project_contract(contract: ResearchContract | dict[str, object]) ->
         decisive_target_count=decisive_target_count,
         guidance_signal_count=guidance_signal_count,
         reference_count=len(parsed.references),
+        mode=mode,
     )

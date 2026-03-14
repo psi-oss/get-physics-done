@@ -152,6 +152,19 @@ def _invoke(*args: str, expect_ok: bool = True) -> None:
         assert result.exit_code == 0, f"gpd {' '.join(args)} failed:\n{result.output}"
 
 
+def _write_review_stage_artifacts(project_root: Path, artifact_names: tuple[str, ...] | None = None) -> None:
+    review_dir = project_root / ".gpd" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    for artifact_name in artifact_names or (
+        "STAGE-reader.json",
+        "STAGE-literature.json",
+        "STAGE-math.json",
+        "STAGE-physics.json",
+        "STAGE-interestingness.json",
+    ):
+        (review_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Convention commands — the original bug class
 # ═══════════════════════════════════════════════════════════════════════════
@@ -237,6 +250,20 @@ class TestStateCommands:
         result = runner.invoke(
             app,
             ["--cwd", str(gpd_project), "state", "set-project-contract", "contract.json"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+
+    def test_set_project_contract_accepts_stdin(self, gpd_project: Path) -> None:
+        contract_text = (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "state", "set-project-contract", "-"],
+            input=contract_text,
             catch_exceptions=False,
         )
 
@@ -1364,6 +1391,7 @@ class TestReviewValidationCommands:
         assert payload["categories"]["results"]["checks"]["comparison_with_prior_work_present"] > 0
 
     def test_validate_referee_decision_command_accepts_consistent_major_revision(self, gpd_project: Path) -> None:
+        _write_review_stage_artifacts(gpd_project)
         decision_path = gpd_project / "referee-decision.json"
         decision_path.write_text(
             json.dumps(
@@ -1387,10 +1415,22 @@ class TestReviewValidationCommands:
             ),
             encoding="utf-8",
         )
+        ledger_path = gpd_project / "review-ledger-consistent.json"
+        ledger_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "round": 1,
+                    "manuscript_path": "paper/main.tex",
+                    "issues": [],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+            ["--raw", "validate", "referee-decision", str(decision_path), "--strict", "--ledger", str(ledger_path)],
             catch_exceptions=False,
         )
 
@@ -1400,6 +1440,7 @@ class TestReviewValidationCommands:
         assert payload["most_positive_allowed_recommendation"] == "major_revision"
 
     def test_validate_referee_decision_command_blocks_overly_positive_prl_decision(self, gpd_project: Path) -> None:
+        _write_review_stage_artifacts(gpd_project)
         decision_path = gpd_project / "referee-decision-prl.json"
         decision_path.write_text(
             json.dumps(
@@ -1432,6 +1473,169 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is False
         assert payload["most_positive_allowed_recommendation"] == "reject"
+
+    def test_validate_referee_decision_command_rejects_missing_stage_artifacts(self, gpd_project: Path) -> None:
+        decision_path = gpd_project / "referee-decision-missing-artifacts.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any("listed staged review artifacts do not exist" in reason for reason in payload["reasons"])
+
+    def test_validate_referee_decision_command_rejects_unknown_blocking_issue_ids_when_ledger_given(
+        self, gpd_project: Path
+    ) -> None:
+        _write_review_stage_artifacts(gpd_project)
+        decision_path = gpd_project / "referee-decision-ledger-mismatch.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                    ],
+                    "blocking_issue_ids": ["REF-999"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        ledger_path = gpd_project / "review-ledger.json"
+        ledger_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "round": 1,
+                    "manuscript_path": "paper/main.tex",
+                    "issues": [
+                        {
+                            "issue_id": "REF-001",
+                            "opened_by_stage": "physics",
+                            "severity": "major",
+                            "blocking": True,
+                            "summary": "Evidence is incomplete.",
+                            "required_action": "Add the missing benchmark comparison.",
+                            "status": "open",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "referee-decision",
+                str(decision_path),
+                "--strict",
+                "--ledger",
+                str(ledger_path),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any("blocking_issue_ids not found in review ledger" in reason for reason in payload["reasons"])
+
+    def test_validate_referee_decision_command_rejects_omitted_unresolved_blocking_ledger_issues(
+        self, gpd_project: Path
+    ) -> None:
+        _write_review_stage_artifacts(gpd_project)
+        decision_path = gpd_project / "referee-decision-omits-blocker.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        ledger_path = gpd_project / "review-ledger-open-blocker.json"
+        ledger_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "round": 1,
+                    "manuscript_path": "paper/main.tex",
+                    "issues": [
+                        {
+                            "issue_id": "REF-001",
+                            "opened_by_stage": "physics",
+                            "severity": "major",
+                            "blocking": True,
+                            "summary": "Evidence is incomplete.",
+                            "required_action": "Add the missing benchmark comparison.",
+                            "status": "open",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "validate",
+                "referee-decision",
+                str(decision_path),
+                "--strict",
+                "--ledger",
+                str(ledger_path),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any(
+            "unresolved blocking review-ledger issues missing from blocking_issue_ids" in reason
+            for reason in payload["reasons"]
+        )
 
     def test_validate_paper_quality_command_reports_shape_errors_without_traceback(self, gpd_project: Path) -> None:
         input_path = gpd_project / "paper-quality-invalid.json"
@@ -1588,6 +1792,25 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert any("Unknown claim contract_results entry: claim-unknown" in error for error in payload["errors"])
+
+    def test_validate_summary_contract_command_reports_unresolved_plan_contract_ref(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        summary_path = phase_dir / "01-SUMMARY.md"
+        summary_path.write_text(
+            (FIXTURES_DIR.parent / "stage4" / "summary_with_contract_results.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "summary-contract", str(summary_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert "plan_contract_ref: could not resolve matching plan contract" in payload["errors"]
 
     def test_validate_verification_contract_command_requires_contract_results(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"

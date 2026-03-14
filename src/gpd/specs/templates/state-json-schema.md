@@ -75,6 +75,14 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
     "context_gaps": ["Missing benchmark comparison"],
     "crucial_inputs": ["Figure 2 from prior work"]
   },
+  "approach_policy": {
+    "formulations": ["continuum representation with direct observable X"],
+    "allowed_estimator_families": ["direct estimator"],
+    "forbidden_estimator_families": ["proxy-only estimator"],
+    "allowed_fit_families": ["benchmark-motivated ansatz"],
+    "forbidden_fit_families": ["pure convenience fit"],
+    "stop_and_rethink_conditions": ["First result only validates a proxy while the decisive anchor remains unchecked"]
+  },
   "observables": [],
   "claims": [],
   "deliverables": [],
@@ -103,7 +111,7 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `claims[]` — `{ "id", "statement", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]" }`
 - `deliverables[]` — `{ "id", "kind", "path?", "description", "must_contain[]" }`
 - `acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`
-- `references[]` — `{ "id", "kind", "locator", "role", "why_it_matters", "applies_to[]", "must_surface", "required_actions[]" }`
+- `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface", "required_actions[]" }`
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
@@ -112,6 +120,7 @@ The following fields always store arrays of objects, never arrays of plain strin
 Every ID-like field must point to a declared object ID in the same contract:
 
 - `context_intake.must_read_refs[]` must contain `references[].id` values only.
+- `references[].aliases[]` may store stable human-facing labels or citation strings that help canonicalize downstream anchor mentions.
 - `claims[].observables[]` must contain `observables[].id` values only.
 - `claims[].deliverables[]` must contain `deliverables[].id` values only.
 - `claims[].acceptance_tests[]` must contain `acceptance_tests[].id` values only.
@@ -119,6 +128,7 @@ Every ID-like field must point to a declared object ID in the same contract:
 - `acceptance_tests[].subject` must point to a `claims[].id` or `deliverables[].id`, never an observable ID or prose label.
 - `acceptance_tests[].evidence_required[]` may point only to claim, deliverable, acceptance-test, or reference IDs.
 - `references[].applies_to[]` must point to a claim ID or deliverable ID.
+- `references[].carry_forward_to[]` is free-text workflow scope (for example `planning`, `verification`, `writing`) and must not be overloaded with claim or deliverable IDs.
 - `forbidden_proxies[].subject` must point to a claim ID or deliverable ID.
 - `links[].source` and `links[].target` may point only to claim, deliverable, acceptance-test, or reference IDs.
 - `links[].verified_by[]` must contain `acceptance_tests[].id` values only.

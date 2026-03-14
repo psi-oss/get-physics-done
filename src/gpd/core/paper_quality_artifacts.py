@@ -71,6 +71,7 @@ class _ContractCoverage(BaseModel):
     satisfied_targets: int = 0
     confidences: list[VerificationConfidence] = Field(default_factory=list)
     latest_report_passed: bool = False
+    requires_decisive_comparison: bool = False
 
 
 def _coverage_metric(satisfied: int, total: int) -> CoverageMetric:
@@ -214,6 +215,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     confidences: list[VerificationConfidence] = []
     latest_verified_at = ""
     latest_report_passed = False
+    requires_decisive_comparison = False
 
     phases_root = project_root / ".gpd" / "phases"
     if not phases_root.exists():
@@ -226,6 +228,13 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
             total_claims.update(claim.id for claim in plan_contract.claims)
             total_deliverables.update(deliverable.id for deliverable in plan_contract.deliverables)
             total_tests.update(test.id for test in plan_contract.acceptance_tests)
+            if any(test.kind in {"benchmark", "cross_method"} for test in plan_contract.acceptance_tests):
+                requires_decisive_comparison = True
+            if any(
+                reference.role == "benchmark" or "compare" in reference.required_actions
+                for reference in plan_contract.references
+            ):
+                requires_decisive_comparison = True
 
         raw_results = meta.get("contract_results")
         contract_alignment_errors: list[str] = []
@@ -309,6 +318,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         satisfied_targets=satisfied_targets,
         confidences=confidences,
         latest_report_passed=latest_report_passed,
+        requires_decisive_comparison=requires_decisive_comparison,
     )
 
 
@@ -340,9 +350,16 @@ def _build_figures_input(
     figure_registry: list[_FigureTrackerEntry],
     verdicts: list[ComparisonVerdict],
     project_root: Path,
+    *,
+    comparison_required: bool,
 ) -> tuple[FiguresQualityInput, ResultsQualityInput]:
     if not figure_registry:
-        return FiguresQualityInput(), ResultsQualityInput()
+        return FiguresQualityInput(), ResultsQualityInput(
+            comparison_with_prior_work_present=BinaryCheck(
+                passed=bool(verdicts),
+                not_applicable=not comparison_required,
+            )
+        )
 
     total_figures = len(figure_registry)
     decisive_entries = [
@@ -404,7 +421,10 @@ def _build_figures_input(
         uncertainties_present=_coverage_metric(uncertainty_count, len(decisive_entries))
         if decisive_entries
         else CoverageMetric(),
-        comparison_with_prior_work_present=BinaryCheck(passed=bool(verdicts)),
+        comparison_with_prior_work_present=BinaryCheck(
+            passed=bool(verdicts),
+            not_applicable=not comparison_required,
+        ),
         physical_interpretation_present=BinaryCheck(),
         decisive_artifacts_with_explicit_verdicts=_coverage_metric(
             decisive_with_verdict,
@@ -442,7 +462,12 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     figure_registry = _load_figure_registry(root)
     verdicts = _collect_comparison_verdicts(root)
     contract_coverage = _collect_contract_coverage(root)
-    figures, results = _build_figures_input(figure_registry, verdicts, root)
+    figures, results = _build_figures_input(
+        figure_registry,
+        verdicts,
+        root,
+        comparison_required=contract_coverage.requires_decisive_comparison,
+    )
 
     placeholder_count = len(_PLACEHOLDER_RE.findall(tex_content))
     missing_cites = len(_MISSING_CITE_RE.findall(tex_content))

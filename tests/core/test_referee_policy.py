@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from gpd.core.referee_policy import RefereeDecisionInput, ReviewAdequacy, evaluate_referee_decision
-from gpd.mcp.paper.models import ReviewRecommendation
+from gpd.mcp.paper.models import (
+    ReviewIssue,
+    ReviewIssueSeverity,
+    ReviewIssueStatus,
+    ReviewLedger,
+    ReviewRecommendation,
+    ReviewStageKind,
+)
 
 
 def test_prl_weak_significance_cannot_receive_minor_revision():
@@ -60,3 +69,59 @@ def test_minor_revision_allowed_only_for_minor_follow_up():
 
     assert report.valid is True
     assert report.most_positive_allowed_recommendation == ReviewRecommendation.minor_revision
+
+
+def test_review_ledger_consistency_rejects_unknown_blocking_issue_ids():
+    report = evaluate_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.major_revision,
+            stage_artifacts=[f".gpd/review/STAGE-{name}.json" for name in ("reader", "literature", "math", "physics", "interestingness")],
+            blocking_issue_ids=["REF-999"],
+        ),
+        strict=True,
+        review_ledger=ReviewLedger(
+            manuscript_path="paper/main.tex",
+            issues=[
+                ReviewIssue(
+                    issue_id="REF-001",
+                    opened_by_stage=ReviewStageKind.physics,
+                    severity=ReviewIssueSeverity.major,
+                    blocking=True,
+                    summary="Evidence is incomplete.",
+                    status=ReviewIssueStatus.open,
+                )
+            ],
+        ),
+    )
+
+    assert report.valid is False
+    assert any("blocking_issue_ids not found in review ledger" in reason for reason in report.reasons)
+
+
+def test_missing_stage_artifacts_reject_decision_when_project_root_supplied(tmp_path: Path):
+    review_dir = tmp_path / ".gpd" / "review"
+    review_dir.mkdir(parents=True)
+    for artifact_name in ("STAGE-reader.json", "STAGE-literature.json", "STAGE-math.json"):
+        (review_dir / artifact_name).write_text("{}", encoding="utf-8")
+
+    report = evaluate_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.major_revision,
+            stage_artifacts=[
+                ".gpd/review/STAGE-reader.json",
+                ".gpd/review/STAGE-literature.json",
+                ".gpd/review/STAGE-math.json",
+                ".gpd/review/STAGE-physics.json",
+                ".gpd/review/STAGE-interestingness.json",
+            ],
+        ),
+        strict=True,
+        project_root=tmp_path,
+    )
+
+    assert report.valid is False
+    assert any("listed staged review artifacts do not exist" in reason for reason in report.reasons)

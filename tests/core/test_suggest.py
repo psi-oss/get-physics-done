@@ -505,6 +505,7 @@ def test_adaptive_mode_with_decisive_evidence_boosts_execution_and_verification(
     locked_phase = _create_phase(root, "00-scan", summaries=1)
     (locked_phase / "01-SUMMARY.md").write_text(
         """---
+status: passed
 comparison_verdicts:
   - subject_id: claim-benchmark
     subject_kind: claim

@@ -423,7 +423,7 @@ Recommendation guardrails:
 4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
 5. Write `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json`.
 6. Run `gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json`.
-7. Run `gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict` before trusting a recommendation better than `major_revision`.
+7. Run `gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json` before trusting a recommendation better than `major_revision`.
 
 Write `.gpd/REFEREE-REPORT{round_suffix}.md` and the matching `.gpd/REFEREE-REPORT{round_suffix}.tex`.
 Also write `.gpd/CONSISTENCY-REPORT.md` when applicable.

@@ -1708,7 +1708,7 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         message = first_error.get("msg", "validation failed")
         return StateUpdateResult(updated=False, reason=f"Invalid project contract at {location}: {message}")
 
-    validation = validate_project_contract(parsed)
+    validation = validate_project_contract(parsed, mode="approved")
     if not validation.valid:
         return StateUpdateResult(
             updated=False,

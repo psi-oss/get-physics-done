@@ -505,7 +505,7 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2")
 
-        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark", "lit-anchor-benchmark-ref-2024"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "benchmark-paper" not in ctx["effective_reference_intake"]["must_read_refs"]
@@ -582,7 +582,7 @@ class TestInitNewMilestone:
         ctx = init_new_milestone(tmp_path)
 
         assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
-        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark", "lit-anchor-benchmark-ref-2024"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]

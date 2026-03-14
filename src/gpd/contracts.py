@@ -22,6 +22,7 @@ __all__ = [
     "ComparisonVerdict",
     "ContractScope",
     "ContractContextIntake",
+    "ContractApproachPolicy",
     "ContractObservable",
     "ContractClaim",
     "ContractDeliverable",
@@ -195,6 +196,19 @@ class ContractContextIntake(BaseModel):
     crucial_inputs: list[str] = Field(default_factory=list)
 
 
+class ContractApproachPolicy(BaseModel):
+    """Representation, estimator, and rethink guardrails that must survive downstream."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    formulations: list[str] = Field(default_factory=list)
+    allowed_estimator_families: list[str] = Field(default_factory=list)
+    forbidden_estimator_families: list[str] = Field(default_factory=list)
+    allowed_fit_families: list[str] = Field(default_factory=list)
+    forbidden_fit_families: list[str] = Field(default_factory=list)
+    stop_and_rethink_conditions: list[str] = Field(default_factory=list)
+
+
 class ContractObservable(BaseModel):
     """A target quantity or behavior the work needs to establish."""
 
@@ -270,9 +284,11 @@ class ContractReference(BaseModel):
     id: str
     kind: Literal["paper", "dataset", "prior_artifact", "spec", "user_anchor", "other"] = "other"
     locator: str
+    aliases: list[str] = Field(default_factory=list)
     role: Literal["definition", "benchmark", "method", "must_consider", "background", "other"] = "other"
     why_it_matters: str
     applies_to: list[str] = Field(default_factory=list)
+    carry_forward_to: list[str] = Field(default_factory=list)
     must_surface: bool = False
     required_actions: list[Literal["read", "use", "compare", "cite", "avoid"]] = Field(default_factory=list)
 
@@ -319,6 +335,7 @@ class ResearchContract(BaseModel):
     schema_version: int = 1
     scope: ContractScope
     context_intake: ContractContextIntake = Field(default_factory=ContractContextIntake)
+    approach_policy: ContractApproachPolicy = Field(default_factory=ContractApproachPolicy)
     observables: list[ContractObservable] = Field(default_factory=list)
     claims: list[ContractClaim] = Field(default_factory=list)
     deliverables: list[ContractDeliverable] = Field(default_factory=list)

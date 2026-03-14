@@ -328,6 +328,9 @@ def _has_adaptive_lock_signal(cwd: Path) -> bool:
         "approach_locked: true",
         "approach_validated: true",
     )
+    decisive_pass_re = re.compile(r"subject_role:\s*decisive[\s\S]{0,400}?verdict:\s*pass\b", re.IGNORECASE)
+    decisive_failure_re = re.compile(r"subject_role:\s*decisive[\s\S]{0,400}?verdict:\s*(?:tension|fail)\b", re.IGNORECASE)
+    passed_status_re = re.compile(r"^status:\s*passed\b", re.IGNORECASE | re.MULTILINE)
     for path in sorted(phases_dir.rglob("*.md")):
         if not path.is_file():
             continue
@@ -335,7 +338,12 @@ def _has_adaptive_lock_signal(cwd: Path) -> bool:
         lowered = text.casefold()
         if any(marker in lowered for marker in explicit_lock_markers):
             return True
-        if "comparison_verdicts:" in lowered and "verdict: pass" in lowered:
+        if (
+            "comparison_verdicts:" in lowered
+            and passed_status_re.search(text)
+            and decisive_pass_re.search(text)
+            and not decisive_failure_re.search(text)
+        ):
             return True
     return False
 

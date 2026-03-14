@@ -93,8 +93,8 @@ Goal:
 - Issue the final recommendation.
 
 Output:
-- `.gpd/review/REVIEW-LEDGER.json`
-- `.gpd/review/REFEREE-DECISION.json`
+- `.gpd/review/REVIEW-LEDGER{round_suffix}.json`
+- `.gpd/review/REFEREE-DECISION{round_suffix}.json`
 - `.gpd/REFEREE-REPORT.md`
 - `.gpd/REFEREE-REPORT.tex`
 - `.gpd/CONSISTENCY-REPORT.md` when applicable
@@ -154,7 +154,7 @@ Every stage report should be compact and machine-readable, matching the staged-r
 Additionally:
 
 - Stage 1 must also emit `CLAIMS.json` as a compact `ClaimIndex`.
-- The final adjudicator must emit `REVIEW-LEDGER.json` and `REFEREE-DECISION.json`.
+- The final adjudicator must emit `REVIEW-LEDGER{round_suffix}.json` and `REFEREE-DECISION{round_suffix}.json` (empty suffix on the first round).
 - The artifact should stay compact. It is a decision handoff, not a second manuscript.
 
 The final adjudicator JSON artifacts must follow these canonical schemas:
@@ -191,11 +191,11 @@ Minimal final artifact shapes:
   "final_recommendation": "major_revision",
   "final_confidence": "medium",
   "stage_artifacts": [
-    ".gpd/review/STAGE-reader.json",
-    ".gpd/review/STAGE-literature.json",
-    ".gpd/review/STAGE-math.json",
-    ".gpd/review/STAGE-physics.json",
-    ".gpd/review/STAGE-interestingness.json"
+    ".gpd/review/STAGE-reader{round_suffix}.json",
+    ".gpd/review/STAGE-literature{round_suffix}.json",
+    ".gpd/review/STAGE-math{round_suffix}.json",
+    ".gpd/review/STAGE-physics{round_suffix}.json",
+    ".gpd/review/STAGE-interestingness{round_suffix}.json"
   ],
   "blocking_issue_ids": ["REF-001"]
 }
@@ -204,8 +204,8 @@ Minimal final artifact shapes:
 Validate both files before trusting the final recommendation:
 
 ```bash
-gpd validate review-ledger .gpd/review/REVIEW-LEDGER.json
-gpd validate referee-decision .gpd/review/REFEREE-DECISION.json --strict
+gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
 ```
 
 ## Recommendation Guardrails For The Final Referee

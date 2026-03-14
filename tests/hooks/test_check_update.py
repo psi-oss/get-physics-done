@@ -11,8 +11,6 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
     _do_check,
@@ -20,6 +18,11 @@ from gpd.hooks.check_update import (
     _read_installed_version,
     main,
 )
+from gpd.hooks.runtime_detect import UpdateCacheCandidate
+
+
+def _cache_candidate(path: Path) -> UpdateCacheCandidate:
+    return UpdateCacheCandidate(path=path)
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -116,13 +119,6 @@ class TestReadInstalledVersion:
         ):
             assert _read_installed_version() == "2.0.0"
 
-    @pytest.mark.xfail(
-        reason=(
-            "VERSION fallback still keys off the raw active runtime ordering instead of the "
-            "effective installed runtime used by GPD-owned surfaces."
-        ),
-        strict=False,
-    )
     def test_version_file_fallback_should_ignore_uninstalled_higher_priority_runtime(self, tmp_path: Path) -> None:
         """Install-aware expectation: a stale higher-priority runtime must not mask the installed runtime's VERSION."""
         home = tmp_path / "home"
@@ -250,7 +246,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -267,7 +266,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": stale_time, "update_available": False}))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -278,7 +280,10 @@ class TestMainThrottle:
     def test_no_cache_file_spawns_check(self, tmp_path: Path) -> None:
         """If no cache file exists, main() spawns background check."""
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(tmp_path / "nonexistent.json")],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -294,7 +299,10 @@ class TestMainThrottle:
         cache_file.write_text("not json!")
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -305,7 +313,10 @@ class TestMainThrottle:
     def test_popen_failure_no_crash(self, tmp_path: Path) -> None:
         """If Popen fails (e.g., no Python executable), no crash."""
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[tmp_path / "nonexistent.json"]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(tmp_path / "nonexistent.json")],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen", side_effect=OSError("exec failed")),
         ):
@@ -319,7 +330,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"update_available": False}))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -335,7 +349,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps({"checked": "not-a-number"}))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -419,13 +436,6 @@ class TestMainThrottle:
 
         mock_popen.assert_not_called()
 
-    @pytest.mark.xfail(
-        reason=(
-            "Throttle still treats a fresh workspace-local cache as authoritative even when the "
-            "installed runtime scope is global."
-        ),
-        strict=False,
-    )
     def test_fresh_wrong_scope_cache_should_not_suppress_global_install_refresh(self, tmp_path: Path) -> None:
         """Install-aware expectation: a fresh cache from the wrong scope must not suppress refresh for the live install."""
         workspace = tmp_path / "workspace"
@@ -470,7 +480,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps([1, 2, 3]))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):
@@ -486,7 +499,10 @@ class TestMainThrottle:
         cache_file.write_text(json.dumps("just a string"))
 
         with (
-            patch("gpd.hooks.runtime_detect.get_update_cache_files", return_value=[cache_file]),
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[_cache_candidate(cache_file)],
+            ),
             patch("gpd.hooks.check_update.Path.home", return_value=tmp_path),
             patch("subprocess.Popen") as mock_popen,
         ):

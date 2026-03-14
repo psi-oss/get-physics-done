@@ -571,7 +571,7 @@ def state_set_project_contract_cmd(
 
     contract_data = _load_json_document(source)
 
-    validation = validate_project_contract(contract_data)
+    validation = validate_project_contract(contract_data, mode="approved")
     if not validation.valid:
         _output(validation)
         raise typer.Exit(code=1)
@@ -2875,12 +2875,13 @@ def validate_paper_quality(
 @validate_app.command("project-contract")
 def validate_project_contract_cmd(
     input_path: str = typer.Argument(..., help="Path to a project contract JSON file, or '-' for stdin"),
+    mode: str = typer.Option("approved", "--mode", help="Validation mode: approved or draft"),
 ) -> None:
     """Validate a project-scoping contract before downstream artifact generation."""
     from gpd.core.contract_validation import validate_project_contract
 
     payload = _load_json_document(input_path)
-    result = validate_project_contract(payload)
+    result = validate_project_contract(payload, mode="draft" if mode == "draft" else "approved")
     _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
@@ -2940,9 +2941,15 @@ def validate_referee_decision(
         "--strict",
         help="Require staged peer-review artifact coverage in addition to recommendation-floor consistency",
     ),
+    ledger_path: str | None = typer.Option(
+        None,
+        "--ledger",
+        help="Optional path to the matching review-ledger JSON for cross-artifact consistency checks",
+    ),
 ) -> None:
     """Validate a staged peer-review decision against hard recommendation gates."""
     from gpd.core.referee_policy import RefereeDecisionInput, evaluate_referee_decision
+    from gpd.mcp.paper.models import ReviewLedger
 
     payload = _load_json_document(input_path)
     try:
@@ -2953,7 +2960,25 @@ def validate_referee_decision(
             exc=exc,
             schema_reference="templates/paper/referee-decision-schema.md",
         )
-    report = evaluate_referee_decision(decision, strict=strict)
+
+    review_ledger = None
+    if ledger_path is not None:
+        ledger_payload = _load_json_document(ledger_path)
+        try:
+            review_ledger = ReviewLedger.model_validate(ledger_payload)
+        except PydanticValidationError as exc:
+            _raise_pydantic_schema_error(
+                label="review-ledger",
+                exc=exc,
+                schema_reference="templates/paper/review-ledger-schema.md",
+            )
+
+    report = evaluate_referee_decision(
+        decision,
+        strict=strict,
+        review_ledger=review_ledger,
+        project_root=_get_cwd(),
+    )
     _output(report)
     if not report.valid:
         raise typer.Exit(code=1)

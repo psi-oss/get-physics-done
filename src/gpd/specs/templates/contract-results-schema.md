@@ -53,7 +53,7 @@ contract_results:
           deliverable_id: deliv-main
           acceptance_test_id: test-main
           reference_id: ref-main
-          evidence_path: .gpd/phases/XX-name/XX-YY-VERIFICATION.md
+          evidence_path: .gpd/phases/XX-name/XX-VERIFICATION.md
   deliverables:
     deliv-main:
       status: passed|partial|failed|blocked|not_attempted
@@ -122,6 +122,8 @@ Prefer the contract-specific commands below for contract-backed summaries and ve
 ```bash
 gpd frontmatter validate .gpd/phases/XX-name/SUMMARY.md --schema summary
 gpd validate summary-contract .gpd/phases/XX-name/SUMMARY.md
-gpd frontmatter validate .gpd/phases/XX-name/XX-YY-VERIFICATION.md --schema verification
-gpd validate verification-contract .gpd/phases/XX-name/XX-YY-VERIFICATION.md
+gpd frontmatter validate .gpd/phases/XX-name/XX-VERIFICATION.md --schema verification
+gpd validate verification-contract .gpd/phases/XX-name/XX-VERIFICATION.md
 ```
+
+`PLAN` and `SUMMARY` artifacts are plan-scoped (`XX-YY-*`). `VERIFICATION.md` is phase-scoped (`XX-VERIFICATION.md`).

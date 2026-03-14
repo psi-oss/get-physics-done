@@ -240,6 +240,10 @@ class RoadmapPhase(BaseModel):
     summary_count: int = 0
     has_context: bool = False
     has_research: bool = False
+    contract_advances: list[str] = Field(default_factory=list)
+    contract_anchor_coverage: list[str] = Field(default_factory=list)
+    contract_forbidden_proxies: list[str] = Field(default_factory=list)
+    has_contract_coverage: bool = False
     disk_status: str  # no_directory|empty|discussed|researched|planned|partial|complete
     roadmap_complete: bool = False
 
@@ -1021,6 +1025,22 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             depends_match = re.search(r"\*\*Depends on:\*\*\s*([^\n]+)", section, re.IGNORECASE)
             depends_on = depends_match.group(1).strip() if depends_match else None
 
+            def _coverage_items(section_text: str, label: str) -> list[str]:
+                match = re.search(rf"-\s*{re.escape(label)}:\s*([^\n]+)", section_text, re.IGNORECASE)
+                if match is None:
+                    return []
+                raw = match.group(1).strip()
+                if not raw:
+                    return []
+                return [item.strip() for item in raw.split(",") if item.strip()]
+
+            contract_advances = _coverage_items(section, "Advances")
+            contract_anchor_coverage = _coverage_items(section, "Anchor coverage")
+            contract_forbidden_proxies = _coverage_items(section, "Forbidden proxies")
+            has_contract_coverage = bool(
+                contract_advances or contract_anchor_coverage or contract_forbidden_proxies
+            )
+
             # Check disk status
             normalized = phase_normalize(phase_num)
             disk_status = "no_directory"
@@ -1070,6 +1090,10 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
                     summary_count=summary_count,
                     has_context=has_context,
                     has_research=has_research,
+                    contract_advances=contract_advances,
+                    contract_anchor_coverage=contract_anchor_coverage,
+                    contract_forbidden_proxies=contract_forbidden_proxies,
+                    has_contract_coverage=has_contract_coverage,
                     disk_status=disk_status,
                     roadmap_complete=roadmap_complete,
                 )
