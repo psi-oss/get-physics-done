@@ -41,7 +41,7 @@ task(
 6. **Fresh context:** task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
 7. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
 8. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
-9. **Always set `readonly=false` for file-producing agents.** Some runtimes (e.g. Cursor) default subagents to read-only mode where file writes silently fail. Every agent with `artifact_write_authority: scoped_write` MUST be spawned with `readonly=false`. Without this, the agent will appear to succeed but produce no files on disk.
+9. **Always set `readonly=false` for file-producing agents.** Some runtimes default subagents to read-only mode where file writes silently fail. Every agent with `artifact_write_authority: scoped_write` MUST be spawned with `readonly=false`. Without this, the agent will appear to succeed but produce no files on disk.
 
 ## Delegation Contract
 
@@ -58,6 +58,22 @@ Every runtime-specific delegation surface must preserve these workflow semantics
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
 
 For GPD-owned runtime surfaces, use the effective installed runtime rather than a merely active but uninstalled higher-priority runtime. This applies to `gpd resolve-model`, runtime-native command rendering, and other installer-backed workflow surfaces.
+
+## Artifact Recovery Protocol
+
+Subagent file writes can silently fail on any runtime — the agent reports success but files are not persisted to disk. This is a known class of bug across multiple runtimes and must be treated as a normal operating condition, not an edge case.
+
+**After every file-producing subagent completes, the orchestrator MUST:**
+
+1. **Verify expected artifacts exist on disk** using `file_read` or `ls`. Do not trust the subagent's claim that it wrote them.
+2. **If artifacts are missing but the subagent returned content:**
+   - Extract the file content from the subagent's response text (structured return envelope, inline content, or quoted output).
+   - Write the files directly in the main orchestrator context using the main context's Write/Edit tools.
+   - This is the primary recovery path and should succeed because the main context's file tools are not affected by the subagent persistence bug.
+3. **If artifacts are missing and the subagent returned no usable content:**
+   - Re-execute the subagent's task in the main orchestrator context (not via Task tool) following the same prompt and write scope.
+   - This is the fallback described in the Platform Note Template.
+4. **Never silently proceed** with missing artifacts. Every `expected_artifacts` entry must exist on disk before the orchestrator marks the handoff as complete.
 
 ## Prompt Contract Addendum
 

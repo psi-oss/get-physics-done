@@ -423,6 +423,36 @@ class TestInstall:
         assert "{GPD_RUNTIME_FLAG}" not in verifier
         assert "--claude" in verifier
 
+    def test_install_translates_agent_frontmatter_tool_names(
+        self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Agent tool names must be translated to runtime-native names at install time.
+
+        Claude Code may run subagents with explicit tools in a restricted
+        sandbox; untranslated canonical names like ``file_write`` can cause
+        silent write failures.
+        """
+        (gpd_root / "agents" / "gpd-tools-test.md").write_text(
+            "---\nname: gpd-tools-test\ndescription: Tool name test\n"
+            "tools: file_read, file_write, file_edit, shell, search_files, find_files\n"
+            "---\nBody text.\n",
+            encoding="utf-8",
+        )
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        installed = (target / "agents" / "gpd-tools-test.md").read_text(encoding="utf-8")
+        assert "file_read" not in installed
+        assert "file_write" not in installed
+        assert "file_edit" not in installed
+        assert "Read" in installed
+        assert "Write" in installed
+        assert "Edit" in installed
+        assert "Bash" in installed
+        assert "Grep" in installed
+        assert "Glob" in installed
+
     def test_install_preserves_shell_placeholders_for_claude_agents(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:

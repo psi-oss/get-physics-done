@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -16,6 +17,7 @@ from gpd.adapters.install_utils import (
     parse_jsonc,
     read_settings,
     remove_stale_agents,
+    translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
 )
@@ -82,6 +84,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             path_prefix,
             self.runtime_name,
             self._current_install_scope_flag(),
+            translate_tool_name=self.translate_frontmatter_tool_name,
         )
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
@@ -299,10 +302,14 @@ def _copy_agents_native(
     path_prefix: str,
     runtime: str,
     install_scope: str | None = None,
+    translate_tool_name: Callable[[str], str | None] | None = None,
 ) -> None:
-    """Copy agent .md files with placeholder replacement.
+    """Copy agent .md files with placeholder replacement and tool-name translation.
 
     Claude Code keeps native @ includes — no expansion needed.
+    Tool-name translation ensures installed agents use runtime-native names
+    (e.g. ``Read`` instead of ``file_read``), which affects how Claude Code
+    resolves subagent tool permissions.
     """
     if not agents_src.is_dir():
         return
@@ -318,6 +325,8 @@ def _copy_agents_native(
             install_scope=install_scope,
             protect_agent_prompt_body=True,
         )
+        if translate_tool_name is not None:
+            content = translate_frontmatter_tool_names(content, translate_tool_name)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 

@@ -132,6 +132,9 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     assert "SKILL.md" not in content
     assert "discoverable action/tool surface" in content
     assert "installed agent prompt instructions" in content
+    assert "Artifact Recovery Protocol" in content
+    assert "Write the files directly in the main orchestrator context" in content
+    assert "Never silently proceed" in content
 
 
 def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap() -> None:
@@ -264,9 +267,9 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
 def test_all_workflow_task_blocks_include_readonly_false() -> None:
     """Every task() block that spawns a GPD agent must include readonly=false.
 
-    Without this, runtimes like Cursor default subagents to read-only mode
-    where file writes silently fail -- the agent reports success but no files
-    are persisted to disk.
+    Without this, some runtimes default subagents to read-only mode where
+    file writes silently fail -- the agent reports success but no files are
+    persisted to disk.
     """
     exclusions = {"execute-plan.md"}
     failures: list[str] = []
