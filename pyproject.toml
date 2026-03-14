@@ -48,7 +48,7 @@ dependencies = [
 ]
 
 [project.scripts]
-gpd = "gpd.cli:app"
+gpd = "gpd.cli:entrypoint"
 "gpd-mcp-conventions" = "gpd.mcp.servers.conventions_server:main"
 "gpd-mcp-verification" = "gpd.mcp.servers.verification_server:main"
 "gpd-mcp-protocols" = "gpd.mcp.servers.protocols_server:main"

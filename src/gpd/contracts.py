@@ -31,11 +31,7 @@ __all__ = [
     "ContractLink",
     "ContractUncertaintyMarkers",
     "ResearchContract",
-    "LegacyMustHaveArtifact",
-    "LegacyMustHaveLink",
-    "LegacyMustHaves",
     "contract_from_data",
-    "contract_to_legacy_must_haves",
 ]
 
 
@@ -327,92 +323,9 @@ class ResearchContract(BaseModel):
     uncertainty_markers: ContractUncertaintyMarkers = Field(default_factory=ContractUncertaintyMarkers)
 
 
-class LegacyMustHaveArtifact(BaseModel):
-    """Compatibility view for old PLAN.md frontmatter consumers."""
-
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
-
-    path: str
-    provides: str
-    physics_check: str | None = None
-
-
-class LegacyMustHaveLink(BaseModel):
-    """Compatibility view for old PLAN.md frontmatter consumers."""
-
-    model_config = ConfigDict(validate_assignment=True, extra="forbid", populate_by_name=True)
-
-    source: str = Field(alias="from")
-    to: str
-    via: str
-    check: str | None = None
-
-
-class LegacyMustHaves(BaseModel):
-    """Compatibility surface derived from the canonical contract."""
-
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
-
-    truths: list[str] = Field(default_factory=list)
-    artifacts: list[LegacyMustHaveArtifact] = Field(default_factory=list)
-    key_links: list[LegacyMustHaveLink] = Field(default_factory=list)
-
-
 def contract_from_data(data: object) -> ResearchContract | None:
     """Return a validated :class:`ResearchContract` when *data* is a mapping."""
 
     if not isinstance(data, dict):
         return None
     return ResearchContract.model_validate(data)
-
-
-def contract_to_legacy_must_haves(contract: ResearchContract | dict[str, object]) -> LegacyMustHaves:
-    """Derive the legacy ``must_haves`` structure from the canonical contract."""
-
-    parsed = contract if isinstance(contract, ResearchContract) else ResearchContract.model_validate(contract)
-
-    claims_by_deliverable: dict[str, list[ContractClaim]] = {}
-    for claim in parsed.claims:
-        for deliverable_id in claim.deliverables:
-            claims_by_deliverable.setdefault(deliverable_id, []).append(claim)
-
-    artifacts: list[LegacyMustHaveArtifact] = []
-    for deliverable in parsed.deliverables:
-        if not deliverable.path:
-            continue
-
-        relevant_tests: list[str] = []
-        related_claim_ids = {claim.id for claim in claims_by_deliverable.get(deliverable.id, [])}
-        for test in parsed.acceptance_tests:
-            if (
-                test.subject == deliverable.id
-                or test.subject in related_claim_ids
-                or deliverable.id in test.evidence_required
-            ):
-                relevant_tests.append(test.pass_condition or test.procedure or test.id)
-
-        artifacts.append(
-            LegacyMustHaveArtifact(
-                path=deliverable.path,
-                provides=deliverable.description,
-                physics_check="; ".join(dict.fromkeys(relevant_tests)) or None,
-            )
-        )
-
-    key_links = [
-        LegacyMustHaveLink(
-            **{
-                "from": link.source,
-                "to": link.target,
-                "via": link.relation.replace("_", " "),
-                "check": ", ".join(link.verified_by) or None,
-            }
-        )
-        for link in parsed.links
-    ]
-
-    return LegacyMustHaves(
-        truths=[claim.statement for claim in parsed.claims],
-        artifacts=artifacts,
-        key_links=key_links,
-    )

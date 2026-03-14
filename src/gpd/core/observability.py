@@ -314,6 +314,13 @@ def _int_or_none(value: object) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def _normalized_checkpoint_reason(value: object) -> str | None:
+    reason = _str_or_none(value)
+    if reason is None:
+        return None
+    return reason.strip().replace("-", "_")
+
+
 def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: ObservabilityEvent, execution: dict[str, object]) -> bool:
     if _bool_or_none(execution.get("preserve_current")):
         return False
@@ -361,7 +368,6 @@ def _updated_execution_state(
         "review_cadence",
         "autonomy",
         "current_task",
-        "checkpoint_reason",
         "waiting_reason",
         "blocked_reason",
         "skeptical_requestioning_summary",
@@ -376,6 +382,10 @@ def _updated_execution_state(
         value = _str_or_none(execution.get(key))
         if value is not None:
             current[key] = value
+
+    checkpoint_reason = _normalized_checkpoint_reason(execution.get("checkpoint_reason"))
+    if checkpoint_reason is not None:
+        current["checkpoint_reason"] = checkpoint_reason
 
     for key in ("current_task_index", "current_task_total"):
         value = _int_or_none(execution.get(key))
@@ -443,13 +453,38 @@ def _updated_execution_state(
 
     if payload.name == "fanout" and payload.action == "lock":
         current["downstream_locked"] = True
+        current.setdefault("checkpoint_reason", "pre_fanout")
+        current["pre_fanout_review_pending"] = True
+        current["waiting_for_review"] = True
+        current["review_required"] = True
+        if current.get("segment_status") in {None, "", "active"}:
+            current["segment_status"] = "waiting_review"
     elif payload.name == "fanout" and payload.action == "unlock":
         current["downstream_locked"] = False
         current["pre_fanout_review_pending"] = False
+        if not current.get("first_result_gate_pending") and not current.get("skeptical_requestioning_required"):
+            current["waiting_for_review"] = False
+            current["review_required"] = False
+            if current.get("checkpoint_reason") == "pre_fanout":
+                current["checkpoint_reason"] = None
+            if current.get("segment_status") == "waiting_review":
+                current["segment_status"] = "active"
 
     if payload.name == "result" and payload.action in {"produce", "log"}:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
+
+    if current.get("first_result_gate_pending") and not current.get("checkpoint_reason"):
+        current["checkpoint_reason"] = "first_result"
+    if current.get("pre_fanout_review_pending") and not current.get("checkpoint_reason"):
+        current["checkpoint_reason"] = "pre_fanout"
+    if current.get("skeptical_requestioning_required") and not current.get("checkpoint_reason"):
+        current["checkpoint_reason"] = "skeptical_requestioning"
+    if current.get("skeptical_requestioning_required") and not current.get("waiting_for_review"):
+        current["waiting_for_review"] = True
+        current["review_required"] = True
+    if current.get("pre_fanout_review_pending") and not current.get("downstream_locked"):
+        current["downstream_locked"] = True
 
     if current.get("blocked_reason"):
         current["segment_status"] = "blocked"

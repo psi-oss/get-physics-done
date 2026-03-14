@@ -336,7 +336,7 @@ def test_public_cli_surface_is_unified() -> None:
     script_lines = _project_script_lines(repo_root)
     script_names = [line.split("=", 1)[0].strip().strip('"') for line in script_lines]
 
-    assert 'gpd = "gpd.cli:app"' in script_lines
+    assert 'gpd = "gpd.cli:entrypoint"' in script_lines
     assert all(name == "gpd" or name.startswith("gpd-mcp-") for name in script_names)
     assert sorted(path.name for path in (repo_root / "src" / "gpd").glob("cli*.py")) == ["cli.py"]
 
@@ -578,7 +578,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
             assert template_path in wheel_names
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         metadata = wheel_zip.read(f"get_physics_done-{version}.dist-info/METADATA").decode("utf-8")
-        assert "gpd = gpd.cli:app" in entry_points
+        assert "gpd = gpd.cli:entrypoint" in entry_points
         assert _wheel_dependency_names(metadata) == _expected_runtime_dependency_names()
 
     sdist_prefix = f"get_physics_done-{version}/"

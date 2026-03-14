@@ -71,23 +71,15 @@ contract:
       subject: "claim-main"
       proxy: "[What might look successful but should not count]"
       reason: "[Why this would be false progress]"
+  links:
+    - id: "link-main"
+      source: "claim-main"
+      target: "deliv-main"
+      relation: "supports"
+      verified_by: ["test-main"]
   uncertainty_markers:
     weakest_anchors: ["[Least-certain anchor still carrying load]"]
     disconfirming_observations: ["[Observation that would force a rethink]"]
-
-must_haves:
-  # Derived compatibility view of the contract above. Keep during transition.
-  truths:
-    - "Testable physics statement the executor must establish"
-  artifacts:
-    - path: "path/to/output"
-      provides: "What this artifact contains"
-      physics_check: "Independent check tied to the artifact"
-  key_links:
-    - from: "upstream artifact or result"
-      to: "downstream artifact or result"
-      via: "Why the dependency matters"
-      check: "How to verify the link"
 ---
 
 <objective>
@@ -158,7 +150,6 @@ These fields must always be present:
 - `interactive`
 - `conventions`
 - `contract`
-- `must_haves`
 
 Add `dimensional_check` whenever the plan produces quantitative results. Add `approximations` whenever any truncation, asymptotic regime, discretization, or numerical cutoff is active.
 
@@ -183,8 +174,8 @@ For `plan depth: light`, keep the same frontmatter but reduce the body to:
 - `<verification>`
 - `<success_criteria>`
 
-Do not omit `must_haves`, conventions, or approximation validity just because the plan is light.
-The `contract` block is still required in light mode; `must_haves` remains the derived compatibility view.
+Do not omit the `contract`, conventions, or approximation validity just because the plan is light.
+The `contract` block is still required in light mode, including any `links` needed to make downstream handoffs explicit.
 
 ---
 
@@ -243,17 +234,14 @@ contract:
       subject: claim-polarization
       proxy: Clean-looking algebra without explicit transversality check
       reason: Would not establish the decisive gauge-consistency result
+  links:
+    - id: link-transversality
+      source: claim-polarization
+      target: deliv-vac-pol
+      relation: supports
+      verified_by: [test-transversality]
   uncertainty_markers:
     weakest_anchors: ["Choice of gauge-fixing convention"]
     disconfirming_observations: ["Longitudinal term survives after simplification"]
-
-must_haves:
-  truths:
-    - "Vacuum polarization tensor is transverse: q_mu Pi^{mu nu} = 0"
-  artifacts:
-    - path: "derivations/vacuum-polarization.tex"
-      provides: "One-loop vacuum polarization Pi^{mu nu}(q)"
-      physics_check: "Transversality and correct mass dimension"
-  key_links: []
 ---
 ```

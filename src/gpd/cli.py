@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import os
 import shlex
 import sys
 from collections.abc import Callable
@@ -40,6 +41,7 @@ err_console = Console(stderr=True)
 # Global state threaded through typer context
 _raw: bool = False
 _cwd: Path = Path(".")
+_CHECKOUT_REEXEC_ENV = "GPD_DISABLE_CHECKOUT_REEXEC"
 
 
 def _output(data: object) -> None:
@@ -101,6 +103,49 @@ def _error(msg: str) -> NoReturn:
 
 def _get_cwd() -> Path:
     return _cwd.resolve()
+
+
+def _resolve_cli_cwd_from_argv(argv: list[str]) -> Path:
+    """Resolve the effective CLI cwd from raw argv before Typer parses it."""
+    raw_cwd = "."
+    for index, arg in enumerate(argv):
+        if arg == "--cwd" and index + 1 < len(argv):
+            raw_cwd = argv[index + 1]
+            break
+        if arg.startswith("--cwd="):
+            raw_cwd = arg.split("=", 1)[1]
+            break
+
+    candidate = Path(raw_cwd).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve(strict=False)
+    return (Path.cwd() / candidate).resolve(strict=False)
+
+
+def _maybe_reexec_from_checkout(argv: list[str] | None = None) -> None:
+    """Re-exec through the nearest checkout when launched from an installed package."""
+    from gpd.version import checkout_root
+
+    if os.environ.get(_CHECKOUT_REEXEC_ENV) == "1":
+        return
+
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
+    root = checkout_root(_resolve_cli_cwd_from_argv(effective_argv))
+    if root is None:
+        return
+
+    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
+    active_gpd = Path(__file__).resolve().parent
+    if active_gpd == checkout_gpd:
+        return
+
+    env = os.environ.copy()
+    checkout_src = str((root / "src").resolve(strict=False))
+    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
+    if checkout_src not in existing_pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
+    env[_CHECKOUT_REEXEC_ENV] = "1"
+    os.execve(sys.executable, [sys.executable, "-m", "gpd.cli", *effective_argv], env)
 
 
 def _format_display_path(target: str | Path | None) -> str:
@@ -3614,5 +3659,11 @@ def uninstall(
         _output({"uninstalled": [{"runtime": rt, **res} for rt, res in removed_results]})
 
 
+def entrypoint() -> int | None:
+    """Console-script and ``python -m`` entrypoint with checkout preference."""
+    _maybe_reexec_from_checkout()
+    return app()
+
+
 if __name__ == "__main__":
-    app()
+    raise SystemExit(entrypoint())

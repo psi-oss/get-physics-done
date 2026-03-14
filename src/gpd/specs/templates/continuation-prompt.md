@@ -42,6 +42,8 @@ If the execution segment indicates `pre_fanout_review_pending: true`, do not unl
 
 If the execution segment indicates `skeptical_requestioning_required: true`, treat the user response as a framing decision. Carry forward the skeptical summary, weakest unchecked anchor, and disconfirming observation into the resumed plan logic instead of treating this as a routine approval.
 
+If the execution segment indicates `first_result_gate_pending: true`, do not reinterpret that gate as passed just because the result looks plausible. Continue only after the review outcome has been made explicit in this continuation.
+
 <protocol_bundles>
 {protocol_bundle_context}
 </protocol_bundles>
@@ -73,6 +75,7 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 - the checkpoint cause is understood
 - any required user decision or review outcome is now present
 - any pre-fanout lock or skeptical re-questioning outcome has been incorporated into the continuation path
+- any first-result gate has an explicit clear/override outcome before dependent work resumes
 - the segment has not already been superseded by a newer continuation state
 </verification_before_continuing>
 

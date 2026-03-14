@@ -128,9 +128,11 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 |------|-----------------|------------------------------|---------------------|
 | **babysit** | After EVERY task plus every required first-result gate | Always | Always stop |
 | **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
-| **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result or pre-fanout gates | Stop only on unrecoverable errors or failed sanity gates |
+| **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 
 **Invariant:** `autonomy` changes who is asked and when. It does NOT disable first-result sanity checks, bounded execution segments, contract/anchor gates, or physics hard stops.
+
+Task checkpoints are task-level, not every internal algebra line. Model profile and research mode may change depth or task granularity, but they do NOT remove required first-result, skeptical, or pre-fanout gates.
 
 </step>
 
@@ -160,6 +162,8 @@ Set:
 - `PRE_FANOUT_REVIEW_REQUIRED=${CHECKPOINT_BEFORE_DOWNSTREAM}`
 
 **Skeptical re-questioning rule:** if the first material result only validates a proxy while decisive anchors remain unchecked, STOP and ask whether the framing still deserves belief before continuing.
+
+Required gates are only considered passed when an explicit clear/override transition is recorded. "No obvious issue" prose is not enough to resume fanout.
 
 </step>
 
@@ -286,11 +290,36 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
        --data "{\"execution\":{\"checkpoint_reason\":\"first_result\",\"review_cadence\":\"${REVIEW_CADENCE}\",\"first_result_ready\":true,\"first_result_gate_pending\":true,\"current_task\":\"${TASK_DESCRIPTION}\"}}" 2>/dev/null || true
      ```
 
+     If the first result is still proxy-only or anchor-thin, strengthen the same stop into skeptical review instead of silently continuing:
+
+     ```bash
+     gpd observe event execution gate --action enter --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"first_result\",\"review_cadence\":\"${REVIEW_CADENCE}\",\"first_result_ready\":true,\"first_result_gate_pending\":true,\"skeptical_requestioning_required\":true,\"skeptical_requestioning_summary\":\"${SKEPTICAL_SUMMARY}\",\"weakest_unchecked_anchor\":\"${WEAKEST_ANCHOR}\",\"disconfirming_observation\":\"${DISCONFIRMING_OBSERVATION}\",\"downstream_locked\":true,\"current_task\":\"${TASK_DESCRIPTION}\"}}" 2>/dev/null || true
+     ```
+
+     Before any downstream dependent tasks or fanout continue, emit an explicit pre-fanout stop:
+
+     ```bash
+     gpd observe event execution fanout --action lock --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\",\"pre_fanout_review_pending\":true,\"downstream_locked\":true,\"last_result_label\":\"${FIRST_RESULT_LABEL}\"}}" 2>/dev/null || true
+     gpd observe event execution gate --action enter --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\",\"pre_fanout_review_pending\":true,\"downstream_locked\":true,\"last_result_label\":\"${FIRST_RESULT_LABEL}\"}}" 2>/dev/null || true
+     ```
+
+     Only after the review outcome is accepted should execution unlock fanout:
+
+     ```bash
+     gpd observe event execution gate --action clear --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\"}}" 2>/dev/null || true
+     gpd observe event execution fanout --action unlock --phase "${phase}" --plan "${plan}" \
+       --data "{\"execution\":{\"checkpoint_reason\":\"pre_fanout\"}}" 2>/dev/null || true
+     ```
+
      **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
      - **babysit:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
      - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, and any checkpoint tied to deviation rules 5-6 or unresolved convergence failure. Log routine checkpoint markers and continue when no judgment is needed.
-     - **yolo:** Do NOT skip required first-result, bounded-segment, or pre-fanout checkpoints. Auto-continue on clean passes, but STOP on failed sanity, anchor-gate failure, or unrecoverable computation error.
+     - **yolo:** Do NOT skip required first-result, bounded-segment, skeptical, or pre-fanout checkpoints. Auto-continue only after the gate is explicitly cleared. STOP on failed sanity, unresolved skeptical review, anchor-gate failure, or unrecoverable computation error.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
    ```bash
    gpd observe event verification verification-complete --phase "${phase}" --plan "${plan}" --data "{\"description\":\"${VERIFICATION_RESULT}\"}" 2>/dev/null || true
@@ -338,7 +367,7 @@ CHECKPOINT
    - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
    - Update STATE.md session info
   - **babysit/balanced:** Suggest `/clear` + `/gpd:resume-work`
-  - **yolo:** Auto-trigger `/gpd:resume-work` if context allows (otherwise suggest `/clear`)
+  - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `/gpd:resume-work`
 
 This prevents quality degradation and ensures no work is lost if the session ends unexpectedly.
 </step>

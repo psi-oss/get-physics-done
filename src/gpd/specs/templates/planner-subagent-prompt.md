@@ -59,13 +59,13 @@ If `project_contract` is non-empty:
 - Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
-- `must_haves` must be the compatibility projection of this `contract` block, not a separate free-form invention.
+- Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.
 - Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
 - If the planner cannot determine the right contract slice for the phase, return `## CHECKPOINT REACHED` instead of writing a weak plan.
 </contract_completion_requirements>
 
 <light_mode_instructions>
-**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and derived `must_haves`.
+**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, and `contract`.
 
 Simplify only the body:
 
@@ -91,11 +91,11 @@ See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed 
 <downstream_consumer>
 Output consumed by /gpd:execute-phase. Plans need:
 
-- Frontmatter (`wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, `must_haves`)
+- Frontmatter (`wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`)
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
 - Contract-complete claim, deliverable, reference, acceptance-test, forbidden-proxy, and uncertainty-marker coverage
-- must_haves derived from the selected contract slice and phase goal
+- Contract links or explicit task-level dependency wiring for results that feed later work
 - Contract-critical anchors and benchmarks surfaced wherever the plan depends on them
 - Selected protocol bundle guidance reflected in tasks, verification paths, and decisive artifact choices
 </downstream_consumer>
@@ -108,7 +108,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - [ ] Tasks are specific and actionable with clear mathematical deliverables
 - [ ] Dependencies correctly identified
 - [ ] Waves assigned for parallel execution
-- [ ] must_haves derived from the contract and phase goal including limiting case recovery
+- [ ] Contract links or explicit task-level dependency wiring cover the critical handoffs and limiting-case recovery path
 - [ ] Required refs, prior outputs, and baselines are surfaced in `<context>` or verification paths
 - [ ] Selected protocol bundle guidance is reflected in the task structure, estimator guards, or decisive artifacts when applicable
 - [ ] Forbidden proxies are rejected explicitly in `<done>` or `<success_criteria>`

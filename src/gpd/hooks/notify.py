@@ -177,6 +177,18 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
             f"[GPD] First-result review due for {phase_plan}: {artifact}\n",
             f"first-result:{snapshot.transition_id or snapshot.segment_id or artifact}",
         )
+    if snapshot.skeptical_requestioning_required:
+        focus = snapshot.weakest_unchecked_anchor or artifact
+        gate = "pre-fanout" if snapshot.pre_fanout_review_pending else "skeptical"
+        return (
+            f"[GPD] Skeptical {gate} review due for {phase_plan}: {focus}\n",
+            f"skeptical:{snapshot.transition_id or snapshot.segment_id or focus}",
+        )
+    if snapshot.pre_fanout_review_pending:
+        return (
+            f"[GPD] Pre-fanout review due for {phase_plan}: {artifact}\n",
+            f"pre-fanout:{snapshot.transition_id or snapshot.segment_id or artifact}",
+        )
     if snapshot.waiting_for_review:
         checkpoint = snapshot.checkpoint_reason or "checkpoint"
         return (

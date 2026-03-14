@@ -415,7 +415,6 @@ def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> No
             "waiting_for_review": True,
             "checkpoint_reason": "pre_fanout",
             "pre_fanout_review_pending": True,
-            "skeptical_requestioning_required": True,
         },
     )
 
@@ -423,7 +422,34 @@ def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> No
     with patch("sys.stderr", stderr):
         _emit_execution_notification(str(workspace))
 
-    assert "Review checkpoint due for 05-03: pre_fanout" in stderr.getvalue()
+    assert "Pre-fanout review due for 05-03" in stderr.getvalue()
+
+
+def test_emit_execution_notification_for_skeptical_review_uses_anchor_focus(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "05",
+            "plan": "04",
+            "segment_id": "seg-10",
+            "segment_status": "waiting_review",
+            "waiting_for_review": True,
+            "checkpoint_reason": "pre_fanout",
+            "pre_fanout_review_pending": True,
+            "skeptical_requestioning_required": True,
+            "weakest_unchecked_anchor": "Direct observable benchmark",
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    output = stderr.getvalue()
+    assert "Skeptical pre-fanout review due for 05-04" in output
+    assert "Direct observable benchmark" in output
 
 
 def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Path) -> None:

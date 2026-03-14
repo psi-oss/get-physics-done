@@ -146,6 +146,18 @@ class TestExecutionBadge:
         assert "REVIEW:pre-fanout" in badge
         assert "adaptive" in badge
 
+    def test_skeptical_review_badge_wins_over_generic_checkpoint(self) -> None:
+        badge = _execution_badge(
+            {
+                "segment_status": "waiting_review",
+                "waiting_for_review": True,
+                "checkpoint_reason": "pre_fanout",
+                "pre_fanout_review_pending": True,
+                "skeptical_requestioning_required": True,
+            }
+        )
+        assert "REVIEW:skeptical" in badge
+
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
 
@@ -905,3 +917,31 @@ class TestMain:
         assert "REVIEW:first-result adaptive" in output
         assert "Routine task" not in output
         assert "Benchmark reproduction" in output
+
+    def test_skeptical_review_prefers_anchor_label_over_result_label(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="P4/10"),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
+            patch(
+                "gpd.hooks.statusline._read_execution_state",
+                return_value={
+                    "segment_status": "waiting_review",
+                    "waiting_for_review": True,
+                    "checkpoint_reason": "pre_fanout",
+                    "pre_fanout_review_pending": True,
+                    "skeptical_requestioning_required": True,
+                    "weakest_unchecked_anchor": "Direct observable benchmark",
+                    "last_result_label": "Proxy fit",
+                },
+            ),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue()
+        assert "REVIEW:skeptical" in output
+        assert "Direct observable benchmark" in output
+        assert "Proxy fit" not in output

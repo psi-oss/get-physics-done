@@ -8,7 +8,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 Read these files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/ui/ui-brand.md
 - {GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md -- Template for spawning gpd-planner agents (placeholders, continuation format, failure protocol)
-- {GPD_INSTALL_DIR}/templates/phase-prompt.md -- PLAN.md output format (frontmatter, task XML, must-haves schema)
+- {GPD_INSTALL_DIR}/templates/phase-prompt.md -- PLAN.md output format (frontmatter, task XML, contract-native wiring)
 </required_reading>
 
 <process>
@@ -34,8 +34,8 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 - `autonomy=balanced` (default): Write the plan and pause only if the plan-checker raises issues or the planning choices need user judgment.
 - `autonomy=yolo`: Write the plan and proceed without pausing.
 - `research_mode=explore`: Always run research step even if research exists. Expand wave count for thorough coverage.
-- `research_mode=exploit`: Skip research if any prior research exists. Produce minimal wave structure.
-- `research_mode=adaptive`: Run research only if phase complexity score > 3 (heuristic from plan-checker).
+- `research_mode=exploit`: Reuse existing research only when it already covers the exact method family, anchors, and decisive evidence path for this phase. Otherwise run targeted research.
+- `research_mode=adaptive`: Start broad until prior decisive evidence or an explicit approach lock justifies narrowing. Do not infer “safe to narrow” from phase number alone.
 - All modes still require contract completeness, decisive outputs, required anchors, forbidden-proxy handling, and disconfirming paths before execution starts.
 
 **Set shell variables from init JSON:**
@@ -163,10 +163,10 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 
 | Mode | RESEARCH.md exists | RESEARCH.md missing | `--research` flag |
 |------|-------------------|--------------------|--------------------|
-| **explore** | Re-research always (expand scope, explore alternatives) | Research (comprehensive — multiple methods, broad survey) | Research (comprehensive) |
-| **balanced** (default) | Skip (use existing, check staleness) | Research (standard) | Research (standard) |
-| **exploit** | Skip (use existing, no staleness check) | Research (minimal — method-specific only, skip broad survey) | Research (minimal) |
-| **adaptive** | Check validation status: if `approach_validated: true` in prior SUMMARY → skip (exploit). Otherwise → research (explore-style). | Research (explore-style for first 2 phases, balanced for phase 3+) | Research (standard) |
+| **explore** | Re-research always (expand scope, compare alternatives, refresh anchors) | Research (comprehensive — multiple methods, broad survey) | Research (comprehensive) |
+| **balanced** (default) | Skip by default, but re-research if inputs look stale or missing for the current contract slice | Research (standard) | Research (standard) |
+| **exploit** | Skip only if the existing research already covers the exact method family, anchor set, and decisive evidence path; otherwise run targeted method research | Research (minimal — method-specific only, no broad survey) | Research (minimal) |
+| **adaptive** | Reuse existing research only after prior decisive evidence or explicit approach-lock markers show the method is stable; otherwise refresh research in a balanced or explore-style pass | Research (broad enough to choose and lock an approach) | Research (standard) |
 
 **If `has_research` is true (from init) AND no `--research` flag:**
 
@@ -178,17 +178,23 @@ if [ "$RESEARCH_MODE" = "explore" ]; then
   echo "Research mode: explore — re-researching for comprehensive coverage"
   # Proceed to spawn researcher below
 elif [ "$RESEARCH_MODE" = "exploit" ]; then
-  # Exploit: skip research if ANY prior research exists
-  echo "Research mode: exploit — using existing research"
-  # Skip to step 6
-elif [ "$RESEARCH_MODE" = "adaptive" ]; then
-  # Adaptive: check if approach is validated in prior phase summaries
-  VALIDATED=$(ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -l "approach_validated: true" 2>/dev/null | head -1)
-  if [ -n "$VALIDATED" ]; then
-    echo "Research mode: adaptive — approach validated, using existing research (exploit-style)"
+  # Exploit: reuse only if existing research already covers the exact method family
+  # and contract-critical anchor/comparison path for this phase
+  if echo "$INIT" | gpd json get .research_content --default "" | grep -qi "method\\|benchmark\\|anchor"; then
+    echo "Research mode: exploit — existing targeted research appears sufficient"
     # Skip to step 6
   else
-    echo "Research mode: adaptive — approach not yet validated, re-researching (explore-style)"
+    echo "Research mode: exploit — existing research is too generic, refreshing targeted method context"
+    # Proceed to spawn researcher below
+  fi
+elif [ "$RESEARCH_MODE" = "adaptive" ]; then
+  # Adaptive: narrow only after prior decisive evidence or an explicit approach lock
+  VALIDATED=$(ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -El "approach_validated: true|comparison_verdicts:|contract_results:" 2>/dev/null | head -1)
+  if [ -n "$VALIDATED" ]; then
+    echo "Research mode: adaptive — prior decisive evidence found, using existing research as the starting point"
+    # Skip to step 6
+  else
+    echo "Research mode: adaptive — approach not yet locked, refreshing research before planning"
     # Proceed to spawn researcher below
   fi
 else
@@ -518,13 +524,13 @@ If `project_contract` is non-empty:
 - Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
-- `must_haves` must be the compatibility projection of this `contract` block, not a separate free-form invention.
+- Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.
 - Autonomy mode and model profile may change cadence or detail, but they do NOT relax contract completeness.
 - If the planner cannot determine the right contract slice for the phase, return `## CHECKPOINT REACHED` instead of writing a weak plan.
 </contract_requirements>
 
 <light_mode_instructions>
-**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and derived `must_haves`.
+**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, and `contract`.
 
 Simplify only the body: one high-level task block per plan, concise verification, concise success criteria. The light plan is a shorter execution script, not a strategic outline that drops required contract fields.
 </light_mode_instructions>
@@ -546,11 +552,11 @@ See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for detailed 
 <downstream_consumer>
 Output consumed by /gpd:execute-phase. Plans need:
 
-- Frontmatter (wave, depends_on, files_modified, interactive, contract, must_haves)
+- Frontmatter (wave, depends_on, files_modified, interactive, contract)
 - Tasks in XML format
 - Verification criteria with mathematical rigor requirements
 - contract-complete frontmatter before execution starts
-- must_haves as the compatibility projection of the selected contract slice, including limiting case checks
+- contract links or explicit task-level dependency wiring for critical handoffs, including limiting-case checks
 - protocol-bundle guidance reflected in task structure, verification, and decisive artifact selection when applicable
 </downstream_consumer>
 
@@ -562,7 +568,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 - [ ] Tasks are specific and actionable with clear mathematical deliverables
 - [ ] Dependencies correctly identified (including prerequisite derivations)
 - [ ] Waves assigned for parallel execution
-- [ ] must_haves derived from phase goal including limiting case recovery
+- [ ] Contract links or explicit task-level dependency wiring cover the decisive handoffs and limiting-case recovery path
 - [ ] Required refs, prior outputs, and baselines are surfaced in `<context>` or verification paths
 - [ ] Selected protocol bundles are reflected in verification paths or decisive artifact choices where relevant
 - [ ] Forbidden proxies are rejected explicitly in `<done>` or `<success_criteria>`

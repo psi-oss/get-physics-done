@@ -16,7 +16,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract, contract_to_legacy_must_haves
+from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -40,7 +40,6 @@ __all__ = [
     "reconstruct_frontmatter",
     "splice_frontmatter",
     "deep_merge_frontmatter",
-    "parse_must_haves_block",
     "parse_contract_block",
     # Schema validation
     "FRONTMATTER_SCHEMAS",
@@ -192,28 +191,6 @@ def deep_merge_frontmatter(content: str, merge_data: dict) -> str:
     return f"---{eol}{yaml_str}{eol}---{eol}{eol}" + clean
 
 
-def parse_must_haves_block(content: str, block_name: str) -> list:
-    """Extract a list from ``must_haves.<block_name>`` in frontmatter.
-
-    Returns an empty list when the block is absent or not a list.
-    """
-    meta, _ = extract_frontmatter(content)
-    must_haves = meta.get("must_haves")
-    if not isinstance(must_haves, dict):
-        contract_data = meta.get("contract")
-        if isinstance(contract_data, dict):
-            try:
-                must_haves = contract_to_legacy_must_haves(contract_data).model_dump(by_alias=True)
-            except PydanticValidationError:
-                return []
-    if not isinstance(must_haves, dict):
-        return []
-    block = must_haves.get(block_name)
-    if not isinstance(block, list):
-        return []
-    return block
-
-
 def parse_contract_block(content: str) -> ResearchContract | None:
     """Extract and validate the optional ``contract`` block from frontmatter."""
 
@@ -248,7 +225,6 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "files_modified",
             "interactive",
             "contract",
-            "must_haves",
         ],
     },
     "summary": {
@@ -272,14 +248,40 @@ class FrontmatterValidation(BaseModel):
 
 def _resolve_field(meta: dict, name: str) -> str | None:
     """Return *name* when present in *meta*, otherwise ``None``."""
-    if name == "must_haves" and "contract" in meta:
-        return name
     return name if name in meta else None
+
+
+def _has_contract_grounding_context(contract: ResearchContract) -> bool:
+    """Return whether the contract carries explicit grounding outside references."""
+
+    return any(
+        (
+            contract.context_intake.must_include_prior_outputs,
+            contract.context_intake.user_asserted_anchors,
+            contract.context_intake.known_good_baselines,
+            contract.context_intake.crucial_inputs,
+        )
+    )
+
+
+def _is_exploratory_contract(contract: ResearchContract) -> bool:
+    """Return whether the contract semantics describe setup/exploratory work."""
+
+    exploratory_test_kinds = {"existence", "schema", "human_review", "other"}
+    exploratory_deliverable_kinds = {"code", "note", "report", "other"}
+
+    return (
+        bool(contract.acceptance_tests)
+        and bool(contract.deliverables)
+        and all(test.kind in exploratory_test_kinds for test in contract.acceptance_tests)
+        and all(deliverable.kind in exploratory_deliverable_kinds for deliverable in contract.deliverables)
+    )
 
 
 def _validate_plan_contract(contract: ResearchContract) -> list[str]:
     """Return completeness issues for contract-backed PLAN.md frontmatter."""
     issues: list[str] = []
+    exploratory_contract = _is_exploratory_contract(contract)
 
     if not contract.claims:
         issues.append("missing claims")
@@ -287,9 +289,9 @@ def _validate_plan_contract(contract: ResearchContract) -> list[str]:
         issues.append("missing deliverables")
     if not contract.acceptance_tests:
         issues.append("missing acceptance_tests")
-    if not contract.references:
-        issues.append("missing references")
-    if not contract.forbidden_proxies:
+    if not contract.references and not (_has_contract_grounding_context(contract) or exploratory_contract):
+        issues.append("missing references or explicit grounding context")
+    if not contract.forbidden_proxies and not exploratory_contract:
         issues.append("missing forbidden_proxies")
     if not contract.uncertainty_markers.weakest_anchors:
         issues.append("missing uncertainty_markers.weakest_anchors")
@@ -331,7 +333,7 @@ def _validate_plan_contract(contract: ResearchContract) -> list[str]:
             issues.append(f"claim {claim.id} missing deliverables")
         if not claim.acceptance_tests:
             issues.append(f"claim {claim.id} missing acceptance_tests")
-        if not claim.references:
+        if reference_ids and not claim.references:
             issues.append(f"claim {claim.id} missing references")
         for observable_id in claim.observables:
             if observable_id not in observable_ids:
@@ -825,22 +827,6 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
     elif "contract" in meta:
         errors.append("Invalid contract: expected an object")
 
-    # must_haves validation
-    must_haves = meta.get("must_haves")
-    if must_haves is not None:
-        if not isinstance(must_haves, dict):
-            if isinstance(must_haves, list):
-                if len(must_haves) == 0:
-                    errors.append("Invalid must_haves: list must not be empty")
-                elif not all(isinstance(v, str) for v in must_haves):
-                    errors.append("Invalid must_haves: list items must be strings")
-            else:
-                errors.append("Invalid must_haves: expected an object or list")
-        elif contract is not None:
-            derived = contract_to_legacy_must_haves(contract).model_dump(by_alias=True)
-            if must_haves != derived:
-                warnings.append("must_haves does not match the derived contract compatibility view")
-
     # Parse task elements
     tasks: list[TaskInfo] = []
     for task_match in _TASK_ELEMENT_RE.finditer(content):
@@ -1038,7 +1024,7 @@ def verify_commits(cwd: Path, hashes: list[str]) -> CommitVerification:
 
 @instrument_gpd_function("frontmatter.verify_artifacts")
 def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
-    """Verify artifacts declared in ``must_haves.artifacts`` of a plan file."""
+    """Verify artifact deliverables declared in the canonical plan contract."""
     full_path = plan_file_path if plan_file_path.is_absolute() else cwd / plan_file_path
     content = safe_read_file(full_path)
     if content is None:
@@ -1048,8 +1034,24 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
             total=1,
         )
 
-    artifacts_list = parse_must_haves_block(content, "artifacts")
-    if not artifacts_list:
+    try:
+        contract = parse_contract_block(content)
+    except FrontmatterValidationError as exc:
+        return ArtifactVerification(
+            all_passed=False,
+            artifacts=[ArtifactCheck(path=str(plan_file_path), issues=[str(exc)])],
+            total=1,
+        )
+
+    if contract is None:
+        return ArtifactVerification(
+            all_passed=False,
+            artifacts=[ArtifactCheck(path=str(plan_file_path), issues=["Plan contract not found"])],
+            total=1,
+        )
+
+    deliverables = [deliverable for deliverable in contract.deliverables if deliverable.path]
+    if not deliverables:
         return ArtifactVerification(
             all_passed=True,
             artifacts=[],
@@ -1057,49 +1059,17 @@ def verify_artifacts(cwd: Path, plan_file_path: Path) -> ArtifactVerification:
         )
 
     results: list[ArtifactCheck] = []
-    for artifact in artifacts_list:
-        if isinstance(artifact, str):
-            exists = (cwd / artifact).exists()
-            results.append(
-                ArtifactCheck(
-                    path=artifact,
-                    exists=exists,
-                    issues=[] if exists else ["File not found"],
-                    passed=exists,
-                )
-            )
-            continue
-
-        if not isinstance(artifact, dict):
-            continue
-        art_path = artifact.get("path")
-        art_path = str(art_path) if art_path else None
-        if not art_path:
-            continue
-
+    for deliverable in deliverables:
+        art_path = str(deliverable.path)
         art_full = cwd / art_path
         exists = art_full.exists()
         check = ArtifactCheck(path=art_path, exists=exists)
 
         if exists:
             file_content = safe_read_file(art_full) or ""
-            line_count = len(file_content.splitlines()) if file_content else 0
-
-            min_lines = safe_parse_int(artifact.get("min_lines"), 0)
-            if min_lines and line_count < min_lines:
-                check.issues.append(f"Only {line_count} lines, need {min_lines}")
-
-            contains = str(artifact.get("contains", "")) if artifact.get("contains") is not None else None
-            if contains and contains not in file_content:
-                check.issues.append(f"Missing pattern: {contains}")
-
-            expected_results = artifact.get("results")
-            if expected_results:
-                if not isinstance(expected_results, list):
-                    expected_results = [expected_results]
-                for res in expected_results:
-                    if str(res) not in file_content:
-                        check.issues.append(f"Missing result: {res}")
+            for required_fragment in deliverable.must_contain:
+                if required_fragment not in file_content:
+                    check.issues.append(f"Missing pattern: {required_fragment}")
 
             check.passed = len(check.issues) == 0
         else:

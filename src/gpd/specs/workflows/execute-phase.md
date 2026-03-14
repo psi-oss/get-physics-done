@@ -35,10 +35,11 @@ When `parallelization` is false, plans within a wave execute sequentially.
 **Mode-aware behavior:**
 - `autonomy=babysit`: Pause for user confirmation before each wave. Show the plan summary and wait for approval.
 - `autonomy=balanced` (default): Execute waves automatically and pause only if errors, ambiguities, or scope-changing decisions arise at a wave boundary.
-- `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, or anchor-gated fanout reviews.
+- `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, skeptical review stops, or anchor-gated fanout reviews. A clean pass may auto-continue only after the gate is explicitly cleared.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
-- `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget.
+- `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget, but never skip required first-result, skeptical, or pre-fanout review gates.
 - `research_mode=adaptive`: Start with explore-style coverage, then switch to exploit after the first anchor-confirmed or benchmark-confirmed result validates the approach.
+- Model profile and research mode may change depth, task granularity, or prose volume. They do NOT waive first-result, skeptical, or pre-fanout review gates.
 - `review_cadence`: Controls when bounded review gates appear. `autonomy` controls who must approve or inspect those gates. These are separate axes.
 </step>
 
@@ -363,6 +364,8 @@ CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_do
 
 **Core invariant:** `autonomy` decides who gets interrupted. `review_cadence` decides when the system must stop, inspect, or re-question. Even in `yolo`, required first-result and pre-fanout gates still run; the difference is that a clean pass can auto-continue.
 
+These gates are task-level safety rails, not line-by-line interruptions. Even in `babysit`, checkpoint after each plan task or required gate, not after every algebraic micro-step.
+
 For each wave, classify whether downstream fanout is risky:
 
 - risky when a wave has multiple plans and any later wave depends on it
@@ -575,7 +578,9 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - `skeptical_requestioning_required: true` when the first result still looks proxy-only or anchor-thin
    - `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, and `disconfirming_observation` whenever skeptical re-questioning is required
 
-   When review passes cleanly, emit the matching gate-clear plus fanout-unlock transition so live status, notify, and resume surfaces stop showing the wave as blocked.
+   If the runtime or agent only emits a fanout-lock event, normalize it into the same live review stop: treat the lock as `checkpoint_reason=pre_fanout`, mark `waiting_for_review=true`, and keep downstream locked until the review is explicitly cleared.
+
+   When review passes cleanly, emit the matching gate-clear plus fanout-unlock transition so live status, notify, and resume surfaces stop showing the wave as blocked. Do not silently continue on "looks fine" prose alone.
 
 9. **Inter-wave verification gate (if more waves remain):**
 

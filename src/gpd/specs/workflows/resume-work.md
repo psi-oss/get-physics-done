@@ -278,6 +278,7 @@ Present complete research project status to user:
     - First result ready: [yes/no]
     - Downstream fanout locked: [yes/no]
     - Skeptical re-questioning required: [yes/no]
+    - Why the gate fired: [skeptical_requestioning_summary if present]
     - Weakest unchecked anchor: [if present]
     - Fastest disconfirming observation: [if present]
 
@@ -313,6 +314,7 @@ Based on project state, determine the most logical next action:
 **If `resume_mode="bounded_segment"` and `active_execution_segment` exists:**
 -> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
 -> If `checkpoint_reason=pre_fanout` or skeptical re-questioning is required: treat the next action as a review/replan decision, not a routine execution resume
+-> Do not resume downstream fanout until the gate has an explicit clear/override outcome
 -> Option: Review a lower-priority legacy candidate from `segment_candidates`
 
 **If interrupted agent exists:**

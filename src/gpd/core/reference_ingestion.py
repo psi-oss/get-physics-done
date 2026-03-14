@@ -30,6 +30,17 @@ _ROLE_MAP = {
     "must consider": "must_consider",
     "must_consider": "must_consider",
 }
+_KIND_MAP = {
+    "paper": "paper",
+    "dataset": "dataset",
+    "prior artifact": "prior_artifact",
+    "prior_artifact": "prior_artifact",
+    "prior-artifact": "prior_artifact",
+    "artifact": "prior_artifact",
+    "spec": "spec",
+    "user anchor": "user_anchor",
+    "user_anchor": "user_anchor",
+}
 _PATH_HINT_RE = re.compile(r"(?:^|[`\s])(?:\.gpd/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|tex|ipynb|py)(?:$|[`)\s])")
 
 
@@ -39,6 +50,7 @@ class ArtifactReference:
 
     id: str
     locator: str
+    kind: str = "other"
     role: str = "other"
     why_it_matters: str = ""
     applies_to: list[str] = field(default_factory=list)
@@ -51,6 +63,7 @@ class ArtifactReference:
         return {
             "id": self.id,
             "locator": self.locator,
+            "kind": self.kind,
             "role": self.role,
             "why_it_matters": self.why_it_matters,
             "applies_to": list(self.applies_to),
@@ -111,6 +124,13 @@ def _normalize_role(value: str | None) -> str:
     return _ROLE_MAP.get(raw, _ROLE_MAP.get(raw.replace("/", " ").replace("-", " "), "other"))
 
 
+def _normalize_kind(value: str | None) -> str:
+    raw = _clean_text(value).lower()
+    if not raw:
+        return "other"
+    return _KIND_MAP.get(raw, _KIND_MAP.get(raw.replace("/", " ").replace("-", " "), "other"))
+
+
 def _normalize_actions(value: object) -> list[str]:
     if isinstance(value, list):
         tokens = [_clean_text(item).lower() for item in value]
@@ -136,6 +156,14 @@ def _normalize_multi_value(value: object) -> list[str]:
         if cleaned and cleaned not in result:
             result.append(cleaned)
     return result
+
+
+def _first_non_empty(mapping: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = _clean_text(mapping.get(key))
+        if value:
+            return value
+    return ""
 
 
 def _looks_like_path(value: str | None) -> bool:
@@ -263,8 +291,10 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
 
 def _reference_from_active_anchor(
     *,
+    anchor_id: str | None,
     label: str,
     locator: str | None,
+    kind: str | None,
     role: str | None,
     why_it_matters: str | None,
     actions: object,
@@ -273,13 +303,20 @@ def _reference_from_active_anchor(
     prefix: str,
 ) -> ArtifactReference:
     locator_value = _clean_text(locator) or _clean_text(label)
+    normalized_role = _normalize_role(role)
+    normalized_actions = _normalize_actions(actions)
+    must_surface = normalized_role in {"benchmark", "definition", "method", "must_consider"} or bool(
+        {"use", "compare", "avoid"} & set(normalized_actions)
+    )
     return ArtifactReference(
-        id=_reference_id(label, locator_value, prefix),
+        id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
         locator=locator_value,
-        role=_normalize_role(role),
+        kind=_normalize_kind(kind),
+        role=normalized_role,
         why_it_matters=_clean_text(why_it_matters),
         applies_to=_normalize_multi_value(downstream),
-        required_actions=_normalize_actions(actions),
+        must_surface=must_surface,
+        required_actions=normalized_actions,
         source_artifacts=[source_path],
         source_kind="artifact",
     )
@@ -294,8 +331,10 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                 if not isinstance(entry, dict):
                     continue
                 reference = _reference_from_active_anchor(
-                    label=str(entry.get("anchor") or entry.get("locator") or "literature-anchor"),
-                    locator=str(entry.get("locator") or entry.get("anchor") or ""),
+                    anchor_id=str(entry.get("anchor_id") or ""),
+                    label=str(entry.get("anchor") or entry.get("label") or entry.get("locator") or "literature-anchor"),
+                    locator=str(entry.get("locator") or entry.get("source") or entry.get("anchor") or ""),
+                    kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),
                     actions=entry.get("required_action") or entry.get("required_actions"),
@@ -319,12 +358,14 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
         merged = {ref.id: ref for ref in result.references}
         for row in _parse_markdown_table(section):
             reference = _reference_from_active_anchor(
-                label=row.get("Anchor", "") or row.get("Reference", ""),
-                locator=row.get("Source / Locator") or row.get("Anchor", ""),
-                role=row.get("Type"),
-                why_it_matters=row.get("Why It Matters") or row.get("What It Constrains"),
-                actions=row.get("Required Action"),
-                downstream=row.get("Downstream Use") or row.get("Carry Forward To"),
+                anchor_id=_first_non_empty(row, "Anchor ID", "ID"),
+                label=_first_non_empty(row, "Anchor", "Reference", "Label", "Source / Locator"),
+                locator=_first_non_empty(row, "Source / Locator", "Locator", "Source", "Reference", "Anchor"),
+                kind=_first_non_empty(row, "Kind"),
+                role=_first_non_empty(row, "Type", "Role"),
+                why_it_matters=_first_non_empty(row, "Why It Matters", "What It Constrains"),
+                actions=_first_non_empty(row, "Required Action", "Required Actions"),
+                downstream=_first_non_empty(row, "Downstream Use", "Carry Forward To"),
                 source_path=source_path,
                 prefix="lit-anchor",
             )
@@ -343,12 +384,14 @@ def _ingest_reference_map(content: str, source_path: str, result: ArtifactRefere
         merged = {ref.id: ref for ref in result.references}
         for row in _parse_markdown_table(section):
             reference = _reference_from_active_anchor(
-                label=row.get("Anchor", "") or row.get("Source / Locator", ""),
-                locator=row.get("Source / Locator") or row.get("Anchor", ""),
-                role=row.get("Type"),
-                why_it_matters=row.get("Why It Matters") or row.get("What It Constrains"),
-                actions=row.get("Required Action"),
-                downstream=row.get("Downstream Use") or row.get("Carry Forward To"),
+                anchor_id=_first_non_empty(row, "Anchor ID", "ID"),
+                label=_first_non_empty(row, "Anchor", "Source / Locator", "Label"),
+                locator=_first_non_empty(row, "Source / Locator", "Locator", "Source", "Anchor"),
+                kind=_first_non_empty(row, "Kind"),
+                role=_first_non_empty(row, "Type", "Role"),
+                why_it_matters=_first_non_empty(row, "Why It Matters", "What It Constrains"),
+                actions=_first_non_empty(row, "Required Action", "Required Actions"),
+                downstream=_first_non_empty(row, "Downstream Use", "Carry Forward To"),
                 source_path=source_path,
                 prefix="map-anchor",
             )
@@ -402,15 +445,17 @@ def _ingest_reference_map(content: str, source_path: str, result: ArtifactRefere
 def _populate_intake_from_references(result: ArtifactReferenceIngestion) -> None:
     for reference in result.references:
         if "read" in reference.required_actions or reference.role in {"benchmark", "definition", "method"}:
-            _append_unique(result.intake.must_read_refs, reference.locator)
+            _append_unique(result.intake.must_read_refs, reference.id)
         if reference.role == "benchmark":
             baseline = reference.locator
             if reference.why_it_matters:
                 baseline = f"{baseline} — {reference.why_it_matters}"
             _append_unique(result.intake.known_good_baselines, baseline)
-        if _looks_like_path(reference.locator) or reference.role == "must_consider":
+        if _looks_like_path(reference.locator):
             _append_unique(result.intake.must_include_prior_outputs, reference.locator)
             _append_unique(result.intake.crucial_inputs, reference.locator)
+        elif reference.role == "must_consider":
+            _append_unique(result.intake.user_asserted_anchors, reference.locator)
 
 
 def ingest_reference_artifacts(

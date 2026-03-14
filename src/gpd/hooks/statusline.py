@@ -304,15 +304,25 @@ def _execution_badge(snapshot: dict[str, object]) -> str:
     waiting_reason = _first_string(snapshot, "waiting_reason")
     blocked_reason = _first_string(snapshot, "blocked_reason")
     segment_status = _first_string(snapshot, "segment_status").lower()
+    skeptical_review = bool(snapshot.get("skeptical_requestioning_required"))
+    pre_fanout_review = bool(snapshot.get("pre_fanout_review_pending"))
 
     if blocked_reason:
         badge = "BLOCKED"
+    elif skeptical_review:
+        badge = "REVIEW:skeptical"
     elif bool(snapshot.get("first_result_gate_pending")):
         badge = "REVIEW:first-result"
+    elif pre_fanout_review:
+        badge = "REVIEW:pre-fanout"
     elif bool(snapshot.get("waiting_for_review")):
         label = "checkpoint"
         if checkpoint_reason == "first_result":
             label = "first-result"
+        elif checkpoint_reason == "skeptical_requestioning":
+            label = "skeptical"
+        elif checkpoint_reason == "pre_fanout":
+            label = "pre-fanout"
         elif checkpoint_reason:
             label = checkpoint_reason.replace("_", "-")
         badge = f"REVIEW:{label}"
@@ -337,6 +347,10 @@ def _execution_badge(snapshot: dict[str, object]) -> str:
 
 def _execution_artifact_label(snapshot: dict[str, object]) -> str:
     """Return the latest artifact or result label for live execution state."""
+    if bool(snapshot.get("skeptical_requestioning_required")):
+        weakest_anchor = _first_string(snapshot, "weakest_unchecked_anchor")
+        if weakest_anchor:
+            return weakest_anchor
     artifact = _first_string(snapshot, "last_artifact_path")
     if artifact:
         return Path(artifact).name

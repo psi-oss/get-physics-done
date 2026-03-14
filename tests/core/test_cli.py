@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
+import gpd.cli as cli_module
 from gpd.adapters import list_runtimes
 from gpd.cli import app
 
@@ -78,6 +80,40 @@ def test_raw_version_subcommand_outputs_json():
     result = runner.invoke(app, ["--raw", "version"])
     assert result.exit_code == 0
     assert json.loads(result.output)["result"].startswith("gpd ")
+
+
+def test_entrypoint_reexecs_from_checkout_when_running_outside_checkout(tmp_path: Path, monkeypatch) -> None:
+    checkout = _make_checkout(tmp_path, "9.9.9")
+    managed_cli = tmp_path / "managed" / "site-packages" / "gpd" / "cli.py"
+    managed_cli.parent.mkdir(parents=True, exist_ok=True)
+    managed_cli.write_text("# managed copy placeholder\n", encoding="utf-8")
+
+    monkeypatch.chdir(checkout)
+    monkeypatch.setattr(cli_module, "__file__", str(managed_cli))
+    monkeypatch.setattr(cli_module.sys, "argv", ["gpd", "version"])
+
+    captured: dict[str, object] = {}
+
+    def fake_execve(executable: str, argv: list[str], env: dict[str, str]) -> None:
+        captured["executable"] = executable
+        captured["argv"] = argv
+        captured["env"] = env
+        raise SystemExit(0)
+
+    monkeypatch.setattr(cli_module.os, "execve", fake_execve)
+
+    with patch.object(cli_module, "app", side_effect=AssertionError("entrypoint should re-exec before running app")):
+        with patch.dict(os.environ, {}, clear=True):
+            try:
+                cli_module.entrypoint()
+            except SystemExit as exc:
+                assert exc.code == 0
+
+    assert captured["argv"] == [cli_module.sys.executable, "-m", "gpd.cli", "version"]
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["GPD_DISABLE_CHECKOUT_REEXEC"] == "1"
+    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(checkout / "src")
 
 
 def test_help():

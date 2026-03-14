@@ -13,13 +13,77 @@ from gpd.core.frontmatter import (
     deep_merge_frontmatter,
     extract_frontmatter,
     parse_contract_block,
-    parse_must_haves_block,
     reconstruct_frontmatter,
     splice_frontmatter,
     validate_frontmatter,
 )
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
+
+def _valid_plan_contract_frontmatter(
+    extra_contract_lines: str = "",
+    *,
+    interactive: str = "false",
+    deliverable_must_contain: list[str] | None = None,
+) -> str:
+    extra = extra_contract_lines.rstrip()
+    contract_suffix = f"\n{extra}" if extra else ""
+    must_contain = ""
+    if deliverable_must_contain:
+        must_contain_items = ", ".join(deliverable_must_contain)
+        must_contain = f"\n      must_contain: [{must_contain_items}]"
+    return (
+        "---\n"
+        "phase: 01-test\n"
+        "plan: 01\n"
+        "type: execute\n"
+        "wave: 1\n"
+        "depends_on: []\n"
+        "files_modified: []\n"
+        f"interactive: {interactive}\n"
+        "contract:\n"
+        "  scope:\n"
+        "    question: What benchmark must this plan recover?\n"
+        "  claims:\n"
+        "    - id: claim-main\n"
+        "      statement: Recover the benchmark value within tolerance\n"
+        "      deliverables: [deliv-main]\n"
+        "      acceptance_tests: [test-main]\n"
+        "      references: [ref-main]\n"
+        "  deliverables:\n"
+        "    - id: deliv-main\n"
+        "      kind: figure\n"
+        "      path: figures/main.png\n"
+        f"      description: Main benchmark figure{must_contain}\n"
+        "  references:\n"
+        "    - id: ref-main\n"
+        "      kind: paper\n"
+        "      locator: Author et al., Journal, 2024\n"
+        "      role: benchmark\n"
+        "      why_it_matters: Published comparison target\n"
+        "      applies_to: [claim-main]\n"
+        "      must_surface: true\n"
+        "      required_actions: [read, compare, cite]\n"
+        "  acceptance_tests:\n"
+        "    - id: test-main\n"
+        "      subject: claim-main\n"
+        "      kind: benchmark\n"
+        "      procedure: Compare against the benchmark reference\n"
+        "      pass_condition: Matches reference within tolerance\n"
+        "      evidence_required: [deliv-main, ref-main]\n"
+        "  forbidden_proxies:\n"
+        "    - id: fp-main\n"
+        "      subject: claim-main\n"
+        "      proxy: Qualitative trend match without numerical comparison\n"
+        "      reason: Would allow false progress without the decisive benchmark\n"
+        f"{contract_suffix}\n"
+        "  uncertainty_markers:\n"
+        "    weakest_anchors: [Reference tolerance interpretation]\n"
+        "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]"
+        "\n"
+        "---\n\n"
+    )
 
 # ---------------------------------------------------------------------------
 # extract_frontmatter
@@ -67,9 +131,9 @@ class TestExtractFrontmatter:
         assert meta["description"] == "A long description"
 
     def test_nested_dict(self):
-        content = "---\nmust_haves:\n  truths:\n    - truth1\n---\n\nBody."
+        content = "---\ncontract:\n  scope:\n    question: Example\n---\n\nBody."
         meta, body = extract_frontmatter(content)
-        assert meta["must_haves"]["truths"] == ["truth1"]
+        assert meta["contract"]["scope"]["question"] == "Example"
 
 
 # ---------------------------------------------------------------------------
@@ -153,77 +217,6 @@ class TestDeepMergeFrontmatter:
         assert meta["title"] == "Hello"
 
 
-# ---------------------------------------------------------------------------
-# parse_must_haves_block
-# ---------------------------------------------------------------------------
-
-
-class TestParseMustHavesBlock:
-    def test_extract_truths(self):
-        content = "---\nmust_haves:\n  truths:\n    - truth1\n    - truth2\n---\n\nBody."
-        result = parse_must_haves_block(content, "truths")
-        assert result == ["truth1", "truth2"]
-
-    def test_hyphenated_key_returns_empty(self):
-        content = "---\nmust-haves:\n  artifacts:\n    - art1\n---\n\nBody."
-        result = parse_must_haves_block(content, "artifacts")
-        assert result == []
-
-    def test_missing_block(self):
-        content = "---\ntitle: Hello\n---\n\nBody."
-        result = parse_must_haves_block(content, "truths")
-        assert result == []
-
-    def test_non_list_block(self):
-        content = "---\nmust_haves:\n  truths: not_a_list\n---\n\nBody."
-        result = parse_must_haves_block(content, "truths")
-        assert result == []
-
-    def test_no_frontmatter(self):
-        result = parse_must_haves_block("No frontmatter here.", "truths")
-        assert result == []
-
-    def test_derives_must_haves_from_contract(self):
-        content = (
-            "---\n"
-            "phase: 01-test\n"
-            "plan: 01\n"
-            "type: execute\n"
-            "wave: 1\n"
-            "depends_on: []\n"
-            "files_modified: []\n"
-            "interactive: false\n"
-            "contract:\n"
-            "  scope:\n"
-            "    question: What is the main benchmark?\n"
-            "  claims:\n"
-            "    - id: claim-main\n"
-            "      statement: Recover the benchmark value\n"
-            "      deliverables: [deliv-figure]\n"
-            "  deliverables:\n"
-            "    - id: deliv-figure\n"
-            "      kind: figure\n"
-            "      path: figures/main.png\n"
-            "      description: Main benchmark figure\n"
-            "  acceptance_tests:\n"
-            "    - id: test-benchmark\n"
-            "      subject: claim-main\n"
-            "      kind: benchmark\n"
-            "      procedure: Compare against reference\n"
-            "      pass_condition: Matches benchmark within tolerance\n"
-            "---\n\nBody."
-        )
-        assert parse_must_haves_block(content, "truths") == ["Recover the benchmark value"]
-        artifacts = parse_must_haves_block(content, "artifacts")
-        assert artifacts == [
-            {
-                "path": "figures/main.png",
-                "provides": "Main benchmark figure",
-                "physics_check": "Matches benchmark within tolerance",
-            }
-        ]
-
-
 class TestParseContractBlock:
     def test_returns_valid_contract_from_fixture(self):
         fixture = FIXTURES_DIR / "plan_with_contract.md"
@@ -291,7 +284,6 @@ class TestValidateFrontmatter:
             "files-modified: []\n"
             "interactive: false\n"
             "contract: {}\n"
-            "must-haves: {}\n"
             "---\n\nBody."
         )
         result = validate_frontmatter(content, "plan")
@@ -310,7 +302,6 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "plan")
         assert result.valid is True
         assert result.errors == []
-        assert "must_haves" not in result.missing
 
     def test_plan_without_contract_is_invalid(self):
         content = (
@@ -322,7 +313,6 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
-            "must_haves: {}\n"
             "---\n\nBody."
         )
         result = validate_frontmatter(content, "plan")
@@ -375,9 +365,64 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "plan")
         assert result.valid is False
         assert any("missing acceptance_tests" in error for error in result.errors)
-        assert any("missing references" in error for error in result.errors)
+        assert any("missing references or explicit grounding context" in error for error in result.errors)
         assert any("missing forbidden_proxies" in error for error in result.errors)
         assert any("missing uncertainty_markers.disconfirming_observations" in error for error in result.errors)
+
+    def test_exploratory_plan_contract_can_use_non_reference_grounding(self):
+        content = (
+            "---\n"
+            "phase: 01-setup\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What setup output should be ready for later comparison?\n"
+            "    unresolved_questions: [Which benchmark will be authoritative?]\n"
+            "  context_intake:\n"
+            "    must_include_prior_outputs: [.gpd/phases/00-setup/00-01-SUMMARY.md]\n"
+            "    known_good_baselines: [Smoke-test CLI output]\n"
+            "  claims:\n"
+            "    - id: claim-setup\n"
+            "      statement: Produce a reproducible setup note and runnable starter code\n"
+            "      deliverables: [deliv-note, deliv-code]\n"
+            "      acceptance_tests: [test-note, test-code]\n"
+            "  deliverables:\n"
+            "    - id: deliv-note\n"
+            "      kind: note\n"
+            "      path: notes/setup.md\n"
+            "      description: Setup note with assumptions and next checks\n"
+            "      must_contain: [assumptions, next checks]\n"
+            "    - id: deliv-code\n"
+            "      kind: code\n"
+            "      path: scripts/setup.sh\n"
+            "      description: Runnable setup bootstrap\n"
+            "      must_contain: [set -e]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-note\n"
+            "      subject: deliv-note\n"
+            "      kind: human_review\n"
+            "      procedure: Review the note for preserved guidance and open questions\n"
+            "      pass_condition: The note keeps assumptions and next checks explicit\n"
+            "      evidence_required: [deliv-note]\n"
+            "    - id: test-code\n"
+            "      subject: deliv-code\n"
+            "      kind: existence\n"
+            "      procedure: Confirm the bootstrap script exists\n"
+            "      pass_condition: Script is present in the workspace\n"
+            "      evidence_required: [deliv-code]\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [The chosen setup path may not match the final benchmark stack]\n"
+            "    disconfirming_observations: [Bootstrap assumptions fail against the first real target]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "plan")
+        assert result.valid is True
+        assert result.errors == []
 
     def test_incomplete_plan_contract_requires_must_surface_anchor(self):
         content = (
@@ -780,63 +825,99 @@ class TestVerifyArtifacts:
         result = verify_artifacts(tmp_path, Path("nonexistent.md"))
         assert result.all_passed is False
 
-    def test_no_artifacts_block(self, tmp_path):
+    def test_missing_contract_is_invalid(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
         f = tmp_path / "plan.md"
         f.write_text("---\ntitle: test\n---\n\nNo artifacts.\n")
         result = verify_artifacts(tmp_path, f)
-        assert result.all_passed is True
-        assert result.total == 0
+        assert result.all_passed is False
+        assert any("contract not found" in issue.lower() for artifact in result.artifacts for issue in artifact.issues)
 
-    def test_string_artifact_exists(self, tmp_path):
+    def test_contract_deliverable_exists(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
-        (tmp_path / "output.txt").write_text("result")
+        (tmp_path / "figures").mkdir()
+        (tmp_path / "figures" / "main.png").write_text("figure-bytes")
         f = tmp_path / "plan.md"
-        f.write_text("---\nmust_haves:\n  artifacts:\n    - output.txt\n---\n\nBody.\n")
+        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
         assert result.passed_count == 1
 
-    def test_string_artifact_missing(self, tmp_path):
+    def test_contract_deliverable_missing(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
         f = tmp_path / "plan.md"
-        f.write_text("---\nmust_haves:\n  artifacts:\n    - missing.txt\n---\n\nBody.\n")
+        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
 
-    def test_dict_artifact_with_min_lines(self, tmp_path):
+    def test_contract_deliverable_must_contain_check(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
-        (tmp_path / "data.csv").write_text("a\nb\nc\n")
+        (tmp_path / "figures").mkdir()
+        (tmp_path / "figures" / "main.png").write_text("benchmark evidence\nreference within tolerance\n")
         f = tmp_path / "plan.md"
-        content = "---\nmust_haves:\n  artifacts:\n    - path: data.csv\n      min_lines: 2\n---\n\nBody.\n"
+        content = (
+            _valid_plan_contract_frontmatter(
+                "  deliverables:\n"
+                "    - id: deliv-main\n"
+                "      kind: figure\n"
+                "      path: figures/main.png\n"
+                "      description: Main benchmark figure\n"
+                "      must_contain: [benchmark evidence, reference within tolerance]\n"
+            )
+            + "Body.\n"
+        )
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
 
-    def test_dict_artifact_min_lines_too_few(self, tmp_path):
+    def test_contract_deliverable_missing_required_fragment(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
-        (tmp_path / "data.csv").write_text("a\n")
+        (tmp_path / "figures").mkdir()
+        (tmp_path / "figures" / "main.png").write_text("benchmark evidence only\n")
         f = tmp_path / "plan.md"
-        content = "---\nmust_haves:\n  artifacts:\n    - path: data.csv\n      min_lines: 100\n---\n\nBody.\n"
+        content = (
+            _valid_plan_contract_frontmatter(
+                "  deliverables:\n"
+                "    - id: deliv-main\n"
+                "      kind: figure\n"
+                "      path: figures/main.png\n"
+                "      description: Main benchmark figure\n"
+                "      must_contain: [benchmark evidence, reference within tolerance]\n"
+            )
+            + "Body.\n"
+        )
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
-        assert any("lines" in i for a in result.artifacts for i in a.issues)
+        assert any("Missing pattern: reference within tolerance" in i for a in result.artifacts for i in a.issues)
 
-    def test_dict_artifact_contains_check(self, tmp_path):
+    def test_invalid_contract_fails_artifact_verification(self, tmp_path):
         from gpd.core.frontmatter import verify_artifacts
 
-        (tmp_path / "output.py").write_text("def main():\n    pass\n")
         f = tmp_path / "plan.md"
-        content = "---\nmust_haves:\n  artifacts:\n    - path: output.py\n      contains: def main\n---\n\nBody.\n"
+        content = (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "contract:\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "---\n\nBody.\n"
+        )
         f.write_text(content)
         result = verify_artifacts(tmp_path, f)
-        assert result.all_passed is True
+        assert result.all_passed is False
+        assert any("missing claims" in issue for artifact in result.artifacts for issue in artifact.issues)
 
 
 # ---------------------------------------------------------------------------

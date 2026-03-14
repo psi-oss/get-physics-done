@@ -263,6 +263,74 @@ def test_gate_clear_clears_pre_fanout_and_skeptical_flags(tmp_path: Path, monkey
     assert snapshot.downstream_locked is False
 
 
+def test_fanout_lock_normalizes_to_pre_fanout_review_stop(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="fanout",
+        action="lock",
+        status="ok",
+        command="execute-phase",
+        phase="06",
+        plan="02",
+        session_id=session.session_id,
+        data={"execution": {"last_result_label": "Benchmark anchor comparison"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.checkpoint_reason == "pre_fanout"
+    assert snapshot.pre_fanout_review_pending is True
+    assert snapshot.waiting_for_review is True
+    assert snapshot.review_required is True
+    assert snapshot.downstream_locked is True
+    assert snapshot.segment_status == "waiting_review"
+
+
+def test_skeptical_review_without_explicit_reason_normalizes_checkpoint_reason(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    observe_event(
+        project,
+        category="execution",
+        name="gate",
+        action="enter",
+        status="ok",
+        command="execute-phase",
+        phase="07",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "skeptical_requestioning_required": True,
+                "skeptical_requestioning_summary": "The first fit matches a proxy but not the decisive observable.",
+                "weakest_unchecked_anchor": "Direct observable benchmark",
+            }
+        },
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.checkpoint_reason == "skeptical_requestioning"
+    assert snapshot.waiting_for_review is True
+    assert snapshot.review_required is True
+    assert snapshot.skeptical_requestioning_required is True
+
+
 def test_execution_finish_clears_current_execution_snapshot(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
