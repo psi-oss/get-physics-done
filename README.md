@@ -86,6 +86,7 @@ Each runtime uses its own command prefix, but the workflow is the same across al
 
 Codex-specific note:
 - GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.
+- Codex installs runtime commands into the shared skills directory and exposes only public `gpd-*` agents there as discoverable skills; the full agent catalog still installs under `.codex/agents/`.
 
 Gemini-specific note:
 - GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.

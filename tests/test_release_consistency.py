@@ -416,6 +416,15 @@ def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
     assert "Each runtime uses its own command prefix" in readme
 
 
+def test_codex_runtime_docs_distinguish_public_skills_from_full_agent_install() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "Codex-specific note:" in readme
+    assert "exposes only public `gpd-*` agents there as discoverable skills" in readme
+    assert "the full agent catalog still installs under `.codex/agents/`" in readme
+
+
 def test_public_runtime_command_table_has_unique_entries() -> None:
     repo_root = _repo_root()
     lines = (repo_root / "README.md").read_text(encoding="utf-8").splitlines()
