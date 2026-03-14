@@ -196,6 +196,9 @@ def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_upda
     assert "expected_artifacts:" in executor.text
     assert "shared_state_policy: return_only" in executor.text
     assert "State updates returned (NOT written to STATE.md directly)" in executor.text
+    assert "${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json" in executor.text
+    assert "${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md" in executor.text
+    assert "${SWEEP_DIR}/results/point-{PADDED_INDEX}.json" not in executor.text
 
 
 def test_research_phase_verifies_research_artifact_before_accepting_handoff() -> None:

@@ -44,9 +44,12 @@ Load theoretical predictions:
 
 ```bash
 cat .gpd/research-map/ARCHITECTURE.md 2>/dev/null | grep -A 20 "Predictions"
-ls .gpd/phases/*/results/ 2>/dev/null
-find . -name "*.json" -o -name "*.csv" -o -name "*.dat" | grep -i "result\|predict" | head -10
+find artifacts/ results/ data/ figures/ simulations/ paper/ -maxdepth 4 \
+  \( -name "*.json" -o -name "*.csv" -o -name "*.dat" -o -name "*.h5" \) 2>/dev/null | \
+  grep -i "result\|predict\|spectrum\|observable" | head -20
 ```
+
+Treat `.gpd/**` as internal provenance only. Discover predictions and reusable comparison inputs from stable workspace directories such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`.
 
 </context>
 

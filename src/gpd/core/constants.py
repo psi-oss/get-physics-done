@@ -14,6 +14,7 @@ from pathlib import Path
 
 __all__ = [
     "ACTIVE_TRACE_FILENAME",
+    "ANALYSIS_DIR_NAME",
     "AGENT_ID_FILENAME",
     "CONFIG_FILENAME",
     "CONTEXT_SUFFIX",
@@ -111,6 +112,9 @@ AGENT_ID_FILENAME = "current-agent-id.txt"
 
 PHASES_DIR_NAME = "phases"
 """Subdirectory under .gpd/ containing per-phase directories."""
+
+ANALYSIS_DIR_NAME = "analysis"
+"""Subdirectory under .gpd/ for internal analysis/provenance reports."""
 
 TRACES_DIR_NAME = "traces"
 """Subdirectory under .gpd/ for execution trace JSONL files."""
@@ -382,6 +386,10 @@ class ProjectLayout:
     @property
     def phases_dir(self) -> Path:
         return self.gpd / PHASES_DIR_NAME
+
+    @property
+    def analysis_dir(self) -> Path:
+        return self.gpd / ANALYSIS_DIR_NAME
 
     @property
     def traces_dir(self) -> Path:

@@ -412,7 +412,7 @@ After each task (verification passed, done criteria met), commit immediately.
 
 ```bash
 git add src/derivations/hamiltonian.py
-git add results/spectrum.json
+git add artifacts/phases/08-example/data/spectrum.json
 ```
 
 **3. Commit type:**

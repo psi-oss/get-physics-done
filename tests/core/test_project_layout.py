@@ -26,6 +26,23 @@ def test_project_layout_file_properties(attribute: str, filename: str, tmp_path:
 
 
 @pytest.mark.parametrize(
+    ("attribute", "dirname"),
+    [
+        ("analysis_dir", "analysis"),
+        ("phases_dir", "phases"),
+        ("literature_dir", "literature"),
+        ("research_map_dir", "research-map"),
+    ],
+)
+def test_project_layout_directory_properties(attribute: str, dirname: str, tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+    path = getattr(layout, attribute)
+
+    assert path.name == dirname
+    assert path.parent == tmp_path / ".gpd"
+
+
+@pytest.mark.parametrize(
     ("filename", "expected"),
     [
         ("01-PLAN.md", True),

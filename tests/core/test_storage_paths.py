@@ -68,6 +68,14 @@ def test_phase_artifacts_dir_sanitizes_phase_name(tmp_path: Path) -> None:
     )
 
 
+def test_phase_operation_dir_nests_durable_phase_artifacts_under_operation_and_slug(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+
+    assert layout.phase_operation_dir("03 derive beta(x)", "parameter sweeps", slug="mass scan v1") == (
+        layout.root / "artifacts" / "phases" / "03-derive-beta-x" / "parameter-sweeps" / "mass-scan-v1"
+    )
+
+
 def test_classify_distinguishes_internal_scratch_user_project_and_external_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -314,6 +314,8 @@ Create scripts for standard comparison plots:
 3. **Residual plot** -- (theory-exp) vs parameter, looking for systematic trends
 4. **Ratio plot** -- theory/experiment vs parameter (for normalizations)
 
+Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `.gpd/`.
+
 ## 7. Present Results and Route
 
 If good agreement:

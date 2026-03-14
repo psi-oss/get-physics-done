@@ -208,7 +208,7 @@ class PhaseInfo(BaseModel):
     """Information about a discovered phase directory."""
 
     found: bool
-    directory: str  # Relative path: .gpd/phases/XX-name
+    directory: str  # Relative internal phase-record path: .gpd/phases/XX-name
     phase_number: str
     phase_name: str | None
     phase_slug: str | None

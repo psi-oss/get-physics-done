@@ -636,15 +636,19 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    ```bash
    # Scan wave artifacts for unverified identity claims
+   PHASE_ARTIFACT_DIR="artifacts/phases/${phase_number}-${phase_slug}"
    for summary in ${wave_summaries[@]}; do
-     plan_dir=$(dirname "$summary")
-     grep -rl "IDENTITY_SOURCE: training_data" "$plan_dir" 2>/dev/null | while read f; do
+     grep -rl "IDENTITY_SOURCE: training_data" \
+       "$summary" "${PHASE_ARTIFACT_DIR}" figures/ data/ simulations/ paper/figures/ \
+       2>/dev/null | while read f; do
        if ! grep -q "IDENTITY_VERIFIED:" "$f" 2>/dev/null; then
          echo "WARNING: Unverified training_data identity in $f"
        fi
      done
    done
    ```
+
+   Prefer paths surfaced through SUMMARY `key-files` or contract deliverables. Do not assume durable artifacts live beside the SUMMARY in `.gpd/phases/**`.
 
    If unverified identities are found: flag as WARNING. These identities may be correct but have not been numerically tested — downstream waves building on them carry unquantified risk.
 
@@ -966,10 +970,14 @@ for SUMMARY in "${phase_dir}"/*-SUMMARY.md; do
   grep -E '\.(pdf|png|eps|svg|jpg|jpeg|tiff)' "$SUMMARY" 2>/dev/null
 done
 
-# Also scan for generated plot files in the phase directory and .gpd/
-find "${phase_dir}" .gpd/paper/ -maxdepth 2 \( -name "*.pdf" -o -name "*.png" -o -name "*.eps" \) 2>/dev/null | \
+# Also scan durable figure roots for generated plot files
+PHASE_ARTIFACT_DIR="artifacts/phases/${phase_number}-${phase_slug}"
+find "${PHASE_ARTIFACT_DIR}" figures/ paper/figures/ -maxdepth 3 \
+  \( -name "*.pdf" -o -name "*.png" -o -name "*.eps" \) 2>/dev/null | \
   grep -iE "fig|plot|phase_diag|spectrum|convergence|diagram" 2>/dev/null
 ```
+
+Generated figures and plots should live in stable workspace roots such as `artifacts/phases/${phase_number}-${phase_slug}/`, `figures/`, or `paper/figures/`, not under `.gpd/phases/**`.
 
 **If any figures found:**
 

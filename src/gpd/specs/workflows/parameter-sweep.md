@@ -46,11 +46,20 @@ fi
 ```
 
 **If `phase_found` is false and a phase was specified:** Error -- phase directory not found.
-**If no phase specified:** Create a sweep-specific directory:
+**If `phase_found` is true:** Reuse the phase directory for internal sweep records:
 
 ```bash
-SWEEP_DIR=".gpd/phases/XX-sweep"
-mkdir -p "$SWEEP_DIR"
+SWEEP_PHASE_DIR="${phase_dir}"
+SWEEP_PHASE_KEY="${phase_number}-${phase_slug}"
+mkdir -p "$SWEEP_PHASE_DIR"
+```
+
+**If no phase specified:** Create a sweep-specific phase directory for internal records:
+
+```bash
+SWEEP_PHASE_DIR=".gpd/phases/XX-sweep"
+SWEEP_PHASE_KEY="XX-sweep"
+mkdir -p "$SWEEP_PHASE_DIR"
 ```
 
 Where XX is the next available phase number.
@@ -122,6 +131,16 @@ Proceed? (y/n)
 ```
 
 Wait for user confirmation before generating plans.
+
+Derive a durable artifact location for the sweep outputs:
+
+```bash
+SWEEP_SLUG="{slug derived from parameter names and observable}"
+SWEEP_ARTIFACT_DIR="artifacts/phases/${SWEEP_PHASE_KEY}/sweeps/${SWEEP_SLUG}"
+mkdir -p "${SWEEP_ARTIFACT_DIR}/results"
+```
+
+Keep plans and SUMMARY files in `${SWEEP_PHASE_DIR}` because they are internal execution records. Write machine-readable sweep datasets to `${SWEEP_ARTIFACT_DIR}`. Do not put point-result JSON under `.gpd/phases/**`.
 </step>
 
 <step name="generate_sweep_plans">
@@ -135,7 +154,7 @@ For each parameter value (or combination in 2D), create a plan from the computat
 
 For each sweep point `i` with parameter value `p_i`:
 
-Write `${SWEEP_DIR}/sweep-{PADDED_INDEX}-PLAN.md`:
+Write `${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-PLAN.md`:
 
 ```markdown
 ---
@@ -149,8 +168,8 @@ sweep_value: {p_i}
 sweep_param_2: {param_name_2}
 sweep_value_2: {p_i_2}
 files_modified:
-  - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
-  - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
+  - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+  - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
 contract:
   scope:
     question: "What does {observable} evaluate to at {param_name}={p_i}?"
@@ -163,7 +182,7 @@ contract:
   deliverables:
     - id: deliv-sweep-point
       kind: dataset
-      path: ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
+      path: ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
       description: "Recorded sweep result for this parameter point"
       must_contain: ["{observable}", "{param_name}", "status"]
   references:
@@ -209,7 +228,7 @@ Record the computed value of {observable} with uncertainty if available.
 </task>
 
 <task id="3" name="record_result">
-Write results to `${SWEEP_DIR}/results/point-{PADDED_INDEX}.json`:
+Write results to `${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json`:
 
 {
 "sweep_index": {i},
@@ -236,12 +255,6 @@ n_waves = ceil(total_points / WAVE_SIZE)
 for i, point in enumerate(sweep_points):
     wave = (i // WAVE_SIZE) + 1
     # assign wave number to plan frontmatter
-```
-
-**Create results directory:**
-
-```bash
-mkdir -p "${SWEEP_DIR}/results"
 ```
 
 **Display plan summary:**
@@ -284,7 +297,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
        <objective>
        Execute sweep plan {plan_number}: compute {observable} at {param_name} = {p_i}.
-       Write result to results/point-{PADDED_INDEX}.json.
+       Write result to ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json.
        Create SUMMARY.md. Return state updates in your response -- do NOT write STATE.md directly.
        </objective>
 
@@ -292,11 +305,11 @@ Execute the sweep plans using wave-based parallel execution following the execut
        write_scope:
          mode: scoped_write
          allowed_paths:
-           - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
-           - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+           - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
+           - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
        expected_artifacts:
-         - ${SWEEP_DIR}/results/point-{PADDED_INDEX}.json
-         - ${SWEEP_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
+         - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
+         - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
        shared_state_policy: return_only
        </spawn_contract>
 
@@ -307,7 +320,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
        Read these files at execution start using the file_read tool:
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
-       - Plan: ${SWEEP_DIR}/sweep-{PADDED_INDEX}-PLAN.md
+       - Plan: ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-PLAN.md
        - State: .gpd/STATE.md
        - Config: .gpd/config.json (if exists)
        </files_to_read>
@@ -315,7 +328,7 @@ Execute the sweep plans using wave-based parallel execution following the execut
        <success_criteria>
        - [ ] Parameter set to specified value
        - [ ] Computation executed with identical methodology to other sweep points
-       - [ ] Result written to results/point-{PADDED_INDEX}.json
+       - [ ] Result written to ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
        - [ ] Uncertainty estimated if applicable
        - [ ] SUMMARY.md created
        - [ ] State updates returned (NOT written to STATE.md directly)
@@ -326,16 +339,16 @@ Execute the sweep plans using wave-based parallel execution following the execut
 
 3. **Wait for all agents in wave to complete.**
 
-   **If any executor agent fails to spawn or returns an error:** Record the sweep point as failed (null result) in `results/point-{INDEX}.json` with `"status": "agent_failed"`. Continue with remaining points in the wave. Report failed points in the wave summary. Do not abort the entire sweep for individual point failures.
+   **If any executor agent fails to spawn or returns an error:** Record the sweep point as failed (null result) in `${SWEEP_ARTIFACT_DIR}/results/point-{INDEX}.json` with `"status": "agent_failed"`. Continue with remaining points in the wave. Report failed points in the wave summary. Do not abort the entire sweep for individual point failures.
 
 4. **Spot-check results:**
 
    For each completed plan:
 
-   - Verify `results/point-{INDEX}.json` exists and contains valid JSON
+   - Verify `${SWEEP_ARTIFACT_DIR}/results/point-{INDEX}.json` exists and contains valid JSON
    - Check `status` field is `"completed"`
    - Verify the observable value is a finite number (not NaN, not Inf)
-   - Check SUMMARY.md exists
+   - Check `${SWEEP_PHASE_DIR}/sweep-{INDEX}-SUMMARY.md` exists
 
    If any spot-check fails, follow the `wave_failure_handling` pattern from execute-phase.md.
 
@@ -356,7 +369,7 @@ After all waves complete, aggregate results from individual JSON files into a un
 **1. Read all result files:**
 
 ```bash
-ls "${SWEEP_DIR}/results/point-*.json" | sort -V
+ls "${SWEEP_ARTIFACT_DIR}/results/point-*.json" | sort -V
 ```
 
 For each file, parse the JSON and extract: parameter value(s), observable, uncertainty, status.
@@ -365,7 +378,7 @@ For each file, parse the JSON and extract: parameter value(s), observable, uncer
 
 ```python
 results = []
-for point_file in sorted(glob("results/point-*.json")):
+for point_file in sorted(glob(f"{SWEEP_ARTIFACT_DIR}/results/point-*.json")):
     with open(point_file) as f:
         data = json.load(f)
     if data["status"] == "completed":
@@ -377,7 +390,7 @@ for point_file in sorted(glob("results/point-*.json")):
 
 **3. Save aggregated results:**
 
-Write `${SWEEP_DIR}/sweep-results.json`:
+Write `${SWEEP_ARTIFACT_DIR}/sweep-results.json`:
 
 ```json
 {
@@ -423,7 +436,7 @@ For 2D sweeps, include both parameter names and values in each data entry, plus:
 
 **4. Generate markdown summary table:**
 
-Write `${SWEEP_DIR}/SWEEP-SUMMARY.md`:
+Write `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md`:
 
 ```markdown
 ---
@@ -486,8 +499,8 @@ status: completed | checkpoint | failed
 
 ## Data Files
 
-- `sweep-results.json` -- structured data (all points)
-- `results/point-NNN.json` -- individual point results
+- `${SWEEP_ARTIFACT_DIR}/sweep-results.json` -- structured data (all points)
+- `${SWEEP_ARTIFACT_DIR}/results/point-NNN.json` -- individual point results
 ```
 
 </step>
@@ -565,7 +578,7 @@ Follow the same plan generation and execution pattern from `generate_sweep_plans
 
 ```python
 # Load original results
-with open("sweep-results.json") as f:
+with open(f"{SWEEP_ARTIFACT_DIR}/sweep-results.json") as f:
     original = json.load(f)
 
 # Load refinement results
@@ -585,7 +598,7 @@ original["metadata"]["refinement_regions"] = K
 original["metadata"]["refinement_points_added"] = sum_new_points
 ```
 
-Write updated `sweep-results.json` and regenerate `SWEEP-SUMMARY.md` with the merged data. Mark refined regions in the summary table:
+Write updated `${SWEEP_ARTIFACT_DIR}/sweep-results.json` and regenerate `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md` with the merged data. Mark refined regions in the summary table:
 
 ```markdown
 | {param_name}  | {observable} | uncertainty | note      |
@@ -601,12 +614,12 @@ Re-run feature identification on the merged dataset.
 **Commit all sweep artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "data(phase-${phase_number}): parameter sweep - ${OBSERVABLE} vs ${PARAM_NAME}" \
-  --files "${SWEEP_DIR}/sweep-results.json" "${SWEEP_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md
+  --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" "${SWEEP_ARTIFACT_DIR}/results" .gpd/STATE.md
 ```
 
 **Present final results:**
@@ -629,9 +642,9 @@ Completed: {M}/{N}
 
 ### Output Files
 
-- `${SWEEP_DIR}/sweep-results.json` -- structured data
-- `${SWEEP_DIR}/SWEEP-SUMMARY.md` -- full report with tables
-- `${SWEEP_DIR}/results/` -- individual point data
+- `${SWEEP_ARTIFACT_DIR}/sweep-results.json` -- structured data
+- `${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md` -- internal sweep report with tables
+- `${SWEEP_ARTIFACT_DIR}/results/` -- individual point data
 
 ---
 

@@ -187,13 +187,15 @@ Fixed: {param} = {value}, {param} = {value}
 
 ### Data Files
 
-- `sweep-data.csv` — raw sweep results (machine-readable)
-- `sweep-summary.json` — metadata and detected features
+- `sweep-results.json` — raw sweep results (machine-readable)
+- `SWEEP-SUMMARY.md` — metadata, detected features, and interpretation
 ```
 
 Save to:
-- Phase target: `.gpd/phases/XX-name/SWEEP-{slug}.md` + data files
-- Standalone: `.gpd/analysis/sweep-{slug}/`
+- Internal sweep docs: `.gpd/phases/{phase-dir}/sweep-{PADDED_INDEX}-PLAN.md`, `.gpd/phases/{phase-dir}/sweep-{PADDED_INDEX}-SUMMARY.md`, and `.gpd/phases/{phase-dir}/SWEEP-SUMMARY.md`
+- Durable sweep artifacts: `artifacts/phases/{phase-dir}/sweeps/{sweep-slug}/`
+
+Do not put machine-readable sweep datasets under `.gpd/phases/**` or `.gpd/analysis/**`. Keep the `.gpd` documents as internal execution records and write the durable JSON/CSV outputs to `artifacts/`.
 
 ## 6. Common Pitfalls
 

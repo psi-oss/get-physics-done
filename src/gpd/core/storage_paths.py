@@ -1,8 +1,8 @@
 """Project-local storage-path policy helpers for GPD.
 
-Stage 1 introduces explicit classification and validation for internal durable
-paths, user-visible durable paths, and project-local scratch paths without
-rewiring existing callers yet.
+These helpers classify and validate internal durable paths, user-visible
+durable paths, and project-local scratch paths so callers can route outputs
+consistently.
 """
 
 from __future__ import annotations
@@ -128,6 +128,12 @@ class ProjectStorageLayout:
             / "phases"
             / _safe_component(phase_name)
         )
+
+    def phase_operation_dir(self, phase_name: str, operation: str, *, slug: str | None = None) -> Path:
+        path = self.phase_artifacts_dir(phase_name) / _safe_component(operation)
+        if slug is not None:
+            path /= _safe_component(slug)
+        return path
 
     def resolve(self, path: Path | str) -> Path:
         candidate = Path(path)
