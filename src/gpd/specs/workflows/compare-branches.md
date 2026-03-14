@@ -156,15 +156,17 @@ When branches produce numerical results (extracted from `key_results` in SUMMARY
 
 For each branch, scan all SUMMARY.md `key_results` entries for values with numbers (e.g., `E_0 = -1.234 +/- 0.005`, `T_c/J = 2.269`):
 
-Save the SUMMARY content from `git show` to a temp file, then extract with gpd CLI:
+Prefer parsing the `git show` output directly in memory. If you need the gpd CLI extractor, use project-local scratch under `.gpd/tmp/` and delete it immediately after extraction:
 
 ```bash
 mkdir -p .gpd/tmp
-git show {branch}:{summary_path} > .gpd/tmp/gpd-branch-summary.md 2>/dev/null
-gpd summary-extract .gpd/tmp/gpd-branch-summary.md --field key_results
+SCRATCH_SUMMARY=".gpd/tmp/gpd-branch-summary.md"
+git show {branch}:{summary_path} > "${SCRATCH_SUMMARY}" 2>/dev/null
+gpd summary-extract "${SCRATCH_SUMMARY}" --field key_results
+rm -f "${SCRATCH_SUMMARY}"
 ```
 
-Alternatively, use the file_read tool on the `git show` output to parse the YAML frontmatter directly.
+Do not use `/tmp` or another OS temp root for branch-summary extraction.
 
 Parse each entry for: quantity name, numerical value, uncertainty (if present), units.
 

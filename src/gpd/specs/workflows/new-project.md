@@ -166,12 +166,18 @@ Then present a concise scoping summary and require explicit approval:
 After approval, validate the contract before persisting it:
 
 ```bash
-gpd --raw validate project-contract /tmp/gpd-project-contract.json
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
-After validation passes, persist the approved contract into `.gpd/state.json` using `gpd state set-project-contract` (use a temporary JSON file if needed).
+After validation passes, persist the approved contract into `.gpd/state.json` from the same stdin payload:
+
+```bash
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
+```
+
+Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
 #### M2. Create PROJECT.md
 
@@ -786,12 +792,18 @@ Present a concise scoping summary and require explicit approval before downstrea
 Validate the approved contract before persisting it:
 
 ```bash
-gpd --raw validate project-contract /tmp/gpd-project-contract.json
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue.
 
-Persist the approved contract into `.gpd/state.json` via `gpd state set-project-contract` (use a temporary JSON file if needed).
+Persist the approved contract into `.gpd/state.json` from the same stdin payload:
+
+```bash
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
+```
+
+Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
 Then synthesize all context into `.gpd/PROJECT.md` using the template from `templates/project.md`.
 

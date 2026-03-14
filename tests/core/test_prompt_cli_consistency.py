@@ -136,3 +136,21 @@ def test_prompt_sources_use_summary_extract_field_flag_not_fields() -> None:
             invalid.append(f"{path.relative_to(REPO_ROOT)} -> {match.group(0)}")
 
     assert invalid == []
+
+
+def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
+
+    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in workflow
+    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in workflow
+    assert "/tmp/gpd-project-contract.json" not in workflow
+    assert "temporary JSON file if needed" not in workflow
+
+
+def test_compare_branches_prompt_prefers_in_memory_parsing_and_project_local_scratch() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/compare-branches.md").read_text(encoding="utf-8")
+
+    assert "Prefer parsing the `git show` output directly in memory." in workflow
+    assert 'SCRATCH_SUMMARY=".gpd/tmp/gpd-branch-summary.md"' in workflow
+    assert 'rm -f "${SCRATCH_SUMMARY}"' in workflow
+    assert "Do not use `/tmp` or another OS temp root for branch-summary extraction." in workflow

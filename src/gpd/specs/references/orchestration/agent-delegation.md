@@ -71,7 +71,7 @@ Subagent file writes can silently fail on any runtime — the agent reports succ
    - Write the files directly in the main orchestrator context using the main context's Write/Edit tools.
    - This is the primary recovery path and should succeed because the main context's file tools are not affected by the subagent persistence bug.
 3. **If artifacts are missing and the subagent returned no usable content:**
-   - Re-execute the subagent's task in the main orchestrator context (not via Task tool) following the same prompt and write scope.
+   - Re-execute the subagent's task in the main orchestrator context (not via task tool) following the same prompt and write scope.
    - This is the fallback described in the Platform Note Template.
 4. **Never silently proceed** with missing artifacts. Every `expected_artifacts` entry must exist on disk before the orchestrator marks the handoff as complete.
 

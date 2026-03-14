@@ -571,7 +571,10 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
     assert "gpd state set-project-contract" in workflow_text
-    assert "gpd --raw validate project-contract /tmp/gpd-project-contract.json" in workflow_text
+    assert "gpd --raw validate project-contract -" in workflow_text
+    assert "gpd state set-project-contract -" in workflow_text
+    assert "/tmp/gpd-project-contract.json" not in workflow_text
+    assert "temporary JSON file if needed" not in workflow_text
     assert "Read PROJECT.md and `.gpd/state.json` and extract" in workflow_text
     assert "Derive phases from requirements AND the approved project contract" in workflow_text
     assert "If auto mode and `autonomy` is not `babysit`" in workflow_text
@@ -701,6 +704,7 @@ def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomp
     assert "whether the anchor is still unknown" in workflow_text
     assert "Do not force a phase list just to make the scoping contract look complete." in workflow_text
     assert "If the user does not know the anchor yet, preserve that explicitly in `scope.unresolved_questions` or `context_intake.context_gaps` rather than inventing a paper, benchmark, or baseline." in workflow_text
+    assert 'If the user named a prior output, review checkpoint, or "come back to me before continuing" condition, carry it into `context_intake.must_include_prior_outputs` or `context_intake.crucial_inputs` rather than leaving it only in prose.' in workflow_text
     assert "A full phase breakdown is not required at this stage;" in workflow_text
     assert "Use the coarsest decomposition the approved contract actually supports." in workflow_text
     assert "Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them." in workflow_text
