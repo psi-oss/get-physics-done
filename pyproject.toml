@@ -1,0 +1,92 @@
+[project]
+name = "get-physics-done"
+version = "1.0.0"
+description = "GPD — Get Physics Done: open-source AI copilot for physics research"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Physical Superintelligence PBC" },
+]
+maintainers = [
+    { name = "Physical Superintelligence PBC" },
+]
+keywords = [
+    "physical superintelligence",
+    "psi",
+    "physics",
+    "research",
+    "ai",
+    "agentic",
+    "claude",
+    "codex",
+    "gemini",
+    "opencode",
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    # Core
+    "typer>=0.24.1",
+    "rich>=14.3.3",
+    "pydantic>=2.12",
+    "PyYAML>=6.0.3",
+    "mcp[cli]>=1.26.0",
+    # Utilities
+    "pybtex>=0.25.1",
+    "Pillow>=12.1.1",
+    "jinja2>=3.1.6",
+    # MCP servers
+    "arxiv-mcp-server>=0.3.2",
+]
+
+[project.scripts]
+gpd = "gpd.cli:entrypoint"
+"gpd-mcp-conventions" = "gpd.mcp.servers.conventions_server:main"
+"gpd-mcp-verification" = "gpd.mcp.servers.verification_server:main"
+"gpd-mcp-protocols" = "gpd.mcp.servers.protocols_server:main"
+"gpd-mcp-errors" = "gpd.mcp.servers.errors_mcp:main"
+"gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
+"gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
+"gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
+
+[project.urls]
+Homepage = "https://github.com/psi-oss/get-physics-done"
+Documentation = "https://github.com/psi-oss/get-physics-done#readme"
+Repository = "https://github.com/psi-oss/get-physics-done"
+Issues = "https://github.com/psi-oss/get-physics-done/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpd"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = []
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "TID251"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.Any".msg = "Use `object` instead of `Any` for top types."
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.15.5",
+]

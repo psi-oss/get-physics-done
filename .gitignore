@@ -1,0 +1,21 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+docs/
+build/
+.venv/
+.env
+*.log
+.gpd/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.npm-cache/
+.mcp.json
+# Runtime-owned local mirrors/config snapshots.
+.codex/
+.planning/
+.gemini/
+.opencode/

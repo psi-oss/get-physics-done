@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "scope": {
+    "question": "What benchmark must the project recover?",
+    "in_scope": [
+      "primary benchmark comparison"
+    ],
+    "out_of_scope": [
+      "adjacent publication tasks"
+    ],
+    "unresolved_questions": [
+      "Which diagnostic artifact should be primary?"
+    ]
+  },
+  "context_intake": {
+    "must_read_refs": [
+      "ref-benchmark"
+    ],
+    "must_include_prior_outputs": [
+      ".gpd/phases/01-setup/01-01-SUMMARY.md"
+    ],
+    "user_asserted_anchors": [
+      "Recover known limiting behavior"
+    ],
+    "known_good_baselines": [
+      "Baseline notebook A"
+    ],
+    "context_gaps": [
+      "Missing benchmark table"
+    ],
+    "crucial_inputs": [
+      "Figure 2 from prior work"
+    ]
+  },
+  "observables": [
+    {
+      "id": "obs-benchmark",
+      "name": "benchmark observable",
+      "kind": "scalar",
+      "definition": "Primary observable compared against literature"
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-benchmark",
+      "statement": "Recover the benchmark value within tolerance",
+      "observables": [
+        "obs-benchmark"
+      ],
+      "deliverables": [
+        "deliv-figure"
+      ],
+      "acceptance_tests": [
+        "test-benchmark"
+      ],
+      "references": [
+        "ref-benchmark"
+      ]
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "deliv-figure",
+      "kind": "figure",
+      "path": "figures/benchmark.png",
+      "description": "Benchmark comparison figure",
+      "must_contain": [
+        "baseline curve",
+        "error bars"
+      ]
+    }
+  ],
+  "acceptance_tests": [
+    {
+      "id": "test-benchmark",
+      "subject": "claim-benchmark",
+      "kind": "benchmark",
+      "procedure": "Compare against the benchmark reference",
+      "pass_condition": "Matches reference within tolerance",
+      "evidence_required": [
+        "deliv-figure",
+        "ref-benchmark"
+      ],
+      "automation": "hybrid"
+    }
+  ],
+  "references": [
+    {
+      "id": "ref-benchmark",
+      "kind": "paper",
+      "locator": "Author et al., Journal, 2024",
+      "role": "benchmark",
+      "why_it_matters": "Published comparison target",
+      "applies_to": [
+        "claim-benchmark"
+      ],
+      "must_surface": true,
+      "required_actions": [
+        "read",
+        "compare",
+        "cite"
+      ]
+    }
+  ],
+  "forbidden_proxies": [
+    {
+      "id": "fp-01",
+      "subject": "claim-benchmark",
+      "proxy": "qualitative trend match without numerical comparison",
+      "reason": "Would allow false progress without testing the decisive benchmark"
+    }
+  ],
+  "links": [
+    {
+      "id": "link-01",
+      "source": "deliv-figure",
+      "target": "claim-benchmark",
+      "relation": "supports",
+      "verified_by": [
+        "test-benchmark"
+      ]
+    }
+  ],
+  "uncertainty_markers": {
+    "weakest_anchors": [
+      "Reference tolerance interpretation"
+    ],
+    "unvalidated_assumptions": [
+      "Current preprocessing preserves the observable definition"
+    ],
+    "competing_explanations": [
+      "Agreement could be a normalization artifact"
+    ],
+    "disconfirming_observations": [
+      "Benchmark agreement disappears once normalization is fixed"
+    ]
+  }
+}

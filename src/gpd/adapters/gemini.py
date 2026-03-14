@@ -1,0 +1,1130 @@
+"""Gemini CLI runtime adapter.
+
+Gemini CLI uses:
+- ``.md`` agent files with YAML frontmatter (tools as YAML array, no ``color:``)
+- ``.toml`` command files (TOML with ``prompt`` and ``description`` fields)
+- ``settings.json`` for hooks, statusline, and ``experimental.enableAgents``
+- ``@`` include directives must be expanded at install time (no native support)
+- ``<sub>`` HTML tags must be stripped (terminal rendering)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+import shutil
+from pathlib import Path
+
+from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.install_utils import (
+    HOOK_SCRIPTS,
+    MANIFEST_NAME,
+    _is_hook_command_for_script,
+    build_hook_command,
+    compile_markdown_for_runtime,
+    convert_tool_references_in_body,
+    ensure_update_hook,
+    hook_python_interpreter,
+    process_attribution,
+    protect_runtime_agent_prompt,
+    read_settings,
+    remove_stale_agents,
+    render_markdown_frontmatter,
+    split_markdown_frontmatter,
+    strip_sub_tags,
+    verify_installed,
+    write_manifest,
+    write_settings,
+)
+from gpd.adapters.install_utils import (
+    finish_install as _finish_install,
+)
+from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
+
+logger = logging.getLogger(__name__)
+
+_GEMINI_AGENT_FRONTMATTER_FIELDS: frozenset[str] = frozenset(
+    {
+        "kind",
+        "name",
+        "description",
+        "display_name",
+        "tools",
+        "model",
+        "temperature",
+        "max_turns",
+        "timeout_mins",
+        "agent_card_url",
+        "auth",
+    }
+)
+# Gemini's agent loader uses a strict schema, so installs must drop any
+# adapter-owned metadata keys that fall outside this allowlist.
+
+_TOOL_NAME_MAP: dict[str, str] = {
+    "file_read": "read_file",
+    "file_write": "write_file",
+    "file_edit": "replace",
+    "shell": "run_shell_command",
+    "search_files": "search_file_content",
+    "find_files": "glob",
+    "web_search": "google_web_search",
+    "web_fetch": "web_fetch",
+    "notebook_edit": "notebook_edit",
+    "agent": "agent",
+    "ask_user": "ask_user",
+    "todo_write": "write_todos",
+    "task": "task",
+    "slash_command": "slash_command",
+    "tool_search": "tool_search",
+}
+_TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
+_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_DROP_MCP_FRONTMATTER_TOOLS = True
+_TOOL_REFERENCE_MAP = reference_translation_map(
+    _TOOL_NAME_MAP,
+    alias_map=_TOOL_ALIAS_MAP,
+    auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+    drop_mcp_frontmatter_tools=_DROP_MCP_FRONTMATTER_TOOLS,
+)
+
+_GEMINI_LAUNCHER_DIR_NAME = "bin"
+_GEMINI_LAUNCHER_FILE_NAME = "gpd"
+_GEMINI_POLICY_DIR_NAME = "policies"
+_GEMINI_POLICY_FILE_NAME = "gpd-auto-edit.toml"
+_GEMINI_APPROVED_CONTRACT_PATH = ".gpd/.approved-project-contract.json"
+_GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
+    "git init",
+    "mkdir -p .gpd",
+    "mkdir -p .gpd/research",
+    "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
+)
+_GPD_CLI_INVOCATION_RE = re.compile(r'(?<![A-Za-z0-9_./:-])gpd(?=(?:\s|["\'`]|$))')
+_GEMINI_COMMAND_RUNTIME_NOTE = (
+    "<gemini_runtime_notes>\n"
+    "Gemini shell compatibility:\n"
+    "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
+    "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
+    "- Keep contract JSON in-memory or under `.gpd/`. Do not write approved contracts to `/tmp`.\n"
+    "</gemini_runtime_notes>\n\n"
+)
+_GEMINI_NEW_PROJECT_INIT_BLOCK = """```bash
+INIT=$(gpd init new-project)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed with the workflow.
+fi
+```"""
+_GEMINI_NEW_PROJECT_INIT_REPLACEMENT = """Run the init command as its own shell call in Gemini auto-edit mode. Do not wrap it in `INIT=$(...)` or an `if` block.
+
+```bash
+gpd init new-project
+```
+
+If the init command fails, stop, surface the error, and do not proceed with the workflow."""
+_GEMINI_SET_PROFILE_BLOCK = """```bash
+gpd config ensure-section
+INIT=$(gpd init progress --include state,config)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```"""
+_GEMINI_SET_PROFILE_REPLACEMENT = """Run these as separate shell calls in Gemini auto-edit mode. Do not combine them into one multi-line shell block.
+
+```bash
+gpd config ensure-section
+```
+
+Then run:
+
+```bash
+gpd init progress --include state,config
+```
+
+If the init command fails, stop, surface the error, and do not proceed."""
+_GEMINI_MINIMAL_COMMIT_BLOCK = """```bash
+mkdir -p .gpd
+
+PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json 2>&1) || true
+echo "$PRE_CHECK"
+
+gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+```"""
+_GEMINI_MINIMAL_COMMIT_REPLACEMENT = """Create the directory structure, run the pre-check, then commit everything. In Gemini auto-edit mode, execute each shell command separately rather than pasting the whole block as one command.
+
+```bash
+mkdir -p .gpd
+```
+
+Then run:
+
+```bash
+gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+```
+
+If the pre-check reports issues or exits non-zero, surface the output and continue to the commit.
+
+```bash
+gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+```"""
+_GEMINI_CONTRACT_PERSIST_SENTENCE = (
+    "Write the exact approved contract JSON to "
+    f"`{_GEMINI_APPROVED_CONTRACT_PATH}` using file tools, then persist it into `.gpd/state.json`:"
+)
+_GEMINI_CONTRACT_FILE_NOTE = (
+    "Do not write `/tmp` intermediates for the approved contract. In Gemini headless auto-edit mode, keep the exact approved JSON in "
+    f"`{_GEMINI_APPROVED_CONTRACT_PATH}`, then validate and persist from that file using direct `gpd` commands. "
+    "Do not stash the approved contract in shell variables, command substitutions, or heredocs."
+)
+
+
+def _convert_gemini_tool_name(tool_name: str) -> str | None:
+    """Convert a canonical GPD tool name or runtime alias to Gemini CLI format.
+
+    Returns ``None`` if the tool should be excluded from the Gemini config
+    (MCP tools are auto-discovered at runtime and ``task`` is auto-registered).
+    """
+    return translate_for_runtime(
+        tool_name,
+        _TOOL_NAME_MAP,
+        auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
+        drop_mcp_frontmatter_tools=_DROP_MCP_FRONTMATTER_TOOLS,
+    )
+
+
+def _managed_gemini_cli_launcher_path(target_dir: Path) -> Path:
+    """Return the workspace-pinned GPD CLI launcher path for Gemini shell calls."""
+    return target_dir / _GEMINI_LAUNCHER_DIR_NAME / _GEMINI_LAUNCHER_FILE_NAME
+
+
+def _gemini_shell_launcher_unquoted(target_dir: Path) -> str:
+    """Return the raw absolute launcher path for Gemini shell policy matching."""
+    return str(_managed_gemini_cli_launcher_path(target_dir).resolve())
+
+
+def _gemini_shell_launcher(target_dir: Path) -> str:
+    """Return the shell-safe launcher command Gemini should use for GPD CLI calls."""
+    return json.dumps(_gemini_shell_launcher_unquoted(target_dir))
+
+
+def _gemini_policy_command_prefixes(target_dir: Path) -> tuple[str, ...]:
+    """Return the narrow shell prefixes GPD auto-approves for Gemini."""
+    return (
+        _gemini_shell_launcher(target_dir),
+        _gemini_shell_launcher_unquoted(target_dir),
+        *_GEMINI_STATIC_POLICY_COMMAND_PREFIXES,
+    )
+
+
+def _rewrite_gpd_cli_invocations(content: str, target_dir: Path) -> str:
+    """Rewrite bare ``gpd`` CLI calls to the install-pinned Gemini launcher."""
+    return _GPD_CLI_INVOCATION_RE.sub(_gemini_shell_launcher(target_dir), content)
+
+
+def _inject_gemini_command_runtime_note(content: str, target_dir: Path) -> str:
+    """Prepend Gemini-specific shell guidance to installed top-level commands."""
+    note = _GEMINI_COMMAND_RUNTIME_NOTE.format(launcher=_gemini_shell_launcher(target_dir))
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
+        return note + content
+    return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
+
+
+def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
+    """Rewrite known shell-heavy workflow snippets into Gemini-safe forms.
+
+    Gemini CLI's policy engine validates shell commands syntactically from the
+    start of each command segment. GPD's canonical markdown includes some bash
+    examples that rely on shell variables, command substitution, or combined
+    blocks. Those examples work for humans and more permissive runtimes, but in
+    Gemini headless auto-edit they lead the model to generate commands that are
+    denied before GPD ever runs.
+    """
+    content = content.replace(_GEMINI_NEW_PROJECT_INIT_BLOCK, _GEMINI_NEW_PROJECT_INIT_REPLACEMENT)
+    content = content.replace(_GEMINI_SET_PROFILE_BLOCK, _GEMINI_SET_PROFILE_REPLACEMENT)
+    content = content.replace(_GEMINI_MINIMAL_COMMIT_BLOCK, _GEMINI_MINIMAL_COMMIT_REPLACEMENT)
+    content = re.sub(
+        r'(?m)^([ \t]*)PRE_CHECK=\$\((gpd pre-commit-check --files [^\n]+) 2>&1\) \|\| true\n\1echo "\$PRE_CHECK"$',
+        (
+            r"\1# Gemini auto-edit: run the pre-check as its own shell call.\n"
+            r"\1\2\n"
+            r"\1# If the pre-check exits non-zero, surface the output and continue."
+        ),
+        content,
+    )
+    content = content.replace(
+        'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -',
+        f"gpd --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
+    )
+    content = content.replace(
+        'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -',
+        f"gpd state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
+    )
+    content = content.replace(
+        "Persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        _GEMINI_CONTRACT_PERSIST_SENTENCE,
+    )
+    content = content.replace(
+        "After validation passes, persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        _GEMINI_CONTRACT_PERSIST_SENTENCE,
+    )
+    content = content.replace(
+        "Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.",
+        _GEMINI_CONTRACT_FILE_NOTE,
+    )
+    return content
+
+
+def _gemini_launcher_checkout_src() -> str | None:
+    """Return the checkout ``src`` path the Gemini launcher should pin, if any."""
+    from gpd.version import checkout_root
+
+    root = checkout_root()
+    if root is None:
+        return None
+
+    checkout_src = (root / "src").resolve(strict=False)
+    if not checkout_src.is_dir():
+        return None
+    return str(checkout_src)
+
+
+def _ensure_gemini_cli_launcher(target_dir: Path) -> Path:
+    """Write the workspace-pinned GPD launcher Gemini shell commands should invoke."""
+    launcher_path = _managed_gemini_cli_launcher_path(target_dir)
+    launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    launcher_lines = [
+        "#!/bin/sh",
+        "# Managed by Get Physics Done (GPD).",
+        "# The launcher already pins execution, so skip CLI checkout re-exec heuristics.",
+        "export GPD_DISABLE_CHECKOUT_REEXEC=1",
+    ]
+    checkout_src = _gemini_launcher_checkout_src()
+    if checkout_src:
+        launcher_lines.extend(
+            [
+                f"CHECKOUT_SRC={json.dumps(checkout_src)}",
+                'if [ -n "${PYTHONPATH:-}" ]; then',
+                '  export PYTHONPATH="$CHECKOUT_SRC:$PYTHONPATH"',
+                "else",
+                '  export PYTHONPATH="$CHECKOUT_SRC"',
+                "fi",
+            ]
+        )
+    launcher_lines.append(f'exec {json.dumps(hook_python_interpreter())} -m gpd.cli "$@"')
+    launcher_path.write_text("\n".join(launcher_lines) + "\n", encoding="utf-8")
+    launcher_path.chmod(0o755)
+    return launcher_path
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter conversion
+# ---------------------------------------------------------------------------
+
+
+def _convert_frontmatter_to_gemini(content: str) -> str:
+    """Convert canonical GPD agent/file frontmatter to Gemini CLI format.
+
+    - ``allowed-tools:`` → ``tools:`` as YAML array
+    - Tool names converted to Gemini built-in names
+    - Non-Gemini agent metadata removed (Gemini validates frontmatter strictly)
+    - ``mcp__*`` tools excluded (auto-discovered at runtime)
+    - ``<sub>`` tags in body stripped for terminal rendering
+    """
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
+        return strip_sub_tags(content)
+
+    lines = frontmatter.split("\n")
+    new_lines: list[str] = []
+    in_allowed_tools = False
+    current_field_supported = True
+    tools: list[str] = []
+
+    for line in lines:
+        trimmed = line.strip()
+        top_level_field_match = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
+        if top_level_field_match:
+            current_field_supported = False
+            field_name, field_value = top_level_field_match.groups()
+
+            # Convert allowed-tools YAML array to tools list
+            if field_name == "allowed-tools":
+                in_allowed_tools = True
+                continue
+
+            # Handle inline tools: field (comma-separated string)
+            if field_name == "tools":
+                if field_value:
+                    parsed = [t.strip() for t in field_value.split(",") if t.strip()]
+                    for t in parsed:
+                        mapped = _convert_gemini_tool_name(t)
+                        if mapped:
+                            tools.append(mapped)
+                else:
+                    # tools: with no value means YAML array follows
+                    in_allowed_tools = True
+                continue
+
+            if field_name not in _GEMINI_AGENT_FRONTMATTER_FIELDS:
+                continue
+
+            current_field_supported = True
+            in_allowed_tools = False
+            new_lines.append(line)
+            continue
+
+        if line.startswith((" ", "\t")) and not in_allowed_tools:
+            if current_field_supported:
+                new_lines.append(line)
+            continue
+
+        if not trimmed:
+            if current_field_supported:
+                new_lines.append(line)
+            continue
+
+        # Collect allowed-tools/tools array items
+        if in_allowed_tools:
+            if trimmed.startswith("- "):
+                mapped = _convert_gemini_tool_name(trimmed[2:].strip())
+                if mapped:
+                    tools.append(mapped)
+                continue
+            elif trimmed and not trimmed.startswith("-"):
+                in_allowed_tools = False
+
+        if not in_allowed_tools and current_field_supported:
+            new_lines.append(line)
+
+    # Deduplicate tools while preserving order
+    seen: set[str] = set()
+    unique_tools: list[str] = []
+    for tool in tools:
+        if tool not in seen:
+            seen.add(tool)
+            unique_tools.append(tool)
+
+    # Add tools as YAML array (Gemini requires array format)
+    if unique_tools:
+        new_lines.append("tools:")
+        for tool in unique_tools:
+            new_lines.append(f"  - {tool}")
+
+    new_frontmatter = "\n".join(new_lines).strip()
+    return render_markdown_frontmatter(preamble, new_frontmatter, separator, strip_sub_tags(body))
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    """Return a normalized list of strings from a settings value."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _merge_unique_strings(existing: object, additions: list[str]) -> tuple[list[str], list[str]]:
+    """Append new string values while preserving order and existing items."""
+    merged = _normalize_string_list(existing)
+    seen = set(merged)
+    added: list[str] = []
+    for item in additions:
+        if item not in seen:
+            merged.append(item)
+            seen.add(item)
+            added.append(item)
+    return merged, added
+
+
+def _remove_strings(existing: object, removals: list[str]) -> tuple[list[str], bool]:
+    """Remove matching strings while preserving order."""
+    current = _normalize_string_list(existing)
+    if not current or not removals:
+        return current, False
+    removal_set = set(removals)
+    updated = [item for item in current if item not in removal_set]
+    return updated, updated != current
+
+
+def _managed_gemini_policy_path(target_dir: Path) -> Path:
+    """Return the GPD-managed Gemini policy file path."""
+    return target_dir / _GEMINI_POLICY_DIR_NAME / _GEMINI_POLICY_FILE_NAME
+
+
+def _render_gemini_policy_toml(target_dir: Path) -> str:
+    """Render the Gemini policy file GPD installs for headless auto-edit flows."""
+    rendered_prefixes: list[str] = []
+    for prefix in _gemini_policy_command_prefixes(target_dir):
+        rendered_prefixes.append("'" + prefix.replace("'", "''") + "'")
+    prefixes = ",\n  ".join(rendered_prefixes)
+    return (
+        "# Managed by Get Physics Done (GPD).\n"
+        "#\n"
+        "# Policy Engine rules that auto-approve the narrow set of shell commands\n"
+        "# GPD's bootstrap workflows rely on.  The launcher path points at this\n"
+        "# install's pinned GPD CLI so shell steps do not pick up an unrelated\n"
+        "# `gpd` from PATH.\n"
+        "\n"
+        "[[rule]]\n"
+        'toolName = "run_shell_command"\n'
+        "commandPrefix = [\n"
+        f"  {prefixes}\n"
+        "]\n"
+        'decision = "allow"\n'
+        "priority = 350\n"
+        'modes = ["autoEdit"]\n'
+        "allow_redirection = true\n"
+    )
+
+
+# ---------------------------------------------------------------------------
+# TOML conversion for commands
+# ---------------------------------------------------------------------------
+
+
+def _convert_to_gemini_toml(content: str) -> str:
+    """Convert Claude Code markdown command to Gemini TOML format.
+
+    Extracts selected frontmatter fields and puts body into ``prompt``.
+    Preserves non-runtime command metadata as TOML comments so installed
+    Gemini commands stay inspectable and closer to the canonical source.
+    Uses TOML multi-line literal strings (``'''``) to avoid escape issues
+    with backslashes in LaTeX/physics content.
+    """
+    _preamble, frontmatter, _separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
+        return f"prompt = {json.dumps(content)}\n"
+    body = body.strip()
+
+    # Extract selected frontmatter fields
+    description = ""
+    context_mode = ""
+    for line in frontmatter.split("\n"):
+        trimmed = line.strip()
+        if trimmed.startswith("description:"):
+            description = trimmed[12:].strip()
+        elif trimmed.startswith("context_mode:"):
+            context_mode = trimmed[13:].strip()
+
+    toml = ""
+    metadata_comments = _render_preserved_frontmatter_comments(frontmatter)
+    if metadata_comments:
+        toml += metadata_comments + "\n"
+    if description:
+        toml += f"description = {json.dumps(description)}\n"
+    if context_mode:
+        toml += f"context_mode = {json.dumps(context_mode)}\n"
+
+    # Use TOML multi-line literal strings (''') to avoid escape issues.
+    # Fall back to double-quoted string with JSON-style escaping if content contains '''.
+    if "'''" in body:
+        toml += f"prompt = {json.dumps(body)}\n"
+    else:
+        toml += f"prompt = '''\n{body}\n'''\n"
+
+    return toml
+
+
+def _render_preserved_frontmatter_comments(frontmatter: str) -> str:
+    """Render non-runtime frontmatter metadata as TOML comments.
+
+    Gemini commands only honor a narrow TOML surface, but the canonical GPD
+    markdown commands carry other important metadata such as ``name``,
+    ``argument-hint``, and ``requires``. Preserve those source fields as
+    comments so the installed command remains auditable without inventing new
+    runtime semantics.
+    """
+    excluded_keys = {"allowed-tools", "tools", "color", "description", "context_mode"}
+    preserved: list[str] = []
+    include_current = False
+
+    for line in frontmatter.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            if include_current and preserved and preserved[-1] != "":
+                preserved.append("")
+            continue
+
+        if line == line.lstrip() and ":" in line:
+            key = line.split(":", 1)[0].strip()
+            include_current = key not in excluded_keys
+
+        if include_current:
+            preserved.append(line.rstrip())
+
+    while preserved and preserved[0] == "":
+        preserved.pop(0)
+    while preserved and preserved[-1] == "":
+        preserved.pop()
+
+    if not preserved:
+        return ""
+
+    comment_lines = ["# Source frontmatter preserved for parity:"]
+    for line in preserved:
+        comment_lines.append("#" if not line else f"# {line}")
+    return "\n".join(comment_lines)
+
+
+def _policy_path_matches(value: str, candidates: set[str]) -> bool:
+    """Return True when a settings policy path matches a managed candidate."""
+    if value in candidates:
+        return True
+    try:
+        return str(Path(value).expanduser().resolve()) in candidates
+    except OSError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Agent installation
+# ---------------------------------------------------------------------------
+
+
+def _copy_agents_gemini(
+    agents_src: Path,
+    agents_dest: Path,
+    path_prefix: str,
+    gpd_src_root: Path | None = None,
+    attribution: str | None = "",
+    install_scope: str | None = None,
+) -> None:
+    """Install agent .md files with Gemini-specific conversions.
+
+    - Replace path placeholders
+    - Process attribution
+    - Expand ``@`` includes (Gemini doesn't support native ``@`` includes)
+    - Convert frontmatter (allowed-tools → tools array, strip color)
+    - Convert tool name references in body text
+    - Remove stale gpd-* agents not in the new set
+    """
+    if not agents_src.is_dir():
+        return
+
+    agents_dest.mkdir(parents=True, exist_ok=True)
+    source_root = gpd_src_root or agents_src.parent / "specs"
+
+    new_agent_names: set[str] = set()
+    for agent_md in sorted(agents_src.glob("*.md")):
+        content = compile_markdown_for_runtime(
+            agent_md.read_text(encoding="utf-8"),
+            runtime="gemini",
+            path_prefix=path_prefix,
+            install_scope=install_scope,
+            src_root=source_root,
+        )
+        content = process_attribution(content, attribution)
+        content = protect_runtime_agent_prompt(content, "gemini")
+        content = _convert_frontmatter_to_gemini(content)
+        content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+        content = _rewrite_gpd_cli_invocations(content, agents_dest.parent)
+
+        (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
+        new_agent_names.add(agent_md.name)
+
+    remove_stale_agents(agents_dest, new_agent_names)
+
+
+# ---------------------------------------------------------------------------
+# Command installation (nested structure, .toml format)
+# ---------------------------------------------------------------------------
+
+
+def _install_commands_as_toml(
+    commands_src: Path,
+    commands_dest: Path,
+    target_dir: Path,
+    path_prefix: str,
+    gpd_src_root: Path,
+    attribution: str | None = "",
+    install_scope: str | None = None,
+) -> None:
+    """Install commands as .toml files in nested ``commands/gpd/`` structure.
+
+    Gemini commands are TOML files with ``description`` and ``prompt`` fields.
+    """
+    if not commands_src.is_dir():
+        return
+
+    # Clean destination before copy
+    if commands_dest.exists():
+        shutil.rmtree(commands_dest)
+    commands_dest.mkdir(parents=True, exist_ok=True)
+
+    _copy_commands_recursive(commands_src, commands_dest, target_dir, path_prefix, attribution, gpd_src_root, install_scope)
+
+
+def _copy_commands_recursive(
+    src_dir: Path,
+    dest_dir: Path,
+    target_dir: Path,
+    path_prefix: str,
+    attribution: str | None,
+    gpd_src_root: Path,
+    install_scope: str | None = None,
+) -> None:
+    """Recursively copy commands, converting .md to .toml for Gemini."""
+    for entry in sorted(src_dir.iterdir()):
+        if entry.is_dir():
+            sub_dest = dest_dir / entry.name
+            sub_dest.mkdir(parents=True, exist_ok=True)
+            _copy_commands_recursive(entry, sub_dest, target_dir, path_prefix, attribution, gpd_src_root, install_scope)
+        elif entry.suffix == ".md":
+            content = compile_markdown_for_runtime(
+                entry.read_text(encoding="utf-8"),
+                runtime="gemini",
+                path_prefix=path_prefix,
+                install_scope=install_scope,
+                src_root=gpd_src_root,
+            )
+            content = process_attribution(content, attribution)
+            content = strip_sub_tags(content)
+            content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+            content = _rewrite_gemini_shell_workflow_guidance(content)
+            content = _rewrite_gpd_cli_invocations(content, target_dir)
+            content = _inject_gemini_command_runtime_note(content, target_dir)
+            toml_content = _convert_to_gemini_toml(content)
+            toml_path = dest_dir / entry.with_suffix(".toml").name
+            toml_path.write_text(toml_content, encoding="utf-8")
+        else:
+            shutil.copy2(entry, dest_dir / entry.name)
+
+
+# ---------------------------------------------------------------------------
+# Adapter class
+# ---------------------------------------------------------------------------
+
+
+class GeminiAdapter(RuntimeAdapter):
+    """Adapter for Google Gemini CLI."""
+
+    tool_name_map = _TOOL_NAME_MAP
+    auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
+    drop_mcp_frontmatter_tools = _DROP_MCP_FRONTMATTER_TOOLS
+    strip_sub_tags_in_shared_markdown = True
+
+    @property
+    def runtime_name(self) -> str:
+        return "gemini"
+
+    def install(
+        self,
+        gpd_root: Path,
+        target_dir: Path,
+        *,
+        is_global: bool = False,
+        explicit_target: bool = False,
+    ) -> dict[str, object]:
+        """Install GPD and persist Gemini settings as part of the install.
+
+        Unlike Claude Code, Gemini requires ``settings.json`` to enable
+        ``experimental.enableAgents`` for the installed agents to function.
+        A bare content copy is therefore an incomplete Gemini install.
+        """
+        previous_finalize_pending = getattr(self, "_gemini_finalize_pending", False)
+        self._gemini_finalize_pending = True
+        try:
+            result = super().install(gpd_root, target_dir, is_global=is_global, explicit_target=explicit_target)
+        finally:
+            self._gemini_finalize_pending = previous_finalize_pending
+
+        return result
+
+    # --- Template method hooks ---
+
+    def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
+        commands_src = gpd_root / "commands"
+        commands_dest = target_dir / "commands" / "gpd"
+        (target_dir / "commands").mkdir(parents=True, exist_ok=True)
+        _install_commands_as_toml(
+            commands_src,
+            commands_dest,
+            target_dir,
+            path_prefix,
+            gpd_root / "specs",
+            attribution=self.get_commit_attribution(),
+            install_scope=self._current_install_scope_flag(),
+        )
+        if verify_installed(commands_dest, "commands/gpd"):
+            logger.info("Installed commands/gpd (TOML format)")
+        else:
+            failures.append("commands/gpd")
+        return sum(1 for f in commands_dest.rglob("*.toml") if f.is_file()) if commands_dest.exists() else 0
+
+    def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
+        agents_src = gpd_root / "agents"
+        agents_dest = target_dir / "agents"
+        _copy_agents_gemini(
+            agents_src,
+            agents_dest,
+            path_prefix,
+            gpd_root / "specs",
+            attribution=self.get_commit_attribution(),
+            install_scope=self._current_install_scope_flag(),
+        )
+        if verify_installed(agents_dest, "agents"):
+            logger.info("Installed agents")
+        else:
+            failures.append("agents")
+        return sum(1 for f in agents_dest.iterdir() if f.is_file() and f.suffix == ".md") if agents_dest.exists() else 0
+
+    def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
+        """Install shared specs content with Gemini-specific CLI launcher rewrites."""
+
+        def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
+            translated = super(GeminiAdapter, self).translate_shared_markdown(
+                content,
+                prefix,
+                install_scope=install_scope,
+            )
+            translated = _rewrite_gemini_shell_workflow_guidance(translated)
+            return _rewrite_gpd_cli_invocations(translated, target_dir)
+
+        from gpd.adapters.install_utils import install_gpd_content
+
+        failures.extend(
+            install_gpd_content(
+                gpd_root / "specs",
+                target_dir,
+                path_prefix,
+                self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                markdown_transform=_translate,
+            )
+        )
+
+    def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
+        settings_path = target_dir / "settings.json"
+        settings = read_settings(settings_path)
+        self._managed_policy_paths = []
+        self._managed_runtime_files = []
+
+        # Enable experimental agents (required for custom sub-agents in Gemini CLI)
+        experimental = settings.get("experimental")
+        enable_agents_was_present = isinstance(experimental, dict) and experimental.get("enableAgents") is True
+        if not isinstance(experimental, dict):
+            experimental = {}
+            settings["experimental"] = experimental
+        if not experimental.get("enableAgents"):
+            experimental["enableAgents"] = True
+            logger.info("Enabled experimental agents")
+        self._managed_enable_agents = not enable_agents_was_present
+
+        # Build hook commands (Python hooks, same as Claude Code)
+        statusline_cmd = build_hook_command(
+            target_dir,
+            HOOK_SCRIPTS["statusline"],
+            is_global=is_global,
+            config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+        update_check_cmd = build_hook_command(
+            target_dir,
+            HOOK_SCRIPTS["check_update"],
+            is_global=is_global,
+            config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+        ensure_update_hook(
+            settings,
+            update_check_cmd,
+            target_dir=target_dir,
+            config_dir_name=self.config_dir_name,
+        )
+
+        launcher_path = _ensure_gemini_cli_launcher(target_dir)
+
+        # Install a runtime-owned policy file so Gemini loads the minimum
+        # GPD shell allowlist even while workspace policies are disabled.
+        policy_path = _managed_gemini_policy_path(target_dir)
+        policy_path.parent.mkdir(parents=True, exist_ok=True)
+        policy_path.write_text(_render_gemini_policy_toml(target_dir), encoding="utf-8")
+        self._managed_runtime_files = [
+            str(launcher_path.relative_to(target_dir)),
+            str(policy_path.relative_to(target_dir)),
+        ]
+
+        policy_dir_setting = str(policy_path.parent.resolve())
+        merged_policy_paths, added_policy_paths = _merge_unique_strings(settings.get("policyPaths"), [policy_dir_setting])
+        if merged_policy_paths:
+            settings["policyPaths"] = merged_policy_paths
+        self._managed_policy_paths = added_policy_paths
+
+        # Wire MCP servers into settings so they start automatically.
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
+
+        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        if mcp_servers:
+            existing_mcp = settings.get("mcpServers", {})
+            merged_mcp = merge_managed_mcp_servers(existing_mcp, mcp_servers)
+            for server_name in mcp_servers:
+                existing_entry = existing_mcp.get(server_name) if isinstance(existing_mcp, dict) else None
+                if not isinstance(existing_entry, dict) or "trust" not in existing_entry:
+                    merged_mcp.setdefault(server_name, {})["trust"] = True
+            settings["mcpServers"] = merged_mcp
+
+        return {
+            "settingsPath": str(settings_path),
+            "settings": settings,
+            "statuslineCommand": statusline_cmd,
+            "mcpServers": len(mcp_servers),
+        }
+
+    def _write_manifest(self, target_dir: Path, version: str) -> None:
+        """Record manifest metadata for shared config keys GPD actually introduced."""
+        managed_config: dict[str, object] = {}
+        if getattr(self, "_managed_enable_agents", False):
+            managed_config["experimental.enableAgents"] = True
+        if getattr(self, "_managed_policy_paths", []):
+            managed_config["policyPaths"] = list(self._managed_policy_paths)
+        metadata: dict[str, object] = {}
+        if managed_config:
+            metadata["managed_config"] = managed_config
+        if getattr(self, "_managed_runtime_files", []):
+            metadata["managed_runtime_files"] = list(self._managed_runtime_files)
+        write_manifest(
+            target_dir,
+            version,
+            metadata=metadata or None,
+            install_scope=self._current_install_scope_flag(),
+        )
+
+    def finish_install(
+        self,
+        settings_path: str | Path,
+        settings: dict[str, object],
+        statusline_command: str,
+        should_install_statusline: bool,
+        *,
+        force_statusline: bool = False,
+    ) -> None:
+        """Apply statusline config and write settings atomically."""
+        _finish_install(
+            settings_path,
+            settings,
+            statusline_command,
+            should_install_statusline,
+            force_statusline=force_statusline,
+        )
+
+    def finalize_install(
+        self,
+        install_result: dict[str, object],
+        *,
+        force_statusline: bool = False,
+    ) -> None:
+        """Persist Gemini settings when install produced an in-memory config."""
+        if install_result.get("settingsWritten"):
+            return
+
+        settings_path = install_result.get("settingsPath")
+        settings = install_result.get("settings")
+        statusline_command = install_result.get("statuslineCommand")
+        if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            self.finish_install(
+                settings_path,
+                settings,
+                statusline_command,
+                True,
+                force_statusline=force_statusline,
+            )
+            install_result["settingsWritten"] = True
+
+    def uninstall(self, target_dir: Path) -> dict[str, object]:
+        """Remove GPD from a Gemini CLI .gemini/ directory.
+
+        Extends base uninstall with Gemini-specific settings.json cleanup.
+        """
+        manifest = read_settings(target_dir / MANIFEST_NAME)
+        managed_config = manifest.get("managed_config")
+        managed_runtime_files = manifest.get("managed_runtime_files")
+        remove_managed_enable_agents = (
+            isinstance(managed_config, dict) and managed_config.get("experimental.enableAgents") is True
+        )
+        managed_policy_paths = []
+        if isinstance(managed_config, dict):
+            managed_policy_paths = _normalize_string_list(managed_config.get("policyPaths"))
+
+        result = super().uninstall(target_dir)
+
+        settings_path = target_dir / "settings.json"
+        if settings_path.exists():
+            settings = read_settings(settings_path)
+            modified = False
+
+            # Remove GPD statusline
+            status_line = settings.get("statusLine")
+            if isinstance(status_line, dict):
+                cmd = status_line.get("command", "")
+                if _is_hook_command_for_script(
+                    cmd,
+                    HOOK_SCRIPTS["statusline"],
+                    target_dir=target_dir,
+                    config_dir_name=self.config_dir_name,
+                ):
+                    del settings["statusLine"]
+                    modified = True
+
+            # Remove GPD hooks from SessionStart
+            hooks = settings.get("hooks")
+            if isinstance(hooks, dict):
+                session_start = hooks.get("SessionStart")
+                if isinstance(session_start, list):
+                    before = len(session_start)
+                    session_start[:] = [
+                        entry
+                        for entry in session_start
+                        if not _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+                    ]
+                    if len(session_start) < before:
+                        modified = True
+                    if not session_start:
+                        del hooks["SessionStart"]
+                    if not hooks:
+                        del settings["hooks"]
+
+            # Remove experimental.enableAgents only when GPD introduced it.
+            experimental = settings.get("experimental")
+            if (
+                remove_managed_enable_agents
+                and isinstance(experimental, dict)
+                and experimental.get("enableAgents") is True
+            ):
+                del experimental["enableAgents"]
+                if not experimental:
+                    del settings["experimental"]
+                modified = True
+
+            # Remove legacy tools.allowed entries GPD may have written before
+            # migrating to the Policy Engine (manifests from older installs).
+            legacy_allowed_tools = _normalize_string_list(
+                managed_config.get("tools.allowed") if isinstance(managed_config, dict) else None
+            )
+            if legacy_allowed_tools:
+                tools = settings.get("tools")
+                if isinstance(tools, dict):
+                    allowed_tools, changed = _remove_strings(tools.get("allowed"), legacy_allowed_tools)
+                    if changed:
+                        modified = True
+                        if allowed_tools:
+                            tools["allowed"] = allowed_tools
+                        else:
+                            tools.pop("allowed", None)
+                    if not tools:
+                        settings.pop("tools", None)
+
+            policy_paths = _normalize_string_list(settings.get("policyPaths"))
+            if policy_paths:
+                candidate_policy_paths = set(managed_policy_paths)
+                candidate_policy_paths.add(str((_managed_gemini_policy_path(target_dir).parent).resolve()))
+                filtered_policy_paths = [
+                    value for value in policy_paths if not _policy_path_matches(value, candidate_policy_paths)
+                ]
+                if filtered_policy_paths != policy_paths:
+                    modified = True
+                    if filtered_policy_paths:
+                        settings["policyPaths"] = filtered_policy_paths
+                    else:
+                        settings.pop("policyPaths", None)
+
+            # Remove GPD MCP servers
+            mcp_servers = settings.get("mcpServers")
+            if isinstance(mcp_servers, dict):
+                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+                removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+                if removed_keys:
+                    for key in removed_keys:
+                        del mcp_servers[key]
+                    if not mcp_servers:
+                        del settings["mcpServers"]
+                    modified = True
+
+            if modified:
+                write_settings(settings_path, settings)
+                logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
+
+        policy_files = _normalize_string_list(managed_runtime_files)
+        if not policy_files:
+            policy_files = [
+                str(_managed_gemini_cli_launcher_path(target_dir).relative_to(target_dir)),
+                str(_managed_gemini_policy_path(target_dir).relative_to(target_dir)),
+            ]
+        for rel_path in policy_files:
+            candidate = target_dir / rel_path
+            if candidate.exists():
+                candidate.unlink()
+                result.setdefault("removed", []).append(rel_path)
+        launcher_dir = _managed_gemini_cli_launcher_path(target_dir).parent
+        if launcher_dir.is_dir() and not any(launcher_dir.iterdir()):
+            launcher_dir.rmdir()
+        policy_dir = _managed_gemini_policy_path(target_dir).parent
+        if policy_dir.is_dir() and not any(policy_dir.iterdir()):
+            policy_dir.rmdir()
+
+        return result
+
+    def _verify(self, target_dir: Path) -> None:
+        """Verify the Gemini install is usable, including persisted settings."""
+        super()._verify(target_dir)
+
+        if getattr(self, "_gemini_finalize_pending", False):
+            return
+
+        settings_path = target_dir / "settings.json"
+        if not settings_path.exists():
+            raise RuntimeError("Gemini install incomplete: settings.json was not written")
+
+        settings = read_settings(settings_path)
+        experimental = settings.get("experimental")
+        if not isinstance(experimental, dict) or experimental.get("enableAgents") is not True:
+            raise RuntimeError("Gemini install incomplete: experimental.enableAgents is not enabled")
+
+        if not _managed_gemini_cli_launcher_path(target_dir).exists():
+            raise RuntimeError("Gemini install incomplete: pinned GPD launcher is not installed")
+
+        hooks = settings.get("hooks")
+        session_start = hooks.get("SessionStart") if isinstance(hooks, dict) else None
+        if not isinstance(session_start, list) or not any(
+            _entry_has_gpd_hook(entry, target_dir=target_dir, config_dir_name=self.config_dir_name)
+            for entry in session_start
+        ):
+            raise RuntimeError("Gemini install incomplete: update hook not configured")
+
+        mcp_servers = settings.get("mcpServers")
+        if not isinstance(mcp_servers, dict) or not mcp_servers:
+            raise RuntimeError("Gemini install incomplete: MCP servers are not configured")
+
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
+def _entry_has_gpd_hook(
+    entry: object,
+    *,
+    target_dir: Path | None,
+    config_dir_name: str | None,
+) -> bool:
+    """Check if a hook entry contains the GPD-managed Gemini update hook."""
+    if not isinstance(entry, dict):
+        return False
+    entry_hooks = entry.get("hooks")
+    if not isinstance(entry_hooks, list):
+        return False
+    return any(
+        isinstance(h, dict)
+        and isinstance(h.get("command"), str)
+        and _is_hook_command_for_script(
+            h["command"],
+            HOOK_SCRIPTS["check_update"],
+            target_dir=target_dir,
+            config_dir_name=config_dir_name,
+        )
+        for h in entry_hooks
+    )
+
+
+__all__ = ["GeminiAdapter"]

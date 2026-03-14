@@ -1,0 +1,294 @@
+% template_version: 1
+% Used by: gpd-referee for the default LaTeX companion artifact.
+% Fill every bracketed placeholder and remove guidance comments in the final file.
+% Keep the recommendation, issue counts, issue IDs, and section ordering aligned
+% with the canonical Markdown report.
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+
+\definecolor{ReportInk}{HTML}{12263A}
+\definecolor{ReportCrimson}{HTML}{9B2226}
+\definecolor{ReportGold}{HTML}{C76D1D}
+\definecolor{ReportSage}{HTML}{5E7D64}
+\definecolor{ReportStone}{HTML}{F6F1EA}
+\definecolor{ReportLine}{HTML}{D9D2C8}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ReportCrimson,
+  urlcolor=ReportCrimson,
+  citecolor=ReportCrimson,
+  pdftitle={[Referee report title]},
+  pdfauthor={gpd-referee}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist[itemize]{leftmargin=1.4em, itemsep=0.35em, topsep=0.35em}
+\setlist[enumerate]{leftmargin=1.6em, itemsep=0.35em, topsep=0.35em}
+\renewcommand{\arraystretch}{1.2}
+
+\titleformat{\section}{\Large\bfseries\color{ReportInk}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{ReportInk}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.0em}{0.4em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textsc{Mock Referee Report}}
+\fancyhead[R]{\textcolor{ReportCrimson}{[Short title]}}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\newcommand{\RecommendationBadge}[2]{%
+  \tcbox[
+    on line,
+    box align=base,
+    colback=#1!12,
+    colframe=#1,
+    arc=2pt,
+    boxrule=0.8pt,
+    left=7pt,
+    right=7pt,
+    top=4pt,
+    bottom=4pt
+  ]{\textbf{\textsc{#2}}}%
+}
+
+\newtcolorbox{SummaryBox}{
+  enhanced,
+  breakable,
+  colback=ReportStone,
+  colframe=ReportInk,
+  boxrule=0.8pt,
+  arc=2pt,
+  left=12pt,
+  right=12pt,
+  top=10pt,
+  bottom=10pt
+}
+
+\newtcolorbox{StrengthBox}{
+  enhanced,
+  breakable,
+  colback=ReportSage!10,
+  colframe=ReportSage,
+  colbacktitle=ReportSage,
+  coltitle=white,
+  title={Strengths},
+  boxrule=0.8pt,
+  arc=2pt,
+  left=12pt,
+  right=12pt,
+  top=10pt,
+  bottom=10pt
+}
+
+\newtcolorbox{MajorIssueBox}[1]{
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=ReportCrimson,
+  colbacktitle=ReportCrimson,
+  coltitle=white,
+  title={#1},
+  boxrule=0.9pt,
+  arc=2pt,
+  left=12pt,
+  right=12pt,
+  top=10pt,
+  bottom=10pt
+}
+
+\newtcolorbox{MinorIssueBox}[1]{
+  enhanced,
+  breakable,
+  colback=white,
+  colframe=ReportGold,
+  colbacktitle=ReportGold,
+  coltitle=white,
+  title={#1},
+  boxrule=0.9pt,
+  arc=2pt,
+  left=12pt,
+  right=12pt,
+  top=10pt,
+  bottom=10pt
+}
+
+\begin{document}
+
+{\color{ReportCrimson}\rule{\linewidth}{1.1pt}}
+
+\begin{center}
+  {\Huge\bfseries\color{ReportInk} Referee Report\par}
+  \vspace{0.45em}
+  {\Large [Manuscript or milestone title]\par}
+  \vspace{0.8em}
+  \RecommendationBadge{ReportGold}{[Accept | Minor Revision | Major Revision | Reject]}
+\end{center}
+
+\vspace{0.8em}
+
+\begin{tcolorbox}[
+  enhanced,
+  colback=white,
+  colframe=ReportLine,
+  boxrule=0.7pt,
+  arc=2pt,
+  left=12pt,
+  right=12pt,
+  top=10pt,
+  bottom=10pt
+]
+\begin{tabularx}{\linewidth}{@{}p{0.23\linewidth}Y p{0.23\linewidth}Y@{}}
+\textbf{Scope} & [Manuscript | Milestone vX.Y | Phase XX] & \textbf{Target journal} & [PRL | PRD | JHEP | unspecified] \\
+\textbf{Reviewed} & [YYYY-MM-DDTHH:MM:SSZ] & \textbf{Confidence} & [high | medium | low] \\
+\textbf{Major issues} & [N] & \textbf{Minor issues} & [N] \\
+\textbf{Round} & [Initial review or round N] & \textbf{Reviewer} & gpd-referee \\
+\end{tabularx}
+\end{tcolorbox}
+
+\begin{SummaryBox}
+\textbf{Summary}
+
+[Two or three polished paragraphs summarizing the main claim, what was checked, the strongest parts of the work, and the main blockers or reservations.]
+\end{SummaryBox}
+
+\begin{StrengthBox}
+\begin{enumerate}
+  \item [Specific strength with a concrete location or result.]
+  \item [Specific strength with a concrete location or result.]
+\end{enumerate}
+\end{StrengthBox}
+
+\section*{Major Issues}
+
+% Duplicate one MajorIssueBox per blocking issue.
+\begin{MajorIssueBox}{REF-001: [Descriptive title]}
+\textbf{Dimension:} [correctness | completeness | technical\_soundness | novelty | significance | literature\_context | reproducibility]
+
+\textbf{Location:} [file:line, section, equation, or figure]
+
+\textbf{Description:} [Precise description of the issue.]
+
+\textbf{Impact:} [How the issue changes confidence in the result or blocks publication.]
+
+\textbf{Suggested fix:} [Concrete remediation guidance.]
+\end{MajorIssueBox}
+
+\section*{Minor Issues}
+
+% Duplicate one MinorIssueBox per non-blocking issue.
+\begin{MinorIssueBox}{REF-010: [Descriptive title]}
+\textbf{Dimension:} [clarity | presentation\_quality | literature\_context | reproducibility | other]
+
+\textbf{Location:} [file:line, section, equation, or figure]
+
+\textbf{Description:} [Precise description of the issue.]
+
+\textbf{Suggested fix:} [Concrete remediation guidance.]
+\end{MinorIssueBox}
+
+\section*{Suggestions}
+\begin{itemize}
+  \item \textbf{[Suggestion title]} [Description and rationale.]
+  \item \textbf{[Suggestion title]} [Description and rationale.]
+\end{itemize}
+
+\section*{Detailed Evaluation}
+
+\begin{longtable}{@{}p{0.18\linewidth}p{0.17\linewidth}Y@{}}
+\toprule
+\textbf{Dimension} & \textbf{Rating} & \textbf{Assessment} \\
+\midrule
+\endhead
+Novelty & [STRONG | ADEQUATE | WEAK] & [Assessment with evidence.] \\
+Correctness & [VERIFIED | ISSUES FOUND] & [What equations, limits, or checks were performed.] \\
+Clarity & [EXCELLENT | GOOD | ADEQUATE | POOR] & [Assessment.] \\
+Completeness & [COMPLETE | GAPS | INCOMPLETE] & [Assessment.] \\
+Significance & [HIGH | MEDIUM | LOW] & [Assessment.] \\
+Reproducibility & [FULLY | MOSTLY | PARTIALLY | NOT] & [Assessment.] \\
+Literature Context & [THOROUGH | ADEQUATE | INCOMPLETE] & [Assessment.] \\
+Presentation Quality & [READY | NEEDS POLISHING | NEEDS REWRITING] & [Assessment.] \\
+Technical Soundness & [SOUND | QUESTIONABLE | UNSOUND] & [Assessment.] \\
+Publishability & [Accept | Minor revision | Major revision | Reject] & [Final synthesis.] \\
+\bottomrule
+\end{longtable}
+
+\section*{Physics Checklist}
+
+\begin{tabularx}{\linewidth}{@{}p{0.38\linewidth}p{0.18\linewidth}Y@{}}
+\toprule
+\textbf{Check} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+Dimensional analysis & [pass/fail/unchecked] & [Details.] \\
+Limiting cases & [pass/fail/unchecked] & [Details.] \\
+Symmetry preservation & [pass/fail/unchecked] & [Details.] \\
+Conservation laws & [pass/fail/unchecked] & [Details.] \\
+Error bars present & [pass/fail/unchecked] & [Details.] \\
+Approximations justified & [pass/fail/unchecked] & [Details.] \\
+Convergence demonstrated & [pass/fail/unchecked] & [Details.] \\
+Literature comparison & [pass/fail/unchecked] & [Details.] \\
+Reproducible & [pass/fail/unchecked] & [Details.] \\
+\bottomrule
+\end{tabularx}
+
+\section*{Action Matrix}
+
+% Preserve the same issue IDs used in the Markdown report.
+\begin{tabularx}{\linewidth}{@{}p{0.12\linewidth}p{0.14\linewidth}p{0.20\linewidth}Y p{0.14\linewidth}@{}}
+\toprule
+\textbf{ID} & \textbf{Severity} & \textbf{File} & \textbf{Required change} & \textbf{Effort} \\
+\midrule
+REF-001 & [critical | major | minor] & [file path] & [Exact required change.] & [small | medium | large] \\
+REF-002 & [critical | major | minor] & [file path] & [Exact required change.] & [small | medium | large] \\
+\bottomrule
+\end{tabularx}
+
+\section*{Confidence Matrix}
+
+\begin{tabularx}{\linewidth}{@{}p{0.26\linewidth}p{0.16\linewidth}Y@{}}
+\toprule
+\textbf{Dimension} & \textbf{Confidence} & \textbf{Notes} \\
+\midrule
+Correctness & [HIGH | MEDIUM | LOW] & [Reasoning.] \\
+Novelty & [HIGH | MEDIUM | LOW] & [Reasoning.] \\
+Reproducibility & [HIGH | MEDIUM | LOW] & [Reasoning.] \\
+Publishability & [HIGH | MEDIUM | LOW] & [Reasoning.] \\
+\bottomrule
+\end{tabularx}
+
+% Revision-round mode:
+% Replace the major/minor-issue sections above with:
+% 1. a resolution tracker table keyed by REF-xxx IDs,
+% 2. resolved / partially resolved / unresolved / new-issue sections,
+% 3. a remaining-action-items table keyed by REF-R{N}-xxx IDs.
+% Keep the same visual language and recommendation badge.
+
+\vfill
+
+{\color{ReportCrimson}\rule{\linewidth}{1.1pt}}
+
+\small
+\textit{This is an AI-generated mock referee report. It supplements but does not replace expert peer review.}
+
+\end{document}

@@ -1,0 +1,61 @@
+{
+  "_description": "Convention set operation parity: same input produces same result structure in both JS and Python.",
+  "cases": [
+    {
+      "name": "set_canonical_convention",
+      "input": {
+        "lock": {},
+        "key": "metric_signature",
+        "value": "mostly-plus"
+      },
+      "expected": {
+        "updated": true,
+        "key": "metric_signature",
+        "value": "mostly-plus",
+        "previous": null,
+        "custom": false
+      }
+    },
+    {
+      "name": "set_custom_convention",
+      "input": {
+        "lock": {},
+        "key": "my_custom",
+        "value": "some-value"
+      },
+      "expected": {
+        "updated": true,
+        "key": "my_custom",
+        "custom": true
+      }
+    },
+    {
+      "name": "immutability_gate_blocks_overwrite",
+      "input": {
+        "lock": {"metric_signature": "mostly-plus"},
+        "key": "metric_signature",
+        "value": "mostly-minus",
+        "force": false
+      },
+      "expected": {
+        "updated": false,
+        "key": "metric_signature",
+        "reason": "convention_already_set"
+      }
+    },
+    {
+      "name": "force_overwrite",
+      "input": {
+        "lock": {"metric_signature": "mostly-plus"},
+        "key": "metric_signature",
+        "value": "mostly-minus",
+        "force": true
+      },
+      "expected": {
+        "updated": true,
+        "key": "metric_signature",
+        "value": "mostly-minus"
+      }
+    }
+  ]
+}

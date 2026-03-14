@@ -1,0 +1,55 @@
+{
+  "_description": "Convention list operation parity: same lock produces same list structure.",
+  "cases": [
+    {
+      "name": "empty_lock",
+      "input": {
+        "lock": {}
+      },
+      "expected": {
+        "total": 18,
+        "set_count": 0,
+        "unset_count": 18,
+        "canonical_total": 18
+      }
+    },
+    {
+      "name": "one_set_convention",
+      "input": {
+        "lock": {
+          "metric_signature": "mostly-plus"
+        }
+      },
+      "expected": {
+        "total": 18,
+        "set_count": 1,
+        "unset_count": 17,
+        "canonical_total": 18,
+        "set_entries": {
+          "metric_signature": {
+            "label": "Metric signature",
+            "value": "mostly-plus",
+            "is_set": true,
+            "canonical": true
+          }
+        }
+      }
+    },
+    {
+      "name": "with_custom_convention",
+      "input": {
+        "lock": {
+          "custom_conventions": {
+            "my_custom": "value"
+          }
+        }
+      },
+      "expected": {
+        "total": 19,
+        "set_count": 1,
+        "unset_count": 18,
+        "canonical_total": 18
+      }
+    }
+  ]
+}

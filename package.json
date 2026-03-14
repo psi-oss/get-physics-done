@@ -1,0 +1,35 @@
+{
+  "name": "get-physics-done",
+  "version": "1.0.0",
+  "gpdPythonVersion": "1.0.0",
+  "description": "Open-source AI copilot for physics research across supported AI runtimes",
+  "bin": {
+    "get-physics-done": "bin/install.js"
+  },
+  "files": [
+    "bin/",
+    "src/gpd/adapters/runtime_catalog.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/psi-oss/get-physics-done"
+  },
+  "homepage": "https://github.com/psi-oss/get-physics-done#readme",
+  "bugs": {
+    "url": "https://github.com/psi-oss/get-physics-done/issues"
+  },
+  "author": "Physical Superintelligence PBC (PSI)",
+  "keywords": [
+    "physical superintelligence",
+    "psi",
+    "physics",
+    "research",
+    "ai",
+    "agentic",
+    "claude",
+    "codex",
+    "gemini",
+    "opencode"
+  ],
+  "license": "Apache-2.0"
+}

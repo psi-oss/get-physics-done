@@ -1,0 +1,42 @@
+{
+  "name": "gpd-verification",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis.",
+  "transport": "stdio",
+  "command": "gpd-mcp-verification",
+  "args": [],
+  "env": {
+    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
+  },
+  "capabilities": [
+    "run_check",
+    "run_contract_check",
+    "suggest_contract_checks",
+    "get_checklist",
+    "get_bundle_checklist",
+    "dimensional_check",
+    "limiting_case_check",
+    "symmetry_check",
+    "get_verification_coverage"
+  ],
+  "registry_prefix": "gpd_verification",
+  "prerequisites": [
+    "Install GPD first: npx -y get-physics-done"
+  ],
+  "health_check": {
+    "tool": "get_checklist",
+    "input": {
+      "domain": "qft"
+    },
+    "expect": "contains Ward identities"
+  },
+  "alternatives": {
+    "python_module": {
+      "command": "python",
+      "args": [
+        "-m",
+        "gpd.mcp.servers.verification_server"
+      ],
+      "notes": "Requires gpd package installed"
+    }
+  }
+}

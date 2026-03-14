@@ -1,0 +1,29 @@
+{
+  "name": "gpd-arxiv",
+  "description": "arXiv paper search and retrieval via arxiv-mcp-server. Search for physics papers, fetch abstracts, and download full text.",
+  "transport": "stdio",
+  "command": "python",
+  "args": [
+    "-m",
+    "arxiv_mcp_server"
+  ],
+  "env": {},
+  "capabilities": [
+    "search_papers",
+    "download_paper",
+    "list_papers",
+    "read_paper"
+  ],
+  "registry_prefix": "gpd_arxiv",
+  "prerequisites": [
+    "Install GPD first: npx -y get-physics-done"
+  ],
+  "health_check": {
+    "tool": "search_papers",
+    "input": {
+      "query": "quantum field theory",
+      "max_results": 1
+    },
+    "expect": "contains paper"
+  }
+}

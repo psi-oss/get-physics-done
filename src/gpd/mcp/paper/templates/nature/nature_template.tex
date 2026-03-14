@@ -1,0 +1,84 @@
+%# Nature template -- Standard article class with Nature formatting
+%# Jinja2 template with custom LaTeX-safe delimiters
+%# Nature prefers minimal formatting; 12pt Times New Roman
+\documentclass[12pt]{article}
+
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{wasysym}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+\title{\VAR{title}}
+
+\author{
+\BLOCK{for author in authors}
+\VAR{author.name}\BLOCK{if author.affiliation}\textsuperscript{\VAR{loop.index}}\BLOCK{endif}\BLOCK{if not loop.last}, \BLOCK{endif}
+\BLOCK{endfor}
+\BLOCK{if authors}\\[6pt]\BLOCK{endif}
+\BLOCK{for author in authors}
+\BLOCK{if author.affiliation}
+\textsuperscript{\VAR{loop.index}}{\small \VAR{author.affiliation}}\\
+\BLOCK{endif}
+\BLOCK{endfor}
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\VAR{abstract}
+\end{abstract}
+
+\BLOCK{for section in sections}
+\section{\VAR{section.title}}
+\BLOCK{if section.label}\label{sec:\VAR{section.label}}\BLOCK{endif}
+\VAR{section.content}
+\BLOCK{endfor}
+
+\BLOCK{for fig in figures}
+\BLOCK{if fig.double_column}
+\begin{figure*}
+\BLOCK{else}
+\begin{figure}
+\BLOCK{endif}
+\centering
+\includegraphics[width=\VAR{fig.width}]{\VAR{fig.path}}
+\caption{\VAR{fig.caption}}
+\label{fig:\VAR{fig.label}}
+\BLOCK{if fig.double_column}
+\end{figure*}
+\BLOCK{else}
+\end{figure}
+\BLOCK{endif}
+\BLOCK{endfor}
+
+\BLOCK{if acknowledgments}
+\section*{Acknowledgements}
+\VAR{acknowledgments}
+\BLOCK{endif}
+
+\BLOCK{if appendix_sections}
+\appendix
+\BLOCK{for section in appendix_sections}
+\section{\VAR{section.title}}
+\BLOCK{if section.label}\label{sec:\VAR{section.label}}\BLOCK{endif}
+\VAR{section.content}
+\BLOCK{endfor}
+\BLOCK{endif}
+
+\bibliographystyle{naturemag}
+\bibliography{\VAR{bib_file}}
+
+\BLOCK{if attribution_footer}
+\begin{center}
+{\footnotesize\textit{\VAR{attribution_footer}}}
+\end{center}
+\BLOCK{endif}
+
+\end{document}
