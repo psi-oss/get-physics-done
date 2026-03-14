@@ -121,7 +121,7 @@ Continue to spawn_agents.
 Spawn 4 parallel gpd-research-mapper agents.
 
 Use task tool with `subagent_type="gpd-research-mapper"`, `model="{mapper_model}"`, and `run_in_background=true` for parallel execution.
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 **CRITICAL:** Use the dedicated `gpd-research-mapper` agent, NOT `Explore`. The mapper agent writes documents directly.
 

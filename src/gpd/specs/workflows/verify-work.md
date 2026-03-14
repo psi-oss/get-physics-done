@@ -840,7 +840,7 @@ Display:
 ```
 
 Spawn gpd-planner in --gaps mode:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -867,6 +867,7 @@ Plans must be executable prompts.
 """,
   subagent_type="gpd-planner",
   model="{planner_model}",
+  readonly=false,
   description="Plan gap fixes for Phase {phase}"
 )
 ```
@@ -896,7 +897,7 @@ Initialize: `iteration_count = 1`
 
 Spawn gpd-plan-checker:
 
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -921,6 +922,7 @@ Return one of:
 """,
   subagent_type="gpd-plan-checker",
   model="{checker_model}",
+  readonly=false,
   description="Verify Phase {phase} fix plans"
 )
 ```
@@ -942,7 +944,7 @@ Display: `Sending back to planner for revision... (iteration {N}/3)`
 
 Spawn gpd-planner with revision context:
 
-> **Runtime delegation:** Omit `model` if null. Adapt to your runtime if needed.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -969,6 +971,7 @@ Do NOT replan from scratch unless issues are fundamental.
 """,
   subagent_type="gpd-planner",
   model="{planner_model}",
+  readonly=false,
   description="Revise Phase {phase} plans"
 )
 ```

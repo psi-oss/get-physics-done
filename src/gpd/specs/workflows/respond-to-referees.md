@@ -342,13 +342,14 @@ Draft each response in `AUTHOR-RESPONSE.md`, then mirror the polished journal-fa
 **For Group B (manuscript revision) items:**
 
 Group revision items by affected section to minimize agent spawns. For each affected section, spawn a paper-writer agent:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-paper-writer",
   model="{writer_model}",
+  readonly=false,
   description="Revise: {section_name}"
 )
 ```
