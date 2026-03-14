@@ -331,6 +331,22 @@ def test_export_workflow_uses_release_attribution_footer() -> None:
     assert "Tool: GPD (Get Physics Done)" not in content
 
 
+def test_export_surfaces_use_visible_exports_directory() -> None:
+    repo_root = _repo_root()
+    workflow = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")
+    command = (repo_root / "src" / "gpd" / "commands" / "export.md").read_text(encoding="utf-8")
+
+    assert "mkdir -p exports" in workflow
+    assert "exports/results.html" in workflow
+    assert "exports/results.tex" in workflow
+    assert "exports/results.bib" in workflow
+    assert "exports/results.zip" in workflow
+    assert ".gpd/exports" not in workflow
+    assert "Write files to `exports/`." in command
+    assert "Files written to exports/" in command
+    assert ".gpd/exports" not in command
+
+
 def test_public_cli_surface_is_unified() -> None:
     repo_root = _repo_root()
     script_lines = _project_script_lines(repo_root)

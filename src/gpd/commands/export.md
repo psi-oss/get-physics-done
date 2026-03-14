@@ -56,7 +56,7 @@ Route to appropriate generator (html, latex, zip, or all).
 
 ## Step 4: Write Output
 
-Write files to `.gpd/exports/`.
+Write files to `exports/`.
 
 ## Step 5: Report
 
@@ -69,6 +69,6 @@ Display file locations, sizes, and instructions for each format.
 - [ ] Format determined (from args or user choice)
 - [ ] Export generated in requested format(s)
 - [ ] Key results and equations included
-- [ ] Files written to .gpd/exports/
+- [ ] Files written to exports/
 - [ ] File locations reported to user
       </success_criteria>

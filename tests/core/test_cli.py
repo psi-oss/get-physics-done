@@ -881,6 +881,140 @@ def test_paper_build_prefers_manuscript_before_draft_and_planning_roots(tmp_path
     assert mock_build.await_args.args[0].title == "manuscript-uppercase"
 
 
+def test_paper_build_legacy_planning_config_defaults_output_to_paper_dir(tmp_path: Path) -> None:
+    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir.mkdir(parents=True)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (planning_paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "planning-uppercase",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./.gpd/paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./paper"
+    assert payload["tex_path"] == "./paper/main.tex"
+    assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
+    assert payload["pdf_path"] == "./paper/main.pdf"
+    assert mock_build.await_args.args[1] == paper_dir.resolve(strict=False)
+
+
+def test_paper_build_legacy_planning_config_respects_explicit_output_dir(tmp_path: Path) -> None:
+    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir.mkdir(parents=True)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    output_dir = tmp_path / "release-paper"
+    output_dir.mkdir()
+    (planning_paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "planning-uppercase",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = output_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = output_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./.gpd/paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./release-paper"
+    assert payload["manifest_path"] == "./release-paper/ARTIFACT-MANIFEST.json"
+    assert payload["pdf_path"] == "./release-paper/main.pdf"
+    assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
+
+
+def test_paper_build_legacy_planning_config_prefers_legacy_bibliography_before_output_and_references(
+    tmp_path: Path,
+) -> None:
+    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir.mkdir(parents=True)
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    references_dir = tmp_path / "references"
+    references_dir.mkdir()
+
+    (planning_paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "planning-uppercase",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (planning_paper_dir / "references.bib").write_text(
+        "@article{legacysource,\n  author={Legacy, Source},\n  title={Legacy},\n  year={1905}\n}\n",
+        encoding="utf-8",
+    )
+    (paper_dir / "references.bib").write_text(
+        "@article{papersource,\n  author={Paper, Source},\n  title={Paper},\n  year={1906}\n}\n",
+        encoding="utf-8",
+    )
+    (references_dir / "references.bib").write_text(
+        "@article{refsource,\n  author={References, Source},\n  title={References},\n  year={1907}\n}\n",
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "./.gpd/paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "./paper"
+    assert payload["bibliography_source"] == "./.gpd/paper/references.bib"
+    assert "legacysource" in mock_build.await_args.kwargs["bib_data"].entries
+
+
 def test_paper_build_prefers_config_dir_bibliography_before_output_and_references(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()

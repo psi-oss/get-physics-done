@@ -2303,6 +2303,20 @@ def _resolve_bibliography_path(
     return _first_existing_path(*candidates)
 
 
+def _default_paper_output_dir(config_file: Path) -> Path:
+    """Resolve the default durable output directory for a paper build."""
+    from gpd.core.storage_paths import DurableOutputKind, ProjectStorageLayout
+
+    storage = ProjectStorageLayout(_get_cwd())
+    resolved_config = config_file.resolve(strict=False)
+    legacy_planning_paper_dir = storage.internal_root / "paper"
+    try:
+        resolved_config.relative_to(legacy_planning_paper_dir)
+    except ValueError:
+        return resolved_config.parent
+    return storage.output_dir(DurableOutputKind.PAPER)
+
+
 def _split_command_arguments(arguments: str | None) -> list[str]:
     """Split a raw command argument string into shell-like tokens."""
     if not arguments:
@@ -3044,7 +3058,7 @@ def paper_build(
     output_dir: str | None = typer.Option(
         None,
         "--output-dir",
-        help="Directory for emitted manuscript artifacts. Defaults to the config file directory.",
+        help="Directory for emitted manuscript artifacts. Defaults to the config directory, except legacy .gpd/paper configs emit to paper/.",
     ),
     bibliography: str | None = typer.Option(
         None,
@@ -3086,7 +3100,7 @@ def paper_build(
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")
 
     paper_config = _resolve_paper_config_paths(raw_config, base_dir=config_file.parent)
-    output_path = Path(output_dir) if output_dir else config_file.parent
+    output_path = Path(output_dir) if output_dir else _default_paper_output_dir(config_file)
     if not output_path.is_absolute():
         output_path = _get_cwd() / output_path
     output_path = output_path.resolve(strict=False)
