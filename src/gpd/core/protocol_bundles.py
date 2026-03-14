@@ -112,7 +112,6 @@ class ProtocolBundle(BaseModel):
     title: str
     summary: str
     selection_tags: list[str] = Field(default_factory=list)
-    supports: list[str] = Field(default_factory=list)
     trigger: BundleTrigger = Field(default_factory=BundleTrigger)
     assets: BundleAssets = Field(default_factory=BundleAssets)
     anchor_prompts: list[str] = Field(default_factory=list)
@@ -144,7 +143,6 @@ class ResolvedProtocolBundle(BaseModel):
     matched_tags: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
     selection_tags: list[str] = Field(default_factory=list)
-    supports: list[str] = Field(default_factory=list)
     assets: BundleAssets = Field(default_factory=BundleAssets)
     anchor_prompts: list[str] = Field(default_factory=list)
     reference_prompts: list[str] = Field(default_factory=list)
@@ -345,7 +343,6 @@ def select_protocol_bundles(
                 matched_tags=sorted(unique_tag_matches),
                 matched_terms=sorted(unique_term_matches),
                 selection_tags=bundle.selection_tags,
-                supports=bundle.supports,
                 assets=bundle.assets,
                 anchor_prompts=bundle.anchor_prompts,
                 reference_prompts=bundle.reference_prompts,

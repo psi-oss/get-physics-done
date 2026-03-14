@@ -384,6 +384,60 @@ def _canonical_contract_reference_payload(
     return payloads
 
 
+def _merge_contract_reference_payload(
+    existing: dict[str, object],
+    derived: dict[str, object],
+    *,
+    allowed_subject_ids: set[str],
+) -> dict[str, object]:
+    """Merge one derived anchor into an existing contract reference payload."""
+
+    payload = dict(existing)
+    if not str(payload.get("kind") or "").strip():
+        payload["kind"] = derived.get("kind")
+    if not str(payload.get("locator") or "").strip():
+        payload["locator"] = derived.get("locator")
+    if str(payload.get("role") or "other").strip() == "other" and str(derived.get("role") or "").strip():
+        payload["role"] = derived.get("role")
+
+    existing_why = str(payload.get("why_it_matters") or "").strip()
+    derived_why = str(derived.get("why_it_matters") or "").strip()
+    if not existing_why and derived_why:
+        payload["why_it_matters"] = derived_why
+    elif existing_why and derived_why and derived_why not in existing_why:
+        payload["why_it_matters"] = f"{existing_why}; {derived_why}"
+
+    merged_applies_to: list[str] = [item for item in list(payload.get("applies_to") or []) if item in allowed_subject_ids]
+    _append_unique_strings(
+        merged_applies_to,
+        [item for item in list(derived.get("applies_to") or []) if item in allowed_subject_ids],
+    )
+    payload["applies_to"] = merged_applies_to
+
+    merged_actions: list[str] = list(payload.get("required_actions") or [])
+    _append_unique_strings(merged_actions, list(derived.get("required_actions") or []))
+    payload["required_actions"] = merged_actions
+    payload["must_surface"] = bool(payload.get("must_surface") or derived.get("must_surface"))
+    return payload
+
+
+def _canonical_contract_intake(
+    contract: ResearchContract,
+    *,
+    active_references: list[dict[str, object]],
+) -> dict[str, list[str]]:
+    """Return the user-authored contract intake with canonicalized ref IDs only."""
+
+    intake = contract.context_intake.model_dump(mode="json")
+    _, token_to_id = _build_active_reference_lookup(active_references)
+    canonical_must_read_refs: list[str] = []
+    for token in list(intake.get("must_read_refs") or []):
+        resolved = token_to_id.get(str(token).casefold(), str(token))
+        _append_unique_strings(canonical_must_read_refs, [resolved])
+    intake["must_read_refs"] = canonical_must_read_refs
+    return intake
+
+
 def _canonicalize_project_contract(
     contract: ResearchContract | None,
     *,
@@ -396,16 +450,52 @@ def _canonicalize_project_contract(
         return None
 
     payload = contract.model_dump(mode="json")
-    payload["context_intake"] = effective_reference_intake
+    payload["context_intake"] = _canonical_contract_intake(contract, active_references=active_references)
     allowed_subject_ids = {
         str(item.get("id") or "").strip()
         for item in [*payload.get("claims", []), *payload.get("deliverables", [])]
         if str(item.get("id") or "").strip()
     }
-    payload["references"] = _canonical_contract_reference_payload(
+    canonical_refs = _canonical_contract_reference_payload(
         active_references,
         allowed_subject_ids=allowed_subject_ids,
     )
+    refs_by_id = {
+        str(ref.get("id") or "").strip(): ref
+        for ref in canonical_refs
+        if str(ref.get("id") or "").strip()
+    }
+    refs_by_locator = {
+        str(ref.get("locator") or "").strip().casefold(): ref
+        for ref in canonical_refs
+        if str(ref.get("locator") or "").strip()
+    }
+    merged_references: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+    seen_locators: set[str] = set()
+    for existing in list(payload.get("references") or []):
+        ref_id = str(existing.get("id") or "").strip()
+        locator_key = str(existing.get("locator") or "").strip().casefold()
+        derived = refs_by_id.get(ref_id)
+        if derived is None and locator_key:
+            derived = refs_by_locator.get(locator_key)
+        merged = (
+            _merge_contract_reference_payload(existing, derived, allowed_subject_ids=allowed_subject_ids)
+            if derived is not None
+            else existing
+        )
+        merged_references.append(merged)
+        if ref_id:
+            seen_ids.add(ref_id)
+        if locator_key:
+            seen_locators.add(locator_key)
+    for derived in canonical_refs:
+        ref_id = str(derived.get("id") or "").strip()
+        locator_key = str(derived.get("locator") or "").strip().casefold()
+        if ref_id in seen_ids or (locator_key and locator_key in seen_locators):
+            continue
+        merged_references.append(derived)
+    payload["references"] = merged_references
     try:
         return ResearchContract.model_validate(payload)
     except Exception:
@@ -1104,6 +1194,7 @@ def init_resume(cwd: Path) -> dict:
                 "checkpoint_reason": current_execution.get("checkpoint_reason"),
                 "first_result_gate_pending": current_execution.get("first_result_gate_pending"),
                 "pre_fanout_review_pending": current_execution.get("pre_fanout_review_pending"),
+                "pre_fanout_review_cleared": current_execution.get("pre_fanout_review_cleared"),
                 "skeptical_requestioning_required": current_execution.get("skeptical_requestioning_required"),
                 "skeptical_requestioning_summary": current_execution.get("skeptical_requestioning_summary"),
                 "weakest_unchecked_anchor": current_execution.get("weakest_unchecked_anchor"),

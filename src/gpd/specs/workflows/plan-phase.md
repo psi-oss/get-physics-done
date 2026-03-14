@@ -272,7 +272,7 @@ IMPORTANT: If CONTEXT.md exists below, it contains user decisions from /gpd:disc
 - **explore:** COMPREHENSIVE — survey ALL viable methods, compare 3+ approaches, include failed approaches from literature, broad literature search (10+ papers), identify unexplored angles
 - **balanced** (default): STANDARD — identify best approach, document known difficulties, targeted literature (5-7 key papers)
 - **exploit:** MINIMAL — method-specific details only (parameters, convergence criteria, implementation notes). Skip broad survey. Only papers directly relevant to the exact computation.
-- **adaptive:** Use explore-style if this is phase 1-2. Use balanced if phase 3+, unless prior SUMMARY flags unresolved issues.
+- **adaptive:** Use explore-style until prior decisive evidence or an explicit approach lock shows the method family is stable. Then narrow to a balanced or exploit-style pass for the locked method.
 
 **Core research areas (all modes):**
 - **Mathematical framework:** Identify the governing equations, symmetry groups, relevant Hilbert spaces, or variational principles
@@ -336,7 +336,7 @@ Wait for user decision before proceeding to step 6.
 | **explore** | Always spawn (even if numerical indicators are weak) | Broad exploration benefits from structured experiment design |
 | **balanced** | Spawn if numerical indicators detected (default behavior) | Standard heuristic |
 | **exploit** | Skip unless EXPERIMENT-DESIGN.md is explicitly required by CONTEXT.md | Exploit mode minimizes overhead |
-| **adaptive** | Follow balanced behavior, but if phase N≥3 and prior experiment designs exist, reuse templates from prior phases | Builds on validated methodology |
+| **adaptive** | Follow balanced behavior until prior decisive evidence or an explicit approach lock stabilizes the method family; then reuse validated experiment templates for the locked approach | Evidence-driven reuse once the method is stable |
 
 **Detection:** Check the phase goal and research content for numerical indicators:
 

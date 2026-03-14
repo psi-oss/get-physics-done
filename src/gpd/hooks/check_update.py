@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
+from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
 
 try:
@@ -34,9 +34,33 @@ def _debug(msg: str) -> None:
 
 def _version_files() -> list[Path]:
     """Return VERSION file candidates, preferring the active runtime's install first."""
-    from gpd.hooks.runtime_detect import get_gpd_install_dirs
+    from gpd.hooks.runtime_detect import (
+        ALL_RUNTIMES,
+        _global_runtime_dir,
+        _local_runtime_dir,
+        detect_active_runtime,
+    )
 
-    return [d / "VERSION" for d in get_gpd_install_dirs(prefer_active=True)]
+    resolved_cwd = Path.cwd()
+    resolved_home = Path.home()
+    active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    runtimes = [active_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != active_runtime]
+
+    install_dirs: list[Path] = []
+    for runtime in runtimes:
+        if runtime not in ALL_RUNTIMES:
+            continue
+        install_dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
+        install_dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)
+
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for install_dir in install_dirs:
+        if install_dir in seen:
+            continue
+        seen.add(install_dir)
+        ordered.append(install_dir)
+    return [d / "VERSION" for d in ordered]
 
 
 def _read_installed_version() -> str:
@@ -121,9 +145,19 @@ def _throttle_cache_candidates(cache_candidates: list[Path]) -> list[Path]:
     """Return cache files that are relevant for throttling this refresh."""
     fallback_cache = Path.home() / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
     relevant: list[Path] = []
+    preferred_runtime_group: str | None = None
 
     for candidate in cache_candidates:
-        relevant.append(candidate)
+        runtime_group = candidate.parent.parent.name if len(candidate.parents) >= 2 else ""
+        if runtime_group == ".gpd":
+            relevant.append(candidate)
+            if candidate == fallback_cache:
+                break
+            continue
+        if preferred_runtime_group is None and runtime_group.startswith("."):
+            preferred_runtime_group = runtime_group
+        if preferred_runtime_group is None or runtime_group == preferred_runtime_group:
+            relevant.append(candidate)
         if candidate == fallback_cache:
             break
 

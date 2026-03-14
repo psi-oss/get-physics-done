@@ -7,6 +7,7 @@ from gpd.core.paper_quality import score_paper_quality
 from gpd.core.paper_quality_artifacts import build_paper_quality_input
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage4"
+STAGE0_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _write(path: Path, content: str) -> None:
@@ -109,6 +110,10 @@ comparison_verdicts:
 
 # Internal Comparison
 """,
+    )
+    _write(
+        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md",
+        (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
     )
     _write(
         tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
@@ -239,6 +244,64 @@ comparison_verdicts:
     assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 1
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
     assert result.results.decisive_comparison_failures_scoped.passed is True
+
+
+def test_build_paper_quality_input_uses_plan_contract_targets_when_summary_ledger_is_partial(tmp_path: Path) -> None:
+    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+    _write(
+        plan_dir / "01-01-SUMMARY.md",
+        """---
+phase: 01-benchmark
+plan: 01
+depth: full
+provides: [benchmark comparison]
+completed: 2026-03-13
+plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+contract_results:
+  claims:
+    claim-benchmark:
+      status: passed
+      summary: Benchmark reproduced
+---
+
+# Summary
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 1
+    assert result.verification.contract_targets_verified.total == 3
+
+
+def test_build_paper_quality_input_ignores_invalid_verification_ledger_for_report_passed(tmp_path: Path) -> None:
+    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+    _write(
+        plan_dir / "01-VERIFICATION.md",
+        """---
+phase: 01-benchmark
+verified: 2026-03-13
+status: passed
+score: 0.9
+plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+contract_results:
+  claims:
+    claim-made-up:
+      status: passed
+      summary: Invalid claim id
+---
+
+# Verification
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.report_passed.passed is False
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
 
 
 def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() -> None:

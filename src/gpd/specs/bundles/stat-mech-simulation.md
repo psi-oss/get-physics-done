@@ -7,10 +7,6 @@ selection_tags:
   - "framework:statistical-mechanics"
   - "work-mode:numerical-simulation"
   - "validation:benchmark-and-scaling"
-supports:
-  - planning
-  - execution
-  - verification
 trigger:
   any_terms:
     - monte carlo

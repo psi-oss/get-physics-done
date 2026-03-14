@@ -365,11 +365,19 @@ def get_update_cache_candidates(
     candidates: list[UpdateCacheCandidate] = []
 
     if prioritized_runtime in ALL_RUNTIMES:
-        for runtime_dir, scope in _ordered_runtime_dirs_for_lookup(
-            prioritized_runtime,
-            cwd=resolved_cwd,
-            home=resolved_home,
-        ):
+        prioritized_dirs: list[tuple[Path, str]]
+        if preferred_runtime in ALL_RUNTIMES:
+            prioritized_dirs = _ordered_runtime_dirs_for_lookup(
+                prioritized_runtime,
+                cwd=resolved_cwd,
+                home=resolved_home,
+            )
+        else:
+            prioritized_dirs = [
+                (_local_runtime_dir(prioritized_runtime, resolved_cwd), SCOPE_LOCAL),
+                (_global_runtime_dir(prioritized_runtime, home=resolved_home), SCOPE_GLOBAL),
+            ]
+        for runtime_dir, scope in prioritized_dirs:
             candidates.append(
                 UpdateCacheCandidate(
                     runtime_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME,
@@ -378,7 +386,6 @@ def get_update_cache_candidates(
                 )
             )
 
-    candidates.append(UpdateCacheCandidate(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME))
     for runtime in ALL_RUNTIMES:
         candidates.append(
             UpdateCacheCandidate(
@@ -394,6 +401,7 @@ def get_update_cache_candidates(
                 scope=SCOPE_GLOBAL,
             )
         )
+    candidates.append(UpdateCacheCandidate(resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME))
     return _unique_update_cache_candidates(candidates)
 
 

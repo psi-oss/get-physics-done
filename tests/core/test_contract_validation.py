@@ -78,6 +78,18 @@ def test_validate_project_contract_rejects_cross_link_inconsistency() -> None:
     assert "claim claim-benchmark references unknown deliverable missing-deliverable" in result.errors
 
 
+def test_validate_project_contract_reports_nested_object_schema_errors() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["observables"] = ["benchmark observable"]
+    contract["acceptance_tests"] = ["test-benchmark"]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "observables.0 must be an object, not str" in result.errors
+    assert "acceptance_tests.0 must be an object, not str" in result.errors
+
+
 def test_validate_project_contract_propagates_schema_errors() -> None:
     result = validate_project_contract({"scope": {"question": "x"}})
 

@@ -879,6 +879,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
 def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
     research_phase = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
     new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     new_milestone = (WORKFLOWS_DIR / "new-milestone.md").read_text(encoding="utf-8")
     set_profile = (WORKFLOWS_DIR / "set-profile.md").read_text(encoding="utf-8")
@@ -889,11 +890,15 @@ def test_stage9_adaptive_mode_and_review_cadence_docs_stay_aligned() -> None:
     expected_anchor = "prior decisive evidence or an explicit approach lock"
 
     assert expected_anchor in research_phase
+    assert expected_anchor in plan_phase
     assert expected_anchor in research_modes
     assert expected_anchor in meta_orchestration
     assert "anchors or decisive evidence make one method family clearly preferable" in new_project
     assert "prior milestones already provide decisive evidence or an explicit approach lock" in new_milestone
     assert "same contract-critical floor at all times" in verify_work
+    assert "phase 1-2" not in plan_phase
+    assert "phase 3+" not in plan_phase
+    assert "N≥3" not in plan_phase
     assert "does NOT rewrite `execution.review_cadence`" in set_profile
     assert "verify_between_waves" not in set_profile
     assert "independent of `model_profile` and `research_mode`" in settings

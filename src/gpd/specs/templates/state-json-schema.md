@@ -93,6 +93,36 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 
 Stored as the canonical machine-readable contract once Stage 1 wiring is complete. Stage 0 freezes the field and model shape so later workflows can write to it safely. Preferred write path: `gpd state set-project-contract <path-to-contract.json>`.
 
+#### Project Contract Object Rules
+
+The `project_contract` value itself must be a JSON object. Do not replace it with prose, a list, or a string.
+
+The following fields always store arrays of objects, never arrays of plain strings:
+
+- `observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`
+- `claims[]` — `{ "id", "statement", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]" }`
+- `deliverables[]` — `{ "id", "kind", "path?", "description", "must_contain[]" }`
+- `acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`
+- `references[]` — `{ "id", "kind", "locator", "role", "why_it_matters", "applies_to[]", "must_surface", "required_actions[]" }`
+- `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
+- `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
+
+#### Project Contract ID Linkage Rules
+
+Every ID-like field must point to a declared object ID in the same contract:
+
+- `context_intake.must_read_refs[]` must contain `references[].id` values only.
+- `claims[].observables[]` must contain `observables[].id` values only.
+- `claims[].deliverables[]` must contain `deliverables[].id` values only.
+- `claims[].acceptance_tests[]` must contain `acceptance_tests[].id` values only.
+- `claims[].references[]` must contain `references[].id` values only.
+- `acceptance_tests[].subject` must point to a `claims[].id` or `deliverables[].id`, never an observable ID or prose label.
+- `acceptance_tests[].evidence_required[]` may point only to claim, deliverable, acceptance-test, or reference IDs.
+- `references[].applies_to[]` must point to a claim ID or deliverable ID.
+- `forbidden_proxies[].subject` must point to a claim ID or deliverable ID.
+- `links[].source` and `links[].target` may point only to claim, deliverable, acceptance-test, or reference IDs.
+- `links[].verified_by[]` must contain `acceptance_tests[].id` values only.
+
 ### `position`
 
 ```json

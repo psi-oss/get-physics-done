@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -217,6 +217,41 @@ class TestCommitCLI:
         result = runner.invoke(app, ["pre-commit-check", "--files", ".gpd/STATE.md"])
         assert result.exit_code == 0
         mock_check.assert_called_once()
+
+    @patch("gpd.core.git_ops.cmd_commit")
+    def test_commit_cli_accepts_multiple_paths_after_single_files_flag(self, mock_commit: MagicMock) -> None:
+        mock_commit.return_value = CommitResult(
+            committed=True,
+            message="test: message",
+            files=[".gpd/PROJECT.md", ".gpd/state.json"],
+            sha="abc1234",
+        )
+        result = runner.invoke(
+            app,
+            ["commit", "test: message", "--files", ".gpd/PROJECT.md", ".gpd/state.json"],
+        )
+        assert result.exit_code == 0
+        mock_commit.assert_called_once_with(
+            ANY,
+            "test: message",
+            files=[".gpd/PROJECT.md", ".gpd/state.json"],
+        )
+
+    @patch("gpd.core.git_ops.cmd_pre_commit_check")
+    def test_pre_commit_check_cli_accepts_multiple_paths_after_single_files_flag(self, mock_check: MagicMock) -> None:
+        mock_check.return_value = PreCommitCheckResult(
+            passed=True,
+            files_checked=2,
+        )
+        result = runner.invoke(
+            app,
+            ["pre-commit-check", "--files", ".gpd/PROJECT.md", ".gpd/state.json"],
+        )
+        assert result.exit_code == 0
+        mock_check.assert_called_once_with(
+            ANY,
+            [".gpd/PROJECT.md", ".gpd/state.json"],
+        )
 
     @patch("gpd.core.git_ops.cmd_pre_commit_check")
     def test_pre_commit_check_cli_fail(self, mock_check: MagicMock) -> None:

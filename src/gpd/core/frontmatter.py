@@ -501,7 +501,7 @@ def _summary_contract_errors(
             errors.append(f"comparison_verdict references unknown reference_id {verdict.reference_id}")
 
     decisive_comparison_groups: list[tuple[set[str], str]] = []
-    attempted_statuses = {"passed", "partial", "failed"}
+    attempted_statuses = {"passed", "failed", "blocked"}
     for test in contract.acceptance_tests:
         if test.kind not in {"benchmark", "cross_method"}:
             continue
@@ -534,7 +534,8 @@ def _find_matching_plan_contract(summary_dir: Path, summary_meta: dict) -> Resea
     if isinstance(plan_contract_ref, str):
         plan_ref_path = plan_contract_ref.split("#", 1)[0].strip()
         if plan_ref_path:
-            candidate = summary_dir.parent.parent.parent / plan_ref_path.lstrip("./")
+            relative_plan_path = plan_ref_path[2:] if plan_ref_path.startswith("./") else plan_ref_path
+            candidate = summary_dir.parent.parent.parent / relative_plan_path
             if candidate.exists():
                 content = safe_read_file(candidate)
                 if content is not None:

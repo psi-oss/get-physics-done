@@ -9,8 +9,14 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ComparisonVerdict, ContractResults
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract
+from gpd.core.frontmatter import (
+    FrontmatterParseError,
+    _find_matching_plan_contract,
+    _parse_comparison_verdicts,
+    _summary_contract_errors,
+    extract_frontmatter,
+)
 from gpd.core.paper_quality import (
     BinaryCheck,
     CitationsQualityInput,
@@ -98,6 +104,18 @@ def _extract_meta(path: Path) -> dict[str, object]:
     except FrontmatterParseError:
         return {}
     return meta
+
+
+def _plan_contract_for_artifact(path: Path, meta: dict[str, object]) -> ResearchContract | None:
+    """Return the canonical plan contract for one phase artifact when available."""
+
+    contract_data = meta.get("contract")
+    if isinstance(contract_data, dict):
+        try:
+            return ResearchContract.model_validate(contract_data)
+        except PydanticValidationError:
+            return None
+    return _find_matching_plan_contract(path.parent, meta)
 
 
 def _collect_tex_content(paper_dir: Path) -> tuple[list[Path], str]:
@@ -203,37 +221,65 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
 
     for path in sorted(phases_root.rglob("*.md")):
         meta = _extract_meta(path)
+        plan_contract = _plan_contract_for_artifact(path, meta)
+        if plan_contract is not None:
+            total_claims.update(claim.id for claim in plan_contract.claims)
+            total_deliverables.update(deliverable.id for deliverable in plan_contract.deliverables)
+            total_tests.update(test.id for test in plan_contract.acceptance_tests)
+
         raw_results = meta.get("contract_results")
+        contract_alignment_errors: list[str] = []
+        contract_results: ContractResults | None = None
         if isinstance(raw_results, dict):
             try:
                 contract_results = ContractResults.model_validate(raw_results)
             except PydanticValidationError:
                 contract_results = None
             if contract_results is not None:
-                total_claims.update(contract_results.claims)
-                total_deliverables.update(contract_results.deliverables)
-                total_tests.update(contract_results.acceptance_tests)
+                try:
+                    comparison_verdicts = _parse_comparison_verdicts(meta)
+                except (PydanticValidationError, TypeError, ValueError):
+                    comparison_verdicts = []
+                if plan_contract is not None:
+                    contract_alignment_errors = _summary_contract_errors(
+                        plan_contract,
+                        contract_results,
+                        comparison_verdicts,
+                    )
+                expected_claim_ids = {claim.id for claim in plan_contract.claims} if plan_contract is not None else set(contract_results.claims)
+                expected_deliverable_ids = (
+                    {deliverable.id for deliverable in plan_contract.deliverables}
+                    if plan_contract is not None
+                    else set(contract_results.deliverables)
+                )
+                expected_test_ids = (
+                    {test.id for test in plan_contract.acceptance_tests}
+                    if plan_contract is not None
+                    else set(contract_results.acceptance_tests)
+                )
                 passed_claims.update(
                     claim_id
                     for claim_id, entry in contract_results.claims.items()
-                    if entry.status == "passed"
+                    if claim_id in expected_claim_ids and entry.status == "passed"
                 )
                 passed_deliverables.update(
                     deliverable_id
                     for deliverable_id, entry in contract_results.deliverables.items()
-                    if entry.status == "passed"
+                    if deliverable_id in expected_deliverable_ids and entry.status == "passed"
                 )
                 passed_tests.update(
                     test_id
                     for test_id, entry in contract_results.acceptance_tests.items()
-                    if entry.status == "passed"
+                    if test_id in expected_test_ids and entry.status == "passed"
                 )
-                for entries in (
-                    contract_results.claims.values(),
-                    contract_results.deliverables.values(),
-                    contract_results.acceptance_tests.values(),
+                for expected_ids, entries in (
+                    (expected_claim_ids, contract_results.claims),
+                    (expected_deliverable_ids, contract_results.deliverables),
+                    (expected_test_ids, contract_results.acceptance_tests),
                 ):
-                    for entry in entries:
+                    for entry_id, entry in entries.items():
+                        if entry_id not in expected_ids:
+                            continue
                         for evidence in entry.evidence:
                             if evidence.confidence == "high":
                                 confidences.append(VerificationConfidence.independently_confirmed)
@@ -246,9 +292,15 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
 
         verified_at = str(meta.get("verified") or meta.get("completed") or "")
         status = str(meta.get("status") or "")
-        if verified_at >= latest_verified_at:
+        is_verification_report = path.name.endswith("VERIFICATION.md")
+        report_has_valid_contract_ledger = (
+            contract_results is not None and not contract_alignment_errors
+            if plan_contract is not None
+            else isinstance(raw_results, dict)
+        )
+        if is_verification_report and verified_at >= latest_verified_at:
             latest_verified_at = verified_at
-            latest_report_passed = status == "passed"
+            latest_report_passed = status == "passed" and report_has_valid_contract_ledger
 
     total_targets = len(total_claims) + len(total_deliverables) + len(total_tests)
     satisfied_targets = len(passed_claims) + len(passed_deliverables) + len(passed_tests)

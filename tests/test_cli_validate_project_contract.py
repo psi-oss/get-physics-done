@@ -54,3 +54,17 @@ def test_validate_project_contract_command_blocks_invalid_reference_links(tmp_pa
     payload = json.loads(result.output)
     assert payload["valid"] is False
     assert any("must_read_refs references unknown reference ref-missing" in error for error in payload["errors"])
+
+
+def test_validate_project_contract_command_reports_shape_errors_without_traceback(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = ["ref-benchmark"]
+    contract_path = tmp_path / "project-contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(app, ["--raw", "validate", "project-contract", str(contract_path)], catch_exceptions=False)
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is False
+    assert "references.0 must be an object, not str" in payload["errors"]

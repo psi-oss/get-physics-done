@@ -54,6 +54,9 @@ Also read these reference files:
 - {GPD_INSTALL_DIR}/references/research/questioning.md (questioning protocol)
 - {GPD_INSTALL_DIR}/templates/project.md (PROJECT.md template)
 - {GPD_INSTALL_DIR}/templates/requirements.md (REQUIREMENTS.md template)
+- {GPD_INSTALL_DIR}/templates/state-json-schema.md (project contract object shape and ID linkage rules)
+
+Before synthesizing or revising the raw `project_contract`, use the `project_contract` section of `state-json-schema.md` as the schema source of truth. Do not invent ad-hoc fields, replace object arrays with strings, or create unresolved ID references.
 
 Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).
 

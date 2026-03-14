@@ -306,6 +306,25 @@ def _json_cli_output(data: object) -> None:
         console.print(data, highlight=False)
 
 
+def _collect_file_option_args(ctx: typer.Context, files: list[str] | None) -> list[str]:
+    """Return normalized file args, allowing multiple paths after one ``--files``."""
+
+    normalized_files = list(files or [])
+    extra_args = [str(arg).strip() for arg in ctx.args if str(arg).strip()]
+    if not extra_args:
+        return normalized_files
+
+    unexpected_options = [arg for arg in extra_args if arg.startswith("-")]
+    if unexpected_options:
+        _error("Unexpected option(s): " + " ".join(unexpected_options))
+
+    if files is None:
+        _error("Unexpected extra arguments. If these are file paths, pass them after --files.")
+
+    normalized_files.extend(extra_args)
+    return normalized_files
+
+
 def _emit_observability_event(
     cwd: Path,
     *,
@@ -3212,8 +3231,9 @@ def json_sum_lengths_cmd(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@app.command("commit")
+@app.command("commit", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def commit(
+    ctx: typer.Context,
     message: str = typer.Argument(..., help="Commit message"),
     files: list[str] | None = typer.Option(None, "--files", help="Files to stage and commit"),
 ) -> None:
@@ -3224,18 +3244,20 @@ def commit(
     Examples::
 
         gpd commit "docs: update roadmap" --files .gpd/ROADMAP.md
+        gpd commit "docs: initialize research project" --files .gpd/PROJECT.md .gpd/state.json
         gpd commit "wip: phase 3 progress"
     """
     from gpd.core.git_ops import cmd_commit
 
-    result = cmd_commit(_get_cwd(), message, files=files)
+    result = cmd_commit(_get_cwd(), message, files=_collect_file_option_args(ctx, files) or None)
     _output(result)
     if not result.committed:
         raise typer.Exit(code=1)
 
 
-@app.command("pre-commit-check")
+@app.command("pre-commit-check", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def pre_commit_check(
+    ctx: typer.Context,
     files: list[str] | None = typer.Option(None, "--files", help="Files to validate"),
 ) -> None:
     """Run pre-commit validation on planning files.
@@ -3248,7 +3270,7 @@ def pre_commit_check(
     """
     from gpd.core.git_ops import cmd_pre_commit_check
 
-    result = cmd_pre_commit_check(_get_cwd(), files or [])
+    result = cmd_pre_commit_check(_get_cwd(), _collect_file_option_args(ctx, files))
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)

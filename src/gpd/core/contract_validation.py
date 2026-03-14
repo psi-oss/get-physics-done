@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 
 from pydantic import BaseModel, Field
+from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import ResearchContract
 
@@ -27,6 +28,37 @@ def _append_duplicates(errors: list[str], kind: str, ids: list[str]) -> None:
     for item_id, count in Counter(ids).items():
         if count > 1:
             errors.append(f"duplicate {kind} id {item_id}")
+
+
+def _format_schema_error(error: dict[str, object]) -> str:
+    """Return a concise, user-facing contract schema error."""
+
+    location = ".".join(str(part) for part in error.get("loc", ())) or "project_contract"
+    message = str(error.get("msg", "validation failed")).strip() or "validation failed"
+    input_value = error.get("input")
+
+    if message == "Field required":
+        return f"{location} is required"
+
+    if "valid dictionary" in message.lower():
+        actual_type = type(input_value).__name__
+        return f"{location} must be an object, not {actual_type}"
+
+    return f"{location}: {message}"
+
+
+def _schema_error_result(exc: PydanticValidationError) -> ProjectContractValidationResult:
+    """Convert Pydantic validation errors into a machine-readable contract result."""
+
+    errors: list[str] = []
+    seen: set[str] = set()
+    for error in exc.errors():
+        formatted = _format_schema_error(error)
+        if formatted in seen:
+            continue
+        seen.add(formatted)
+        errors.append(formatted)
+    return ProjectContractValidationResult(valid=False, errors=errors)
 
 
 def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
@@ -108,7 +140,15 @@ def validate_project_contract(contract: ResearchContract | dict[str, object]) ->
     - user guidance not captured anywhere durable
     """
 
-    parsed = contract if isinstance(contract, ResearchContract) else ResearchContract.model_validate(contract)
+    if isinstance(contract, ResearchContract):
+        parsed = contract
+    else:
+        if not isinstance(contract, dict):
+            return ProjectContractValidationResult(valid=False, errors=["project contract must be a JSON object"])
+        try:
+            parsed = ResearchContract.model_validate(contract)
+        except PydanticValidationError as exc:
+            return _schema_error_result(exc)
     errors: list[str] = []
     warnings: list[str] = []
 

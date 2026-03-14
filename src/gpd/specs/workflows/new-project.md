@@ -132,6 +132,17 @@ Build a canonical scoping contract from the extracted input.
 
 If a blocking field is missing, ask exactly one repair prompt that targets only the missing field. Do not silently continue with placeholders.
 
+Before you show the approval gate, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
+
+- `project_contract` is a JSON object, not prose
+- `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
+- every object in those arrays must declare a stable `id`
+- `context_intake.must_read_refs` must contain only `references[].id` values
+- `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` must point only to declared IDs
+- `acceptance_tests[].subject`, `references[].applies_to`, and `forbidden_proxies[].subject` must point to a claim ID or deliverable ID, never an observable label or free text
+- `acceptance_tests[].evidence_required`, `links[].source`, and `links[].target` may only point to declared claim, deliverable, acceptance-test, or reference IDs
+- if the user chooses "Review raw contract", show the exact JSON object that will be validated and persisted
+
 Then present a concise scoping summary and require explicit approval:
 
 - header: "Scope"
@@ -739,6 +750,17 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
 If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
+
+Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
+
+- `project_contract` is a JSON object, not prose
+- `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
+- every object in those arrays must declare a stable `id`
+- `context_intake.must_read_refs` must contain only `references[].id` values
+- `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` must point only to declared IDs
+- `acceptance_tests[].subject`, `references[].applies_to`, and `forbidden_proxies[].subject` must point to a claim ID or deliverable ID, never an observable label or free text
+- `acceptance_tests[].evidence_required`, `links[].source`, and `links[].target` may only point to declared claim, deliverable, acceptance-test, or reference IDs
+- if the user chooses "Review raw contract", show the exact JSON object that will be validated and persisted
 
 Present a concise scoping summary and require explicit approval before downstream artifact generation:
 

@@ -109,6 +109,7 @@ class SuggestContext:
     has_referee_report: bool = False
     autonomy: str = "balanced"
     research_mode: str = "balanced"
+    adaptive_approach_locked: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,13 +316,38 @@ def _has_paper(cwd: Path) -> bool:
     return any((cwd / p).exists() for p in PAPER_PATHS)
 
 
+def _has_adaptive_lock_signal(cwd: Path) -> bool:
+    """Return whether project artifacts show decisive evidence or an explicit approach lock."""
+
+    phases_dir = _planning_dir(cwd) / PHASES_DIR_NAME
+    if not phases_dir.is_dir():
+        return False
+
+    explicit_lock_markers = (
+        "approach_lock: true",
+        "approach_locked: true",
+        "approach_validated: true",
+    )
+    for path in sorted(phases_dir.rglob("*.md")):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        lowered = text.casefold()
+        if any(marker in lowered for marker in explicit_lock_markers):
+            return True
+        if "comparison_verdicts:" in lowered and "verdict: pass" in lowered:
+            return True
+    return False
+
+
 # ─── Priority Adjustments ────────────────────────────────────────────────────
 
 
 def _apply_mode_adjustments(
     suggestions: list[_MutableRecommendation],
     config: dict[str, object],
-    progress_percent: float,
+    *,
+    adaptive_approach_locked: bool,
 ) -> None:
     """Adjust priorities based on research_mode and autonomy settings."""
     research_mode = config.get("research_mode", "balanced")
@@ -340,13 +366,13 @@ def _apply_mode_adjustments(
             if s.action == "verify-work":
                 s.priority = max(1, s.priority - 1)
         elif research_mode == "adaptive":
-            if progress_percent < 40:
-                if s.action == "discuss-phase":
-                    s.priority = max(1, s.priority - 1)
-            elif progress_percent > 70:
+            if adaptive_approach_locked:
                 if s.action == "execute-phase":
                     s.priority = max(1, s.priority - 1)
                 if s.action == "verify-work":
+                    s.priority = max(1, s.priority - 1)
+            else:
+                if s.action == "discuss-phase":
                     s.priority = max(1, s.priority - 1)
 
         # Autonomy adjustments
@@ -707,9 +733,9 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     research_mode_val = str(config.get("research_mode", "balanced"))
     ctx_kwargs["autonomy"] = autonomy_val
     ctx_kwargs["research_mode"] = research_mode_val
-
-    progress_pct = float(ctx_kwargs.get("progress_percent") or 0)
-    _apply_mode_adjustments(suggestions, config, progress_pct)
+    adaptive_approach_locked = _has_adaptive_lock_signal(cwd) if research_mode_val == "adaptive" else False
+    ctx_kwargs["adaptive_approach_locked"] = adaptive_approach_locked
+    _apply_mode_adjustments(suggestions, config, adaptive_approach_locked=adaptive_approach_locked)
 
     # ── Sort by priority ────────────────────────────────────────────────
     suggestions.sort(key=lambda s: s.priority)

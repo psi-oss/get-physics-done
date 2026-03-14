@@ -368,6 +368,7 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
     workspace_path = Path(workspace_dir) if workspace_dir else None
     active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
     preferred_runtime = active_installed_runtime if workspace_path is not None else None
+    fallback_hit: tuple[dict[str, object], object] | None = None
     for candidate in get_update_cache_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime):
         cache_file = candidate.path
         if not cache_file.exists():
@@ -388,9 +389,12 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
             _debug(f"Ignoring non-object update cache {cache_file}")
             continue
 
-        return cache, candidate
+        if getattr(candidate, "runtime", None):
+            return cache, candidate
+        if fallback_hit is None:
+            fallback_hit = (cache, candidate)
 
-    return None, None
+    return fallback_hit if fallback_hit is not None else (None, None)
 
 
 def _check_update(workspace_dir: str | None = None) -> str:

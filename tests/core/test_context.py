@@ -745,6 +745,7 @@ class TestInitResume:
         assert ctx["execution_downstream_locked"] is True
         assert ctx["active_execution_segment"]["pre_fanout_review_cleared"] is True
         assert ctx["segment_candidates"][0]["checkpoint_reason"] == "pre_fanout"
+        assert ctx["segment_candidates"][0]["pre_fanout_review_cleared"] is True
 
     def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

@@ -393,6 +393,31 @@ def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: Obser
     return payload.action in {"finish", "stop"} or snapshot.segment_status == "completed"
 
 
+def _matches_active_execution(
+    existing: CurrentExecutionState | None,
+    payload: ObservabilityEvent,
+    execution: dict[str, object],
+) -> bool:
+    """Return whether a mutating execution event targets the active segment."""
+
+    if existing is None or payload.category != "execution":
+        return True
+    if payload.name == "segment" and payload.action == "start":
+        return True
+
+    if existing.session_id and payload.session_id != existing.session_id:
+        return False
+    if existing.phase and payload.phase and payload.phase != existing.phase:
+        return False
+    if existing.plan and payload.plan and payload.plan != existing.plan:
+        return False
+
+    incoming_segment_id = _str_or_none(execution.get("segment_id"))
+    if existing.segment_id and incoming_segment_id and incoming_segment_id != existing.segment_id:
+        return False
+    return True
+
+
 def _updated_execution_state(
     existing: CurrentExecutionState | None,
     payload: ObservabilityEvent,
@@ -401,6 +426,8 @@ def _updated_execution_state(
         return existing
 
     execution = _execution_data(payload.data)
+    if not _matches_active_execution(existing, payload, execution):
+        return existing
     current = existing.model_dump(mode="json") if existing is not None else {}
     prior_downstream_locked = bool(current.get("downstream_locked"))
 

@@ -483,31 +483,45 @@ def test_suggest_result_fields(tmp_path: Path) -> None:
 # ─── Adaptive Mode ─────────────────────────────────────────────────────────────
 
 
-def test_adaptive_mode_early_progress(tmp_path: Path) -> None:
-    """Adaptive mode with low progress should boost discussion."""
+def test_adaptive_mode_without_lock_signal_boosts_discussion(tmp_path: Path) -> None:
+    """Adaptive mode should stay discussion-heavy until the method is locked by evidence."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
-    _create_state(root, {"position": {"progress_percent": 20}})
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")
     result = suggest_next(root)
     discuss = next((s for s in result.suggestions if s.action == "discuss-phase"), None)
     assert discuss is not None
     assert discuss.priority <= 6  # should be boosted
+    assert result.context.adaptive_approach_locked is False
 
 
-def test_adaptive_mode_late_progress(tmp_path: Path) -> None:
-    """Adaptive mode with high progress should boost execution/verification."""
+def test_adaptive_mode_with_decisive_evidence_boosts_execution_and_verification(tmp_path: Path) -> None:
+    """Adaptive mode should narrow only once decisive evidence or an explicit lock exists."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
-    _create_state(root, {"position": {"progress_percent": 80}})
+    locked_phase = _create_phase(root, "00-scan", summaries=1)
+    (locked_phase / "01-SUMMARY.md").write_text(
+        """---
+comparison_verdicts:
+  - subject_id: claim-benchmark
+    subject_kind: claim
+    subject_role: decisive
+    verdict: pass
+---
+
+# Summary
+""",
+        encoding="utf-8",
+    )
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
     assert execute is not None
     assert execute.priority <= 3  # boosted from 3 → 2
+    assert result.context.adaptive_approach_locked is True
 
 
 # ─── Issue 3: current_phase int coercion ─────────────────────────────────────
