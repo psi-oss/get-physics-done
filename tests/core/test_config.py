@@ -166,6 +166,19 @@ class TestLoadConfig:
         assert cfg.research is False
         assert cfg.verifier is False
 
+    def test_gitignored_planning_dir_forces_commit_docs_false(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        (tmp_path / ".gpd").mkdir()
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"commit_docs": True}))
+        monkeypatch.setattr("gpd.core.config._planning_dir_is_gitignored", lambda _: True)
+
+        cfg = load_config(tmp_path)
+
+        assert cfg.commit_docs is False
+
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / ".gpd").mkdir()
         (tmp_path / ".gpd" / "config.json").write_text("{bad json")

@@ -100,9 +100,10 @@ Generate slug for the title:
 
 ```bash
 slug=$(gpd --raw slug "$title")
+todo_file=".gpd/todos/pending/${date}-${slug}.md"
 ```
 
-Write to `.gpd/todos/pending/${date}-${slug}.md`:
+Write to `${todo_file}`:
 
 ```markdown
 ---
@@ -136,20 +137,20 @@ If `.gpd/STATE.md` exists:
 Commit the todo and any updated state:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/todos/pending/[filename] .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${todo_file}" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: capture todo - [title]" --files .gpd/todos/pending/[filename] .gpd/STATE.md
+gpd commit "docs: capture todo - ${title}" --files "${todo_file}" .gpd/STATE.md
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.
 
-Confirm: "Committed: docs: capture todo - [title]"
+Confirm: "Committed: docs: capture todo - ${title}"
 </step>
 
 <step name="confirm">
 ```
-Todo saved: .gpd/todos/pending/[filename]
+Todo saved: ${todo_file}
 
 [title]
 Area: [area]

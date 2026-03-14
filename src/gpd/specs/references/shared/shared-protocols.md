@@ -188,7 +188,7 @@ For LaTeX files, use `%` comment prefix. For Python, use `#`. For Markdown, use 
 | `gauge_choice` | `Feynman`, `Lorenz`, `Coulomb`, `axial`, `light-cone` | `gauge_choice=Feynman` |
 | `time_ordering` | `normal`, `time`, `Weyl` | `time_ordering=time` |
 
-**IMPORTANT:** Keys should use the canonical convention_lock field names from state.json (use `gpd --raw convention list` to see them). Short aliases are also accepted by the pre-commit checker: `metric` → `metric_signature`, `fourier` → `fourier_convention`, `units` → `natural_units`, `coupling` → `coupling_convention`, `renorm` → `renormalization_scheme`, `gauge` → `gauge_choice`. Canonical names are preferred for clarity.
+**IMPORTANT:** Keys should use the canonical convention_lock field names from state.json (use `gpd --raw convention list` to see them). Short aliases are also accepted by the `ASSERT_CONVENTION` parser used by convention validation, the verifier, and the consistency checker: `metric` → `metric_signature`, `fourier` → `fourier_convention`, `units` → `natural_units`, `coupling` → `coupling_convention`, `renorm` → `renormalization_scheme`, `gauge` → `gauge_choice`. Canonical names are preferred for clarity.
 
 **IMPORTANT:** Values must NOT contain commas (the parser splits on commas to separate key=value pairs). Prefer the canonical values shown by `gpd --raw convention list`: `mostly-minus` and `mostly-plus`, not the comma forms `(+,-,-,-)` or `(-,+,+,+)`. The parser also normalizes underscore aliases like `mostly_minus`, but the canonical lock values are hyphenated.
 
@@ -206,7 +206,7 @@ For LaTeX files, use `%` comment prefix. For Python, use `#`. For Markdown, use 
 <!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 ```
 
-**Important:** Values must exactly match what is stored in `state.json convention_lock`. Read them via `gpd convention list` rather than guessing. The pre-commit check (L3) does exact string comparison.
+**Important:** Values must exactly match what is stored in `state.json convention_lock`. Read them via `gpd convention list` rather than guessing. `ASSERT_CONVENTION` validation normalizes accepted key aliases and then compares the declared values against the lock.
 
 **Verification protocol:**
 

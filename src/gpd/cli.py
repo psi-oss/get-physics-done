@@ -1320,7 +1320,7 @@ def _run_frontmatter_validation(file: str, schema: str) -> None:
 def health(
     fix: bool = typer.Option(False, "--fix", help="Auto-fix issues where possible"),
 ) -> None:
-    """Run 12-check project health diagnostic."""
+    """Run the project health diagnostic."""
     from gpd.core.health import run_health
 
     report = run_health(_get_cwd(), fix=fix)
@@ -3106,6 +3106,7 @@ def paper_build(
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
 
+    from gpd.core.storage_paths import DurableOutputKind, ProjectStorageLayout
     from gpd.mcp.paper.bibliography import CitationSource
     from gpd.mcp.paper.compiler import build_paper
 
@@ -3132,6 +3133,7 @@ def paper_build(
     if not output_path.is_absolute():
         output_path = _get_cwd() / output_path
     output_path = output_path.resolve(strict=False)
+    storage_check = ProjectStorageLayout(_get_cwd()).check_user_output(output_path, kind=DurableOutputKind.PAPER)
 
     bib_source = _resolve_bibliography_path(
         explicit_path=bibliography,
@@ -3178,6 +3180,7 @@ def paper_build(
         "success": result.success,
         "error_count": len(result.errors),
         "errors": result.errors,
+        "warnings": list(storage_check.warnings),
     }
     _output(payload)
     if not result.success:
@@ -3397,6 +3400,7 @@ def commit(
     """Stage planning files and create a git commit.
 
     If --files is not specified, stages all .gpd/ changes.
+    Skips cleanly when commit_docs is disabled for the project.
 
     Examples::
 
@@ -3420,6 +3424,7 @@ def pre_commit_check(
     """Run pre-commit validation on planning files.
 
     Checks frontmatter YAML validity and detects NaN/Inf values.
+    If --files is omitted, validates the currently staged files.
 
     Examples::
 

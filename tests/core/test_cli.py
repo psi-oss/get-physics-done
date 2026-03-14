@@ -353,9 +353,10 @@ def test_validate_command_context_accepts_tokenized_explain_arguments(tmp_path: 
     assert payload["passed"] is True
 
 
-def test_pre_commit_check_fails_for_directory_inputs(tmp_path: Path) -> None:
-    directory = tmp_path / "not-a-file"
+def test_pre_commit_check_recurses_into_directory_inputs(tmp_path: Path) -> None:
+    directory = tmp_path / "docs"
     directory.mkdir()
+    (directory / "state.md").write_text("# ok\n", encoding="utf-8")
 
     result = runner.invoke(
         app,
@@ -363,10 +364,11 @@ def test_pre_commit_check_fails_for_directory_inputs(tmp_path: Path) -> None:
         catch_exceptions=False,
     )
 
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["passed"] is False
-    assert payload["details"][0]["regular_file"] is False
+    assert payload["passed"] is True
+    assert payload["files_checked"] == 1
+    assert payload["details"][0]["file"].endswith("docs/state.md")
 
 
 def test_pre_commit_check_fails_for_unreadable_inputs(tmp_path: Path) -> None:

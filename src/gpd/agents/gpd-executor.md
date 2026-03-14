@@ -472,9 +472,9 @@ If conventions are not established and this is the first plan: the first task MU
 % ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly_minus, fourier_convention=physics, coupling_convention=alpha_s, renormalization_scheme=MSbar, gauge_choice=Feynman
 ```
 
-Use the CANONICAL key names from `gpd --raw convention list` (e.g., `metric_signature`, not `metric`). Short aliases (`metric`, `fourier`, `units`, `renorm`, `gauge`, `coupling`) are accepted by the pre-commit checker but full names are preferred for clarity and machine readability.
+Use the CANONICAL key names from `gpd --raw convention list` (e.g., `metric_signature`, not `metric`). Short aliases (`metric`, `fourier`, `units`, `renorm`, `gauge`, `coupling`) are accepted by the `ASSERT_CONVENTION` parser, but full names are preferred for clarity and machine readability.
 
-This enables automated verification by the pre-commit check (L3) and verifier agent (L5).
+This enables automated verification by convention validation tooling and the verifier agent (L5).
 </step>
 
 <step name="consult_cross_project_patterns" priority="before_tasks">

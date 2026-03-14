@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 from collections.abc import Callable
 from enum import StrEnum
 from functools import lru_cache
@@ -821,7 +822,7 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
     try:
         raw = config_path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return GPDProjectConfig()
+        return _apply_gitignore_commit_docs(project_dir, GPDProjectConfig())
     except (PermissionError, UnicodeDecodeError, OSError) as exc:
         raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
 
@@ -829,7 +830,30 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
         raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
-    return _model_from_parsed_config(parsed)
+    return _apply_gitignore_commit_docs(project_dir, _model_from_parsed_config(parsed))
+
+
+def _apply_gitignore_commit_docs(project_dir: Path, config: GPDProjectConfig) -> GPDProjectConfig:
+    """Force commit_docs off when the planning directory is gitignored."""
+    if _planning_dir_is_gitignored(project_dir):
+        return config.model_copy(update={"commit_docs": False})
+    return config
+
+
+def _planning_dir_is_gitignored(project_dir: Path) -> bool:
+    """Return True when the planning directory is ignored by git."""
+    try:
+        result = subprocess.run(
+            ["git", "check-ignore", "--quiet", f"{PLANNING_DIR_NAME}/"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return False
+
+    return result.returncode == 0
 
 
 def _coalesce(value: object, default: object) -> object:

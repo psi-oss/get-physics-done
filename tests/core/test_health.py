@@ -24,9 +24,11 @@ from gpd.core.health import (
     check_project_structure,
     check_roadmap_consistency,
     check_state_validity,
+    check_storage_paths,
     run_doctor,
     run_health,
 )
+from gpd.core.storage_paths import ProjectStorageLayout
 
 # ─── Model Tests ─────────────────────────────────────────────────────────────
 
@@ -92,6 +94,30 @@ class TestCheckProjectStructure:
             (planning / d).mkdir(parents=True, exist_ok=True)
         result = check_project_structure(tmp_path)
         assert result.status == CheckStatus.OK
+
+
+class TestCheckStoragePaths:
+    def test_clean_project_is_ok(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+        result = check_storage_paths(_bootstrap_health_project(tmp_path))
+
+        assert result.status == CheckStatus.OK
+        assert result.details["warning_count"] == 0
+
+    def test_hidden_results_and_scratch_outputs_warn(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        hidden_results = cwd / ".gpd" / "phases" / "01-setup" / "results"
+        hidden_results.mkdir(parents=True)
+        (hidden_results / "out.json").write_text("{}", encoding="utf-8")
+        scratch_file = cwd / ".gpd" / "tmp" / "final.csv"
+        scratch_file.parent.mkdir(parents=True)
+        scratch_file.write_text("x,y\n", encoding="utf-8")
+
+        result = check_storage_paths(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert any(".gpd/phases/01-setup/results/out.json" in warning for warning in result.warnings)
+        assert any(".gpd/tmp/final.csv" in warning for warning in result.warnings)
 
 
 class TestCheckCompaction:
@@ -275,7 +301,7 @@ class TestRunHealth:
     def test_returns_report(self, tmp_path: Path):
         report = run_health(tmp_path)
         assert isinstance(report, HealthReport)
-        assert report.summary.total >= 12
+        assert report.summary.total >= 13
         assert report.overall in (CheckStatus.OK, CheckStatus.WARN, CheckStatus.FAIL)
 
     def test_fix_mode(self, tmp_path: Path):

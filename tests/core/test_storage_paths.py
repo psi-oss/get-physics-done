@@ -206,6 +206,50 @@ def test_validate_user_output_rejects_scratch_temp_and_external_absolute_paths(
         layout.validate_user_output(external_root / "final.json")
 
 
+def test_check_user_output_reports_warning_without_raising_for_off_policy_but_project_local_paths(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+
+    check = layout.check_user_output("release-paper", kind=DurableOutputKind.PAPER)
+
+    assert check.ok is False
+    assert check.classification == StorageClass.PROJECT_LOCAL_OTHER
+    assert any("stable project directory" in warning for warning in check.warnings)
+
+
+def test_check_user_output_warns_when_project_root_is_temporary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    temp_root = tmp_path / "runtime-temp"
+    temp_root.mkdir()
+    controlled_temp_roots = (temp_root.resolve(strict=False),)
+    monkeypatch.setattr(ProjectStorageLayout, "temp_roots", lambda self: controlled_temp_roots)
+
+    temp_project = temp_root / "project"
+    temp_project.mkdir()
+    (temp_project / PLANNING_DIR_NAME).mkdir()
+    layout = ProjectStorageLayout(temp_project)
+
+    check = layout.check_user_output("paper/main.tex", kind=DurableOutputKind.PAPER)
+
+    assert check.classification == StorageClass.USER_DURABLE
+    assert any("Project root is under a temporary directory" in warning for warning in check.warnings)
+
+
+def test_audit_storage_warnings_flags_hidden_results_and_scratch_outputs(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+    hidden_results = layout.internal_root / "phases" / "01-setup" / "results"
+    hidden_results.mkdir(parents=True)
+    (hidden_results / "out.json").write_text("{}", encoding="utf-8")
+    scratch_output = layout.scratch_dir / "final.csv"
+    scratch_output.parent.mkdir(parents=True, exist_ok=True)
+    scratch_output.write_text("x,y\n", encoding="utf-8")
+
+    warnings = layout.audit_storage_warnings()
+
+    assert any(".gpd/phases/01-setup/results/out.json" in warning for warning in warnings)
+    assert any(".gpd/tmp/final.csv" in warning for warning in warnings)
+
+
 def test_resolve_anchors_relative_paths_at_project_root(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -19,6 +20,7 @@ __all__ = [
     "DurableOutputKind",
     "ProjectStorageLayout",
     "StorageClass",
+    "StoragePathCheck",
     "StoragePathError",
 ]
 
@@ -55,6 +57,20 @@ class StoragePathError(GPDError, ValueError):
     """Raised when a final output path violates the storage policy."""
 
 
+@dataclass(frozen=True, slots=True)
+class StoragePathCheck:
+    """Warning-mode inspection result for a candidate storage path."""
+
+    path: Path
+    classification: StorageClass
+    kind: DurableOutputKind | None = None
+    warnings: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.warnings
+
+
 _DURABLE_DIR_NAMES: dict[DurableOutputKind, str] = {
     DurableOutputKind.ARTIFACTS: "artifacts",
     DurableOutputKind.CODE: "code",
@@ -69,6 +85,31 @@ _DURABLE_DIR_NAMES: dict[DurableOutputKind, str] = {
     DurableOutputKind.SIMULATIONS: "simulations",
     DurableOutputKind.SLIDES: "slides",
 }
+
+_SUSPICIOUS_INTERNAL_SEGMENTS: frozenset[str] = frozenset(
+    {"results", "figures", "plots", "data", "exports", "simulations", "artifacts"}
+)
+_SUSPICIOUS_DURABLE_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".svg",
+        ".eps",
+        ".tiff",
+        ".csv",
+        ".tsv",
+        ".dat",
+        ".h5",
+        ".hdf5",
+        ".npy",
+        ".npz",
+        ".parquet",
+        ".tex",
+    }
+)
+_SCRATCH_TEMP_SUFFIXES: frozenset[str] = frozenset({".tmp", ".lock", ".bak"})
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -193,3 +234,54 @@ class ProjectStorageLayout:
                 f"Expected a {kind.value} output under {self.output_dir(kind)}, got {resolved}."
             )
         return resolved
+
+    def check_user_output(self, path: Path | str, *, kind: DurableOutputKind | None = None) -> StoragePathCheck:
+        resolved = self.resolve(path)
+        classification = self.classify(resolved)
+        warnings: list[str] = []
+
+        if self.project_root_is_temporary():
+            warnings.append(f"Project root is under a temporary directory: {self.root}")
+
+        if classification != StorageClass.USER_DURABLE:
+            warnings.append(
+                "User-visible durable outputs should land in a stable project directory, "
+                f"got {resolved} ({classification})."
+            )
+        elif kind is not None and not _is_relative_to(resolved, self.output_dir(kind)):
+            warnings.append(f"Expected a {kind.value} output under {self.output_dir(kind)}, got {resolved}.")
+
+        return StoragePathCheck(
+            path=resolved,
+            classification=classification,
+            kind=kind,
+            warnings=tuple(warnings),
+        )
+
+    def audit_storage_warnings(self) -> tuple[str, ...]:
+        warnings: list[str] = []
+        if self.project_root_is_temporary():
+            warnings.append(f"Project root is under a temporary directory: {self.root}")
+
+        if self.gpd.exists():
+            for path in self.gpd.rglob("*"):
+                if not path.is_file():
+                    continue
+                rel = path.relative_to(self.root)
+                suffix = path.suffix.lower()
+
+                if _is_relative_to(path, self.scratch_dir) and suffix not in _SCRATCH_TEMP_SUFFIXES:
+                    warnings.append(f"Scratch file should not be treated as durable output: {rel}")
+                    continue
+
+                if any(segment in _SUSPICIOUS_INTERNAL_SEGMENTS for segment in rel.parts):
+                    warnings.append(f"Suspicious durable-artifact path under internal storage: {rel}")
+                    continue
+
+                if (
+                    (_is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper"))
+                    and suffix in _SUSPICIOUS_DURABLE_SUFFIXES
+                ):
+                    warnings.append(f"Artifact-like file stored under internal metadata directories: {rel}")
+
+        return tuple(dict.fromkeys(warnings))

@@ -315,13 +315,27 @@ def test_error_class_3_maps_to_expected_primary_checks() -> None:
     assert error_class.primary_checks == ["5.11", "5.13"]
 
 
-def test_nan_pattern_handles_yaml_variants_without_flagging_infinity_prose() -> None:
-    from gpd.core.git_ops import _NAN_PATTERN
+def test_pre_commit_nonfinite_detection_avoids_limit_notation_false_positives(tmp_path) -> None:
+    from gpd.core.git_ops import cmd_pre_commit_check
 
-    assert _NAN_PATTERN.search(" .NaN ")
-    assert _NAN_PATTERN.search(" -.Inf ")
-    assert not _NAN_PATTERN.search("as x approaches infinity")
-    assert not _NAN_PATTERN.search("the point at infinity is well-defined")
+    good = tmp_path / "good.md"
+    good.write_text(
+        "---\nstatus: active\n---\n\n"
+        "As x approaches infinity the bound remains finite.\n"
+        "Thermodynamic limit: T -> inf.\n"
+        "Branch cut on (-infinity, 0].\n",
+        encoding="utf-8",
+    )
+    bad = tmp_path / "bad.md"
+    bad.write_text("---\nstatus: done\n---\n\nResult: .NaN\n", encoding="utf-8")
+
+    good_result = cmd_pre_commit_check(tmp_path, ["good.md"])
+    bad_result = cmd_pre_commit_check(tmp_path, ["bad.md"])
+
+    assert good_result.passed is True
+    assert good_result.details[0].has_nan is False
+    assert bad_result.passed is False
+    assert bad_result.details[0].has_nan is True
 
 
 def test_summary_extract_result_accepts_supported_conventions_types() -> None:

@@ -141,11 +141,11 @@ def validate_state(project_dir: str) -> dict:
 
 @mcp.tool()
 def run_health_check(project_dir: str, fix: bool = False) -> dict:
-    """Run the full 12-check health dashboard.
+    """Run the full project health dashboard.
 
-    Checks environment, project structure, state validity, compaction,
-    roadmap consistency, orphans, conventions, frontmatter, return
-    envelopes, config, and git status.
+    Checks environment, project structure, storage paths, state validity,
+    compaction, roadmap consistency, orphans, conventions, frontmatter,
+    return envelopes, config, checkpoint tags, and git status.
 
     Args:
         project_dir: Absolute path to the project root directory.

@@ -72,7 +72,7 @@ Format age as relative time from created timestamp.
 <step name="handle_selection">
 Wait for user to reply with a number.
 
-If valid: load selected todo, proceed.
+If valid: load selected todo, store its path as `${todo_file}`, then proceed.
 If invalid: "Invalid selection. Reply with a number (1-[N]) or `q` to exit."
 </step>
 
@@ -137,7 +137,9 @@ Use ask_user:
 <step name="execute_action">
 **Work on it now:**
 ```bash
-mv ".gpd/todos/pending/[filename]" ".gpd/todos/done/"
+todo_name="$(basename "$todo_file")"
+done_file=".gpd/todos/done/${todo_name}"
+mv "$todo_file" "$done_file"
 ```
 Update STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
 
@@ -165,17 +167,17 @@ Re-run `init todos` to get updated count, then update STATE.md "### Pending Todo
 If todo was moved to done/, commit the change:
 
 ```bash
-git rm --cached .gpd/todos/pending/[filename] 2>/dev/null || true
+git rm --cached "$todo_file" 2>/dev/null || true
 
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/todos/done/[filename] .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "$done_file" .gpd/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start work on todo - [title]" --files .gpd/todos/done/[filename] .gpd/STATE.md
+gpd commit "docs: start work on todo - ${title}" --files "$done_file" .gpd/STATE.md
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.
 
-Confirm: "Committed: docs: start work on todo - [title]"
+Confirm: "Committed: docs: start work on todo - ${title}"
 </step>
 
 </process>

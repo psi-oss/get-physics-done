@@ -157,6 +157,8 @@ gpd pre-commit-check
 gpd pre-commit-check --files .gpd/phases/03-foo/03-01-PLAN.md
 ```
 
+Some workflows also run an explicit `PRE_CHECK=$(gpd pre-commit-check ... 2>&1) || true` before calling `gpd commit`. Treat that explicit shell step as early visibility only: `gpd commit` re-runs the same validation on the requested commit paths and remains the blocking gate.
+
 For stricter semantic checks, use the dedicated commands alongside `pre-commit-check`: `gpd verify plan`, `gpd verify summary`, `gpd verify artifacts`, and `gpd convention check`.
 
 ---

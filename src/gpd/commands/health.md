@@ -17,7 +17,7 @@ allowed-tools:
 <objective>
 Run comprehensive project health checks and optionally auto-fix detected issues.
 
-Checks include: environment, project structure, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, and git status.
+Checks include: environment, project structure, storage-path policy, state validity, compaction, roadmap consistency, orphaned phase directories, convention lock integrity, plan frontmatter, latest return envelope, config.json validity, checkpoint tags, and git status.
 
 Use `--fix` to automatically repair detected issues.
 </objective>

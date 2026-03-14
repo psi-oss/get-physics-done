@@ -3722,7 +3722,7 @@ Categorize: BLOCKER (prevents goal / produces wrong physics) | WARNING (incomple
 
 ### Convention Assertion Verification
 
-Scan all phase artifacts for `ASSERT_CONVENTION` lines and verify against the convention lock in state.json. **Preferred format uses canonical (full) key names** matching state.json fields: `natural_units`, `metric_signature`, `fourier_convention`, `gauge_choice`, `regularization_scheme`, `renormalization_scheme`, `coupling_convention`, `spin_basis`, `state_normalization`, `coordinate_system`, `index_positioning`, `time_ordering`, `commutation_convention`. Short aliases (`units`, `metric`, `fourier`, `coupling`, `renorm`, `gauge`, etc.) are also accepted by the pre-commit checker. Report mismatches as BLOCKERs. Files with equations but missing `ASSERT_CONVENTION`: report as WARNING.
+Scan all phase artifacts for `ASSERT_CONVENTION` lines and verify against the convention lock in state.json. **Preferred format uses canonical (full) key names** matching state.json fields: `natural_units`, `metric_signature`, `fourier_convention`, `gauge_choice`, `regularization_scheme`, `renormalization_scheme`, `coupling_convention`, `spin_basis`, `state_normalization`, `coordinate_system`, `index_positioning`, `time_ordering`, `commutation_convention`. Short aliases (`units`, `metric`, `fourier`, `coupling`, `renorm`, `gauge`, etc.) are also accepted by the `ASSERT_CONVENTION` parser. Report mismatches as BLOCKERs. Files with equations but missing `ASSERT_CONVENTION`: report as WARNING.
 
 ## Step 8: Identify Expert Verification Needs
 

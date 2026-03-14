@@ -245,7 +245,7 @@ def test_settings_workflow_documents_runtime_native_model_override_guidance() ->
 
 def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
-    assert health_check_count == 12
+    assert health_check_count == 13
 
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command

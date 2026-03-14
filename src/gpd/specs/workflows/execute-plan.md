@@ -408,11 +408,13 @@ After each task (verification passed, done criteria met), commit immediately.
 
 **1. Check:** `git status --short`
 
-**2. Stage individually** (NEVER `git add .` or `git add -A`):
+**2. Choose the exact files for `gpd commit --files`** (NEVER commit broad paths like `git add .` or `git add -A`):
 
 ```bash
-git add src/derivations/hamiltonian.py
-git add artifacts/phases/08-example/data/spectrum.json
+TASK_FILES=(
+  src/derivations/hamiltonian.py
+  artifacts/phases/08-example/data/spectrum.json
+)
 ```
 
 **3. Commit type:**
@@ -430,16 +432,22 @@ git add artifacts/phases/08-example/data/spectrum.json
 
 **4. Format:** `{type}({phase}-{plan}): {description}` with bullet points for key changes.
 
-**5. Pre-commit validation** runs automatically inside `gpd commit`. If it fails (NaN in state.json, missing frontmatter fields), the commit is blocked — fix the errors and retry.
+**5. Commit via gpd:**
 
-**6. Record hash:**
+```bash
+gpd commit "{type}({phase}-{plan}): {description}" --files "${TASK_FILES[@]}"
+```
+
+**6. Pre-commit validation** runs automatically inside `gpd commit`. If it fails (invalid frontmatter or serialized NaN/Inf in the checked files), the commit is blocked — fix the errors and retry.
+
+**7. Record hash:**
 
 ```bash
 TASK_COMMIT=$(git rev-parse --short HEAD)
 TASK_COMMITS+=("Task ${TASK_NUM}: ${TASK_COMMIT}")
 ```
 
-**6. Persist commit hash to disk (crash resilience):**
+**8. Persist commit hash to disk (crash resilience):**
 
 The in-memory `TASK_COMMITS` array is lost if the agent crashes. Write each hash to a JSON file as it is created:
 
@@ -637,7 +645,7 @@ PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/${phase}-${plan}-SUMMARY.
 echo "$PRE_CHECK"
 ```
 
-If pre-commit-check reports issues, review them but proceed with the commit — issues are advisory at this stage since task work is already committed.
+If the explicit `PRE_CHECK` command reports issues, treat it as early visibility only. `gpd commit` re-runs the same validation on the commit paths and remains the blocking gate, so fix any reported issues before retrying when the commit is rejected.
 
 ```bash
 gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .gpd/STATE.md .gpd/ROADMAP.md

@@ -469,7 +469,7 @@ PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/PROJ
 echo "$PRE_CHECK"
 ```
 
-If pre-commit-check reports issues, note them but proceed — transition commits are metadata-only.
+If the explicit `PRE_CHECK` command reports issues, treat it as early visibility only. `gpd commit` re-runs the same validation on the requested files and remains the blocking gate, even for metadata-only transitions.
 
 ```bash
 gpd commit "docs(phase-${CURRENT_PHASE}): transition to next phase" --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/PROJECT.md .gpd/DECISIONS.md

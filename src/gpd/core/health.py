@@ -45,6 +45,7 @@ from gpd.core.state import (
     state_validate,
     sync_state_json,
 )
+from gpd.core.storage_paths import ProjectStorageLayout
 from gpd.core.utils import (
     atomic_write,
     phase_normalize,
@@ -170,6 +171,20 @@ def check_project_structure(cwd: Path) -> HealthCheck:
 
     status = CheckStatus.FAIL if issues else CheckStatus.OK
     return HealthCheck(status=status, label="Project Structure", details=details, issues=issues)
+
+
+def check_storage_paths(cwd: Path) -> HealthCheck:
+    """Warn on suspicious storage-policy violations without blocking the project."""
+    layout = ProjectStorageLayout(cwd)
+    warnings = list(layout.audit_storage_warnings())
+    details: dict[str, object] = {
+        "project_root": str(layout.root),
+        "internal_root": str(layout.internal_root),
+        "temporary_project_root": layout.project_root_is_temporary(),
+        "warning_count": len(warnings),
+    }
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Storage Paths", details=details, warnings=warnings)
 
 
 def check_state_validity(cwd: Path) -> HealthCheck:
@@ -698,6 +713,7 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
 _ALL_CHECKS: list[tuple[str, object]] = [
     ("environment", check_environment),
     ("project_structure", check_project_structure),
+    ("storage_paths", check_storage_paths),
     ("state_validity", check_state_validity),
     ("compaction", check_compaction_needed),
     ("roadmap", check_roadmap_consistency),
@@ -913,6 +929,7 @@ __all__ = [
     "check_project_structure",
     "check_roadmap_consistency",
     "check_state_validity",
+    "check_storage_paths",
     "run_doctor",
     "run_health",
 ]
