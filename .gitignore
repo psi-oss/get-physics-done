@@ -8,6 +8,7 @@ build/
 .env
 *.log
 .gpd/observability/
+.gpd/state.json.bak
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/

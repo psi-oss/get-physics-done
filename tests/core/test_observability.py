@@ -145,6 +145,35 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.downstream_locked is True
 
 
+def test_get_current_execution_normalizes_phase_plan_and_checkpoint_reason(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / ".gpd" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-raw",
+                "phase": "3",
+                "plan": "2",
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre-fanout",
+                "updated_at": "2026-03-14T12:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import get_current_execution
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.phase == "03"
+    assert snapshot.plan == "02"
+    assert snapshot.checkpoint_reason == "pre_fanout"
+
+
 def test_pre_fanout_gate_records_skeptical_review_state(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)

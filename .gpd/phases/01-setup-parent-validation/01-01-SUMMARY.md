@@ -10,8 +10,8 @@ status: complete
 
 ### Task 1: Obtain Code
 - **Source:** https://github.com/daschaich/susy (public repository)
-- **Cloned to:** code/susy/
-- **Relevant directory:** code/susy/4d_Q16/ (4D N=4 SYM with 16 supercharges)
+- **Checkout used during validation:** local `susy` clone (not tracked in this repo)
+- **Relevant upstream directory:** `4d_Q16/` (4D N=4 SYM with 16 supercharges)
 - **Code base:** MILC-derived C code with MPI parallelization
 - **Authors:** David Schaich, Simon Catterall et al.
 
@@ -51,10 +51,10 @@ status: complete
 
 | File | Purpose |
 |------|---------|
-| code/susy/ | Catterall-Schaich lattice SUSY code (cloned from GitHub) |
-| code/susy/4d_Q16/susy/susy_hmc | RHMC binary |
-| code/susy/4d_Q16/susy/susy_phase | Pfaffian phase binary |
-| code/susy/4d_Q16/susy/susy_meas | Measurement binary |
+| https://github.com/daschaich/susy | Upstream Catterall-Schaich lattice SUSY code used for local validation |
+| local `4d_Q16/susy/susy_hmc` build | RHMC binary used during the validation run (not tracked in this repo) |
+| local `4d_Q16/susy/susy_phase` build | Pfaffian phase binary used during the validation run (not tracked in this repo) |
+| local `4d_Q16/susy/susy_meas` build | Measurement binary used during the validation run (not tracked in this repo) |
 
 ## Decisions
 

@@ -325,7 +325,7 @@ class TestInitExecutePhase:
 
         ctx = init_execute_phase(tmp_path, "1")
         assert ctx["phase_found"] is True
-        assert ctx["phase_number"] in ("1", "01")  # depends on phases module normalization
+        assert ctx["phase_number"] == "01"
         assert ctx["plan_count"] == 1
         assert ctx["incomplete_count"] == 0
         assert ctx["state_exists"] is False
@@ -460,6 +460,7 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2")
         assert ctx["phase_found"] is True
+        assert ctx["phase_number"] == "02"
         assert ctx["has_research"] is True
         assert ctx["has_plans"] is False
         assert ctx["padded_phase"] == "02"
@@ -684,6 +685,32 @@ class TestInitResume:
         assert ctx["resume_mode"] == "bounded_segment"
         assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
         assert ctx["segment_candidates"][0]["source"] == "current_execution"
+
+    def test_normalizes_live_execution_phase_plan_and_checkpoint_reason(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-raw",
+                "phase": "3",
+                "plan": "2",
+                "segment_id": "seg-9",
+                "segment_status": "waiting_review",
+                "checkpoint_reason": "pre-fanout",
+                "pre_fanout_review_pending": True,
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+        )
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["active_execution_segment"]["phase"] == "03"
+        assert ctx["active_execution_segment"]["plan"] == "02"
+        assert ctx["active_execution_segment"]["checkpoint_reason"] == "pre_fanout"
+        candidate = ctx["segment_candidates"][0]
+        assert candidate["phase"] == "03"
+        assert candidate["plan"] == "02"
+        assert candidate["checkpoint_reason"] == "pre_fanout"
 
     def test_resume_candidate_carries_pre_fanout_and_skeptical_review_fields(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -940,8 +967,24 @@ class TestInitProgress:
         assert ctx["phase_count"] == 3
         assert ctx["completed_count"] == 1
         assert ctx["in_progress_count"] == 1
-        assert ctx["current_phase"]["number"] in ("2", "02")
-        assert ctx["next_phase"]["number"] in ("3", "03")
+        assert ctx["current_phase"]["number"] == "02"
+        assert ctx["next_phase"]["number"] == "03"
+
+    def test_progress_prefers_phase_inventory_over_stale_state_position(self, tmp_path: Path) -> None:
+        from gpd.core.state import default_state_dict
+
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "02-analysis")
+        (phase_dir / "b-PLAN.md").write_text("plan")
+
+        state = default_state_dict()
+        state["position"]["current_phase"] = "03"
+        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["state_exists"] is True
+        assert ctx["current_phase"]["number"] == "02"
 
     def test_detects_paused_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -970,6 +1013,28 @@ class TestInitProgress:
         assert ctx["paused_at"] == "2026-03-11T08:00:00+00:00"
         assert ctx["execution_resumable"] is True
         assert ctx["has_work_in_progress"] is True
+
+    def test_progress_normalizes_live_execution_phase_when_no_phase_inventory_exists(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_current_execution(
+            tmp_path,
+            {
+                "session_id": "sess-2",
+                "phase": "2",
+                "plan": "1",
+                "segment_status": "paused",
+                "checkpoint_reason": "pre-fanout",
+                "resume_file": ".gpd/phases/02-analysis/.continue-here.md",
+                "updated_at": "2026-03-11T08:00:00+00:00",
+            },
+        )
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["current_phase"]["number"] == "02"
+        assert ctx["current_execution"]["phase"] == "02"
+        assert ctx["current_execution"]["plan"] == "01"
+        assert ctx["current_execution"]["checkpoint_reason"] == "pre_fanout"
 
     def test_includes_project(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

@@ -24,10 +24,10 @@ from datetime import UTC, datetime
 from itertools import count
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from gpd.core.constants import ProjectLayout
-from gpd.core.utils import atomic_write, file_lock, safe_read_file
+from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
 
 __all__ = [
     "CurrentExecutionState",
@@ -137,6 +137,21 @@ class CurrentExecutionState(BaseModel):
     segment_started_at: str | None = None
     transition_id: str | None = None
     updated_at: str | None = None
+
+    @field_validator("phase", "plan", mode="before")
+    @classmethod
+    def _normalize_phase_like_fields(cls, value: object) -> object:
+        if isinstance(value, int):
+            return phase_normalize(str(value))
+        if isinstance(value, str):
+            stripped = value.strip()
+            return phase_normalize(stripped) if stripped else None
+        return value
+
+    @field_validator("checkpoint_reason", mode="before")
+    @classmethod
+    def _normalize_checkpoint_reason_field(cls, value: object) -> object:
+        return _normalized_checkpoint_reason(value)
 
 
 class ObserveEventResult(BaseModel):
