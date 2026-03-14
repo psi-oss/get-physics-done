@@ -687,19 +687,29 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
         if content is None:
             return RoadmapPhaseResult(found=False, error="ROADMAP.md not found")
 
-        escaped_phase = re.escape(str(phase_num))
-        phase_pattern = re.compile(rf"#{{2,4}}\s*Phase\s+{escaped_phase}:\s*([^\n]+)", re.IGNORECASE)
-        header_match = phase_pattern.search(content)
+        normalized_query = phase_normalize(str(phase_num))
+        # Match by normalized phase identity so roadmap headers like "Phase 1"
+        # and directory/context values like "01" resolve the same section.
+        phase_pattern = re.compile(r"#{2,4}\s*Phase\s+(\d+(?:\.\d+)*):\s*([^\n]+)", re.IGNORECASE)
+
+        header_match: re.Match[str] | None = None
+        matched_phase_number: str | None = None
+        phase_name: str | None = None
+        for match in phase_pattern.finditer(content):
+            candidate_phase_number = match.group(1).strip()
+            if phase_normalize(candidate_phase_number) != normalized_query:
+                continue
+            header_match = match
+            matched_phase_number = candidate_phase_number
+            phase_name = match.group(2).strip()
+            break
 
         if not header_match:
             return RoadmapPhaseResult(found=False, phase_number=phase_num)
 
-        phase_name = header_match.group(1).strip()
         header_index = header_match.start()
-
-        rest_of_content = content[header_index:]
-        next_header = re.search(r"\n#{2,4}\s+Phase\s+\d", rest_of_content, re.IGNORECASE)
-        section_end = header_index + next_header.start() if next_header else len(content)
+        next_header = phase_pattern.search(content, header_match.end())
+        section_end = next_header.start() if next_header else len(content)
         section = content[header_index:section_end].strip()
 
         goal_match = re.search(r"\*\*Goal:\*\*\s*([^\n]+)", section, re.IGNORECASE)
@@ -707,7 +717,7 @@ def roadmap_get_phase(cwd: Path, phase_num: str) -> RoadmapPhaseResult:
 
         return RoadmapPhaseResult(
             found=True,
-            phase_number=phase_num,
+            phase_number=matched_phase_number,
             phase_name=phase_name,
             goal=goal,
             section=section,

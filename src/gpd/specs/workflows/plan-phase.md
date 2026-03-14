@@ -41,8 +41,9 @@ Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_
 **Set shell variables from init JSON:**
 
 ```bash
-PHASE="${phase_number}"
-PHASE_DIR="${phase_dir}"
+REQUESTED_PHASE="${PHASE}"
+PHASE=$(echo "$INIT" | gpd json get .phase_number --default "${REQUESTED_PHASE}")
+PHASE_DIR=$(echo "$INIT" | gpd json get .phase_dir --default "")
 AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 ```
@@ -75,11 +76,24 @@ This is NOT the full discuss-phase flow — just the 2-3 most impactful question
 
 **If no phase number:** Detect next unplanned phase from roadmap.
 
-**If `phase_found` is false:** Validate phase exists in ROADMAP.md. If valid, create the directory using `phase_slug` and `padded_phase` from init:
+**If `phase_found` is false:** Validate phase exists in ROADMAP.md. If valid, resolve directory metadata from the roadmap before continuing:
 
 ```bash
-mkdir -p ".gpd/phases/${padded_phase}-${phase_slug}"
+PHASE_INFO=$(gpd roadmap get-phase "${PHASE}")
+if [ "$(echo "$PHASE_INFO" | gpd json get .found --default false)" != "true" ]; then
+  echo "Error: Phase ${PHASE} not found in ROADMAP.md."
+  exit 1
+fi
+
+PHASE_NAME=$(echo "$PHASE_INFO" | gpd json get .phase_name --default "")
+PHASE_SLUG=$(gpd slug "$PHASE_NAME")
+PADDED_PHASE=$(printf '%s' "${PHASE}" | python3 -c "import sys; parts=sys.stdin.read().strip().split('.'); head=str(int(parts[0])).zfill(2); tail=[str(int(part)) for part in parts[1:] if part]; print('.'.join([head, *tail]))")
+PHASE="${PADDED_PHASE}"
+PHASE_DIR=".gpd/phases/${PADDED_PHASE}-${PHASE_SLUG}"
+mkdir -p "${PHASE_DIR}"
 ```
+
+Use these resolved values for all later references to `PHASE_DIR`, `PHASE_SLUG`, and `PADDED_PHASE`.
 
 **Existing artifacts from init:** `has_research`, `has_plans`, `plan_count`.
 

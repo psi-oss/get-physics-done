@@ -581,6 +581,29 @@ class TestCrossModuleConsistency:
         assert roadmap.phase_name == "Quantum Setup"
         assert roadmap.goal == "Initialize quantum framework"
 
+    def test_find_phase_number_round_trips_into_roadmap_lookup(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_roadmap(
+            tmp_path,
+            """\
+            ### Phase 1: Quantum Setup
+
+            **Goal:** Initialize quantum framework
+            """,
+        )
+        d = _create_phase(tmp_path, "01-quantum-setup")
+        (d / "a-PLAN.md").write_text("plan")
+
+        found = find_phase(tmp_path, "1")
+        assert found is not None
+        assert found.phase_number == "01"
+
+        roadmap = roadmap_get_phase(tmp_path, found.phase_number)
+        assert roadmap.found is True
+        assert roadmap.phase_number == "1"
+        assert roadmap.phase_name == "Quantum Setup"
+        assert roadmap.goal == "Initialize quantum framework"
+
     def test_progress_and_analyze_agree_on_completion(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_roadmap(

@@ -139,17 +139,26 @@ fi
 
 Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `has_verification`, `plan_count`, `roadmap_exists`, `planning_exists`.
 
-**If `phase_found` is false:**
+**If `phase_found` is false:** Check ROADMAP.md before exiting.
 
+```bash
+ROADMAP_INFO=$(gpd roadmap get-phase "${PHASE}")
+if [ "$(echo "$ROADMAP_INFO" | gpd json get .found --default false)" != "true" ]; then
+  echo "Phase ${PHASE} not found in ROADMAP.md."
+  echo ""
+  echo "Use /gpd:progress to see available phases."
+  exit 1
+fi
+
+phase_name=$(echo "$ROADMAP_INFO" | gpd json get .phase_name --default "")
+phase_slug=$(gpd slug "$phase_name")
+padded_phase=$(printf '%s' "${PHASE}" | python3 -c "import sys; parts=sys.stdin.read().strip().split('.'); head=str(int(parts[0])).zfill(2); tail=[str(int(part)) for part in parts[1:] if part]; print('.'.join([head, *tail]))")
+phase_dir=".gpd/phases/${padded_phase}-${phase_slug}"
 ```
-Phase [X] not found in roadmap.
 
-Use /gpd:progress to see available phases.
-```
+Continue to check_existing using the roadmap-derived phase metadata.
 
-Exit workflow.
-
-**If `phase_found` is true:** Continue to check_existing.
+**If `phase_found` is true:** Continue to check_existing using init-provided phase metadata.
 </step>
 
 <step name="check_existing">
@@ -337,12 +346,9 @@ Create CONTEXT.md capturing decisions made.
 
 **Find or create phase directory:**
 
-Use values from init: `phase_dir`, `phase_slug`, `padded_phase`.
-
-If `phase_dir` is null (phase exists in roadmap but no directory):
+Use init-provided `phase_dir`, `phase_slug`, and `padded_phase` when the phase directory already exists. If step `initialize` resolved the phase from ROADMAP.md only, use the fallback values computed there.
 
 ```bash
-phase_dir=".gpd/phases/${padded_phase}-${phase_slug}"
 mkdir -p "${phase_dir}"
 ```
 

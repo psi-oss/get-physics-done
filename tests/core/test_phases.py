@@ -273,6 +273,23 @@ def test_roadmap_get_phase_found(tmp_path: Path) -> None:
     assert result.goal == "Initialize the project"
 
 
+def test_roadmap_get_phase_accepts_padded_query(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _create_roadmap(
+        tmp_path,
+        """\
+        ### Phase 3: Analysis Phase
+        **Goal:** Analyze the phase
+        """,
+    )
+
+    result = roadmap_get_phase(tmp_path, "03")
+    assert result.found is True
+    assert result.phase_number == "3"
+    assert result.phase_name == "Analysis Phase"
+    assert result.goal == "Analyze the phase"
+
+
 def test_roadmap_get_phase_not_found(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: Only Phase\n")

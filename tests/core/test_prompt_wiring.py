@@ -661,6 +661,21 @@ def test_discuss_and_assumption_workflows_surface_anchors_and_fast_falsifiers() 
     assert "**False progress:**" in assumptions_text
 
 
+def test_discuss_and_plan_workflows_resolve_roadmap_only_phases() -> None:
+    discuss_text = (WORKFLOWS_DIR / "discuss-phase.md").read_text(encoding="utf-8")
+    plan_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+
+    assert "Phase [X] not found in roadmap." not in discuss_text
+    assert 'ROADMAP_INFO=$(gpd roadmap get-phase "${PHASE}")' in discuss_text
+    assert 'phase_slug=$(gpd slug "$phase_name")' in discuss_text
+    assert "Continue to check_existing using the roadmap-derived phase metadata." in discuss_text
+    assert 'REQUESTED_PHASE="${PHASE}"' in plan_text
+    assert 'PHASE=$(echo "$INIT" | gpd json get .phase_number --default "${REQUESTED_PHASE}")' in plan_text
+    assert 'PHASE_INFO=$(gpd roadmap get-phase "${PHASE}")' in plan_text
+    assert 'PHASE_SLUG=$(gpd slug "$PHASE_NAME")' in plan_text
+    assert "Use these resolved values for all later references to `PHASE_DIR`, `PHASE_SLUG`, and `PADDED_PHASE`." in plan_text
+
+
 def test_planning_and_phase_templates_surface_active_reference_context() -> None:
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
