@@ -25,6 +25,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.opencode import OpenCodeAdapter
 from gpd.adapters.tool_names import build_canonical_alias_map
+from gpd.registry import load_agents_from_dir
 
 REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
 RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
@@ -385,24 +386,33 @@ class TestCodexRoundtrip:
         """Number of skills matches source command count."""
         _, skills = installed
         src_count = sum(1 for _ in (gpd_root / "commands").rglob("*.md"))
+        agent_skill_names = set(load_agents_from_dir(gpd_root / "agents"))
         skill_count = sum(
             1
             for d in skills.iterdir()
             if d.is_dir()
             and d.name.startswith("gpd-")
-            and not d.name.startswith("gpd-verifier")
-            and not d.name.startswith("gpd-executor")
+            and d.name not in agent_skill_names
         )
         assert skill_count == src_count
 
     def test_agents_installed_as_skills(self, installed: tuple[Path, Path], gpd_root: Path) -> None:
-        """GPD agents are also installed as skill directories."""
+        """Public GPD agents are installed as Codex skill directories."""
         _, skills = installed
-        src_agents = [f.stem for f in (gpd_root / "agents").glob("gpd-*.md")]
-        for agent_name in src_agents:
+        agents = load_agents_from_dir(gpd_root / "agents")
+        public_agents = sorted(agent.name for agent in agents.values() if agent.surface == "public")
+        for agent_name in public_agents:
             agent_skill = skills / agent_name
             assert agent_skill.is_dir(), f"Missing agent skill: {agent_name}"
             assert (agent_skill / "SKILL.md").exists()
+
+    def test_internal_agents_not_installed_as_skills(self, installed: tuple[Path, Path], gpd_root: Path) -> None:
+        """Internal agents stay installed as agent files, not discoverable Codex skills."""
+        _, skills = installed
+        agents = load_agents_from_dir(gpd_root / "agents")
+        internal_agents = sorted(agent.name for agent in agents.values() if agent.surface == "internal")
+        for agent_name in internal_agents:
+            assert not (skills / agent_name).exists(), f"Internal agent should not be a Codex skill: {agent_name}"
 
     def test_agents_installed_as_md_files(self, installed: tuple[Path, Path], gpd_root: Path) -> None:
         """Agents are also installed as .md files under .codex/agents/."""

@@ -45,6 +45,7 @@ def gpd_root(tmp_path: Path) -> Path:
     agents.mkdir()
     (agents / "gpd-verifier.md").write_text(
         "---\nname: gpd-verifier\ndescription: Verifies physics results\n"
+        "surface: internal\nrole_family: verification\n"
         "tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch\ncolor: green\n---\n"
         "Verifier body with {GPD_INSTALL_DIR}/data.\n"
         "Config dir: {GPD_CONFIG_DIR}\n"
@@ -54,6 +55,7 @@ def gpd_root(tmp_path: Path) -> Path:
     )
     (agents / "gpd-executor.md").write_text(
         "---\nname: gpd-executor\ndescription: Executes research plans\n"
+        "surface: public\nrole_family: worker\n"
         "allowed-tools:\n  - file_read\n  - file_write\n  - file_edit\n  - shell\n"
         "  - mcp__physics_server\ncolor: blue\n---\n"
         "Executor body.\n",

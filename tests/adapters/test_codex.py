@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.codex import CodexAdapter, _convert_codex_tool_name, _convert_to_codex_skill
+from gpd.registry import load_agents_from_dir
 
 
 @pytest.fixture()
@@ -186,6 +187,24 @@ class TestInstall:
         assert len(gpd_skills) > 0
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
+
+    def test_install_only_exposes_public_agents_as_skills(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        installed_skill_names = {d.name for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")}
+        agents = load_agents_from_dir(gpd_root / "agents")
+        public_agents = {agent.name for agent in agents.values() if agent.surface == "public"}
+        internal_agents = {agent.name for agent in agents.values() if agent.surface == "internal"}
+
+        assert public_agents <= installed_skill_names
+        assert installed_skill_names.isdisjoint(internal_agents)
 
     def test_install_creates_gpd_content(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"

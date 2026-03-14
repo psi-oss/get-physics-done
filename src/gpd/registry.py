@@ -502,6 +502,22 @@ def _validate_command_name(path: Path, command: CommandDef) -> None:
         )
 
 
+def load_agents_from_dir(agents_dir: Path) -> dict[str, AgentDef]:
+    """Parse agent definitions from an arbitrary agents directory."""
+    result: dict[str, AgentDef] = {}
+    if not agents_dir.is_dir():
+        return result
+
+    for path in sorted(agents_dir.glob("*.md")):
+        agent = _parse_agent_file(path, source="agents")
+        if agent.name in result:
+            first_path = result[agent.name].path
+            raise ValueError(f"Duplicate agent name {agent.name!r} discovered in {path} and {first_path}")
+        result[agent.name] = agent
+
+    return result
+
+
 # ─── Cache ───────────────────────────────────────────────────────────────────
 
 
@@ -543,18 +559,7 @@ _cache = _RegistryCache()
 
 def _discover_agents() -> dict[str, AgentDef]:
     """Discover all agent definitions from the primary agents/ directory."""
-    result: dict[str, AgentDef] = {}
-    if AGENTS_DIR.is_dir():
-        for path in sorted(AGENTS_DIR.glob("*.md")):
-            agent = _parse_agent_file(path, source="agents")
-            if agent.name in result:
-                first_path = result[agent.name].path
-                raise ValueError(
-                    f"Duplicate agent name {agent.name!r} discovered in {path} and {first_path}"
-                )
-            result[agent.name] = agent
-
-    return result
+    return load_agents_from_dir(AGENTS_DIR)
 
 
 def _discover_commands() -> dict[str, CommandDef]:
@@ -807,6 +812,7 @@ __all__ = [
     "get_command",
     "get_skill",
     "invalidate_cache",
+    "load_agents_from_dir",
     "list_agents",
     "list_commands",
     "list_review_commands",

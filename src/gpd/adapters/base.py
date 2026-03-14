@@ -34,6 +34,7 @@ from gpd.adapters.tool_names import (
     reference_translation_map,
     translate_for_runtime,
 )
+from gpd.registry import AgentDef, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,20 @@ class RuntimeAdapter(abc.ABC):
     def _current_install_scope_flag(self) -> str:
         """Return the active install scope as a bootstrap-friendly flag."""
         return "--global" if getattr(self, "_install_is_global", False) else "--local"
+
+    def load_runtime_agents(self, gpd_root: Path) -> tuple[AgentDef, ...]:
+        """Load runtime-projected agent metadata from an install source root."""
+        agents = load_agents_from_dir(gpd_root / "agents")
+        projected = (self.project_agent_metadata(agent) for _, agent in sorted(agents.items()))
+        return tuple(projected)
+
+    def project_agent_metadata(self, agent: AgentDef) -> AgentDef:
+        """Project canonical agent metadata into runtime-specific install policy."""
+        return agent
+
+    def should_install_agent_as_discoverable_surface(self, agent: AgentDef) -> bool:
+        """Return whether an agent should be installed into discoverable skill surfaces."""
+        return True
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         """Runtime-specific configuration (settings, permissions, etc.).

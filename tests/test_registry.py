@@ -16,6 +16,7 @@ from gpd.registry import (
     _parse_frontmatter,
     _parse_tools,
     _RegistryCache,
+    load_agents_from_dir,
 )
 
 
@@ -661,6 +662,24 @@ class TestPublicAPI:
         registry.invalidate_cache()
 
         assert registry.list_agents() == ["alpha", "bravo", "charlie"]
+
+    def test_load_agents_from_dir_parses_arbitrary_agent_directory(self, tmp_path: Path) -> None:
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-public.md").write_text(
+            "---\nname: gpd-public\ndescription: Public\ntools: file_read\nsurface: public\n---\nPublic prompt.",
+            encoding="utf-8",
+        )
+        (agents_dir / "gpd-internal.md").write_text(
+            "---\nname: gpd-internal\ndescription: Internal\ntools: file_read\nsurface: internal\n---\nInternal prompt.",
+            encoding="utf-8",
+        )
+
+        agents = load_agents_from_dir(agents_dir)
+
+        assert sorted(agents) == ["gpd-internal", "gpd-public"]
+        assert agents["gpd-public"].surface == "public"
+        assert agents["gpd-internal"].surface == "internal"
 
     def test_list_commands_returns_sorted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"

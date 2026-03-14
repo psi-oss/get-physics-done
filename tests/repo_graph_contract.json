@@ -18,8 +18,8 @@
     "dist"
   ],
   "scope_counts": {
-    "Live repo files analyzed in the current tree": 611,
-    "Python files under `src/` and `tests/`": 187,
+    "Live repo files analyzed in the current tree": 612,
+    "Python files under `src/` and `tests/`": 188,
     "`src/gpd/commands/*.md`": 61,
     "`src/gpd/agents/*.md`": 23,
     "`src/gpd/specs/workflows/*.md`": 62,
@@ -28,7 +28,7 @@
     "`src/gpd/adapters/*.py`": 9,
     "`src/gpd/hooks/*.py`": 5,
     "`src/gpd/mcp/servers/*.py`": 8,
-    "`tests/**` files": 124,
+    "`tests/**` files": 125,
     "`infra/gpd-*.json`": 8
   }
 }

@@ -39,6 +39,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
+from gpd.registry import AgentDef
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,8 @@ class CodexAdapter(RuntimeAdapter):
 
     Codex uses a SKILLS model:
     - Commands -> skill directories under ~/.agents/skills/<name>/SKILL.md
-    - Agents -> also skill directories + agent .md files under ~/.codex/agents/
+    - Public agents -> skill directories under ~/.agents/skills/<name>/SKILL.md
+    - All agents -> agent .md files under ~/.codex/agents/
     - Hooks -> config.toml ``notify`` array (not settings.json)
     - Config -> ~/.codex/ (CODEX_CONFIG_DIR env var)
     - Skills -> ~/.agents/skills/ (CODEX_SKILLS_DIR env var)
@@ -317,6 +319,10 @@ class CodexAdapter(RuntimeAdapter):
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """Codex uses the runtime default commit attribution behavior."""
         return ""
+
+    def should_install_agent_as_discoverable_surface(self, agent: AgentDef) -> bool:
+        """Codex should only expose public agents as discoverable skills."""
+        return agent.surface == "public"
 
     def install(
         self,
@@ -372,9 +378,13 @@ class CodexAdapter(RuntimeAdapter):
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
         gpd_dest = target_dir / "get-physics-done"
-        agent_count = 0
+        runtime_agents = self.load_runtime_agents(gpd_root)
+        discoverable_agent_names = {
+            agent.name for agent in runtime_agents if self.should_install_agent_as_discoverable_surface(agent)
+        }
+        agent_count = len(runtime_agents)
 
-        # Install agents as Codex skill directories
+        # Install only the public agent surface as discoverable Codex skills.
         if agents_src.is_dir():
             _copy_agents_as_skills(
                 agents_src,
@@ -382,11 +392,9 @@ class CodexAdapter(RuntimeAdapter):
                 path_prefix,
                 gpd_dest,
                 self._current_install_scope_flag(),
+                discoverable_agent_names=discoverable_agent_names,
             )
-            agent_count = sum(
-                1 for f in agents_src.iterdir() if f.is_file() and f.name.startswith("gpd-") and f.suffix == ".md"
-            )
-            logger.info("Installed %d agent skills", agent_count)
+            logger.info("Installed %d public agent skills", len(discoverable_agent_names))
 
         # Also install agents as agent .md files
         if agents_src.is_dir():
@@ -601,6 +609,8 @@ def _copy_agents_as_skills(
     path_prefix: str,
     gpd_content_dir: Path | None = None,
     install_scope: str | None = None,
+    *,
+    discoverable_agent_names: set[str] | None = None,
 ) -> None:
     """Copy agents as Codex skill directories.
 
@@ -616,6 +626,8 @@ def _copy_agents_as_skills(
             continue
 
         skill_name = entry.stem
+        if discoverable_agent_names is not None and skill_name not in discoverable_agent_names:
+            continue
         skill_dir = skills_dir / skill_name
 
         # Remove existing skill dir for clean write
