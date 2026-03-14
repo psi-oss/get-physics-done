@@ -1,0 +1,326 @@
+{
+  "project_reference": {
+    "project_md_updated": null,
+    "core_research_question": null,
+    "current_focus": null
+  },
+  "project_contract": {
+    "schema_version": 1,
+    "scope": {
+      "question": "Can the Witten index of Z_k orbifold daughter theories of N=4 SYM be computed non-perturbatively using the CKKU lattice construction?",
+      "in_scope": [
+        "Implement Z_3 orbifold of SU(6) \u2192 SU(2)^3 quiver on the lattice via CKKU construction",
+        "Build on Catterall's public SUSY lattice code",
+        "Compute Witten index Tr(-1)^F for the orbifold daughter theory",
+        "Numerical Monte Carlo simulations on local workstation / small cluster",
+        "Verify SUSY Ward identities and continuum limit convergence",
+        "Continuum limit extrapolation with systematic error analysis",
+        "Cross-check consistency with parent N=4 SYM via orbifold equivalence"
+      ],
+      "out_of_scope": [
+        "Large N or large k studies requiring HPC-scale resources",
+        "Dynamical questions (real-time evolution, transport)",
+        "Theories beyond the orbifold daughter of N=4 SYM",
+        "Comparison with experiment"
+      ],
+      "unresolved_questions": [
+        "Optimal lattice volumes for balancing cost vs. finite-volume effects",
+        "Whether the sign problem is qualitatively different for the orbifold vs. parent theory",
+        "Which specific Ward identities are most diagnostic"
+      ]
+    },
+    "context_intake": {
+      "must_read_refs": [
+        "REF-01",
+        "REF-02"
+      ],
+      "must_include_prior_outputs": [],
+      "user_asserted_anchors": [
+        "SUSY Ward identities must converge in continuum limit",
+        "Results must be consistent with parent N=4 SYM via orbifold equivalence"
+      ],
+      "known_good_baselines": [
+        "Catterall's public SUSY lattice code (existing implementation of N=4 SYM)"
+      ],
+      "context_gaps": [
+        "Severity of sign problem for orbifold daughter theory unknown a priori",
+        "No existing lattice Witten index calculation for this theory to compare against"
+      ],
+      "crucial_inputs": [
+        "Catterall's public SUSY lattice code as computational starting point"
+      ]
+    },
+    "observables": [
+      {
+        "id": "OBS-01",
+        "name": "Witten index",
+        "kind": "scalar",
+        "definition": "Tr(-1)^F for the SU(2)^3 quiver theory from Z_3 orbifold of SU(6)",
+        "regime": "Small lattice volumes, continuum limit extrapolation",
+        "units": "dimensionless"
+      },
+      {
+        "id": "OBS-02",
+        "name": "SUSY Ward identity violations",
+        "kind": "curve",
+        "definition": "Ward identity violations as function of lattice spacing a, measuring SUSY restoration in continuum limit",
+        "regime": "Multiple lattice spacings for extrapolation",
+        "units": "dimensionless"
+      }
+    ],
+    "claims": [
+      {
+        "id": "CLM-01",
+        "statement": "Novel non-perturbative computation of Witten index for Z_3 orbifold daughter of N=4 SYM, with robust Ward identity verification and continuum limit analysis",
+        "observables": [
+          "OBS-01",
+          "OBS-02"
+        ],
+        "deliverables": [
+          "DLV-01",
+          "DLV-02",
+          "DLV-04"
+        ],
+        "acceptance_tests": [
+          "ACT-01",
+          "ACT-02",
+          "ACT-03"
+        ],
+        "references": [
+          "REF-01",
+          "REF-02"
+        ]
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "DLV-01",
+        "kind": "data",
+        "path": null,
+        "description": "Witten index values for Z_3 orbifold of SU(6) with quantified systematic errors",
+        "must_contain": [
+          "Witten index central value",
+          "statistical error",
+          "systematic error budget"
+        ]
+      },
+      {
+        "id": "DLV-02",
+        "kind": "data",
+        "path": null,
+        "description": "Ward identity convergence analysis toward continuum limit",
+        "must_contain": [
+          "Ward identity violation vs lattice spacing",
+          "continuum extrapolation"
+        ]
+      },
+      {
+        "id": "DLV-03",
+        "kind": "code",
+        "path": null,
+        "description": "Modified lattice code implementing the Z_3 orbifold construction on top of Catterall's code",
+        "must_contain": [
+          "orbifold projection",
+          "bi-fundamental matter fields",
+          "Witten index measurement routines"
+        ]
+      },
+      {
+        "id": "DLV-04",
+        "kind": "figure",
+        "path": null,
+        "description": "Publication-quality plots: Witten index vs. lattice volume, Ward identity convergence vs. lattice spacing, continuum limit extrapolation",
+        "must_contain": [
+          "Witten index plot",
+          "Ward identity convergence plot",
+          "continuum extrapolation plot"
+        ]
+      }
+    ],
+    "acceptance_tests": [
+      {
+        "id": "ACT-01",
+        "subject": "DLV-02",
+        "kind": "convergence",
+        "procedure": "Measure SUSY Ward identity violations at multiple lattice spacings and verify monotonic decrease toward zero",
+        "pass_condition": "Ward identity violations decrease consistently with decreasing lattice spacing",
+        "evidence_required": [
+          "DLV-02"
+        ],
+        "automation": "automated"
+      },
+      {
+        "id": "ACT-02",
+        "subject": "DLV-01",
+        "kind": "convergence",
+        "procedure": "Compute Witten index at multiple lattice volumes and verify plateau formation",
+        "pass_condition": "Witten index has stable plateau as function of lattice volume",
+        "evidence_required": [
+          "DLV-01"
+        ],
+        "automation": "automated"
+      },
+      {
+        "id": "ACT-03",
+        "subject": "CLM-01",
+        "kind": "consistency",
+        "procedure": "Compare orbifold daughter results with parent N=4 SYM expectations via orbifold equivalence relations",
+        "pass_condition": "Results consistent with orbifold equivalence expectations from parent N=4 SYM",
+        "evidence_required": [
+          "DLV-01",
+          "DLV-02"
+        ],
+        "automation": "hybrid"
+      }
+    ],
+    "references": [
+      {
+        "id": "REF-01",
+        "kind": "paper",
+        "locator": "Cohen-Kaplan-Katz-\u00dcnsal, CKKU orbifold lattice construction",
+        "role": "method",
+        "why_it_matters": "Defines the lattice formulation used for the orbifold construction",
+        "applies_to": [
+          "CLM-01",
+          "DLV-03"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "use",
+          "cite"
+        ]
+      },
+      {
+        "id": "REF-02",
+        "kind": "paper",
+        "locator": "Catterall's papers and public code for lattice N=4 SYM",
+        "role": "method",
+        "why_it_matters": "Provides the computational foundation code being extended",
+        "applies_to": [
+          "CLM-01",
+          "DLV-03"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "use",
+          "cite"
+        ]
+      }
+    ],
+    "forbidden_proxies": [
+      {
+        "id": "FP-01",
+        "subject": "DLV-01",
+        "proxy": "Witten index values without verified SUSY Ward identities",
+        "reason": "Numbers without Ward identity checks cannot be trusted as physically meaningful"
+      },
+      {
+        "id": "FP-02",
+        "subject": "DLV-01",
+        "proxy": "Results without continuum limit extrapolation study",
+        "reason": "Lattice artifacts may dominate without continuum limit analysis"
+      }
+    ],
+    "links": [
+      {
+        "id": "LNK-01",
+        "source": "DLV-01",
+        "target": "DLV-04",
+        "relation": "visualizes",
+        "verified_by": []
+      },
+      {
+        "id": "LNK-02",
+        "source": "DLV-02",
+        "target": "DLV-04",
+        "relation": "visualizes",
+        "verified_by": []
+      },
+      {
+        "id": "LNK-03",
+        "source": "ACT-01",
+        "target": "CLM-01",
+        "relation": "evaluated_by",
+        "verified_by": []
+      },
+      {
+        "id": "LNK-04",
+        "source": "ACT-02",
+        "target": "CLM-01",
+        "relation": "evaluated_by",
+        "verified_by": []
+      }
+    ],
+    "uncertainty_markers": {
+      "weakest_anchors": [
+        "Fermion sign problem manageability for the orbifold theory at small k, N"
+      ],
+      "unvalidated_assumptions": [
+        "SUSY restoration occurs in continuum limit for the daughter theory",
+        "Orbifold equivalence holds at the lattice level for small N"
+      ],
+      "competing_explanations": [
+        "Sign problem could be severe enough to prevent reliable Witten index extraction"
+      ],
+      "disconfirming_observations": [
+        "Ward identities not decreasing with lattice refinement",
+        "Severe sign problem preventing signal extraction even at smallest volumes"
+      ]
+    }
+  },
+  "position": {
+    "current_phase": null,
+    "current_phase_name": null,
+    "total_phases": null,
+    "current_plan": null,
+    "total_plans_in_phase": null,
+    "status": null,
+    "last_activity": null,
+    "last_activity_desc": null,
+    "progress_percent": 0,
+    "paused_at": null
+  },
+  "active_calculations": [],
+  "intermediate_results": [],
+  "open_questions": [
+    "Optimal lattice volumes for balancing cost vs. finite-volume effects",
+    "Whether the sign problem is qualitatively different for the orbifold vs. parent theory",
+    "Which specific Ward identities are most diagnostic"
+  ],
+  "performance_metrics": {
+    "rows": []
+  },
+  "decisions": [],
+  "approximations": [],
+  "convention_lock": {
+    "metric_signature": null,
+    "fourier_convention": null,
+    "natural_units": null,
+    "gauge_choice": null,
+    "regularization_scheme": null,
+    "renormalization_scheme": null,
+    "coordinate_system": null,
+    "spin_basis": null,
+    "state_normalization": null,
+    "coupling_convention": null,
+    "index_positioning": null,
+    "time_ordering": null,
+    "commutation_convention": null,
+    "levi_civita_sign": null,
+    "generator_normalization": null,
+    "covariant_derivative_sign": null,
+    "gamma_matrix_convention": null,
+    "creation_annihilation_order": null,
+    "custom_conventions": {}
+  },
+  "propagated_uncertainties": [],
+  "pending_todos": [],
+  "blockers": [],
+  "session": {
+    "last_date": null,
+    "stopped_at": null,
+    "resume_file": null
+  }
+}
