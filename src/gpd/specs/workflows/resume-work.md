@@ -208,17 +208,18 @@ fi
 Present complete research project status to user:
 
 ```
-+==============================================================+
-|  RESEARCH PROJECT STATUS                                     |
-+==============================================================+
-|  Investigating: [one-liner from PROJECT.md "What This Is"]   |
-|                                                              |
-|  Phase: [X] of [Y] - [Phase name]                           |
-|  Plan:  [A] of [B] - [Status]                               |
-|  Progress: [||||||....] XX%                                  |
-|                                                              |
-|  Last activity: [date] - [what happened]                     |
-+==============================================================+
++================================================+
+|  RESEARCH PROJECT STATUS                       |
++================================================+
+|  Investigating:                                |
+|  [one-liner from PROJECT.md "What This Is"]    |
+|                                                |
+|  Phase: [X] of [Y] - [Phase name]              |
+|  Plan:  [A] of [B] - [Status]                  |
+|  Progress: [||||||....] XX%                    |
+|                                                |
+|  Last activity: [date] - [what happened]       |
++================================================+
 
 [If DERIVATION-STATE.md found:]
 >> Persistent derivation history restored:

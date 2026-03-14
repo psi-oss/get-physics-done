@@ -384,9 +384,9 @@ Read Current Check section from verification file.
 Display using checkpoint box format:
 
 ```
-+==============================================================+
-|  CHECKPOINT: Research Validation Required                      |
-+==============================================================+
++================================================+
+|  CHECKPOINT: Research Validation Required      |
++================================================+
 
 **Check {number}: {name}**
 
@@ -617,9 +617,9 @@ done
 For each inherited quantity used in the current phase:
 
 ```
-+==============================================================+
-|  UNCERTAINTY CHECK: {quantity_name}                            |
-+==============================================================+
++================================================+
+|  UNCERTAINTY CHECK: {quantity_name}            |
++================================================+
 
 Source: Phase {N} SUMMARY.md
 Value: {central_value} ± {uncertainty}
