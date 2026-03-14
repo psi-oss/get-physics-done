@@ -6,7 +6,15 @@ import hashlib
 import re
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+)
+from pydantic import (
+    ValidationError as PydanticValidationError,
+)
 
 __all__ = [
     "RequiredPackage",
