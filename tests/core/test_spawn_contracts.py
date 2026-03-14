@@ -15,6 +15,8 @@ RUNTIME_NOTE_FRAGMENT = "Runtime delegation:"
 MODEL_OMISSION_FRAGMENT = (
     "If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model."
 )
+READONLY_FALSE_FRAGMENT = "readonly=false"
+READONLY_RUNTIME_NOTE_FRAGMENT = "Always pass `readonly=false` for file-producing agents."
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +84,9 @@ def _assert_runtime_note_present(path: Path) -> None:
     content = _read(path)
     assert RUNTIME_NOTE_FRAGMENT in content, path
     assert MODEL_OMISSION_FRAGMENT in content, path
+    assert READONLY_RUNTIME_NOTE_FRAGMENT in content, (
+        f"{path.relative_to(REPO_ROOT)} runtime note missing readonly=false instruction"
+    )
 
 
 def _assert_prompt_bootstrap(task: TaskBlock, agent_name: str) -> None:
@@ -107,12 +112,15 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
 
     assert 'subagent_type="gpd-{agent}"' in canonical
     assert 'model="{AGENT_MODEL}"' in canonical
+    assert READONLY_FALSE_FRAGMENT in canonical
     assert 'description="{short description}"' in canonical
     assert "First, read {GPD_AGENTS_DIR}/gpd-{agent}.md for your role and instructions." in canonical
     assert "Do not use `@...` references inside task() prompt strings." in content
     assert "Assign an explicit write scope for every subagent." in content
+    assert "Always set `readonly=false` for file-producing agents." in content
     assert "Fresh context:" in content
     assert "Model semantics:" in content
+    assert "Write access:" in content
     assert "Write-scope isolation:" in content
     assert "Blocking completion semantics:" in content
     assert "Success-path artifact gate:" in content
@@ -251,6 +259,32 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert ".gpd/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
     assert ".gpd/review/REFEREE-DECISION{round_suffix}.json" in referee.text
     assert ".gpd/REFEREE-REPORT{round_suffix}.md" in referee.text
+
+
+def test_all_workflow_task_blocks_include_readonly_false() -> None:
+    """Every task() block that spawns a GPD agent must include readonly=false.
+
+    Without this, runtimes like Cursor default subagents to read-only mode
+    where file writes silently fail -- the agent reports success but no files
+    are persisted to disk.
+    """
+    exclusions = {"execute-plan.md"}
+    failures: list[str] = []
+    for workflow_path in sorted(WORKFLOWS_DIR.glob("*.md")):
+        if workflow_path.name in exclusions:
+            continue
+        blocks = _extract_task_blocks(_read(workflow_path))
+        for block in blocks:
+            if 'subagent_type="gpd-' not in block.text:
+                continue
+            if READONLY_FALSE_FRAGMENT not in block.text:
+                agent = "unknown"
+                match = re.search(r'subagent_type="(gpd-[^"]+)"', block.text)
+                if match:
+                    agent = match.group(1)
+                failures.append(f"{workflow_path.name}:{block.start} ({agent})")
+
+    assert not failures, "task() blocks missing readonly=false:\n  " + "\n  ".join(failures)
 
 
 def test_debug_subagent_template_continuations_use_explicit_file_reads() -> None:

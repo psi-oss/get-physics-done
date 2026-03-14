@@ -10,10 +10,11 @@ Every agent spawn in a workflow uses this pattern:
 # Resolve model for this agent role
 AGENT_MODEL=$(gpd resolve-model gpd-{agent})
 
-# Spawn agent
+# Spawn agent — readonly=false is REQUIRED for file-producing agents
 task(
   subagent_type="gpd-{agent}",
   model="{AGENT_MODEL}",    # Omit if AGENT_MODEL is empty
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-{agent}.md for your role and instructions.\n\n{task_prompt}",
   description="{short description}"
 )
@@ -23,7 +24,7 @@ task(
 
 | Method | Agent Spawn Method |
 |--------|-------------------|
-| **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", prompt="...")` or equivalent; omit `model` when it resolves empty |
+| **Subagent spawning** | `task(subagent_type="gpd-{agent}", model="{model}", readonly=false, prompt="...")` or equivalent; omit `model` when it resolves empty |
 | **Projected command surface** | Invoke the runtime's installed GPD command or agent action surface. For example, some runtimes expose `/gpd:{agent}` slash commands. |
 | **Tool discovery** | Agents may appear on the runtime's discoverable action/tool surface after installation |
 | **Fallback** | Execute the installed agent prompt instructions sequentially in the main context |
@@ -40,6 +41,7 @@ task(
 6. **Fresh context:** task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
 7. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
 8. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
+9. **Always set `readonly=false` for file-producing agents.** Some runtimes (e.g. Cursor) default subagents to read-only mode where file writes silently fail. Every agent with `artifact_write_authority: scoped_write` MUST be spawned with `readonly=false`. Without this, the agent will appear to succeed but produce no files on disk.
 
 ## Delegation Contract
 
@@ -47,10 +49,11 @@ Every runtime-specific delegation surface must preserve these workflow semantics
 
 1. **Fresh context:** The subagent starts without hidden access to the orchestrator's conversation.
 2. **Model semantics:** The `model` parameter is omitted when `gpd resolve-model` returns empty.
-3. **Write-scope isolation:** Parallel subagents get disjoint writable targets.
-4. **Blocking completion semantics:** The orchestrator treats the handoff as incomplete until artifacts or structured return data are present.
-5. **Success-path artifact gate:** A reported success is not sufficient by itself. If `expected_artifacts` are missing, the handoff is incomplete even when the runtime says it finished cleanly.
-6. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
+3. **Write access:** File-producing subagents must be spawned with write permissions (`readonly=false`). Without this, runtimes that default to read-only mode will silently discard all file writes.
+4. **Write-scope isolation:** Parallel subagents get disjoint writable targets.
+5. **Blocking completion semantics:** The orchestrator treats the handoff as incomplete until artifacts or structured return data are present.
+6. **Success-path artifact gate:** A reported success is not sufficient by itself. If `expected_artifacts` are missing, the handoff is incomplete even when the runtime says it finished cleanly.
+7. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
 
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
 
@@ -86,5 +89,5 @@ If the task does not produce files, still state the `shared_state_policy` and th
 Add this before any task() call in a workflow:
 
 ```
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 ```

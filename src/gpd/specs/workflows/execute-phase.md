@@ -195,12 +195,12 @@ for AGENT_TYPE in "${PRE_EXECUTION_AGENTS[@]}"; do
     notation-coordinator)
       AGENT_MODEL=$(gpd resolve-model gpd-notation-coordinator)
       # Spawn notation-coordinator to verify/establish conventions
-      # task(subagent_type="gpd-notation-coordinator", model="{AGENT_MODEL}", ...)
+      # task(subagent_type="gpd-notation-coordinator", model="{AGENT_MODEL}", readonly=false, ...)
       ;;
     experiment-designer)
       AGENT_MODEL=$(gpd resolve-model gpd-experiment-designer)
       # Spawn experiment-designer to validate parameter ranges
-      # task(subagent_type="gpd-experiment-designer", model="{AGENT_MODEL}", ...)
+      # task(subagent_type="gpd-experiment-designer", model="{AGENT_MODEL}", readonly=false, ...)
       ;;
   esac
 done
