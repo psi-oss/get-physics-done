@@ -63,7 +63,7 @@ gpd state snapshot | gpd json get .decisions --default "[]"
 ```
 
 ## Step 4: Spawn Researcher
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
@@ -123,7 +123,8 @@ Structure your research around these areas:
 Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 </output>",
   subagent_type="gpd-phase-researcher",
-  model="{researcher_model}"
+  model="{researcher_model}",
+  readonly=false
 )
 ```
 
