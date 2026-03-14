@@ -1,0 +1,125 @@
+---
+template_version: 1
+type: contract-results-schema
+---
+
+# Contract Results Schema
+
+Canonical source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts` in `SUMMARY.md` and `VERIFICATION.md`.
+
+These ledgers are user-visible evidence. They describe what was established, what artifact exists, and what decisive comparisons passed or failed. They are not a place to log internal tool usage or generic workflow completion.
+
+---
+
+## Required Fields For Contract-Backed Outputs
+
+If the source PLAN contains a `contract:` block, then the derived `SUMMARY.md` or `VERIFICATION.md` must include:
+
+- `plan_contract_ref`
+- `contract_results`
+- `comparison_verdicts` whenever a decisive comparison is required by the contract or decisive anchor context
+
+If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required.
+
+---
+
+## `plan_contract_ref`
+
+```yaml
+plan_contract_ref: .gpd/phases/XX-name/XX-YY-PLAN.md#/contract
+```
+
+Rules:
+
+- Must be a string.
+- Must resolve to the matching PLAN contract when validated from disk.
+
+---
+
+## `contract_results`
+
+```yaml
+contract_results:
+  claims:
+    claim-main:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[what was actually established]"
+      linked_ids: [deliv-main, test-main, ref-main]
+      evidence:
+        - verifier: gpd-verifier
+          method: benchmark reproduction
+          confidence: high
+          claim_id: claim-main
+          deliverable_id: deliv-main
+          acceptance_test_id: test-main
+          reference_id: ref-main
+          evidence_path: .gpd/phases/XX-name/XX-YY-VERIFICATION.md
+  deliverables:
+    deliv-main:
+      status: passed|partial|failed|blocked|not_attempted
+      path: path/to/artifact
+      summary: "[what artifact exists and why it matters]"
+      linked_ids: [claim-main, test-main]
+  acceptance_tests:
+    test-main:
+      status: passed|partial|failed|blocked|not_attempted
+      summary: "[what decisive test happened and what it showed]"
+      linked_ids: [claim-main, deliv-main, ref-main]
+  references:
+    ref-main:
+      status: completed|missing|not_applicable
+      completed_actions: [read, compare, cite]
+      missing_actions: []
+      summary: "[how the anchor was surfaced]"
+  forbidden_proxies:
+    fp-main:
+      status: rejected|violated|unresolved|not_applicable
+      notes: "[why this proxy was or was not allowed]"
+  uncertainty_markers:
+    weakest_anchors: []
+    unvalidated_assumptions: []
+    competing_explanations: []
+    disconfirming_observations: []
+```
+
+Rules:
+
+- Ledger keys must be real IDs from the referenced PLAN contract.
+- Missing contract-backed `contract_results` is invalid.
+- Partial ledgers are allowed only if every listed ID is valid and the omitted sections are genuinely not attempted, not silently forgotten.
+- `linked_ids` and evidence sub-IDs must point to declared contract IDs.
+
+---
+
+## `comparison_verdicts`
+
+```yaml
+comparison_verdicts:
+  - subject_id: claim-main
+    subject_kind: claim|deliverable|acceptance_test|reference|artifact
+    subject_role: decisive|supporting|supplemental
+    reference_id: ref-main
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: pass|tension|fail|inconclusive
+    recommended_action: "[what to do next]"
+    notes: "[optional context]"
+```
+
+Rules:
+
+- `subject_id` must be a real ID from the referenced PLAN contract.
+- If a decisive comparison is required, omitting its verdict makes the artifact incomplete.
+- A prose sentence like “agrees with literature” does not replace a verdict entry.
+
+---
+
+## Validation Commands
+
+```bash
+gpd frontmatter validate .gpd/phases/XX-name/SUMMARY.md --schema summary
+gpd validate summary-contract .gpd/phases/XX-name/SUMMARY.md
+gpd frontmatter validate .gpd/phases/XX-name/XX-YY-VERIFICATION.md --schema verification
+gpd validate verification-contract .gpd/phases/XX-name/XX-YY-VERIFICATION.md
+```
