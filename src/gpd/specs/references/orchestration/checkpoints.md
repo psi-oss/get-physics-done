@@ -314,9 +314,9 @@ When the assistant encounters `type="checkpoint:*"`:
 **For checkpoint:human-verify:**
 
 ```
-+=======================================================+
-|  CHECKPOINT: Verification Required                    |
-+=======================================================+
++================================================+
+|  CHECKPOINT: Verification Required             |
++================================================+
 
 Progress: 5/8 tasks complete
 Task: Phonon dispersion relation
@@ -329,17 +329,17 @@ How to verify:
   3. Band gap at zone boundary consistent with mass ratio
   4. Equal mass limit recovers monatomic chain
 
---------------------------------------------------------
-> YOUR ACTION: Type "confirmed" or describe physical issues
---------------------------------------------------------
+-------------------------------------------------
+> YOUR ACTION: Type "confirmed" or explain issues
+-------------------------------------------------
 ```
 
 **For checkpoint:decision:**
 
 ```
-+=======================================================+
-|  CHECKPOINT: Decision Required                        |
-+=======================================================+
++================================================+
+|  CHECKPOINT: Decision Required                 |
++================================================+
 
 Progress: 2/6 tasks complete
 Task: Select approximation scheme
@@ -361,17 +361,17 @@ Options:
      Pros: Captures pairing, better at low density
      Cons: Less standard, misses screening
 
---------------------------------------------------------
+-------------------------------------------------
 > YOUR ACTION: Select rpa, gw, or tmatrix
---------------------------------------------------------
+-------------------------------------------------
 ```
 
 **For checkpoint:human-action:**
 
 ```
-+=======================================================+
-|  CHECKPOINT: Action Required                          |
-+=======================================================+
++================================================+
+|  CHECKPOINT: Action Required                   |
++================================================+
 
 Progress: 3/8 tasks complete
 Task: Fetch experimental band structures
@@ -386,9 +386,9 @@ What you need to do:
 
 I'll verify: API returns band structure data for target compounds
 
---------------------------------------------------------
+-------------------------------------------------
 > YOUR ACTION: Paste your API key
---------------------------------------------------------
+-------------------------------------------------
 ```
 
 </execution_protocol>
@@ -488,7 +488,7 @@ I'll verify: API returns band structure data for target compounds
 ## Pre-Checkpoint Computation Failures
 
 | Failure                     | Response                                                                  |
-| --------------------------- | ------------------------------------------------------------------------- |
+| --------------------------- | ------------------------------------------------------------------ |
 | Numerical instability       | Check parameters, add regularization, retry (don't proceed to checkpoint) |
 | Convergence failure         | Adjust tolerance or initial conditions, retry                             |
 | Missing dependency          | Ask user before install; if approved, install via pip/uv and retry        |
