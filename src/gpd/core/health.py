@@ -184,7 +184,7 @@ def check_storage_paths(cwd: Path) -> HealthCheck:
         "warning_count": len(warnings),
     }
     status = CheckStatus.WARN if warnings else CheckStatus.OK
-    return HealthCheck(status=status, label="Storage Paths", details=details, warnings=warnings)
+    return HealthCheck(status=status, label="Storage-Path Policy", details=details, warnings=warnings)
 
 
 def check_state_validity(cwd: Path) -> HealthCheck:

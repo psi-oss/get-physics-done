@@ -143,7 +143,7 @@ def validate_state(project_dir: str) -> dict:
 def run_health_check(project_dir: str, fix: bool = False) -> dict:
     """Run the full project health dashboard.
 
-    Checks environment, project structure, storage paths, state validity,
+    Checks environment, project structure, storage-path policy, state validity,
     compaction, roadmap consistency, orphans, conventions, frontmatter,
     return envelopes, config, checkpoint tags, and git status.
 

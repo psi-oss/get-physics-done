@@ -4,10 +4,11 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
-from gpd.core.storage_paths import ProjectStorageLayout
+from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
 
 runner = CliRunner()
 
@@ -82,8 +83,56 @@ def test_paper_build_explicit_nonstandard_output_dir_warns_but_builds(tmp_path: 
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["output_dir"] == "./release-paper"
-    assert any("stable project directory" in warning for warning in payload["warnings"])
+    assert any("custom project directory" in warning for warning in payload["warnings"])
     assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
+
+
+@pytest.mark.parametrize("dirname", ["manuscript", "draft"])
+def test_paper_build_manuscript_family_output_has_no_storage_warnings(
+    tmp_path: Path, monkeypatch, dirname: str
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    _write_basic_paper_config(tmp_path)
+    output_dir = tmp_path / dirname
+    output_dir.mkdir()
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(output_dir))) as mock_build:
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["warnings"] == []
+    assert mock_build.await_args.args[1] == output_dir.resolve(strict=False)
+
+
+@pytest.mark.parametrize(
+    ("relative_output_dir", "expected_fragment"),
+    [
+        (".gpd/paper", "internal storage"),
+        ("tmp/release-paper", "scratch directories"),
+    ],
+)
+def test_paper_build_rejects_hidden_and_scratch_output_dirs(
+    tmp_path: Path, monkeypatch, relative_output_dir: str, expected_fragment: str
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    _write_basic_paper_config(tmp_path)
+    output_dir = tmp_path / relative_output_dir
+    output_dir.mkdir(parents=True)
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock()) as mock_build:
+        with pytest.raises(StoragePathError, match=expected_fragment):
+            runner.invoke(
+                app,
+                ["--raw", "--cwd", str(tmp_path), "paper-build", "--output-dir", str(output_dir)],
+                catch_exceptions=False,
+            )
+
+        mock_build.assert_not_awaited()
 
 
 def test_paper_build_warns_when_project_root_is_temporary(tmp_path: Path, monkeypatch) -> None:
@@ -110,6 +159,6 @@ def test_health_cli_raw_reports_storage_path_warnings(tmp_path: Path, monkeypatc
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    storage_check = next(check for check in payload["checks"] if check["label"] == "Storage Paths")
+    storage_check = next(check for check in payload["checks"] if check["label"] == "Storage-Path Policy")
     assert storage_check["status"] == "warn"
     assert any(".gpd/phases/01-setup/results/out.json" in warning for warning in storage_check["warnings"])

@@ -206,6 +206,62 @@ def test_validate_user_output_rejects_scratch_temp_and_external_absolute_paths(
         layout.validate_user_output(external_root / "final.json")
 
 
+def test_validate_final_output_accepts_user_durable_and_custom_stable_project_dirs(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+
+    assert layout.validate_final_output("paper/main.tex") == layout.root / "paper" / "main.tex"
+    assert layout.validate_final_output("release-paper/main.tex") == layout.root / "release-paper" / "main.tex"
+
+
+def test_validate_final_output_rejects_internal_project_scratch_temp_and_external_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layout = _make_layout(tmp_path)
+    temp_root = (tmp_path / "outside-temp").resolve(strict=False)
+    external_root = (tmp_path / "outside").resolve(strict=False)
+    temp_root.mkdir()
+    external_root.mkdir()
+    monkeypatch.setattr(ProjectStorageLayout, "temp_roots", lambda self: (temp_root,))
+
+    with pytest.raises(StoragePathError, match="internal storage"):
+        layout.validate_final_output(".gpd/paper/main.tex")
+
+    with pytest.raises(StoragePathError, match="scratch directories"):
+        layout.validate_final_output(layout.scratch_dir / "final.json")
+
+    with pytest.raises(StoragePathError, match="scratch directories"):
+        layout.validate_final_output("tmp/final.json")
+
+    with pytest.raises(StoragePathError, match="OS temp root"):
+        layout.validate_final_output(temp_root / "final.json")
+
+    with pytest.raises(StoragePathError, match="inside the project root"):
+        layout.validate_final_output(external_root / "final.json")
+
+
+def test_validate_commit_target_allows_internal_docs_but_rejects_internal_artifacts_and_scratch_paths(
+    tmp_path: Path,
+) -> None:
+    layout = _make_layout(tmp_path)
+
+    assert layout.validate_commit_target(".gpd/STATE.md") == layout.internal_root / "STATE.md"
+
+    hidden_results = layout.internal_root / "phases" / "01-setup" / "results" / "out.json"
+    hidden_results.parent.mkdir(parents=True)
+    hidden_results.write_text("{}", encoding="utf-8")
+    with pytest.raises(StoragePathError, match="Suspicious durable-artifact path under internal storage"):
+        layout.validate_commit_target(hidden_results)
+
+    artifact_like = layout.internal_root / "paper" / "main.tex"
+    artifact_like.parent.mkdir(parents=True)
+    artifact_like.write_text("\\documentclass{article}\n", encoding="utf-8")
+    with pytest.raises(StoragePathError, match="Artifact-like file stored under internal metadata directories"):
+        layout.validate_commit_target(artifact_like)
+
+    with pytest.raises(StoragePathError, match="scratch directories"):
+        layout.validate_commit_target("tmp/final.csv")
+
+
 def test_check_user_output_reports_warning_without_raising_for_off_policy_but_project_local_paths(tmp_path: Path) -> None:
     layout = _make_layout(tmp_path)
 
@@ -213,7 +269,17 @@ def test_check_user_output_reports_warning_without_raising_for_off_policy_but_pr
 
     assert check.ok is False
     assert check.classification == StorageClass.PROJECT_LOCAL_OTHER
-    assert any("stable project directory" in warning for warning in check.warnings)
+    assert any("custom project directory" in warning for warning in check.warnings)
+
+
+def test_check_user_output_warns_for_project_local_temp_dir(tmp_path: Path) -> None:
+    layout = _make_layout(tmp_path)
+
+    check = layout.check_user_output("tmp/final.json", kind=DurableOutputKind.EXPORTS)
+
+    assert check.ok is False
+    assert check.classification == StorageClass.PROJECT_LOCAL_OTHER
+    assert any("tmp/temp/scratch" in warning for warning in check.warnings)
 
 
 def test_check_user_output_warns_when_project_root_is_temporary(
@@ -240,14 +306,22 @@ def test_audit_storage_warnings_flags_hidden_results_and_scratch_outputs(tmp_pat
     hidden_results = layout.internal_root / "phases" / "01-setup" / "results"
     hidden_results.mkdir(parents=True)
     (hidden_results / "out.json").write_text("{}", encoding="utf-8")
+    artifact_like = layout.internal_root / "paper" / "main.tex"
+    artifact_like.parent.mkdir(parents=True)
+    artifact_like.write_text("\\documentclass{article}\n", encoding="utf-8")
     scratch_output = layout.scratch_dir / "final.csv"
     scratch_output.parent.mkdir(parents=True, exist_ok=True)
     scratch_output.write_text("x,y\n", encoding="utf-8")
+    project_scratch_output = layout.root / "tmp" / "final.csv"
+    project_scratch_output.parent.mkdir(parents=True, exist_ok=True)
+    project_scratch_output.write_text("x,y\n", encoding="utf-8")
 
     warnings = layout.audit_storage_warnings()
 
     assert any(".gpd/phases/01-setup/results/out.json" in warning for warning in warnings)
+    assert any(".gpd/paper/main.tex" in warning for warning in warnings)
     assert any(".gpd/tmp/final.csv" in warning for warning in warnings)
+    assert any("tmp/final.csv" in warning for warning in warnings)
 
 
 def test_resolve_anchors_relative_paths_at_project_root(tmp_path: Path) -> None:

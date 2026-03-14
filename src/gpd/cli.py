@@ -3133,7 +3133,16 @@ def paper_build(
     if not output_path.is_absolute():
         output_path = _get_cwd() / output_path
     output_path = output_path.resolve(strict=False)
-    storage_check = ProjectStorageLayout(_get_cwd()).check_user_output(output_path, kind=DurableOutputKind.PAPER)
+    storage_layout = ProjectStorageLayout(_get_cwd())
+    storage_layout.validate_final_output(output_path)
+    storage_check = storage_layout.check_user_output(
+        output_path,
+        preferred_kinds=(
+            DurableOutputKind.PAPER,
+            DurableOutputKind.MANUSCRIPT,
+            DurableOutputKind.DRAFT,
+        ),
+    )
 
     bib_source = _resolve_bibliography_path(
         explicit_path=bibliography,
@@ -3423,7 +3432,7 @@ def pre_commit_check(
 ) -> None:
     """Run pre-commit validation on planning files.
 
-    Checks frontmatter YAML validity and detects NaN/Inf values.
+    Checks storage-path policy, frontmatter YAML validity, and NaN/Inf values.
     If --files is omitted, validates the currently staged files.
 
     Examples::

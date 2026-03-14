@@ -380,13 +380,24 @@ cd exports && tar -czf results.tar.gz README.md scripts/ data/ summaries/ PROJEC
 Commit the HTML and LaTeX exports. Do NOT commit ZIP/tar.gz archives (binary artifacts that bloat git).
 
 ```bash
-# Only commit text-format exports
-PRE_CHECK=$(gpd pre-commit-check --files exports/results.html exports/results.tex exports/results.bib 2>&1) || true
-echo "$PRE_CHECK"
+# Only commit text-format exports that were actually generated
+COMMIT_FILES=()
+for path in exports/results.html exports/results.tex exports/results.bib; do
+  if [ -f "$path" ]; then
+    COMMIT_FILES+=("$path")
+  fi
+done
 
-gpd commit \
-  "docs: export research results" \
-  --files exports/results.html exports/results.tex exports/results.bib
+if [ ${#COMMIT_FILES[@]} -gt 0 ]; then
+  PRE_CHECK=$(gpd pre-commit-check --files "${COMMIT_FILES[@]}" 2>&1) || true
+  echo "$PRE_CHECK"
+
+  gpd commit \
+    "docs: export research results" \
+    --files "${COMMIT_FILES[@]}"
+else
+  echo "No text exports generated; nothing to commit."
+fi
 ```
 
 The `commit` CLI respects `commit_docs` from config internally — if disabled, the commit is automatically skipped.

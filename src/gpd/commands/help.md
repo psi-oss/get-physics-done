@@ -755,7 +755,7 @@ Reapply local modifications after a GPD update.
 Usage: `/gpd:reapply-patches`
 
 **`/gpd:health`**
-Run comprehensive project health checks.
+Run comprehensive project health checks, including storage-path policy auditing.
 
 - Validates state.json, STATE.md sync, convention locks, config.json, orphaned phases, ROADMAP.md consistency, missing plans, stale artifacts, and git status
 - Use `--fix` to auto-repair detected issues

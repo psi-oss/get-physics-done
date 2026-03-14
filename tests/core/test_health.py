@@ -104,6 +104,21 @@ class TestCheckStoragePaths:
         assert result.status == CheckStatus.OK
         assert result.details["warning_count"] == 0
 
+    def test_temp_root_project_warns_even_without_hidden_artifacts(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        temp_root = tmp_path / "runtime-temp"
+        temp_root.mkdir()
+        monkeypatch.setattr(ProjectStorageLayout, "temp_roots", lambda self: (temp_root.resolve(strict=False),))
+        temp_project = temp_root / "project"
+        temp_project.mkdir()
+
+        result = check_storage_paths(_bootstrap_health_project(temp_project))
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["temporary_project_root"] is True
+        assert any("Project root is under a temporary directory" in warning for warning in result.warnings)
+
     def test_hidden_results_and_scratch_outputs_warn(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         hidden_results = cwd / ".gpd" / "phases" / "01-setup" / "results"

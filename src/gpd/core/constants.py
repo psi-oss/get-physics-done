@@ -51,6 +51,7 @@ __all__ = [
     "RESEARCH_MAP_DIR_NAME",
     "RESEARCH_SUFFIX",
     "ROADMAP_FILENAME",
+    "SCRATCH_DIR_NAME",
     "SEED_PATTERN_INITIAL_OCCURRENCES",
     "SPECS_REFERENCES_DIR",
     "SPECS_TEMPLATES_DIR",
@@ -142,6 +143,9 @@ LITERATURE_DIR_NAME = "literature"
 
 RESEARCH_MAP_DIR_NAME = "research-map"
 """Subdirectory under .gpd/ for theory/research map files."""
+
+SCRATCH_DIR_NAME = "tmp"
+"""Subdirectory under .gpd/ for transient scratch files."""
 
 ACTIVE_TRACE_FILENAME = ".active-trace"
 """Marker file in traces/ indicating the currently recording trace."""
@@ -426,6 +430,10 @@ class ProjectLayout:
     @property
     def research_map_dir(self) -> Path:
         return self.gpd / RESEARCH_MAP_DIR_NAME
+
+    @property
+    def scratch_dir(self) -> Path:
+        return self.gpd / SCRATCH_DIR_NAME
 
     # ── Derived paths ─────────────────────────────────────────────────────
 

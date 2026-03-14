@@ -1,7 +1,7 @@
 """Git operations for GPD — commit and pre-commit checks.
 
 Provides:
-  cmd_pre_commit_check — validate frontmatter and detect non-finite values
+  cmd_pre_commit_check — validate storage paths, frontmatter, and non-finite values
   cmd_commit — stage files, enforce pre-commit checks, and create a git commit
 
 Layer 1 code: stdlib + pathlib + pydantic only (plus yaml for frontmatter).
@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from gpd.core.constants import PLANNING_DIR_NAME
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
+from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
 
 __all__ = [
     "CommitResult",
@@ -42,6 +43,8 @@ class FileCheckDetail(BaseModel):
     exists: bool = True
     regular_file: bool = True
     readable: bool = True
+    storage_valid: bool | None = None
+    storage_class: str | None = None
     frontmatter_valid: bool | None = None
     has_nan: bool = False
     warnings: list[str] = Field(default_factory=list)
@@ -282,7 +285,18 @@ def _check_json(content: str, detail: FileCheckDetail) -> None:
         _mark_nonfinite(detail)
 
 
-def _check_single_file(cwd: Path, file_path: str) -> FileCheckDetail:
+def _check_storage_path(layout: ProjectStorageLayout, full_path: Path, detail: FileCheckDetail) -> None:
+    """Validate that the file path itself is safe to commit."""
+    detail.storage_class = layout.classify(full_path).value
+    try:
+        layout.validate_commit_target(full_path)
+        detail.storage_valid = True
+    except StoragePathError as exc:
+        detail.storage_valid = False
+        detail.warnings.append(str(exc))
+
+
+def _check_single_file(cwd: Path, file_path: str, *, layout: ProjectStorageLayout) -> FileCheckDetail:
     """Run pre-commit checks on a single file."""
     detail = FileCheckDetail(file=file_path)
     full_path = Path(file_path) if Path(file_path).is_absolute() else cwd / file_path
@@ -296,6 +310,8 @@ def _check_single_file(cwd: Path, file_path: str) -> FileCheckDetail:
         detail.regular_file = False
         detail.warnings.append(f"Not a regular file: {file_path}")
         return detail
+
+    _check_storage_path(layout, full_path.resolve(strict=False), detail)
 
     try:
         content = full_path.read_text(encoding="utf-8")
@@ -325,33 +341,35 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
     """Run pre-commit validation checks on planning files.
 
     Checks:
-    1. Frontmatter YAML validity (for .md files)
-    2. NaN/Inf detection in serialized file content
+    1. Storage-path policy for commit targets
+    2. Frontmatter YAML validity (for .md files)
+    3. NaN/Inf detection in serialized file content
 
     Behavior:
     - If *files* is empty, validates the currently staged files.
     - Directory inputs are expanded recursively to regular files.
-
-    Returns a result with per-file details and overall pass/fail.
+    - Blocks scratch/internal artifact paths while allowing normal `.gpd` docs.
     """
     resolved_files = _expand_check_inputs(cwd, files)
     if not resolved_files:
         return PreCommitCheckResult(passed=True, files_checked=0)
 
+    layout = ProjectStorageLayout(cwd)
     details: list[FileCheckDetail] = []
     all_warnings: list[str] = []
 
     for file_path in resolved_files:
-        detail = _check_single_file(cwd, file_path)
+        detail = _check_single_file(cwd, file_path, layout=layout)
         details.append(detail)
         all_warnings.extend(detail.warnings)
 
     # Determine overall pass/fail
-    # Fail on: invalid frontmatter, NaN detected, missing files
+    # Fail on: storage violations, invalid frontmatter, NaN detected, missing files
     passed = all(
         detail.exists
         and detail.regular_file
         and detail.readable
+        and detail.storage_valid is not False
         and detail.frontmatter_valid is not False
         and not detail.has_nan
         for detail in details

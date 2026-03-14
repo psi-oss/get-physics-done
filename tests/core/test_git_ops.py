@@ -143,6 +143,42 @@ class TestPreCommitCheck:
         assert result.files_checked == 1
         assert result.details[0].file == "docs/ok.md"
 
+    def test_scratch_commit_target_fails_storage_validation(self, tmp_path: Path) -> None:
+        target = tmp_path / ".gpd" / "tmp" / "final.csv"
+        target.parent.mkdir(parents=True)
+        target.write_text("x,y\n", encoding="utf-8")
+
+        result = cmd_pre_commit_check(tmp_path, [".gpd/tmp/final.csv"])
+
+        assert result.passed is False
+        assert result.details[0].storage_valid is False
+        assert result.details[0].storage_class == "scratch"
+        assert any("scratch directories" in warning for warning in result.warnings)
+
+    def test_project_local_tmp_commit_target_fails_storage_validation(self, tmp_path: Path) -> None:
+        target = tmp_path / "tmp" / "final.csv"
+        target.parent.mkdir(parents=True)
+        target.write_text("x,y\n", encoding="utf-8")
+
+        result = cmd_pre_commit_check(tmp_path, ["tmp/final.csv"])
+
+        assert result.passed is False
+        assert result.details[0].storage_valid is False
+        assert result.details[0].storage_class == "project_local_other"
+        assert any("scratch directories" in warning for warning in result.warnings)
+
+    def test_internal_artifact_commit_target_fails_storage_validation(self, tmp_path: Path) -> None:
+        target = tmp_path / ".gpd" / "paper" / "main.tex"
+        target.parent.mkdir(parents=True)
+        target.write_text("\\documentclass{article}\n", encoding="utf-8")
+
+        result = cmd_pre_commit_check(tmp_path, [".gpd/paper/main.tex"])
+
+        assert result.passed is False
+        assert result.details[0].storage_valid is False
+        assert result.details[0].storage_class == "internal_durable"
+        assert any("internal metadata directories" in warning for warning in result.warnings)
+
 
 # ---------------------------------------------------------------------------
 # Commit — unit tests (mocked git)
