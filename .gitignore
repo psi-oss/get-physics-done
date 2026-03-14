@@ -1,3 +1,4 @@
+.DS_Store
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -7,8 +8,7 @@ build/
 .venv/
 .env
 *.log
-.gpd/observability/
-.gpd/state.json.bak
+.gpd/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
