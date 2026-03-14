@@ -147,10 +147,10 @@ def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence()
     assert "temporary JSON file if needed" not in workflow
 
 
-def test_compare_branches_prompt_prefers_in_memory_parsing_and_project_local_scratch() -> None:
+def test_compare_branches_prompt_keeps_branch_summary_extraction_in_memory() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/compare-branches.md").read_text(encoding="utf-8")
 
     assert "Prefer parsing the `git show` output directly in memory." in workflow
-    assert 'SCRATCH_SUMMARY=".gpd/tmp/gpd-branch-summary.md"' in workflow
-    assert 'rm -f "${SCRATCH_SUMMARY}"' in workflow
-    assert "Do not use `/tmp` or another OS temp root for branch-summary extraction." in workflow
+    assert "do not write it to `.gpd/tmp/` just to run a path-based extractor." in workflow
+    assert "Keep branch-summary extraction in memory/stdout only" in workflow
+    assert "do not use `.gpd/tmp/`, `/tmp`, or another temp root for this step." in workflow
