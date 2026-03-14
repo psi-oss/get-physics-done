@@ -99,35 +99,35 @@
 
 | Requirement | Phase | Status |
 |---|---|---|
-| CODE-01 | TBD | Pending |
-| CODE-02 | TBD | Pending |
-| CODE-03 | TBD | Pending |
-| FEAS-01 | TBD | Pending |
-| FEAS-02 | TBD | Pending |
-| FEAS-03 | TBD | Pending |
-| FEAS-04 | TBD | Pending |
-| FEAS-05 | TBD | Pending |
-| FEAS-06 | TBD | Pending |
-| WIDX-01 | TBD | Pending |
-| WIDX-02 | TBD | Pending |
-| WIDX-03 | TBD | Pending |
-| VALD-01 | TBD | Pending |
-| VALD-02 | TBD | Pending |
-| VALD-03 | TBD | Pending |
-| VALD-04 | TBD | Pending |
-| VALD-05 | TBD | Pending |
-| VALD-06 | TBD | Pending |
-| VALD-07 | TBD | Pending |
-| VALD-08 | TBD | Pending |
-| DLVR-01 | TBD | Pending |
+| CODE-01 | Phase 1: Setup & Parent Validation | Pending |
+| CODE-02 | Phase 2: Orbifold Implementation | Pending |
+| CODE-03 | Phase 2: Orbifold Implementation | Pending |
+| FEAS-01 | Phase 3: Sign Problem Feasibility | Pending |
+| FEAS-02 | Phase 2: Orbifold Implementation | Pending |
+| FEAS-03 | Phase 3: Sign Problem Feasibility | Pending |
+| FEAS-04 | Phase 3: Sign Problem Feasibility | Pending |
+| FEAS-05 | Phase 3: Sign Problem Feasibility | Pending |
+| FEAS-06 | Phase 3: Sign Problem Feasibility | Pending |
+| WIDX-01 | Phase 4: Witten Index Computation | Pending |
+| WIDX-02 | Phase 4: Witten Index Computation | Pending |
+| WIDX-03 | Phase 4: Witten Index Computation | Pending |
+| VALD-01 | Phase 5: Systematic Validation | Pending |
+| VALD-02 | Phase 5: Systematic Validation | Pending |
+| VALD-03 | Phase 5: Systematic Validation | Pending |
+| VALD-04 | Phase 1: Setup & Parent Validation | Pending |
+| VALD-05 | Phase 5: Systematic Validation | Pending |
+| VALD-06 | Phase 5: Systematic Validation | Pending |
+| VALD-07 | Phase 4: Witten Index Computation | Pending |
+| VALD-08 | Phase 2: Orbifold Implementation | Pending |
+| DLVR-01 | Phase 6: Analysis & Publication | Pending |
 
 **Coverage:**
 
 - Primary requirements: 21 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 21
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-03-13_
-_Last updated: 2026-03-13 after initial definition_
+_Last updated: 2026-03-13 after roadmap creation_
