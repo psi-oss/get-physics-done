@@ -144,13 +144,14 @@ AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --def
 **Spawn investigation agents in parallel:**
 
 For each gap, fill the debug subagent prompt template (see `{GPD_INSTALL_DIR}/templates/debug-subagent-prompt.md` for the full template with placeholders, continuation format, and failure protocol) and spawn:
-> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\n" + filled_investigation_subagent_prompt,
   subagent_type="gpd-debugger",
   model="{debugger_model}",
+  readonly=false,
   description="Investigate: {truth_short}"
 )
 ```

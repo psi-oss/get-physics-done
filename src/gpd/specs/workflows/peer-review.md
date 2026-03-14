@@ -165,12 +165,13 @@ Resolve reader model:
 READ_MODEL=$(gpd resolve-model gpd-review-reader)
 ```
 
-> **Runtime delegation:** Spawn a fresh subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. If subagent spawning is unavailable, execute these steps sequentially in the main context.
+> **Runtime delegation:** Spawn a fresh subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
 task(
   subagent_type="gpd-review-reader",
   model="{read_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-reader.md for your role and instructions.
 
 Operate in manuscript-reader stage mode. This stage must start nearly fresh and remain manuscript-first.
@@ -214,6 +215,7 @@ Stage 2 prompt:
 task(
   subagent_type="gpd-review-literature",
   model="{literature_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-literature.md for your role and instructions.
 
 Operate in literature-context stage mode with a fresh context.
@@ -246,6 +248,7 @@ Stage 3 prompt:
 task(
   subagent_type="gpd-review-math",
   model="{math_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-math.md for your role and instructions.
 
 Operate in mathematical-soundness stage mode with a fresh context.
@@ -287,6 +290,7 @@ PHYSICS_MODEL=$(gpd resolve-model gpd-review-physics)
 task(
   subagent_type="gpd-review-physics",
   model="{physics_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-physics.md for your role and instructions.
 
 Operate in physical-soundness stage mode with a fresh context.
@@ -338,6 +342,7 @@ SIGNIFICANCE_MODEL=$(gpd resolve-model gpd-review-significance)
 task(
   subagent_type="gpd-review-significance",
   model="{significance_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-significance.md for your role and instructions.
 
 Operate in interestingness-and-venue-fit stage mode with a fresh context.
@@ -380,6 +385,7 @@ REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 task(
   subagent_type="gpd-referee",
   model="{referee_model}",
+  readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
 
 Act as the final adjudicating referee for the staged peer-review panel.
