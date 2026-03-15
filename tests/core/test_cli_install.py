@@ -13,7 +13,6 @@ Covers:
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -186,11 +185,11 @@ def test_install_banner_uses_display_names(tmp_path: Path):
     assert "Installing GPD (local) for: claude-code" not in result.output
 
 
-def test_format_install_header_lines_uses_timestamped_psi_branding() -> None:
-    """Interactive install header should use the compact PSI-branded format."""
-    assert _format_install_header_lines("1.0.0", now=datetime(2026, 3, 14, 20, 24)) == (
-        "[8:24 PM]GPD v1.0.0 - Get Physics Done, by Physical Superintelligence PBC (PSI)",
-        "[8:24 PM](c) 2026 Physical Superintelligence PBC",
+def test_format_install_header_lines_uses_psi_branding() -> None:
+    """Interactive install header should use the branded PSI wording."""
+    assert _format_install_header_lines("1.0.0") == (
+        "GPD v1.0.0 - Get Physics Done",
+        "by Physical Superintelligence PBC (PSI) · © 2026",
     )
 
 
@@ -339,9 +338,10 @@ def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
         result = runner.invoke(app, ["install"], input="1\n1\n")
 
     assert result.exit_code == 0
-    assert "Get Physics Done, by Physical Superintelligence PBC (PSI)" in result.output
-    assert "(c) 2026 Physical Superintelligence PBC" in result.output
-    assert "██████" not in result.output
+    assert "GPD v" in result.output
+    assert "by Physical Superintelligence PBC (PSI) · © 2026" in result.output
+    assert "Get Physics Done, by Physical Superintelligence PBC (PSI)" not in result.output
+    assert "██████" in result.output
 
 
 # ─── 6. --raw output ────────────────────────────────────────────────────────
