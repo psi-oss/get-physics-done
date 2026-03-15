@@ -967,10 +967,10 @@ def write_manifest(
         for rel, h in generate_manifest(commands_dir).items():
             files["commands/gpd/" + rel] = h
 
-    # agents/gpd-*.md
+    # agents/gpd-*.(md|toml)
     if agents_dir.exists():
         for f in sorted(agents_dir.iterdir()):
-            if f.name.startswith("gpd-") and f.suffix == ".md":
+            if f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
                 files["agents/" + f.name] = file_hash(f)
 
     # hooks/
@@ -1054,7 +1054,7 @@ def _managed_install_paths(
     agents_dir = config_dir / "agents"
     if agents_dir.exists():
         for entry in sorted(agents_dir.iterdir()):
-            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix == ".md":
+            if entry.is_file() and entry.name.startswith("gpd-") and entry.suffix in {".md", ".toml"}:
                 managed_paths.append(f"agents/{entry.name}")
 
     hooks_dir = config_dir / "hooks"

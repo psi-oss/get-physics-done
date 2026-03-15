@@ -160,7 +160,7 @@ class TestConvertToCodexSkill:
 
 
 class TestInstall:
-    def test_local_install_uses_shared_skills_dir_by_default(
+    def test_local_install_uses_repo_scoped_skills_dir_by_default(
         self,
         adapter: CodexAdapter,
         gpd_root: Path,
@@ -176,9 +176,11 @@ class TestInstall:
         monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
 
         result = adapter.install(gpd_root, target, is_global=False)
+        local_skills = tmp_path / ".agents" / "skills"
 
-        assert result["skills_dir"] == str(shared_skills)
-        assert any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
+        assert result["skills_dir"] == str(local_skills)
+        assert any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
+        assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -197,14 +199,12 @@ class TestInstall:
         self,
         adapter: CodexAdapter,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
         target = tmp_path / ".codex"
         target.mkdir()
-        shared_skills = tmp_path / "shared-skills"
-        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
         adapter.install(gpd_root, target, is_global=False)
+        local_skills = tmp_path / ".agents" / "skills"
 
         launcher = target / "get-physics-done" / "bin" / "gpd"
         launcher_text = launcher.read_text(encoding="utf-8")
@@ -217,7 +217,7 @@ class TestInstall:
         assert oct(launcher.stat().st_mode & 0o777) == "0o755"
 
         expected_launcher = expected_codex_launcher(target)
-        skill = (shared_skills / "gpd-set-profile" / "SKILL.md").read_text(encoding="utf-8")
+        skill = (local_skills / "gpd-set-profile" / "SKILL.md").read_text(encoding="utf-8")
         workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
@@ -274,6 +274,22 @@ class TestInstall:
         agent_files = list(agents_dir.glob("gpd-*.md"))
         assert len(agent_files) >= 2
 
+    def test_install_writes_agent_role_config_files(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        executor_role = target / "agents" / "gpd-executor.toml"
+        assert executor_role.exists()
+        parsed = tomllib.loads(executor_role.read_text(encoding="utf-8"))
+        assert parsed["sandbox_mode"] == "workspace-write"
+        assert (target / "agents" / "gpd-executor.md").resolve().as_posix() in parsed["developer_instructions"]
+
     def test_install_preserves_shell_placeholders_for_codex_agents(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
@@ -327,6 +343,23 @@ class TestInstall:
         assert expected_notify in content
         assert "[features]" in content
         assert "multi_agent = true" in content
+        assert "[agents.gpd-executor]" in content
+        assert 'config_file = "agents/gpd-executor.toml"' in content
+
+    def test_install_registers_agent_roles_in_config_toml(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert parsed["agents"]["gpd-executor"]["config_file"] == "agents/gpd-executor.toml"
+        assert parsed["agents"]["gpd-verifier"]["config_file"] == "agents/gpd-verifier.toml"
+        assert parsed["agents"]["gpd-executor"]["description"]
 
     def test_install_writes_codex_mcp_startup_timeout(
         self,
@@ -378,12 +411,9 @@ class TestInstall:
         adapter: CodexAdapter,
         gpd_root: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         target = tmp_path / "custom-codex"
         target.mkdir()
-        shared_skills = tmp_path / "shared-skills"
-        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
         real_gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
 
         adapter.install(real_gpd_root, target, is_global=False, explicit_target=True)
@@ -456,6 +486,7 @@ class TestInstall:
         assert result["runtime"] == "codex"
         assert result["skills"] > 0
         assert result["agents"] > 0
+        assert result["agentRoles"] > 0
 
     def test_install_nested_commands_flattened(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -606,7 +637,7 @@ class TestUninstall:
         )
         assert (preserved_skill / "SKILL.md").exists()
 
-    def test_local_uninstall_uses_shared_skills_dir_by_default(
+    def test_local_uninstall_uses_repo_scoped_skills_dir_by_default(
         self,
         adapter: CodexAdapter,
         gpd_root: Path,
@@ -623,8 +654,9 @@ class TestUninstall:
 
         adapter.install(gpd_root, target, is_global=False)
         adapter.uninstall(target)
+        local_skills = tmp_path / ".agents" / "skills"
 
-        assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
+        assert not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -649,12 +681,14 @@ class TestUninstall:
 
         # Add non-GPD agent to make sure it survives
         (target / "agents" / "custom.md").write_text("keep", encoding="utf-8")
+        (target / "agents" / "custom.toml").write_text('developer_instructions = "keep"\n', encoding="utf-8")
 
         adapter.uninstall(target, skills_dir=skills)
 
         agents_dir = target / "agents"
         assert not any(f.name.startswith("gpd-") for f in agents_dir.iterdir())
         assert (agents_dir / "custom.md").exists()
+        assert (agents_dir / "custom.toml").exists()
 
     def test_uninstall_cleans_toml(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -700,6 +734,28 @@ class TestUninstall:
         assert "gpd-style naming" in content
         assert 'custom = "my-gpd-tool"' in content
         assert f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]' in content
+
+    def test_uninstall_preserves_non_gpd_agent_roles(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "config.toml").write_text(
+            '[agents.reviewer]\n'
+            'description = "Code reviewer"\n'
+            'config_file = "agents/reviewer.toml"\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.uninstall(target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert parsed["agents"]["reviewer"]["config_file"] == "agents/reviewer.toml"
+        assert "gpd-executor" not in parsed["agents"]
+        assert "gpd-verifier" not in parsed["agents"]
 
     def test_uninstall_removes_gpd_comment_with_notify(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         """The '# GPD update notification' comment should be cleaned alongside the notify line."""

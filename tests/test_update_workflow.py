@@ -44,8 +44,7 @@ def test_default_local_install_keeps_local_update_scope_and_manifest(
     target.mkdir(parents=True)
 
     if runtime == "codex":
-        shared_skills = tmp_path / ".agents" / "skills"
-        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(tmp_path / "shared-skills"))
 
     adapter.install(GPD_ROOT, target, is_global=False)
 
@@ -55,6 +54,8 @@ def test_default_local_install_keeps_local_update_scope_and_manifest(
     assert 'INSTALL_SCOPE="--local"' in content
     assert 'INSTALL_SCOPE="--global"' not in content
     assert manifest["install_scope"] == "local"
+    if runtime == "codex":
+        assert manifest["codex_skills_dir"] == str(tmp_path / ".agents" / "skills")
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])

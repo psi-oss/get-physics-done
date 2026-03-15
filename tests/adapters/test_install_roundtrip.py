@@ -424,6 +424,14 @@ class TestCodexRoundtrip:
         dest_agents = sorted(f.name for f in agents_dir.glob("*.md"))
         assert dest_agents == src_agents
 
+    def test_agent_role_configs_installed(self, installed: tuple[Path, Path], gpd_root: Path) -> None:
+        """Each installed Codex agent also gets a role config TOML."""
+        target, _ = installed
+        agents_dir = target / "agents"
+        src_agent_names = sorted(f.stem for f in (gpd_root / "agents").glob("*.md"))
+        dest_role_names = sorted(f.stem for f in agents_dir.glob("gpd-*.toml"))
+        assert dest_role_names == src_agent_names
+
     def test_gpd_content_installed(self, installed: tuple[Path, Path]) -> None:
         """get-physics-done/ has expected content."""
         target, _ = installed
@@ -460,6 +468,7 @@ class TestCodexRoundtrip:
         content = toml_path.read_text(encoding="utf-8")
         assert "notify" in content
         assert "multi_agent = true" in content
+        assert "[agents.gpd-executor]" in content
 
     def test_manifest_tracks_skills(self, installed: tuple[Path, Path]) -> None:
         """File manifest includes skill entries."""

@@ -315,6 +315,7 @@ class TestCodexLifecycle:
         # The full GPD agent catalog still installs as agent .md files.
         agents_dir = target / "agents"
         assert agents_dir.is_dir()
+        assert (agents_dir / "gpd-planner.toml").exists()
 
         # get-physics-done content
         assert (target / "get-physics-done").is_dir()
@@ -325,12 +326,14 @@ class TestCodexLifecycle:
         toml_content = (target / "config.toml").read_text(encoding="utf-8")
         assert "notify" in toml_content
         assert "multi_agent = true" in toml_content
+        assert "[agents.gpd-planner]" in toml_content
 
         # Manifest
         assert (target / MANIFEST_NAME).exists()
 
         # Result dict
         assert result["runtime"] == "codex"
+        assert result["agentRoles"] > 0
 
     def test_codex_skills_have_hyphen_names(self, tmp_path: Path, gpd_root: Path) -> None:
         """Codex skill names should be hyphen-case (a-z0-9-)."""

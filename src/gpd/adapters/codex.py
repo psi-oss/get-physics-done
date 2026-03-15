@@ -1,12 +1,14 @@
 """OpenAI Codex CLI runtime adapter.
 
-Codex CLI uses SKILLS (not commands). Each skill is a directory under
-~/.agents/skills/<skill-name>/SKILL.md with YAML frontmatter.
+Codex CLI uses skills (not commands). GPD installs them into repo-local
+``.agents/skills/`` for local installs and the shared user-level skills
+directory for global installs.
 
 Config directory: CODEX_CONFIG_DIR env var > ~/.codex
-Skills directory: CODEX_SKILLS_DIR env var > ~/.agents/skills/
+Global skills directory: CODEX_SKILLS_DIR env var > ~/.agents/skills/
 
-Hooks and feature flags go into config.toml (TOML format), not settings.json.
+Hooks, feature flags, and agent role registrations go into config.toml
+(TOML format), not settings.json.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
 from gpd.core.observability import gpd_span
-from gpd.registry import AgentDef
+from gpd.registry import AgentDef, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 _GPD_NOTIFY_WRAPPER_MARKER = "gpd-codex-notify-wrapper-v1"
 _GPD_MULTI_AGENT_COMMENT = "# GPD multi-agent support"
 _GPD_MULTI_AGENT_BACKUP_PREFIX = "# GPD original multi_agent: "
+_GPD_AGENT_ROLES_COMMENT = "# GPD agent roles"
 _MANIFEST_CODEX_SKILLS_DIR_KEY = "codex_skills_dir"
 _TOOL_REFERENCE_MAP = reference_translation_map(
     _TOOL_NAME_MAP,
@@ -108,14 +111,22 @@ def get_codex_skills_dir() -> Path:
     return Path.home() / ".agents" / "skills"
 
 
+def _default_local_codex_skills_dir(target_dir: Path) -> Path:
+    """Return the repo-scoped Codex skills dir adjacent to *target_dir*."""
+    return target_dir.parent / ".agents" / "skills"
+
+
 def _resolve_codex_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: Path | None = None) -> Path:
     """Resolve the skills directory for an install/uninstall target.
 
-    Codex discovers skills from the shared skills directory only, so both local
-    and global installs default there unless the caller overrides it.
+    Global installs default to the shared user-level skills directory. Local
+    installs default to a repo-scoped ``.agents/skills`` sibling so the skill
+    surface stays aligned with the matching ``.codex`` config tree.
     """
     if skills_dir is not None:
         return skills_dir
+    if not is_global:
+        return _default_local_codex_skills_dir(target_dir)
     return get_codex_skills_dir()
 
 
@@ -454,12 +465,12 @@ class CodexAdapter(RuntimeAdapter):
     """Adapter for OpenAI Codex CLI.
 
     Codex uses a SKILLS model:
-    - Commands -> skill directories under ~/.agents/skills/<name>/SKILL.md
-    - Public agents -> skill directories under ~/.agents/skills/<name>/SKILL.md
-    - All agents -> agent .md files under ~/.codex/agents/
+    - Commands -> skill directories under repo/user .agents/skills/<name>/SKILL.md
+    - Public agents -> skill directories under repo/user .agents/skills/<name>/SKILL.md
+    - All agents -> agent .md + role .toml files under .codex/agents/
     - Hooks -> config.toml ``notify`` array (not settings.json)
     - Config -> ~/.codex/ (CODEX_CONFIG_DIR env var)
-    - Skills -> ~/.agents/skills/ (CODEX_SKILLS_DIR env var)
+    - Skills -> repo-local .agents/skills/ for local installs, ~/.agents/skills/ for global installs
     """
 
     tool_name_map = _TOOL_NAME_MAP
@@ -604,6 +615,7 @@ class CodexAdapter(RuntimeAdapter):
                 self._current_install_scope_flag(),
                 launcher=launcher,
             )
+            _write_codex_agent_role_files(agents_dest, runtime_agents)
             if verify_installed(agents_dest, "agents"):
                 logger.info("Installed agents")
             else:
@@ -633,18 +645,38 @@ class CodexAdapter(RuntimeAdapter):
         mcp_count = 0
         if mcp_servers:
             mcp_count = _write_mcp_servers_codex_toml(target_dir, mcp_servers)
+        agent_role_count = _write_codex_agent_roles_toml(target_dir)
 
         return {
             "target": str(target_dir),
             "skills_dir": str(self._skills_dir),
             "skills": sum(1 for d in self._skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")),
             "mcpServers": mcp_count,
+            "agentRoles": agent_role_count,
         }
 
     def _verify(self, target_dir: Path) -> None:
-        """Verify the Codex install includes the pinned GPD launcher."""
+        """Verify the Codex install includes the pinned GPD launcher and agent roles."""
         if not _managed_codex_cli_launcher_path(target_dir).exists():
             raise RuntimeError("Codex install incomplete: pinned GPD launcher is not installed")
+        agents_dir = target_dir / "agents"
+        installed_agent_names = {path.stem for path in agents_dir.glob("gpd-*.md")}
+        installed_role_names = {path.stem for path in agents_dir.glob("gpd-*.toml")}
+        if installed_agent_names and installed_role_names != installed_agent_names:
+            raise RuntimeError("Codex install incomplete: GPD agent role files are not installed")
+        config_toml = target_dir / "config.toml"
+        if not config_toml.exists():
+            raise RuntimeError("Codex install incomplete: config.toml is not installed")
+        try:
+            parsed = tomllib.loads(config_toml.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as exc:
+            raise RuntimeError("Codex install incomplete: config.toml is invalid") from exc
+        agents = parsed.get("agents")
+        registered_roles = {
+            name for name, value in agents.items() if name.startswith("gpd-") and isinstance(value, dict)
+        } if isinstance(agents, dict) else set()
+        if installed_agent_names and not installed_agent_names.issubset(registered_roles):
+            raise RuntimeError("Codex install incomplete: GPD agent roles are not registered")
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         write_manifest(
@@ -699,11 +731,11 @@ class CodexAdapter(RuntimeAdapter):
                 shutil.rmtree(patches)
                 removed.append(f"{PATCHES_DIR_NAME}/")
 
-            # 4. Remove GPD agent files (gpd-*.md only)
+            # 4. Remove GPD agent files (gpd-*.md and managed role .toml files)
             agents_dir = target_dir / "agents"
             if agents_dir.exists():
                 for f in list(agents_dir.iterdir()):
-                    if f.is_file() and f.name.startswith("gpd-") and f.suffix == ".md":
+                    if f.is_file() and f.name.startswith("gpd-") and f.suffix in {".md", ".toml"}:
                         f.unlink()
                         counts["agents"] += 1
 
@@ -732,6 +764,7 @@ class CodexAdapter(RuntimeAdapter):
                 toml_content = config_toml.read_text(encoding="utf-8")
                 cleaned = _remove_gpd_notify_config(toml_content, target_dir=target_dir)
                 cleaned = _remove_gpd_multi_agent_config(cleaned)
+                cleaned = _remove_gpd_agent_role_sections(cleaned)
                 if cleaned != toml_content:
                     config_toml.write_text(cleaned, encoding="utf-8")
                     removed.append("config.toml GPD entries")
@@ -921,6 +954,21 @@ def _toml_assignment_key(line: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _parse_toml_string_assignment(line: str, key: str) -> str | None:
+    stripped = line.strip()
+    if not (stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=")):
+        return None
+    try:
+        parsed = tomllib.loads(f"[section]\n{stripped}\n")
+    except tomllib.TOMLDecodeError:
+        return None
+    section = parsed.get("section")
+    if not isinstance(section, dict):
+        return None
+    value = section.get(key)
+    return value if isinstance(value, str) else None
+
+
 def _split_preserved_toml_lines(
     existing_lines: list[str] | None,
     *,
@@ -1002,6 +1050,73 @@ def _build_codex_mcp_server_section_lines(
     return lines
 
 
+def _codex_agent_role_config_rel_path(agent_name: str) -> str:
+    return f"agents/{agent_name}.toml"
+
+
+def _codex_agent_role_config_path(target_dir: Path, agent_name: str) -> Path:
+    return target_dir / "agents" / f"{agent_name}.toml"
+
+
+def _build_codex_agent_role_instructions(agent_name: str, agent_markdown_path: Path) -> str:
+    agent_path = agent_markdown_path.resolve(strict=False).as_posix()
+    return (
+        f"You are the `{agent_name}` role for Get Physics Done (GPD).\n"
+        f'Before doing any substantive work, read and follow the installed role brief at "{agent_path}".\n'
+        "Treat that markdown file as the authoritative role contract for scope, workflow, and output expectations."
+    )
+
+
+def _write_codex_agent_role_files(agents_dest: Path, runtime_agents: tuple[AgentDef, ...]) -> None:
+    """Write role-specific Codex config layers alongside installed agent briefs."""
+    if not agents_dest.exists():
+        return
+
+    managed_role_names: set[str] = set()
+    for agent in runtime_agents:
+        role_path = agents_dest / f"{agent.name}.toml"
+        agent_markdown_path = agents_dest / f"{agent.name}.md"
+        lines = [
+            "# Managed by Get Physics Done (GPD).",
+            'sandbox_mode = "workspace-write"',
+            f"developer_instructions = {_toml_string(_build_codex_agent_role_instructions(agent.name, agent_markdown_path))}",
+        ]
+        role_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        managed_role_names.add(role_path.name)
+
+    for existing in agents_dest.iterdir():
+        if (
+            existing.is_file()
+            and existing.name.startswith("gpd-")
+            and existing.suffix == ".toml"
+            and existing.name not in managed_role_names
+        ):
+            existing.unlink()
+
+
+def _is_managed_codex_agent_role_section(existing_body: list[str] | None, agent_name: str) -> bool:
+    if existing_body is None:
+        return False
+    expected_config = _codex_agent_role_config_rel_path(agent_name)
+    for line in existing_body:
+        config_path = _parse_toml_string_assignment(line, "config_file")
+        if config_path == expected_config:
+            return True
+    return False
+
+
+def _build_codex_agent_role_section_lines(agent: AgentDef, *, existing_body: list[str] | None) -> list[str]:
+    preserved_lines, _ = _split_preserved_toml_lines(
+        existing_body,
+        managed_keys={"description", "config_file"},
+    )
+    lines = [f"\n[agents.{agent.name}]"]
+    lines.append(f"description = {_toml_string(agent.description)}")
+    lines.append(f"config_file = {_toml_string(_codex_agent_role_config_rel_path(agent.name))}")
+    lines.extend(preserved_lines)
+    return lines
+
+
 def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str, object]]) -> int:
     """Append MCP server entries to Codex config.toml without clobbering user overrides."""
     config_toml = target_dir / "config.toml"
@@ -1037,6 +1152,40 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     return len(servers)
 
 
+def _write_codex_agent_roles_toml(target_dir: Path) -> int:
+    """Ensure Codex agent role registrations exist for installed GPD agents."""
+    config_toml = target_dir / "config.toml"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    content = ""
+    if config_toml.exists():
+        content = config_toml.read_text(encoding="utf-8")
+    existing_content = content
+    content = _remove_gpd_agent_role_sections(content)
+
+    installed_agents = load_agents_from_dir(target_dir / "agents")
+    managed_sections: list[str] = []
+    for _, agent in sorted(installed_agents.items()):
+        _, existing_body, _ = _split_toml_section(existing_content, f"agents.{agent.name}")
+        if existing_body is not None and not _is_managed_codex_agent_role_section(existing_body, agent.name):
+            continue
+        if not managed_sections:
+            managed_sections.append(_GPD_AGENT_ROLES_COMMENT)
+        managed_sections.extend(
+            _build_codex_agent_role_section_lines(
+                agent,
+                existing_body=existing_body,
+            )
+        )
+
+    if content and managed_sections and not content.endswith("\n"):
+        content += "\n"
+    if managed_sections:
+        content += "\n".join(managed_sections) + "\n"
+    config_toml.write_text(content, encoding="utf-8")
+    return len(installed_agents)
+
+
 def _remove_gpd_mcp_toml_sections(content: str) -> str:
     """Remove GPD MCP server sections from TOML content."""
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
@@ -1055,6 +1204,37 @@ def _remove_gpd_mcp_toml_sections(content: str) -> str:
     # Clean up excessive blank lines.
     content = re.sub(r"\n{3,}", "\n\n", content)
     return content
+
+
+def _remove_gpd_agent_role_sections(content: str) -> str:
+    """Remove GPD-managed Codex agent role registrations from TOML content."""
+    cleaned: list[str] = []
+    lines = content.splitlines()
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx]
+        stripped = line.strip()
+        if stripped == _GPD_AGENT_ROLES_COMMENT:
+            idx += 1
+            continue
+
+        section_name = _parse_section_name(line)
+        if section_name is not None and section_name.startswith("agents.gpd-"):
+            end = len(lines)
+            for scan in range(idx + 1, len(lines)):
+                if _parse_section_name(lines[scan]) is not None:
+                    end = scan
+                    break
+            existing_body = lines[idx + 1 : end]
+            agent_name = section_name[len("agents.") :]
+            if _is_managed_codex_agent_role_section(existing_body, agent_name):
+                idx = end
+                continue
+
+        cleaned.append(line)
+        idx += 1
+
+    return re.sub(r"\n{3,}", "\n\n", _serialize_toml_lines(cleaned))
 
 
 def _parse_section_name(line: str) -> str | None:
