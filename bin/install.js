@@ -629,7 +629,17 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
       ? "Reinstalling GPD"
       : "Installing GPD";
 
-  // Try the matching tagged GitHub release candidates in precedence order.
+  // 1. Try PyPI first — fast, reliable, no auth needed.
+  const pypiSpec = `get-physics-done==${pythonVersion}`;
+  log(`${action} from PyPI (${pypiSpec}) into the managed environment...`);
+  const pypiResult = runPipInstall(python, pypiSpec, pipInstallEnv, { forceReinstall });
+  if (pypiResult.status === 0) {
+    return { ok: true, requestedVersion, installedFrom: pypiSpec };
+  }
+  flushCapturedOutput(pypiResult);
+  log(`PyPI install failed. Falling back to GitHub source...`);
+
+  // 2. Fall back to tagged GitHub release candidates.
   const resolution = await resolveInstallCandidates(releaseInstallCandidates(pythonVersion));
   const releaseCandidates = resolution.candidates;
   logUnavailableCandidates(resolution.skipped);

@@ -22,6 +22,7 @@ if not REPO_GIT_URL.endswith(".git"):
     REPO_GIT_URL = f"{REPO_GIT_URL}.git"
 REPO_BASE_URL = REPO_GIT_URL.removesuffix(".git")
 
+PYPI_SPEC = f"get-physics-done=={PYTHON_PACKAGE_VERSION}"
 TAG_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/tags/v{PYTHON_PACKAGE_VERSION}.tar.gz"
 MAIN_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/heads/main.tar.gz"
 TAG_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@v{PYTHON_PACKAGE_VERSION}"
@@ -55,11 +56,13 @@ import stat
 import sys
 
 LOG_PATH = pathlib.Path({str(log_path)!r})
+FAIL_PYPI = os.environ.get("FAKE_PIP_FAIL_PYPI") == "1"
 FAIL_TAG_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_TAG_ARCHIVE") == "1"
 FAIL_BRANCH_ARCHIVE = os.environ.get("FAKE_PIP_FAIL_BRANCH_ARCHIVE") == "1"
 FAIL_TAG_GIT = os.environ.get("FAKE_PIP_FAIL_TAG_GIT") == "1"
 FAIL_MAIN_GIT = os.environ.get("FAKE_PIP_FAIL_MAIN_GIT") == "1"
 EMIT_PIP_SUCCESS_NOISE = os.environ.get("FAKE_PIP_SUCCESS_NOISE") == "1"
+PYPI_SPEC = {PYPI_SPEC!r}
 TAG_ARCHIVE_SPEC = {TAG_ARCHIVE_SPEC!r}
 MAIN_ARCHIVE_SPEC = {MAIN_ARCHIVE_SPEC!r}
 TAG_HTTPS_GIT_SPEC = {TAG_HTTPS_GIT_SPEC!r}
@@ -142,6 +145,10 @@ if args == ["-m", "ensurepip", "--upgrade"]:
 
 if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     target = args[-1]
+    if FAIL_PYPI and target == PYPI_SPEC:
+        record()
+        sys.stderr.write("ERROR: No matching distribution found for get-physics-done\\n")
+        raise SystemExit(1)
     if FAIL_TAG_ARCHIVE and target == TAG_ARCHIVE_SPEC:
         record()
         sys.stderr.write("ERROR: HTTP error 404 while getting tagged archive\\n")
@@ -250,7 +257,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     ]
     assert len(managed_pip_installs) == 1
     assert "--quiet" in managed_pip_installs[0]["argv"]
-    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
+    assert managed_pip_installs[0]["argv"][-1] == PYPI_SPEC
 
     managed_runtime_installs = [
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", "codex", "--local"]
@@ -289,7 +296,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
         entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
     assert len(managed_pip_installs) == 1
-    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
+    assert managed_pip_installs[0]["argv"][-1] == PYPI_SPEC
 
     managed_runtime_uninstalls = [
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", "codex", "--local"]
@@ -297,8 +304,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     assert len(managed_runtime_uninstalls) == 1
 
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
-    assert f"Preparing managed GPD CLI from GitHub source archive for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
-    assert "Installing GPD from GitHub source archive" not in result.stdout
+    assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
     assert "Uninstalling GPD from Codex (local)..." in result.stdout
     assert "runtime uninstall ok" in result.stdout
 
@@ -487,8 +493,8 @@ def test_bootstrap_reinstall_force_reinstalls_matching_release(tmp_path: Path) -
 
     assert len(managed_pip_installs) == 1
     assert "--force-reinstall" in managed_pip_installs[0]["argv"]
-    assert managed_pip_installs[0]["argv"][-1] == TAG_ARCHIVE_SPEC
-    assert f"Reinstalling GPD from GitHub source archive for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
+    assert managed_pip_installs[0]["argv"][-1] == PYPI_SPEC
+    assert f"Reinstalling GPD from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -632,7 +638,7 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
 def test_bootstrap_falls_back_to_tag_git_when_tag_archive_install_fails(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
-        extra_env={"FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
+        extra_env={"FAKE_PIP_FAIL_PYPI": "1", "FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -643,9 +649,11 @@ def test_bootstrap_falls_back_to_tag_git_when_tag_archive_install_fails(tmp_path
     ]
 
     assert managed_pip_targets == [
+        PYPI_SPEC,
         TAG_ARCHIVE_SPEC,
         TAG_HTTPS_GIT_SPEC,
     ]
+    assert "PyPI install failed. Falling back to GitHub source..." in result.stdout
     assert (
         f"GitHub source archive for v{PYTHON_PACKAGE_VERSION} failed. Falling back to HTTPS git checkout for v{PYTHON_PACKAGE_VERSION}..."
         in result.stdout
@@ -658,6 +666,7 @@ def test_bootstrap_prefers_preflighted_tag_git_candidate_when_tag_archive_is_ina
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     TAG_ARCHIVE_SPEC: {
@@ -680,10 +689,10 @@ def test_bootstrap_prefers_preflighted_tag_git_candidate_when_tag_archive_is_ina
         entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_targets == [TAG_HTTPS_GIT_SPEC]
+    assert managed_pip_targets == [PYPI_SPEC, TAG_HTTPS_GIT_SPEC]
+    assert "PyPI install failed. Falling back to GitHub source..." in result.stdout
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
     assert f"Installing GPD from HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
-    assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -692,6 +701,7 @@ def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sou
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     TAG_ARCHIVE_SPEC: {
@@ -718,7 +728,7 @@ def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sou
         entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_installs == []
+    assert len(managed_pip_installs) == 1  # PyPI attempted but failed
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
     assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: tag v{PYTHON_PACKAGE_VERSION} is not published." in result.stdout
     assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
@@ -732,6 +742,7 @@ def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     TAG_ARCHIVE_SPEC: {
@@ -758,13 +769,12 @@ def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(
         entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_installs == []
+    assert len(managed_pip_installs) == 1  # PyPI attempted but failed
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
     assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: git exit 2." in result.stdout
     assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
-    assert "Falling back to" not in result.stdout
     assert "main branch" not in result.stdout
-    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION}" in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -773,6 +783,7 @@ def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) ->
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
+            "FAKE_PIP_FAIL_PYPI": "1",
             "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
             "FAKE_PIP_FAIL_TAG_GIT": "1",
         },
@@ -786,6 +797,7 @@ def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) ->
     ]
 
     assert managed_pip_targets == [
+        PYPI_SPEC,
         TAG_ARCHIVE_SPEC,
         TAG_HTTPS_GIT_SPEC,
     ]
