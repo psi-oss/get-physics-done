@@ -438,6 +438,7 @@ class CodexAdapter(RuntimeAdapter):
         write_manifest(
             target_dir,
             version,
+            runtime=self.runtime_name,
             skills_dir=str(self._skills_dir),
             metadata={_MANIFEST_CODEX_SKILLS_DIR_KEY: str(self._skills_dir)},
             install_scope=self._current_install_scope_flag(),

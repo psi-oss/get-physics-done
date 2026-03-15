@@ -906,6 +906,7 @@ def write_manifest(
     config_dir: str | Path,
     version: str,
     *,
+    runtime: str | None = None,
     skills_dir: str | Path | None = None,
     metadata: dict[str, object] | None = None,
     install_scope: str | None = None,
@@ -925,6 +926,8 @@ def write_manifest(
         "timestamp": _iso_now(),
         "files": {},
     }
+    if isinstance(runtime, str) and runtime.strip():
+        manifest["runtime"] = runtime.strip()
     normalized_scope = _normalize_install_scope_flag(install_scope)
     if normalized_scope == "--local":
         manifest["install_scope"] = "local"

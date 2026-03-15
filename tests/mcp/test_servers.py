@@ -758,7 +758,9 @@ class TestSkillsServer:
             "description: Conduct standalone peer review.\n"
             "---\n"
             "\n"
-            "Canonical peer review command.\n",
+            "Canonical peer review command.\n"
+            "Use @{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md and "
+            "@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md.\n",
             encoding="utf-8",
         )
         (agents_dir / "gpd-debugger.md").write_text(
@@ -816,6 +818,24 @@ class TestSkillsServer:
         assert result["name"] == "gpd-execute-phase"
         assert "Canonical execute command" in result["content"]
         assert result["file_count"] == 1
+
+    def test_get_skill_surfaces_referenced_files(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-plan-phase")
+
+        assert result["reference_count"] >= 1
+        assert any(entry["kind"] == "workflow" for entry in result["referenced_files"])
+
+    def test_get_skill_surfaces_schema_references(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-peer-review")
+
+        assert "error" not in result
+        assert any(path.endswith("review-ledger-schema.md") for path in result["schema_references"])
+        assert any(path.endswith("referee-decision-schema.md") for path in result["schema_references"])
+        assert "Load schema_references" in result["loading_hint"]
 
     def test_get_skill_agent_uses_primary_agent_content(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -983,6 +1003,46 @@ class TestSkillsServer:
 
         assert result["suggestion"] == "gpd-debugger"
         assert result["confidence"] <= 0.1
+
+    def test_route_skill_matches_multiword_resume_phrase(self):
+        from gpd.mcp.servers.skills_server import route_skill
+        from gpd.registry import SkillDef
+
+        with patch(
+            "gpd.mcp.servers.skills_server._load_skill_index",
+            return_value=[
+                SkillDef(
+                    name="gpd-resume-work",
+                    description="Resume interrupted work.",
+                    content="Resume command.",
+                    category="execution",
+                    path="/tmp/gpd-resume-work.md",
+                    source_kind="command",
+                    registry_name="resume-work",
+                ),
+                SkillDef(
+                    name="gpd-help",
+                    description="Help.",
+                    content="Help.",
+                    category="help",
+                    path="/tmp/gpd-help.md",
+                    source_kind="command",
+                    registry_name="help",
+                ),
+                SkillDef(
+                    name="gpd-progress",
+                    description="Progress.",
+                    content="Progress command.",
+                    category="status",
+                    path="/tmp/gpd-progress.md",
+                    source_kind="command",
+                    registry_name="progress",
+                ),
+            ],
+        ):
+            result = route_skill("pick up where I left off after the last checkpoint")
+
+        assert result["suggestion"] == "gpd-resume-work"
 
     def test_get_skill_index(self):
         from gpd.mcp.servers.skills_server import get_skill_index
@@ -1601,6 +1661,14 @@ class TestVerificationServer:
 
         assert "contract.benchmark_reproduction" in suggested
         assert "contract.direct_proxy_consistency" in suggested
+        benchmark = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+        assert benchmark["binding_targets"] == ["claim", "deliverable", "acceptance_test", "reference"]
+        assert benchmark["required_request_fields"] == [
+            "metadata.source_reference_id",
+            "observed.metric_value",
+            "observed.threshold_value",
+        ]
+        assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
     # --- get_checklist ---
 
@@ -1637,6 +1705,9 @@ class TestVerificationServer:
         assert result["found"] is True
         assert result["bundle_count"] == 1
         assert result["bundles"][0]["bundle_id"] == "stat-mech-simulation"
+        assert result["bundles"][0]["asset_paths"]
+        assert "## Selected Protocol Bundles" in result["protocol_bundle_context"]
+        assert "Statistical Mechanics Simulation" in result["protocol_bundle_context"]
         assert result["bundle_check_count"] == 2
         assert result["bundle_checks"][0]["check_ids"] == ["5.4", "5.14", "5.16"]
 

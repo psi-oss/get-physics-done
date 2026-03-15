@@ -29,6 +29,7 @@ fi
 ```
 
 Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
+Treat `project_contract` and `active_reference_context` as authoritative contract-backed evidence context for later review stages. Stage 1 stays manuscript-first, but later adjudication must not ignore the approved contract or active anchor ledger.
 
 Run centralized context preflight before continuing:
 
@@ -173,6 +174,7 @@ task(
   model="{read_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-reader.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md and use its `ClaimIndex` / `StageReviewReport` artifact contract exactly.
 
 Operate in manuscript-reader stage mode. This stage must start nearly fresh and remain manuscript-first.
 
@@ -217,6 +219,7 @@ task(
   model="{literature_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-literature.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md and use its `StageReviewReport` artifact contract exactly.
 
 Operate in literature-context stage mode with a fresh context.
 
@@ -250,6 +253,7 @@ task(
   model="{math_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-math.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md and use its `StageReviewReport` artifact contract exactly.
 
 Operate in mathematical-soundness stage mode with a fresh context.
 
@@ -292,6 +296,7 @@ task(
   model="{physics_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-physics.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md and use its `StageReviewReport` artifact contract exactly.
 
 Operate in physical-soundness stage mode with a fresh context.
 
@@ -344,6 +349,7 @@ task(
   model="{significance_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-review-significance.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md and use its `StageReviewReport` artifact contract exactly.
 
 Operate in interestingness-and-venue-fit stage mode with a fresh context.
 
@@ -387,6 +393,7 @@ task(
   model="{referee_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md, {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md, and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md before you write any adjudication artifacts.
 
 Act as the final adjudicating referee for the staged peer-review panel.
 
@@ -395,6 +402,10 @@ Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
 Additive specialized guidance:
 {protocol_bundle_context}
+Project Contract:
+{project_contract}
+Active References:
+{active_reference_context}
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files

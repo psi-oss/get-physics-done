@@ -19,6 +19,7 @@ _ANCHOR_UNKNOWN_TOPIC_PATTERNS = (
     re.compile(r"\banchor\b"),
     re.compile(r"\bbenchmark\b"),
     re.compile(r"\bbaseline\b"),
+    re.compile(r"\breference\b"),
     re.compile(r"\bground[- ]truth\b"),
     re.compile(r"\bsmoking gun\b"),
 )
@@ -27,9 +28,17 @@ _ANCHOR_UNKNOWN_BLOCKER_PATTERNS = (
     re.compile(r"\bunclear\b"),
     re.compile(r"\bmissing\b"),
     re.compile(r"\bnot (?:yet )?established\b"),
+    re.compile(r"\bnot (?:yet )?selected\b"),
+    re.compile(r"\bstill to identify\b"),
+    re.compile(r"\btbd\b"),
+    re.compile(r"\bto be determined\b"),
     re.compile(r"\bmust establish\b"),
     re.compile(r"\bestablish later\b"),
     re.compile(r"\bno\b.+\byet\b"),
+)
+_ANCHOR_UNKNOWN_QUESTION_PATTERNS = (
+    re.compile(r"^\s*(?:which|what)\b"),
+    re.compile(r"\?$"),
 )
 
 
@@ -165,6 +174,8 @@ def _has_explicit_anchor_unknown(contract: ResearchContract) -> bool:
         if not any(pattern.search(lowered) for pattern in _ANCHOR_UNKNOWN_TOPIC_PATTERNS):
             continue
         if any(pattern.search(lowered) for pattern in _ANCHOR_UNKNOWN_BLOCKER_PATTERNS):
+            return True
+        if all(pattern.search(lowered) for pattern in _ANCHOR_UNKNOWN_QUESTION_PATTERNS):
             return True
     return False
 

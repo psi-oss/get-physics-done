@@ -51,6 +51,8 @@ Physics verification is fundamentally different from software testing. A softwar
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/verify-work.md
 @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
+@{GPD_INSTALL_DIR}/templates/verification-report.md
+@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 </execution_context>
 
 <context>

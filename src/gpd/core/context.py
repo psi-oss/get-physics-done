@@ -1174,7 +1174,10 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
     """Assemble context for quick task execution."""
     config = load_config(cwd)
     now = datetime.now(UTC)
-    slug = _generate_slug(description)
+    normalized_description = description.strip() if isinstance(description, str) else description
+    slug = _generate_slug(normalized_description)
+    if normalized_description and slug is None:
+        slug = "task"
     if slug:
         slug = slug[:40]
 
@@ -1192,7 +1195,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
     except (FileNotFoundError, PermissionError):
         pass
 
-    return {
+    result = {
         # Models
         "planner_model": _resolve_model(cwd, "gpd-planner", config),
         "executor_model": _resolve_model(cwd, "gpd-executor", config),
@@ -1203,7 +1206,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         # Quick task info
         "next_num": next_num,
         "slug": slug,
-        "description": description,
+        "description": normalized_description,
         # Timestamps
         "date": now.strftime("%Y-%m-%d"),
         "timestamp": now.isoformat(),
@@ -1216,6 +1219,8 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
+    result.update(_build_reference_runtime_context(cwd))
+    return result
 
 
 def init_resume(cwd: Path) -> dict:
@@ -1272,7 +1277,7 @@ def init_resume(cwd: Path) -> dict:
     else:
         resume_mode = None
 
-    return {
+    result = {
         # File existence
         "state_exists": _state_exists(cwd),
         "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
@@ -1291,8 +1296,10 @@ def init_resume(cwd: Path) -> dict:
         "resume_mode": resume_mode,
         # Platform
         "platform": _detect_platform(cwd),
-        **execution_context,
     }
+    result.update(_build_reference_runtime_context(cwd))
+    result.update(execution_context)
+    return result
 
 
 def init_verify_work(cwd: Path, phase: str | None) -> dict:

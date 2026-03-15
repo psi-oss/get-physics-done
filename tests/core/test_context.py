@@ -637,6 +637,25 @@ class TestInitPlanPhase:
         assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "unresolved reference token" not in ctx["active_reference_context"]
 
+    def test_merges_structured_reference_fields_into_project_contract(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+        references = {ref["id"]: ref for ref in ctx["project_contract"]["references"]}
+
+        assert references["ref-benchmark"]["aliases"] == ["benchmark-paper"]
+        assert references["ref-benchmark"]["applies_to"] == ["claim-benchmark"]
+        assert references["ref-benchmark"]["carry_forward_to"] == ["verification", "writing"]
+        assert references["ref-benchmark"]["required_actions"] == ["read", "compare", "cite"]
+        assert references["ref-benchmark"]["must_surface"] is True
+        assert references["prior-baseline"]["kind"] == "prior_artifact"
+        assert references["prior-baseline"]["required_actions"] == ["use"]
+        assert references["prior-baseline"]["carry_forward_to"] == ["planning", "execution"]
+
     def test_reports_missing_active_references_explicitly(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")
@@ -676,6 +695,19 @@ class TestInitNewProject:
         ctx = init_new_project(tmp_path)
         assert ctx["has_research_files"] is True
         assert ctx["has_existing_project"] is True
+
+    def test_ignores_runtime_owned_dirs_when_detecting_research_files(self, tmp_path: Path) -> None:
+        (tmp_path / ".codex").mkdir()
+        (tmp_path / ".codex" / "calc.py").write_text("print('runtime mirror')", encoding="utf-8")
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".claude" / "notes.py").write_text("print('runtime mirror')", encoding="utf-8")
+        (tmp_path / ".config" / "opencode").mkdir(parents=True)
+        (tmp_path / ".config" / "opencode" / "script.py").write_text("print('runtime mirror')", encoding="utf-8")
+
+        ctx = init_new_project(tmp_path)
+
+        assert ctx["has_research_files"] is False
+        assert ctx["has_existing_project"] is False
 
     def test_detects_manifest(self, tmp_path: Path) -> None:
         (tmp_path / "pyproject.toml").write_text("[project]")

@@ -37,7 +37,7 @@ You are not the final referee. Your artifact should be decisive on novelty and c
 </process>
 
 <artifact_format>
-Use the stage artifact contract from `peer-review-panel.md`.
+Before writing the JSON artifact, read `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` directly and use its stage artifact contract exactly.
 
 Required finding coverage:
 

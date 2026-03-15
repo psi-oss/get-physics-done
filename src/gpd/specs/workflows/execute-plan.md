@@ -31,7 +31,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
+Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
 
 **File contents (from --include):** `state_content`, `config_content`. Access with:
 
@@ -41,6 +41,12 @@ CONFIG_CONTENT=$(echo "$INIT" | gpd json get .config_content --default "")
 ```
 
 If `.gpd/` missing: error.
+</step>
+
+<step name="load_contract_anchor_context">
+Treat `project_contract` as authoritative machine-readable scope when present. Do not execute from PLAN markdown alone if the contract or active-anchor ledger says a decisive reference, prior output, or forbidden proxy still constrains the work.
+
+Treat `effective_reference_intake` as the structured carry-forward ledger for must-read refs, baselines, prior outputs, user anchors, and context gaps. Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger quickly, not to replace it with prose-only reconstruction.
 </step>
 
 <step name="load_protocol_bundle_context">

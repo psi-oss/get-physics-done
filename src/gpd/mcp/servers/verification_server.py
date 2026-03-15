@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from gpd.contracts import ResearchContract
 from gpd.core.observability import gpd_span
-from gpd.core.protocol_bundles import get_protocol_bundle
+from gpd.core.protocol_bundles import ResolvedProtocolBundle, get_protocol_bundle, render_protocol_bundle_context
 from gpd.core.verification_checks import (
     ERROR_CLASS_COVERAGE,
     VERIFICATION_CHECK_IDS,
@@ -33,6 +33,123 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(le
 logger = logging.getLogger("gpd-verification")
 
 mcp = FastMCP("gpd-verification")
+
+_CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
+    "contract.limit_recovery": {
+        "required_request_fields": ["metadata.regime_label", "metadata.expected_behavior"],
+        "optional_request_fields": ["binding.*", "observed.limit_passed", "observed.observed_limit", "artifact_content"],
+        "request_template": {
+            "binding": {},
+            "metadata": {
+                "regime_label": "infrared limit",
+                "expected_behavior": "matches the contracted asymptotic scaling",
+            },
+            "observed": {
+                "limit_passed": True,
+                "observed_limit": "power-law slope -1",
+            },
+            "artifact_content": "",
+        },
+    },
+    "contract.benchmark_reproduction": {
+        "required_request_fields": [
+            "metadata.source_reference_id",
+            "observed.metric_value",
+            "observed.threshold_value",
+        ],
+        "optional_request_fields": ["binding.*", "artifact_content"],
+        "request_template": {
+            "binding": {},
+            "metadata": {
+                "source_reference_id": "ref-benchmark",
+            },
+            "observed": {
+                "metric_value": 0.008,
+                "threshold_value": 0.01,
+            },
+            "artifact_content": "",
+        },
+    },
+    "contract.direct_proxy_consistency": {
+        "required_request_fields": [],
+        "optional_request_fields": [
+            "binding.*",
+            "observed.proxy_only",
+            "observed.direct_available",
+            "observed.proxy_available",
+            "observed.consistency_passed",
+            "artifact_content",
+        ],
+        "request_template": {
+            "binding": {},
+            "metadata": {},
+            "observed": {
+                "proxy_only": False,
+                "direct_available": True,
+                "proxy_available": True,
+                "consistency_passed": True,
+            },
+            "artifact_content": "",
+        },
+    },
+    "contract.fit_family_mismatch": {
+        "required_request_fields": ["metadata.declared_family", "observed.selected_family"],
+        "optional_request_fields": [
+            "binding.*",
+            "metadata.allowed_families[]",
+            "metadata.forbidden_families[]",
+            "observed.competing_family_checked",
+            "artifact_content",
+        ],
+        "request_template": {
+            "binding": {},
+            "metadata": {
+                "declared_family": "linear",
+                "allowed_families": ["linear", "quadratic"],
+                "forbidden_families": [],
+            },
+            "observed": {
+                "selected_family": "linear",
+                "competing_family_checked": True,
+            },
+            "artifact_content": "",
+        },
+    },
+    "contract.estimator_family_mismatch": {
+        "required_request_fields": ["metadata.declared_family", "observed.selected_family"],
+        "optional_request_fields": [
+            "binding.*",
+            "metadata.allowed_families[]",
+            "metadata.forbidden_families[]",
+            "observed.bias_checked",
+            "observed.calibration_checked",
+            "artifact_content",
+        ],
+        "request_template": {
+            "binding": {},
+            "metadata": {
+                "declared_family": "bootstrap",
+                "allowed_families": ["bootstrap", "jackknife"],
+                "forbidden_families": [],
+            },
+            "observed": {
+                "selected_family": "bootstrap",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+            "artifact_content": "",
+        },
+    },
+}
+
+
+def _contract_check_request_hint(check_key: str) -> dict[str, object]:
+    hint = _CONTRACT_CHECK_REQUEST_HINTS.get(check_key, {})
+    return {
+        "required_request_fields": list(hint.get("required_request_fields", [])),
+        "optional_request_fields": list(hint.get("optional_request_fields", [])),
+        "request_template": dict(hint.get("request_template", {})),
+    }
 
 # ─── Domain Checklists ────────────────────────────────────────────────────────
 
@@ -810,6 +927,7 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
             meta = get_verification_check(check_key)
             if meta is None:
                 return
+            request_hint = _contract_check_request_hint(meta.check_key)
             suggestions.append(
                 {
                     "check_id": meta.check_id,
@@ -817,6 +935,8 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
                     "name": meta.name,
                     "reason": reason,
                     "already_active": meta.check_id in active or meta.check_key in active,
+                    "binding_targets": meta.binding_targets,
+                    **request_hint,
                 }
             )
 
@@ -893,6 +1013,7 @@ def get_bundle_checklist(bundle_ids: list[str]) -> dict:
     """Return additive verifier checklist extensions for selected protocol bundles."""
     with gpd_span("mcp.verification.bundle_checklist", bundle_count=len(bundle_ids)):
         bundles: list[dict[str, object]] = []
+        resolved_bundles: list[ResolvedProtocolBundle] = []
         checklist: list[dict[str, object]] = []
         missing_bundle_ids: list[str] = []
 
@@ -907,10 +1028,28 @@ def get_bundle_checklist(bundle_ids: list[str]) -> dict:
                 "bundle_id": bundle.bundle_id,
                 "title": bundle.title,
                 "summary": bundle.summary,
+                "asset_paths": [asset.path for _role, asset in bundle.assets.iter_assets()],
                 "verification_domains": verification_domain_paths,
                 "verifier_extensions": [extension.model_dump(mode="json") for extension in bundle.verifier_extensions],
             }
             bundles.append(bundle_payload)
+            resolved_bundles.append(
+                ResolvedProtocolBundle(
+                    bundle_id=bundle.bundle_id,
+                    title=bundle.title,
+                    summary=bundle.summary,
+                    score=0,
+                    matched_tags=[],
+                    matched_terms=[],
+                    selection_tags=bundle.selection_tags,
+                    assets=bundle.assets,
+                    anchor_prompts=bundle.anchor_prompts,
+                    reference_prompts=bundle.reference_prompts,
+                    estimator_policies=bundle.estimator_policies,
+                    decisive_artifact_guidance=bundle.decisive_artifact_guidance,
+                    verifier_extensions=bundle.verifier_extensions,
+                )
+            )
 
             for extension in bundle.verifier_extensions:
                 checklist.append(
@@ -928,6 +1067,7 @@ def get_bundle_checklist(bundle_ids: list[str]) -> dict:
             "schema_version": VERIFICATION_SCHEMA_VERSION,
             "bundle_count": len(bundles),
             "bundles": bundles,
+            "protocol_bundle_context": render_protocol_bundle_context(resolved_bundles),
             "bundle_check_count": len(checklist),
             "bundle_checks": checklist,
             "missing_bundle_ids": missing_bundle_ids,

@@ -342,7 +342,12 @@ class RuntimeAdapter(abc.ABC):
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         """Write file manifest for modification detection."""
-        write_manifest(target_dir, version, install_scope=self._current_install_scope_flag())
+        write_manifest(
+            target_dir,
+            version,
+            runtime=self.runtime_name,
+            install_scope=self._current_install_scope_flag(),
+        )
 
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""

@@ -61,6 +61,8 @@ scope:
 Rules:
 
 - Every claim must declare a stable `id`.
+- `deliverables[]` must not be empty.
+- `acceptance_tests[]` must not be empty.
 - `deliverables[]` may only reference declared `deliverables[].id`.
 - `acceptance_tests[]` may only reference declared `acceptance_tests[].id`.
 - `references[]` may only reference declared `references[].id`.
@@ -103,6 +105,7 @@ Rules:
 - `applies_to[]` may only reference declared claim or deliverable IDs.
 - `carry_forward_to[]` is optional free-text workflow scope (for example `planning`, `verification`, `writing`); do not overload it with contract IDs.
 - If `must_surface: true`, `required_actions` must not be empty.
+- If `must_surface: true`, `applies_to[]` must not be empty.
 
 ### `acceptance_tests[]`
 
@@ -171,6 +174,7 @@ Rules:
 - Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
 - A cross-reference must fail loudly if it points to an undeclared ID.
 - A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.
+- If `references[]` is non-empty, at least one reference must set `must_surface: true`.
 - Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly says so.
 
 ---

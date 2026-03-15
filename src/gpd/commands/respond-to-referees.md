@@ -4,7 +4,7 @@ description: Structure a point-by-point response to referee reports and update t
 argument-hint: "[path to referee report or paste inline]"
 context_mode: project-required
 requires:
-  files: ["paper/*.tex"]
+  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
 review-contract:
   review_mode: publication
   schema_version: 1

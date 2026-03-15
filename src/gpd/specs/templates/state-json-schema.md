@@ -62,17 +62,17 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
 {
   "schema_version": 1,
   "scope": {
-    "question": "What must this project answer?",
-    "in_scope": ["deliverable A", "benchmark B"],
+    "question": "What benchmark must the project recover?",
+    "in_scope": ["Recover the published benchmark curve within tolerance"],
     "out_of_scope": ["adjacent question C"],
-    "unresolved_questions": ["Which observable is decisive?"]
+    "unresolved_questions": ["Which reference should serve as the decisive benchmark anchor?"]
   },
   "context_intake": {
     "must_read_refs": ["Ref-01"],
     "must_include_prior_outputs": [".gpd/phases/01-setup/01-01-SUMMARY.md"],
     "user_asserted_anchors": ["Recover known asymptotic limit"],
     "known_good_baselines": ["Baseline derivation in notebook X"],
-    "context_gaps": ["Missing benchmark comparison"],
+    "context_gaps": ["Benchmark reference not yet selected; still to identify the decisive anchor"],
     "crucial_inputs": ["Figure 2 from prior work"]
   },
   "approach_policy": {
@@ -83,18 +83,80 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
     "forbidden_fit_families": ["pure convenience fit"],
     "stop_and_rethink_conditions": ["First result only validates a proxy while the decisive anchor remains unchecked"]
   },
-  "observables": [],
-  "claims": [],
-  "deliverables": [],
-  "acceptance_tests": [],
-  "references": [],
-  "forbidden_proxies": [],
-  "links": [],
+  "observables": [
+    {
+      "id": "obs-main",
+      "name": "Benchmark observable X",
+      "kind": "curve",
+      "definition": "Primary comparison curve for the published benchmark"
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-main",
+      "statement": "Recover the published benchmark curve within the stated tolerance",
+      "observables": ["obs-main"],
+      "deliverables": ["deliv-main"],
+      "acceptance_tests": ["test-main"],
+      "references": ["Ref-01"]
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "deliv-main",
+      "kind": "figure",
+      "path": "paper/figures/benchmark-curve.pdf",
+      "description": "Figure comparing the reproduced curve against the benchmark",
+      "must_contain": ["benchmark overlay"]
+    }
+  ],
+  "acceptance_tests": [
+    {
+      "id": "test-main",
+      "subject": "claim-main",
+      "kind": "benchmark",
+      "procedure": "Compare the reproduced curve against Ref-01 within tolerance",
+      "pass_condition": "Relative error <= 1%",
+      "evidence_required": ["deliv-main", "Ref-01"],
+      "automation": "hybrid"
+    }
+  ],
+  "references": [
+    {
+      "id": "Ref-01",
+      "kind": "paper",
+      "locator": "Author et al., Journal, 2024",
+      "aliases": ["benchmark-paper"],
+      "role": "benchmark",
+      "why_it_matters": "Primary published comparison target",
+      "applies_to": ["claim-main"],
+      "carry_forward_to": ["planning", "execution", "verification", "writing"],
+      "must_surface": true,
+      "required_actions": ["read", "compare", "cite"]
+    }
+  ],
+  "forbidden_proxies": [
+    {
+      "id": "fp-main",
+      "subject": "claim-main",
+      "proxy": "Qualitative trend match without the decisive benchmark comparison",
+      "reason": "Would look like progress while skipping the contract-critical anchor"
+    }
+  ],
+  "links": [
+    {
+      "id": "link-main",
+      "source": "claim-main",
+      "target": "deliv-main",
+      "relation": "supports",
+      "verified_by": ["test-main"]
+    }
+  ],
   "uncertainty_markers": {
-    "weakest_anchors": [],
+    "weakest_anchors": ["Benchmark tolerance interpretation"],
     "unvalidated_assumptions": [],
     "competing_explanations": [],
-    "disconfirming_observations": []
+    "disconfirming_observations": ["Benchmark agreement disappears after a notation-normalization fix"]
   }
 }
 ```
@@ -116,6 +178,10 @@ The `project_contract` value itself must be a JSON object. Do not replace it wit
 
 `schema_version` must be `1`. Unsupported schema versions are invalid.
 
+Approved project contracts must include at least one observable, claim, or deliverable.
+
+`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
+
 Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
 
 The following fields always store arrays of objects, never arrays of plain strings:
@@ -127,6 +193,8 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface", "required_actions[]" }`
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
+
+If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
 
 #### Project Contract ID Linkage Rules
 
@@ -145,6 +213,14 @@ Every ID-like field must point to a declared object ID in the same contract:
 - `forbidden_proxies[].subject` must point to a claim ID or deliverable ID.
 - `links[].source` and `links[].target` may point only to claim, deliverable, acceptance-test, or reference IDs.
 - `links[].verified_by[]` must contain `acceptance_tests[].id` values only.
+
+#### Explicit Anchor-Gap Guidance
+
+If the user does not know the decisive anchor yet, keep that uncertainty explicit instead of inventing a paper, reference, benchmark, or baseline. Accepted phrasings include:
+
+- `Which reference should serve as the decisive benchmark anchor?`
+- `Benchmark reference not yet selected; still to identify the decisive anchor.`
+- `Baseline comparison is TBD before planning can proceed.`
 
 ### `position`
 

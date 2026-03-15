@@ -14,6 +14,7 @@ Usage:
 import logging
 import re
 import sys
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -25,6 +26,12 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(le
 logger = logging.getLogger("gpd-skills")
 
 mcp = FastMCP("gpd-skills")
+
+_MARKDOWN_REFERENCE_RE = re.compile(r"@?(?P<path>/[^\s`\"')]+\.md)")
+_REFERENCE_ROOTS = tuple(
+    root.resolve().as_posix()
+    for root in (content_registry.SPECS_DIR, content_registry.AGENTS_DIR, content_registry.COMMANDS_DIR)
+)
 
 
 def _load_skill_index() -> list[content_registry.SkillDef]:
@@ -60,6 +67,36 @@ def _resolve_skill_content(content: str) -> str:
     specs_path = content_registry.SPECS_DIR.resolve().as_posix()
     agents_path = content_registry.AGENTS_DIR.resolve().as_posix()
     return content.replace("{GPD_INSTALL_DIR}", specs_path).replace("{GPD_AGENTS_DIR}", agents_path)
+
+
+def _reference_kind(path: str) -> str:
+    if path.startswith(content_registry.AGENTS_DIR.resolve().as_posix()):
+        return "agent"
+    if path.startswith(content_registry.COMMANDS_DIR.resolve().as_posix()):
+        return "command"
+    if "/templates/" in path:
+        return "template"
+    if "/workflows/" in path:
+        return "workflow"
+    if "/references/" in path:
+        return "reference"
+    if "/bundles/" in path:
+        return "bundle"
+    return "spec"
+
+
+def _extract_referenced_files(content: str) -> list[dict[str, str]]:
+    references: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for match in _MARKDOWN_REFERENCE_RE.finditer(content):
+        path = match.group("path").rstrip(".,:;")
+        if not any(path == root or path.startswith(root + "/") for root in _REFERENCE_ROOTS):
+            continue
+        if path in seen:
+            continue
+        seen.add(path)
+        references.append({"path": path, "kind": _reference_kind(path)})
+    return references
 
 
 @mcp.tool()
@@ -107,11 +144,28 @@ def get_skill(name: str) -> dict:
                     "available": [entry.name for entry in _load_skill_index()[:10]],
                 }
 
+            content = _resolve_skill_content(skill.content)
+            referenced_files = _extract_referenced_files(content)
+            template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
+            schema_references = [
+                path
+                for path in template_references
+                if Path(path).name.endswith("-schema.md") or Path(path).name in {"summary.md", "verification-report.md"}
+            ]
             return {
                 "name": skill.name,
                 "category": skill.category,
-                "content": _resolve_skill_content(skill.content),
+                "content": content,
                 "file_count": 1,
+                "referenced_files": referenced_files,
+                "reference_count": len(referenced_files),
+                "template_references": template_references,
+                "schema_references": schema_references,
+                "loading_hint": (
+                    "Load schema_references and other referenced_files before asking a model to emit validated artifacts."
+                    if referenced_files
+                    else "No external markdown dependencies detected in the canonical skill body."
+                ),
             }
         except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
@@ -185,7 +239,16 @@ def route_skill(task_description: str) -> dict:
             for skill_name, keywords in command_keywords.items():
                 if skill_name not in available_names:
                     continue
-                score = sum(1 for kw in keywords if kw in words)
+                score = 0
+                for kw in keywords:
+                    normalized_kw = re.sub(r"[^a-z0-9\s-]", "", kw.lower()).strip()
+                    if not normalized_kw:
+                        continue
+                    if " " in normalized_kw:
+                        if normalized_kw in normalized_task:
+                            score += 2
+                    elif normalized_kw in words:
+                        score += 1
                 if score > 0:
                     scored.append((score, skill_name))
 

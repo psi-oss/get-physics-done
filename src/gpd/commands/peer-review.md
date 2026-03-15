@@ -4,7 +4,7 @@ description: Conduct a staged six-pass peer review of a manuscript and supportin
 argument-hint: "[paper directory or manuscript path]"
 context_mode: project-required
 requires:
-  files: ["paper/*.tex"]
+  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
 review-contract:
   review_mode: publication
   schema_version: 1

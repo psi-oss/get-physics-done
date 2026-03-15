@@ -34,7 +34,7 @@ You are not the final referee. Do not decide accept/minor/major/reject. Your job
 </process>
 
 <artifact_format>
-Use the stage artifact contract from `peer-review-panel.md`.
+Before writing either JSON artifact, read `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` directly and use its stage artifact contract exactly.
 
 Required details for `CLAIMS.json`:
 

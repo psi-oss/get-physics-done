@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from gpd.contracts import ResearchContract
@@ -117,6 +118,32 @@ def test_validate_project_contract_approved_mode_accepts_ground_truth_unclear_al
     assert result.mode == "approved"
 
 
+def test_validate_project_contract_approved_mode_accepts_question_form_anchor_gap() -> None:
+    contract = _load_contract_fixture()
+    contract["references"] = []
+    _remove_incidental_grounding(contract)
+    contract["context_intake"]["context_gaps"] = ["Which reference should serve as the decisive benchmark anchor?"]
+    contract["scope"]["unresolved_questions"] = ["Which benchmark or baseline should we treat as decisive?"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+
+
+def test_validate_project_contract_approved_mode_accepts_not_yet_selected_anchor_gap() -> None:
+    contract = _load_contract_fixture()
+    contract["references"] = []
+    _remove_incidental_grounding(contract)
+    contract["context_intake"]["context_gaps"] = ["Benchmark reference not yet selected; still to identify the decisive anchor"]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+
+
 def test_validate_project_contract_approved_mode_accepts_prior_output_grounding() -> None:
     contract = _load_contract_fixture()
     contract["references"] = []
@@ -148,6 +175,55 @@ def test_validate_project_contract_rejects_cross_link_inconsistency() -> None:
 
     assert result.valid is False
     assert "claim claim-benchmark references unknown deliverable missing-deliverable" in result.errors
+
+
+def test_validate_project_contract_rejects_duplicate_ids() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"].append(dict(contract["claims"][0]))
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "duplicate claim id claim-benchmark" in result.errors
+
+
+def test_validate_project_contract_rejects_unknown_observables_and_evidence() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["observables"] = ["obs-missing"]
+    contract["acceptance_tests"][0]["evidence_required"] = ["evidence-missing"]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "claim claim-benchmark references unknown observable obs-missing" in result.errors
+    assert "acceptance test test-benchmark references unknown evidence evidence-missing" in result.errors
+
+
+def test_validate_project_contract_rejects_must_surface_reference_without_required_actions() -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["must_surface"] = True
+    contract["references"][0]["required_actions"] = []
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "reference ref-benchmark is must_surface but missing required_actions" in result.errors
+
+
+def test_validate_project_contract_rejects_invalid_forbidden_proxy_and_link_bindings() -> None:
+    contract = _load_contract_fixture()
+    contract["forbidden_proxies"][0]["subject"] = "missing-claim"
+    contract["links"][0]["source"] = "missing-source"
+    contract["links"][0]["target"] = "missing-target"
+    contract["links"][0]["verified_by"] = ["missing-test"]
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "forbidden proxy fp-01 targets unknown subject missing-claim" in result.errors
+    assert "link link-01 references unknown source missing-source" in result.errors
+    assert "link link-01 references unknown target missing-target" in result.errors
+    assert "link link-01 references unknown acceptance test missing-test" in result.errors
 
 
 def test_validate_project_contract_reports_nested_object_schema_errors() -> None:
@@ -221,6 +297,32 @@ def test_validate_project_contract_preserves_requested_mode_for_non_object_input
     assert result.valid is False
     assert result.mode == "approved"
     assert result.errors == ["project contract must be a JSON object"]
+
+
+def test_validate_project_contract_warns_when_optional_sections_are_missing_but_scope_is_still_grounded() -> None:
+    contract = _load_contract_fixture()
+    contract["acceptance_tests"] = []
+    contract["references"] = []
+    contract["forbidden_proxies"] = []
+    contract["links"] = []
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    for claim in contract.get("claims", []):
+        claim["acceptance_tests"] = []
+        claim["references"] = []
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is True
+    assert "no acceptance_tests recorded yet" in result.warnings
+    assert "no references recorded yet" in result.warnings
+    assert "no forbidden_proxies recorded yet" in result.warnings
 
 
 def test_plan_contract_schema_uses_supported_contract_enum_values() -> None:
@@ -307,3 +409,17 @@ def test_plan_contract_schema_example_values_validate_against_research_contract_
     assert parsed.references[0].role == "benchmark"
     assert parsed.acceptance_tests[0].kind == "benchmark"
     assert parsed.links[0].relation == "supports"
+
+
+def test_state_json_schema_project_contract_example_is_validator_compatible() -> None:
+    schema_text = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+    match = re.search(r"### `project_contract`\n\n```json\n(.*?)\n```", schema_text, re.DOTALL)
+
+    assert match is not None
+    contract = json.loads(match.group(1))
+
+    parsed = ResearchContract.model_validate(contract)
+    result = validate_project_contract(contract, mode="approved")
+
+    assert parsed.scope.question == "What benchmark must the project recover?"
+    assert result.valid is True

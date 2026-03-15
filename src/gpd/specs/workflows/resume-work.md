@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
+Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
@@ -66,6 +66,13 @@ cat .gpd/PROJECT.md
 - **Requirements:** Validated, Active, Out of Scope
 - **Key Decisions**: Full decision log with outcomes (conventions, methods, approximations)
 - **Constraints**: Hard limits on the research (computational resources, time, available data)
+
+**Machine-readable carry-forward context from INIT JSON:**
+
+- `project_contract` is the authoritative structured scoping and anchor contract when present.
+- `effective_reference_intake` is the authoritative carry-forward ledger for must-read refs, prior outputs, baselines, user anchors, and context gaps.
+- `active_reference_context` and `reference_artifacts_content` are readability aids for that ledger, not substitutes for it.
+- Do not reconstruct contract-critical anchors only from `STATE.md` / `PROJECT.md` prose when INIT already provided the structured ledger.
 
 </step>
 

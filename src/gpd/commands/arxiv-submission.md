@@ -4,7 +4,7 @@ description: Prepare a paper for arXiv submission with validation and packaging
 argument-hint: "[paper directory path]"
 context_mode: project-required
 requires:
-  files: ["paper/*.tex"]
+  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
 review-contract:
   review_mode: publication
   schema_version: 1

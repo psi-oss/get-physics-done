@@ -35,16 +35,14 @@ Continue to full report below. With `--full`, also include detailed per-phase ar
 When STATE.md appears out of sync with disk reality (e.g., a plan was completed but state not updated, or a phase was manually modified), reconcile by comparing disk artifacts against STATE.md.
 
 ```bash
-# Get STATE.md's claimed position
-STATE_PHASE=$(grep "Phase:" .gpd/STATE.md | head -1 | grep -oE '[0-9]+')
-STATE_PLAN=$(grep "Plan:" .gpd/STATE.md | head -1 | grep -oE '[0-9]+')
+# Get the structured current position instead of scraping STATE.md with regexes
+PROGRESS_JSON=$(gpd --raw progress)
+STATE_PHASE=$(echo "$PROGRESS_JSON" | gpd json get .current_phase.number --default "")
+STATE_PLAN=$(echo "$PROGRESS_JSON" | gpd json get .current_execution.plan --default "")
 
-# Count actual disk state
-for phase_dir in .gpd/phases/*/; do
-  PLAN_COUNT=$(ls "$phase_dir"*-PLAN.md 2>/dev/null | wc -l)
-  SUMMARY_COUNT=$(ls "$phase_dir"*-SUMMARY.md 2>/dev/null | wc -l)
-  echo "$(basename $phase_dir): ${SUMMARY_COUNT}/${PLAN_COUNT} plans complete"
-done
+# Count actual disk state from the canonical roadmap inventory
+ROADMAP=$(gpd roadmap analyze)
+echo "$ROADMAP" | gpd json get .phases --default "[]"
 ```
 
 **If discrepancies found between STATE.md and disk:**
@@ -81,7 +79,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
@@ -113,6 +111,9 @@ All file contents are already loaded via `--include` in init_context step:
 - `roadmap_content` — phase structure and objectives
 - `project_content` — current state (Research Question, Framework, Answered Questions)
 - `config_content` — settings (model_profile, workflow toggles)
+- `project_contract` — machine-readable scoping and anchor contract
+- `effective_reference_intake` — structured carry-forward ledger for refs, baselines, prior outputs, and context gaps
+- `active_reference_context` / `reference_artifacts_content` — readable anchor context to explain the next-step recommendation
 
 No additional file reads needed.
 </step>

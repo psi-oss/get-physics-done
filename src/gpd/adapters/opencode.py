@@ -390,7 +390,13 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def write_manifest(config_dir: Path, version: str, *, install_scope: str | None = None) -> dict:
+def write_manifest(
+    config_dir: Path,
+    version: str,
+    *,
+    runtime: str | None = None,
+    install_scope: str | None = None,
+) -> dict:
     """Write file manifest after installation for future modification detection.
 
     OpenCode-specific: scans ``command/gpd-*.md`` (flat) instead of
@@ -408,6 +414,8 @@ def write_manifest(config_dir: Path, version: str, *, install_scope: str | None 
         "timestamp": datetime.now(UTC).isoformat(),
         "files": {},
     }
+    if isinstance(runtime, str) and runtime.strip():
+        manifest["runtime"] = runtime.strip()
     if install_scope in ("local", "--local"):
         manifest["install_scope"] = "local"
     elif install_scope in ("global", "--global"):
@@ -796,7 +804,12 @@ class OpenCodeAdapter(RuntimeAdapter):
         }
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
-        write_manifest(target_dir, version, install_scope=self._current_install_scope_flag())
+        write_manifest(
+            target_dir,
+            version,
+            runtime=self.runtime_name,
+            install_scope=self._current_install_scope_flag(),
+        )
 
     def uninstall(self, target_dir: Path) -> dict[str, object]:
         """Remove GPD from an OpenCode config directory.

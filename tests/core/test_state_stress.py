@@ -32,6 +32,8 @@ from gpd.core.state import (
     state_validate,
 )
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -192,6 +194,38 @@ class TestUnknownExtraFields:
         assert loaded is not None
         assert loaded.get("_experiment_id") == "EXP-42"
         assert loaded.get("custom_notes") == "Important note"
+
+    def test_project_contract_self_heals_malformed_context_intake(self) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["context_intake"] = {"must_read_refs": "not-a-list"}
+
+        result = ensure_state_schema({"project_contract": contract})
+
+        assert result["project_contract"] is not None
+        assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert result["project_contract"]["context_intake"] == {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+
+    def test_project_contract_self_heals_malformed_uncertainty_markers(self) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["uncertainty_markers"] = {"weakest_anchors": "not-a-list"}
+
+        result = ensure_state_schema({"project_contract": contract})
+
+        assert result["project_contract"] is not None
+        assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert result["project_contract"]["uncertainty_markers"] == {
+            "weakest_anchors": [],
+            "unvalidated_assumptions": [],
+            "competing_explanations": [],
+            "disconfirming_observations": [],
+        }
 
 
 # ---------------------------------------------------------------------------

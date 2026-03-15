@@ -886,6 +886,7 @@ class GeminiAdapter(RuntimeAdapter):
         write_manifest(
             target_dir,
             version,
+            runtime=self.runtime_name,
             metadata=metadata or None,
             install_scope=self._current_install_scope_flag(),
         )

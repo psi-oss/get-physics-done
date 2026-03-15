@@ -541,6 +541,15 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     assert "REFEREE-DECISION{-RN}.json" in writer_text
 
 
+def test_publication_commands_accept_documented_manuscript_layouts() -> None:
+    peer_review = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+    arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+
+    for content in (peer_review, respond, arxiv):
+        assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in content
+
+
 def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
@@ -911,6 +920,29 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "gpd validate plan-contract" in plan_phase
 
 
+def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_contract_context() -> None:
+    peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    verify_command = (COMMANDS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    sync_state = (WORKFLOWS_DIR / "sync-state.md").read_text(encoding="utf-8")
+    review_reader = (AGENTS_DIR / "gpd-review-reader.md").read_text(encoding="utf-8")
+    review_literature = (AGENTS_DIR / "gpd-review-literature.md").read_text(encoding="utf-8")
+    referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
+
+    assert "Project Contract:\n{project_contract}" in peer_review
+    assert "Active References:\n{active_reference_context}" in peer_review
+    assert "templates/paper/review-ledger-schema.md" in peer_review
+    assert "templates/paper/referee-decision-schema.md" in peer_review
+    assert "references/publication/peer-review-panel.md" in peer_review
+    assert "templates/verification-report.md" in verify_command
+    assert "templates/contract-results-schema.md" in verify_command
+    assert "state-json-schema.md` itself" in sync_state
+    assert "Keep the current `project_contract` and `active_reference_context` visible throughout that staged review" in write_paper
+    assert "peer-review-panel.md` directly" in review_reader
+    assert "peer-review-panel.md` directly" in review_literature
+    assert "re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`" in referee
+
+
 def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalization_rules() -> None:
     plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
 
@@ -918,6 +950,10 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "aliases: [\"optional stable label or citation shorthand\"]" in plan_schema
     assert "carry_forward_to: [planning, verification]" in plan_schema
     assert "automation: automated | hybrid | human" in plan_schema
+    assert "`deliverables[]` must not be empty." in plan_schema
+    assert "`acceptance_tests[]` must not be empty." in plan_schema
+    assert "If `must_surface: true`, `applies_to[]` must not be empty." in plan_schema
+    assert "If `references[]` is non-empty, at least one reference must set `must_surface: true`." in plan_schema
     assert "blank-after-trim values are invalid" in plan_schema
 
 
@@ -928,6 +964,10 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in state_schema
     assert "temporary file" in state_schema
     assert "`schema_version` must be `1`." in state_schema
+    assert "Approved project contracts must include at least one observable, claim, or deliverable." in state_schema
+    assert "`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty." in state_schema
+    assert "If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty." in state_schema
+    assert "Which reference should serve as the decisive benchmark anchor?" in state_schema
     assert "Blank-after-trim values are invalid" in state_schema
 
 

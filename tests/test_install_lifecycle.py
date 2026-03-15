@@ -652,6 +652,7 @@ class TestManifestConsistency:
         adapter.install(gpd_root, target, **install_kwargs)
 
         manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert manifest["runtime"] == runtime
         assert manifest["install_scope"] == expected_scope
 
 

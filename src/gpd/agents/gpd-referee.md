@@ -53,6 +53,8 @@ If a polished PDF companion is requested and TeX is available, compile the lates
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
+Before writing `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json`, re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`, `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`, and `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`. Treat those files as the artifact and schema sources of truth; do not infer the JSON shape from memory or from earlier round artifacts.
+
 <panel_adjudication>
 
 ## Default Role In Manuscript Review: Final Adjudicator

@@ -24,6 +24,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
     ContractAcceptanceTest,
+    ContractApproachPolicy,
     ContractClaim,
     ContractContextIntake,
     ContractDeliverable,
@@ -1053,18 +1054,33 @@ def _normalize_project_contract_section(value: object, integrity_issues: list[st
             integrity_issues=integrity_issues,
         )
 
-    singleton_models: dict[str, type[BaseModel]] = {
+    required_singleton_models: dict[str, type[BaseModel]] = {
         "scope": ContractScope,
-        "context_intake": ContractContextIntake,
-        "uncertainty_markers": ContractUncertaintyMarkers,
     }
-    for field_name, model in singleton_models.items():
+    for field_name, model in required_singleton_models.items():
         if field_name not in normalized_contract or not isinstance(normalized_contract[field_name], dict):
             continue
         try:
             normalized_contract[field_name] = model.model_validate(normalized_contract[field_name]).model_dump()
         except PydanticValidationError:
             continue
+
+    defaultable_singleton_models: dict[str, type[BaseModel]] = {
+        "approach_policy": ContractApproachPolicy,
+        "context_intake": ContractContextIntake,
+        "uncertainty_markers": ContractUncertaintyMarkers,
+    }
+    for field_name, model in defaultable_singleton_models.items():
+        if field_name not in normalized_contract:
+            continue
+        raw_value = normalized_contract[field_name]
+        if not isinstance(raw_value, dict):
+            normalized_contract[field_name] = model.model_validate({}).model_dump()
+            continue
+        try:
+            normalized_contract[field_name] = model.model_validate(raw_value).model_dump()
+        except PydanticValidationError:
+            normalized_contract[field_name] = model.model_validate({}).model_dump()
 
     try:
         return ResearchContract.model_validate(normalized_contract).model_dump()
