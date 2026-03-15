@@ -577,12 +577,9 @@ class TestCheckLatestReturn:
             "```yaml\n"
             "gpd_return:\n"
             "  status: completed\n"
-            "  phase: '01'\n"
-            "  plan: 01-setup-01\n"
-            "  tasks_completed: 3\n"
-            "  tasks_total: 3\n"
-            "  one_liner: Everything done\n"
-            "  next_action: Move to phase 2\n"
+            "  files_written: [src/main.py]\n"
+            "  issues: []\n"
+            "  next_actions: [/gpd:verify-work 02]\n"
             "```\n"
         )
         (phase_dir / "01-setup-01-SUMMARY.md").write_text(summary_content, encoding="utf-8")

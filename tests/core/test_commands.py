@@ -292,11 +292,9 @@ class TestValidateReturn:
             (
                 "gpd_return:\n"
                 "  status: completed\n"
-                "  phase: 01\n"
-                "  plan: 01\n"
-                "  tasks_completed: 5\n"
-                "  tasks_total: 5\n"
-                "  files_written: 3\n"
+                "  files_written: [src/main.py]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:verify-work 01]\n"
                 "  duration_seconds: 120\n"
             ),
         )
@@ -305,15 +303,23 @@ class TestValidateReturn:
         assert result.warning_count == 0
 
     def test_missing_required_field(self, tmp_path: Path):
-        f = self._write_return(tmp_path, ("gpd_return:\n  status: completed\n  phase: 01\n"))
+        f = self._write_return(tmp_path, ("gpd_return:\n  status: completed\n"))
         result = cmd_validate_return(f)
         assert result.passed is False
-        assert len(result.errors) >= 2  # missing plan, tasks_completed, tasks_total
+        assert "Missing required field: files_written" in result.errors
+        assert "Missing required field: issues" in result.errors
+        assert "Missing required field: next_actions" in result.errors
 
     def test_invalid_status(self, tmp_path: Path):
         f = self._write_return(
             tmp_path,
-            ("gpd_return:\n  status: unknown\n  phase: 01\n  plan: 01\n  tasks_completed: 3\n  tasks_total: 5\n"),
+            (
+                "gpd_return:\n"
+                "  status: unknown\n"
+                "  files_written: [src/main.py]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:verify-work 01]\n"
+            ),
         )
         result = cmd_validate_return(f)
         assert result.passed is False
@@ -322,7 +328,15 @@ class TestValidateReturn:
     def test_non_numeric_task_count(self, tmp_path: Path):
         f = self._write_return(
             tmp_path,
-            ("gpd_return:\n  status: completed\n  phase: 01\n  plan: 01\n  tasks_completed: abc\n  tasks_total: 5\n"),
+            (
+                "gpd_return:\n"
+                "  status: completed\n"
+                "  files_written: [src/main.py]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:verify-work 01]\n"
+                "  tasks_completed: abc\n"
+                "  tasks_total: 5\n"
+            ),
         )
         result = cmd_validate_return(f)
         assert result.passed is False
@@ -331,7 +345,15 @@ class TestValidateReturn:
     def test_completed_but_incomplete_warning(self, tmp_path: Path):
         f = self._write_return(
             tmp_path,
-            ("gpd_return:\n  status: completed\n  phase: 01\n  plan: 01\n  tasks_completed: 3\n  tasks_total: 5\n"),
+            (
+                "gpd_return:\n"
+                "  status: completed\n"
+                "  files_written: [src/main.py]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:verify-work 01]\n"
+                "  tasks_completed: 3\n"
+                "  tasks_total: 5\n"
+            ),
         )
         result = cmd_validate_return(f)
         assert result.passed is True
@@ -342,12 +364,18 @@ class TestValidateReturn:
     def test_recommended_fields_warning(self, tmp_path: Path):
         f = self._write_return(
             tmp_path,
-            ("gpd_return:\n  status: completed\n  phase: 01\n  plan: 01\n  tasks_completed: 5\n  tasks_total: 5\n"),
+            (
+                "gpd_return:\n"
+                "  status: completed\n"
+                "  files_written: [src/main.py]\n"
+                "  issues: []\n"
+                "  next_actions: [/gpd:verify-work 01]\n"
+            ),
         )
         result = cmd_validate_return(f)
         assert result.passed is True
         recommended_warnings = [w for w in result.warnings if "Recommended field" in w]
-        assert len(recommended_warnings) == 2
+        assert len(recommended_warnings) == 1
 
     def test_no_return_block(self, tmp_path: Path):
         f = tmp_path / "no_return.md"
@@ -366,15 +394,37 @@ class TestValidateReturn:
             (
                 "gpd_return:\n"
                 '  status: "completed"\n'
-                "  phase: '01'\n"
-                '  plan: "01"\n'
-                "  tasks_completed: 5\n"
-                "  tasks_total: 5\n"
-                "  files_written: 3\n"
+                '  files_written: ["src/main.py"]\n'
+                "  issues: []\n"
+                '  next_actions: ["/gpd:verify-work 01"]\n'
                 "  duration_seconds: 60\n"
             ),
         )
         result = cmd_validate_return(f)
         assert result.passed is True
         assert result.fields["status"] == "completed"
-        assert result.fields["phase"] == "01"
+        assert result.fields["files_written"] == ["src/main.py"]
+        assert result.fields["next_actions"] == ["/gpd:verify-work 01"]
+
+    def test_block_list_values_are_parsed(self, tmp_path: Path):
+        f = self._write_return(
+            tmp_path,
+            (
+                "gpd_return:\n"
+                "  status: checkpoint\n"
+                "  files_written:\n"
+                "    - src/main.py\n"
+                "    - tests/test_main.py\n"
+                "  issues:\n"
+                "    - waiting on benchmark rerun\n"
+                "  next_actions:\n"
+                "    - /gpd:verify-work 01\n"
+            ),
+        )
+
+        result = cmd_validate_return(f)
+
+        assert result.passed is True
+        assert result.fields["files_written"] == ["src/main.py", "tests/test_main.py"]
+        assert result.fields["issues"] == ["waiting on benchmark rerun"]
+        assert result.fields["next_actions"] == ["/gpd:verify-work 01"]

@@ -637,6 +637,18 @@ class TestSkillsServerIntegration:
         assert "{GPD_INSTALL_DIR}" not in result["content"]
         assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/plan-phase.md" in result["content"]
 
+    def test_get_skill_peer_review_surfaces_transitive_schema_refs_and_typed_contract(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-peer-review")
+
+        assert "error" not in result
+        assert any(path.endswith("review-ledger-schema.md") for path in result["schema_references"])
+        assert any(path.endswith("referee-decision-schema.md") for path in result["schema_references"])
+        assert result["review_contract"] is not None
+        assert result["review_contract"]["review_mode"] == "publication"
+        assert result["context_mode"] == "project-required"
+
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill
 

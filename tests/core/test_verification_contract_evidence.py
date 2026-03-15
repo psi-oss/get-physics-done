@@ -534,7 +534,7 @@ def test_verify_summary_rejects_unknown_contract_ids(tmp_path: Path) -> None:
     assert any("Unknown claim contract_results entry: claim-unknown" in error for error in result.errors)
 
 
-def test_verify_summary_allows_partial_contract_results_ledgers(tmp_path: Path) -> None:
+def test_verify_summary_allows_explicit_incomplete_contract_results_statuses(tmp_path: Path) -> None:
     phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
     plan_path = phase_dir / "01-01-PLAN.md"
@@ -543,50 +543,28 @@ def test_verify_summary_allows_partial_contract_results_ledgers(tmp_path: Path) 
         (FIXTURES_STAGE4 / "summary_with_contract_results.md")
         .read_text(encoding="utf-8")
         .replace(
-            "contract_results:\n"
-            "  claims:\n"
-            "    claim-benchmark:\n"
-            "      status: passed\n"
-            "      summary: Benchmark reproduced within tolerance\n"
-            "      linked_ids: [deliv-figure, test-benchmark, ref-benchmark]\n"
-            "      path: figures/benchmark.png\n"
-            "  deliverables:\n"
-            "    deliv-figure:\n"
-            "      status: passed\n"
-            "      summary: Figure generated\n"
-            "      path: figures/benchmark.png\n"
-            "  acceptance_tests:\n"
-            "    test-benchmark:\n"
-            "      status: passed\n"
-            "      summary: Comparison check passed\n"
-            "      linked_ids: [claim-benchmark, ref-benchmark]\n"
-            "  references:\n"
-            "    ref-benchmark:\n"
-            "      status: completed\n"
-            "      completed_actions: [read, compare, cite]\n"
-            "      missing_actions: []\n"
-            "      summary: Read and compared benchmark reference\n"
-            "  forbidden_proxies:\n"
-            "    fp-benchmark:\n"
-            "      status: rejected\n"
-            "      notes: Explicit numerical comparison was completed\n",
-            "contract_results:\n"
-            "  claims:\n"
-            "    claim-benchmark:\n"
-            "      status: partial\n"
-            "      summary: Benchmark comparison is in progress\n"
-            "      linked_ids: [deliv-figure, test-benchmark]\n"
-            "  acceptance_tests:\n"
-            "    test-benchmark:\n"
-            "      status: partial\n"
-            "      summary: Initial comparison run completed\n"
-            "      linked_ids: [claim-benchmark]\n"
-            "  references:\n"
-            "    ref-benchmark:\n"
-            "      status: completed\n"
-            "      completed_actions: [read, compare, cite]\n"
-            "      missing_actions: []\n"
-            "      summary: Read and compared benchmark reference\n",
+            "      status: passed\n      summary: Benchmark claim verified against the decisive anchor.\n",
+            "      status: partial\n      summary: Benchmark comparison is still in progress.\n",
+            1,
+        )
+        .replace(
+            "      status: passed\n      path: figures/benchmark.png\n      summary: Figure produced with uncertainty band and benchmark overlay.\n",
+            "      status: not_attempted\n      path: figures/benchmark.png\n      summary: Figure regeneration is queued behind the next run.\n",
+            1,
+        )
+        .replace(
+            "      status: passed\n      summary: Benchmark reproduced within the contracted tolerance.\n",
+            "      status: partial\n      summary: Initial comparison run completed but is not yet decisive.\n",
+            1,
+        )
+        .replace(
+            "      status: rejected\n      notes: Qualitative trend agreement was not accepted without the numerical benchmark check.\n",
+            "      status: unresolved\n      notes: Proxy rejection will be finalized after the decisive rerun.\n",
+            1,
+        )
+        .replace(
+            "    verdict: pass\n    recommended_action: Keep this benchmark comparison in the paper.\n",
+            "    verdict: inconclusive\n    recommended_action: Rerun the benchmark after the normalization fix.\n",
             1,
         )
     )
@@ -600,6 +578,181 @@ def test_verify_summary_allows_partial_contract_results_ledgers(tmp_path: Path) 
     result = verify_summary(tmp_path, summary_path)
 
     assert result.passed is True
+
+
+def test_validate_frontmatter_summary_rejects_missing_contract_results_coverage(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+            "  deliverables:\n"
+            "    deliv-figure:\n"
+            "      status: passed\n"
+            "      path: figures/benchmark.png\n"
+            "      summary: Figure produced with uncertainty band and benchmark overlay.\n"
+            "      linked_ids: [claim-benchmark, test-benchmark]\n",
+            "",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert "Missing deliverable contract_results entry: deliv-figure" in result.errors
+
+
+def test_validate_frontmatter_summary_rejects_mismatched_comparison_verdict_subject_kind(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace("subject_kind: claim", "subject_kind: deliverable", 1),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any("has subject_kind deliverable but contract id is a claim" in error for error in result.errors)
+
+
+def test_validate_frontmatter_summary_rejects_contract_results_context_usage(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+            "  uncertainty_markers:\n",
+            "  context_usage:\n"
+            "    prior-baseline:\n"
+            "      status: consulted\n"
+            "      summary: Used prior baseline notes.\n"
+            "  uncertainty_markers:\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any("contract_results:" in error and "context_usage" in error for error in result.errors)
+
+
+def test_validate_frontmatter_summary_requires_decisive_verdict_even_when_comparison_not_attempted(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    original = (
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace("status: passed\n      summary: Benchmark claim verified against the decisive anchor.\n", "status: not_attempted\n      summary: Benchmark claim remains open.\n", 1)
+        .replace(
+            "status: passed\n      summary: Benchmark reproduced within the contracted tolerance.\n",
+            "status: not_attempted\n      summary: Benchmark comparison has not been run yet.\n",
+            1,
+        )
+    )
+    frontmatter, body = original.split("---\n\n", 1)
+    trimmed_frontmatter = frontmatter.split("\ncomparison_verdicts:\n", 1)[0] + "\n---\n"
+    summary_path = phase_dir / "01-SUMMARY.md"
+    summary_path.write_text(trimmed_frontmatter + "\n" + body, encoding="utf-8")
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is False
+    assert any("Missing decisive comparison_verdict for acceptance test test-benchmark" in error for error in result.errors)
+
+
+def test_validate_frontmatter_verification_rejects_mismatched_suggested_contract_check_binding(
+    tmp_path: Path,
+) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        (FIXTURES_STAGE4 / "verification_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace("status: passed\nscore: 3/3 contract targets verified\n", "status: gaps_found\nscore: 3/3 contract targets verified\n", 1)
+        .replace(
+            "comparison_verdicts:\n",
+            "suggested_contract_checks:\n"
+            "  - check: Add decisive benchmark rerun\n"
+            "    reason: The benchmark needs a narrower comparison window.\n"
+            "    suggested_subject_kind: claim\n"
+            "    suggested_subject_id: test-benchmark\n"
+            "comparison_verdicts:\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any("references test-benchmark as claim, but the contract declares it as acceptance_test" in error for error in result.errors)
+
+
+def test_validate_frontmatter_verification_rejects_half_bound_suggested_contract_check(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        (FIXTURES_STAGE4 / "verification_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace("status: passed\nscore: 3/3 contract targets verified\n", "status: gaps_found\nscore: 3/3 contract targets verified\n", 1)
+        .replace(
+            "comparison_verdicts:\n",
+            "suggested_contract_checks:\n"
+            "  - check: Add decisive benchmark rerun\n"
+            "    reason: The benchmark needs a narrower comparison window.\n"
+            "    suggested_subject_kind: acceptance_test\n"
+            "comparison_verdicts:\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any("must provide suggested_subject_kind and suggested_subject_id together" in error for error in result.errors)
 
 
 def test_verify_summary_requires_must_surface_reference_actions(tmp_path: Path) -> None:

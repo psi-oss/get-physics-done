@@ -400,9 +400,10 @@ class TestValidateReturn:
         return_file = gpd_project / "valid_return.md"
         return_file.write_text(
             "# Summary\n\n```yaml\ngpd_return:\n"
-            '  status: completed\n  phase: "01"\n  plan: "01"\n'
-            "  tasks_completed: 5\n  tasks_total: 5\n"
-            "  files_written: 3\n  duration_seconds: 120\n```\n"
+            '  status: completed\n  files_written: ["src/main.py"]\n'
+            "  issues: []\n"
+            '  next_actions: ["/gpd:verify-work 01"]\n'
+            "  duration_seconds: 120\n```\n"
         )
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)
@@ -414,7 +415,7 @@ class TestValidateReturn:
         return_file = gpd_project / "incomplete_return.md"
         return_file.write_text(
             "# Summary\n\n```yaml\ngpd_return:\n"
-            '  status: completed\n  phase: "01"\n```\n'
+            '  status: completed\n```\n'
         )
         result = runner.invoke(
             app,
@@ -445,8 +446,9 @@ class TestValidateReturn:
         return_file = gpd_project / "bad_status.md"
         return_file.write_text(
             "# Summary\n\n```yaml\ngpd_return:\n"
-            '  status: banana\n  phase: "01"\n  plan: "01"\n'
-            "  tasks_completed: 5\n  tasks_total: 5\n```\n"
+            '  status: banana\n  files_written: ["src/main.py"]\n'
+            "  issues: []\n"
+            '  next_actions: ["/gpd:verify-work 01"]\n```\n'
         )
         result = runner.invoke(
             app,
@@ -463,8 +465,9 @@ class TestValidateReturn:
         return_file = gpd_project / "warns.md"
         return_file.write_text(
             "# Summary\n\n```yaml\ngpd_return:\n"
-            '  status: completed\n  phase: "01"\n  plan: "01"\n'
-            "  tasks_completed: 5\n  tasks_total: 5\n```\n"
+            '  status: completed\n  files_written: ["src/main.py"]\n'
+            "  issues: []\n"
+            '  next_actions: ["/gpd:verify-work 01"]\n```\n'
         )
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)

@@ -38,6 +38,13 @@ You operate across all areas of physics --- theoretical, computational, mathemat
 
 **State machine:** For valid state transitions during execution (plan states, phase states, milestone lifecycle), see `{GPD_INSTALL_DIR}/templates/state-machine.md`.
 
+Load these shared execution contracts before producing runtime-facing artifacts:
+@{GPD_INSTALL_DIR}/references/tooling/tool-integration.md
+@{GPD_INSTALL_DIR}/references/execution/executor-index.md
+@{GPD_INSTALL_DIR}/templates/state-machine.md
+@{GPD_INSTALL_DIR}/templates/summary.md
+@{GPD_INSTALL_DIR}/templates/calculation-log.md
+
 Loaded from agent-infrastructure.md reference.
 </role>
 

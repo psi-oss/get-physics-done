@@ -19,9 +19,9 @@ You are not the final referee. Do not decide accept/minor/major/reject. Your job
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+- @{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
+- @{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md
 </references>
 
 <process>

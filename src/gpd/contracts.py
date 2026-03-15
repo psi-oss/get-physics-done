@@ -16,8 +16,6 @@ __all__ = [
     "ContractReferenceUsage",
     "ContractForbiddenProxyStatus",
     "ContractForbiddenProxyResult",
-    "ContractContextUsageStatus",
-    "ContractContextUsageEntry",
     "ContractResults",
     "SuggestedContractCheck",
     "ComparisonVerdict",
@@ -178,19 +176,6 @@ class ContractForbiddenProxyResult(BaseModel):
     evidence: list[VerificationEvidence] = Field(default_factory=list)
 
 
-ContractContextUsageStatus = Literal["consulted", "not_consulted", "superseded", "conflicted", "matched", "mismatched", "not_checked"]
-
-
-class ContractContextUsageEntry(BaseModel):
-    """Tracks whether a carry-forward input or baseline was actually used."""
-
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
-
-    status: ContractContextUsageStatus = "not_checked"
-    summary: str | None = None
-    evidence: list[VerificationEvidence] = Field(default_factory=list)
-
-
 class ContractResults(BaseModel):
     """Execution-facing outcome ledger keyed to canonical contract IDs."""
 
@@ -201,7 +186,6 @@ class ContractResults(BaseModel):
     acceptance_tests: dict[str, ContractResultEntry] = Field(default_factory=dict)
     references: dict[str, ContractReferenceUsage] = Field(default_factory=dict)
     forbidden_proxies: dict[str, ContractForbiddenProxyResult] = Field(default_factory=dict)
-    context_usage: dict[str, ContractContextUsageEntry] = Field(default_factory=dict)
     uncertainty_markers: ContractUncertaintyMarkers = Field(default_factory=lambda: ContractUncertaintyMarkers())
 
     @field_validator(
@@ -210,7 +194,6 @@ class ContractResults(BaseModel):
         "acceptance_tests",
         "references",
         "forbidden_proxies",
-        "context_usage",
         mode="before",
     )
     @classmethod

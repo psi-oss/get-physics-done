@@ -1025,6 +1025,47 @@ def _normalize_contract_collection(
     return normalized_items
 
 
+def _normalize_contract_singleton(
+    value: object,
+    *,
+    field_name: str,
+    model: type[BaseModel],
+    integrity_issues: list[str],
+) -> dict[str, object]:
+    default_value = model.model_validate({}).model_dump()
+
+    if not isinstance(value, dict):
+        integrity_issues.append(
+            f'schema normalization: reset "project_contract.{field_name}" because expected object, got {type(value).__name__}'
+        )
+        return default_value
+
+    try:
+        return model.model_validate(value).model_dump()
+    except PydanticValidationError:
+        pass
+
+    normalized_value = copy.deepcopy(default_value)
+    for key, raw_item in value.items():
+        if key not in model.model_fields:
+            integrity_issues.append(
+                f'schema normalization: dropped unknown "project_contract.{field_name}.{key}"'
+            )
+            continue
+        try:
+            partial = model.model_validate({key: raw_item}).model_dump()
+        except PydanticValidationError as exc:
+            detail = _first_validation_issue(exc)
+            integrity_issues.append(
+                f'schema normalization: dropped malformed "project_contract.{field_name}.{key}": {detail}'
+            )
+            continue
+        if key in partial:
+            normalized_value[key] = partial[key]
+
+    return normalized_value
+
+
 def _normalize_project_contract_section(value: object, integrity_issues: list[str]) -> object:
     if value is None or not isinstance(value, dict):
         return value
@@ -1073,14 +1114,12 @@ def _normalize_project_contract_section(value: object, integrity_issues: list[st
     for field_name, model in defaultable_singleton_models.items():
         if field_name not in normalized_contract:
             continue
-        raw_value = normalized_contract[field_name]
-        if not isinstance(raw_value, dict):
-            normalized_contract[field_name] = model.model_validate({}).model_dump()
-            continue
-        try:
-            normalized_contract[field_name] = model.model_validate(raw_value).model_dump()
-        except PydanticValidationError:
-            normalized_contract[field_name] = model.model_validate({}).model_dump()
+        normalized_contract[field_name] = _normalize_contract_singleton(
+            normalized_contract[field_name],
+            field_name=field_name,
+            model=model,
+            integrity_issues=integrity_issues,
+        )
 
     try:
         return ResearchContract.model_validate(normalized_contract).model_dump()

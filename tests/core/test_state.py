@@ -378,6 +378,24 @@ def test_ensure_state_schema_malformed_project_contract_list_item_preserves_cont
     assert result["project_contract"]["references"] == []
 
 
+def test_ensure_state_schema_malformed_project_contract_singleton_field_preserves_valid_siblings():
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"] = {
+        "must_read_refs": "not-a-list",
+        "known_good_baselines": ["baseline-A"],
+        "crucial_inputs": ["normalize with published convention"],
+    }
+
+    result = ensure_state_schema({"project_contract": contract})
+
+    assert result["project_contract"] is not None
+    assert result["project_contract"]["context_intake"]["must_read_refs"] == []
+    assert result["project_contract"]["context_intake"]["known_good_baselines"] == ["baseline-A"]
+    assert result["project_contract"]["context_intake"]["crucial_inputs"] == [
+        "normalize with published convention"
+    ]
+
+
 def test_ensure_state_schema_malformed_verification_record_preserves_intermediate_results():
     state = default_state_dict()
     state["intermediate_results"] = [

@@ -30,6 +30,7 @@ Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `dep
 **Contract-backed summaries:** if the source PLAN has a `contract` block, the SUMMARY must also carry `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts`. `contract_results` is the authoritative machine-readable outcome ledger.
 Keep this ledger user-visible: record what claim was established, what artifact exists, and what decisive comparison passed or failed. Do not use it to log administrative progress such as "ran verifier" or "completed task."
 Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for these fields. If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is also required. If a decisive comparison is required, omitting its `comparison_verdicts` entry is a validation failure, not a stylistic omission.
+Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit statuses like `not_attempted`, `missing`, `not_applicable`, or `unresolved` instead of silently omitting contract IDs.
 
 ```markdown
 ---
@@ -94,6 +95,7 @@ conventions:
 # Canonical contract outcome ledger (required when source PLAN has a contract)
 plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present): ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
 contract_results (required for contract-backed plans):
+  # Every ID declared in the PLAN contract must appear in its matching section below.
   claims:
     claim-id:
       status: passed|partial|failed|blocked|not_attempted
@@ -139,16 +141,17 @@ contract_results (required for contract-backed plans):
 # Required whenever a contract-backed claim / deliverable / acceptance test depends on a decisive comparison.
 comparison_verdicts (required when a decisive comparison was required or attempted):
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|reference|artifact
-    subject_role: decisive|supporting|supplemental
+    subject_kind: claim|deliverable|acceptance_test|reference|artifact|other
+    subject_role: decisive|supporting|supplemental|other
     reference_id: reference-id
-    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
     metric: relative_error
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
     recommended_action: "[what to do next]"
+    notes: "[optional context]"
 
-[When a decisive comparison is required by the contract, omitting the corresponding `comparison_verdicts` entry makes the summary incomplete.]
+[When a decisive comparison is required by the contract, omitting the corresponding `comparison_verdicts` entry makes the summary incomplete. If the check is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.]
 
 # Metrics
 duration: Xmin

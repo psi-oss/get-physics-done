@@ -133,9 +133,21 @@ class TestResolveField:
         fm = {"provides": ["a", "b"]}
         assert resolve_field(fm, "provides") == ["a", "b"]
 
+    def test_top_level_scalar_is_wrapped(self) -> None:
+        fm = {"provides": "bare-hamiltonian"}
+        assert resolve_field(fm, "provides") == ["bare-hamiltonian"]
+
+    def test_top_level_object_is_wrapped(self) -> None:
+        fm = {"provides": {"name": "bare-hamiltonian"}}
+        assert resolve_field(fm, "provides") == [{"name": "bare-hamiltonian"}]
+
     def test_nested_in_dependency_graph(self) -> None:
         fm = {"dependency-graph": {"requires": [{"phase": "01", "provides": "x"}]}}
         assert resolve_field(fm, "requires") == [{"phase": "01", "provides": "x"}]
+
+    def test_nested_scalar_in_dependency_graph_is_wrapped(self) -> None:
+        fm = {"dependency-graph": {"requires": "bare-hamiltonian"}}
+        assert resolve_field(fm, "requires") == ["bare-hamiltonian"]
 
     def test_prefers_dependency_graph(self) -> None:
         fm = {"requires": ["top"], "dependency-graph": {"requires": ["nested"]}}
@@ -164,6 +176,10 @@ class TestExtractRequiresValues:
         values = extract_requires_values(["a", {"provides": "b"}])
         assert "a" in values
         assert "b" in values
+
+    def test_objects_with_scalar_and_list_values(self) -> None:
+        values = extract_requires_values([{"provides": ["x", "y"], "phase": "phase-01"}])
+        assert values == ["x", "y", "phase-01"]
 
 
 class TestParsePhaseRange:
@@ -385,6 +401,36 @@ class TestQueryDeps:
     def test_deps_empty_identifier_raises(self, project_dir: Path) -> None:
         with pytest.raises(QueryError, match="identifier required"):
             query_deps(project_dir, "")
+
+    def test_deps_accepts_scalar_provides_and_requires(self, tmp_path: Path) -> None:
+        phase1 = tmp_path / ".gpd" / "phases" / "01-setup"
+        phase1.mkdir(parents=True)
+        (phase1 / "01-01-SUMMARY.md").write_text(
+            dedent("""\
+            ---
+            provides: bare-hamiltonian
+            ---
+            # Summary
+            """)
+        )
+
+        phase2 = tmp_path / ".gpd" / "phases" / "02-core"
+        phase2.mkdir(parents=True)
+        (phase2 / "02-01-SUMMARY.md").write_text(
+            dedent("""\
+            ---
+            requires: bare-hamiltonian
+            ---
+            # Summary
+            """)
+        )
+
+        result = query_deps(tmp_path, "bare-hamiltonian")
+
+        assert result.provides_by is not None
+        assert result.provides_by.phase in ("1", "01")
+        assert len(result.required_by) == 1
+        assert result.required_by[0].phase in ("2", "02")
 
 
 # ─── query_assumptions ───────────────────────────────────────────────────────────

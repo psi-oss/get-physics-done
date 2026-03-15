@@ -19,10 +19,10 @@ You are not the final referee. Your artifact should be decisive on novelty and c
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
-- `@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md`
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+- @{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
+- @{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md
+- @{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md
 </references>
 
 <process>

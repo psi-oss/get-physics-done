@@ -46,6 +46,7 @@ Not all verification sections apply to every project. Select based on physics do
 Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`.
 For exploratory or partial phases, keep the report honest without inventing certainty: leave affected contract targets at `partial` when decisive work remains open, and use explicit `comparison_verdicts` entries such as `inconclusive` or `tension` when a decisive comparison was attempted but not resolved.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks its decisive verdict, add structured `suggested_contract_checks` entries before final validation.
+Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit negative or incomplete statuses instead of omitting IDs.
 
 ```markdown
 ---
@@ -56,6 +57,7 @@ score: N/M contract targets verified
 plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
 # Use `contract_results` only for user-visible contract targets. Do not encode internal tool/process milestones here.
 contract_results:
+  # Every ID declared in the PLAN contract must appear in its matching section below.
   claims:
     claim-id:
       status: passed|partial|failed|blocked|not_attempted
@@ -84,13 +86,15 @@ contract_results:
 # instead of omitting the entry or upgrading the parent target to `passed`.
 comparison_verdicts:
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|reference|artifact
-    subject_role: decisive|supporting|supplemental
+    subject_kind: claim|deliverable|acceptance_test|reference|artifact|other
+    subject_role: decisive|supporting|supplemental|other
     reference_id: reference-id
-    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
     metric: relative_error
     threshold: "<= 0.01"
     verdict: pass|tension|fail|inconclusive
+    recommended_action: "[what to do next]"
+    notes: "[optional context]"
 # Required when the verifier can name a missing decisive check on a user-visible target.
 # Also required when a decisive benchmark / cross-method check remains partial, not attempted,
 # or still lacks the decisive comparison verdict that would let the target pass honestly.

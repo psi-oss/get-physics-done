@@ -146,12 +146,48 @@ def resolve_field(fm: dict, field_name: str) -> list:
     if not fm or not isinstance(fm, dict):
         return []
     dep_graph = fm.get("dependency-graph")
-    if isinstance(dep_graph, dict) and isinstance(dep_graph.get(field_name), list):
-        return dep_graph[field_name]
-    val = fm.get(field_name)
-    if isinstance(val, list):
-        return val
-    return []
+    if isinstance(dep_graph, dict) and field_name in dep_graph:
+        value = dep_graph.get(field_name)
+    else:
+        value = fm.get(field_name)
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, (str, dict)):
+        return [value]
+    return [value]
+
+
+def _append_search_values(values: list[str], value: object) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        values.append(value)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _append_search_values(values, item)
+        return
+    if isinstance(value, dict):
+        for item in value.values():
+            _append_search_values(values, item)
+        return
+    values.append(str(value))
+
+
+def _search_values_from_item(value: object, *preferred_keys: str) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, dict) and preferred_keys:
+        matched_any = False
+        for key in preferred_keys:
+            if key in value:
+                matched_any = True
+                _append_search_values(values, value.get(key))
+        if matched_any:
+            return values
+    _append_search_values(values, value)
+    return values
 
 
 def extract_requires_values(requires_arr: list) -> list[str]:
@@ -165,8 +201,7 @@ def extract_requires_values(requires_arr: list) -> list[str]:
             values.append(item)
         elif isinstance(item, dict):
             for key in ("provides", "phase"):
-                if key in item and item[key]:
-                    values.append(str(item[key]))
+                _append_search_values(values, item.get(key))
     return values
 
 
@@ -339,12 +374,7 @@ def query(
         if provides:
             for p in fm_provides:
                 display = p if isinstance(p, str) else _serialize_search_value(p)
-                if isinstance(p, str):
-                    search_vals = [p]
-                elif isinstance(p, dict):
-                    search_vals = [v for v in [p.get("name"), p.get("provides")] if v]
-                else:
-                    search_vals = [str(p)]
+                search_vals = _search_values_from_item(p, "name", "provides")
                 if _any_match(provides, search_vals):
                     matches.append(
                         QueryMatch(
@@ -361,12 +391,7 @@ def query(
         if requires:
             for r in fm_requires:
                 display = r if isinstance(r, str) else _serialize_search_value(r)
-                if isinstance(r, str):
-                    search_vals = [r]
-                elif isinstance(r, dict):
-                    search_vals = [v for v in [r.get("provides"), r.get("phase")] if v]
-                else:
-                    search_vals = [str(r)]
+                search_vals = _search_values_from_item(r, "provides", "phase")
                 if _any_match(requires, search_vals):
                     matches.append(
                         QueryMatch(
@@ -383,12 +408,7 @@ def query(
         if affects:
             for a in fm_affects:
                 display = a if isinstance(a, str) else _serialize_search_value(a)
-                if isinstance(a, str):
-                    search_vals = [a]
-                elif isinstance(a, dict):
-                    search_vals = [v for v in [a.get("name"), a.get("affects")] if v]
-                else:
-                    search_vals = [str(a)]
+                search_vals = _search_values_from_item(a, "name", "affects")
                 if _any_match(affects, search_vals):
                     matches.append(
                         QueryMatch(
@@ -460,12 +480,7 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
 
         # Check if this summary provides the identifier
         for p in fm_provides:
-            if isinstance(p, str):
-                search_vals = [p]
-            elif isinstance(p, dict):
-                search_vals = [v for v in [p.get("name"), p.get("provides")] if v]
-            else:
-                search_vals = [str(p)]
+            search_vals = _search_values_from_item(p, "name", "provides")
             for sv in search_vals:
                 if term_matches(identifier, sv):
                     # Prefer exact match

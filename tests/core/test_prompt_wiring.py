@@ -9,6 +9,7 @@ from typing import Literal
 import pytest
 
 from gpd import registry
+from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import ResearchContract, VerificationEvidence
 from scripts.repo_graph_contract import parse_scope_count
 
@@ -941,6 +942,53 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "peer-review-panel.md` directly" in review_reader
     assert "peer-review-panel.md` directly" in review_literature
     assert "re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`" in referee
+
+
+def test_review_and_execution_prompts_expand_required_schema_sources() -> None:
+    src_root = REPO_ROOT / "src/gpd/specs"
+
+    review_reader = expand_at_includes(
+        (AGENTS_DIR / "gpd-review-reader.md").read_text(encoding="utf-8"),
+        src_root,
+        "/runtime/",
+    )
+    review_literature = expand_at_includes(
+        (AGENTS_DIR / "gpd-review-literature.md").read_text(encoding="utf-8"),
+        src_root,
+        "/runtime/",
+    )
+    referee = expand_at_includes(
+        (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8"),
+        src_root,
+        "/runtime/",
+    )
+    executor = expand_at_includes(
+        (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8"),
+        src_root,
+        "/runtime/",
+    )
+
+    assert "Peer Review Panel Protocol" in review_reader
+    assert "Peer Review Panel Protocol" in review_literature
+    assert "Review Ledger Schema" in referee
+    assert "Referee Decision Schema" in referee
+    assert "Summary Template" in executor
+
+
+def test_non_adapter_sources_do_not_hardcode_runtime_names() -> None:
+    runtime_name_re = re.compile(r"\b(?:claude(?:-code)?|codex|gemini|opencode)\b", re.IGNORECASE)
+    offenders: list[str] = []
+
+    for path in sorted((REPO_ROOT / "src" / "gpd").rglob("*")):
+        if not path.is_file() or path.suffix not in {".py", ".md"}:
+            continue
+        if path.is_relative_to(REPO_ROOT / "src" / "gpd" / "adapters"):
+            continue
+        content = path.read_text(encoding="utf-8")
+        if runtime_name_re.search(content):
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    assert offenders == []
 
 
 def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalization_rules() -> None:

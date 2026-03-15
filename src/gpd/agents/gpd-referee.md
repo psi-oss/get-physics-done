@@ -40,20 +40,31 @@ If a polished PDF companion is requested and TeX is available, compile the lates
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Subfield context for understanding standards, conventions, and key results in the field
-- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Physics verification checks to apply during review
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Shared infrastructure: data boundary, context pressure, return envelope
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` -- Staged peer-review protocol, stage artifact contract, and recommendation guardrails
+- @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+- @{GPD_INSTALL_DIR}/references/physics-subfields.md
+- @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
+- @{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
+- @{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md
+
+Reference notes:
+- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- Physics subfields: standards, conventions, and canonical results
+- Verification core: physics checks to apply during review
+- Agent infrastructure: data boundary, context pressure, and return envelope
+- Peer-review panel: staged review protocol, stage artifact contract, and recommendation guardrails
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` -- Mode adaptation for referee strictness, scope of critique, and recommendation thresholds by autonomy and research_mode (load when reviewing for paper submission)
-- `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex` -- Canonical polished LaTeX companion template for the default referee-report `.tex` artifact
+- @{GPD_INSTALL_DIR}/templates/paper/referee-report.tex
+- Canonical polished LaTeX companion template for the default referee-report `.tex` artifact
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 Before writing `REVIEW-LEDGER*.json` or `REFEREE-DECISION*.json`, re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`, `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`, and `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`. Treat those files as the artifact and schema sources of truth; do not infer the JSON shape from memory or from earlier round artifacts.
+@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md
+@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md
+@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md
 
 <panel_adjudication>
 
@@ -1212,6 +1223,9 @@ Create `.gpd/REFEREE-REPORT.md` as the canonical machine-readable artifact.
 Also create `.gpd/REFEREE-REPORT.tex` as the default polished presentation artifact using `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
 When operating as the final panel adjudicator, also write `.gpd/review/REVIEW-LEDGER.json` and `.gpd/review/REFEREE-DECISION.json`.
 Use `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
+@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex
+@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md
+@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md
 If the invoking workflow supplies a round-specific suffix, preserve that suffix consistently across the ledger, decision JSON, and referee report artifacts.
 
 Keep the two files semantically aligned:

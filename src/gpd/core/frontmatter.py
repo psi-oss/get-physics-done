@@ -490,10 +490,20 @@ def _summary_contract_errors(
     forbidden_proxy_ids = {proxy.id for proxy in contract.forbidden_proxies}
     known_contract_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids | forbidden_proxy_ids
     known_subject_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+    subject_kind_by_id = {
+        **dict.fromkeys(claim_ids, "claim"),
+        **dict.fromkeys(deliverable_ids, "deliverable"),
+        **dict.fromkeys(acceptance_test_ids, "acceptance_test"),
+        **dict.fromkeys(reference_ids, "reference"),
+    }
 
     def _unknown(actual: set[str], expected: set[str], label: str) -> None:
         for item_id in sorted(actual - expected):
             errors.append(f"Unknown {label} contract_results entry: {item_id}")
+
+    def _missing(actual: set[str], expected: set[str], label: str) -> None:
+        for item_id in sorted(expected - actual):
+            errors.append(f"Missing {label} contract_results entry: {item_id}")
 
     def _check_linked_ids(label: str, entry_id: str, linked_ids: list[str]) -> None:
         for linked_id in linked_ids:
@@ -524,6 +534,11 @@ def _summary_contract_errors(
     _unknown(set(contract_results.acceptance_tests), acceptance_test_ids, "acceptance_test")
     _unknown(set(contract_results.references), reference_ids, "reference")
     _unknown(set(contract_results.forbidden_proxies), forbidden_proxy_ids, "forbidden_proxy")
+    _missing(set(contract_results.claims), claim_ids, "claim")
+    _missing(set(contract_results.deliverables), deliverable_ids, "deliverable")
+    _missing(set(contract_results.acceptance_tests), acceptance_test_ids, "acceptance_test")
+    _missing(set(contract_results.references), reference_ids, "reference")
+    _missing(set(contract_results.forbidden_proxies), forbidden_proxy_ids, "forbidden_proxy")
 
     for claim_id, entry in contract_results.claims.items():
         if claim_id not in claim_ids:
@@ -566,6 +581,12 @@ def _summary_contract_errors(
     for verdict in comparison_verdicts:
         if verdict.subject_id not in known_subject_ids:
             errors.append(f"comparison_verdict references unknown subject_id {verdict.subject_id}")
+        expected_subject_kind = subject_kind_by_id.get(verdict.subject_id)
+        if expected_subject_kind is not None and verdict.subject_kind != expected_subject_kind:
+            errors.append(
+                "comparison_verdict for "
+                f"{verdict.subject_id} has subject_kind {verdict.subject_kind} but contract id is a {expected_subject_kind}"
+            )
         if verdict.reference_id is not None and verdict.reference_id not in reference_ids:
             errors.append(f"comparison_verdict references unknown reference_id {verdict.reference_id}")
         if verdict.subject_id in contract_results.claims:
@@ -604,21 +625,14 @@ def _summary_contract_errors(
                 )
 
     decisive_comparison_groups: list[tuple[set[str], str]] = []
-    attempted_statuses = {"passed", "partial", "failed", "blocked"}
     for test in contract.acceptance_tests:
         if test.kind not in {"benchmark", "cross_method"}:
             continue
         result = contract_results.acceptance_tests.get(test.id)
-        if result is None or result.status not in attempted_statuses:
-            continue
-        decisive_comparison_groups.append(({test.id, test.subject, *result.linked_ids}, f"acceptance test {test.id}"))
+        linked_ids = set(result.linked_ids) if result is not None else set()
+        decisive_comparison_groups.append(({test.id, test.subject, *linked_ids}, f"acceptance test {test.id}"))
     for reference in contract.references:
-        usage = contract_results.references.get(reference.id)
-        if usage is None:
-            continue
-        if reference.role != "benchmark" and "compare" not in reference.required_actions and "compare" not in usage.completed_actions:
-            continue
-        if "compare" not in usage.completed_actions and usage.status != "completed":
+        if reference.role != "benchmark" and "compare" not in reference.required_actions:
             continue
         decisive_comparison_groups.append(({reference.id, *reference.applies_to}, f"reference {reference.id}"))
 
@@ -664,6 +678,54 @@ def _verification_contract_errors(
         errors.append(
             "suggested_contract_checks: required when decisive benchmark/cross-method checks remain missing, partial, or incomplete"
         )
+
+    claim_ids = {claim.id for claim in contract.claims}
+    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
+    acceptance_test_ids = {test.id for test in contract.acceptance_tests}
+    reference_ids = {reference.id for reference in contract.references}
+    subject_kind_by_id = {
+        **dict.fromkeys(claim_ids, "claim"),
+        **dict.fromkeys(deliverable_ids, "deliverable"),
+        **dict.fromkeys(acceptance_test_ids, "acceptance_test"),
+        **dict.fromkeys(reference_ids, "reference"),
+    }
+    valid_ids_by_kind = {
+        "claim": claim_ids,
+        "deliverable": deliverable_ids,
+        "acceptance_test": acceptance_test_ids,
+        "reference": reference_ids,
+    }
+
+    for index, check in enumerate(suggested_contract_checks):
+        has_kind = check.suggested_subject_kind is not None
+        has_id = check.suggested_subject_id is not None
+        if has_kind != has_id:
+            errors.append(
+                "suggested_contract_checks"
+                f"[{index}] must provide suggested_subject_kind and suggested_subject_id together"
+            )
+            continue
+        if not has_kind or check.suggested_subject_kind is None or check.suggested_subject_id is None:
+            continue
+        expected_kind = subject_kind_by_id.get(check.suggested_subject_id)
+        if expected_kind is None:
+            errors.append(
+                "suggested_contract_checks"
+                f"[{index}] references unknown {check.suggested_subject_kind} id {check.suggested_subject_id}"
+            )
+            continue
+        if expected_kind != check.suggested_subject_kind:
+            errors.append(
+                "suggested_contract_checks"
+                f"[{index}] references {check.suggested_subject_id} as {check.suggested_subject_kind},"
+                f" but the contract declares it as {expected_kind}"
+            )
+            continue
+        if check.suggested_subject_id not in valid_ids_by_kind[check.suggested_subject_kind]:
+            errors.append(
+                "suggested_contract_checks"
+                f"[{index}] references unknown {check.suggested_subject_kind} id {check.suggested_subject_id}"
+            )
 
     return errors
 

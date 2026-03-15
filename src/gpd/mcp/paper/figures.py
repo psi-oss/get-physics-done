@@ -171,8 +171,10 @@ def check_figure_resolution(path: Path, journal: str, double_column: bool = Fals
             if width_px >= min_width_px:
                 return True, f"{layout} width {width_px}px >= {min_width_px}px required"
             return False, f"{layout} width {width_px}px < {min_width_px}px required for {journal} at {spec.dpi} DPI"
-    except (ImportError, OSError) as exc:
+    except ImportError as exc:
         return True, f"cannot check resolution: {exc}"
+    except OSError as exc:
+        return False, f"cannot decode raster image: {exc}"
 
 
 # ---- Batch processing ----
@@ -202,6 +204,9 @@ def _prepare_figures_with_sources(
 
         passes, msg = check_figure_resolution(normalized_path, journal, double_column=fig.double_column)
         if not passes:
+            if msg.startswith("cannot decode raster image:"):
+                errors.append(f"Figure preparation failed for {fig.path}: {msg}")
+                continue
             logger.warning("Figure %s below resolution requirement: %s", fig.label, msg)
 
         try:

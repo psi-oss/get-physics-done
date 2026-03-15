@@ -159,8 +159,8 @@ Additionally:
 
 The final adjudicator JSON artifacts must follow these canonical schemas:
 
-- `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`
-- `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`
+- @{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md
+- @{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md
 
 Minimal final artifact shapes:
 

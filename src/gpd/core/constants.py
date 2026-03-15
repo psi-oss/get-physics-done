@@ -304,7 +304,7 @@ SEED_PATTERN_INITIAL_OCCURRENCES: int = 5
 VALID_RETURN_STATUSES: frozenset[str] = frozenset({"completed", "checkpoint", "blocked", "failed"})
 """Allowed values for gpd_return.status in summary files."""
 
-REQUIRED_RETURN_FIELDS: tuple[str, ...] = ("status", "phase", "plan", "tasks_completed", "tasks_total")
+REQUIRED_RETURN_FIELDS: tuple[str, ...] = ("status", "files_written", "issues", "next_actions")
 """Fields that must be present in a gpd_return YAML block."""
 
 

@@ -141,6 +141,15 @@ class TestResolutionCheck:
         assert double_passes is False
         assert "double-column" in double_msg
 
+    def test_check_resolution_rejects_corrupt_raster(self, tmp_path):
+        png = tmp_path / "corrupt.png"
+        png.write_bytes(b"not-a-real-png")
+
+        passes, msg = check_figure_resolution(png, "prl")
+
+        assert passes is False
+        assert "cannot decode raster image" in msg
+
 
 # ---- Batch processing ----
 
@@ -203,6 +212,26 @@ class TestPrepare:
         assert result[0].label == "good"
         assert any("Figure preparation failed for" in err for err in errs)
         assert any("Unsupported figure format" in err for err in errs)
+
+    def test_prepare_figures_drops_corrupt_raster_inputs(self, tmp_path):
+        input_dir = tmp_path / "input"
+        input_dir.mkdir()
+
+        good = input_dir / "good.png"
+        Image.new("RGB", (2100, 100), color="green").save(good)
+        corrupt = input_dir / "corrupt.png"
+        corrupt.write_bytes(b"not-a-real-png")
+
+        figures = [
+            FigureRef(path=good, caption="Good figure", label="good"),
+            FigureRef(path=corrupt, caption="Corrupt figure", label="corrupt"),
+        ]
+
+        result, errs = prepare_figures(figures, tmp_path / "output", "prl")
+
+        assert len(result) == 1
+        assert result[0].label == "good"
+        assert any("cannot decode raster image" in err for err in errs)
 
 
 # ---- Exception chaining regression ----

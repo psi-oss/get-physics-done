@@ -197,7 +197,10 @@ class TestUnknownExtraFields:
 
     def test_project_contract_self_heals_malformed_context_intake(self) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-        contract["context_intake"] = {"must_read_refs": "not-a-list"}
+        contract["context_intake"] = {
+            "must_read_refs": "not-a-list",
+            "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
+        }
 
         result = ensure_state_schema({"project_contract": contract})
 
@@ -205,7 +208,7 @@ class TestUnknownExtraFields:
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["context_intake"] == {
             "must_read_refs": [],
-            "must_include_prior_outputs": [],
+            "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": [],
@@ -214,7 +217,10 @@ class TestUnknownExtraFields:
 
     def test_project_contract_self_heals_malformed_uncertainty_markers(self) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-        contract["uncertainty_markers"] = {"weakest_anchors": "not-a-list"}
+        contract["uncertainty_markers"] = {
+            "weakest_anchors": "not-a-list",
+            "disconfirming_observations": ["Benchmark mismatch survives normalization fix"],
+        }
 
         result = ensure_state_schema({"project_contract": contract})
 
@@ -224,7 +230,27 @@ class TestUnknownExtraFields:
             "weakest_anchors": [],
             "unvalidated_assumptions": [],
             "competing_explanations": [],
-            "disconfirming_observations": [],
+            "disconfirming_observations": ["Benchmark mismatch survives normalization fix"],
+        }
+
+    def test_project_contract_self_heals_malformed_approach_policy_without_dropping_valid_siblings(self) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["approach_policy"] = {
+            "formulations": "hamiltonian",
+            "stop_and_rethink_conditions": ["Sign flip after normalization change"],
+        }
+
+        result = ensure_state_schema({"project_contract": contract})
+
+        assert result["project_contract"] is not None
+        assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert result["project_contract"]["approach_policy"] == {
+            "formulations": [],
+            "allowed_estimator_families": [],
+            "forbidden_estimator_families": [],
+            "allowed_fit_families": [],
+            "forbidden_fit_families": [],
+            "stop_and_rethink_conditions": ["Sign flip after normalization change"],
         }
 
 

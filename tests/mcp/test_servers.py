@@ -836,6 +836,9 @@ class TestSkillsServer:
         assert any(path.endswith("review-ledger-schema.md") for path in result["schema_references"])
         assert any(path.endswith("referee-decision-schema.md") for path in result["schema_references"])
         assert "Load schema_references" in result["loading_hint"]
+        assert result["context_mode"] == "project-required"
+        assert result["review_contract"] is not None
+        assert result["review_contract"]["review_mode"] == "publication"
 
     def test_get_skill_agent_uses_primary_agent_content(self):
         from gpd.mcp.servers.skills_server import get_skill

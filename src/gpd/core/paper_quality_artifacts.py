@@ -39,6 +39,7 @@ _INTRO_RE = re.compile(r"\\section\*?\{[^}]*introduction[^}]*\}", re.IGNORECASE)
 _CONCLUSION_RE = re.compile(r"\\section\*?\{[^}]*conclusion[^}]*\}", re.IGNORECASE)
 _SUPPLEMENT_RE = re.compile(r"appendix|supplement", re.IGNORECASE)
 _CITE_RE = re.compile(r"\\cite\{([^}]*)\}")
+_BIB_ENTRY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 
 
 class _FigureTrackerEntry(BaseModel):
@@ -127,6 +128,35 @@ def _collect_tex_content(paper_dir: Path) -> tuple[list[Path], str]:
         if text is not None:
             bodies.append(text)
     return tex_files, "\n".join(bodies)
+
+
+def _resolve_manuscript_dir(project_root: Path) -> Path:
+    for name in ("paper", "manuscript", "draft"):
+        candidate = project_root / name
+        if candidate.exists():
+            return candidate
+    return project_root / "paper"
+
+
+def _available_citation_keys(manuscript_dir: Path, bibliography_audit: dict[str, object]) -> set[str]:
+    keys: set[str] = set()
+
+    entries = bibliography_audit.get("entries")
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            key = entry.get("key")
+            if isinstance(key, str) and key.strip():
+                keys.add(key.strip())
+
+    for bib_path in sorted(manuscript_dir.glob("*.bib")):
+        content = _read_text(bib_path)
+        if content is None:
+            continue
+        keys.update(match.group(1).strip() for match in _BIB_ENTRY_RE.finditer(content) if match.group(1).strip())
+
+    return keys
 
 
 def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
@@ -450,13 +480,13 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     """Build a conservative :class:`PaperQualityInput` from project artifacts."""
 
     root = Path(project_root)
-    paper_dir = root / "paper"
+    paper_dir = _resolve_manuscript_dir(root)
     artifact_manifest = _load_json(paper_dir / "ARTIFACT-MANIFEST.json")
     paper_config = _load_json(paper_dir / "PAPER-CONFIG.json")
     bibliography_audit = _load_json(paper_dir / "BIBLIOGRAPHY-AUDIT.json")
 
     tex_files, tex_content = _collect_tex_content(paper_dir)
-    title = str(artifact_manifest.get("paper_title") or paper_config.get("paper_title") or "")
+    title = str(artifact_manifest.get("paper_title") or paper_config.get("title") or paper_config.get("paper_title") or "")
     journal = str(artifact_manifest.get("journal") or paper_config.get("journal") or "generic")
 
     figure_registry = _load_figure_registry(root)
@@ -471,7 +501,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
 
     placeholder_count = len(_PLACEHOLDER_RE.findall(tex_content))
     missing_cites = len(_MISSING_CITE_RE.findall(tex_content))
-    cite_keys = [part for match in _CITE_RE.findall(tex_content) for part in match.split(",") if part.strip()]
+    cite_keys = list(dict.fromkeys(part.strip() for match in _CITE_RE.findall(tex_content) for part in match.split(",") if part.strip()))
     required_sections = 3
     present_sections = 0
     if _ABSTRACT_RE.search(tex_content):
@@ -486,9 +516,18 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     partial_sources = int(bibliography_audit.get("partial_sources") or 0)
     unverified_sources = int(bibliography_audit.get("unverified_sources") or 0)
     failed_sources = int(bibliography_audit.get("failed_sources") or 0)
+    available_citation_keys = _available_citation_keys(paper_dir, bibliography_audit)
+
+    if cite_keys:
+        resolved_citations = sum(1 for key in cite_keys if key in available_citation_keys)
+        citation_key_coverage = _coverage_metric(resolved_citations, len(cite_keys))
+    elif total_sources:
+        citation_key_coverage = _coverage_metric(resolved_sources, total_sources)
+    else:
+        citation_key_coverage = CoverageMetric()
 
     citations = CitationsQualityInput(
-        citation_keys_resolve=_coverage_metric(resolved_sources, total_sources) if total_sources else CoverageMetric(),
+        citation_keys_resolve=citation_key_coverage,
         missing_placeholders=BinaryCheck(passed=missing_cites == 0),
         key_prior_work_cited=BinaryCheck(passed=bool(verdicts) or bool(cite_keys)),
         hallucination_free=BinaryCheck(

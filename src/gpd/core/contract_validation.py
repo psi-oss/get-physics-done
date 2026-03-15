@@ -143,6 +143,8 @@ def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
     for reference in contract.references:
         if reference.must_surface and not reference.required_actions:
             errors.append(f"reference {reference.id} is must_surface but missing required_actions")
+        if reference.must_surface and not reference.applies_to:
+            errors.append(f"reference {reference.id} is must_surface but missing applies_to")
         for applies_to_id in reference.applies_to:
             if applies_to_id not in known_subject_ids:
                 errors.append(f"reference {reference.id} applies_to unknown target {applies_to_id}")
@@ -221,7 +223,6 @@ def _has_approved_grounding_signal(contract: ResearchContract) -> bool:
     return any(
         (
             _has_anchor_like_reference(contract),
-            contract.context_intake.must_read_refs,
             contract.context_intake.must_include_prior_outputs,
             contract.context_intake.user_asserted_anchors,
             contract.context_intake.known_good_baselines,

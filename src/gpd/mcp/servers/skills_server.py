@@ -11,6 +11,7 @@ Usage:
     gpd-mcp-skills
 """
 
+import dataclasses
 import logging
 import re
 import sys
@@ -88,15 +89,39 @@ def _reference_kind(path: str) -> str:
 def _extract_referenced_files(content: str) -> list[dict[str, str]]:
     references: list[dict[str, str]] = []
     seen: set[str] = set()
-    for match in _MARKDOWN_REFERENCE_RE.finditer(content):
-        path = match.group("path").rstrip(".,:;")
-        if not any(path == root or path.startswith(root + "/") for root in _REFERENCE_ROOTS):
-            continue
-        if path in seen:
-            continue
-        seen.add(path)
-        references.append({"path": path, "kind": _reference_kind(path)})
+    visited_docs: set[str] = set()
+
+    def _collect(markdown: str) -> None:
+        for match in _MARKDOWN_REFERENCE_RE.finditer(markdown):
+            path = match.group("path").rstrip(".,:;")
+            if not any(path == root or path.startswith(root + "/") for root in _REFERENCE_ROOTS):
+                continue
+            if path not in seen:
+                seen.add(path)
+                references.append({"path": path, "kind": _reference_kind(path)})
+            if path in visited_docs:
+                continue
+            visited_docs.add(path)
+            referenced_path = Path(path)
+            if referenced_path.suffix != ".md" or not referenced_path.exists():
+                continue
+            try:
+                nested = _resolve_skill_content(referenced_path.read_text(encoding="utf-8"))
+            except OSError:
+                continue
+            _collect(nested)
+
+    _collect(content)
     return references
+
+
+def _is_schema_reference(path: str) -> bool:
+    name = Path(path).name
+    return name.endswith("-schema.md") or name in {
+        "summary.md",
+        "verification-report.md",
+        "contract-results-schema.md",
+    }
 
 
 @mcp.tool()
@@ -147,12 +172,8 @@ def get_skill(name: str) -> dict:
             content = _resolve_skill_content(skill.content)
             referenced_files = _extract_referenced_files(content)
             template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
-            schema_references = [
-                path
-                for path in template_references
-                if Path(path).name.endswith("-schema.md") or Path(path).name in {"summary.md", "verification-report.md"}
-            ]
-            return {
+            schema_references = [path for path in template_references if _is_schema_reference(path)]
+            payload = {
                 "name": skill.name,
                 "category": skill.category,
                 "content": content,
@@ -167,6 +188,19 @@ def get_skill(name: str) -> dict:
                     else "No external markdown dependencies detected in the canonical skill body."
                 ),
             }
+            if skill.source_kind == "command":
+                command = content_registry.get_command(skill.registry_name)
+                payload.update(
+                    {
+                        "context_mode": command.context_mode,
+                        "argument_hint": command.argument_hint,
+                        "allowed_tools": command.allowed_tools,
+                        "review_contract": (
+                            dataclasses.asdict(command.review_contract) if command.review_contract is not None else None
+                        ),
+                    }
+                )
+            return payload
         except (GPDError, OSError, ValueError, TimeoutError) as e:
             return {"error": str(e)}
 

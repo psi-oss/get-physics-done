@@ -210,6 +210,17 @@ def test_validate_project_contract_rejects_must_surface_reference_without_requir
     assert "reference ref-benchmark is must_surface but missing required_actions" in result.errors
 
 
+def test_validate_project_contract_rejects_must_surface_reference_without_applies_to() -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["must_surface"] = True
+    contract["references"][0]["applies_to"] = []
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "reference ref-benchmark is must_surface but missing applies_to" in result.errors
+
+
 def test_validate_project_contract_rejects_invalid_forbidden_proxy_and_link_bindings() -> None:
     contract = _load_contract_fixture()
     contract["forbidden_proxies"][0]["subject"] = "missing-claim"
@@ -278,6 +289,29 @@ def test_validate_project_contract_approved_mode_accepts_real_reference_anchor()
 
     assert result.valid is True
     assert result.mode == "approved"
+
+
+def test_validate_project_contract_approved_mode_rejects_background_must_read_ref_without_real_anchor() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-background",
+            "kind": "paper",
+            "locator": "Background review article",
+            "role": "background",
+            "why_it_matters": "General context only",
+            "applies_to": [],
+            "required_actions": ["read"],
+        }
+    ]
+    contract["context_intake"]["must_read_refs"] = ["ref-background"]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
 def test_validate_project_contract_preserves_requested_mode_for_schema_errors() -> None:

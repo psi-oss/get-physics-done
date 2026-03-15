@@ -86,7 +86,8 @@ Rules:
 
 - Ledger keys must be real IDs from the referenced PLAN contract.
 - Missing contract-backed `contract_results` is invalid.
-- Partial ledgers are allowed only if every listed ID is valid and the omitted sections are genuinely not attempted, not silently forgotten.
+- Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in its matching section.
+- Do not silently omit unfinished work. Use `not_attempted`, `missing`, `not_applicable`, or `unresolved` explicitly when a contract ID is still open.
 - `linked_ids` and evidence sub-IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`) must point to declared contract IDs.
 - If a PLAN reference has `must_surface: true`, the ledger must include a matching `contract_results.references.<reference-id>` entry.
 - For `must_surface` references, `completed_actions` must cover every `required_actions` item; do not mark the anchor as handled while leaving required actions only in prose.
@@ -112,7 +113,9 @@ comparison_verdicts:
 Rules:
 
 - `subject_id` must be a real ID from the referenced PLAN contract.
+- `subject_kind` must match the actual contract ID kind referenced by `subject_id`.
 - If a decisive comparison is required, omitting its verdict makes the artifact incomplete.
+- If the decisive comparison is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
 - A prose sentence like “agrees with literature” does not replace a verdict entry.
 
 ---

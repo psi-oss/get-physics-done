@@ -54,7 +54,15 @@ The benchmark was recovered within tolerance.
                 "partial_sources": 0,
                 "unverified_sources": 0,
                 "failed_sources": 0,
-                "entries": [],
+                "entries": [
+                    {
+                        "key": "bench2026",
+                        "source_type": "paper",
+                        "title": "Benchmark",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                    }
+                ],
             }
         ),
     )
@@ -155,6 +163,86 @@ def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tm
 
     report = score_paper_quality(result)
     assert report.categories["verification"].checks["contract_targets_verified"] == 5.0
+
+
+def test_build_paper_quality_input_reads_manuscript_dir_and_config_title(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "manuscript" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Manuscript directory test.
+\end{abstract}
+\section{Introduction}
+See \cite{bench2026}.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "manuscript" / "PAPER-CONFIG.json",
+        json.dumps({"title": "Config Title", "journal": "jhep"}),
+    )
+    _write(
+        tmp_path / "manuscript" / "refs.bib",
+        "@article{bench2026,\n  title={Benchmark},\n  author={Doe, Jane},\n  year={2026}\n}\n",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Title"
+    assert result.journal == "jhep"
+    assert result.citations.citation_keys_resolve.satisfied == 1
+    assert result.citations.citation_keys_resolve.total == 1
+
+
+def test_build_paper_quality_input_checks_cited_keys_against_available_bibliography(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Benchmark result.
+\end{abstract}
+\section{Introduction}
+See \cite{missing2026}.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
+        json.dumps(
+            {
+                "generated_at": "2026-03-13T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "bench2026",
+                        "source_type": "paper",
+                        "title": "Benchmark",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.citations.citation_keys_resolve.satisfied == 0
+    assert result.citations.citation_keys_resolve.total == 1
 
 
 def test_build_paper_quality_input_merges_comparison_artifact_scope_details(tmp_path: Path) -> None:
