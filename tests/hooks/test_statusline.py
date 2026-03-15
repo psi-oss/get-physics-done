@@ -602,26 +602,40 @@ class TestCheckUpdateHook:
         explicit_target = tmp_path / "custom-runtime-dir"
         hook_path = explicit_target / "hooks" / "statusline.py"
         cache_file = explicit_target / "cache" / "gpd-update-check.json"
-        update_workflow = explicit_target / "get-physics-done" / "workflows" / "update.md"
         hook_path.parent.mkdir(parents=True)
         cache_file.parent.mkdir(parents=True)
-        update_workflow.parent.mkdir(parents=True)
         hook_path.write_text("# hook\n", encoding="utf-8")
         (explicit_target / "gpd-file-manifest.json").write_text(
-            json.dumps({"install_scope": "local"}),
+            json.dumps({"install_scope": "local", "runtime": "codex"}),
             encoding="utf-8",
         )
         cache_file.write_text(json.dumps({"update_available": True, "checked": 20}), encoding="utf-8")
-        update_workflow.write_text(
-            'GPD_RUNTIME_FLAG="--codex"\nINSTALL_SCOPE="--local"\n',
-            encoding="utf-8",
-        )
 
         with patch("gpd.hooks.statusline.__file__", str(hook_path)):
             result = _check_update(str(workspace))
 
         assert "--codex --local --target-dir" in result
         assert str(explicit_target) in result
+
+    def test_explicit_target_hook_without_runtime_metadata_uses_bootstrap_command(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        explicit_target = tmp_path / "custom-runtime-dir"
+        hook_path = explicit_target / "hooks" / "statusline.py"
+        cache_file = explicit_target / "cache" / "gpd-update-check.json"
+        hook_path.parent.mkdir(parents=True)
+        cache_file.parent.mkdir(parents=True)
+        hook_path.write_text("# hook\n", encoding="utf-8")
+        (explicit_target / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
+        cache_file.write_text(json.dumps({"update_available": True, "checked": 20}), encoding="utf-8")
+
+        with patch("gpd.hooks.statusline.__file__", str(hook_path)):
+            result = _check_update(str(workspace))
+
+        assert "npx -y get-physics-done" in result
 
     def test_runtime_directory_without_install_uses_bootstrap_update_command(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"

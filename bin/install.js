@@ -42,6 +42,15 @@ const cyan = "\x1b[36m";
 const dim = "\x1b[2m";
 const bold = "\x1b[1m";
 const reset = "\x1b[0m";
+const brandLogo = "\x1b[38;2;243;240;232m";
+const brandTitle = "\x1b[38;2;247;244;237m";
+const brandMeta = "\x1b[38;2;158;152;140m";
+const brandAccent = "\x1b[38;2;216;199;163m";
+const brandDisplayName = "Get Physics Done";
+const brandOwner = "Physical Superintelligence PBC";
+const brandOwnerShort = "PSI";
+const brandCopyrightYear = 2026;
+const productPositioning = "Open-source AI copilot for physics research";
 
 let bootstrapProbeOverridesCache = undefined;
 
@@ -720,6 +729,15 @@ function formatRuntimeCommand(runtime, action) {
   return `${prefix}${action}`;
 }
 
+function formatMenuOption(index, label, details = [], options = {}) {
+  const { labelWidth = label.length } = options;
+  const filteredDetails = details.filter(Boolean);
+  const detailText = filteredDetails.length === 0
+    ? ""
+    : `  ${filteredDetails.map((detail) => `${bold}${brandAccent}·${reset} ${dim}${brandMeta}${detail}${reset}`).join(" ")}`;
+  return ` ${bold}${brandAccent}[${index}]${reset} ${bold}${brandTitle}${label.padEnd(labelWidth, " ")}${reset}${detailText}`;
+}
+
 function documentedRuntimeFlags() {
   return RUNTIME_CATALOG.flatMap((runtime) => runtimeSelectionFlagList(runtime.runtime_name));
 }
@@ -731,16 +749,15 @@ function findRuntime(predicate, fallback = ALL_RUNTIMES[0]) {
 
 function printBanner() {
   console.log("");
-  console.log(`${cyan} ██████╗ ██████╗ ██████╗`);
-  console.log(`██╔════╝ ██╔══██╗██╔══██╗`);
-  console.log(`██║  ███╗██████╔╝██║  ██║`);
-  console.log(`██║   ██║██╔═══╝ ██║  ██║`);
-  console.log(`╚██████╔╝██║     ██████╔╝`);
-  console.log(` ╚═════╝ ╚═╝     ╚═════╝${reset}`);
+  console.log(`${bold}${brandLogo} ██████╗ ██████╗ ██████╗${reset}`);
+  console.log(`${bold}${brandLogo}██╔════╝ ██╔══██╗██╔══██╗${reset}`);
+  console.log(`${bold}${brandLogo}██║  ███╗██████╔╝██║  ██║${reset}`);
+  console.log(`${bold}${brandLogo}██║   ██║██╔═══╝ ██║  ██║${reset}`);
+  console.log(`${bold}${brandLogo}╚██████╔╝██║     ██████╔╝${reset}`);
+  console.log(`${bold}${brandLogo} ╚═════╝ ╚═╝     ╚═════╝${reset}`);
   console.log("");
-  console.log(` ${bold}Get Physics Done${reset} ${dim}v${packageVersion}${reset}`);
-  console.log(" Open-source AI copilot for physics research");
-  console.log(` for ${formatRuntimeList(ALL_RUNTIMES)}.`);
+  console.log(` ${bold}${brandTitle}GPD v${packageVersion} - ${brandDisplayName}${reset}`);
+  console.log(` ${dim}${brandMeta}© ${brandCopyrightYear} ${brandOwner} (${brandOwnerShort})${reset}`);
   console.log("");
 }
 
@@ -752,6 +769,8 @@ function printHelp() {
   const dollarCommandFlag = runtimeInstallFlag(dollarCommandRuntime);
   const targetDirExample = `/path/to/${runtimeConfigDirName(dollarCommandRuntime)}`;
   console.log(` ${yellow}Usage:${reset} ${installCommand} [install|uninstall] [options]`);
+  console.log("");
+  console.log(` ${dim}${productPositioning}${reset}`);
   console.log("");
   console.log(` ${yellow}Options:${reset}`);
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
@@ -931,18 +950,20 @@ async function selectRuntimes(args, action = "install") {
     return [defaultRuntime];
   }
 
-  const actionPrompt = action === "uninstall" ? "uninstall from" : "install for";
-  console.log(` ${yellow}Which runtime(s) would you like to ${actionPrompt}?${reset}`);
+  const optionLabelWidth = Math.max(
+    ...ALL_RUNTIMES.map((runtime) => runtimeDisplayName(runtime).length),
+    "All runtimes".length
+  );
+  const sectionTitle = action === "uninstall" ? "Select runtime(s) to uninstall" : "Select runtime(s) to install";
+  console.log(` ${bold}${brandTitle}${sectionTitle}${reset}`);
   console.log("");
   ALL_RUNTIMES.forEach((runtime, index) => {
-    console.log(
-      ` ${cyan}${index + 1}${reset}) ${runtimeDisplayName(runtime)} ${dim}(${formatDisplayPath(runtimeGlobalConfigDir(runtime))})${reset}`
-    );
+    console.log(formatMenuOption(index + 1, runtimeDisplayName(runtime), [runtime], { labelWidth: optionLabelWidth }));
   });
-  console.log(` ${cyan}${ALL_RUNTIMES.length + 1}${reset}) All runtimes`);
+  console.log(formatMenuOption(ALL_RUNTIMES.length + 1, "All runtimes", [], { labelWidth: optionLabelWidth }));
   console.log("");
 
-  const choice = ((await prompt(` Choice ${dim}[1]${reset}: `)) || "1").toLowerCase();
+  const choice = ((await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `)) || "1").toLowerCase();
   if (choice === String(ALL_RUNTIMES.length + 1) || choice === "all" || choice === "all runtimes") {
     return [...ALL_RUNTIMES];
   }
@@ -985,17 +1006,18 @@ async function selectInstallScope(args, runtimes, targetDir, action = "install")
 
   const globalExamples = runtimes.map((runtime) => formatDisplayPath(runtimeGlobalConfigDir(runtime))).join(", ");
   const localExamples = runtimes.map((runtime) => `./${runtimeConfigDirName(runtime)}`).join(", ");
-  const actionPrompt = action === "uninstall" ? "uninstall from" : "install";
   const globalDescription = action === "uninstall" ? "remove it from all projects" : "available in all projects";
   const localDescription = action === "uninstall" ? "remove it from this project only" : "this project only";
+  const optionLabelWidth = Math.max("Local".length, "Global".length);
+  const sectionTitle = action === "uninstall" ? "Uninstall location" : "Install location";
 
-  console.log(` ${yellow}Where would you like to ${actionPrompt}?${reset}`);
+  console.log(` ${bold}${brandTitle}${sectionTitle}${reset}`);
   console.log("");
-  console.log(` ${cyan}1${reset}) Local ${dim}(${localExamples})${reset} - ${localDescription}`);
-  console.log(` ${cyan}2${reset}) Global ${dim}(${globalExamples})${reset} - ${globalDescription}`);
+  console.log(formatMenuOption(1, "Local", [localDescription, localExamples], { labelWidth: optionLabelWidth }));
+  console.log(formatMenuOption(2, "Global", [globalDescription, globalExamples], { labelWidth: optionLabelWidth }));
   console.log("");
 
-  const choice = ((await prompt(` Choice ${dim}[1]${reset}: `)) || "1").toLowerCase();
+  const choice = ((await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `)) || "1").toLowerCase();
   if (choice === "1" || choice === "local") {
     return "local";
   }

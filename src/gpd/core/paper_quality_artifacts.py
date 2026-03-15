@@ -269,7 +269,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         raw_results = meta.get("contract_results")
         contract_alignment_errors: list[str] = []
         contract_results: ContractResults | None = None
-        if isinstance(raw_results, dict):
+        if isinstance(raw_results, dict) and plan_contract is not None:
             try:
                 contract_results = ContractResults.model_validate(raw_results)
             except PydanticValidationError:
@@ -279,23 +279,14 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
                     comparison_verdicts = _parse_comparison_verdicts(meta)
                 except (PydanticValidationError, TypeError, ValueError):
                     comparison_verdicts = []
-                if plan_contract is not None:
-                    contract_alignment_errors = _summary_contract_errors(
-                        plan_contract,
-                        contract_results,
-                        comparison_verdicts,
-                    )
-                expected_claim_ids = {claim.id for claim in plan_contract.claims} if plan_contract is not None else set(contract_results.claims)
-                expected_deliverable_ids = (
-                    {deliverable.id for deliverable in plan_contract.deliverables}
-                    if plan_contract is not None
-                    else set(contract_results.deliverables)
+                contract_alignment_errors = _summary_contract_errors(
+                    plan_contract,
+                    contract_results,
+                    comparison_verdicts,
                 )
-                expected_test_ids = (
-                    {test.id for test in plan_contract.acceptance_tests}
-                    if plan_contract is not None
-                    else set(contract_results.acceptance_tests)
-                )
+                expected_claim_ids = {claim.id for claim in plan_contract.claims}
+                expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
+                expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
                 passed_claims.update(
                     claim_id
                     for claim_id, entry in contract_results.claims.items()
@@ -332,11 +323,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         verified_at = str(meta.get("verified") or meta.get("completed") or "")
         status = str(meta.get("status") or "")
         is_verification_report = path.name.endswith("VERIFICATION.md")
-        report_has_valid_contract_ledger = (
-            contract_results is not None and not contract_alignment_errors
-            if plan_contract is not None
-            else isinstance(raw_results, dict)
-        )
+        report_has_valid_contract_ledger = contract_results is not None and not contract_alignment_errors
         if is_verification_report and verified_at >= latest_verified_at:
             latest_verified_at = verified_at
             latest_report_passed = status == "passed" and report_has_valid_contract_ledger

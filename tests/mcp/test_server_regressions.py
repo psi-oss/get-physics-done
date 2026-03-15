@@ -160,6 +160,70 @@ def test_patterns_server_exposes_classical_mechanics_domain() -> None:
     assert any("energy" in check["check"].lower() or "hamilton" in check["check"].lower() for check in checks)
 
 
+def test_verification_run_check_returns_error_envelope_on_backend_failure() -> None:
+    from gpd.mcp.servers.verification_server import run_check
+
+    with patch("gpd.mcp.servers.verification_server.get_verification_check", side_effect=OSError("catalog offline")):
+        result = run_check("5.1", "qft", "artifact")
+
+    assert result == {"error": "catalog offline", "schema_version": 1}
+
+
+def test_verification_run_contract_check_returns_error_envelope_on_backend_failure() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    with patch("gpd.mcp.servers.verification_server.get_verification_check", side_effect=OSError("catalog offline")):
+        result = run_contract_check({"check_key": "contract.limit_recovery"})
+
+    assert result == {"error": "catalog offline", "schema_version": 1}
+
+
+def test_verification_suggest_contract_checks_returns_error_envelope_on_backend_failure() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    contract = {
+        "schema_version": 1,
+        "scope": {"question": "Q?", "in_scope": ["benchmark recovery"]},
+        "acceptance_tests": [
+            {
+                "id": "test-benchmark",
+                "subject": "claim-main",
+                "kind": "benchmark",
+                "procedure": "Compare against a benchmark",
+                "pass_condition": "Agreement",
+            }
+        ],
+        "claims": [{"id": "claim-main", "statement": "Recover the benchmark"}],
+        "uncertainty_markers": {
+            "weakest_anchors": ["benchmark meaning"],
+            "disconfirming_observations": ["benchmark mismatch"],
+        },
+    }
+
+    with patch("gpd.mcp.servers.verification_server.get_verification_check", side_effect=OSError("catalog offline")):
+        result = suggest_contract_checks(contract)
+
+    assert result == {"error": "catalog offline", "schema_version": 1}
+
+
+def test_verification_get_checklist_returns_error_envelope_on_backend_failure() -> None:
+    from gpd.mcp.servers.verification_server import get_checklist
+
+    with patch("gpd.mcp.servers.verification_server.list_verification_checks", side_effect=OSError("catalog offline")):
+        result = get_checklist("qft")
+
+    assert result == {"error": "catalog offline", "schema_version": 1}
+
+
+def test_verification_get_bundle_checklist_returns_error_envelope_on_backend_failure() -> None:
+    from gpd.mcp.servers.verification_server import get_bundle_checklist
+
+    with patch("gpd.mcp.servers.verification_server.get_protocol_bundle", side_effect=OSError("bundle store offline")):
+        result = get_bundle_checklist(["stat-mech-simulation"])
+
+    assert result == {"error": "bundle store offline", "schema_version": 1}
+
+
 def test_pattern_lookup_tolerates_missing_default_library(tmp_path: Path) -> None:
     import gpd.mcp.servers.patterns_server as patterns_server
 

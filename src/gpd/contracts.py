@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ValidationError as PydanticValidationError
 
 __all__ = [
     "ConventionLock",
@@ -547,8 +548,15 @@ class ResearchContract(BaseModel):
 
 
 def contract_from_data(data: object) -> ResearchContract | None:
-    """Return a validated :class:`ResearchContract` when *data* is a mapping."""
+    """Return a validated :class:`ResearchContract` when *data* is a mapping.
+
+    Malformed mappings degrade to ``None`` so callers can treat this helper as a
+    safe probe instead of an exception boundary.
+    """
 
     if not isinstance(data, dict):
         return None
-    return ResearchContract.model_validate(data)
+    try:
+        return ResearchContract.model_validate(data)
+    except PydanticValidationError:
+        return None

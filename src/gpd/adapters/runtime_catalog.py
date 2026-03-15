@@ -43,6 +43,7 @@ class RuntimeDescriptor:
     selection_aliases: tuple[str, ...]
     global_config: GlobalConfigPolicy
     hook_payload: HookPayloadPolicy
+    manifest_file_prefixes: tuple[str, ...] = ()
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
 
@@ -69,6 +70,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 activation_env_vars=tuple(str(value) for value in entry.get("activation_env_vars", [])),
                 selection_flags=tuple(str(value) for value in entry.get("selection_flags", [])),
                 selection_aliases=tuple(str(value) for value in entry.get("selection_aliases", [])),
+                manifest_file_prefixes=_tuple_of_str(entry.get("manifest_file_prefixes")),
                 global_config=GlobalConfigPolicy(
                     strategy=str(entry["global_config"]["strategy"]),
                     env_var=_optional_str(entry["global_config"].get("env_var")),

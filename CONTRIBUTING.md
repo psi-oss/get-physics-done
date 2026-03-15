@@ -25,6 +25,15 @@ uv sync --dev
 source .venv/bin/activate
 ```
 
+## Contributor License Agreements
+
+Before we can accept a contribution, you must complete the applicable CLA:
+
+- Individual contributors should review `CLA/GPD_CLA_Individual.pdf`; signing is handled automatically via the CLA Assistant GitHub flow at https://cla-assistant.io/psi-oss/get-physics-done
+- Corporate contributors, or contributors whose employer owns their IP, should review `CLA/GPD_CLA_Corporate.pdf` and email the signed PDF to legal@psi.inc
+- Corporate CLA submissions are collected manually and should be logged by the owner of contributor agreement tracking, Ted Grace
+- If your employer owns the intellectual property for your work, use the corporate CLA flow instead of the individual one
+
 Useful checks:
 
 ```bash

@@ -208,13 +208,11 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
     explicit_target = tmp_path / "custom-runtime-dir"
     hook_path = explicit_target / "hooks" / "notify.py"
     cache_file = explicit_target / "cache" / "gpd-update-check.json"
-    update_workflow = explicit_target / "get-physics-done" / "workflows" / "update.md"
     hook_path.parent.mkdir(parents=True)
     cache_file.parent.mkdir(parents=True)
-    update_workflow.parent.mkdir(parents=True)
     hook_path.write_text("# hook\n", encoding="utf-8")
     (explicit_target / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local"}),
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
         encoding="utf-8",
     )
     cache_file.write_text(
@@ -228,11 +226,6 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
         ),
         encoding="utf-8",
     )
-    update_workflow.write_text(
-        'GPD_RUNTIME_FLAG="--codex"\nINSTALL_SCOPE="--local"\n',
-        encoding="utf-8",
-    )
-
     stderr = io.StringIO()
     with (
         patch("gpd.hooks.notify.__file__", str(hook_path)),
@@ -244,6 +237,34 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
     assert "Update available: v3.0.0" in output
     assert "--codex --local --target-dir" in output
     assert str(explicit_target) in output
+
+
+def test_notify_explicit_target_without_runtime_metadata_falls_back_to_bootstrap_command(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    explicit_target = tmp_path / "custom-runtime-dir"
+    hook_path = explicit_target / "hooks" / "notify.py"
+    cache_file = explicit_target / "cache" / "gpd-update-check.json"
+    hook_path.parent.mkdir(parents=True)
+    cache_file.parent.mkdir(parents=True)
+    hook_path.write_text("# hook\n", encoding="utf-8")
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
+    cache_file.write_text(
+        json.dumps({"update_available": True, "installed": "3.0.0", "latest": "3.1.0", "checked": 40}),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.notify.__file__", str(hook_path)),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    assert "Run: npx -y get-physics-done" in stderr.getvalue()
 
 
 def test_notify_runtime_directory_without_install_uses_bootstrap_command(tmp_path: Path) -> None:

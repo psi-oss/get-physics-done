@@ -392,6 +392,35 @@ contract_results:
     assert result.verification.contract_targets_verified.total == 3
 
 
+def test_build_paper_quality_input_ignores_unresolved_summary_contract_ledger_for_coverage(tmp_path: Path) -> None:
+    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+    _write(
+        plan_dir / "01-01-SUMMARY.md",
+        """---
+phase: 01-benchmark
+plan: 01
+depth: full
+provides: [benchmark comparison]
+completed: 2026-03-13
+plan_contract_ref: .gpd/phases/01-benchmark/01-99-PLAN.md#/contract
+contract_results:
+  claims:
+    claim-benchmark:
+      status: passed
+      summary: Benchmark reproduced
+---
+
+# Summary
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+
+
 def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     write_paper = (repo_root / "src/gpd/specs/workflows/write-paper.md").read_text(encoding="utf-8")

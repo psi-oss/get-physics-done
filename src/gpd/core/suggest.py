@@ -36,6 +36,9 @@ from gpd.core.utils import (
 from gpd.core.utils import (
     phase_sort_key as _phase_sort_key,
 )
+from gpd.core.utils import (
+    phase_unpad as _phase_unpad,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +293,31 @@ def _item_text(item: object, fallback_keys: tuple[str, ...] = ("text",)) -> str:
             if val and isinstance(val, str):
                 return val
     return "unnamed"
+
+
+def _result_has_verification_evidence(result: dict[str, object]) -> bool:
+    """Return whether a result has any verification signal."""
+    return result.get("verified") is True or bool(result.get("verification_records"))
+
+
+def _resolve_unverified_result_phase(
+    unverified_results: list[dict[str, object]],
+    phase_analysis: list[_PhaseAnalysis],
+) -> str | None:
+    """Return one runnable phase number for unverified results when unambiguous."""
+    known_phases = {_phase_unpad(phase.number): phase.number for phase in phase_analysis}
+    resolved_phases: list[str] = []
+    for result in unverified_results:
+        raw_phase = result.get("phase")
+        if raw_phase is None:
+            continue
+        phase = known_phases.get(_phase_unpad(str(raw_phase)))
+        if phase and phase not in resolved_phases:
+            resolved_phases.append(phase)
+
+    if len(resolved_phases) == 1:
+        return resolved_phases[0]
+    return None
 
 
 def _count_pending_todos(cwd: Path) -> int:
@@ -566,19 +594,22 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     # ── 6. Unverified results ───────────────────────────────────────────
     if state:
         raw_results = state.get("intermediate_results") or []
-        unverified = [r for r in raw_results if isinstance(r, dict) and not r.get("verified", False)]
+        unverified = [r for r in raw_results if isinstance(r, dict) and not _result_has_verification_evidence(r)]
         if unverified:
             ctx_kwargs["unverified_results"] = len(unverified)
             ids = [r.get("id", "unnamed") for r in unverified[:3]]
             suffix = "..." if len(unverified) > 3 else ""
-            suggestions.append(
-                _MutableRecommendation(
-                    action="verify-results",
-                    priority=5,
-                    command=format_command("verify-work"),
-                    reason=f"{len(unverified)} unverified result(s): {', '.join(str(i) for i in ids)}{suffix}",
+            verify_phase = _resolve_unverified_result_phase(unverified, phase_analysis)
+            if verify_phase is not None:
+                suggestions.append(
+                    _MutableRecommendation(
+                        action="verify-results",
+                        priority=5,
+                        command=f"{format_command('verify-work')} {verify_phase}",
+                        reason=f"{len(unverified)} unverified result(s): {', '.join(str(i) for i in ids)}{suffix}",
+                        phase=verify_phase,
+                    )
                 )
-            )
 
     # ── 7. Open questions ───────────────────────────────────────────────
     if state:

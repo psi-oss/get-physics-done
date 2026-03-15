@@ -45,6 +45,31 @@ def test_validate_frontmatter_summary_with_source_path_checks_plan_alignment(tmp
     assert result.errors == []
 
 
+def test_validate_frontmatter_summary_with_source_path_accepts_sibling_plan_contract_ref(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    summary_path = artifact_dir / "01-01-SUMMARY.md"
+    summary_path.write_text(
+        (FIXTURES_STAGE4 / "summary_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace(
+            "plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract",
+            "plan_contract_ref: 01-01-PLAN.md#/contract",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
+
+    assert result.valid is True
+    assert result.errors == []
+
+
 def test_validate_frontmatter_summary_with_source_path_rejects_unknown_contract_ids(tmp_path: Path) -> None:
     phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)
@@ -195,6 +220,35 @@ def test_validate_frontmatter_verification_with_source_path_requires_contract_re
 
     assert result.valid is False
     assert "contract_results: required for contract-backed plan" in result.errors
+
+
+def test_validate_frontmatter_verification_with_source_path_accepts_sibling_plan_contract_ref(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = artifact_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        (FIXTURES_STAGE4 / "verification_with_contract_results.md")
+        .read_text(encoding="utf-8")
+        .replace(
+            "plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract",
+            "plan_contract_ref: 01-01-PLAN.md#/contract",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is True
+    assert result.errors == []
 
 
 def test_validate_frontmatter_verification_with_source_path_accepts_structured_suggested_contract_checks(

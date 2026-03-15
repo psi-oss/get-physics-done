@@ -113,3 +113,44 @@ def test_update_cache_helpers_prefer_candidate_order_over_newer_unrelated_cache(
 
     assert cache == {"update_available": True, "checked": 20}
     assert candidate is preferred_candidate
+
+
+def test_installed_update_command_uses_manifest_runtime_metadata_for_custom_targets(tmp_path: Path) -> None:
+    from gpd.hooks.install_metadata import installed_update_command
+
+    explicit_target = tmp_path / "custom-runtime-dir"
+    explicit_target.mkdir()
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        encoding="utf-8",
+    )
+
+    command = installed_update_command(explicit_target)
+
+    assert command is not None
+    assert "--codex --local --target-dir" in command
+    assert str(explicit_target) in command
+
+
+@pytest.mark.parametrize(
+    ("files", "expected_runtime"),
+    [
+        ({"skills/gpd-help/SKILL.md": "hash"}, "codex"),
+        ({"command/gpd-help.md": "hash"}, "opencode"),
+    ],
+)
+def test_installed_runtime_infers_runtime_from_catalog_owned_manifest_prefixes(
+    tmp_path: Path,
+    files: dict[str, str],
+    expected_runtime: str,
+) -> None:
+    from gpd.hooks.install_metadata import installed_runtime
+
+    explicit_target = tmp_path / "custom-runtime-dir"
+    explicit_target.mkdir()
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "files": files}),
+        encoding="utf-8",
+    )
+
+    assert installed_runtime(explicit_target) == expected_runtime

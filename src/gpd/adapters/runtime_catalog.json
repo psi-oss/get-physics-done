@@ -27,6 +27,7 @@
     "activation_env_vars": ["CODEX_SESSION", "CODEX_CLI"],
     "selection_flags": ["--codex"],
     "selection_aliases": ["codex"],
+    "manifest_file_prefixes": ["skills/"],
     "hook_payload": {
       "notify_event_types": ["agent-turn-complete"]
     },
@@ -65,6 +66,7 @@
     "activation_env_vars": ["OPENCODE_SESSION"],
     "selection_flags": ["--opencode"],
     "selection_aliases": ["opencode", "open code"],
+    "manifest_file_prefixes": ["command/"],
     "agent_prompt_uses_dollar_templates": true,
     "global_config": {
       "strategy": "xdg_app",

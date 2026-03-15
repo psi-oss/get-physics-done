@@ -126,6 +126,22 @@ def test_result_list_filter_unverified():
     assert results[0].id == "R-02"
 
 
+def test_result_list_filter_unverified_ignores_results_with_verification_records():
+    state: dict = {
+        "intermediate_results": [
+            {
+                "id": "R-01",
+                "verified": False,
+                "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "low"}],
+            },
+            {"id": "R-02", "verified": False, "verification_records": []},
+        ]
+    }
+    results = result_list(state, unverified=True)
+    assert len(results) == 1
+    assert results[0].id == "R-02"
+
+
 # ─── result_deps ─────────────────────────────────────────────────────────────
 
 
@@ -234,6 +250,34 @@ def test_result_update_verification_records_normalizes_and_marks_verified():
     assert "verification_records" in fields
     assert result.verified is True
     assert len(result.verification_records) == 1
+
+
+def test_result_update_clearing_verification_records_clears_verified():
+    state: dict = {}
+    result_add(
+        state,
+        result_id="R-04",
+        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
+    )
+
+    fields, result = result_update(state, "R-04", verification_records=[])
+
+    assert "verification_records" in fields
+    assert "verified" in fields
+    assert result.verified is False
+    assert result.verification_records == []
+
+
+def test_result_update_rejects_conflicting_verified_and_verification_records():
+    state: dict = {}
+    result_add(
+        state,
+        result_id="R-05",
+        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
+    )
+
+    with pytest.raises(ResultError, match="verified must match whether verification_records is empty"):
+        result_update(state, "R-05", verified=True, verification_records=[])
 
 
 def test_result_verify_not_found():

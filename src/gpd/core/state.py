@@ -1262,10 +1262,70 @@ def _merge_intermediate_results_from_markdown(existing: object, parsed_items: li
             if match:
                 existing_item = existing_by_id.get(match.group(1))
                 if existing_item is not None:
-                    merged.append(existing_item)
+                    merged.append(_merge_intermediate_result_markdown_text(existing_item, item))
                     continue
         merged.append(item)
     return merged
+
+
+def _merge_intermediate_result_markdown_text(existing_item: object, markdown_item: str) -> object:
+    """Merge markdown-editable result fields onto an existing structured result."""
+
+    if not isinstance(existing_item, dict):
+        return existing_item
+
+    match = re.match(r"^\[(?P<id>[^\]]+)\]\s*(?P<body>.*)$", markdown_item.strip())
+    if match is None:
+        return existing_item
+
+    body = match.group("body").strip()
+    deps: list[str] = []
+    deps_match = re.search(r"\s*\[deps:\s*(?P<deps>[^\]]*)\]\s*$", body)
+    if deps_match is not None:
+        body = body[: deps_match.start()].rstrip()
+        raw_deps = deps_match.group("deps").strip()
+        if raw_deps and raw_deps.casefold() != "none":
+            deps = [dep.strip() for dep in raw_deps.split(",") if dep.strip()]
+
+    metadata_tokens: list[str] = []
+    metadata_match = re.search(r"\s*\((?P<meta>[^()]*)\)\s*$", body)
+    if metadata_match is not None:
+        body = body[: metadata_match.start()].rstrip()
+        metadata_tokens = [
+            token.strip()
+            for token in metadata_match.group("meta").split(",")
+            if token.strip()
+        ]
+
+    description = body
+    equation = None
+    equation_match = re.match(r"^(?P<description>.*?)(?::\s*`(?P<equation>[^`]*)`)?\s*$", body)
+    if equation_match is not None:
+        description = equation_match.group("description").strip()
+        equation = equation_match.group("equation")
+
+    merged_item = dict(existing_item)
+    merged_item.update(
+        {
+            "description": description or None,
+            "equation": equation or None,
+            "units": None,
+            "validity": None,
+            "phase": None,
+            "depends_on": deps,
+        }
+    )
+
+    for token in metadata_tokens:
+        lowered = token.casefold()
+        if lowered.startswith("units:"):
+            merged_item["units"] = token.partition(":")[2].strip() or None
+        elif lowered.startswith("valid:"):
+            merged_item["validity"] = token.partition(":")[2].strip() or None
+        elif lowered.startswith("phase "):
+            merged_item["phase"] = token[6:].strip() or None
+
+    return merged_item
 
 
 def _integrity_status_from(issues: list[str], warnings: list[str], mode: str) -> str:

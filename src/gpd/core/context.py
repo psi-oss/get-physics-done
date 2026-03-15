@@ -48,7 +48,6 @@ from gpd.core.errors import ValidationError
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
 from gpd.core.reference_ingestion import ingest_reference_artifacts
 from gpd.core.state import load_state_json as _load_state_json
-from gpd.core.state import save_state_json as _save_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
 )
@@ -559,21 +558,6 @@ def _canonicalize_project_contract(
         return contract
 
 
-def _persist_canonical_project_contract(cwd: Path, contract: ResearchContract | None) -> None:
-    """Persist the canonicalized project contract when it changed."""
-
-    if contract is None:
-        return
-    state = _load_state_json(cwd)
-    if not isinstance(state, dict):
-        return
-    payload = contract.model_dump(mode="json")
-    if state.get("project_contract") == payload:
-        return
-    state["project_contract"] = payload
-    _save_state_json(cwd, state)
-
-
 def _render_active_reference_context(
     active_references: list[dict[str, object]],
     effective_intake: dict[str, list[str]],
@@ -712,7 +696,6 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
         active_references=active_references,
         effective_reference_intake=effective_reference_intake,
     )
-    _persist_canonical_project_contract(cwd, canonical_contract)
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, canonical_contract)
 
