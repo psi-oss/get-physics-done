@@ -18,7 +18,7 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     UPDATE_CACHE_FILENAME,
 )
-from gpd.core.constants import PLANNING_DIR_NAME, TODOS_DIR_NAME
+from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, PLANNING_DIR_NAME, TODOS_DIR_NAME
 
 RUNTIME_UNKNOWN = "unknown"
 SCOPE_GLOBAL = "global"
@@ -64,6 +64,33 @@ def _adapter(runtime: str):
         return get_adapter(runtime)
     except KeyError:
         return None
+
+
+def _normalize_runtime_name(value: str | None) -> str | None:
+    """Resolve a runtime id, display name, or alias to a canonical runtime name."""
+    if not isinstance(value, str):
+        return None
+
+    normalized = value.strip().casefold()
+    if not normalized:
+        return None
+
+    for runtime in ALL_RUNTIMES:
+        adapter = _adapter(runtime)
+        if adapter is None:
+            continue
+        if normalized in {
+            runtime.casefold(),
+            adapter.display_name.casefold(),
+            *(alias.casefold() for alias in adapter.selection_aliases),
+        }:
+            return runtime
+    return None
+
+
+def _explicit_runtime_override() -> str | None:
+    """Return an explicit runtime override supplied by GPD-owned shell surfaces."""
+    return _normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
 
 
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
@@ -181,7 +208,27 @@ def resolve_effective_runtime(
 
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    ordered_runtimes = _prioritized_runtimes(preferred_runtime)
+    override_runtime = _explicit_runtime_override()
+    ordered_runtimes = _prioritized_runtimes(override_runtime or preferred_runtime)
+
+    if override_runtime is not None and not require_gpd_install:
+        install_target = _detect_runtime_install_target(override_runtime, cwd=resolved_cwd, home=resolved_home)
+        return EffectiveRuntimeResolution(
+            runtime=override_runtime,
+            source=SOURCE_ENV,
+            has_gpd_install=install_target is not None,
+            install_scope=None if install_target is None else install_target.install_scope,
+        )
+
+    if override_runtime is not None and require_gpd_install:
+        install_target = _detect_runtime_install_target(override_runtime, cwd=resolved_cwd, home=resolved_home)
+        if install_target is not None:
+            return EffectiveRuntimeResolution(
+                runtime=override_runtime,
+                source=SOURCE_ENV,
+                has_gpd_install=True,
+                install_scope=install_target.install_scope,
+            )
 
     if not require_gpd_install:
         for runtime in ordered_runtimes:

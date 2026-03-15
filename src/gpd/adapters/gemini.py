@@ -41,6 +41,7 @@ from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
+from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,7 @@ def _ensure_gemini_cli_launcher(target_dir: Path) -> Path:
         "#!/bin/sh",
         "# Managed by Get Physics Done (GPD).",
         "# The launcher already pins execution, so skip CLI checkout re-exec heuristics.",
+        f"export {ENV_GPD_ACTIVE_RUNTIME}=gemini",
         "export GPD_DISABLE_CHECKOUT_REEXEC=1",
     ]
     checkout_src = _gemini_launcher_checkout_src()

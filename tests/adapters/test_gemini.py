@@ -645,6 +645,7 @@ class TestInstall:
         launcher_text = launcher.read_text(encoding="utf-8")
         assert launcher.exists()
         assert launcher_text.startswith("#!/bin/sh\n")
+        assert "export GPD_ACTIVE_RUNTIME=gemini" in launcher_text
         assert "export GPD_DISABLE_CHECKOUT_REEXEC=1" in launcher_text
         assert "export PYTHONPATH=\"$CHECKOUT_SRC:$PYTHONPATH\"" in launcher_text
         assert "-m gpd.cli" in launcher_text

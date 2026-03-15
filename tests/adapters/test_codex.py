@@ -188,6 +188,32 @@ class TestInstall:
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
 
+    def test_install_tags_shell_gpd_calls_with_codex_runtime(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        skill = (skills / "gpd-settings" / "SKILL.md").read_text(encoding="utf-8")
+        workflow = (target / "get-physics-done" / "workflows" / "settings.md").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert "Codex shell compatibility:" in skill
+        assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" in skill
+        assert "GPD_ACTIVE_RUNTIME=codex gpd config ensure-section" in skill
+        assert 'INIT=$(GPD_ACTIVE_RUNTIME=codex gpd init progress --include state,config)' in skill
+        assert 'echo "ERROR: gpd initialization failed: $INIT"' in skill
+        assert "GPD_ACTIVE_RUNTIME=codex gpd config ensure-section" in workflow
+        assert 'INIT=$(GPD_ACTIVE_RUNTIME=codex gpd init plan-phase "${PHASE}")' in agent
+        assert "```bash\ngpd config ensure-section\n" not in workflow
+        assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
+
     def test_install_only_exposes_public_agents_as_skills(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:

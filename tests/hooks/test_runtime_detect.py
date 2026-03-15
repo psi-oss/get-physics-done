@@ -44,7 +44,7 @@ RUNTIME_CODEX = "codex"
 RUNTIME_GEMINI = "gemini"
 RUNTIME_OPENCODE = "opencode"
 _RUNTIME_ENV_PREFIXES = ("CLAUDE_CODE", "CODEX", "GEMINI", "OPENCODE")
-_RUNTIME_ENV_VARS_TO_CLEAR = {"XDG_CONFIG_HOME"}
+_RUNTIME_ENV_VARS_TO_CLEAR = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
 
 
 def _clean_runtime_env() -> dict[str, str]:
@@ -96,6 +96,13 @@ class TestDetectActiveRuntime:
         """CODEX_SESSION env var → 'codex'."""
         env = _clean_runtime_env()
         env["CODEX_SESSION"] = "xyz"
+        with patch.dict(os.environ, env, clear=True):
+            assert detect_active_runtime() == RUNTIME_CODEX
+
+    def test_explicit_gpd_runtime_override_detected(self) -> None:
+        """GPD_ACTIVE_RUNTIME env var → canonical runtime."""
+        env = _clean_runtime_env()
+        env["GPD_ACTIVE_RUNTIME"] = "Codex"
         with patch.dict(os.environ, env, clear=True):
             assert detect_active_runtime() == RUNTIME_CODEX
 
@@ -340,6 +347,19 @@ class TestDetectRuntimeForGpdUse:
         env["CODEX_CONFIG_DIR"] = str(custom_dir)
         with patch.dict(os.environ, env, clear=True):
             assert detect_runtime_for_gpd_use(cwd=workspace, home=home) == RUNTIME_CODEX
+
+    def test_explicit_runtime_override_wins_when_multiple_installed_runtimes_exist(self, tmp_path: Path) -> None:
+        _mark_gpd_install(tmp_path / ".claude")
+        _mark_gpd_install(tmp_path / ".codex")
+
+        env = _clean_runtime_env()
+        env["GPD_ACTIVE_RUNTIME"] = "codex"
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_runtime_for_gpd_use() == RUNTIME_CODEX
 
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 

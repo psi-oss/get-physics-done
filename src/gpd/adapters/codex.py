@@ -37,6 +37,7 @@ from gpd.adapters.install_utils import (
     write_manifest,
 )
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
+from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
 from gpd.core.observability import gpd_span
 from gpd.registry import AgentDef
 
@@ -73,6 +74,15 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
+_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
+_CODEX_RUNTIME_ENV_PREFIX = f"{ENV_GPD_ACTIVE_RUNTIME}=codex "
+_CODEX_COMMAND_RUNTIME_NOTE = (
+    "<codex_runtime_notes>\n"
+    "Codex shell compatibility:\n"
+    f"- When shell steps call the GPD CLI, prefix them with `{ENV_GPD_ACTIVE_RUNTIME}=codex` so runtime-scoped config resolves for Codex even when other local runtime installs exist.\n"
+    f"- If you need the repo environment, keep the same prefix: `{ENV_GPD_ACTIVE_RUNTIME}=codex uv run gpd ...`.\n"
+    "</codex_runtime_notes>\n\n"
+)
 
 
 # ─── Directory helpers ──────────────────────────────────────────────────────
@@ -286,6 +296,104 @@ def _toml_value(value: object) -> str:
     raise TypeError(f"Unsupported TOML scalar value: {value!r}")
 
 
+def _inject_codex_command_runtime_note(content: str) -> str:
+    """Prepend Codex-specific shell guidance to installed command skills."""
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
+        return _CODEX_COMMAND_RUNTIME_NOTE + content
+    return render_markdown_frontmatter(preamble, frontmatter, separator, _CODEX_COMMAND_RUNTIME_NOTE + body)
+
+
+def _rewrite_codex_gpd_cli_invocations(content: str) -> str:
+    """Rewrite direct shell ``gpd`` calls to carry the explicit Codex runtime."""
+    rewritten: list[str] = []
+    in_shell_fence = False
+
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            if in_shell_fence:
+                in_shell_fence = False
+            else:
+                fence_language = stripped[3:].strip().lower()
+                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
+            rewritten.append(line)
+            continue
+
+        if in_shell_fence:
+            rewritten.append(_rewrite_codex_shell_line(line))
+            continue
+
+        rewritten.append(line)
+
+    return "".join(rewritten)
+
+
+def _rewrite_codex_shell_line(line: str) -> str:
+    """Rewrite only command-position ``gpd`` tokens on a shell line."""
+    pieces: list[str] = []
+    index = 0
+    in_single = False
+    in_double = False
+
+    while index < len(line):
+        char = line[index]
+        previous = line[index - 1] if index > 0 else ""
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            pieces.append(char)
+            index += 1
+            continue
+
+        if char == '"' and not in_single and previous != "\\":
+            in_double = not in_double
+            pieces.append(char)
+            index += 1
+            continue
+
+        if (
+            not in_single
+            and not in_double
+            and line.startswith("gpd", index)
+            and _is_gpd_command_start(line, index)
+            and _is_gpd_token_end(line, index + 3)
+        ):
+            pieces.append(_CODEX_RUNTIME_ENV_PREFIX + "gpd")
+            index += 3
+            continue
+
+        pieces.append(char)
+        index += 1
+
+    return "".join(pieces)
+
+
+def _is_gpd_command_start(line: str, index: int) -> bool:
+    """Return whether ``gpd`` starts a shell command token at *index*."""
+    probe = index - 1
+    while probe >= 0 and line[probe] in " \t":
+        probe -= 1
+
+    if probe < 0:
+        return True
+
+    if line[probe] in "|;(":
+        return True
+
+    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
+        return True
+
+    return False
+
+
+def _is_gpd_token_end(line: str, end_index: int) -> bool:
+    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
+    if end_index >= len(line):
+        return True
+    return line[end_index].isspace() or line[end_index] in {'"', "'", "`"}
+
+
 # ─── Adapter Class ───────────────────────────────────────────────────────────
 
 
@@ -373,6 +481,30 @@ class CodexAdapter(RuntimeAdapter):
             failures.append("command skills")
         skill_count = sum(1 for d in self._skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
         return skill_count
+
+    def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
+        """Install shared specs content with Codex runtime-aware shell rewrites."""
+
+        def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
+            translated = super(CodexAdapter, self).translate_shared_markdown(
+                content,
+                prefix,
+                install_scope=install_scope,
+            )
+            return _rewrite_codex_gpd_cli_invocations(translated)
+
+        from gpd.adapters.install_utils import install_gpd_content
+
+        failures.extend(
+            install_gpd_content(
+                gpd_root / "specs",
+                target_dir,
+                path_prefix,
+                self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                markdown_transform=_translate,
+            )
+        )
 
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
@@ -599,6 +731,8 @@ def _copy_commands_as_skills(
             )
             content = _convert_to_codex_skill(content, skill_name)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+            content = _rewrite_codex_gpd_cli_invocations(content)
+            content = _inject_codex_command_runtime_note(content)
 
             (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -646,6 +780,7 @@ def _copy_agents_as_skills(
         )
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+        content = _rewrite_codex_gpd_cli_invocations(content)
 
         (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -681,6 +816,7 @@ def _copy_agents_as_agent_files(
             protect_agent_prompt_body=True,
         )
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
+        content = _rewrite_codex_gpd_cli_invocations(content)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
         new_agent_names.add(entry.name)
