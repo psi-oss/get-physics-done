@@ -342,7 +342,7 @@ Archive completed milestone and prepare for next direction.
 - Creates git tag for the release
 - Prepares workspace for next research direction
 
-Usage: `/gpd:complete-milestone 1.0.0`
+Usage: `/gpd:complete-milestone 1.0.1`
 
 ### Progress Tracking
 
@@ -912,7 +912,7 @@ Example config:
 **Completing a milestone:**
 
 ```
-/gpd:complete-milestone 1.0.0
+/gpd:complete-milestone 1.0.1
 /clear
 /gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
 ```

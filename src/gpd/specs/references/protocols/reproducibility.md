@@ -92,8 +92,8 @@ Every computational phase must record:
     "matplotlib": "3.8.3"
   },
   "mcp_servers": {
-    "gpd-verification": "1.0.0",
-    "gpd-conventions": "1.0.0",
+    "gpd-verification": "1.0.1",
+    "gpd-conventions": "1.0.1",
     "gpd-arxiv": "0.3.2"
   },
   "platform": {

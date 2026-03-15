@@ -1,7 +1,7 @@
 {
   "name": "get-physics-done",
-  "version": "1.0.0",
-  "gpdPythonVersion": "1.0.0",
+  "version": "1.0.1",
+  "gpdPythonVersion": "1.0.1",
   "description": "Open-source AI copilot for physics research across supported AI runtimes",
   "bin": {
     "get-physics-done": "bin/install.js"
