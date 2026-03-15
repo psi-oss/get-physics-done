@@ -737,25 +737,33 @@ def _find_matching_plan_contract(summary_dir: Path, summary_meta: dict) -> Resea
     if isinstance(plan_contract_ref, str):
         plan_ref_path = plan_contract_ref.split("#", 1)[0].strip()
         if plan_ref_path:
-            relative_plan_path = plan_ref_path[2:] if plan_ref_path.startswith("./") else plan_ref_path
-            candidate = summary_dir.parent.parent.parent / relative_plan_path
-            if not candidate.exists():
-                return None
-            content = safe_read_file(candidate)
-            if content is None:
-                return None
-            try:
-                meta, _body = extract_frontmatter(content)
-            except FrontmatterParseError:
-                return None
-            if not _frontmatter_identity_matches(meta, summary_meta):
-                return None
-            contract_data = meta.get("contract")
-            if isinstance(contract_data, dict):
+            relative_plan_path = Path(plan_ref_path[2:] if plan_ref_path.startswith("./") else plan_ref_path)
+            candidates: list[Path]
+            if relative_plan_path.is_absolute():
+                candidates = [relative_plan_path]
+            else:
+                candidates = [summary_dir / relative_plan_path]
+                candidates.extend(parent / relative_plan_path for parent in summary_dir.parents)
+
+            for candidate in candidates:
+                if not candidate.exists():
+                    continue
+                content = safe_read_file(candidate)
+                if content is None:
+                    continue
                 try:
-                    return ResearchContract.model_validate(contract_data)
-                except PydanticValidationError:
-                    return None
+                    meta, _body = extract_frontmatter(content)
+                except FrontmatterParseError:
+                    continue
+                if not _frontmatter_identity_matches(meta, summary_meta):
+                    continue
+                contract_data = meta.get("contract")
+                if isinstance(contract_data, dict):
+                    try:
+                        return ResearchContract.model_validate(contract_data)
+                    except PydanticValidationError:
+                        return None
+                return None
             return None
 
     summary_plan = summary_meta.get("plan")

@@ -1587,6 +1587,24 @@ class TestVerificationServer:
         assert result["status"] == "fail"
         assert any("proxy" in issue.lower() for issue in result["automated_issues"])
 
+    @pytest.mark.parametrize(
+        ("field_name", "payload", "expected_error"),
+        [
+            ("contract", "not-a-dict", "contract must be an object"),
+            ("binding", ["claim-b"], "binding must be an object"),
+            ("metadata", "not-a-dict", "metadata must be an object"),
+            ("observed", ["metric"], "observed must be an object"),
+        ],
+    )
+    def test_run_contract_check_rejects_non_mapping_payload_sections(self, field_name, payload, expected_error):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        request = {"check_key": "contract.benchmark_reproduction", field_name: payload}
+
+        result = run_contract_check(request)
+
+        assert result == {"error": expected_error, "schema_version": 1}
+
     def test_suggest_contract_checks_from_contract(self):
         import json
         from pathlib import Path

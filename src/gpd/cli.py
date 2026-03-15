@@ -28,6 +28,7 @@ import typer
 from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from gpd.core.errors import ConfigError, GPDError
 
@@ -3735,14 +3736,44 @@ _GPD_DISPLAY_NAME = "Get Physics Done"
 _GPD_OWNER = "Physical Superintelligence PBC"
 _GPD_OWNER_SHORT = "PSI"
 _GPD_COPYRIGHT_YEAR = 2026
+_INSTALL_LOGO_COLOR = "#F3F0E8"
+_INSTALL_TITLE_COLOR = "#F7F4ED"
+_INSTALL_META_COLOR = "#9E988C"
+_INSTALL_ACCENT_COLOR = "#D8C7A3"
 
 
 def _format_install_header_lines(version: str) -> tuple[str, str]:
     """Return the branded header shown during interactive install."""
     return (
         f"GPD v{version} - {_GPD_DISPLAY_NAME}",
-        f"by {_GPD_OWNER} ({_GPD_OWNER_SHORT}) · © {_GPD_COPYRIGHT_YEAR}",
+        f"© {_GPD_COPYRIGHT_YEAR} {_GPD_OWNER} ({_GPD_OWNER_SHORT})",
     )
+
+
+def _render_install_option_line(index: int, label: str, *details: str, label_width: int | None = None) -> Text:
+    """Return a single-line formatted install menu option."""
+    rendered = Text("  ")
+    rendered.append(f"[{index}]", style=f"bold {_INSTALL_ACCENT_COLOR}")
+    rendered.append(" ")
+    rendered.append(label.ljust(label_width or len(label)), style=f"bold {_INSTALL_TITLE_COLOR}")
+    filtered_details = [detail for detail in details if detail]
+    if filtered_details:
+        rendered.append("  ")
+        for detail_index, detail in enumerate(filtered_details):
+            if detail_index:
+                rendered.append(" ")
+            rendered.append("·", style=f"bold {_INSTALL_ACCENT_COLOR}")
+            rendered.append(" ")
+            rendered.append(detail, style=f"dim {_INSTALL_META_COLOR}")
+    return rendered
+
+
+def _render_install_choice_prompt() -> Text:
+    """Return the shared interactive prompt label for install menus."""
+    rendered = Text()
+    rendered.append("Enter choice", style=f"bold {_INSTALL_TITLE_COLOR}")
+    rendered.append(" [1]", style=f"dim {_INSTALL_META_COLOR}")
+    return rendered
 
 
 def _prompt_runtimes(*, action: str = "install") -> list[str]:
@@ -3753,16 +3784,17 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
 
     runtimes = list_runtimes()
     adapters = {runtime: get_adapter(runtime) for runtime in runtimes}
-    console.print(f"\n[bold cyan]Select runtime(s) to {action}:[/]\n")
+    label_width = max(len(adapter.display_name) for adapter in adapters.values())
+    all_label = "All runtimes"
+    label_width = max(label_width, len(all_label))
+    console.print(f"\n[bold {_INSTALL_TITLE_COLOR}]Select runtime(s) to {action}[/]\n")
     for i, rt in enumerate(runtimes, 1):
         adapter = adapters[rt]
-        console.print(f"  [bold]{i}[/]) {adapter.display_name} [dim]({rt})[/]")
-    console.print(f"  [bold]{len(runtimes) + 1}[/]) [green]All runtimes[/]")
+        console.print(_render_install_option_line(i, adapter.display_name, rt, label_width=label_width))
+    console.print(_render_install_option_line(len(runtimes) + 1, all_label, label_width=label_width))
 
-    choice = Prompt.ask(
-        "\n[bold]Enter choice[/]",
-        default="1",
-    )
+    console.print()
+    choice = Prompt.ask(_render_install_choice_prompt(), default="1", show_default=False)
 
     try:
         idx = int(choice)
@@ -3794,6 +3826,8 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
                 )
             )
         ]
+        if len(fuzzy_matches) == 1:
+            return fuzzy_matches
         if len(fuzzy_matches) > 1:
             _error(f"Ambiguous selection: {choice!r}. Matches: {', '.join(fuzzy_matches)}")
         _error(f"Invalid selection: {choice!r}")
@@ -3827,11 +3861,13 @@ def _prompt_location(runtimes: list[str], *, action: str = "install") -> bool:
     label = "Install" if action == "install" else "Uninstall"
     local_example = _location_example(runtimes, is_global=False)
     global_example = _location_example(runtimes, is_global=True)
-    console.print(f"\n[bold cyan]{label} location:[/]\n")
-    console.print(f"  [bold]1[/]) [green]Local[/]  — current project only [dim]({local_example})[/]")
-    console.print(f"  [bold]2[/]) Global — all projects [dim]({global_example})[/]")
+    label_width = max(len("Local"), len("Global"))
+    console.print(f"\n[bold {_INSTALL_TITLE_COLOR}]{label} location[/]\n")
+    console.print(_render_install_option_line(1, "Local", "current project only", local_example, label_width=label_width))
+    console.print(_render_install_option_line(2, "Global", "all projects", global_example, label_width=label_width))
 
-    choice = Prompt.ask("\n[bold]Enter choice[/]", default="1")
+    console.print()
+    choice = Prompt.ask(_render_install_choice_prompt(), default="1", show_default=False)
     normalized = choice.strip().lower()
     if normalized in {"1", "local"}:
         return False
@@ -3980,11 +4016,11 @@ def install(
         # Interactive mode
         from gpd.version import resolve_active_version
 
-        console.print(_GPD_BANNER, style="bold blue")
+        console.print(_GPD_BANNER, style=f"bold {_INSTALL_LOGO_COLOR}")
         console.print()
         header_line, attribution_line = _format_install_header_lines(resolve_active_version(_get_cwd()))
-        console.print(header_line, style="bold", markup=False, highlight=False)
-        console.print(attribution_line, style="dim", markup=False, highlight=False)
+        console.print(header_line, style=f"bold {_INSTALL_TITLE_COLOR}", markup=False, highlight=False)
+        console.print(attribution_line, style=f"dim {_INSTALL_META_COLOR}", markup=False, highlight=False)
         console.print()
         selected = _prompt_runtimes()
 

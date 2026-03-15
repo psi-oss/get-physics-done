@@ -16,6 +16,7 @@ import sys
 from collections.abc import Iterable
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import ResearchContract
 from gpd.core.observability import gpd_span
@@ -128,6 +129,24 @@ DOMAIN_CHECKLISTS: dict[str, list[dict[str, str]]] = {
     ],
 }
 
+
+def _error_result(message: object) -> dict[str, object]:
+    """Return a stable MCP error envelope for verification tools."""
+    return {
+        "error": str(message),
+        "schema_version": VERIFICATION_SCHEMA_VERSION,
+    }
+
+
+def _optional_mapping_field(request: dict[str, object], field_name: str) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    """Return an optional mapping payload or an MCP error envelope."""
+    raw = request.get(field_name)
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict):
+        return None, _error_result(f"{field_name} must be an object")
+    return raw, None
+
 # ─── Dimension Parsing ────────────────────────────────────────────────────────
 
 # Base dimensions: [M], [L], [T], [Q], [Theta]
@@ -168,95 +187,97 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
         artifact_content: The content to verify (derivation, code, etc.)
     """
     with gpd_span("mcp.verification.run_check", check_type=check_id, domain=domain):
-        check_meta = get_verification_check(check_id)
-        if check_meta is None:
+        try:
+            check_meta = get_verification_check(check_id)
+            if check_meta is None:
+                return _error_result(
+                    f"Unknown check_id: {check_id}. Valid check ids: {list(VERIFICATION_CHECK_IDS)}"
+                )
+
+            # Get domain-specific guidance
+            domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
+            relevant_domain_checks = [
+                c
+                for c in domain_checks
+                if check_meta.check_id in [token.strip() for token in c.get("check_ids", "").split(",") if token.strip()]
+            ]
+
+            # Scan artifact for obvious issues
+            issues: list[str] = []
+            artifact_lower = artifact_content.lower()
+
+            if check_meta.check_id == "5.1":
+                # Dimensional analysis: look for common pitfalls
+                if "hbar" not in artifact_content and "\\hbar" not in artifact_content:
+                    if any(kw in artifact_lower for kw in ["quantum", "planck", "commutator"]):
+                        issues.append("Quantum context detected but no hbar found -- check natural unit conventions")
+                if re.search(r"exp\s*\([^)]*\[(?:M|L|T|Q|Theta)\]", artifact_content):
+                    issues.append("Possible dimensionful argument to exponential")
+
+            elif check_meta.check_id == "5.3":
+                # Limiting cases: check if any limits are discussed
+                limit_keywords = ["limit", "->", "\\to", "limiting", "reduces to", "special case"]
+                has_limits = any(kw in artifact_lower for kw in limit_keywords)
+                if not has_limits:
+                    issues.append("No limiting case analysis found in artifact")
+
+            elif check_meta.check_id == "5.15":
+                limit_keywords = ["limit", "asymptotic", "boundary", "scaling", "regime", "\\to", "->"]
+                if not any(kw in artifact_lower for kw in limit_keywords):
+                    issues.append("No explicit contracted limit or asymptotic regime found in artifact")
+
+            elif check_meta.check_id == "5.16":
+                benchmark_keywords = ["benchmark", "baseline", "published", "reference", "prior work", "agreement"]
+                if not any(kw in artifact_lower for kw in benchmark_keywords):
+                    issues.append("No decisive benchmark or baseline comparison found in artifact")
+
+            elif check_meta.check_id == "5.17":
+                proxy_keywords = ["proxy", "surrogate", "heuristic", "loss", "trend", "qualitative"]
+                direct_keywords = ["direct", "benchmark", "observable", "measured", "ground truth", "anchor"]
+                if any(kw in artifact_lower for kw in proxy_keywords) and not any(
+                    kw in artifact_lower for kw in direct_keywords
+                ):
+                    issues.append("Proxy or surrogate evidence appears without a direct anchor comparison")
+
+            elif check_meta.check_id == "5.18":
+                fit_keywords = ["fit", "regression", "extrapolat", "ansatz", "model family"]
+                diagnostics = ["residual", "aic", "bic", "cross-validation", "goodness of fit", "family comparison"]
+                if any(kw in artifact_lower for kw in fit_keywords) and not any(kw in artifact_lower for kw in diagnostics):
+                    issues.append("Fit family is present without residual or family-selection diagnostics")
+
+            elif check_meta.check_id == "5.19":
+                estimator_keywords = ["estimator", "bootstrap", "jackknife", "posterior", "bayesian", "reweight"]
+                diagnostics = ["bias", "variance", "consistency", "calibration", "ess", "autocorrelation"]
+                if any(kw in artifact_lower for kw in estimator_keywords) and not any(
+                    kw in artifact_lower for kw in diagnostics
+                ):
+                    issues.append("Estimator family is present without bias/variance or calibration diagnostics")
+
             return {
-                "error": f"Unknown check_id: {check_id}. Valid check ids: {list(VERIFICATION_CHECK_IDS)}",
                 "schema_version": VERIFICATION_SCHEMA_VERSION,
+                "check_id": check_meta.check_id,
+                "check_key": check_meta.check_key,
+                "check_name": check_meta.name,
+                "tier": check_meta.tier,
+                "description": check_meta.description,
+                "catches": check_meta.catches,
+                "evidence_kind": check_meta.evidence_kind,
+                "machine_supported": check_meta.machine_supported,
+                "oracle_hint": check_meta.oracle_hint,
+                "check_class": check_meta.check_class,
+                "contract_aware": check_meta.contract_aware,
+                "binding_targets": check_meta.binding_targets,
+                "domain": domain,
+                "domain_specific_checks": relevant_domain_checks,
+                "automated_issues": issues,
+                "artifact_length": len(artifact_content),
+                "guidance": (
+                    f"Run check {check_meta.check_id} ({check_meta.name}) for domain '{domain}'. "
+                    f"This check catches: {check_meta.catches}."
+                ),
             }
-
-        # Get domain-specific guidance
-        domain_checks = DOMAIN_CHECKLISTS.get(domain, [])
-        relevant_domain_checks = [
-            c
-            for c in domain_checks
-            if check_meta.check_id in [token.strip() for token in c.get("check_ids", "").split(",") if token.strip()]
-        ]
-
-        # Scan artifact for obvious issues
-        issues: list[str] = []
-        artifact_lower = artifact_content.lower()
-
-        if check_meta.check_id == "5.1":
-            # Dimensional analysis: look for common pitfalls
-            if "hbar" not in artifact_content and "\\hbar" not in artifact_content:
-                if any(kw in artifact_lower for kw in ["quantum", "planck", "commutator"]):
-                    issues.append("Quantum context detected but no hbar found -- check natural unit conventions")
-            if re.search(r"exp\s*\([^)]*\[(?:M|L|T|Q|Theta)\]", artifact_content):
-                issues.append("Possible dimensionful argument to exponential")
-
-        elif check_meta.check_id == "5.3":
-            # Limiting cases: check if any limits are discussed
-            limit_keywords = ["limit", "->", "\\to", "limiting", "reduces to", "special case"]
-            has_limits = any(kw in artifact_lower for kw in limit_keywords)
-            if not has_limits:
-                issues.append("No limiting case analysis found in artifact")
-
-        elif check_meta.check_id == "5.15":
-            limit_keywords = ["limit", "asymptotic", "boundary", "scaling", "regime", "\\to", "->"]
-            if not any(kw in artifact_lower for kw in limit_keywords):
-                issues.append("No explicit contracted limit or asymptotic regime found in artifact")
-
-        elif check_meta.check_id == "5.16":
-            benchmark_keywords = ["benchmark", "baseline", "published", "reference", "prior work", "agreement"]
-            if not any(kw in artifact_lower for kw in benchmark_keywords):
-                issues.append("No decisive benchmark or baseline comparison found in artifact")
-
-        elif check_meta.check_id == "5.17":
-            proxy_keywords = ["proxy", "surrogate", "heuristic", "loss", "trend", "qualitative"]
-            direct_keywords = ["direct", "benchmark", "observable", "measured", "ground truth", "anchor"]
-            if any(kw in artifact_lower for kw in proxy_keywords) and not any(
-                kw in artifact_lower for kw in direct_keywords
-            ):
-                issues.append("Proxy or surrogate evidence appears without a direct anchor comparison")
-
-        elif check_meta.check_id == "5.18":
-            fit_keywords = ["fit", "regression", "extrapolat", "ansatz", "model family"]
-            diagnostics = ["residual", "aic", "bic", "cross-validation", "goodness of fit", "family comparison"]
-            if any(kw in artifact_lower for kw in fit_keywords) and not any(kw in artifact_lower for kw in diagnostics):
-                issues.append("Fit family is present without residual or family-selection diagnostics")
-
-        elif check_meta.check_id == "5.19":
-            estimator_keywords = ["estimator", "bootstrap", "jackknife", "posterior", "bayesian", "reweight"]
-            diagnostics = ["bias", "variance", "consistency", "calibration", "ess", "autocorrelation"]
-            if any(kw in artifact_lower for kw in estimator_keywords) and not any(
-                kw in artifact_lower for kw in diagnostics
-            ):
-                issues.append("Estimator family is present without bias/variance or calibration diagnostics")
-
-        return {
-            "schema_version": VERIFICATION_SCHEMA_VERSION,
-            "check_id": check_meta.check_id,
-            "check_key": check_meta.check_key,
-            "check_name": check_meta.name,
-            "tier": check_meta.tier,
-            "description": check_meta.description,
-            "catches": check_meta.catches,
-            "evidence_kind": check_meta.evidence_kind,
-            "machine_supported": check_meta.machine_supported,
-            "oracle_hint": check_meta.oracle_hint,
-            "check_class": check_meta.check_class,
-            "contract_aware": check_meta.contract_aware,
-            "binding_targets": check_meta.binding_targets,
-            "domain": domain,
-            "domain_specific_checks": relevant_domain_checks,
-            "automated_issues": issues,
-            "artifact_length": len(artifact_content),
-            "guidance": (
-                f"Run check {check_meta.check_id} ({check_meta.name}) for domain '{domain}'. "
-                f"This check catches: {check_meta.catches}."
-            ),
-        }
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return _error_result(exc)
 
 
 def _truthy(value: object) -> bool:
@@ -538,256 +559,259 @@ def run_contract_check(request: dict) -> dict:
     """Run a contract-aware verification check using structured metadata."""
 
     with gpd_span("mcp.verification.run_contract_check"):
-        check_id = str(request.get("check_key") or request.get("check_id") or "").strip()
-        if not check_id:
-            return {
-                "error": "Missing check_key or check_id",
-                "schema_version": VERIFICATION_SCHEMA_VERSION,
-            }
+        try:
+            check_id = str(request.get("check_key") or request.get("check_id") or "").strip()
+            if not check_id:
+                return _error_result("Missing check_key or check_id")
 
-        check_meta = get_verification_check(check_id)
-        if check_meta is None:
-            return {
-                "error": f"Unknown contract check: {check_id}",
-                "schema_version": VERIFICATION_SCHEMA_VERSION,
-            }
-        if not check_meta.contract_aware:
-            return {
-                "error": f"Check {check_id} is not contract-aware",
-                "schema_version": VERIFICATION_SCHEMA_VERSION,
-            }
+            check_meta = get_verification_check(check_id)
+            if check_meta is None:
+                return _error_result(f"Unknown contract check: {check_id}")
+            if not check_meta.contract_aware:
+                return _error_result(f"Check {check_id} is not contract-aware")
 
-        contract = None
-        contract_raw = request.get("contract")
-        if isinstance(contract_raw, dict):
-            try:
-                contract = ResearchContract.model_validate(contract_raw)
-            except Exception as exc:  # pragma: no cover - pydantic version specifics
-                return {
-                    "error": f"Invalid contract payload: {exc}",
-                    "schema_version": VERIFICATION_SCHEMA_VERSION,
-                }
+            contract_raw, error = _optional_mapping_field(request, "contract")
+            if error is not None:
+                return error
+            binding_raw, error = _optional_mapping_field(request, "binding")
+            if error is not None:
+                return error
+            metadata_raw, error = _optional_mapping_field(request, "metadata")
+            if error is not None:
+                return error
+            observed_raw, error = _optional_mapping_field(request, "observed")
+            if error is not None:
+                return error
 
-        binding = request.get("binding") if isinstance(request.get("binding"), dict) else {}
-        metadata = request.get("metadata") if isinstance(request.get("metadata"), dict) else {}
-        observed = request.get("observed") if isinstance(request.get("observed"), dict) else {}
-        artifact_content = str(request.get("artifact_content") or "")
-        binding_ids, binding_issues, contract_impacts = _collect_binding_context(
-            check_targets=check_meta.binding_targets,
-            binding=binding,
-            contract=contract,
-        )
-        metadata = _with_contract_policy_defaults(
-            check_meta.check_key,
-            contract=contract,
-            binding_ids=binding_ids,
-            metadata=metadata,
-        )
+            contract = None
+            if contract_raw is not None:
+                try:
+                    contract = ResearchContract.model_validate(contract_raw)
+                except Exception as exc:  # pragma: no cover - pydantic version specifics
+                    return _error_result(f"Invalid contract payload: {exc}")
 
-        missing_inputs: list[str] = []
-        automated_issues: list[str] = []
-        metrics: dict[str, object] = {}
-        status = "insufficient_evidence"
-        evidence_directness = "metadata_only"
-        automated_issues.extend(binding_issues)
-
-        if check_meta.check_key == "contract.limit_recovery":
-            regime_label = metadata.get("regime_label")
-            expected_behavior = metadata.get("expected_behavior")
-            regime_label, regime_issue = _validate_limit_regime_binding(
+            binding = binding_raw or {}
+            metadata = metadata_raw or {}
+            observed = observed_raw or {}
+            artifact_content = str(request.get("artifact_content") or "")
+            binding_ids, binding_issues, contract_impacts = _collect_binding_context(
+                check_targets=check_meta.binding_targets,
+                binding=binding,
+                contract=contract,
+            )
+            metadata = _with_contract_policy_defaults(
+                check_meta.check_key,
                 contract=contract,
                 binding_ids=binding_ids,
-                regime_label=regime_label,
+                metadata=metadata,
             )
-            if regime_issue:
-                automated_issues.append(regime_issue)
-            if not regime_label:
-                missing_inputs.append("metadata.regime_label")
-            if not expected_behavior:
-                missing_inputs.append("metadata.expected_behavior")
-            limit_passed = observed.get("limit_passed")
-            observed_limit = observed.get("observed_limit")
-            metrics["regime_label"] = regime_label
-            metrics["observed_limit"] = observed_limit
-            if limit_passed is True and not missing_inputs:
-                status = "pass"
-                evidence_directness = "direct"
-            elif limit_passed is False and not missing_inputs:
-                automated_issues.append("Observed limit behavior does not match the contracted asymptotic expectation")
-                status = "fail"
-                evidence_directness = "direct"
-            elif artifact_content and any(token in artifact_content.lower() for token in ["limit", "asymptotic", "scaling", "boundary"]):
-                status = "warning"
-                evidence_directness = "mixed"
-            elif not missing_inputs:
-                automated_issues.append("No direct limit or asymptotic evidence was supplied")
-                status = "fail"
 
-        elif check_meta.check_key == "contract.benchmark_reproduction":
-            source_reference_id = metadata.get("source_reference_id")
-            metric_value = observed.get("metric_value")
-            threshold_value = observed.get("threshold_value")
-            source_reference_id, source_reference_issue = _validate_benchmark_reference_binding(
-                contract=contract,
-                binding_ids=binding_ids,
-                source_reference_id=source_reference_id,
-            )
-            if source_reference_issue:
-                automated_issues.append(source_reference_issue)
-            if not source_reference_id:
-                missing_inputs.append("metadata.source_reference_id")
-            if metric_value is None:
-                missing_inputs.append("observed.metric_value")
-            if threshold_value is None:
-                missing_inputs.append("observed.threshold_value")
-            metrics["source_reference_id"] = source_reference_id
-            metrics["metric_value"] = metric_value
-            metrics["threshold_value"] = threshold_value
-            if (
-                isinstance(metric_value, (int, float))
-                and isinstance(threshold_value, (int, float))
-                and source_reference_id
-            ):
-                evidence_directness = "direct"
-                if metric_value <= threshold_value:
-                    status = "pass"
-                else:
-                    automated_issues.append("Benchmark comparison exceeds the allowed tolerance")
-                    status = "fail"
-            elif artifact_content and any(token in artifact_content.lower() for token in ["benchmark", "baseline", "published", "reference"]):
-                status = "warning"
-                evidence_directness = "mixed"
-
-        elif check_meta.check_key == "contract.direct_proxy_consistency":
-            proxy_only = _truthy(observed.get("proxy_only"))
-            direct_available = _truthy(observed.get("direct_available"))
-            proxy_available = _truthy(observed.get("proxy_available"))
-            consistency_passed = observed.get("consistency_passed")
-            metrics.update(
-                {
-                    "proxy_only": proxy_only,
-                    "direct_available": direct_available,
-                    "proxy_available": proxy_available,
-                    "consistency_passed": consistency_passed,
-                }
-            )
-            if proxy_only or (proxy_available and not direct_available):
-                automated_issues.append("Proxy evidence was supplied without a decisive direct observable")
-                status = "fail"
-                evidence_directness = "proxy"
-            elif direct_available and proxy_available and consistency_passed is True:
-                status = "pass"
-                evidence_directness = "mixed"
-            elif direct_available and proxy_available and consistency_passed is False:
-                automated_issues.append("Direct and proxy evidence disagree")
-                status = "fail"
-                evidence_directness = "mixed"
-            elif direct_available:
-                status = "warning"
-                evidence_directness = "direct"
-
-        elif check_meta.check_key == "contract.fit_family_mismatch":
-            declared_family = metadata.get("declared_family")
-            selected_family = observed.get("selected_family")
-            allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-            forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
-            competing_checked = observed.get("competing_family_checked")
-            if not declared_family:
-                missing_inputs.append("metadata.declared_family")
-            if selected_family is None:
-                missing_inputs.append("observed.selected_family")
-            metrics.update(
-                {
-                    "declared_family": declared_family,
-                    "selected_family": selected_family,
-                    "allowed_families": sorted(allowed),
-                    "forbidden_families": sorted(forbidden),
-                    "competing_family_checked": competing_checked,
-                }
-            )
-            evidence_directness = "direct"
-            if isinstance(selected_family, str) and selected_family in forbidden:
-                automated_issues.append("Selected fit family is explicitly forbidden")
-                status = "fail"
-            elif allowed and isinstance(selected_family, str) and selected_family not in allowed:
-                automated_issues.append("Selected fit family is outside the allowed family set")
-                status = "fail"
-            elif isinstance(selected_family, str) and declared_family and selected_family != declared_family:
-                automated_issues.append("Selected fit family does not match the contracted family")
-                status = "fail"
-            elif isinstance(selected_family, str) and competing_checked is False:
-                automated_issues.append("Fit family was not compared against competing families")
-                status = "warning"
-            elif isinstance(selected_family, str) and declared_family:
-                status = "pass"
-
-        elif check_meta.check_key == "contract.estimator_family_mismatch":
-            declared_family = metadata.get("declared_family")
-            selected_family = observed.get("selected_family")
-            allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-            forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
-            bias_checked = observed.get("bias_checked")
-            calibration_checked = observed.get("calibration_checked")
-            if not declared_family:
-                missing_inputs.append("metadata.declared_family")
-            if selected_family is None:
-                missing_inputs.append("observed.selected_family")
-            metrics.update(
-                {
-                    "declared_family": declared_family,
-                    "selected_family": selected_family,
-                    "allowed_families": sorted(allowed),
-                    "forbidden_families": sorted(forbidden),
-                    "bias_checked": bias_checked,
-                    "calibration_checked": calibration_checked,
-                }
-            )
-            evidence_directness = "direct"
-            if isinstance(selected_family, str) and selected_family in forbidden:
-                automated_issues.append("Selected estimator family is explicitly forbidden")
-                status = "fail"
-            elif allowed and isinstance(selected_family, str) and selected_family not in allowed:
-                automated_issues.append("Selected estimator family is outside the allowed family set")
-                status = "fail"
-            elif isinstance(selected_family, str) and declared_family and selected_family != declared_family:
-                automated_issues.append("Selected estimator family does not match the contracted family")
-                status = "fail"
-            elif isinstance(selected_family, str) and (bias_checked is False or calibration_checked is False):
-                automated_issues.append("Estimator family is missing bias or calibration diagnostics")
-                status = "warning"
-            elif (
-                isinstance(selected_family, str)
-                and declared_family
-                and bias_checked is True
-                and calibration_checked is True
-            ):
-                status = "pass"
-
-        if contract is not None:
-            metrics["contract_claim_count"] = len(contract.claims)
-            metrics["contract_deliverable_count"] = len(contract.deliverables)
-        if binding_issues and status != "insufficient_evidence":
-            automated_issues.append("Binding validation issues prevent a decisive contract-aware verdict")
+            missing_inputs: list[str] = []
+            automated_issues: list[str] = []
+            metrics: dict[str, object] = {}
             status = "insufficient_evidence"
-            evidence_directness = "mixed" if artifact_content else "metadata_only"
+            evidence_directness = "metadata_only"
+            automated_issues.extend(binding_issues)
 
-        return {
-            "schema_version": VERIFICATION_SCHEMA_VERSION,
-            "check_id": check_meta.check_id,
-            "check_key": check_meta.check_key,
-            "check_name": check_meta.name,
-            "check_class": check_meta.check_class,
-            "contract_aware": check_meta.contract_aware,
-            "binding_targets": check_meta.binding_targets,
-            "status": status,
-            "evidence_directness": evidence_directness,
-            "binding": binding,
-            "missing_inputs": missing_inputs,
-            "automated_issues": automated_issues,
-            "metrics": metrics,
-            "contract_impacts": contract_impacts,
-            "guidance": check_meta.oracle_hint,
-        }
+            if check_meta.check_key == "contract.limit_recovery":
+                regime_label = metadata.get("regime_label")
+                expected_behavior = metadata.get("expected_behavior")
+                regime_label, regime_issue = _validate_limit_regime_binding(
+                    contract=contract,
+                    binding_ids=binding_ids,
+                    regime_label=regime_label,
+                )
+                if regime_issue:
+                    automated_issues.append(regime_issue)
+                if not regime_label:
+                    missing_inputs.append("metadata.regime_label")
+                if not expected_behavior:
+                    missing_inputs.append("metadata.expected_behavior")
+                limit_passed = observed.get("limit_passed")
+                observed_limit = observed.get("observed_limit")
+                metrics["regime_label"] = regime_label
+                metrics["observed_limit"] = observed_limit
+                if limit_passed is True and not missing_inputs:
+                    status = "pass"
+                    evidence_directness = "direct"
+                elif limit_passed is False and not missing_inputs:
+                    automated_issues.append("Observed limit behavior does not match the contracted asymptotic expectation")
+                    status = "fail"
+                    evidence_directness = "direct"
+                elif artifact_content and any(token in artifact_content.lower() for token in ["limit", "asymptotic", "scaling", "boundary"]):
+                    status = "warning"
+                    evidence_directness = "mixed"
+                elif not missing_inputs:
+                    automated_issues.append("No direct limit or asymptotic evidence was supplied")
+                    status = "fail"
+
+            elif check_meta.check_key == "contract.benchmark_reproduction":
+                source_reference_id = metadata.get("source_reference_id")
+                metric_value = observed.get("metric_value")
+                threshold_value = observed.get("threshold_value")
+                source_reference_id, source_reference_issue = _validate_benchmark_reference_binding(
+                    contract=contract,
+                    binding_ids=binding_ids,
+                    source_reference_id=source_reference_id,
+                )
+                if source_reference_issue:
+                    automated_issues.append(source_reference_issue)
+                if not source_reference_id:
+                    missing_inputs.append("metadata.source_reference_id")
+                if metric_value is None:
+                    missing_inputs.append("observed.metric_value")
+                if threshold_value is None:
+                    missing_inputs.append("observed.threshold_value")
+                metrics["source_reference_id"] = source_reference_id
+                metrics["metric_value"] = metric_value
+                metrics["threshold_value"] = threshold_value
+                if (
+                    isinstance(metric_value, (int, float))
+                    and isinstance(threshold_value, (int, float))
+                    and source_reference_id
+                ):
+                    evidence_directness = "direct"
+                    if metric_value <= threshold_value:
+                        status = "pass"
+                    else:
+                        automated_issues.append("Benchmark comparison exceeds the allowed tolerance")
+                        status = "fail"
+                elif artifact_content and any(token in artifact_content.lower() for token in ["benchmark", "baseline", "published", "reference"]):
+                    status = "warning"
+                    evidence_directness = "mixed"
+
+            elif check_meta.check_key == "contract.direct_proxy_consistency":
+                proxy_only = _truthy(observed.get("proxy_only"))
+                direct_available = _truthy(observed.get("direct_available"))
+                proxy_available = _truthy(observed.get("proxy_available"))
+                consistency_passed = observed.get("consistency_passed")
+                metrics.update(
+                    {
+                        "proxy_only": proxy_only,
+                        "direct_available": direct_available,
+                        "proxy_available": proxy_available,
+                        "consistency_passed": consistency_passed,
+                    }
+                )
+                if proxy_only or (proxy_available and not direct_available):
+                    automated_issues.append("Proxy evidence was supplied without a decisive direct observable")
+                    status = "fail"
+                    evidence_directness = "proxy"
+                elif direct_available and proxy_available and consistency_passed is True:
+                    status = "pass"
+                    evidence_directness = "mixed"
+                elif direct_available and proxy_available and consistency_passed is False:
+                    automated_issues.append("Direct and proxy evidence disagree")
+                    status = "fail"
+                    evidence_directness = "mixed"
+                elif direct_available:
+                    status = "warning"
+                    evidence_directness = "direct"
+
+            elif check_meta.check_key == "contract.fit_family_mismatch":
+                declared_family = metadata.get("declared_family")
+                selected_family = observed.get("selected_family")
+                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
+                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                competing_checked = observed.get("competing_family_checked")
+                if not declared_family:
+                    missing_inputs.append("metadata.declared_family")
+                if selected_family is None:
+                    missing_inputs.append("observed.selected_family")
+                metrics.update(
+                    {
+                        "declared_family": declared_family,
+                        "selected_family": selected_family,
+                        "allowed_families": sorted(allowed),
+                        "forbidden_families": sorted(forbidden),
+                        "competing_family_checked": competing_checked,
+                    }
+                )
+                evidence_directness = "direct"
+                if isinstance(selected_family, str) and selected_family in forbidden:
+                    automated_issues.append("Selected fit family is explicitly forbidden")
+                    status = "fail"
+                elif allowed and isinstance(selected_family, str) and selected_family not in allowed:
+                    automated_issues.append("Selected fit family is outside the allowed family set")
+                    status = "fail"
+                elif isinstance(selected_family, str) and declared_family and selected_family != declared_family:
+                    automated_issues.append("Selected fit family does not match the contracted family")
+                    status = "fail"
+                elif isinstance(selected_family, str) and competing_checked is False:
+                    automated_issues.append("Fit family was not compared against competing families")
+                    status = "warning"
+                elif isinstance(selected_family, str) and declared_family:
+                    status = "pass"
+
+            elif check_meta.check_key == "contract.estimator_family_mismatch":
+                declared_family = metadata.get("declared_family")
+                selected_family = observed.get("selected_family")
+                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
+                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                bias_checked = observed.get("bias_checked")
+                calibration_checked = observed.get("calibration_checked")
+                if not declared_family:
+                    missing_inputs.append("metadata.declared_family")
+                if selected_family is None:
+                    missing_inputs.append("observed.selected_family")
+                metrics.update(
+                    {
+                        "declared_family": declared_family,
+                        "selected_family": selected_family,
+                        "allowed_families": sorted(allowed),
+                        "forbidden_families": sorted(forbidden),
+                        "bias_checked": bias_checked,
+                        "calibration_checked": calibration_checked,
+                    }
+                )
+                evidence_directness = "direct"
+                if isinstance(selected_family, str) and selected_family in forbidden:
+                    automated_issues.append("Selected estimator family is explicitly forbidden")
+                    status = "fail"
+                elif allowed and isinstance(selected_family, str) and selected_family not in allowed:
+                    automated_issues.append("Selected estimator family is outside the allowed family set")
+                    status = "fail"
+                elif isinstance(selected_family, str) and declared_family and selected_family != declared_family:
+                    automated_issues.append("Selected estimator family does not match the contracted family")
+                    status = "fail"
+                elif isinstance(selected_family, str) and (bias_checked is False or calibration_checked is False):
+                    automated_issues.append("Estimator family is missing bias or calibration diagnostics")
+                    status = "warning"
+                elif (
+                    isinstance(selected_family, str)
+                    and declared_family
+                    and bias_checked is True
+                    and calibration_checked is True
+                ):
+                    status = "pass"
+
+            if contract is not None:
+                metrics["contract_claim_count"] = len(contract.claims)
+                metrics["contract_deliverable_count"] = len(contract.deliverables)
+            if binding_issues and status != "insufficient_evidence":
+                automated_issues.append("Binding validation issues prevent a decisive contract-aware verdict")
+                status = "insufficient_evidence"
+                evidence_directness = "mixed" if artifact_content else "metadata_only"
+
+            return {
+                "schema_version": VERIFICATION_SCHEMA_VERSION,
+                "check_id": check_meta.check_id,
+                "check_key": check_meta.check_key,
+                "check_name": check_meta.name,
+                "check_class": check_meta.check_class,
+                "contract_aware": check_meta.contract_aware,
+                "binding_targets": check_meta.binding_targets,
+                "status": status,
+                "evidence_directness": evidence_directness,
+                "binding": binding,
+                "missing_inputs": missing_inputs,
+                "automated_issues": automated_issues,
+                "metrics": metrics,
+                "contract_impacts": contract_impacts,
+                "guidance": check_meta.oracle_hint,
+            }
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return _error_result(exc)
 
 
 @mcp.tool()
@@ -797,63 +821,68 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
     with gpd_span("mcp.verification.suggest_contract_checks"):
         try:
             parsed = ResearchContract.model_validate(contract)
-        except Exception as exc:  # pragma: no cover - pydantic version specifics
+
+            active = set(active_checks or [])
+            suggestions: list[dict[str, object]] = []
+
+            def _add(check_key: str, reason: str) -> None:
+                meta = get_verification_check(check_key)
+                if meta is None:
+                    return
+                suggestions.append(
+                    {
+                        "check_id": meta.check_id,
+                        "check_key": meta.check_key,
+                        "name": meta.name,
+                        "reason": reason,
+                        "already_active": meta.check_id in active or meta.check_key in active,
+                    }
+                )
+
+            if any(test.kind == "benchmark" for test in parsed.acceptance_tests) or any(
+                reference.role == "benchmark" or "compare" in reference.required_actions for reference in parsed.references
+            ):
+                _add(
+                    "contract.benchmark_reproduction",
+                    "Benchmark-style acceptance tests or benchmark anchors are present",
+                )
+
+            if parsed.forbidden_proxies:
+                _add("contract.direct_proxy_consistency", "Forbidden proxies require direct-vs-proxy checks")
+
+            if any(observable.regime for observable in parsed.observables) or any(
+                keyword in " ".join([test.procedure, test.pass_condition]).lower()
+                for test in parsed.acceptance_tests
+                for keyword in ("limit", "asymptotic", "boundary", "scaling")
+            ):
+                _add("contract.limit_recovery", "Contract mentions regimes or limit-like acceptance behavior")
+
+            if any(
+                keyword in " ".join([test.procedure, test.pass_condition]).lower()
+                for test in parsed.acceptance_tests
+                for keyword in ("fit", "residual", "extrapolat", "ansatz")
+            ) or parsed.approach_policy.allowed_fit_families or parsed.approach_policy.forbidden_fit_families:
+                _add("contract.fit_family_mismatch", "Acceptance tests mention fitting or extrapolation families")
+
+            if any(
+                keyword in " ".join([test.procedure, test.pass_condition]).lower()
+                for test in parsed.acceptance_tests
+                for keyword in ("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance")
+            ) or parsed.approach_policy.allowed_estimator_families or parsed.approach_policy.forbidden_estimator_families:
+                _add(
+                    "contract.estimator_family_mismatch",
+                    "Acceptance tests mention estimator-family assumptions",
+                )
+
             return {
-                "error": f"Invalid contract payload: {exc}",
                 "schema_version": VERIFICATION_SCHEMA_VERSION,
+                "suggested_checks": suggestions,
+                "suggested_count": len(suggestions),
             }
-
-        active = set(active_checks or [])
-        suggestions: list[dict[str, object]] = []
-
-        def _add(check_key: str, reason: str) -> None:
-            meta = get_verification_check(check_key)
-            if meta is None:
-                return
-            suggestions.append(
-                {
-                    "check_id": meta.check_id,
-                    "check_key": meta.check_key,
-                    "name": meta.name,
-                    "reason": reason,
-                    "already_active": meta.check_id in active or meta.check_key in active,
-                }
-            )
-
-        if any(test.kind == "benchmark" for test in parsed.acceptance_tests) or any(
-            reference.role == "benchmark" or "compare" in reference.required_actions for reference in parsed.references
-        ):
-            _add("contract.benchmark_reproduction", "Benchmark-style acceptance tests or benchmark anchors are present")
-
-        if parsed.forbidden_proxies:
-            _add("contract.direct_proxy_consistency", "Forbidden proxies require direct-vs-proxy checks")
-
-        if any(observable.regime for observable in parsed.observables) or any(
-            keyword in " ".join([test.procedure, test.pass_condition]).lower()
-            for test in parsed.acceptance_tests
-            for keyword in ("limit", "asymptotic", "boundary", "scaling")
-        ):
-            _add("contract.limit_recovery", "Contract mentions regimes or limit-like acceptance behavior")
-
-        if any(
-            keyword in " ".join([test.procedure, test.pass_condition]).lower()
-            for test in parsed.acceptance_tests
-            for keyword in ("fit", "residual", "extrapolat", "ansatz")
-        ) or parsed.approach_policy.allowed_fit_families or parsed.approach_policy.forbidden_fit_families:
-            _add("contract.fit_family_mismatch", "Acceptance tests mention fitting or extrapolation families")
-
-        if any(
-            keyword in " ".join([test.procedure, test.pass_condition]).lower()
-            for test in parsed.acceptance_tests
-            for keyword in ("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance")
-        ) or parsed.approach_policy.allowed_estimator_families or parsed.approach_policy.forbidden_estimator_families:
-            _add("contract.estimator_family_mismatch", "Acceptance tests mention estimator-family assumptions")
-
-        return {
-            "schema_version": VERIFICATION_SCHEMA_VERSION,
-            "suggested_checks": suggestions,
-            "suggested_count": len(suggestions),
-        }
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            if isinstance(exc, PydanticValidationError):
+                return _error_result(f"Invalid contract payload: {exc}")
+            return _error_result(exc)
 
 
 @mcp.tool()
@@ -864,74 +893,80 @@ def get_checklist(domain: str) -> dict:
     including which universal checks (5.1-5.14) each maps to.
     """
     with gpd_span("mcp.verification.checklist", domain=domain):
-        checklist = DOMAIN_CHECKLISTS.get(domain)
-        if checklist is None:
+        try:
+            checklist = DOMAIN_CHECKLISTS.get(domain)
+            if checklist is None:
+                return {
+                    "found": False,
+                    "schema_version": VERIFICATION_SCHEMA_VERSION,
+                    "domain": domain,
+                    "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
+                    "message": f"No checklist for domain '{domain}'.",
+                }
+
+            # Also include the universal checks
+            universal = list_verification_checks()
+
             return {
-                "found": False,
+                "found": True,
                 "schema_version": VERIFICATION_SCHEMA_VERSION,
                 "domain": domain,
-                "available_domains": sorted(DOMAIN_CHECKLISTS.keys()),
-                "message": f"No checklist for domain '{domain}'.",
+                "domain_checks": checklist,
+                "domain_check_count": len(checklist),
+                "universal_checks": universal,
+                "universal_check_count": len(universal),
             }
-
-        # Also include the universal checks
-        universal = list_verification_checks()
-
-        return {
-            "found": True,
-            "schema_version": VERIFICATION_SCHEMA_VERSION,
-            "domain": domain,
-            "domain_checks": checklist,
-            "domain_check_count": len(checklist),
-            "universal_checks": universal,
-            "universal_check_count": len(universal),
-        }
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return _error_result(exc)
 
 
 @mcp.tool()
 def get_bundle_checklist(bundle_ids: list[str]) -> dict:
     """Return additive verifier checklist extensions for selected protocol bundles."""
     with gpd_span("mcp.verification.bundle_checklist", bundle_count=len(bundle_ids)):
-        bundles: list[dict[str, object]] = []
-        checklist: list[dict[str, object]] = []
-        missing_bundle_ids: list[str] = []
+        try:
+            bundles: list[dict[str, object]] = []
+            checklist: list[dict[str, object]] = []
+            missing_bundle_ids: list[str] = []
 
-        for bundle_id in bundle_ids:
-            bundle = get_protocol_bundle(bundle_id)
-            if bundle is None:
-                missing_bundle_ids.append(bundle_id)
-                continue
+            for bundle_id in bundle_ids:
+                bundle = get_protocol_bundle(bundle_id)
+                if bundle is None:
+                    missing_bundle_ids.append(bundle_id)
+                    continue
 
-            verification_domain_paths = [asset.path for asset in bundle.assets.verification_domains]
-            bundle_payload = {
-                "bundle_id": bundle.bundle_id,
-                "title": bundle.title,
-                "summary": bundle.summary,
-                "verification_domains": verification_domain_paths,
-                "verifier_extensions": [extension.model_dump(mode="json") for extension in bundle.verifier_extensions],
+                verification_domain_paths = [asset.path for asset in bundle.assets.verification_domains]
+                bundle_payload = {
+                    "bundle_id": bundle.bundle_id,
+                    "title": bundle.title,
+                    "summary": bundle.summary,
+                    "verification_domains": verification_domain_paths,
+                    "verifier_extensions": [extension.model_dump(mode="json") for extension in bundle.verifier_extensions],
+                }
+                bundles.append(bundle_payload)
+
+                for extension in bundle.verifier_extensions:
+                    checklist.append(
+                        {
+                            "bundle_id": bundle.bundle_id,
+                            "bundle_title": bundle.title,
+                            "name": extension.name,
+                            "rationale": extension.rationale,
+                            "check_ids": extension.check_ids,
+                        }
+                    )
+
+            return {
+                "found": bool(bundles),
+                "schema_version": VERIFICATION_SCHEMA_VERSION,
+                "bundle_count": len(bundles),
+                "bundles": bundles,
+                "bundle_check_count": len(checklist),
+                "bundle_checks": checklist,
+                "missing_bundle_ids": missing_bundle_ids,
             }
-            bundles.append(bundle_payload)
-
-            for extension in bundle.verifier_extensions:
-                checklist.append(
-                    {
-                        "bundle_id": bundle.bundle_id,
-                        "bundle_title": bundle.title,
-                        "name": extension.name,
-                        "rationale": extension.rationale,
-                        "check_ids": extension.check_ids,
-                    }
-                )
-
-        return {
-            "found": bool(bundles),
-            "schema_version": VERIFICATION_SCHEMA_VERSION,
-            "bundle_count": len(bundles),
-            "bundles": bundles,
-            "bundle_check_count": len(checklist),
-            "bundle_checks": checklist,
-            "missing_bundle_ids": missing_bundle_ids,
-        }
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return _error_result(exc)
 
 
 @mcp.tool()

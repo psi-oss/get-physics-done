@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from gpd.cli import _format_install_header_lines, app
+from gpd.cli import _format_install_header_lines, _render_install_option_line, app
 
 runner = CliRunner()
 
@@ -189,7 +189,17 @@ def test_format_install_header_lines_uses_psi_branding() -> None:
     """Interactive install header should use the branded PSI wording."""
     assert _format_install_header_lines("1.0.0") == (
         "GPD v1.0.0 - Get Physics Done",
-        "by Physical Superintelligence PBC (PSI) · © 2026",
+        "© 2026 Physical Superintelligence PBC (PSI)",
+    )
+
+
+def test_render_install_option_line_uses_single_line_bracketed_layout() -> None:
+    """Interactive install options should use the compact bracketed layout."""
+    assert _render_install_option_line(1, "Claude Code", "claude-code", label_width=12).plain == (
+        "  [1] Claude Code   · claude-code"
+    )
+    assert _render_install_option_line(1, "Local", "current project only", "./.claude", label_width=6).plain == (
+        "  [1] Local   · current project only · ./.claude"
     )
 
 
@@ -339,7 +349,12 @@ def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
 
     assert result.exit_code == 0
     assert "GPD v" in result.output
-    assert "by Physical Superintelligence PBC (PSI) · © 2026" in result.output
+    assert "© 2026 Physical Superintelligence PBC (PSI)" in result.output
+    assert "[1] Claude Code" in result.output
+    assert "· claude-code" in result.output
+    assert "Enter choice [1]" in result.output
+    assert "[1] Local" in result.output
+    assert "· current project only ·" in result.output
     assert "Get Physics Done, by Physical Superintelligence PBC (PSI)" not in result.output
     assert "██████" in result.output
 
@@ -648,6 +663,47 @@ def test_install_interactive_rejects_ambiguous_runtime_name(tmp_path: Path):
 
     assert result.exit_code == 1
     assert "Ambiguous selection: 'code'" in result.output
+
+
+def test_install_interactive_accepts_unique_fuzzy_runtime_name(tmp_path: Path):
+    """A unique substring match should select that runtime and continue."""
+
+    captured_calls: list[dict[str, object]] = []
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code", "codex", "opencode"]),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        adapters = {
+            "claude-code": MagicMock(display_name="Claude Code", selection_aliases=("claude", "claude code")),
+            "codex": MagicMock(display_name="Codex", selection_aliases=("codex",)),
+            "opencode": MagicMock(display_name="OpenCode", selection_aliases=("opencode", "open code")),
+        }
+        for adapter in adapters.values():
+            adapter.help_command = "/gpd:help"
+        mock_get.side_effect = lambda runtime: adapters[runtime]
+
+        result = runner.invoke(app, ["install"], input="open\n1\n")
+
+    assert result.exit_code == 0
+    assert captured_calls == [
+        {
+            "runtime": "opencode",
+            "is_global": False,
+            "target_dir_override": None,
+        }
+    ]
 
 
 def test_install_interactive_rejects_invalid_location_choice(tmp_path: Path):

@@ -32,6 +32,8 @@ from gpd.core.state import (
     state_validate,
 )
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -158,6 +160,24 @@ class TestAllNullFields:
         loaded = load_state_json(tmp_path)
         assert loaded is not None
         assert "position" in loaded
+
+    def test_ensure_schema_salvages_contract_when_approach_policy_is_malformed(self) -> None:
+        raw = default_state_dict()
+        raw["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        raw["project_contract"]["approach_policy"] = {"formulations": "not-a-list"}
+
+        result = ensure_state_schema(raw)
+
+        assert result["project_contract"] is not None
+        assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+        assert result["project_contract"]["approach_policy"] == {
+            "formulations": [],
+            "allowed_estimator_families": [],
+            "forbidden_estimator_families": [],
+            "allowed_fit_families": [],
+            "forbidden_fit_families": [],
+            "stop_and_rethink_conditions": [],
+        }
 
 
 # ---------------------------------------------------------------------------

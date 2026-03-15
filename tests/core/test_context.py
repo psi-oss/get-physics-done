@@ -637,6 +637,26 @@ class TestInitPlanPhase:
         assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "unresolved reference token" not in ctx["active_reference_context"]
 
+    def test_does_not_persist_canonical_reference_merges(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        state_path = tmp_path / ".gpd" / "state.json"
+        before = state_path.read_text(encoding="utf-8")
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        after = state_path.read_text(encoding="utf-8")
+        stored = json.loads(after)
+
+        assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark", "lit-anchor-benchmark-ref-2024"]
+        assert stored["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert before == after
+        assert not (tmp_path / ".gpd" / "STATE.md").exists()
+
     def test_reports_missing_active_references_explicitly(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")

@@ -29,6 +29,7 @@ COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
+WORKFLOW_EXEMPT_COMMANDS = frozenset({"health", "suggest-next"})
 
 COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
@@ -398,6 +399,22 @@ def test_commands_reference_same_stem_workflows() -> None:
             continue
         expected = f"@{{GPD_INSTALL_DIR}}/workflows/{command_path.stem}.md"
         assert expected in command_path.read_text(encoding="utf-8"), command_path
+
+
+def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
+    workflow_stems = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
+    command_stems = {path.stem for path in COMMANDS_DIR.glob("*.md")}
+
+    assert command_stems - workflow_stems == WORKFLOW_EXEMPT_COMMANDS
+
+    for command_stem in sorted(WORKFLOW_EXEMPT_COMMANDS):
+        command_text = (COMMANDS_DIR / f"{command_stem}.md").read_text(encoding="utf-8")
+        if command_stem == "health":
+            assert "gpd --raw health" in command_text
+            assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in command_text
+        elif command_stem == "suggest-next":
+            assert "gpd --raw suggest" in command_text
+            assert "@{GPD_INSTALL_DIR}/workflows/suggest-next.md" not in command_text
 
 
 def test_commands_reference_expected_spawn_agents() -> None:

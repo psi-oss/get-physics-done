@@ -52,6 +52,45 @@ def test_sync_state_json_core_uses_markdown_bullet_sections_as_authority(tmp_pat
     assert stored["open_questions"] == []
 
 
+def test_sync_state_json_core_preserves_user_edits_to_structured_result_bullets(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / ".gpd"
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "03"
+    state["position"]["status"] = "Executing"
+    state["intermediate_results"] = [
+        {
+            "id": "R-03-01-editme",
+            "description": "Old benchmark summary",
+            "equation": "E = mc^2",
+            "units": "energy",
+            "validity": "v << c",
+            "phase": "03",
+            "depends_on": ["R-02-01-prior"],
+            "verified": True,
+            "verification_records": [
+                {
+                    "verified_at": "2026-03-13T00:00:00+00:00",
+                    "method": "manual",
+                    "confidence": "medium",
+                }
+            ],
+        }
+    ]
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+    md_content = generate_state_markdown(state).replace("Old benchmark summary", "Edited benchmark summary")
+
+    result = sync_state_json_core(cwd, md_content)
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+
+    assert result["intermediate_results"][0]["description"] == "Edited benchmark summary"
+    assert stored["intermediate_results"][0]["description"] == "Edited benchmark summary"
+    assert len(stored["intermediate_results"][0]["verification_records"]) == 1
+    assert stored["intermediate_results"][0]["verification_records"][0]["method"] == "manual"
+
+
 def test_sync_state_json_core_bootstrap_preserves_progress_and_metrics(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / ".gpd"

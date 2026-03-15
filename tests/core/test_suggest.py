@@ -260,13 +260,58 @@ def test_unverified_results_suggest_verification(tmp_path: Path) -> None:
     """Unverified intermediate results suggest verification."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
+    _create_phase(root, "01-setup", plans=1, summaries=1)
     _create_state(
         root,
-        {"intermediate_results": [{"id": "result-1", "verified": False}, {"id": "result-2", "verified": True}]},
+        {
+            "intermediate_results": [
+                {"id": "result-1", "phase": "1", "verified": False},
+                {"id": "result-2", "phase": "1", "verified": True},
+            ]
+        },
     )
     result = suggest_next(root)
-    actions = [s.action for s in result.suggestions]
-    assert "verify-results" in actions
+    verify_results = next((s for s in result.suggestions if s.action == "verify-results"), None)
+    assert verify_results is not None
+    assert verify_results.command == "gpd verify-work 01"
+    assert verify_results.phase == "01"
+    assert result.context.unverified_results == 1
+
+
+def test_unverified_results_with_verification_records_do_not_trigger_verify_results(tmp_path: Path) -> None:
+    """verification_records should count as verification evidence for suggestions."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_phase(root, "01-setup", plans=1, summaries=1)
+    _create_state(
+        root,
+        {
+            "intermediate_results": [
+                {
+                    "id": "result-1",
+                    "phase": "1",
+                    "verified": False,
+                    "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "low"}],
+                }
+            ]
+        },
+    )
+
+    result = suggest_next(root)
+
+    assert all(s.action != "verify-results" for s in result.suggestions)
+    assert result.context.unverified_results == 0
+
+
+def test_unverified_results_without_resolvable_phase_are_suppressed(tmp_path: Path) -> None:
+    """verify-results should not emit an unusable phase-less verify-work command."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(root, {"intermediate_results": [{"id": "result-1", "verified": False}]})
+
+    result = suggest_next(root)
+
+    assert all(s.action != "verify-results" for s in result.suggestions)
     assert result.context.unverified_results == 1
 
 

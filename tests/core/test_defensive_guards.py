@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from gpd.contracts import VerificationEvidence
+from gpd.contracts import VerificationEvidence, contract_from_data
 from gpd.core.extras import (
     ApproximationCheckResult,
     approximation_check,
@@ -348,3 +348,10 @@ class TestResultUpdateWithBadVerificationRecords:
         assert "verification_records" in fields
         assert result.verified is True
         assert len(result.verification_records) == 1
+
+
+class TestContractFromDataDefensiveGuard:
+    """Malformed contract mappings should degrade to ``None`` instead of raising."""
+
+    def test_contract_from_data_returns_none_for_invalid_mapping(self):
+        assert contract_from_data({"scope": {"question": ""}}) is None

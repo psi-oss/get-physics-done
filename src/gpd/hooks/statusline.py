@@ -8,12 +8,11 @@ Shows: GPD | model | path | current task | research position | context usage.
 import json
 import math
 import os
-import re
-import shlex
 import sys
 from pathlib import Path
 
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
+from gpd.hooks.install_metadata import install_scope_from_manifest, installed_update_command
 
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
@@ -185,40 +184,12 @@ def _self_config_dir() -> Path | None:
 
 def _self_install_scope(config_dir: Path) -> str | None:
     """Return the persisted install scope for the hook's own config dir."""
-    manifest_path = config_dir / "gpd-file-manifest.json"
-    try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    scope = payload.get("install_scope")
-    return scope if scope in {"local", "global"} else None
+    return install_scope_from_manifest(config_dir)
 
 
 def _self_update_command(config_dir: Path) -> str | None:
-    """Return the public update command encoded into the installed workflow."""
-    workflow_path = config_dir / "get-physics-done" / "workflows" / "update.md"
-    try:
-        content = workflow_path.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
-        return None
-
-    runtime_flag_match = re.search(r'^GPD_RUNTIME_FLAG="([^"]*)"$', content, re.MULTILINE)
-    scope_match = re.search(r'^INSTALL_SCOPE="([^"]*)"$', content, re.MULTILINE)
-    runtime_flag = runtime_flag_match.group(1).strip() if runtime_flag_match else ""
-    scope = scope_match.group(1).strip() if scope_match else ""
-
-    command_parts = ["npx -y get-physics-done"]
-    if runtime_flag:
-        command_parts.append(runtime_flag)
-    if scope:
-        command_parts.append(scope)
-    if scope == "--local":
-        command_parts.extend(["--target-dir", shlex.quote(str(config_dir))])
-
-    command = " ".join(part for part in command_parts if part)
-    return command or None
+    """Return the public update command for the installed runtime."""
+    return installed_update_command(config_dir)
 
 
 def _matching_todo_files(todos_dir: Path, session_id: str) -> list[Path]:

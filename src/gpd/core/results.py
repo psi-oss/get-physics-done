@@ -103,6 +103,11 @@ def _normalize_verification_records(
     return normalized
 
 
+def _has_verification_evidence(result: dict[str, object]) -> bool:
+    """Return whether a result has any verification signal."""
+    return result.get("verified") is True or bool(result.get("verification_records"))
+
+
 def _int_to_base36(n: int) -> str:
     """Convert a non-negative integer to a base-36 string."""
     if n < 0:
@@ -263,10 +268,10 @@ def result_list(
         results = [r for r in results if isinstance(r, dict)]
 
     if verified is True:
-        results = [r for r in results if r.get("verified") is True or bool(r.get("verification_records"))]
+        results = [r for r in results if _has_verification_evidence(r)]
 
     if unverified is True:
-        results = [r for r in results if not (r.get("verified") is True or bool(r.get("verification_records")))]
+        results = [r for r in results if not _has_verification_evidence(r)]
 
     return [IntermediateResult(**r) for r in results]
 
@@ -432,8 +437,11 @@ def result_update(
             updates["verification_records"] = [record.model_dump() for record in _normalize_verification_records(records_raw)]
         else:
             raise ResultError("verification_records must be a list of verification records")
-        if "verified" not in updates and updates["verification_records"]:
-            updates["verified"] = True
+        has_records = bool(updates["verification_records"])
+        if "verified" not in updates:
+            updates["verified"] = has_records
+        elif bool(updates["verified"]) != has_records:
+            raise ResultError("verified must match whether verification_records is empty")
 
     updated_fields: list[str] = []
     pending: dict[str, object] = {}
