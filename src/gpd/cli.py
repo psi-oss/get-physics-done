@@ -21,6 +21,7 @@ import os
 import shlex
 import sys
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
@@ -3722,14 +3723,26 @@ def version_cmd() -> None:
 # install — Install GPD into a runtime
 # ═══════════════════════════════════════════════════════════════════════════
 
-_GPD_BANNER = r"""
- ██████╗ ██████╗ ██████╗
-██╔════╝ ██╔══██╗██╔══██╗
-██║  ███╗██████╔╝██║  ██║
-██║   ██║██╔═══╝ ██║  ██║
-╚██████╔╝██║     ██████╔╝
- ╚═════╝ ╚═╝     ╚═════╝
-"""
+_GPD_DISPLAY_NAME = "Get Physics Done"
+_GPD_OWNER = "Physical Superintelligence PBC"
+_GPD_OWNER_SHORT = "PSI"
+_GPD_COPYRIGHT_YEAR = 2026
+
+
+def _format_install_timestamp(now: datetime | None = None) -> str:
+    """Return a local wall-clock timestamp suitable for install banners."""
+    current = now or datetime.now()
+    return current.strftime("%I:%M %p").lstrip("0")
+
+
+def _format_install_header_lines(version: str, *, now: datetime | None = None) -> tuple[str, str]:
+    """Return the compact branded header shown during interactive install."""
+    timestamp = _format_install_timestamp(now)
+    prefix = f"[{timestamp}]"
+    return (
+        f"{prefix}GPD v{version} - {_GPD_DISPLAY_NAME}, by {_GPD_OWNER} ({_GPD_OWNER_SHORT})",
+        f"{prefix}(c) {_GPD_COPYRIGHT_YEAR} {_GPD_OWNER}",
+    )
 
 
 def _prompt_runtimes(*, action: str = "install") -> list[str]:
@@ -3967,8 +3980,10 @@ def install(
         # Interactive mode
         from gpd.version import resolve_active_version
 
-        console.print(_GPD_BANNER, style="bold blue")
-        console.print(f"[bold]GPD v{resolve_active_version(_get_cwd())}[/] — Get Physics Done\n")
+        console.print()
+        for line in _format_install_header_lines(resolve_active_version(_get_cwd())):
+            console.print(line, markup=False, highlight=False)
+        console.print()
         selected = _prompt_runtimes()
 
     _validate_target_dir_runtime_selection("install", selected, target_dir)

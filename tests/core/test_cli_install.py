@@ -13,13 +13,14 @@ Covers:
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
-from gpd.cli import app
+from gpd.cli import _format_install_header_lines, app
 
 runner = CliRunner()
 
@@ -185,6 +186,14 @@ def test_install_banner_uses_display_names(tmp_path: Path):
     assert "Installing GPD (local) for: claude-code" not in result.output
 
 
+def test_format_install_header_lines_uses_timestamped_psi_branding() -> None:
+    """Interactive install header should use the compact PSI-branded format."""
+    assert _format_install_header_lines("1.0.0", now=datetime(2026, 3, 14, 20, 24)) == (
+        "[8:24 PM]GPD v1.0.0 - Get Physics Done, by Physical Superintelligence PBC (PSI)",
+        "[8:24 PM](c) 2026 Physical Superintelligence PBC",
+    )
+
+
 def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
     """Install summary should show a compact target path."""
     target = tmp_path / ".claude"
@@ -316,15 +325,23 @@ def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
     with (
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
         patch("gpd.adapters.get_adapter") as mock_get,
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code"]),
     ):
         mock_adapter = MagicMock()
-        mock_adapter.display_name = "Test"
+        mock_adapter.display_name = "Claude Code"
+        mock_adapter.help_command = "/gpd:help"
+        mock_adapter.resolve_target_dir.side_effect = (
+            lambda is_global, cwd=None: tmp_path / (".claude-global" if is_global else ".claude")
+        )
         mock_get.return_value = mock_adapter
 
         # CliRunner provides input='1\n1\n' to simulate interactive choices
         result = runner.invoke(app, ["install"], input="1\n1\n")
 
     assert result.exit_code == 0
+    assert "Get Physics Done, by Physical Superintelligence PBC (PSI)" in result.output
+    assert "(c) 2026 Physical Superintelligence PBC" in result.output
+    assert "██████" not in result.output
 
 
 # ─── 6. --raw output ────────────────────────────────────────────────────────
