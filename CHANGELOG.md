@@ -13,4 +13,3 @@ workflow, it bumps the version and renames `vNEXT` to the actual version number.
 - Multi-runtime support: Claude Code, Gemini CLI, Codex, OpenCode
 - 22 physics research agents, 58 commands, 8 MCP servers
 - Bootstrap installer with SSH-first fallback chain
-- Codex notify config fix (placed at TOML root level, not inside sections)
