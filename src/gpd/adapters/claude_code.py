@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -30,7 +29,7 @@ from gpd.adapters.install_utils import (
 
 logger = logging.getLogger(__name__)
 
-_GPD_CLI_INVOCATION_RE = re.compile(r'(?<![A-Za-z0-9_./:-])gpd(?=(?:\s|["\'`]|$))')
+_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "Read",
@@ -398,8 +397,99 @@ def _claude_shell_launcher(target_dir: Path) -> str:
 
 
 def _rewrite_gpd_cli_invocations(content: str, target_dir: Path) -> str:
-    """Rewrite bare ``gpd`` invocations to the pinned Claude launcher."""
-    return _GPD_CLI_INVOCATION_RE.sub(_claude_shell_launcher(target_dir), content)
+    """Rewrite shell-command ``gpd`` invocations to the pinned Claude launcher.
+
+    Restrict rewrites to fenced shell code blocks and only when ``gpd`` appears
+    in a command position. This keeps user-facing prose and quoted shell
+    strings like ``echo "ERROR: gpd initialization failed"`` intact.
+    """
+    launcher = _claude_shell_launcher(target_dir)
+    rewritten: list[str] = []
+    in_shell_fence = False
+
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            if in_shell_fence:
+                in_shell_fence = False
+            else:
+                fence_language = stripped[3:].strip().lower()
+                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
+            rewritten.append(line)
+            continue
+
+        if in_shell_fence:
+            rewritten.append(_rewrite_gpd_shell_line(line, launcher))
+            continue
+
+        rewritten.append(line)
+
+    return "".join(rewritten)
+
+
+def _rewrite_gpd_shell_line(line: str, launcher: str) -> str:
+    """Rewrite only command-position ``gpd`` tokens on a shell line."""
+    pieces: list[str] = []
+    index = 0
+    in_single = False
+    in_double = False
+
+    while index < len(line):
+        char = line[index]
+        previous = line[index - 1] if index > 0 else ""
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            pieces.append(char)
+            index += 1
+            continue
+
+        if char == '"' and not in_single and previous != "\\":
+            in_double = not in_double
+            pieces.append(char)
+            index += 1
+            continue
+
+        if (
+            not in_single
+            and not in_double
+            and line.startswith("gpd", index)
+            and _is_gpd_command_start(line, index)
+            and _is_gpd_token_end(line, index + 3)
+        ):
+            pieces.append(launcher)
+            index += 3
+            continue
+
+        pieces.append(char)
+        index += 1
+
+    return "".join(pieces)
+
+
+def _is_gpd_command_start(line: str, index: int) -> bool:
+    """Return whether ``gpd`` starts a shell command token at *index*."""
+    probe = index - 1
+    while probe >= 0 and line[probe] in " \t":
+        probe -= 1
+
+    if probe < 0:
+        return True
+
+    if line[probe] in "|;(":
+        return True
+
+    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
+        return True
+
+    return False
+
+
+def _is_gpd_token_end(line: str, end_index: int) -> bool:
+    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
+    if end_index >= len(line):
+        return True
+    return line[end_index].isspace() or line[end_index] in {'"', "'", "`"}
 
 
 def _claude_launcher_checkout_src() -> str | None:

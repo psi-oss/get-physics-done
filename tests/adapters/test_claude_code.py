@@ -187,10 +187,10 @@ class TestInstall:
         workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
-        assert expected_launcher + " convention set" in command
+        assert "gpd convention set" in command
         assert expected_launcher + " init progress --include state,config" in workflow
+        assert 'echo "ERROR: gpd initialization failed: $INIT"' in workflow
         assert f'INIT=$({expected_launcher} init plan-phase "${{PHASE}}")' in agent
-        assert "gpd convention set" not in command
         assert "gpd init progress --include state,config" not in workflow
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
