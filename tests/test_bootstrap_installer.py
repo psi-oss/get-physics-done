@@ -21,12 +21,9 @@ REPO_GIT_URL = str(PACKAGE_JSON["repository"]["url"]).removeprefix("git+").rstri
 if not REPO_GIT_URL.endswith(".git"):
     REPO_GIT_URL = f"{REPO_GIT_URL}.git"
 REPO_BASE_URL = REPO_GIT_URL.removesuffix(".git")
-REPO_SSH_URL = f"ssh://git@github.com/{REPO_GIT_URL.removeprefix('https://github.com/')}"
 
 TAG_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/tags/v{PYTHON_PACKAGE_VERSION}.tar.gz"
 MAIN_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/heads/main.tar.gz"
-TAG_SSH_GIT_SPEC = f"git+{REPO_SSH_URL}@v{PYTHON_PACKAGE_VERSION}"
-MAIN_SSH_GIT_SPEC = f"git+{REPO_SSH_URL}@main"
 TAG_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@v{PYTHON_PACKAGE_VERSION}"
 MAIN_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@main"
 
@@ -52,8 +49,6 @@ FAIL_MAIN_GIT = os.environ.get("FAKE_PIP_FAIL_MAIN_GIT") == "1"
 EMIT_PIP_SUCCESS_NOISE = os.environ.get("FAKE_PIP_SUCCESS_NOISE") == "1"
 TAG_ARCHIVE_SPEC = {TAG_ARCHIVE_SPEC!r}
 MAIN_ARCHIVE_SPEC = {MAIN_ARCHIVE_SPEC!r}
-TAG_SSH_GIT_SPEC = {TAG_SSH_GIT_SPEC!r}
-MAIN_SSH_GIT_SPEC = {MAIN_SSH_GIT_SPEC!r}
 TAG_HTTPS_GIT_SPEC = {TAG_HTTPS_GIT_SPEC!r}
 MAIN_HTTPS_GIT_SPEC = {MAIN_HTTPS_GIT_SPEC!r}
 
@@ -118,11 +113,11 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
         record()
         sys.stderr.write("ERROR: HTTP error 404 while getting branch archive\\n")
         raise SystemExit(1)
-    if FAIL_TAG_GIT and target in (TAG_SSH_GIT_SPEC, TAG_HTTPS_GIT_SPEC):
+    if FAIL_TAG_GIT and target == TAG_HTTPS_GIT_SPEC:
         record()
         sys.stderr.write(f"ERROR: git checkout could not find tag v{PYTHON_PACKAGE_VERSION}\\n")
         raise SystemExit(1)
-    if FAIL_MAIN_GIT and target in (MAIN_SSH_GIT_SPEC, MAIN_HTTPS_GIT_SPEC):
+    if FAIL_MAIN_GIT and target == MAIN_HTTPS_GIT_SPEC:
         record()
         sys.stderr.write("ERROR: git checkout could not resolve branch main\\n")
         raise SystemExit(1)
@@ -479,9 +474,9 @@ def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> No
 
     assert managed_pip_targets == [
         MAIN_ARCHIVE_SPEC,
-        MAIN_SSH_GIT_SPEC,
+        MAIN_HTTPS_GIT_SPEC,
     ]
-    assert "current main branch source archive failed. Falling back to SSH git checkout of main..." in result.stdout
+    assert "current main branch source archive failed. Falling back to HTTPS git checkout of main..." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -496,10 +491,6 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
                     MAIN_ARCHIVE_SPEC: {
                         "availability": "unavailable",
                         "reason": "HTTP 404",
-                    },
-                    MAIN_SSH_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git@github.com: Permission denied (publickey).",
                     },
                     MAIN_HTTPS_GIT_SPEC: {
                         "availability": "available",
@@ -519,7 +510,6 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
 
     assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
     assert "Detected that current main branch source archive is unavailable: HTTP 404." in result.stdout
-    assert "Detected that SSH git checkout of main is unavailable: git@github.com: Permission denied (publickey)." in result.stdout
     assert "Using HTTPS git checkout of main for the main-branch upgrade." in result.stdout
     assert "HTTP error 404 while getting branch archive" not in result.stderr
     assert "current main branch source archive failed. Falling back to HTTPS git checkout of main..." not in result.stdout
@@ -549,11 +539,9 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
 
     assert managed_pip_targets == [
         MAIN_ARCHIVE_SPEC,
-        MAIN_SSH_GIT_SPEC,
         MAIN_HTTPS_GIT_SPEC,
     ]
     assert TAG_ARCHIVE_SPEC not in managed_pip_targets
-    assert TAG_SSH_GIT_SPEC not in managed_pip_targets
     assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
     assert managed_runtime_installs == []
     assert "GitHub main upgrade failed across all main-branch candidates." in result.stdout
@@ -621,14 +609,6 @@ def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources
                         "availability": "unavailable",
                         "reason": "HTTP 404",
                     },
-                    TAG_SSH_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git@github.com: Permission denied (publickey).",
-                    },
-                    MAIN_SSH_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git@github.com: Permission denied (publickey).",
-                    },
                     TAG_HTTPS_GIT_SPEC: {
                         "availability": "unavailable",
                         "reason": "git exit 2",
@@ -670,14 +650,6 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
                         "availability": "unavailable",
                         "reason": "HTTP 404",
                     },
-                    TAG_SSH_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git@github.com: Permission denied (publickey).",
-                    },
-                    MAIN_SSH_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git@github.com: Permission denied (publickey).",
-                    },
                     TAG_HTTPS_GIT_SPEC: {
                         "availability": "unavailable",
                         "reason": f"tag v{PYTHON_PACKAGE_VERSION} is not published",
@@ -701,8 +673,6 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
     assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
     assert "Detected that current main branch source archive is unavailable: HTTP 404." in result.stdout
-    assert "Detected that SSH git checkout for v" in result.stdout
-    assert "Detected that SSH git checkout of main is unavailable: git@github.com: Permission denied (publickey)." in result.stdout
     assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: tag v{PYTHON_PACKAGE_VERSION} is not published." in result.stdout
     assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
     assert "HTTP error 404 while getting tagged archive" not in result.stderr
@@ -710,7 +680,7 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_falls_back_to_ssh_git_when_archive_urls_fail(tmp_path: Path) -> None:
+def test_bootstrap_falls_back_to_https_git_when_archive_urls_fail(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
@@ -730,14 +700,57 @@ def test_bootstrap_falls_back_to_ssh_git_when_archive_urls_fail(tmp_path: Path) 
     assert managed_pip_targets == [
         TAG_ARCHIVE_SPEC,
         MAIN_ARCHIVE_SPEC,
-        TAG_SSH_GIT_SPEC,
-        MAIN_SSH_GIT_SPEC,
+        TAG_HTTPS_GIT_SPEC,
+        MAIN_HTTPS_GIT_SPEC,
     ]
     assert (
-        f"current main branch source archive failed. Falling back to SSH git checkout for v{PYTHON_PACKAGE_VERSION}..."
+        f"current main branch source archive failed. Falling back to HTTPS git checkout for v{PYTHON_PACKAGE_VERSION}..."
         in result.stdout
     )
-    assert f"SSH git checkout for v{PYTHON_PACKAGE_VERSION} failed. Falling back to SSH git checkout of main..." in result.stdout
+    assert f"HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} failed. Falling back to HTTPS git checkout of main..." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={
+            "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
+                {
+                    TAG_ARCHIVE_SPEC: {
+                        "availability": "unavailable",
+                        "reason": "HTTP 404",
+                    },
+                    MAIN_ARCHIVE_SPEC: {
+                        "availability": "unavailable",
+                        "reason": "HTTP 404",
+                    },
+                    TAG_HTTPS_GIT_SPEC: {
+                        "availability": "unavailable",
+                        "reason": "git exit 2",
+                    },
+                    MAIN_HTTPS_GIT_SPEC: {
+                        "availability": "unavailable",
+                        "reason": "git exit 2",
+                    },
+                }
+            ),
+        },
+    )
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_installs == []
+    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
+    assert "Detected that HTTPS git checkout of main is unavailable: git exit 2." in result.stdout
+    assert "Falling back to" not in result.stdout
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -763,8 +776,6 @@ def test_bootstrap_fails_closed_when_all_github_sources_fail(tmp_path: Path) -> 
     assert managed_pip_targets == [
         TAG_ARCHIVE_SPEC,
         MAIN_ARCHIVE_SPEC,
-        TAG_SSH_GIT_SPEC,
-        MAIN_SSH_GIT_SPEC,
         TAG_HTTPS_GIT_SPEC,
         MAIN_HTTPS_GIT_SPEC,
     ]

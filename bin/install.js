@@ -191,22 +191,9 @@ function repositoryGitUrl(repositoryField) {
   return normalized || null;
 }
 
-function repositorySshGitUrl(repositoryField) {
-  const httpsUrl = repositoryGitUrl(repositoryField);
-  if (!httpsUrl) {
-    return null;
-  }
-  const match = httpsUrl.match(/^https:\/\/github\.com\/(.+)$/);
-  if (!match) {
-    return null;
-  }
-  return `ssh://git@github.com/${match[1]}`;
-}
-
 function sourceInstallCandidates(version) {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
-  const repoSshUrl = repositorySshGitUrl(repository);
   const candidates = [];
 
   if (repoBaseUrl) {
@@ -229,34 +216,7 @@ function sourceInstallCandidates(version) {
     );
   }
 
-  // SSH git candidates first — uses existing SSH keys without prompting for credentials.
-  if (repoSshUrl) {
-    candidates.push(
-      {
-        label: `SSH git checkout for v${version}`,
-        spec: `git+${repoSshUrl}@v${version}`,
-        probe: {
-          kind: "git",
-          repoUrl: repoSshUrl,
-          ref: `v${version}`,
-          refNamespace: "tags",
-        },
-      },
-      {
-        label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-        spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
-        noCache: true,
-        probe: {
-          kind: "git",
-          repoUrl: repoSshUrl,
-          ref: GITHUB_FALLBACK_BRANCH,
-          refNamespace: "heads",
-        },
-      }
-    );
-  }
-
-  // HTTPS git candidates last — may prompt for username/password if no credential helper.
+  // HTTPS git candidates follow the public GitHub archives.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -289,7 +249,6 @@ function sourceInstallCandidates(version) {
 function latestMainInstallCandidates() {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
-  const repoSshUrl = repositorySshGitUrl(repository);
   const candidates = [];
 
   if (repoBaseUrl) {
@@ -299,20 +258,6 @@ function latestMainInstallCandidates() {
       noCache: true,
       probe: {
         kind: "http",
-      },
-    });
-  }
-
-  if (repoSshUrl) {
-    candidates.push({
-      label: `SSH git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-      spec: `git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}`,
-      noCache: true,
-      probe: {
-        kind: "git",
-        repoUrl: repoSshUrl,
-        ref: GITHUB_FALLBACK_BRANCH,
-        refNamespace: "heads",
       },
     });
   }
@@ -521,13 +466,6 @@ async function resolveInstallCandidates(candidates) {
       candidates: [candidate, ...candidates.slice(index + 1)],
       skipped,
     };
-  }
-
-  // All probes said "unavailable" — but probes can be wrong for private repos
-  // (e.g., unauthenticated HTTP HEAD returns 404, but pip with credential helper
-  // can still clone). Return all candidates so the actual install is attempted.
-  if (skipped.length > 0) {
-    return { candidates: skipped.map(({ candidate }) => candidate), skipped };
   }
 
   return { candidates: [], skipped };

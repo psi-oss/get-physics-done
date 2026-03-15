@@ -237,12 +237,10 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
     assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
-    assert "git+${repoSshUrl}@v${version}" in content
-    assert "git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}" in content
     assert "git+${repoGitUrl}@v${version}" in content
     assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in content
     assert "function repositoryGitUrl(" in content
-    assert "function repositorySshGitUrl(" in content
+    assert "function repositorySshGitUrl(" not in content
     assert "requestedVersion" in content
     assert "GitHub sources" in content
 
@@ -619,8 +617,6 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert '".gpd"' in install_content
         assert "archive/refs/tags/v${version}.tar.gz" in install_content
         assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in install_content
-        assert "git+${repoSshUrl}@v${version}" in install_content
-        assert "git+${repoSshUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
         assert "git+${repoGitUrl}@v${version}" in install_content
         assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
         assert "requestedVersion" in install_content

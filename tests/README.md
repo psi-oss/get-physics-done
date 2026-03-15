@@ -156,16 +156,16 @@ flowchart TD
 - `bin/install.js -> GitHub source archive candidate family {https://github.com/psi-oss/get-physics-done/archive/refs/tags/v<version>.tar.gz, https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz}`
   `external-service`
 
-- `bin/install.js -> GitHub git candidate family {git+ssh://git@github.com/psi-oss/get-physics-done.git@v<version>, git+ssh://git@github.com/psi-oss/get-physics-done.git@main, git+https://github.com/psi-oss/get-physics-done.git@v<version>, git+https://github.com/psi-oss/get-physics-done.git@main}`
+- `bin/install.js -> GitHub git candidate family {git+https://github.com/psi-oss/get-physics-done.git@v<version>, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
+- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, https tag checkout, https main checkout}`
   `ordering-contract`
   Normal install and `--reinstall` try GitHub source candidates in precedence order and fail closed if none can be installed.
 
-- `bin/install.js -> two-stage upgrade candidate chain {main archive, ssh main checkout, https main checkout} then {tag archive, main archive, ssh tag checkout, ssh main checkout, https tag checkout, https main checkout}`
+- `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`
-  `--upgrade` prefers the latest `main` branch source and then falls back to the broader GitHub source candidate set.
+  `--upgrade` prefers the latest `main` branch source and fails closed if no main-branch source can be installed.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`
@@ -1322,7 +1322,7 @@ They explicitly preserve:
 - `tests/test_paper_compiler_regressions.py -> paper.pdf`
   `generated-output`
 
-- `tests/test_bootstrap_installer.py -> GitHub source/archive/git candidate family {https://github.com/psi-oss/get-physics-done/archive/refs/tags/v<PYTHON_PACKAGE_VERSION>.tar.gz, https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+ssh://git@github.com/psi-oss/get-physics-done.git@v<PYTHON_PACKAGE_VERSION>, git+ssh://git@github.com/psi-oss/get-physics-done.git@main, git+https://github.com/psi-oss/get-physics-done.git@v<PYTHON_PACKAGE_VERSION>, git+https://github.com/psi-oss/get-physics-done.git@main}`
+- `tests/test_bootstrap_installer.py -> GitHub source/archive/git candidate family {https://github.com/psi-oss/get-physics-done/archive/refs/tags/v<PYTHON_PACKAGE_VERSION>.tar.gz, https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@v<PYTHON_PACKAGE_VERSION>, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
 - `tests/test_bootstrap_installer.py -> ${GPD_HOME:-~/.gpd}/venv/**`
