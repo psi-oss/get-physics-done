@@ -132,7 +132,7 @@ AUTONOMY=$(echo "$INIT" | gpd json get .autonomy --default balanced)
 
 | Mode | Task Checkpoints | Physics Decision Checkpoints | Verification Failure |
 |------|-----------------|------------------------------|---------------------|
-| **babysit** | After EVERY task plus every required first-result gate | Always | Always stop |
+| **supervised** | After EVERY task plus every required first-result gate | Always | Always stop |
 | **balanced** (default) | Auto-flow between clean tasks, but required bounded gates still run | On physics choices, deviation rules 5-6, convention conflicts, or convergence failure after 3 attempts | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | No user prompt on clean passes, but required bounded gates still run | Attempt one alternative before escalating; never skip first-result, skeptical, or pre-fanout gates | Stop only on unrecoverable errors, failed sanity gates, or unresolved skeptical review |
 
@@ -342,9 +342,9 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
 
      If the pre-fanout stop also carried skeptical re-questioning, clear that state explicitly before or alongside the pre-fanout clear; a `pre_fanout` clear must not wipe skeptical fields implicitly.
 
-     **Babysit mode post-task checkpoint:** If `AUTONOMY="babysit"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
+     **Supervised mode post-task checkpoint:** If `AUTONOMY="supervised"`, insert a `checkpoint:human-verify` after EVERY completed task. Present the task result with all intermediate values and wait for user approval before proceeding to the next task.
    - `type="checkpoint:*"`: Route by autonomy mode:
-     - **babysit:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
+     - **supervised:** STOP -> checkpoint protocol (see `execute-plan-checkpoints.md`) -> wait for user -> continue only after confirmation.
      - **balanced:** Stop for `checkpoint:decision`, `checkpoint:human-verify`, required first-result gates, any checkpoint tied to deviation rules 5-6 or unresolved convergence failure, and any case where decisive evidence is still missing but the next tasks would assume it. Log routine checkpoint markers and continue when no judgment is needed.
      - **yolo:** Do NOT skip required first-result, bounded-segment, skeptical, or pre-fanout checkpoints. Auto-continue only after the gate is explicitly cleared and the remaining work is genuinely independent of the unresolved decisive comparison. STOP on failed sanity, unresolved skeptical review, anchor-gate failure, or unrecoverable computation error.
 3. Run `<verification>` checks including physics validation (see `execute-plan-validation.md`)
@@ -373,7 +373,7 @@ After completing each task, check context usage. Checkpoint frequency varies by 
 
 | Mode | Context checkpoint at 60% | Context checkpoint at 75% | Verification failure |
 |------|--------------------------|--------------------------|---------------------|
-| **babysit** | Yes + present to user | Yes + force pause + user approval | Always stop, present details |
+| **supervised** | Yes + present to user | Yes + force pause + user approval | Always stop, present details |
 | **balanced** | Yes (write silently) | Yes + proactive pause | Attempt one bounded fix, then stop if unresolved |
 | **yolo** | Write checkpoint file only | Auto-pause only at context RED (>85%) | Stop only on unrecoverable error or failed required gate |
 
@@ -393,7 +393,7 @@ CHECKPOINT
    - Commit all current work
    - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
    - Update STATE.md session info
-  - **babysit/balanced:** Suggest `/clear` + `/gpd:resume-work`
+  - **supervised/balanced:** Suggest `/clear` + `/gpd:resume-work`
   - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `/gpd:resume-work`
 
 Also stop when either bound is hit, even if context looks healthy:
@@ -494,7 +494,7 @@ See `execute-plan-validation.md` for physics-specific verification failure handl
 
 Verification failure handling by autonomy mode:
 
-- **babysit:** STOP. Present failure details. Options: Retry | Skip (mark incomplete) | Stop (investigate). If skipped -> SUMMARY "Issues Encountered".
+- **supervised:** STOP. Present failure details. Options: Retry | Skip (mark incomplete) | Stop (investigate). If skipped -> SUMMARY "Issues Encountered".
 - **balanced:** Attempt ONE automated fix (re-derive with corrected step, adjust numerical parameters) when the remedy is local and verifiable. If the fix succeeds, log it and continue. If it fails or requires a judgment call, STOP and return to the orchestrator with failure details.
 - **yolo:** Attempt ONE alternative approach before escalating. If the alternative works, continue. If the original AND alternative both fail, STOP (this is a hard stop even in yolo mode — physics correctness is non-negotiable).
 </step>
@@ -547,7 +547,7 @@ Include: duration, start/end times, task count, file count.
 
 Next: more plans -> "Ready for {next-plan}" | last -> "Phase complete, ready for transition".
 
-Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission.
+Autonomy mode (`supervised` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission.
 </step>
 
 <step name="update_current_position">
@@ -633,7 +633,7 @@ Keep STATE.md under 150 lines.
 <step name="issues_review_gate">
 If SUMMARY "Issues Encountered" != "None", route by autonomy mode:
 
-- **babysit:** Present ALL issues with full details. Wait for user acknowledgment before proceeding.
+- **supervised:** Present ALL issues with full details. Wait for user acknowledgment before proceeding.
 - **balanced:** Present issues. Wait for acknowledgment only if any issue is physics-critical (dimensional error, limiting case failure, conservation violation) or changes interpretation. Log-only for minor issues.
 - **yolo:** Log and continue immediately. Issues visible only in SUMMARY.md.
 </step>
@@ -690,7 +690,7 @@ ls -1 "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l
 
 | Condition                                  | Route                 | Action                                                                                                                                                  |
 | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **balanced/yolo:** auto-continue to next plan when no blockers remain. **babysit:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
+| summaries < plans                          | **A: More plans**     | Find next PLAN without SUMMARY. **balanced/yolo:** auto-continue to next plan when no blockers remain. **supervised:** show next plan + completion summary, wait for explicit "proceed" before continuing. STOP here. |
 | summaries = plans, current < highest phase | **B: Phase done**     | Show completion, suggest `/gpd:plan-phase {Z+1}` + `/gpd:verify-work {Z}` + `/gpd:discuss-phase {Z+1}`                                                  |
 | summaries = plans, current = highest phase | **C: Milestone done** | Show banner, suggest `/gpd:complete-milestone` + `/gpd:verify-work` + `/gpd:add-phase`                                                                  |
 

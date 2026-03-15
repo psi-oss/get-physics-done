@@ -128,7 +128,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 
 | Autonomy | Plan Checker Behavior |
 |---|---|
-| **babysit** | **Lighter breadth, same minimum gate.** Focus on blockers first, but ALWAYS run the contract gate, anchor coverage, acceptance-test coverage, and disconfirming-path checks. Human review does not replace those requirements. |
+| **supervised** | **Lighter breadth, same minimum gate.** Focus on blockers first, but ALWAYS run the contract gate, anchor coverage, acceptance-test coverage, and disconfirming-path checks. Human review does not replace those requirements. |
 | **balanced** (default) | **Standard+ check.** Run the full dimension check per profile. Flag any plan with `interactive: false` that lacks explicit verification criteria, and verify that every approximation has a validity check somewhere in the phase. Warn if any task exceeds a 60-minute estimate without an intermediate checkpoint. |
 | **yolo** | **Maximum scrutiny.** Everything in balanced mode PLUS: verify all contract-critical outputs are independently testable (not circular), check that scope extensions stay inside the approved contract, require at least one limiting-case check per plan, and flag plans that combine derivation + numerical validation when that would erase independent failure detection. |
 
@@ -1539,7 +1539,7 @@ If you reach ORANGE, include `context_pressure: high` in your output so the orch
 
 **DO NOT** let computational tasks pass without convergence criteria. A computation that runs to completion but produces garbage is worse than one that fails loudly.
 
-**DO NOT** let `babysit`, `yolo`, or `exploratory` mode waive contract completeness. Those settings change cadence and detail, not the minimum anchor and decisiveness bar.
+**DO NOT** let `supervised`, `yolo`, or `exploratory` mode waive contract completeness. Those settings change cadence and detail, not the minimum anchor and decisiveness bar.
 
 </anti_patterns>
 

@@ -25,7 +25,7 @@ Check if `--auto` flag is present in $ARGUMENTS.
   - Literature survey: Always yes
   - Research questions: Include all from provided document
   - Research questions approval: Use approved scoping contract as source of truth
-  - Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=babysit`, present the draft roadmap before commit
+  - Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=supervised`, present the draft roadmap before commit
 
 **Document requirement:**
 Auto mode requires a research document via @ reference (e.g., `/gpd:new-project --auto @proposal.md`). If no document provided, error:
@@ -566,14 +566,14 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_research_map`, `has_git`.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
+- `autonomy=supervised`: Pause for user confirmation after each major step (questioning, scoping contract, research, roadmap). Show summaries and wait for approval before proceeding.
 - `autonomy=balanced` (default): Execute the full pipeline automatically. Pause only if research results are ambiguous, the roadmap has gaps, or scope-setting decisions need user judgment. The initial scoping contract is always a user-judgment checkpoint.
 - `autonomy=yolo`: Execute full pipeline, skip optional literature survey, auto-approve roadmap. Do NOT skip the initial scoping-contract approval gate. Do NOT skip the requirement to show contract coverage in the roadmap.
-- `--auto` changes how intake happens, not who owns later review gates. If `autonomy=babysit`, keep the roadmap approval checkpoint even in auto mode.
+- `--auto` changes how intake happens, not who owns later review gates. If `autonomy=supervised`, keep the roadmap approval checkpoint even in auto mode.
 - `research_mode=explore`: Expand literature survey (spawn 5+ researchers), broader questioning, include speculative research directions in roadmap.
 - `research_mode=exploit`: Focused literature survey (2-3 researchers), targeted questioning, lean roadmap with minimal exploratory phases.
 - `research_mode=adaptive`: Start broad enough to compare viable approaches while scoping the project. Narrow the roadmap only after anchors or decisive evidence make one method family clearly preferable.
-- Before `.gpd/config.json` exists, the `autonomy` and `research_mode` values from `gpd init new-project` are defaults, not a durable user choice. Run the early setup gate in Step 2.5 so the user can opt into `babysit` or customization before long questioning or research steps.
+- Before `.gpd/config.json` exists, the `autonomy` and `research_mode` values from `gpd init new-project` are defaults, not a durable user choice. Run the early setup gate in Step 2.5 so the user can opt into `supervised` or customization before long questioning or research steps.
 
 **If `project_exists` is true:** Error — project already initialized. Use `/gpd:progress`.
 
@@ -667,12 +667,12 @@ Use ask_user:
 - question: "Before we scope the project, should I use the standard balanced flow or check in more often while we build the contract?"
 - options:
   - "Balanced (Recommended)" -- keep balanced autonomy and balanced research mode for setup
-  - "Babysit this setup" -- use babysit autonomy immediately for the remaining setup steps
+  - "Supervised this setup" -- use supervised autonomy immediately for the remaining setup steps
   - "Customize now" -- jump to Step 5 now, choose settings, write `.gpd/config.json`, then resume at Step 3
 
 Store the result in setup-scoped variables (for example `SETUP_AUTONOMY` and `SETUP_RESEARCH_MODE`) and use those values for Steps 3-9 even before `config.json` exists.
 If the user picks "Customize now", run Step 5 immediately, write `.gpd/config.json`, then return to Step 3 with those persisted settings.
-If the user picks "Balanced (Recommended)" or "Babysit this setup", defer writing `config.json` until Step 5, but do NOT revert to the original init defaults in the meantime.
+If the user picks "Balanced (Recommended)" or "Supervised this setup", defer writing `config.json` until Step 5, but do NOT revert to the original init defaults in the meantime.
 
 ## 3. Deep Questioning
 
@@ -1020,7 +1020,7 @@ CHECKPOINT
 
 **Quick setup gate — offer recommended defaults before individual questions:**
 
-If Step 2.5 already captured provisional setup preferences, present them as the current choices and ask whether to keep or revise them before writing `config.json`. Do not silently discard an earlier babysit choice just because the durable config file has not been written yet.
+If Step 2.5 already captured provisional setup preferences, present them as the current choices and ask whether to keep or revise them before writing `config.json`. Do not silently discard an earlier supervised choice just because the durable config file has not been written yet.
 
 Use ask_user:
 
@@ -1071,7 +1071,7 @@ questions: [
     options: [
       { label: "Balanced (Recommended)", description: "Routine work is automatic; pause on important physics decisions, ambiguities, blockers, or scope changes" },
       { label: "YOLO", description: "Fastest mode. Auto-approve checkpoints and keep going unless a hard stop fires" },
-      { label: "Babysit", description: "Confirm each major step before proceeding" }
+      { label: "Supervised", description: "Confirm each major step before proceeding" }
     ]
   },
   {
@@ -1166,7 +1166,7 @@ Create `.gpd/config.json` with all settings:
 
 ```json
 {
-  "autonomy": "babysit|balanced|yolo",
+  "autonomy": "supervised|balanced|yolo",
   "research_mode": "explore|balanced|exploit|adaptive",
   "parallelization": true|false,
   "commit_docs": true|false,
@@ -1757,7 +1757,7 @@ Success criteria:
 ---
 ```
 
-**If auto mode and `autonomy` is not `babysit`:** Skip approval gate — auto-approve and commit directly.
+**If auto mode and `autonomy` is not `supervised`:** Skip approval gate — auto-approve and commit directly.
 
 **CRITICAL: Ask for approval before committing (interactive mode only):**
 

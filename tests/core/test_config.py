@@ -28,7 +28,7 @@ from gpd.core.errors import ConfigError
 
 class TestEnums:
     def test_autonomy_values(self):
-        assert AutonomyMode.BABYSIT.value == "babysit"
+        assert AutonomyMode.SUPERVISED.value == "supervised"
         assert AutonomyMode.BALANCED.value == "balanced"
         assert AutonomyMode.YOLO.value == "yolo"
 
@@ -142,16 +142,16 @@ class TestLoadConfig:
         assert cfg.commit_docs is False
 
     @pytest.mark.parametrize(
-        "legacy_value",
-        ["supervised", "guided", "autonomous"],
+        "invalid_value",
+        ["manual", "guided", "autonomous"],
     )
-    def test_legacy_autonomy_values_raise_config_error(
+    def test_invalid_autonomy_values_raise_config_error(
         self,
         tmp_path: Path,
-        legacy_value: str,
+        invalid_value: str,
     ) -> None:
         (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"autonomy": legacy_value}))
+        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             load_config(tmp_path)

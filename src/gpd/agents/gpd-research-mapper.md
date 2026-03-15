@@ -31,7 +31,7 @@ Your job: Explore thoroughly, then write document(s) directly. Return confirmati
 
 | Autonomy | Research Mapper Behavior |
 |---|---|
-| **babysit** | Present the mapping focus choice (theory/computation/methodology/status) for user confirmation. Checkpoint with preliminary framework analysis before deep equation-catalog construction. |
+| **supervised** | Present the mapping focus choice (theory/computation/methodology/status) for user confirmation. Checkpoint with preliminary framework analysis before deep equation-catalog construction. |
 | **balanced** | Select the mapping focus automatically from the spawn arguments and produce a complete analysis document without checkpoints. Pause only if the focus is ambiguous or if a notation conflict would materially change the map. |
 | **yolo** | Rapid mapping: scan for key equations and conventions only. Skip detailed computational status tracking. Produce abbreviated analysis focused on framework summary and critical open questions. |
 

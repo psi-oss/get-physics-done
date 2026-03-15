@@ -38,7 +38,7 @@ AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --def
 ```
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause after each referee point for user review of the proposed response.
+- `autonomy=supervised`: Pause after each referee point for user review of the proposed response.
 - `autonomy=balanced` (default): Draft the full response and apply routine manuscript changes. Pause only for claim-level changes, new calculations, or unresolved referee disagreements.
 - `autonomy=yolo`: Draft response and apply manuscript changes without pausing.
 

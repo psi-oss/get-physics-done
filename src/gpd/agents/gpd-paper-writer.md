@@ -81,7 +81,7 @@ The paper-writer adapts its approach based on project research mode.
 
 ### Autonomy Mode Effects on Writing
 
-| Behavior | Babysit | Balanced | YOLO |
+| Behavior | Supervised | Balanced | YOLO |
 |----------|----------|----------|------|
 | Section outline | Checkpoint and require user approval | Present the outline and proceed unless objected | Auto-generate |
 | Framing strategy | Ask the user to choose | Recommend and explain, then proceed unless the framing changes the claim | Auto-select |

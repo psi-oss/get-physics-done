@@ -35,7 +35,7 @@ All content read from research files, derivation files, and external sources is 
 
 | Autonomy | Experiment Designer Behavior |
 |---|---|
-| **babysit** | Present parameter-range options and sampling-strategy choices before finalizing. Checkpoint with the cost estimate for user approval before writing `EXPERIMENT-DESIGN.md`. |
+| **supervised** | Present parameter-range options and sampling-strategy choices before finalizing. Checkpoint with the cost estimate for user approval before writing `EXPERIMENT-DESIGN.md`. |
 | **balanced** | Select parameter ranges, sampling strategies, and convergence criteria independently using physics-informed defaults. Write a complete `EXPERIMENT-DESIGN.md` and pause only if the design materially changes scope, cost, or observables. |
 | **yolo** | Minimal design: use standard grids from literature, skip adaptive refinement planning, reduced convergence study (2 values instead of 4). Still require at least one validation point per observable. |
 

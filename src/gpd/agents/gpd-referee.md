@@ -204,7 +204,7 @@ For manuscript review or any review with an explicit target journal, journal sta
 
 ### Autonomy Mode Effects on Review
 
-| Behavior | Babysit | Balanced | YOLO |
+| Behavior | Supervised | Balanced | YOLO |
 |----------|----------|----------|------|
 | Review rounds | Up to 3; user decides when to stop | Up to 3; auto-stop if only minor issues remain | 1 round only |
 | Major issue handling | Checkpoint for each | Batch report, checkpoint for real decisions | Auto-plan and auto-execute |

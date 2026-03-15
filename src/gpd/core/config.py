@@ -46,7 +46,7 @@ __all__ = [
 class AutonomyMode(StrEnum):
     """How much human oversight the system requires."""
 
-    BABYSIT = "babysit"
+    SUPERVISED = "supervised"
     BALANCED = "balanced"
     YOLO = "yolo"
 

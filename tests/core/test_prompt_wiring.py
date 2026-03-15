@@ -587,7 +587,7 @@ def test_new_project_requires_scoping_contract_across_setup_modes() -> None:
 
     assert "Auto mode compresses intake; it does not override autonomy review gates after the scoping contract is approved" in workflow_text
     assert "Require one explicit scoping approval gate before requirements and roadmap generation" in workflow_text
-    assert "Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=babysit`, present the draft roadmap before commit" in workflow_text
+    assert "Roadmap approval: Auto-approve only for `balanced` / `yolo`; if `autonomy=supervised`, present the draft roadmap before commit" in workflow_text
     assert "Minimal mode is still allowed to be lean, but it is not allowed to be contract-free." in workflow_text
     assert (
         'At least one anchor, reference/prior-output constraint, or an explicit "anchor unknown / must establish later" note'
@@ -609,7 +609,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     assert "temporary JSON file if needed" not in workflow_text
     assert "Read PROJECT.md and `.gpd/state.json` and extract" in workflow_text
     assert "Derive phases from requirements AND the approved project contract" in workflow_text
-    assert "If auto mode and `autonomy` is not `babysit`" in workflow_text
+    assert "If auto mode and `autonomy` is not `supervised`" in workflow_text
     assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in command_text
 
 
@@ -620,11 +620,11 @@ def test_new_project_offers_early_setup_cadence_before_long_running_steps() -> N
     assert "Before `.gpd/config.json` exists, the `autonomy` and `research_mode` values from `gpd init new-project` are defaults" in workflow_text
     assert "## 2.5 Early Workflow Setup" in workflow_text
     assert "Before we scope the project, should I use the standard balanced flow or check in more often while we build the contract?" in workflow_text
-    assert '"Babysit this setup" -- use babysit autonomy immediately for the remaining setup steps' in workflow_text
+    assert '"Supervised this setup" -- use supervised autonomy immediately for the remaining setup steps' in workflow_text
     assert '"Customize now" -- jump to Step 5 now, choose settings, write `.gpd/config.json`, then resume at Step 3' in workflow_text
     assert "use those values for Steps 3-9 even before `config.json` exists" in workflow_text
     assert "present them as the current choices and ask whether to keep or revise them before writing `config.json`" in workflow_text
-    assert "early interaction-style choice before long setup steps so `babysit` can affect initialization" in command_text
+    assert "early interaction-style choice before long setup steps so `supervised` can affect initialization" in command_text
 
 
 def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> None:
@@ -886,7 +886,7 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "Mirror decisive verdicts into frontmatter `comparison_verdicts`." in verify_workflow
     assert "structured `suggested_contract_checks` entry before final validation" in verify_workflow
     assert "`contract_results` is authoritative." in execute_plan
-    assert "Autonomy mode (`babysit` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission." in execute_plan
+    assert "Autonomy mode (`supervised` / `balanced` / `yolo`) and profile may change cadence or verbosity, but they do NOT relax contract-result emission." in execute_plan
     assert "contract_results" in verify_phase
     assert "Verification targets must stay user-visible" in verify_phase
     assert "must_haves" not in verify_phase

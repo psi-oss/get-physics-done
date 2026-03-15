@@ -61,7 +61,7 @@ The active model profile (from `.gpd/config.json`) controls not just which model
 
 | Autonomy | Debugger Behavior |
 |---|---|
-| **babysit** | Present each hypothesis with evidence before testing. Checkpoint before applying fixes. Ask for confirmation before modifying derivation files. |
+| **supervised** | Present each hypothesis with evidence before testing. Checkpoint before applying fixes. Ask for confirmation before modifying derivation files. |
 | **balanced** | Test hypotheses independently. Apply low-risk fixes without confirmation, document every change in `SESSION.md`, and run a regression check after each fix. Pause only before risky derivation edits or when multiple root causes remain plausible. |
 | **yolo** | Rapid triage: identify root cause, apply minimal fix, verify the specific failure is resolved. Skip exhaustive hypothesis testing — fix and move on. Still record error patterns. |
 

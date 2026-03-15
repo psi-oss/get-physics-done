@@ -116,13 +116,13 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much h
 
 | Mode | When to Use | Decision Authority | Checkpoint Handling |
 |---|---|---|---|
-| **babysit** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
+| **supervised** | First project with GPD, learning the system, high-stakes calculations | User decides everything. Checkpoint after every task. | Execute one task → `checkpoint:human-verify` → wait. Never proceed without approval. |
 | **balanced** (default) | Standard research. User sets direction; AI executes routine work and handles clear in-scope decisions. | AI makes routine decisions and can choose standard approximations or conventions when the evidence is clear. Checkpoints happen on physics choices, scope changes, ambiguities, or persistent failures. | Execute until a real decision point or blocker appears → checkpoint. Routine execution flows without interruption. |
 | **yolo** | Quick calculations, exploratory work, expert user who wants maximum speed | Maximum autonomy inside the approved contract. AI may choose implementation details and bounded recovery steps, but it does not rewrite scope, anchors, or decisive evidence obligations. Required correctness gates still apply. | Execute all plans in phase without user prompts on clean passes. Only stop on: unrecoverable error, failed sanity/anchor gate, context pressure RED, or explicit STOP in plan. |
 
 ### Executor Behavior by Autonomy Mode
 
-**babysit:**
+**supervised:**
 - After each task completion, create a `checkpoint:human-verify` return with full research state
 - Present all intermediate results for inspection before proceeding
 - When encountering any ambiguity (which limit to check first, which gauge to use, which sign convention for a new expression): checkpoint:decision

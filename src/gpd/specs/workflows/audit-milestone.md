@@ -29,7 +29,7 @@ AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --def
 ```
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause after each audit criterion for user discussion of gaps.
+- `autonomy=supervised`: Pause after each audit criterion for user discussion of gaps.
 - `autonomy=balanced` (default): Complete the full audit and generate a gap-closure plan when needed. Pause only if critical gaps or milestone-scope questions need user judgment.
 - `autonomy=yolo`: Complete audit, auto-approve milestone if > 80% criteria met.
 

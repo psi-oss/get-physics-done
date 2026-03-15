@@ -92,7 +92,7 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced
 
 ### Mode Effects on Planning
 
-**Babysit mode** (`autonomy: "babysit"`):
+**Supervised mode** (`autonomy: "supervised"`):
 
 - **Checkpoints:** Insert `checkpoint:human-verify` after EVERY task that produces a physics result. Insert `checkpoint:decision` before every approximation or method choice.
 - **Scope:** Plans must be EXACTLY what the user discussed in CONTEXT.md. No discretionary additions.
@@ -124,7 +124,7 @@ The autonomy mode (from `.gpd/config.json` field `autonomy`, default: `"balanced
 
 ### Planning Decision Matrix
 
-| Decision | Babysit | Balanced | YOLO |
+| Decision | Supervised | Balanced | YOLO |
 |----------|----------|----------|------|
 | Convention selection | Checkpoint | Auto (standard) / Checkpoint (non-standard or conflicting) | Auto |
 | Approximation choice | Checkpoint with options | Auto (standard) / Add validity task or checkpoint if borderline | Auto |
@@ -140,7 +140,7 @@ Autonomy mode combines with research mode (explore/exploit) to form a 2D behavio
 
 | | Explore | Balanced | Exploit |
 |---|---------|----------|---------|
-| **Babysit** | User approves each branch | Standard + checkpoints | Focused + verified at each step |
+| **Supervised** | User approves each branch | Standard + checkpoints | Focused + verified at each step |
 | **Balanced** | Broad search, user picks best | Default research flow | Efficient execution, key checkpoints |
 | **YOLO** | System explores freely and reports only hard blockers | Fast auto research loop | Fast convergent execution |
 | **YOLO** | Maximum exploration budget | Maximum speed | Laser-focused sprint |

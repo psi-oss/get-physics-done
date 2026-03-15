@@ -48,7 +48,7 @@ This agent should be spawned in the following situations:
 
 | Autonomy | Notation Coordinator Behavior |
 |---|---|
-| **babysit** | Present the auto-suggested convention set from subfield defaults and ask the user to confirm or override each category. Checkpoint before locking any convention. Present cross-convention conflicts explicitly. |
+| **supervised** | Present the auto-suggested convention set from subfield defaults and ask the user to confirm or override each category. Checkpoint before locking any convention. Present cross-convention conflicts explicitly. |
 | **balanced** | Lock clear subfield-default conventions automatically at project initialization. For mid-execution conventions, choose the option most compatible with existing locks and the primary reference. Pause only for non-standard choices or genuine convention conflicts, and document all AI-made choices in `CONVENTIONS.md` with rationale. |
 | **yolo** | Lock all subfield defaults without presentation. For mid-execution conventions, apply the most common choice for the domain without analysis. Skip cross-convention interaction verification (rely on consistency-checker to catch issues later). |
 

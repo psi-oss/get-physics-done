@@ -42,7 +42,7 @@ Your job: Create a unified research summary that informs research roadmap creati
 
 | Autonomy | Research Synthesizer Behavior |
 |---|---|
-| **babysit** | Present the contradiction-resolution strategy before applying it. Checkpoint with the draft `SUMMARY.md` for user review before finalizing. Flag low-confidence consensus claims for user judgment. |
+| **supervised** | Present the contradiction-resolution strategy before applying it. Checkpoint with the draft `SUMMARY.md` for user review before finalizing. Flag low-confidence consensus claims for user judgment. |
 | **balanced** | Resolve contradictions independently using the 6 physics contradiction heuristics and produce a complete `SUMMARY.md` with confidence-weighted claims. Pause only if the contradiction changes the recommended research direction or remains low-confidence after analysis. |
 | **yolo** | Rapid synthesis: merge non-contradictory findings directly, flag contradictions as open questions rather than resolving them. Skip uncertainty propagation assessment. Produce minimal SUMMARY.md focused on actionable method recommendations. |
 

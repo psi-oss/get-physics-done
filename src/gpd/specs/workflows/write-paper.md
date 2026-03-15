@@ -73,7 +73,7 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 Mode effects on the write-paper pipeline:
 - **Explore mode**: Paper structured as a comparison/survey; broader literature review; more figures; comprehensive related-work section
 - **Exploit mode**: Paper structured as a focused result; streamlined introduction; minimal related-work; optimized for tight prose
-- **Babysit autonomy**: Checkpoints after the outline, after each section draft, and before referee review.
+- **Supervised autonomy**: Checkpoints after the outline, after each section draft, and before referee review.
 - **Balanced autonomy**: Auto-generate the outline from the research digest, draft all sections, and pause only for claim-level decisions, major structural changes, or referee conflicts.
 - **YOLO autonomy**: Draft all sections, run referee, and present the final result with only hard-stop interruptions.
 

@@ -35,7 +35,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | Option                          | Default                      | Description                                                                                    |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
-| `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"babysit"`, `"balanced"`, `"yolo"`                                    |
+| `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"supervised"`, `"balanced"`, `"yolo"`                                    |
 | `execution.review_cadence`      | `"adaptive"`                 | How aggressively long-running execution injects bounded review points                            |
 | `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a bounded continuation segment must be created, even if the run feels smooth |
 | `execution.max_unattended_minutes_per_wave` | `90`             | Wave-level unattended budget before forcing a bounded review                                     |
@@ -111,7 +111,7 @@ The CLI checks `commit_docs` config and gitignore status internally -- no manual
 - `execution.review_cadence` controls when the system must create a bounded gate
 - even in `yolo`, first-result and failed-sanity gates are not skipped
 - wall-clock and task budgets still create bounded segments in every autonomy mode
-- `babysit` means each required gate is shown for approval; `balanced` pauses on non-routine or unresolved cases; `yolo` may auto-continue only after the gate is explicitly cleared
+- `supervised` means each required gate is shown for approval; `balanced` pauses on non-routine or unresolved cases; `yolo` may auto-continue only after the gate is explicitly cleared
 - phase number, wave number, and `model_profile` do not create or retire these gates by themselves
 
 When cadence logic injects a gate, the orchestrator still runs lightweight convention and sanity checks before unlocking downstream work.

@@ -37,7 +37,7 @@ Use `active_reference_context` and `reference_artifacts_content` to interpret th
 When `parallelization` is false, plans within a wave execute sequentially.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause for user confirmation before each wave. Show the plan summary and wait for approval.
+- `autonomy=supervised`: Pause for user confirmation before each wave. Show the plan summary and wait for approval.
 - `autonomy=balanced` (default): Execute waves automatically and pause only if errors, ambiguities, or scope-changing decisions arise at a wave boundary.
 - `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, skeptical review stops, or anchor-gated fanout reviews. A clean pass may auto-continue only after the gate is explicitly cleared.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
@@ -368,7 +368,7 @@ CHECKPOINT_BEFORE_DOWNSTREAM=$(echo "$INIT" | gpd json get .checkpoint_before_do
 
 **Core invariant:** `autonomy` decides who gets interrupted. `review_cadence` decides when the system must stop, inspect, or re-question. Even in `yolo`, required first-result and pre-fanout gates still run; the difference is that a clean pass can auto-continue.
 
-These gates are task-level safety rails, not line-by-line interruptions. Even in `babysit`, checkpoint after each plan task or required gate, not after every algebraic micro-step.
+These gates are task-level safety rails, not line-by-line interruptions. Even in `supervised`, checkpoint after each plan task or required gate, not after every algebraic micro-step.
 
 For each wave, classify whether downstream fanout is risky:
 

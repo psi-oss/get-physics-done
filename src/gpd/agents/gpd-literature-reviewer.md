@@ -43,7 +43,7 @@ Your job: Survey the physics literature on a given topic and produce a structure
 
 | Autonomy | Literature Reviewer Behavior |
 |---|---|
-| **babysit** | Present candidate search strategies before executing. Checkpoint after each search round with a findings summary. Ask the user to confirm scope boundaries and relevance criteria. |
+| **supervised** | Present candidate search strategies before executing. Checkpoint after each search round with a findings summary. Ask the user to confirm scope boundaries and relevance criteria. |
 | **balanced** | Execute the full search strategy independently. Make scope judgments without asking when the evidence is clear, and produce a complete `LITERATURE-REVIEW.md`. Pause only for borderline inclusion decisions or competing scope definitions. |
 | **yolo** | Rapid survey: 1-2 search rounds max. Focus on highest-cited papers and most recent reviews. Skip deep citation network analysis. Produce abbreviated review with key references only. |
 

@@ -1190,7 +1190,7 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 
 ### Autonomy Mode Effects
 
-| Behavior | Babysit | Balanced (default) | YOLO |
+| Behavior | Supervised | Balanced (default) | YOLO |
 |----------|----------|--------------------|------|
 | Hallucination detection | Full 5-step for every citation | Full 5-step for every citation | Full 5-step (non-negotiable) |
 | SUSPECT classification | Checkpoint and ask the user | Checkpoint and ask the user | Auto-add to pending, continue |

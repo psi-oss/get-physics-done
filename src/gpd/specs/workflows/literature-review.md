@@ -65,7 +65,7 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - `research_mode=explore`: Comprehensive review (30+ papers), include tangential fields, map full citation network, identify open questions.
 - `research_mode=exploit`: Focused review (8-12 papers), direct relevance only, extract key results and methods.
 - `research_mode=adaptive`: Start with 15 papers, expand if citation network reveals critical gaps.
-- `autonomy=babysit`: Pause after each review round for user feedback on scope and direction.
+- `autonomy=supervised`: Pause after each review round for user feedback on scope and direction.
 - `autonomy=balanced` (default): Complete the full review pipeline automatically. Pause only if the literature reveals scope ambiguity, contradictory evidence, or a change in recommendation.
 - `autonomy=yolo`: Complete the review pipeline without pausing, but do NOT drop contract-critical anchors or user-mandated references.
 

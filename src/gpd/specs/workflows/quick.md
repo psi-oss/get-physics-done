@@ -45,7 +45,7 @@ fi
 Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `next_num`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause after the plan for user approval before execution.
+- `autonomy=supervised`: Pause after the plan for user approval before execution.
 - `autonomy=balanced` (default): Execute without pausing unless the quick task reveals a real decision point.
 - `autonomy=yolo`: Execute and commit without pausing.
 

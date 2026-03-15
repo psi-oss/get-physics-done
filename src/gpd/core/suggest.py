@@ -418,7 +418,7 @@ def _apply_mode_adjustments(
                     s.priority = max(1, s.priority - 1)
 
         # Autonomy adjustments
-        if autonomy == "babysit" and s.action in ("execute-phase", "continue-calculations"):
+        if autonomy == "supervised" and s.action in ("execute-phase", "continue-calculations"):
             s.priority += 1
         if autonomy == "yolo" and s.action == "execute-phase":
             s.priority = max(1, s.priority - 1)

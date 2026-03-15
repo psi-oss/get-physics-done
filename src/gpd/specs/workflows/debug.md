@@ -137,7 +137,7 @@ AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --def
 ```
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause after each debugger agent returns findings. Present the diagnosis to the user before proceeding to a fix.
+- `autonomy=supervised`: Pause after each debugger agent returns findings. Present the diagnosis to the user before proceeding to a fix.
 - `autonomy=balanced` (default): Spawn the debugger agents, collect findings, and apply routine fixes automatically. Pause only if there are multiple plausible root causes or the fix changes assumptions or scope.
 - `autonomy=yolo`: Spawn debuggers, apply first plausible fix immediately without detailed diagnosis.
 

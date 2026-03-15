@@ -28,7 +28,7 @@ AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --def
 ```
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Present each convention conflict for user resolution before applying fixes.
+- `autonomy=supervised`: Present each convention conflict for user resolution before applying fixes.
 - `autonomy=balanced` (default): Auto-fix trivial conflicts and clear lock-consistency issues. Pause for ambiguous conflicts requiring physics judgment.
 - `autonomy=yolo`: Auto-fix all conflicts using most recent convention as authoritative.
 

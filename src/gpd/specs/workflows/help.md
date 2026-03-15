@@ -833,7 +833,7 @@ Show this command reference.
 
 Set during `/gpd:new-project` or changed later with `/gpd:settings`:
 
-**Babysit**
+**Supervised**
 
 - Confirms each major step
 - Uses the most checkpoints

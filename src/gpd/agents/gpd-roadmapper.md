@@ -48,7 +48,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 | Autonomy | Roadmapper Behavior |
 |---|---|
-| **babysit** | Write a draft `ROADMAP.md` / `STATE.md`, then present the phase breakdown and dependency structure for user approval before the orchestrator commits or proceeds. Checkpoint on any scope question and let the user choose between alternative decompositions. Still surface contract coverage for every phase. |
+| **supervised** | Write a draft `ROADMAP.md` / `STATE.md`, then present the phase breakdown and dependency structure for user approval before the orchestrator commits or proceeds. Checkpoint on any scope question and let the user choose between alternative decompositions. Still surface contract coverage for every phase. |
 | **balanced** | Create a complete `ROADMAP.md` independently. Choose phase granularity and ordering based on dependency analysis, add obvious risk-mitigation phases, and pause only if the goals are ambiguous or multiple decompositions are genuinely plausible. Keep objective coverage and contract coverage explicit. |
 | **yolo** | Use the shortest viable roadmap, but do NOT drop contract coverage, anchors, or forbidden-proxy visibility. Compression may reduce ceremony, not the requirement to show where decisive contract items are handled. Still require at least one verification phase. |
 

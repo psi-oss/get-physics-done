@@ -25,7 +25,7 @@ fi
 Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
-- `autonomy=babysit`: Pause for user confirmation after requirements gathering and before roadmap generation.
+- `autonomy=supervised`: Pause for user confirmation after requirements gathering and before roadmap generation.
 - `autonomy=balanced` (default): Execute the full pipeline automatically and pause only if milestone scope is ambiguous or requirements conflict with prior work.
 - `autonomy=yolo`: Execute full pipeline, skip optional research step, auto-approve roadmap, but do NOT skip phase-level contract coverage and anchor visibility.
 - `research_mode=explore`: Broader research survey for new milestone, consider alternative approaches, include speculative phases.
