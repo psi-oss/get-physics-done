@@ -20,6 +20,12 @@ def adapter() -> CodexAdapter:
     return CodexAdapter()
 
 
+def expected_codex_launcher(target: Path, *, is_global: bool = False, explicit_target: bool = False) -> str:
+    if is_global or explicit_target:
+        return json.dumps(str((target / "get-physics-done" / "bin" / "gpd").resolve()))
+    return json.dumps(f"./{target.name}/get-physics-done/bin/gpd")
+
+
 class TestProperties:
     def test_runtime_name(self, adapter: CodexAdapter) -> None:
         assert adapter.runtime_name == "codex"
@@ -154,7 +160,7 @@ class TestConvertToCodexSkill:
 
 
 class TestInstall:
-    def test_local_install_uses_target_skills_dir_by_default(
+    def test_local_install_uses_shared_skills_dir_by_default(
         self,
         adapter: CodexAdapter,
         gpd_root: Path,
@@ -163,18 +169,17 @@ class TestInstall:
     ) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
-        global_skills = tmp_path / "global-skills"
-        preserved_skill = global_skills / "gpd-keep"
+        shared_skills = tmp_path / "global-skills"
+        preserved_skill = shared_skills / "custom-keep"
         preserved_skill.mkdir(parents=True)
         (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
-        monkeypatch.setenv("CODEX_SKILLS_DIR", str(global_skills))
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
 
         result = adapter.install(gpd_root, target, is_global=False)
 
-        local_skills = target / "skills"
-        assert result["skills_dir"] == str(local_skills)
-        assert any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
-        assert (global_skills / "gpd-keep" / "SKILL.md").exists()
+        assert result["skills_dir"] == str(shared_skills)
+        assert any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
+        assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_install_creates_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -188,29 +193,42 @@ class TestInstall:
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
 
-    def test_install_tags_shell_gpd_calls_with_codex_runtime(
+    def test_install_creates_pinned_launcher_and_rewrites_gpd_cli_calls(
         self,
         adapter: CodexAdapter,
         tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
         target = tmp_path / ".codex"
         target.mkdir()
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        adapter.install(gpd_root, target, skills_dir=skills)
+        shared_skills = tmp_path / "shared-skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
+        adapter.install(gpd_root, target, is_global=False)
 
-        skill = (skills / "gpd-settings" / "SKILL.md").read_text(encoding="utf-8")
-        workflow = (target / "get-physics-done" / "workflows" / "settings.md").read_text(encoding="utf-8")
+        launcher = target / "get-physics-done" / "bin" / "gpd"
+        launcher_text = launcher.read_text(encoding="utf-8")
+        assert launcher.exists()
+        assert launcher_text.startswith("#!/bin/sh\n")
+        assert "export GPD_ACTIVE_RUNTIME=codex" in launcher_text
+        assert "export GPD_DISABLE_CHECKOUT_REEXEC=1" in launcher_text
+        assert "export PYTHONPATH=\"$CHECKOUT_SRC:$PYTHONPATH\"" in launcher_text
+        assert "-m gpd.cli" in launcher_text
+        assert oct(launcher.stat().st_mode & 0o777) == "0o755"
+
+        expected_launcher = expected_codex_launcher(target)
+        skill = (shared_skills / "gpd-set-profile" / "SKILL.md").read_text(encoding="utf-8")
+        workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
         assert "Codex shell compatibility:" in skill
+        assert f"When shell steps call the GPD CLI, use {expected_launcher}" in skill
         assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" in skill
-        assert "GPD_ACTIVE_RUNTIME=codex gpd config ensure-section" in skill
-        assert 'INIT=$(GPD_ACTIVE_RUNTIME=codex gpd init progress --include state,config)' in skill
+        assert expected_launcher + " config ensure-section" in skill
+        assert f'INIT=$({expected_launcher} init progress --include state,config)' in skill
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in skill
-        assert "GPD_ACTIVE_RUNTIME=codex gpd config ensure-section" in workflow
-        assert 'INIT=$(GPD_ACTIVE_RUNTIME=codex gpd init plan-phase "${PHASE}")' in agent
+        assert expected_launcher + " config ensure-section" in workflow
+        assert f'INIT=$({expected_launcher} init plan-phase "${{PHASE}}")' in agent
         assert "```bash\ngpd config ensure-section\n" not in workflow
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
@@ -360,15 +378,20 @@ class TestInstall:
         adapter: CodexAdapter,
         gpd_root: Path,
         tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         target = tmp_path / "custom-codex"
         target.mkdir()
+        shared_skills = tmp_path / "shared-skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
 
         adapter.install(gpd_root, target, is_global=False, explicit_target=True)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
         assert f'"{(target / "hooks" / "notify.py").as_posix()}"' in content
         assert '".codex/hooks/notify.py"' not in content
+        workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        assert expected_codex_launcher(target, explicit_target=True) + " config ensure-section" in workflow
 
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,
@@ -383,6 +406,8 @@ class TestInstall:
             '# GPD update notification\nnotify = ["python3", ".codex/hooks/notify.py"]\n',
             encoding="utf-8",
         )
+        shared_skills = tmp_path / "shared-skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
 
         adapter.install(gpd_root, target, is_global=False)
@@ -580,7 +605,7 @@ class TestUninstall:
         )
         assert (preserved_skill / "SKILL.md").exists()
 
-    def test_local_uninstall_uses_target_skills_dir_by_default(
+    def test_local_uninstall_uses_shared_skills_dir_by_default(
         self,
         adapter: CodexAdapter,
         gpd_root: Path,
@@ -589,18 +614,17 @@ class TestUninstall:
     ) -> None:
         target = tmp_path / ".codex"
         target.mkdir()
-        global_skills = tmp_path / "global-skills"
-        preserved_skill = global_skills / "gpd-keep"
+        shared_skills = tmp_path / "global-skills"
+        preserved_skill = shared_skills / "custom-keep"
         preserved_skill.mkdir(parents=True)
         (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
-        monkeypatch.setenv("CODEX_SKILLS_DIR", str(global_skills))
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
 
         adapter.install(gpd_root, target, is_global=False)
         adapter.uninstall(target)
 
-        local_skills = target / "skills"
-        assert not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
-        assert (global_skills / "gpd-keep" / "SKILL.md").exists()
+        assert not any(d.name.startswith("gpd-") for d in shared_skills.iterdir() if d.is_dir())
+        assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"

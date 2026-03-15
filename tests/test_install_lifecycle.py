@@ -645,7 +645,7 @@ class TestManifestConsistency:
 
         install_kwargs: dict[str, object] = {"is_global": is_global}
         if runtime == "codex":
-            skills_dir = (tmp_path / "global-skills") if is_global else (tmp_path / ".codex" / "skills")
+            skills_dir = tmp_path / ".agents" / "skills"
             skills_dir.mkdir(parents=True, exist_ok=True)
             install_kwargs["skills_dir"] = skills_dir
 
@@ -679,7 +679,7 @@ class TestManifestConsistency:
 
         install_kwargs: dict[str, object] = {"is_global": is_global, "explicit_target": True}
         if runtime == "codex":
-            skills_dir = (tmp_path / "global-skills") if is_global else (target / "skills")
+            skills_dir = tmp_path / ".agents" / "skills"
             skills_dir.mkdir(parents=True, exist_ok=True)
             install_kwargs["skills_dir"] = skills_dir
 

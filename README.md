@@ -85,12 +85,9 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 
 Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally from your system terminal and use the commands shown above.
 
-Codex-specific note:
-- GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.
-- Codex installs runtime commands into the shared skills directory and exposes only public `gpd-*` agents there as discoverable skills; the full agent catalog still installs under `.codex/agents/`.
-
-Gemini-specific note:
-- GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
+Notes:
+- Codex: GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, and configures the required notify hook and built-in MCP servers as part of a complete Codex setup.
+- Gemini: GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, and configures the required hooks and built-in MCP servers as part of a complete Gemini setup.
 
 ## What GPD Does
 

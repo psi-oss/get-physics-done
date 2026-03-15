@@ -75,12 +75,11 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
 )
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
 _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
-_CODEX_RUNTIME_ENV_PREFIX = f"{ENV_GPD_ACTIVE_RUNTIME}=codex "
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
-    f"- When shell steps call the GPD CLI, prefix them with `{ENV_GPD_ACTIVE_RUNTIME}=codex` so runtime-scoped config resolves for Codex even when other local runtime installs exist.\n"
-    f"- If you need the repo environment, keep the same prefix: `{ENV_GPD_ACTIVE_RUNTIME}=codex uv run gpd ...`.\n"
+    "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
+    f"- If you intentionally need the repo environment, keep the runtime pin: `{ENV_GPD_ACTIVE_RUNTIME}=codex uv run gpd ...`.\n"
     "</codex_runtime_notes>\n\n"
 )
 
@@ -112,14 +111,12 @@ def get_codex_skills_dir() -> Path:
 def _resolve_codex_skills_dir(target_dir: Path, *, is_global: bool, skills_dir: Path | None = None) -> Path:
     """Resolve the skills directory for an install/uninstall target.
 
-    Global installs use the shared Codex skills directory. Local installs stay
-    self-contained under the target config dir unless the caller overrides it.
+    Codex discovers skills from the shared skills directory only, so both local
+    and global installs default there unless the caller overrides it.
     """
     if skills_dir is not None:
         return skills_dir
-    if is_global:
-        return get_codex_skills_dir()
-    return target_dir / "skills"
+    return get_codex_skills_dir()
 
 
 def _load_manifest_codex_skills_dir(target_dir: Path) -> Path | None:
@@ -165,6 +162,61 @@ def _is_global_codex_target(target_dir: Path) -> bool:
         return target_dir.expanduser().resolve() == get_codex_global_dir().expanduser().resolve()
     except OSError:
         return target_dir.expanduser() == get_codex_global_dir().expanduser()
+
+
+def _managed_codex_cli_launcher_path(target_dir: Path) -> Path:
+    """Return the install-managed GPD launcher path for Codex shell calls."""
+    return target_dir / "get-physics-done" / "bin" / "gpd"
+
+
+def _codex_shell_launcher(target_dir: Path, *, is_global: bool, explicit_target: bool) -> str:
+    """Return the shell-safe launcher Codex should use for GPD CLI calls."""
+    if is_global or explicit_target:
+        return json.dumps(str(_managed_codex_cli_launcher_path(target_dir).resolve()))
+    return json.dumps(f"./{target_dir.name}/get-physics-done/bin/gpd")
+
+
+def _codex_launcher_checkout_src() -> str | None:
+    """Return the checkout ``src`` path the Codex launcher should pin, if any."""
+    from gpd.version import checkout_root
+
+    root = checkout_root()
+    if root is None:
+        return None
+
+    checkout_src = (root / "src").resolve(strict=False)
+    if not checkout_src.is_dir():
+        return None
+    return str(checkout_src)
+
+
+def _ensure_codex_cli_launcher(target_dir: Path) -> Path:
+    """Write the workspace-pinned GPD launcher Codex shell commands should invoke."""
+    launcher_path = _managed_codex_cli_launcher_path(target_dir)
+    launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    launcher_lines = [
+        "#!/bin/sh",
+        "# Managed by Get Physics Done (GPD).",
+        "# The launcher already pins execution, so skip CLI checkout re-exec heuristics.",
+        f"export {ENV_GPD_ACTIVE_RUNTIME}=codex",
+        "export GPD_DISABLE_CHECKOUT_REEXEC=1",
+    ]
+    checkout_src = _codex_launcher_checkout_src()
+    if checkout_src:
+        launcher_lines.extend(
+            [
+                f"CHECKOUT_SRC={json.dumps(checkout_src)}",
+                'if [ -n "${PYTHONPATH:-}" ]; then',
+                '  export PYTHONPATH="$CHECKOUT_SRC:$PYTHONPATH"',
+                "else",
+                '  export PYTHONPATH="$CHECKOUT_SRC"',
+                "fi",
+            ]
+        )
+    launcher_lines.append(f'exec {json.dumps(hook_python_interpreter())} -m gpd.cli "$@"')
+    launcher_path.write_text("\n".join(launcher_lines) + "\n", encoding="utf-8")
+    launcher_path.chmod(0o755)
+    return launcher_path
 
 
 # ─── Codex-specific content conversion ─────────────────────────────────────
@@ -296,16 +348,17 @@ def _toml_value(value: object) -> str:
     raise TypeError(f"Unsupported TOML scalar value: {value!r}")
 
 
-def _inject_codex_command_runtime_note(content: str) -> str:
+def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     """Prepend Codex-specific shell guidance to installed command skills."""
+    note = _CODEX_COMMAND_RUNTIME_NOTE.format(launcher=launcher)
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
-        return _CODEX_COMMAND_RUNTIME_NOTE + content
-    return render_markdown_frontmatter(preamble, frontmatter, separator, _CODEX_COMMAND_RUNTIME_NOTE + body)
+        return note + content
+    return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
 
 
-def _rewrite_codex_gpd_cli_invocations(content: str) -> str:
-    """Rewrite direct shell ``gpd`` calls to carry the explicit Codex runtime."""
+def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
+    """Rewrite direct shell ``gpd`` calls to the install-pinned Codex launcher."""
     rewritten: list[str] = []
     in_shell_fence = False
 
@@ -321,7 +374,7 @@ def _rewrite_codex_gpd_cli_invocations(content: str) -> str:
             continue
 
         if in_shell_fence:
-            rewritten.append(_rewrite_codex_shell_line(line))
+            rewritten.append(_rewrite_codex_shell_line(line, launcher))
             continue
 
         rewritten.append(line)
@@ -329,7 +382,7 @@ def _rewrite_codex_gpd_cli_invocations(content: str) -> str:
     return "".join(rewritten)
 
 
-def _rewrite_codex_shell_line(line: str) -> str:
+def _rewrite_codex_shell_line(line: str, launcher: str) -> str:
     """Rewrite only command-position ``gpd`` tokens on a shell line."""
     pieces: list[str] = []
     index = 0
@@ -359,7 +412,7 @@ def _rewrite_codex_shell_line(line: str) -> str:
             and _is_gpd_command_start(line, index)
             and _is_gpd_token_end(line, index + 3)
         ):
-            pieces.append(_CODEX_RUNTIME_ENV_PREFIX + "gpd")
+            pieces.append(launcher)
             index += 3
             continue
 
@@ -431,6 +484,14 @@ class CodexAdapter(RuntimeAdapter):
         """Codex should only expose public agents as discoverable skills."""
         return agent.surface == "public"
 
+    def _gpd_shell_launcher(self, target_dir: Path) -> str:
+        """Return the shell-safe launcher command active install surfaces should use."""
+        return _codex_shell_launcher(
+            target_dir,
+            is_global=getattr(self, "_install_is_global", False),
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+
     def install(
         self,
         gpd_root: Path,
@@ -466,6 +527,7 @@ class CodexAdapter(RuntimeAdapter):
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
+        launcher = self._gpd_shell_launcher(target_dir)
         self._skills_dir.mkdir(parents=True, exist_ok=True)
         _copy_commands_as_skills(
             commands_src,
@@ -474,6 +536,7 @@ class CodexAdapter(RuntimeAdapter):
             path_prefix,
             gpd_root / "specs",
             self._current_install_scope_flag(),
+            launcher=launcher,
         )
         if verify_installed(self._skills_dir, "command skills"):
             logger.info("Installed command skills")
@@ -484,6 +547,7 @@ class CodexAdapter(RuntimeAdapter):
 
     def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
         """Install shared specs content with Codex runtime-aware shell rewrites."""
+        launcher = self._gpd_shell_launcher(target_dir)
 
         def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
             translated = super(CodexAdapter, self).translate_shared_markdown(
@@ -491,7 +555,7 @@ class CodexAdapter(RuntimeAdapter):
                 prefix,
                 install_scope=install_scope,
             )
-            return _rewrite_codex_gpd_cli_invocations(translated)
+            return _rewrite_codex_gpd_cli_invocations(translated, launcher)
 
         from gpd.adapters.install_utils import install_gpd_content
 
@@ -509,6 +573,7 @@ class CodexAdapter(RuntimeAdapter):
     def _install_agents(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         agents_src = gpd_root / "agents"
         gpd_specs_root = gpd_root / "specs"
+        launcher = self._gpd_shell_launcher(target_dir)
         runtime_agents = self.load_runtime_agents(gpd_root)
         discoverable_agent_names = {
             agent.name for agent in runtime_agents if self.should_install_agent_as_discoverable_surface(agent)
@@ -524,6 +589,7 @@ class CodexAdapter(RuntimeAdapter):
                 gpd_specs_root,
                 self._current_install_scope_flag(),
                 discoverable_agent_names=discoverable_agent_names,
+                launcher=launcher,
             )
             logger.info("Installed %d public agent skills", len(discoverable_agent_names))
 
@@ -536,6 +602,7 @@ class CodexAdapter(RuntimeAdapter):
                 path_prefix,
                 gpd_specs_root,
                 self._current_install_scope_flag(),
+                launcher=launcher,
             )
             if verify_installed(agents_dest, "agents"):
                 logger.info("Installed agents")
@@ -543,6 +610,14 @@ class CodexAdapter(RuntimeAdapter):
                 failures.append("agents")
 
         return agent_count
+
+    def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
+        """Write VERSION and install the pinned Codex GPD launcher."""
+        super()._install_version(target_dir, version, failures)
+        try:
+            _ensure_codex_cli_launcher(target_dir)
+        except OSError:
+            failures.append("get-physics-done/bin/gpd")
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         _configure_config_toml(
@@ -565,6 +640,11 @@ class CodexAdapter(RuntimeAdapter):
             "skills": sum(1 for d in self._skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")),
             "mcpServers": mcp_count,
         }
+
+    def _verify(self, target_dir: Path) -> None:
+        """Verify the Codex install includes the pinned GPD launcher."""
+        if not _managed_codex_cli_launcher_path(target_dir).exists():
+            raise RuntimeError("Codex install incomplete: pinned GPD launcher is not installed")
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         write_manifest(
@@ -687,6 +767,8 @@ def _copy_commands_as_skills(
     path_prefix: str,
     gpd_src_root: Path | None = None,
     install_scope: str | None = None,
+    *,
+    launcher: str,
 ) -> None:
     """Copy commands as Codex skill directories.
 
@@ -715,6 +797,7 @@ def _copy_commands_as_skills(
                 path_prefix,
                 gpd_src_root,
                 install_scope,
+                launcher=launcher,
             )
         elif entry.suffix == ".md":
             base_name = entry.stem
@@ -731,8 +814,8 @@ def _copy_commands_as_skills(
             )
             content = _convert_to_codex_skill(content, skill_name)
             content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-            content = _rewrite_codex_gpd_cli_invocations(content)
-            content = _inject_codex_command_runtime_note(content)
+            content = _rewrite_codex_gpd_cli_invocations(content, launcher)
+            content = _inject_codex_command_runtime_note(content, launcher)
 
             (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -745,6 +828,7 @@ def _copy_agents_as_skills(
     install_scope: str | None = None,
     *,
     discoverable_agent_names: set[str] | None = None,
+    launcher: str,
 ) -> None:
     """Copy agents as Codex skill directories.
 
@@ -780,7 +864,7 @@ def _copy_agents_as_skills(
         )
         content = _convert_to_codex_skill(content, skill_name)
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-        content = _rewrite_codex_gpd_cli_invocations(content)
+        content = _rewrite_codex_gpd_cli_invocations(content, launcher)
 
         (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
 
@@ -791,6 +875,8 @@ def _copy_agents_as_agent_files(
     path_prefix: str,
     gpd_content_dir: Path | None = None,
     install_scope: str | None = None,
+    *,
+    launcher: str,
 ) -> None:
     """Copy agents as runtime agent markdown files for Codex.
 
@@ -816,7 +902,7 @@ def _copy_agents_as_agent_files(
             protect_agent_prompt_body=True,
         )
         content = convert_tool_references_in_body(content, _TOOL_REFERENCE_MAP)
-        content = _rewrite_codex_gpd_cli_invocations(content)
+        content = _rewrite_codex_gpd_cli_invocations(content, launcher)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
         new_agent_names.add(entry.name)

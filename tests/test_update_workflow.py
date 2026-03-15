@@ -34,10 +34,18 @@ def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
 
 
 @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
-def test_default_local_install_keeps_local_update_scope_and_manifest(tmp_path: Path, runtime: str) -> None:
+def test_default_local_install_keeps_local_update_scope_and_manifest(
+    tmp_path: Path,
+    runtime: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     adapter = get_adapter(runtime)
     target = tmp_path / adapter.config_dir_name
     target.mkdir(parents=True)
+
+    if runtime == "codex":
+        shared_skills = tmp_path / ".agents" / "skills"
+        monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
 
     adapter.install(GPD_ROOT, target, is_global=False)
 
