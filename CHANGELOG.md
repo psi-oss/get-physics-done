@@ -2,9 +2,10 @@
 
 All notable changes to Get Physics Done are documented here.
 
-Format: each release gets a `## vX.Y.Z` heading with a brief summary of changes.
-The release workflow validates that the latest heading here matches the version
-in `pyproject.toml` and `package.json` before publishing.
+Add your changes under `## vNEXT` as you work. When you trigger the release
+workflow, it bumps the version and renames `vNEXT` to the actual version number.
+
+## vNEXT
 
 ## v1.0.1
 
