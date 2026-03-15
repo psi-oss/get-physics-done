@@ -4,6 +4,14 @@ Thanks for helping improve Get Physics Done.
 
 GPD is published by Physical Superintelligence PBC (PSI) as an open-source community contribution for physics research workflows. We welcome fixes, tests, documentation improvements, and carefully scoped feature work.
 
+## Contributor License Agreement (CLA)
+
+All contributors must sign a CLA before their pull requests can be merged.
+
+**Individual contributors:** Sign the CLA at https://cla-assistant.io/psi-oss/get-physics-done — the CLA Assistant bot will prompt you automatically when you open a pull request.
+
+**Corporate contributors** (if your employer owns your IP): Download [GPD_CLA_Corporate.pdf](CLA/GPD_CLA_Corporate.pdf), sign it, and email it to legal@psi.inc.
+
 ## Before You Start
 
 - Search existing issues and pull requests before opening a new one.
