@@ -720,13 +720,16 @@ function formatRuntimeList(runtimes) {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
-function runtimeCommandPrefix(runtime) {
-  return runtimeRecord(runtime).command_prefix;
-}
+function formatLocationExample(runtimes, scope) {
+  if (runtimes.length !== 1) {
+    return "one config dir per runtime";
+  }
 
-function formatRuntimeCommand(runtime, action) {
-  const prefix = runtimeCommandPrefix(runtime);
-  return `${prefix}${action}`;
+  const runtime = runtimes[0];
+  if (scope === "global") {
+    return formatDisplayPath(runtimeGlobalConfigDir(runtime));
+  }
+  return `./${runtimeConfigDirName(runtime)}`;
 }
 
 function formatMenuOption(index, label, details = [], options = {}) {
@@ -1004,17 +1007,15 @@ async function selectInstallScope(args, runtimes, targetDir, action = "install")
     return "global";
   }
 
-  const globalExamples = runtimes.map((runtime) => formatDisplayPath(runtimeGlobalConfigDir(runtime))).join(", ");
-  const localExamples = runtimes.map((runtime) => `./${runtimeConfigDirName(runtime)}`).join(", ");
-  const globalDescription = action === "uninstall" ? "remove it from all projects" : "available in all projects";
-  const localDescription = action === "uninstall" ? "remove it from this project only" : "this project only";
+  const globalExample = formatLocationExample(runtimes, "global");
+  const localExample = formatLocationExample(runtimes, "local");
   const optionLabelWidth = Math.max("Local".length, "Global".length);
   const sectionTitle = action === "uninstall" ? "Uninstall location" : "Install location";
 
   console.log(` ${bold}${brandTitle}${sectionTitle}${reset}`);
   console.log("");
-  console.log(formatMenuOption(1, "Local", [localDescription, localExamples], { labelWidth: optionLabelWidth }));
-  console.log(formatMenuOption(2, "Global", [globalDescription, globalExamples], { labelWidth: optionLabelWidth }));
+  console.log(formatMenuOption(1, "Local", ["current project only", localExample], { labelWidth: optionLabelWidth }));
+  console.log(formatMenuOption(2, "Global", ["all projects", globalExample], { labelWidth: optionLabelWidth }));
   console.log("");
 
   const choice = ((await prompt(` ${bold}${brandTitle}Enter choice${reset} ${dim}[1]${reset}: `)) || "1").toLowerCase();
@@ -1045,25 +1046,6 @@ function buildRuntimeCommandArgs(command, runtimes, scope, targetDir = null, opt
     cliArgs.push("--force-statusline");
   }
   return cliArgs;
-}
-
-function printCompletionSummary(runtimes, scope) {
-  console.log("");
-  success(`Installed GPD for ${formatRuntimeList(runtimes)} (${scope}).`);
-  console.log("");
-
-  if (runtimes.length === 1) {
-    const runtime = runtimes[0];
-    console.log(`  Start a new project:  ${formatRuntimeCommand(runtime, "new-project")}`);
-    console.log(`  Show commands:        ${formatRuntimeCommand(runtime, "help")}`);
-  } else {
-    const width = Math.max(...runtimes.map((runtime) => runtimeDisplayName(runtime).length));
-    console.log("  Start a new project:");
-    for (const runtime of runtimes) {
-      console.log(`  ${runtimeDisplayName(runtime).padEnd(width)}  ${formatRuntimeCommand(runtime, "new-project")}`);
-    }
-  }
-  console.log("");
 }
 
 async function main() {
@@ -1146,8 +1128,9 @@ async function main() {
     process.exit(1);
   }
 
-  const actionMessage = isUninstall ? "Uninstalling GPD from" : "Installing GPD for";
-  log(`${actionMessage} ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
+  if (isUninstall) {
+    log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
+  }
 
   const cliArgs = buildRuntimeCommandArgs(action, selectedRuntimes, scope, targetDir, { forceStatusline });
 
@@ -1158,9 +1141,7 @@ async function main() {
   });
 
   if (result.status === 0) {
-    if (!isUninstall) {
-      printCompletionSummary(selectedRuntimes, scope);
-    }
+    return;
   } else {
     error(`${isUninstall ? "Uninstall" : "Installation"} failed. Check the output above for details.`);
     process.exit(1);

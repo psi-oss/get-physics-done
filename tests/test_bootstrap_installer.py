@@ -26,6 +26,19 @@ TAG_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/tags/v{PYTHON_PACKAGE_VERSION}
 MAIN_ARCHIVE_SPEC = f"{REPO_BASE_URL}/archive/refs/heads/main.tar.gz"
 TAG_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@v{PYTHON_PACKAGE_VERSION}"
 MAIN_HTTPS_GIT_SPEC = f"git+{REPO_GIT_URL}@main"
+RUNTIME_DISPLAY_NAMES = {
+    "claude-code": "Claude Code",
+    "codex": "Codex",
+    "gemini": "Gemini CLI",
+    "opencode": "OpenCode",
+}
+RUNTIME_HELP_COMMANDS = {
+    "claude-code": "/gpd:help",
+    "codex": "$gpd-help",
+    "gemini": "/gpd:help",
+    "opencode": "/gpd-help",
+}
+ALL_RUNTIME_NAMES = list(RUNTIME_DISPLAY_NAMES)
 
 
 def test_version_consistency():
@@ -51,6 +64,30 @@ TAG_ARCHIVE_SPEC = {TAG_ARCHIVE_SPEC!r}
 MAIN_ARCHIVE_SPEC = {MAIN_ARCHIVE_SPEC!r}
 TAG_HTTPS_GIT_SPEC = {TAG_HTTPS_GIT_SPEC!r}
 MAIN_HTTPS_GIT_SPEC = {MAIN_HTTPS_GIT_SPEC!r}
+RUNTIME_LABELS = {RUNTIME_DISPLAY_NAMES!r}
+HELP_COMMANDS = {RUNTIME_HELP_COMMANDS!r}
+ALL_RUNTIMES = {ALL_RUNTIME_NAMES!r}
+
+
+def format_runtime_list(runtimes: list[str]) -> str:
+    labels = [RUNTIME_LABELS[runtime] for runtime in runtimes]
+    if not labels:
+        return "no runtimes"
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{{labels[0]}} and {{labels[1]}}"
+    return f"{{', '.join(labels[:-1])}}, and {{labels[-1]}}"
+
+
+def selected_runtimes(argv: list[str]) -> list[str]:
+    if "--all" in argv:
+        return list(ALL_RUNTIMES)
+    return [arg for arg in argv[3:] if arg in RUNTIME_LABELS]
+
+
+def selected_scope(argv: list[str]) -> str:
+    return "global" if "--global" in argv else "local"
 
 
 def record() -> None:
@@ -127,7 +164,19 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     raise SystemExit(0)
 
 if args[:3] == ["-m", "gpd.cli", "install"]:
-    print("runtime install ok")
+    runtimes = selected_runtimes(args)
+    scope = selected_scope(args)
+    print(f"Installing GPD ({{scope}}) for: {{format_runtime_list(runtimes)}}")
+    for runtime in runtimes:
+        print(f"✓ {{RUNTIME_LABELS[runtime]}}")
+    print("Install Summary")
+    if len(runtimes) == 1:
+        runtime = runtimes[0]
+        print(f"Run {{HELP_COMMANDS[runtime]}} to see available commands.")
+    else:
+        print("Run the runtime-specific help command to see available commands:")
+        for runtime in runtimes:
+            print(f"- {{RUNTIME_LABELS[runtime]}}: {{HELP_COMMANDS[runtime]}}")
     record()
     raise SystemExit(0)
 
@@ -211,8 +260,11 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert (home / ".gpd" / "venv" / "bin" / "python").exists()
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
-    assert "Installed GPD for Codex (local)." in result.stdout
-    assert "$gpd-new-project" in result.stdout
+    assert "Installing GPD (local) for: Codex" in result.stdout
+    assert "Install Summary" in result.stdout
+    assert "Run $gpd-help to see available commands." in result.stdout
+    assert "Installing GPD for Codex (local)..." not in result.stdout
+    assert "Installed GPD for Codex (local)." not in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -290,7 +342,9 @@ def test_bootstrap_install_subcommand_accepts_positional_runtime_alias(tmp_path:
     ]
 
     assert len(managed_runtime_installs) == 1
-    assert "Installed GPD for Codex (local)." in result.stdout
+    assert "Installing GPD (local) for: Codex" in result.stdout
+    assert "Install Summary" in result.stdout
+    assert "Installed GPD for Codex (local)." not in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -376,7 +430,8 @@ def test_bootstrap_hides_successful_pip_chatter(tmp_path: Path) -> None:
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
     assert "Requirement already satisfied: noisy-package==1.0.0" not in result.stdout
-    assert "Installed GPD for Codex (local)." in result.stdout
+    assert "Install Summary" in result.stdout
+    assert "Installed GPD for Codex (local)." not in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -568,6 +623,8 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
     assert "Gemini CLI" in result.stdout
     assert "Codex" in result.stdout
     assert "OpenCode" in result.stdout
+    assert "Install Summary" in result.stdout
+    assert "Run the runtime-specific help command to see available commands:" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
