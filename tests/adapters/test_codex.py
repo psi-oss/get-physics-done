@@ -384,8 +384,9 @@ class TestInstall:
         target.mkdir()
         shared_skills = tmp_path / "shared-skills"
         monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
+        real_gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
 
-        adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+        adapter.install(real_gpd_root, target, is_global=False, explicit_target=True)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
         assert f'"{(target / "hooks" / "notify.py").as_posix()}"' in content
