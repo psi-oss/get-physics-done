@@ -3937,7 +3937,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
     from gpd.adapters import get_adapter
 
     console.print()
-    table = Table(title="Install Summary", show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
+    table = Table(title="Install Summary", title_style=f"italic {_INSTALL_ACCENT_COLOR}", show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
     table.add_column("Runtime", style="bold")
     table.add_column("Target")
     table.add_column("Status")
@@ -3969,11 +3969,11 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
         unique_help_commands = {help_command for _display_name, help_command in help_entries}
         console.print()
         if len(unique_help_commands) == 1:
-            console.print(f"[dim]Run [bold]{help_entries[0][1]}[/bold] to see available commands.[/]")
+            console.print(f"[dim]Run [{_INSTALL_ACCENT_COLOR} bold]{help_entries[0][1]}[/] to see available commands.[/]")
         else:
             console.print("[dim]Run the runtime-specific help command to see available commands:[/]")
             for display_name, help_command in help_entries:
-                console.print(f"[dim]- {display_name}: [bold]{help_command}[/bold][/]")
+                console.print(f"[dim]- {display_name}: [{_INSTALL_ACCENT_COLOR} bold]{help_command}[/][/]")
         console.print()
 
 
