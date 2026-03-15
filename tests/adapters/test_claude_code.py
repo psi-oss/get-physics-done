@@ -17,6 +17,10 @@ def adapter() -> ClaudeCodeAdapter:
     return ClaudeCodeAdapter()
 
 
+def expected_claude_launcher(target: Path) -> str:
+    return json.dumps(str((target / "get-physics-done" / "bin" / "gpd").resolve()))
+
+
 def _make_checkout(tmp_path: Path, version: str) -> Path:
     """Create a minimal GPD source checkout with an explicit version."""
     repo_root = tmp_path / "checkout"
@@ -158,6 +162,37 @@ class TestInstall:
         assert isinstance(result["agents"], int)
         assert result["commands"] > 0
         assert result["agents"] > 0
+
+    def test_install_creates_pinned_launcher_and_rewrites_gpd_cli_calls(
+        self,
+        adapter: ClaudeCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        launcher = target / "get-physics-done" / "bin" / "gpd"
+        launcher_text = launcher.read_text(encoding="utf-8")
+        assert launcher.exists()
+        assert launcher_text.startswith("#!/bin/sh\n")
+        assert "export GPD_DISABLE_CHECKOUT_REEXEC=1" in launcher_text
+        assert "export PYTHONPATH=\"$CHECKOUT_SRC:$PYTHONPATH\"" in launcher_text
+        assert "-m gpd.cli" in launcher_text
+        assert oct(launcher.stat().st_mode & 0o777) == "0o755"
+
+        expected_launcher = expected_claude_launcher(target)
+        command = (target / "commands" / "gpd" / "settings.md").read_text(encoding="utf-8")
+        workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert expected_launcher + " convention set" in command
+        assert expected_launcher + " init progress --include state,config" in workflow
+        assert f'INIT=$({expected_launcher} init plan-phase "${{PHASE}}")' in agent
+        assert "gpd convention set" not in command
+        assert "gpd init progress --include state,config" not in workflow
+        assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
     def test_install_configures_update_hook(self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / "target" / ".claude"
@@ -489,6 +524,7 @@ class TestUninstall:
 
         assert not (target / "commands" / "gpd").exists()
         assert not (target / "get-physics-done").exists()
+        assert not (target / "get-physics-done" / "bin" / "gpd").exists()
         assert not (target / "gpd-file-manifest.json").exists()
         assert "removed" in result
 

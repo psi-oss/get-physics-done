@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,6 +29,8 @@ from gpd.adapters.install_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+_GPD_CLI_INVOCATION_RE = re.compile(r'(?<![A-Za-z0-9_./:-])gpd(?=(?:\s|["\'`]|$))')
 
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "Read",
@@ -62,13 +66,22 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         commands_src = gpd_root / "commands"
         commands_dest = target_dir / "commands" / "gpd"
         (target_dir / "commands").mkdir(parents=True, exist_ok=True)
+
+        def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
+            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+                content,
+                prefix,
+                install_scope=install_scope,
+            )
+            return _rewrite_gpd_cli_invocations(translated, target_dir)
+
         copy_with_path_replacement(
             commands_src,
             commands_dest,
             path_prefix,
             self.runtime_name,
             self._current_install_scope_flag(),
-            markdown_transform=self.translate_shared_markdown,
+            markdown_transform=_translate,
         )
         if verify_installed(commands_dest, "commands/gpd"):
             logger.info("Installed commands/gpd")
@@ -86,12 +99,50 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             self.runtime_name,
             self._current_install_scope_flag(),
             translate_tool_name=self.translate_frontmatter_tool_name,
+            content_transform=lambda content: _rewrite_gpd_cli_invocations(content, target_dir),
         )
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
         else:
             failures.append("agents")
         return sum(1 for f in agents_dest.iterdir() if f.is_file() and f.suffix == ".md") if agents_dest.exists() else 0
+
+    def _install_content(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> None:
+        """Install shared specs content with a pinned Claude CLI launcher."""
+
+        def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
+            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+                content,
+                prefix,
+                install_scope=install_scope,
+            )
+            return _rewrite_gpd_cli_invocations(translated, target_dir)
+
+        from gpd.adapters.install_utils import install_gpd_content
+
+        failures.extend(
+            install_gpd_content(
+                gpd_root / "specs",
+                target_dir,
+                path_prefix,
+                self.runtime_name,
+                install_scope=self._current_install_scope_flag(),
+                markdown_transform=_translate,
+            )
+        )
+
+    def _install_version(self, target_dir: Path, version: str, failures: list[str]) -> None:
+        """Write VERSION and install the pinned Claude GPD launcher."""
+        super()._install_version(target_dir, version, failures)
+        try:
+            _ensure_claude_cli_launcher(target_dir)
+        except OSError:
+            failures.append("get-physics-done/bin/gpd")
+
+    def _verify(self, target_dir: Path) -> None:
+        """Verify the Claude Code install includes the pinned GPD launcher."""
+        if not _managed_claude_cli_launcher_path(target_dir).exists():
+            raise RuntimeError("Claude Code install incomplete: pinned GPD launcher is not installed")
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
@@ -303,6 +354,7 @@ def _copy_agents_native(
     runtime: str,
     install_scope: str | None = None,
     translate_tool_name: Callable[[str], str | None] | None = None,
+    content_transform: Callable[[str], str] | None = None,
 ) -> None:
     """Copy agent .md files with placeholder replacement and tool-name translation.
 
@@ -327,10 +379,69 @@ def _copy_agents_native(
         )
         if translate_tool_name is not None:
             content = translate_frontmatter_tool_names(content, translate_tool_name)
+        if content_transform is not None:
+            content = content_transform(content)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
+
+
+def _managed_claude_cli_launcher_path(target_dir: Path) -> Path:
+    """Return the pinned GPD CLI launcher path for Claude-installed shell calls."""
+    return target_dir / "get-physics-done" / "bin" / "gpd"
+
+
+def _claude_shell_launcher(target_dir: Path) -> str:
+    """Return the shell-safe Claude launcher command for GPD CLI calls."""
+    return json.dumps(str(_managed_claude_cli_launcher_path(target_dir).resolve()))
+
+
+def _rewrite_gpd_cli_invocations(content: str, target_dir: Path) -> str:
+    """Rewrite bare ``gpd`` invocations to the pinned Claude launcher."""
+    return _GPD_CLI_INVOCATION_RE.sub(_claude_shell_launcher(target_dir), content)
+
+
+def _claude_launcher_checkout_src() -> str | None:
+    """Return the checkout ``src`` path the Claude launcher should pin, if any."""
+    from gpd.version import checkout_root
+
+    root = checkout_root()
+    if root is None:
+        return None
+
+    checkout_src = (root / "src").resolve(strict=False)
+    if not checkout_src.is_dir():
+        return None
+    return str(checkout_src)
+
+
+def _ensure_claude_cli_launcher(target_dir: Path) -> Path:
+    """Write the workspace-pinned GPD launcher Claude shell commands should invoke."""
+    launcher_path = _managed_claude_cli_launcher_path(target_dir)
+    launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    launcher_lines = [
+        "#!/bin/sh",
+        "# Managed by Get Physics Done (GPD).",
+        "# The launcher already pins execution, so skip CLI checkout re-exec heuristics.",
+        "export GPD_DISABLE_CHECKOUT_REEXEC=1",
+    ]
+    checkout_src = _claude_launcher_checkout_src()
+    if checkout_src:
+        launcher_lines.extend(
+            [
+                f"CHECKOUT_SRC={json.dumps(checkout_src)}",
+                'if [ -n "${PYTHONPATH:-}" ]; then',
+                '  export PYTHONPATH="$CHECKOUT_SRC:$PYTHONPATH"',
+                "else",
+                '  export PYTHONPATH="$CHECKOUT_SRC"',
+                "fi",
+            ]
+        )
+    launcher_lines.append(f'exec {json.dumps(hook_python_interpreter())} -m gpd.cli "$@"')
+    launcher_path.write_text("\n".join(launcher_lines) + "\n", encoding="utf-8")
+    launcher_path.chmod(0o755)
+    return launcher_path
 
 
 def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:
