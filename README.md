@@ -37,7 +37,6 @@ Then choose the path that matches your starting point:
 | New research project | `new-project` | Start a fresh GPD research workflow. |
 | Existing research folder or codebase | `map-research` | Map existing work before planning. |
 | Configure workflow and model defaults | `settings` | Set workflow toggles, tier models, and research preferences. |
-| Switch research profile | `set-profile <profile>` | Quickly change how GPD agents approach the work. |
 
 Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes), for example `/gpd:settings` or `/gpd:set-profile review`.
 
