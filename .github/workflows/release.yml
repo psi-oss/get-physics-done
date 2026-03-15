@@ -11,13 +11,18 @@ on:
           - patch
           - minor
           - major
+      dry_run:
+        description: "Dry run — validate and preview without publishing or committing"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: bump, validate, publish
+    name: ${{ inputs.dry_run && 'dry run' || 'bump, validate, publish' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -72,6 +77,7 @@ jobs:
               sys.exit(1)
 
           major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+          old_version = f'{major}.{minor}.{patch}'
 
           if bump == 'major':
               major += 1; minor = 0; patch = 0
@@ -81,7 +87,7 @@ jobs:
               patch += 1
 
           new_version = f'{major}.{minor}.{patch}'
-          print(f'Bumping {match.group(1)}.{match.group(2)}.{match.group(3)} -> {new_version} ({bump})')
+          print(f'Bumping {old_version} -> {new_version} ({bump})')
 
           # Update pyproject.toml
           text = re.sub(r'^(version\s*=\s*\")[\d.]+\"', rf'\g<1>{new_version}\"', text, count=1, flags=re.M)
@@ -102,11 +108,8 @@ jobs:
           # Add fresh vNEXT section at the top (after header)
           cl_text = cl_text.replace(f'## v{new_version}', f'## vNEXT\n\n## v{new_version}', 1)
           changelog.write_text(cl_text)
-
-          print(f'::set-output name=version::{new_version}')
           "
 
-          # Re-read for output (set-output is deprecated, use GITHUB_OUTPUT)
           VERSION=$(python3 -c "
           import re, pathlib
           text = pathlib.Path('pyproject.toml').read_text()
@@ -148,7 +151,35 @@ jobs:
             exit 1
           fi
 
+      - name: Dry run summary
+        if: inputs.dry_run
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          echo ""
+          echo "==========================================="
+          echo "  DRY RUN — nothing was published or committed"
+          echo "==========================================="
+          echo ""
+          echo "  Version:     v${VERSION}"
+          echo "  Bump type:   ${{ inputs.bump }}"
+          echo "  Tag:         v${VERSION} (does not exist yet — good)"
+          echo ""
+          echo "  Files that would be modified:"
+          echo "    - pyproject.toml  (version = \"${VERSION}\")"
+          echo "    - package.json    (version + gpdPythonVersion = \"${VERSION}\")"
+          echo "    - CHANGELOG.md    (## vNEXT renamed to ## v${VERSION})"
+          echo ""
+          echo "  Release notes:"
+          echo "  ---"
+          cat /tmp/release-notes.txt
+          echo "  ---"
+          echo ""
+          echo "  Would publish to: PyPI, npm"
+          echo "  Would create: git tag v${VERSION}, GitHub Release v${VERSION}"
+          echo ""
+
       - name: Commit version bump
+        if: ${{ !inputs.dry_run }}
         run: |
           VERSION="${{ steps.bump.outputs.version }}"
           git config user.name "github-actions[bot]"
@@ -158,11 +189,13 @@ jobs:
           git push
 
       - name: Build Python package
+        if: ${{ !inputs.dry_run }}
         run: |
           pip install build
           python -m build
 
       - name: Publish to PyPI
+        if: ${{ !inputs.dry_run }}
         run: |
           pip install twine
           twine upload dist/*
@@ -171,11 +204,13 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
 
       - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create tag and GitHub release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
