@@ -10,6 +10,7 @@ Usage:
     gpd-mcp-verification
 """
 
+import copy
 import logging
 import re
 import sys
@@ -149,8 +150,46 @@ def _contract_check_request_hint(check_key: str) -> dict[str, object]:
     return {
         "required_request_fields": list(hint.get("required_request_fields", [])),
         "optional_request_fields": list(hint.get("optional_request_fields", [])),
-        "request_template": dict(hint.get("request_template", {})),
+        "request_template": copy.deepcopy(hint.get("request_template", {})),
     }
+
+
+def _normalize_optional_scalar_str(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    return stripped or None
+
+
+def _normalize_string_list(value: object) -> object:
+    if not isinstance(value, list):
+        return value
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        stripped = item.strip()
+        if stripped:
+            normalized.append(stripped)
+    return normalized
+
+
+def _normalize_contract_metadata(metadata: dict[str, object]) -> dict[str, object]:
+    normalized = dict(metadata)
+    for key in ("regime_label", "expected_behavior", "source_reference_id", "declared_family"):
+        if key in normalized:
+            normalized[key] = _normalize_optional_scalar_str(normalized[key])
+    for key in ("allowed_families", "forbidden_families"):
+        if key in normalized:
+            normalized[key] = _normalize_string_list(normalized[key])
+    return normalized
+
+
+def _serialize_verification_check_entry(check_entry: dict[str, object]) -> dict[str, object]:
+    serialized = dict(check_entry)
+    if bool(serialized.get("contract_aware")):
+        serialized.update(_contract_check_request_hint(str(serialized.get("check_key") or "")))
+    return serialized
 
 # ─── Domain Checklists ────────────────────────────────────────────────────────
 
@@ -370,29 +409,22 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
                 ):
                     issues.append("Estimator family is present without bias/variance or calibration diagnostics")
 
-            return {
-                "schema_version": VERIFICATION_SCHEMA_VERSION,
-                "check_id": check_meta.check_id,
-                "check_key": check_meta.check_key,
-                "check_name": check_meta.name,
-                "tier": check_meta.tier,
-                "description": check_meta.description,
-                "catches": check_meta.catches,
-                "evidence_kind": check_meta.evidence_kind,
-                "machine_supported": check_meta.machine_supported,
-                "oracle_hint": check_meta.oracle_hint,
-                "check_class": check_meta.check_class,
-                "contract_aware": check_meta.contract_aware,
-                "binding_targets": check_meta.binding_targets,
-                "domain": domain,
-                "domain_specific_checks": relevant_domain_checks,
-                "automated_issues": issues,
-                "artifact_length": len(artifact_content),
-                "guidance": (
-                    f"Run check {check_meta.check_id} ({check_meta.name}) for domain '{domain}'. "
-                    f"This check catches: {check_meta.catches}."
-                ),
-            }
+            result = _serialize_verification_check_entry(check_meta.model_dump())
+            result.update(
+                {
+                    "schema_version": VERIFICATION_SCHEMA_VERSION,
+                    "check_name": check_meta.name,
+                    "domain": domain,
+                    "domain_specific_checks": relevant_domain_checks,
+                    "automated_issues": issues,
+                    "artifact_length": len(artifact_content),
+                    "guidance": (
+                        f"Run check {check_meta.check_id} ({check_meta.name}) for domain '{domain}'. "
+                        f"This check catches: {check_meta.catches}."
+                    ),
+                }
+            )
+            return result
         except Exception as exc:  # pragma: no cover - defensive envelope
             return _error_result(exc)
 
@@ -592,6 +624,7 @@ def _validate_benchmark_reference_binding(
 ) -> tuple[str | None, str | None]:
     """Validate that a benchmark anchor exists and matches the bound contract context."""
 
+    source_reference_id = _normalize_optional_scalar_str(source_reference_id)
     if not isinstance(source_reference_id, str) or not source_reference_id:
         return None, None
     if contract is None:
@@ -617,6 +650,7 @@ def _validate_limit_regime_binding(
 ) -> tuple[str | None, str | None]:
     """Validate that a regime label matches the bound contract context when known."""
 
+    regime_label = _normalize_optional_scalar_str(regime_label)
     if not isinstance(regime_label, str) or not regime_label:
         return None, None
     if contract is None:
@@ -708,7 +742,7 @@ def run_contract_check(request: dict) -> dict:
                     return _error_result(f"Invalid contract payload: {exc}")
 
             binding = binding_raw or {}
-            metadata = metadata_raw or {}
+            metadata = _normalize_contract_metadata(metadata_raw or {})
             observed = observed_raw or {}
             artifact_content = str(request.get("artifact_content") or "")
             binding_ids, binding_issues, contract_impacts = _collect_binding_context(
@@ -732,7 +766,7 @@ def run_contract_check(request: dict) -> dict:
 
             if check_meta.check_key == "contract.limit_recovery":
                 regime_label = metadata.get("regime_label")
-                expected_behavior = metadata.get("expected_behavior")
+                expected_behavior = _normalize_optional_scalar_str(metadata.get("expected_behavior"))
                 regime_label, regime_issue = _validate_limit_regime_binding(
                     contract=contract,
                     binding_ids=binding_ids,
@@ -826,7 +860,7 @@ def run_contract_check(request: dict) -> dict:
                     evidence_directness = "direct"
 
             elif check_meta.check_key == "contract.fit_family_mismatch":
-                declared_family = metadata.get("declared_family")
+                declared_family = _normalize_optional_scalar_str(metadata.get("declared_family"))
                 selected_family = observed.get("selected_family")
                 allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
                 forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
@@ -861,7 +895,7 @@ def run_contract_check(request: dict) -> dict:
                     status = "pass"
 
             elif check_meta.check_key == "contract.estimator_family_mismatch":
-                declared_family = metadata.get("declared_family")
+                declared_family = _normalize_optional_scalar_str(metadata.get("declared_family"))
                 selected_family = observed.get("selected_family")
                 allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
                 forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
@@ -1024,7 +1058,7 @@ def get_checklist(domain: str) -> dict:
                 }
 
             # Also include the universal checks
-            universal = list_verification_checks()
+            universal = [_serialize_verification_check_entry(entry) for entry in list_verification_checks()]
 
             return {
                 "found": True,

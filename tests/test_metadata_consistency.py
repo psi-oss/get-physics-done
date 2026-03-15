@@ -243,6 +243,23 @@ def test_settings_workflow_documents_runtime_native_model_override_guidance() ->
     assert "slash-delimited ids" in workflow
 
 
+def test_branching_strategy_docs_use_canonical_config_literals() -> None:
+    settings = _read("src/gpd/specs/workflows/settings.md")
+    planning = _read("src/gpd/specs/references/planning/planning-config.md")
+    execute_phase = _read("src/gpd/specs/workflows/execute-phase.md")
+    complete_milestone = _read("src/gpd/specs/workflows/complete-milestone.md")
+
+    assert '"branching_strategy": "none" | "per-phase" | "per-milestone"' in settings
+    assert 'Git branching approach: `"none"`, `"per-phase"`, or `"per-milestone"`' in planning
+    assert '**"per-phase" or "per-milestone":** Use pre-computed `branch_name` from init:' in execute_phase
+    assert '**For "per-phase" strategy:**' in complete_milestone
+    assert '**For "per-milestone" strategy:**' in complete_milestone
+    assert 'if [ "$BRANCHING_STRATEGY" = "per-phase" ]; then' in complete_milestone
+    assert 'if [ "$BRANCHING_STRATEGY" = "per-milestone" ]; then' in complete_milestone
+    assert '"branching_strategy": "none" | "phase" | "milestone"' not in settings
+    assert 'Git branching approach: `"none"`, `"phase"`, or `"milestone"`' not in planning
+
+
 def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
     assert health_check_count == 13

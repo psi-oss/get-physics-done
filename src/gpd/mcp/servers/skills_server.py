@@ -33,6 +33,13 @@ _REFERENCE_ROOTS = tuple(
     root.resolve().as_posix()
     for root in (content_registry.SPECS_DIR, content_registry.AGENTS_DIR, content_registry.COMMANDS_DIR)
 )
+_CONTRACT_REFERENCE_NAMES = {
+    "contract-results-schema.md",
+    "peer-review-panel.md",
+    "reproducibility-manifest.md",
+    "summary.md",
+    "verification-report.md",
+}
 
 
 def _load_skill_index() -> list[content_registry.SkillDef]:
@@ -124,6 +131,11 @@ def _is_schema_reference(path: str) -> bool:
     }
 
 
+def _is_contract_reference(path: str) -> bool:
+    name = Path(path).name
+    return _is_schema_reference(path) or name in _CONTRACT_REFERENCE_NAMES
+
+
 @mcp.tool()
 def list_skills(category: str | None = None) -> dict:
     """List canonical GPD skills with optional category filter.
@@ -173,6 +185,7 @@ def get_skill(name: str) -> dict:
             referenced_files = _extract_referenced_files(content)
             template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
             schema_references = [path for path in template_references if _is_schema_reference(path)]
+            contract_references = [entry["path"] for entry in referenced_files if _is_contract_reference(entry["path"])]
             payload = {
                 "name": skill.name,
                 "category": skill.category,
@@ -182,8 +195,9 @@ def get_skill(name: str) -> dict:
                 "reference_count": len(referenced_files),
                 "template_references": template_references,
                 "schema_references": schema_references,
+                "contract_references": contract_references,
                 "loading_hint": (
-                    "Load schema_references and other referenced_files before asking a model to emit validated artifacts."
+                    "Load schema_references, contract_references, and other referenced_files before asking a model to emit validated artifacts."
                     if referenced_files
                     else "No external markdown dependencies detected in the canonical skill body."
                 ),

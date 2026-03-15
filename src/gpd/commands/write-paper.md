@@ -70,6 +70,7 @@ Routes to the write-paper workflow which handles all logic including:
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/write-paper.md
+@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md
 </execution_context>
 
 <context>
@@ -104,7 +105,7 @@ The workflow handles all logic including:
 4. **Catalog artifacts** — Gather derivations, numerical results, figures, literature, verification results from phases
 5. **Paper-readiness audit** — 5 checks (SUMMARY completeness, convention consistency, numerical stability, figure readiness, citation readiness) with gate decision (0 critical gaps to proceed, or user approval)
 6. **Create outline** — Detailed per-section outline (purpose, key content, equations, figures, citations, dependencies) adapted to journal format. Present for approval.
-7. **Generate files** — Create `paper/PAPER-CONFIG.json`, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `paper/main.tex`, bibliography artifacts, and `paper/ARTIFACT-MANIFEST.json`)
+7. **Generate files** — Create `paper/PAPER-CONFIG.json` using `@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `paper/main.tex`, bibliography artifacts, and `paper/ARTIFACT-MANIFEST.json`)
 8. **Generate figures** — Generate matplotlib scripts from phase data, execute to paper/figures/, update FIGURE_TRACKER.md
 9. **Draft sections** — Wave-parallelized spawning of gpd-paper-writer agents:
    - Wave 1: Results + Methods (no dependency)

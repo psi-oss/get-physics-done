@@ -132,6 +132,38 @@ def test_installed_update_command_uses_manifest_runtime_metadata_for_custom_targ
     assert str(explicit_target) in command
 
 
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("scope", ["local", "global"])
+def test_installed_update_command_preserves_explicit_target_named_like_runtime_default(
+    tmp_path: Path,
+    runtime: str,
+    scope: str,
+) -> None:
+    from gpd.adapters import get_adapter
+    from gpd.hooks.install_metadata import installed_update_command
+
+    adapter = get_adapter(runtime)
+    explicit_target = tmp_path / f"custom-{scope}" / adapter.config_dir_name
+    explicit_target.mkdir(parents=True)
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "install_scope": scope,
+                "runtime": runtime,
+                "explicit_target": True,
+                "install_target_dir": str(explicit_target),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    command = installed_update_command(explicit_target)
+
+    assert command is not None
+    assert "--target-dir" in command
+    assert str(explicit_target) in command
+
+
 @pytest.mark.parametrize(
     ("files", "expected_runtime"),
     [

@@ -655,6 +655,40 @@ class TestManifestConsistency:
         assert manifest["runtime"] == runtime
         assert manifest["install_scope"] == expected_scope
 
+    @pytest.mark.parametrize(
+        ("runtime", "is_global"),
+        [
+            ("claude-code", False),
+            ("claude-code", True),
+            ("gemini", False),
+            ("gemini", True),
+            ("codex", False),
+            ("codex", True),
+        ],
+    )
+    def test_manifest_records_explicit_target_metadata(
+        self,
+        runtime: str,
+        is_global: bool,
+        tmp_path: Path,
+        gpd_root: Path,
+    ) -> None:
+        adapter = get_adapter(runtime)
+        target = tmp_path / "custom-targets" / adapter.config_dir_name
+        target.mkdir(parents=True, exist_ok=True)
+
+        install_kwargs: dict[str, object] = {"is_global": is_global, "explicit_target": True}
+        if runtime == "codex":
+            skills_dir = (tmp_path / "global-skills") if is_global else (target / "skills")
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            install_kwargs["skills_dir"] = skills_dir
+
+        adapter.install(gpd_root, target, **install_kwargs)
+
+        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert manifest["install_target_dir"] == str(target)
+        assert manifest["explicit_target"] is True
+
 
 # ---------------------------------------------------------------------------
 # Path replacement in installed content
@@ -704,6 +738,22 @@ class TestPathReplacementInInstalledContent:
                 if md_file.suffix == ".md":
                     content = md_file.read_text(encoding="utf-8")
                     assert "{GPD_INSTALL_DIR}" not in content, f"{md_file.name} has unreplaced {{GPD_INSTALL_DIR}}"
+
+
+def test_reinstall_replaces_manifest_tracked_gpd_hook(tmp_path: Path, gpd_root: Path) -> None:
+    adapter = get_adapter("claude-code")
+    target = tmp_path / ".claude"
+    target.mkdir()
+
+    adapter.install(gpd_root, target, is_global=True)
+
+    managed_hook = target / "hooks" / "statusline.py"
+    original = managed_hook.read_text(encoding="utf-8")
+    managed_hook.write_text("# locally modified managed hook\n", encoding="utf-8")
+
+    adapter.install(gpd_root, target, is_global=True)
+
+    assert managed_hook.read_text(encoding="utf-8") == original
 
 
 # ---------------------------------------------------------------------------

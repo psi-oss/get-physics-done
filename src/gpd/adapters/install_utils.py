@@ -76,6 +76,24 @@ def _normalize_install_scope_flag(install_scope: str | None) -> str | None:
     return install_scope
 
 
+def _paths_equal(left: Path, right: Path) -> bool:
+    """Return whether two paths refer to the same location when comparable."""
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser() == right.expanduser()
+
+
+def _default_install_target(config_dir: Path, runtime: str, scope_flag: str | None) -> Path | None:
+    """Return the default install location for *runtime* and *scope_flag* when known."""
+    descriptor = get_runtime_descriptor(runtime)
+    if scope_flag == "--local":
+        return Path.cwd() / descriptor.config_dir_name
+    if scope_flag == "--global":
+        return resolve_global_config_dir(descriptor)
+    return None
+
+
 def _replace_runtime_placeholders(
     content: str,
     path_prefix: str,
@@ -933,6 +951,11 @@ def write_manifest(
         manifest["install_scope"] = "local"
     elif normalized_scope == "--global":
         manifest["install_scope"] = "global"
+    manifest["install_target_dir"] = str(config_dir)
+    if isinstance(runtime, str) and runtime.strip() and normalized_scope in {"--local", "--global"}:
+        default_target = _default_install_target(config_dir, runtime.strip(), normalized_scope)
+        if default_target is not None:
+            manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
     files: dict[str, str] = {}
 
     # get-physics-done/
@@ -952,8 +975,14 @@ def write_manifest(
 
     # hooks/
     if hooks_dir.exists():
-        for rel, h in generate_manifest(hooks_dir).items():
-            files["hooks/" + rel] = h
+        bundled_hooks_dir = Path(__file__).resolve().parents[1] / HOOKS_DIR_NAME
+        for hook_name in HOOK_SCRIPTS.values():
+            installed_hook = hooks_dir / hook_name
+            bundled_hook = bundled_hooks_dir / hook_name
+            if not installed_hook.exists() or not bundled_hook.exists():
+                continue
+            if file_hash(installed_hook) == file_hash(bundled_hook):
+                files[f"hooks/{hook_name}"] = file_hash(installed_hook)
 
     # External/shared skills
     if skills_dir:
@@ -971,6 +1000,33 @@ def write_manifest(
     manifest_path = config_dir / MANIFEST_NAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def _tracked_hook_paths_for_cleanup(
+    config_dir: Path,
+    *,
+    skills_dir: str | Path | None = None,
+) -> set[str]:
+    """Return managed hook paths that pre-install cleanup may safely remove."""
+    manifest_path = config_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return set()
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        manifest = None
+
+    if isinstance(manifest, dict):
+        raw_files = manifest.get("files")
+        if isinstance(raw_files, dict):
+            return {str(path) for path in raw_files if str(path).startswith("hooks/")}
+
+    return {
+        rel_path
+        for rel_path in _managed_install_paths(config_dir, skills_dir=skills_dir)
+        if rel_path.startswith("hooks/")
+    }
 
 
 def _managed_install_paths(
@@ -1195,12 +1251,10 @@ def pre_install_cleanup(
     if gpd_dir.exists():
         _shutil.rmtree(gpd_dir)
 
-    hooks_dir = target_dir / "hooks"
-    if hooks_dir.is_dir():
-        for hook_name in HOOK_SCRIPTS.values():
-            hook_path = hooks_dir / hook_name
-            if hook_path.exists():
-                hook_path.unlink()
+    for rel_path in sorted(_tracked_hook_paths_for_cleanup(target_dir, skills_dir=skills_dir)):
+        hook_path = target_dir / rel_path
+        if hook_path.exists():
+            hook_path.unlink()
 
 
 def install_gpd_content(
@@ -1276,11 +1330,30 @@ def copy_hook_scripts(gpd_root: Path, target_dir: Path) -> list[str]:
     if not hooks_src.is_dir():
         return []
 
+    manifest_path = target_dir / MANIFEST_NAME
+    tracked_hook_paths: set[str] = set()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        manifest = {}
+    if isinstance(manifest, dict):
+        raw_files = manifest.get("files")
+        if isinstance(raw_files, dict):
+            tracked_hook_paths = {str(path) for path in raw_files if str(path).startswith("hooks/")}
+
     hooks_dest = target_dir / "hooks"
     hooks_dest.mkdir(parents=True, exist_ok=True)
     for hook_file in hooks_src.iterdir():
         if hook_file.is_file() and not hook_file.name.startswith("__"):
-            _shutil.copy2(hook_file, hooks_dest / hook_file.name)
+            dest = hooks_dest / hook_file.name
+            rel_path = f"hooks/{hook_file.name}"
+            if dest.exists():
+                managed_by_manifest = rel_path in tracked_hook_paths
+                managed_by_hash = file_hash(dest) == file_hash(hook_file)
+                if not (managed_by_manifest or managed_by_hash):
+                    _install_logger.warning("Preserving unmanaged hook file during install: %s", dest)
+                    continue
+            _shutil.copy2(hook_file, dest)
 
     if verify_installed(hooks_dest, "hooks"):
         _install_logger.info("Installed hooks (bundled)")

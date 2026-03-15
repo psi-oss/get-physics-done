@@ -239,6 +239,50 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
     assert str(explicit_target) in output
 
 
+def test_notify_keeps_target_dir_for_default_named_explicit_target(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    explicit_target = tmp_path / "custom-parent" / ".codex"
+    hook_path = explicit_target / "hooks" / "notify.py"
+    cache_file = explicit_target / "cache" / "gpd-update-check.json"
+    hook_path.parent.mkdir(parents=True)
+    cache_file.parent.mkdir(parents=True)
+    hook_path.write_text("# hook\n", encoding="utf-8")
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "install_scope": "local",
+                "runtime": "codex",
+                "explicit_target": True,
+                "install_target_dir": str(explicit_target),
+            }
+        ),
+        encoding="utf-8",
+    )
+    cache_file.write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "3.0.0",
+                "latest": "3.1.0",
+                "checked": 40,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.notify.__file__", str(hook_path)),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update(str(workspace))
+
+    output = stderr.getvalue()
+    assert "--codex --local --target-dir" in output
+    assert str(explicit_target) in output
+
+
 def test_notify_explicit_target_without_runtime_metadata_falls_back_to_bootstrap_command(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

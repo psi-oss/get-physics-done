@@ -1447,12 +1447,22 @@ class TestVerificationServer:
         assert result["check_id"] == "5.15"
         assert result["check_key"] == "contract.limit_recovery"
         assert result["contract_aware"] is True
+        assert result["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
+        assert result["request_template"]["metadata"]["regime_label"] == "infrared limit"
 
     def test_run_check_contract_benchmark_reproduction_flags_missing_anchor(self):
         from gpd.mcp.servers.verification_server import run_check
 
         result = run_check("5.16", "qft", "Computed a result but did not compare it to anything.")
         assert any("benchmark" in issue.lower() or "baseline" in issue.lower() for issue in result["automated_issues"])
+
+    def test_run_check_non_contract_check_omits_request_hints(self):
+        from gpd.mcp.servers.verification_server import run_check
+
+        result = run_check("5.1", "qft", "quantum field theory with \\hbar")
+
+        assert "required_request_fields" not in result
+        assert "request_template" not in result
 
     def test_run_contract_check_benchmark_reproduction(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -1636,6 +1646,49 @@ class TestVerificationServer:
         assert result["status"] == "insufficient_evidence"
         assert "metadata.declared_family" in result["missing_inputs"]
 
+    def test_run_contract_check_rejects_whitespace_only_benchmark_anchor(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.benchmark_reproduction",
+                "metadata": {"source_reference_id": "   "},
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            }
+        )
+
+        assert result["status"] == "insufficient_evidence"
+        assert "metadata.source_reference_id" in result["missing_inputs"]
+
+    def test_run_contract_check_rejects_whitespace_only_limit_metadata(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.limit_recovery",
+                "metadata": {"regime_label": "   ", "expected_behavior": "   "},
+                "observed": {"limit_passed": True, "observed_limit": "large-k"},
+            }
+        )
+
+        assert result["status"] == "insufficient_evidence"
+        assert "metadata.regime_label" in result["missing_inputs"]
+        assert "metadata.expected_behavior" in result["missing_inputs"]
+
+    def test_run_contract_check_rejects_whitespace_only_declared_fit_family(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"declared_family": "   "},
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            }
+        )
+
+        assert result["status"] == "insufficient_evidence"
+        assert "metadata.declared_family" in result["missing_inputs"]
+
     def test_run_contract_check_direct_proxy_consistency_fails_on_proxy_only(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 
@@ -1691,6 +1744,24 @@ class TestVerificationServer:
         ]
         assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
+    def test_suggest_contract_checks_returns_deep_copied_request_templates(self):
+        import json
+        from pathlib import Path
+
+        from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+        fixture = Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "project_contract.json"
+        contract = json.loads(fixture.read_text(encoding="utf-8"))
+
+        first = suggest_contract_checks(contract)
+        benchmark = next(entry for entry in first["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+        benchmark["request_template"]["metadata"]["source_reference_id"] = "poisoned"
+
+        second = suggest_contract_checks(contract)
+        fresh = next(entry for entry in second["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+
+        assert fresh["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+
     # --- get_checklist ---
 
     def test_get_checklist_qft(self):
@@ -1703,6 +1774,9 @@ class TestVerificationServer:
         assert result["universal_check_count"] == 19
         assert result["universal_checks"][0]["check_id"] == "5.1"
         assert "evidence_kind" in result["universal_checks"][0]
+        contract_check = next(entry for entry in result["universal_checks"] if entry["check_key"] == "contract.limit_recovery")
+        assert contract_check["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
+        assert contract_check["request_template"]["metadata"]["regime_label"] == "infrared limit"
 
     def test_get_checklist_unknown_domain(self):
         from gpd.mcp.servers.verification_server import get_checklist

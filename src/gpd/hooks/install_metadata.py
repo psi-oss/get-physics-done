@@ -29,6 +29,27 @@ def install_scope_from_manifest(config_dir: Path) -> str | None:
     return scope if scope in {"local", "global"} else None
 
 
+def _manifest_target_dir(config_dir: Path) -> Path:
+    manifest_target = load_install_manifest(config_dir).get("install_target_dir")
+    if isinstance(manifest_target, str) and manifest_target.strip():
+        return Path(manifest_target)
+    return config_dir
+
+
+def _manifest_explicit_target(config_dir: Path) -> bool | None:
+    explicit_target = load_install_manifest(config_dir).get("explicit_target")
+    if isinstance(explicit_target, bool):
+        return explicit_target
+    return None
+
+
+def _paths_equal(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser() == right.expanduser()
+
+
 def _infer_runtime_from_manifest(config_dir: Path) -> str | None:
     manifest = load_install_manifest(config_dir)
     runtime = manifest.get("runtime")
@@ -70,14 +91,21 @@ def installed_update_command(config_dir: Path) -> str | None:
 
     scope = install_scope_from_manifest(config_dir)
     command = update_command_for_runtime(runtime, scope=scope)
-    if scope != SCOPE_LOCAL:
-        return command
 
     try:
         adapter = get_adapter(runtime)
     except KeyError:
         return command
 
-    if config_dir.name == adapter.local_config_dir_name:
+    install_target = _manifest_target_dir(config_dir)
+    explicit_target = _manifest_explicit_target(config_dir)
+
+    if explicit_target is None:
+        if scope == SCOPE_LOCAL:
+            explicit_target = not _paths_equal(install_target, Path.cwd() / adapter.local_config_dir_name)
+        else:
+            explicit_target = not _paths_equal(install_target, adapter.global_config_dir)
+
+    if not explicit_target:
         return command
-    return f"{command} --target-dir {shlex.quote(str(config_dir))}"
+    return f"{command} --target-dir {shlex.quote(str(install_target))}"

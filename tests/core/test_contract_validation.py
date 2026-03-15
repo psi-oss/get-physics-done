@@ -257,6 +257,31 @@ def test_validate_project_contract_propagates_schema_errors() -> None:
     assert "project contract must include at least one observable, claim, or deliverable" in result.errors
 
 
+def test_validate_project_contract_salvages_schema_drift_and_preserves_semantic_feedback() -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["aliases"] = "not-a-list"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "references.0.aliases: Input should be a valid list" in result.errors
+    assert result.question == "What benchmark must the project recover?"
+    assert result.decisive_target_count > 0
+    assert result.reference_count == 1
+
+
+def test_validate_project_contract_reports_extra_item_keys_without_dropping_semantic_counts() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["notes"] = "harmless"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "claims.0.notes: Extra inputs are not permitted" in result.errors
+    assert result.question == "What benchmark must the project recover?"
+    assert result.decisive_target_count > 0
+
+
 def test_validate_project_contract_approved_mode_rejects_background_only_reference() -> None:
     contract = _load_contract_fixture()
     _remove_incidental_grounding(contract)

@@ -35,6 +35,10 @@ from gpd.adapters.install_utils import (
     write_settings,
 )
 
+
+def _bundled_hook_text(name: str) -> str:
+    return (Path(__file__).resolve().parents[1] / "src" / "gpd" / "hooks" / name).read_text(encoding="utf-8")
+
 # =========================================================================
 # 1. expand_at_includes
 # =========================================================================
@@ -848,7 +852,7 @@ class TestInstallBackupSafety:
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
-        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+        (config_dir / "hooks" / "statusline.py").write_text(_bundled_hook_text("statusline.py"), encoding="utf-8")
 
         manifest = write_manifest(config_dir, "1.0.0")
 
@@ -860,7 +864,7 @@ class TestInstallBackupSafety:
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
         hook_path = config_dir / "hooks" / "statusline.py"
-        hook_path.write_text("print('original')\n", encoding="utf-8")
+        hook_path.write_text(_bundled_hook_text("statusline.py"), encoding="utf-8")
 
         write_manifest(config_dir, "1.0.0")
         hook_path.write_text("print('user edit')\n", encoding="utf-8")
@@ -892,7 +896,7 @@ class TestInstallBackupSafety:
         (config_dir / "get-physics-done").mkdir(parents=True)
         (config_dir / "get-physics-done" / "VERSION").write_text("1.0.0", encoding="utf-8")
         (config_dir / "hooks").mkdir()
-        (config_dir / "hooks" / "statusline.py").write_text("print('hook')\n", encoding="utf-8")
+        (config_dir / "hooks" / "statusline.py").write_text(_bundled_hook_text("statusline.py"), encoding="utf-8")
         patches_dir = config_dir / "gpd-local-patches"
         patches_dir.mkdir()
         preserved_patch = patches_dir / "backup-meta.json"
@@ -905,5 +909,5 @@ class TestInstallBackupSafety:
         assert preserved_patch.exists()
         assert '"backup_mode": "fallback-snapshot"' in preserved_patch.read_text(encoding="utf-8")
         assert backup_path.exists()
-        assert backup_path.read_text(encoding="utf-8") == "print('hook')\n"
+        assert backup_path.read_text(encoding="utf-8") == _bundled_hook_text("statusline.py")
         assert not (config_dir / "hooks" / "statusline.py").exists()

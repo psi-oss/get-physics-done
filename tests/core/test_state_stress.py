@@ -21,6 +21,7 @@ from pathlib import Path
 
 from gpd.core.state import (
     ResearchState,
+    _normalize_state_schema,
     default_state_dict,
     ensure_state_schema,
     generate_state_markdown,
@@ -270,6 +271,15 @@ class TestUnknownExtraFields:
             "forbidden_fit_families": [],
             "stop_and_rethink_conditions": ["Sign flip after normalization change"],
         }
+
+    def test_project_contract_scope_integrity_issue_mentions_nested_field(self) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["scope"]["unresolved_questions"] = "not-a-list"
+
+        normalized, integrity_issues = _normalize_state_schema({"project_contract": contract})
+
+        assert normalized["project_contract"] is not None
+        assert any("project_contract.scope.unresolved_questions" in issue for issue in integrity_issues)
 
 
 # ---------------------------------------------------------------------------

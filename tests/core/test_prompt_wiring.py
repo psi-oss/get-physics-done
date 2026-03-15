@@ -906,6 +906,7 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
     scoring = (REFERENCES_DIR / "publication" / "paper-quality-scoring.md").read_text(encoding="utf-8")
     referee_decision_schema = (TEMPLATES_DIR / "paper" / "referee-decision-schema.md").read_text(encoding="utf-8")
+    paper_config_schema = (TEMPLATES_DIR / "paper" / "paper-config-schema.md").read_text(encoding="utf-8")
     reproducibility_template = (TEMPLATES_DIR / "paper" / "reproducibility-manifest.md").read_text(encoding="utf-8")
     reproducibility_protocol = (REFERENCES_DIR / "protocols" / "reproducibility.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
@@ -924,13 +925,18 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "templates/paper/referee-decision-schema.md" in panel
     assert "--ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json" in panel
     assert "templates/paper/paper-quality-input-schema.md" in scoring
+    assert '"journal": "prl"' in paper_config_schema
+    assert '"authors"' in paper_config_schema
+    assert '"sections"' in paper_config_schema
     assert "XX-YY-SUMMARY.md" in contract_results_schema
     assert "XX-VERIFICATION.md" in contract_results_schema
     assert "REFEREE-DECISION{round_suffix}.json --strict --ledger" in referee_decision_schema
     assert "random_seeds[].computation" in reproducibility_template
     assert "resource_requirements[].step" in reproducibility_template
     assert "templates/paper/reproducibility-manifest.md" in reproducibility_protocol
+    assert "templates/paper/paper-config-schema.md" in write_paper
     assert "templates/paper/reproducibility-manifest.md" in write_paper
+    assert "gpd paper-build paper/PAPER-CONFIG.json" in paper_config_schema
     assert "paper/reproducibility-manifest.json" in write_paper
     assert "gpd --raw validate reproducibility-manifest paper/reproducibility-manifest.json --strict" in write_paper
     assert "gpd validate summary-contract" in execute_plan
@@ -959,6 +965,21 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "peer-review-panel.md` directly" in review_reader
     assert "peer-review-panel.md` directly" in review_literature
     assert "re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`" in referee
+
+
+def test_skill_surface_exposes_contract_references_for_paper_and_review_workflows() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    write_paper = get_skill("gpd-write-paper")
+    peer_review = get_skill("gpd-peer-review")
+
+    assert "error" not in write_paper
+    assert "error" not in peer_review
+    assert any(path.endswith("paper-config-schema.md") for path in write_paper["schema_references"])
+    assert any(path.endswith("reproducibility-manifest.md") for path in write_paper["contract_references"])
+    assert any(path.endswith("peer-review-panel.md") for path in write_paper["contract_references"])
+    assert any(path.endswith("peer-review-panel.md") for path in peer_review["contract_references"])
+    assert "Load schema_references, contract_references" in write_paper["loading_hint"]
 
 
 def test_review_and_execution_prompts_expand_required_schema_sources() -> None:

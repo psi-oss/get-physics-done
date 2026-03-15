@@ -12,7 +12,9 @@ they verify the CLI → core function argument wiring works.
 
 from __future__ import annotations
 
+import importlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -1066,6 +1068,29 @@ class TestReviewValidationCommands:
         assert checks["required_state"]["passed"] is False
         assert checks["required_state"]["blocking"] is True
         assert 'found "Planning"' in checks["required_state"]["detail"]
+
+    def test_review_preflight_verify_work_without_subject_uses_current_phase_artifacts(self, gpd_project: Path) -> None:
+        planning = gpd_project / ".gpd"
+        state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        state["position"]["current_phase"] = "02"
+        state["position"]["status"] = "Phase complete — ready for verification"
+        (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "verify-work"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:verify-work"
+        assert payload["passed"] is False
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["phase_summaries"]["passed"] is False
+        assert 'current phase "02" has no SUMMARY artifacts' in checks["phase_summaries"]["detail"]
+        assert checks["required_state"]["passed"] is True
 
     def test_review_preflight_respond_to_referees_checks_report_path(self) -> None:
         result = runner.invoke(
@@ -2133,6 +2158,26 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is True
         assert payload["ready_for_review"] is False
+
+
+def test_cli_import_survives_runtime_help_lookup_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gpd as gpd_package
+    import gpd.adapters as adapters_module
+
+    def _raise_runtime_catalog() -> list[str]:
+        raise RuntimeError("catalog offline")
+
+    original_cli = sys.modules.get("gpd.cli")
+    monkeypatch.setattr(adapters_module, "list_runtimes", _raise_runtime_catalog)
+    sys.modules.pop("gpd.cli", None)
+
+    try:
+        reloaded = importlib.import_module("gpd.cli")
+        assert reloaded._runtime_override_help() == "Runtime name override"
+    finally:
+        if original_cli is not None:
+            sys.modules["gpd.cli"] = original_cli
+            gpd_package.cli = original_cli
 
 
 class TestNoDuplicateTestMethods:

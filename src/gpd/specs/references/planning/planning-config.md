@@ -45,9 +45,9 @@ Configuration options for `.gpd/` directory behavior in physics research project
 | `research_mode`                 | `"balanced"`                 | Research strategy: `"explore"` (breadth), `"balanced"`, `"exploit"` (depth), `"adaptive"`       |
 | `parallelization`               | `true`                       | Execute plans within a wave in parallel (`true`) or sequentially (`false`)                     |
 | `model_profile`                 | `"review"`                   | Research profile: `"deep-theory"`, `"numerical"`, `"exploratory"`, `"review"`, `"paper-writing"` |
-| `git.branching_strategy`        | `"none"`                     | Git branching approach: `"none"`, `"phase"`, or `"milestone"`                                  |
-| `git.phase_branch_template`     | `"gpd/phase-{phase}-{slug}"` | Branch template for phase strategy                                                             |
-| `git.milestone_branch_template` | `"gpd/{milestone}-{slug}"`   | Branch template for milestone strategy                                                         |
+| `git.branching_strategy`        | `"none"`                     | Git branching approach: `"none"`, `"per-phase"`, or `"per-milestone"`                          |
+| `git.phase_branch_template`     | `"gpd/phase-{phase}-{slug}"` | Branch template for the `per-phase` strategy                                                   |
+| `git.milestone_branch_template` | `"gpd/{milestone}-{slug}"`   | Branch template for the `per-milestone` strategy                                               |
 | `workflow.research`             | `true`                       | Spawn the phase-researcher during `plan-phase`                                                 |
 | `workflow.verifier`             | `true`                       | Enable end-of-phase verification                                                               |
 | `workflow.plan_checker`         | `true`                       | Spawn plan checker agent during plan-phase to validate plans before execution                   |
@@ -186,7 +186,7 @@ To use uncommitted mode:
 - All work commits to current branch
 - Standard GPD behavior
 
-**When `git.branching_strategy: "phase"`:**
+**When `git.branching_strategy: "per-phase"`:**
 
 - `execute-phase` creates/switches to a branch before execution
 - Branch name from `phase_branch_template` (e.g., `gpd/phase-03-hamiltonian-construction`)
@@ -194,7 +194,7 @@ To use uncommitted mode:
 - User merges branches manually after phase completion
 - `complete-milestone` offers to merge all phase branches
 
-**When `git.branching_strategy: "milestone"`:**
+**When `git.branching_strategy: "per-milestone"`:**
 
 - First `execute-phase` of milestone creates the milestone branch
 - Branch name from `milestone_branch_template` (e.g., `gpd/v1.0-ground-state-calculation`)
@@ -228,15 +228,15 @@ INIT=$(gpd init progress --include state,config)
 **Branch creation:**
 
 ```bash
-# For phase strategy
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+# For per-phase strategy
+if [ "$BRANCHING_STRATEGY" = "per-phase" ]; then
   PHASE_SLUG=$(echo "$PHASE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
   BRANCH_NAME=$(echo "$PHASE_BRANCH_TEMPLATE" | sed "s/{phase}/$PADDED_PHASE/g" | sed "s/{slug}/$PHASE_SLUG/g")
   git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
 fi
 
-# For milestone strategy
-if [ "$BRANCHING_STRATEGY" = "milestone" ]; then
+# For per-milestone strategy
+if [ "$BRANCHING_STRATEGY" = "per-milestone" ]; then
   MILESTONE_SLUG=$(echo "$MILESTONE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
   BRANCH_NAME=$(echo "$MILESTONE_BRANCH_TEMPLATE" | sed "s/{milestone}/$MILESTONE_VERSION/g" | sed "s/{slug}/$MILESTONE_SLUG/g")
   git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"

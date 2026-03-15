@@ -222,6 +222,19 @@ class TestNonGpdFilesPreserved:
         assert len(gpd_agents) == 0
         assert (target / "agents" / "my-custom-agent.md").exists()
 
+    def test_install_preserves_unmanaged_hook_with_matching_gpd_basename(self, tmp_path: Path) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        unmanaged_hook = target / "hooks" / "statusline.py"
+        unmanaged_hook.parent.mkdir(parents=True)
+        unmanaged_hook.write_text("# third-party statusline hook\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, is_global=True)
+
+        assert unmanaged_hook.read_text(encoding="utf-8") == "# third-party statusline hook\n"
+        assert (target / "hooks" / "check_update.py").exists()
+
 
 # =========================================================================
 # 4. GPD_MODEL=invalid:model doesn't affect install

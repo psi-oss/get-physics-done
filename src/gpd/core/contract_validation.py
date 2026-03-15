@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import re
 from collections import Counter
 from typing import Literal
@@ -9,9 +10,22 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ResearchContract
+from gpd.contracts import (
+    ContractAcceptanceTest,
+    ContractApproachPolicy,
+    ContractClaim,
+    ContractContextIntake,
+    ContractDeliverable,
+    ContractForbiddenProxy,
+    ContractLink,
+    ContractObservable,
+    ContractReference,
+    ContractScope,
+    ContractUncertaintyMarkers,
+    ResearchContract,
+)
 
-__all__ = ["ProjectContractValidationResult", "validate_project_contract"]
+__all__ = ["ProjectContractValidationResult", "salvage_project_contract", "validate_project_contract"]
 
 
 _APPROVED_REFERENCE_ROLES = frozenset({"benchmark", "definition", "method", "must_consider"})
@@ -94,6 +108,170 @@ def _schema_error_result(
         seen.add(formatted)
         errors.append(formatted)
     return ProjectContractValidationResult(valid=False, errors=errors, mode=mode)
+
+
+def _strip_unknown_model_keys(
+    value: dict[str, object],
+    *,
+    path_prefix: str,
+    model: type[BaseModel],
+    errors: list[str],
+) -> dict[str, object]:
+    cleaned = copy.deepcopy(value)
+    for key in list(cleaned):
+        if key in model.model_fields:
+            continue
+        location = f"{path_prefix}.{key}" if path_prefix else key
+        errors.append(f"{location}: Extra inputs are not permitted")
+        cleaned.pop(key, None)
+    return cleaned
+
+
+def _salvage_model_mapping(
+    value: object,
+    *,
+    path_prefix: str,
+    model: type[BaseModel],
+    errors: list[str],
+    default_value: dict[str, object] | None = None,
+) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        actual_type = type(value).__name__
+        if default_value is not None:
+            errors.append(f"{path_prefix} must be an object, not {actual_type}")
+            return copy.deepcopy(default_value)
+        errors.append(f"{path_prefix} must be an object, not {actual_type}")
+        return None
+
+    cleaned = _strip_unknown_model_keys(value, path_prefix=path_prefix, model=model, errors=errors)
+    while True:
+        try:
+            return model.model_validate(cleaned).model_dump()
+        except PydanticValidationError as exc:
+            progress = False
+            for error in exc.errors():
+                loc = tuple(error.get("loc", ()))
+                if not loc:
+                    continue
+                key = str(loc[0])
+                field = model.model_fields.get(key)
+                if field is None:
+                    continue
+                formatted = _format_schema_error(
+                    {
+                        "loc": (path_prefix, *loc),
+                        "msg": error.get("msg"),
+                        "input": error.get("input"),
+                    }
+                )
+                if field.is_required():
+                    errors.append(formatted)
+                    return copy.deepcopy(default_value) if default_value is not None else None
+                if key in cleaned:
+                    errors.append(formatted)
+                    cleaned.pop(key, None)
+                    progress = True
+            if not progress:
+                return copy.deepcopy(default_value) if default_value is not None else None
+
+
+def _salvage_contract_collection(
+    value: object,
+    *,
+    field_name: str,
+    item_model: type[BaseModel],
+    errors: list[str],
+) -> list[dict[str, object]]:
+    path_prefix = field_name
+    if not isinstance(value, list):
+        errors.append(f"{path_prefix} must be a list, not {type(value).__name__}")
+        return []
+
+    normalized_items: list[dict[str, object]] = []
+    for index, item in enumerate(value):
+        item_prefix = f"{path_prefix}.{index}"
+        if not isinstance(item, dict):
+            errors.append(f"{item_prefix} must be an object, not {type(item).__name__}")
+            continue
+        normalized = _salvage_model_mapping(
+            item,
+            path_prefix=item_prefix,
+            model=item_model,
+            errors=errors,
+        )
+        if normalized is not None:
+            normalized_items.append(normalized)
+    return normalized_items
+
+
+def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContract | None, list[str]]:
+    errors: list[str] = []
+    working = _strip_unknown_model_keys(contract, path_prefix="", model=ResearchContract, errors=errors)
+    normalized_contract = copy.deepcopy(working)
+
+    collection_models: dict[str, type[BaseModel]] = {
+        "observables": ContractObservable,
+        "claims": ContractClaim,
+        "deliverables": ContractDeliverable,
+        "acceptance_tests": ContractAcceptanceTest,
+        "references": ContractReference,
+        "forbidden_proxies": ContractForbiddenProxy,
+        "links": ContractLink,
+    }
+    for field_name, item_model in collection_models.items():
+        if field_name not in normalized_contract:
+            continue
+        normalized_contract[field_name] = _salvage_contract_collection(
+            normalized_contract.get(field_name),
+            field_name=field_name,
+            item_model=item_model,
+            errors=errors,
+        )
+
+    scope = _salvage_model_mapping(
+        normalized_contract.get("scope"),
+        path_prefix="scope",
+        model=ContractScope,
+        errors=errors,
+    )
+    if scope is None:
+        return None, errors
+    normalized_contract["scope"] = scope
+
+    defaultable_singletons: dict[str, type[BaseModel]] = {
+        "context_intake": ContractContextIntake,
+        "approach_policy": ContractApproachPolicy,
+        "uncertainty_markers": ContractUncertaintyMarkers,
+    }
+    for field_name, model in defaultable_singletons.items():
+        if field_name not in normalized_contract:
+            continue
+        default_value = model.model_validate({}).model_dump()
+        normalized_contract[field_name] = _salvage_model_mapping(
+            normalized_contract.get(field_name),
+            path_prefix=field_name,
+            model=model,
+            errors=errors,
+            default_value=default_value,
+        )
+
+    if "schema_version" in normalized_contract:
+        try:
+            normalized_contract["schema_version"] = ResearchContract.model_validate(
+                {"scope": scope, "schema_version": normalized_contract["schema_version"]}
+            ).schema_version
+        except PydanticValidationError:
+            errors.append("schema_version: Input should be 1")
+            normalized_contract.pop("schema_version", None)
+
+    try:
+        return ResearchContract.model_validate(normalized_contract), errors
+    except PydanticValidationError as exc:
+        for error in exc.errors():
+            formatted = _format_schema_error(error)
+            if formatted not in errors:
+                errors.append(formatted)
+        return None, errors
 
 
 def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
@@ -248,6 +426,7 @@ def validate_project_contract(
 
     if isinstance(contract, ResearchContract):
         parsed = contract
+        schema_errors: list[str] = []
     else:
         if not isinstance(contract, dict):
             return ProjectContractValidationResult(
@@ -255,11 +434,15 @@ def validate_project_contract(
                 errors=["project contract must be a JSON object"],
                 mode=mode,
             )
-        try:
-            parsed = ResearchContract.model_validate(contract)
-        except PydanticValidationError as exc:
-            return _schema_error_result(exc, mode=mode)
-    errors: list[str] = []
+        parsed, schema_errors = salvage_project_contract(contract)
+        if parsed is None:
+            if schema_errors:
+                return ProjectContractValidationResult(valid=False, errors=schema_errors, mode=mode)
+            try:
+                parsed = ResearchContract.model_validate(contract)
+            except PydanticValidationError as exc:
+                return _schema_error_result(exc, mode=mode)
+    errors: list[str] = list(schema_errors)
     warnings: list[str] = []
 
     question = parsed.scope.question.strip()

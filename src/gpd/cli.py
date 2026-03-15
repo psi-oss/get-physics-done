@@ -85,7 +85,7 @@ def _output(data: object) -> None:
 
 def _pretty_print(d: dict) -> None:
     """Render a dict as a rich table."""
-    table = Table(show_header=True, header_style="bold cyan")
+    table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
     table.add_column("Key")
     table.add_column("Value")
     for k, v in d.items():
@@ -305,7 +305,10 @@ def _supported_runtime_names() -> list[str]:
     """Return runtime ids from the loaded adapter registry."""
     from gpd.adapters import list_runtimes
 
-    return list_runtimes()
+    try:
+        return list_runtimes()
+    except Exception:
+        return []
 
 
 def _runtime_override_help() -> str:
@@ -2373,6 +2376,21 @@ def _evaluate_review_required_state(
     return False, "required_state=phase_executed could not determine a target phase"
 
 
+def _current_review_phase_subject(cwd: Path) -> str | None:
+    """Return the current phase number from state.json for phase-scoped review preflights."""
+    from gpd.core.state import load_state_json
+    from gpd.core.utils import phase_normalize
+
+    state_obj = load_state_json(cwd)
+    if not isinstance(state_obj, dict):
+        return None
+    position = state_obj.get("position")
+    if not isinstance(position, dict):
+        return None
+    current_phase = phase_normalize(str(position.get("current_phase") or "")).strip()
+    return current_phase or None
+
+
 def _has_any_phase_summary(phases_dir: Path) -> bool:
     """Return True when any numbered or standalone summary exists."""
     if not phases_dir.exists():
@@ -2783,7 +2801,10 @@ def _build_review_preflight(
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
 
     checks: list[ReviewPreflightCheck] = []
-    phase_info = find_phase(cwd, subject) if subject and "phase_artifacts" in contract.preflight_checks else None
+    phase_subject = subject
+    if phase_subject is None and "phase_artifacts" in contract.preflight_checks:
+        phase_subject = _current_review_phase_subject(cwd)
+    phase_info = find_phase(cwd, phase_subject) if phase_subject and "phase_artifacts" in contract.preflight_checks else None
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool | None = None) -> None:
         checks.append(
@@ -3019,11 +3040,19 @@ def _build_review_preflight(
                     ),
                 )
         else:
-            summary_exists = _has_any_phase_summary(layout.phases_dir)
+            summary_exists = bool(getattr(phase_info, "summaries", [])) if phase_info is not None else _has_any_phase_summary(layout.phases_dir)
             add_check(
                 "phase_summaries",
                 summary_exists,
-                "phase summaries present" if summary_exists else "no phase summaries found",
+                (
+                    f'current phase "{phase_info.phase_number}" has {len(phase_info.summaries)} summary file(s)'
+                    if phase_info is not None and summary_exists
+                    else (
+                        f'current phase "{phase_info.phase_number}" has no SUMMARY artifacts'
+                        if phase_info is not None
+                        else ("phase summaries present" if summary_exists else "no phase summaries found")
+                    )
+                ),
             )
 
     required_state_check = _evaluate_review_required_state(contract, cwd=cwd, subject=subject, phase_info=phase_info)
@@ -3524,7 +3553,7 @@ def resolve_model_cmd(
     from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 
     supported_runtimes = _supported_runtime_names()
-    if runtime is not None and runtime not in supported_runtimes:
+    if runtime is not None and supported_runtimes and runtime not in supported_runtimes:
         supported = ", ".join(supported_runtimes)
         _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
@@ -3908,7 +3937,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
     from gpd.adapters import get_adapter
 
     console.print()
-    table = Table(title="Install Summary", show_header=True, header_style="bold cyan")
+    table = Table(title="Install Summary", show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
     table.add_column("Runtime", style="bold")
     table.add_column("Target")
     table.add_column("Status")

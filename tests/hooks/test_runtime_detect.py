@@ -19,6 +19,7 @@ from gpd.hooks.runtime_detect import (
     SOURCE_ENV,
     SOURCE_GLOBAL,
     SOURCE_LOCAL,
+    TodoCandidate,
     UpdateCacheCandidate,
     _has_gpd_install,
     all_runtime_dirs,
@@ -28,10 +29,12 @@ from gpd.hooks.runtime_detect import (
     detect_runtime_for_gpd_use,
     get_cache_dirs,
     get_gpd_install_dirs,
+    get_todo_candidates,
     get_todo_dirs,
     get_update_cache_candidates,
     get_update_cache_files,
     resolve_effective_runtime,
+    should_consider_todo_candidate,
     should_consider_update_cache_candidate,
     update_command_for_runtime,
 )
@@ -456,6 +459,23 @@ class TestHelperDirs:
         assert dirs[0] == tmp_path / ".codex" / "todos"
         assert dirs[1] == home / ".codex" / "todos"
 
+    def test_todo_candidates_prioritize_explicit_target_install(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        custom_dir = tmp_path / "custom-codex"
+        _mark_gpd_install(custom_dir)
+        _write_install_manifest(custom_dir, install_scope=SCOPE_LOCAL)
+
+        env = _clean_runtime_env()
+        env["CODEX_CONFIG_DIR"] = str(custom_dir)
+        with patch.dict(os.environ, env, clear=True):
+            candidates = get_todo_candidates(cwd=workspace, home=home, preferred_runtime=RUNTIME_UNKNOWN)
+
+        assert candidates[0].path == custom_dir / "todos"
+        assert candidates[0].runtime == RUNTIME_CODEX
+        assert candidates[0].scope == SCOPE_LOCAL
+
 
 class TestDetectInstallScope:
     """Tests for local/global install-scope detection."""
@@ -715,6 +735,60 @@ class TestUpdateCacheCandidates:
         with patch.dict(os.environ, env, clear=True):
             assert should_consider_update_cache_candidate(stale_local_candidate, cwd=workspace, home=home) is False
             assert should_consider_update_cache_candidate(explicit_target_candidate, cwd=workspace, home=home) is True
+
+
+class TestTodoCandidates:
+    def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+
+        global_runtime_dir = home / ".codex"
+        global_runtime_dir.mkdir(parents=True)
+        (global_runtime_dir / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": SCOPE_GLOBAL}),
+            encoding="utf-8",
+        )
+
+        stale_local_candidate = TodoCandidate(
+            workspace / ".codex" / "todos",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_LOCAL,
+        )
+        live_global_candidate = TodoCandidate(
+            global_runtime_dir / "todos",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_GLOBAL,
+        )
+
+        with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+            assert should_consider_todo_candidate(stale_local_candidate, cwd=workspace, home=home) is False
+            assert should_consider_todo_candidate(live_global_candidate, cwd=workspace, home=home) is True
+
+    def test_candidate_from_default_path_is_rejected_when_explicit_target_serves_runtime(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        home = tmp_path / "home"
+        custom_dir = tmp_path / "custom-codex"
+        _mark_gpd_install(custom_dir)
+        _write_install_manifest(custom_dir, install_scope=SCOPE_LOCAL)
+
+        stale_local_candidate = TodoCandidate(
+            workspace / ".codex" / "todos",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_LOCAL,
+        )
+        explicit_target_candidate = TodoCandidate(
+            custom_dir / "todos",
+            runtime=RUNTIME_CODEX,
+            scope=SCOPE_LOCAL,
+        )
+
+        env = _clean_runtime_env()
+        env["CODEX_CONFIG_DIR"] = str(custom_dir)
+        with patch.dict(os.environ, env, clear=True):
+            assert should_consider_todo_candidate(stale_local_candidate, cwd=workspace, home=home) is False
+            assert should_consider_todo_candidate(explicit_target_candidate, cwd=workspace, home=home) is True
 
 
 class TestUpdateCommand:

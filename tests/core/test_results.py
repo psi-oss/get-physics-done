@@ -280,6 +280,30 @@ def test_result_update_rejects_conflicting_verified_and_verification_records():
         result_update(state, "R-05", verified=True, verification_records=[])
 
 
+def test_result_update_rejects_false_verified_when_existing_records_remain():
+    state: dict = {}
+    result_add(
+        state,
+        result_id="R-05a",
+        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
+    )
+
+    with pytest.raises(ResultError, match="verified cannot be false when verification_records are present"):
+        result_update(state, "R-05a", verified=False)
+
+
+def test_result_update_rejects_string_false_verified_when_existing_records_remain():
+    state: dict = {}
+    result_add(
+        state,
+        result_id="R-05b",
+        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
+    )
+
+    with pytest.raises(ResultError, match="verified cannot be false when verification_records are present"):
+        result_update(state, "R-05b", verified="false")
+
+
 def test_result_verify_not_found():
     state: dict = {}
     with pytest.raises(ResultNotFoundError):

@@ -227,7 +227,7 @@ Merge new settings into existing config.json:
     "checkpoint_after_n_tasks": 3
   },
   "git": {
-    "branching_strategy": "none" | "phase" | "milestone"
+    "branching_strategy": "none" | "per-phase" | "per-milestone"
   }
 }
 ```

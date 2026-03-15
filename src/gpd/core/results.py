@@ -459,6 +459,8 @@ def result_update(
     # Validate before mutating state
     trial = dict(state["intermediate_results"][idx])
     trial.update(pending)
+    if trial.get("verification_records") and not bool(trial.get("verified")):
+        raise ResultError("verified cannot be false when verification_records are present")
     try:
         IntermediateResult(**trial)
     except _PydanticValidationError as exc:

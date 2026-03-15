@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from gpd.hooks.runtime_detect import TodoCandidate
 from gpd.hooks.statusline import (
     _check_update,
     _context_bar,
@@ -23,6 +24,10 @@ from gpd.hooks.statusline import (
     _read_workspace_label,
     main,
 )
+
+
+def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
+    return [TodoCandidate(path) for path in paths]
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 
@@ -251,7 +256,7 @@ class TestReadCurrentTask:
     def test_no_matching_todo_files(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
 
     def test_matching_file_with_in_progress_task(self, tmp_path: Path) -> None:
@@ -259,7 +264,7 @@ class TestReadCurrentTask:
         todo_dir.mkdir()
         todos = [{"status": "in_progress", "activeForm": "Running tests"}]
         (todo_dir / "session-123-agent-abc.json").write_text(json.dumps(todos))
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == "Running tests"
 
     def test_matching_file_no_in_progress_task(self, tmp_path: Path) -> None:
@@ -267,7 +272,7 @@ class TestReadCurrentTask:
         todo_dir.mkdir()
         todos = [{"status": "completed", "activeForm": "Done"}]
         (todo_dir / "session-123-agent-abc.json").write_text(json.dumps(todos))
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
 
     def test_local_runtime_todo_file_is_discovered(self, tmp_path: Path) -> None:
@@ -318,7 +323,7 @@ class TestReadCurrentTask:
 
         with (
             patch("gpd.hooks.statusline.__file__", str(hook_path)),
-            patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[]),
+            patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=[]),
         ):
             assert _read_current_task("session-123") == "Explicit target task"
 
@@ -328,15 +333,22 @@ class TestReadCurrentTask:
         codex_todo_dir = tmp_path / ".codex" / "todos"
         claude_todo_dir.mkdir(parents=True)
         codex_todo_dir.mkdir(parents=True)
+        (tmp_path / ".codex" / "gpd-file-manifest.json").write_text(
+            json.dumps({"install_scope": "local"}),
+            encoding="utf-8",
+        )
 
-        (claude_todo_dir / "session-123-agent-claude.json").write_text(
+        claude_file = claude_todo_dir / "session-123-agent-claude.json"
+        codex_file = codex_todo_dir / "session-123-agent-codex.json"
+        claude_file.write_text(
             json.dumps([{"status": "in_progress", "activeForm": "Claude task"}]),
             encoding="utf-8",
         )
-        (codex_todo_dir / "session-123-agent-codex.json").write_text(
+        codex_file.write_text(
             json.dumps([{"status": "in_progress", "activeForm": "Codex task"}]),
             encoding="utf-8",
         )
+        claude_file.touch()
 
         env = {key: value for key, value in os.environ.items() if key != "CODEX_SESSION"}
         env["CODEX_SESSION"] = "1"
@@ -346,7 +358,7 @@ class TestReadCurrentTask:
         ):
             assert _read_current_task("session-123", str(tmp_path)) == "Codex task"
 
-    def test_todo_dir_order_beats_newer_global_match(self, tmp_path: Path) -> None:
+    def test_newest_allowed_todo_file_wins_across_candidate_dirs(self, tmp_path: Path) -> None:
         local_todo_dir = tmp_path / ".codex" / "todos"
         global_todo_dir = tmp_path / "home" / ".codex" / "todos"
         local_todo_dir.mkdir(parents=True)
@@ -364,18 +376,24 @@ class TestReadCurrentTask:
         )
         global_file.touch()
 
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[local_todo_dir, global_todo_dir]):
-            assert _read_current_task("session-123") == "Prefer local"
+        with patch(
+            "gpd.hooks.runtime_detect.get_todo_candidates",
+            return_value=_todo_candidates(local_todo_dir, global_todo_dir),
+        ):
+            assert _read_current_task("session-123") == "Do not prefer global"
 
     def test_corrupt_todo_file_returns_empty(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
         (todo_dir / "session-123-agent-abc.json").write_text("not json!")
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
 
     def test_nonexistent_todo_dirs(self) -> None:
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[Path("/nonexistent/todos")]):
+        with patch(
+            "gpd.hooks.runtime_detect.get_todo_candidates",
+            return_value=_todo_candidates(Path("/nonexistent/todos")),
+        ):
             assert _read_current_task("session-123") == ""
 
     def test_session_prefix_collision_uses_exact_session_match(self, tmp_path: Path) -> None:
@@ -390,7 +408,7 @@ class TestReadCurrentTask:
             encoding="utf-8",
         )
 
-        with patch("gpd.hooks.runtime_detect.get_todo_dirs", return_value=[todo_dir]):
+        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-1") == "Correct task"
 
 

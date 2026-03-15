@@ -486,7 +486,14 @@ If a machine-readable paper spec is available, prefer the canonical builder:
 gpd paper-build paper/PAPER-CONFIG.json
 ```
 
-This emits `paper/main.tex`, writes the artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. If no JSON spec exists yet, create `paper/PAPER-CONFIG.json` first and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
+This emits `paper/main.tex`, writes the artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. If no JSON spec exists yet, create `paper/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
+
+When authoring `paper/PAPER-CONFIG.json`:
+
+- use the exact top-level fields from `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`
+- keep `authors`, `sections`, `figures`, and `appendix_sections` as JSON arrays
+- keep `journal` to a supported builder key like `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`
+- do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 
 **Supplemental material:** If the paper requires supplemental material (common for PRL and other letter-format journals), use `{GPD_INSTALL_DIR}/templates/paper/supplemental-material.md` for the standard structure (extended derivations, computational details, additional figures, data tables, code availability).
 

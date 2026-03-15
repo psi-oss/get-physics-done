@@ -23,17 +23,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
-    ContractAcceptanceTest,
-    ContractApproachPolicy,
-    ContractClaim,
-    ContractContextIntake,
-    ContractDeliverable,
-    ContractForbiddenProxy,
-    ContractLink,
-    ContractObservable,
-    ContractReference,
-    ContractScope,
-    ContractUncertaintyMarkers,
     ConventionLock,
     ResearchContract,
     VerificationEvidence,
@@ -53,7 +42,7 @@ from gpd.core.constants import (
     SUMMARY_SUFFIX,
     ProjectLayout,
 )
-from gpd.core.contract_validation import validate_project_contract
+from gpd.core.contract_validation import salvage_project_contract, validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
@@ -995,75 +984,23 @@ def _first_validation_issue(exc: PydanticValidationError) -> str:
     return f"{location}: {message}" if location else message
 
 
-def _normalize_contract_collection(
-    value: object,
-    *,
-    field_name: str,
-    item_model: type[BaseModel],
-    integrity_issues: list[str],
-) -> list[dict[str, object]]:
-    if not isinstance(value, list):
-        integrity_issues.append(
-            f'schema normalization: reset "project_contract.{field_name}" because expected list, got {type(value).__name__}'
-        )
-        return []
-
-    normalized_items: list[dict[str, object]] = []
-    for index, item in enumerate(value):
-        if not isinstance(item, dict):
-            integrity_issues.append(
-                f'schema normalization: dropped "project_contract.{field_name}[{index}]" because expected object, got {type(item).__name__}'
-            )
-            continue
-        try:
-            normalized_items.append(item_model.model_validate(item).model_dump())
-        except PydanticValidationError as exc:
-            detail = _first_validation_issue(exc)
-            integrity_issues.append(
-                f'schema normalization: dropped malformed "project_contract.{field_name}[{index}]": {detail}'
-            )
-    return normalized_items
-
-
-def _normalize_contract_singleton(
-    value: object,
-    *,
-    field_name: str,
-    model: type[BaseModel],
-    integrity_issues: list[str],
-) -> dict[str, object]:
-    default_value = model.model_validate({}).model_dump()
-
-    if not isinstance(value, dict):
-        integrity_issues.append(
-            f'schema normalization: reset "project_contract.{field_name}" because expected object, got {type(value).__name__}'
-        )
-        return default_value
-
-    try:
-        return model.model_validate(value).model_dump()
-    except PydanticValidationError:
-        pass
-
-    normalized_value = copy.deepcopy(default_value)
-    for key, raw_item in value.items():
-        if key not in model.model_fields:
-            integrity_issues.append(
-                f'schema normalization: dropped unknown "project_contract.{field_name}.{key}"'
-            )
-            continue
-        try:
-            partial = model.model_validate({key: raw_item}).model_dump()
-        except PydanticValidationError as exc:
-            detail = _first_validation_issue(exc)
-            integrity_issues.append(
-                f'schema normalization: dropped malformed "project_contract.{field_name}.{key}": {detail}'
-            )
-            continue
-        if key in partial:
-            normalized_value[key] = partial[key]
-
-    return normalized_value
+def _integrity_issue_from_contract_error(error: str) -> str:
+    if error.endswith(": Extra inputs are not permitted"):
+        path = error.rsplit(":", 1)[0].strip()
+        return f'schema normalization: dropped unknown "project_contract.{path}"'
+    if " must be an object, not " in error:
+        path, actual = error.split(" must be an object, not ", 1)
+        return f'schema normalization: reset "project_contract.{path}" because expected object, got {actual}'
+    if " must be a list, not " in error:
+        path, actual = error.split(" must be a list, not ", 1)
+        return f'schema normalization: reset "project_contract.{path}" because expected list, got {actual}'
+    if error.endswith(" is required"):
+        normalized_error = error.replace("scope.", "project_contract.scope.", 1)
+        return f"schema normalization: {normalized_error}"
+    if ":" in error:
+        path, detail = error.split(":", 1)
+        return f'schema normalization: dropped malformed "project_contract.{path.strip()}": {detail.strip()}'
+    return f"schema normalization: {error}"
 
 
 def _normalize_project_contract_section(value: object, integrity_issues: list[str]) -> object:
@@ -1075,56 +1012,9 @@ def _normalize_project_contract_section(value: object, integrity_issues: list[st
     except PydanticValidationError:
         pass
 
-    normalized_contract = copy.deepcopy(value)
-    collection_models: dict[str, type[BaseModel]] = {
-        "observables": ContractObservable,
-        "claims": ContractClaim,
-        "deliverables": ContractDeliverable,
-        "acceptance_tests": ContractAcceptanceTest,
-        "references": ContractReference,
-        "forbidden_proxies": ContractForbiddenProxy,
-        "links": ContractLink,
-    }
-    for field_name, item_model in collection_models.items():
-        if field_name not in normalized_contract:
-            continue
-        normalized_contract[field_name] = _normalize_contract_collection(
-            normalized_contract.get(field_name),
-            field_name=field_name,
-            item_model=item_model,
-            integrity_issues=integrity_issues,
-        )
-
-    required_singleton_models: dict[str, type[BaseModel]] = {
-        "scope": ContractScope,
-    }
-    for field_name, model in required_singleton_models.items():
-        if field_name not in normalized_contract or not isinstance(normalized_contract[field_name], dict):
-            continue
-        try:
-            normalized_contract[field_name] = model.model_validate(normalized_contract[field_name]).model_dump()
-        except PydanticValidationError:
-            continue
-
-    defaultable_singleton_models: dict[str, type[BaseModel]] = {
-        "approach_policy": ContractApproachPolicy,
-        "context_intake": ContractContextIntake,
-        "uncertainty_markers": ContractUncertaintyMarkers,
-    }
-    for field_name, model in defaultable_singleton_models.items():
-        if field_name not in normalized_contract:
-            continue
-        normalized_contract[field_name] = _normalize_contract_singleton(
-            normalized_contract[field_name],
-            field_name=field_name,
-            model=model,
-            integrity_issues=integrity_issues,
-        )
-
-    try:
-        return ResearchContract.model_validate(normalized_contract).model_dump()
-    except PydanticValidationError:
-        return value
+    normalized_contract, errors = salvage_project_contract(value)
+    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in errors)
+    return normalized_contract.model_dump() if normalized_contract is not None else None
 
 
 def _normalize_intermediate_results_section(value: object, integrity_issues: list[str]) -> object:
@@ -2046,11 +1936,12 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     from pydantic import ValidationError
 
     try:
-        parsed = (
-            contract_data
-            if isinstance(contract_data, ResearchContract)
-            else ResearchContract.model_validate(contract_data)
-        )
+        if isinstance(contract_data, ResearchContract):
+            parsed = contract_data
+        else:
+            normalized_contract, _errors = salvage_project_contract(contract_data)
+            candidate = normalized_contract.model_dump() if normalized_contract is not None else contract_data
+            parsed = ResearchContract.model_validate(candidate)
     except ValidationError as exc:
         first_error = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"

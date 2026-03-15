@@ -396,6 +396,59 @@ def test_ensure_state_schema_malformed_project_contract_singleton_field_preserve
     ]
 
 
+def test_ensure_state_schema_salvages_scope_list_drift_without_dropping_contract():
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["scope"]["unresolved_questions"] = "not-a-list"
+
+    result = ensure_state_schema({"project_contract": contract})
+
+    assert result["project_contract"] is not None
+    assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
+    assert result["project_contract"]["scope"]["unresolved_questions"] == []
+
+
+def test_ensure_state_schema_salvages_reference_optional_field_without_dropping_reference():
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"][0]["aliases"] = "not-a-list"
+
+    result = ensure_state_schema({"project_contract": contract})
+
+    assert result["project_contract"] is not None
+    assert result["project_contract"]["references"] == [
+        {
+            "id": "ref-benchmark",
+            "kind": "paper",
+            "locator": "Author et al., Journal, 2024",
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Published comparison target",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read", "compare", "cite"],
+        }
+    ]
+
+
+def test_ensure_state_schema_strips_claim_extra_keys_without_dropping_claim():
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["notes"] = "harmless"
+
+    result = ensure_state_schema({"project_contract": contract})
+
+    assert result["project_contract"] is not None
+    assert result["project_contract"]["claims"] == [
+        {
+            "id": "claim-benchmark",
+            "statement": "Recover the benchmark value within tolerance",
+            "observables": ["obs-benchmark"],
+            "deliverables": ["deliv-figure"],
+            "acceptance_tests": ["test-benchmark"],
+            "references": ["ref-benchmark"],
+        }
+    ]
+
+
 def test_ensure_state_schema_malformed_verification_record_preserves_intermediate_results():
     state = default_state_dict()
     state["intermediate_results"] = [
@@ -480,6 +533,19 @@ def test_state_set_project_contract_rejects_contract_missing_skeptical_fields(tm
     saved = load_state_json(tmp_path)
     assert saved is not None
     assert saved["project_contract"] is None
+
+
+def test_state_set_project_contract_accepts_self_healable_contract(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is True
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"]["context_intake"]["must_read_refs"] == []
 
 
 def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():

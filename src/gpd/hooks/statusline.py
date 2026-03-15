@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
-from gpd.hooks.install_metadata import install_scope_from_manifest, installed_update_command
+from gpd.hooks.install_metadata import install_scope_from_manifest, installed_runtime, installed_update_command
 
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
@@ -192,7 +192,7 @@ def _self_update_command(config_dir: Path) -> str | None:
     return installed_update_command(config_dir)
 
 
-def _matching_todo_files(todos_dir: Path, session_id: str) -> list[Path]:
+def _matching_todo_files(todos_dir: Path, session_id: str) -> list[tuple[float, Path]]:
     """Return matching todo files for a session ordered newest-first within one directory."""
     matches: list[tuple[float, Path]] = []
     try:
@@ -207,7 +207,7 @@ def _matching_todo_files(todos_dir: Path, session_id: str) -> list[Path]:
         return []
 
     matches.sort(key=lambda item: item[0], reverse=True)
-    return [todo_file for _, todo_file in matches]
+    return matches
 
 
 def _read_todo_entries(todo_file: Path) -> list[dict[str, object]]:
@@ -232,26 +232,49 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     if not session_id:
         return ""
 
-    from gpd.hooks.runtime_detect import get_todo_dirs
+    from gpd.hooks.runtime_detect import (
+        TodoCandidate,
+        detect_active_runtime_with_gpd_install,
+        detect_runtime_for_gpd_use,
+        get_todo_candidates,
+        should_consider_todo_candidate,
+    )
 
     workspace_path = Path(workspace_dir) if workspace_dir else None
-    todo_dirs = get_todo_dirs(cwd=workspace_path, prefer_active=True)
+    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=workspace_path)
+    preferred_runtime = detect_runtime_for_gpd_use(cwd=workspace_path)
+    todo_candidates = get_todo_candidates(cwd=workspace_path, preferred_runtime=preferred_runtime)
     self_config_dir = _self_config_dir()
     if self_config_dir is not None:
-        self_todo_dir = self_config_dir / "todos"
-        if self_todo_dir not in todo_dirs:
-            todo_dirs = [self_todo_dir, *todo_dirs]
+        self_candidate = TodoCandidate(
+            self_config_dir / "todos",
+            runtime=installed_runtime(self_config_dir),
+            scope=_self_install_scope(self_config_dir),
+        )
+        if all(candidate.path != self_candidate.path for candidate in todo_candidates):
+            todo_candidates = [self_candidate, *todo_candidates]
 
-    for todos_dir in todo_dirs:
+    todo_files: list[tuple[float, Path]] = []
+    for candidate in todo_candidates:
+        if not should_consider_todo_candidate(
+            candidate,
+            active_installed_runtime=active_installed_runtime,
+            cwd=workspace_path,
+        ):
+            continue
+        todos_dir = candidate.path
         if not todos_dir.is_dir():
             continue
-        for todo_file in _matching_todo_files(todos_dir, session_id):
-            for todo in _read_todo_entries(todo_file):
-                if todo.get("status") != "in_progress":
-                    continue
-                active_form = todo.get("activeForm")
-                if isinstance(active_form, str) and active_form:
-                    return active_form
+        todo_files.extend(_matching_todo_files(todos_dir, session_id))
+
+    todo_files.sort(key=lambda item: item[0], reverse=True)
+    for _mtime, todo_file in todo_files:
+        for todo in _read_todo_entries(todo_file):
+            if todo.get("status") != "in_progress":
+                continue
+            active_form = todo.get("activeForm")
+            if isinstance(active_form, str) and active_form:
+                return active_form
 
     return ""
 

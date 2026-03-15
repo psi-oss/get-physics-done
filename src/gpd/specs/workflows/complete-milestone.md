@@ -626,14 +626,14 @@ Extract `branching_strategy`, `phase_branch_template`, `milestone_branch_templat
 
 **If "none":** Skip to git_tag.
 
-**For "phase" strategy:**
+**For "per-phase" strategy:**
 
 ```bash
 BRANCH_PREFIX=$(echo "$PHASE_BRANCH_TEMPLATE" | sed 's/{.*//')
 PHASE_BRANCHES=$(git branch --list "${BRANCH_PREFIX}*" 2>/dev/null | sed 's/^\*//' | tr -d ' ')
 ```
 
-**For "milestone" strategy:**
+**For "per-milestone" strategy:**
 
 ```bash
 BRANCH_PREFIX=$(echo "$MILESTONE_BRANCH_TEMPLATE" | sed 's/{.*//')
@@ -647,7 +647,7 @@ MILESTONE_BRANCH=$(git branch --list "${BRANCH_PREFIX}*" 2>/dev/null | sed 's/^\
 ```
 ## Git Branches Detected
 
-Branching strategy: {phase/milestone}
+Branching strategy: {per-phase/per-milestone}
 Branches: {list}
 
 Options:
@@ -666,14 +666,14 @@ ask_user with options: Squash merge (Recommended), Merge with history, Delete wi
 CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-phase" ]; then
   for branch in $PHASE_BRANCHES; do
     git merge --squash "$branch"
     git commit -m "feat: $branch for v[X.Y]"
   done
 fi
 
-if [ "$BRANCHING_STRATEGY" = "milestone" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-milestone" ]; then
   git merge --squash "$MILESTONE_BRANCH"
   git commit -m "feat: $MILESTONE_BRANCH for v[X.Y]"
 fi
@@ -687,13 +687,13 @@ git checkout "$CURRENT_BRANCH"
 CURRENT_BRANCH=$(git branch --show-current)
 git checkout main
 
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-phase" ]; then
   for branch in $PHASE_BRANCHES; do
     git merge --no-ff "$branch" -m "Merge branch '$branch' for v[X.Y]"
   done
 fi
 
-if [ "$BRANCHING_STRATEGY" = "milestone" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-milestone" ]; then
   git merge --no-ff "$MILESTONE_BRANCH" -m "Merge branch '$MILESTONE_BRANCH' for v[X.Y]"
 fi
 
@@ -703,13 +703,13 @@ git checkout "$CURRENT_BRANCH"
 **Delete without merging:**
 
 ```bash
-if [ "$BRANCHING_STRATEGY" = "phase" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-phase" ]; then
   for branch in $PHASE_BRANCHES; do
     git branch -d "$branch" 2>/dev/null || git branch -D "$branch"
   done
 fi
 
-if [ "$BRANCHING_STRATEGY" = "milestone" ]; then
+if [ "$BRANCHING_STRATEGY" = "per-milestone" ]; then
   git branch -d "$MILESTONE_BRANCH" 2>/dev/null || git branch -D "$MILESTONE_BRANCH"
 fi
 ```
