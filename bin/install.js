@@ -29,7 +29,7 @@ const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = ".gpd";
-const GITHUB_FALLBACK_BRANCH = "main";
+const GITHUB_MAIN_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
@@ -146,7 +146,7 @@ function checkPip(python) {
   return (result.stdout || result.stderr).trim();
 }
 
-function repositoryBaseUrl(repositoryField) {
+function normalizedRepositoryUrl(repositoryField) {
   const raw = typeof repositoryField === "string"
     ? repositoryField
     : repositoryField && typeof repositoryField.url === "string"
@@ -163,35 +163,29 @@ function repositoryBaseUrl(repositoryField) {
   if (normalized.startsWith("git@github.com:")) {
     normalized = `https://github.com/${normalized.slice("git@github.com:".length)}`;
   }
-  normalized = normalized.replace(/\.git$/i, "").replace(/\/+$/, "");
-  return normalized || null;
+  return normalized.replace(/\/+$/, "") || null;
+}
+
+function repositoryBaseUrl(repositoryField) {
+  const normalized = normalizedRepositoryUrl(repositoryField);
+  if (!normalized) {
+    return null;
+  }
+  return normalized.replace(/\.git$/i, "") || null;
 }
 
 function repositoryGitUrl(repositoryField) {
-  const raw = typeof repositoryField === "string"
-    ? repositoryField
-    : repositoryField && typeof repositoryField.url === "string"
-      ? repositoryField.url
-      : "";
-  if (!raw) {
+  let normalized = normalizedRepositoryUrl(repositoryField);
+  if (!normalized) {
     return null;
   }
-
-  let normalized = raw.trim();
-  if (normalized.startsWith("git+")) {
-    normalized = normalized.slice(4);
-  }
-  if (normalized.startsWith("git@github.com:")) {
-    normalized = `https://github.com/${normalized.slice("git@github.com:".length)}`;
-  }
-  normalized = normalized.replace(/\/+$/, "");
   if (!normalized.endsWith(".git")) {
     normalized = `${normalized}.git`;
   }
   return normalized || null;
 }
 
-function sourceInstallCandidates(version) {
+function releaseInstallCandidates(version) {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
   const candidates = [];
@@ -204,19 +198,11 @@ function sourceInstallCandidates(version) {
         probe: {
           kind: "http",
         },
-      },
-      {
-        label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
-        spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
-        noCache: true,
-        probe: {
-          kind: "http",
-        },
       }
     );
   }
 
-  // HTTPS git candidates follow the public GitHub archives.
+  // Release installs stay pinned to the matching tagged GitHub source.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -228,17 +214,6 @@ function sourceInstallCandidates(version) {
           ref: `v${version}`,
           refNamespace: "tags",
         },
-      },
-      {
-        label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-        spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
-        noCache: true,
-        probe: {
-          kind: "git",
-          repoUrl: repoGitUrl,
-          ref: GITHUB_FALLBACK_BRANCH,
-          refNamespace: "heads",
-        },
       }
     );
   }
@@ -246,15 +221,15 @@ function sourceInstallCandidates(version) {
   return candidates;
 }
 
-function latestMainInstallCandidates() {
+function mainBranchInstallCandidates() {
   const repoBaseUrl = repositoryBaseUrl(repository);
   const repoGitUrl = repositoryGitUrl(repository);
   const candidates = [];
 
   if (repoBaseUrl) {
     candidates.push({
-      label: `current ${GITHUB_FALLBACK_BRANCH} branch source archive`,
-      spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz`,
+      label: `current ${GITHUB_MAIN_BRANCH} branch source archive`,
+      spec: `${repoBaseUrl}/archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz`,
       noCache: true,
       probe: {
         kind: "http",
@@ -264,13 +239,13 @@ function latestMainInstallCandidates() {
 
   if (repoGitUrl) {
     candidates.push({
-      label: `HTTPS git checkout of ${GITHUB_FALLBACK_BRANCH}`,
-      spec: `git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}`,
+      label: `HTTPS git checkout of ${GITHUB_MAIN_BRANCH}`,
+      spec: `git+${repoGitUrl}@${GITHUB_MAIN_BRANCH}`,
       noCache: true,
       probe: {
         kind: "git",
         repoUrl: repoGitUrl,
-        ref: GITHUB_FALLBACK_BRANCH,
+        ref: GITHUB_MAIN_BRANCH,
         refNamespace: "heads",
       },
     });
@@ -400,9 +375,6 @@ function probeHttpCandidate(urlString, redirectCount = 0) {
 function probeGitCandidate(repoUrl, ref, refNamespace) {
   const gitArgs = ["ls-remote", "--exit-code", refNamespace === "tags" ? "--tags" : "--heads", repoUrl, ref];
   const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
-  if (repoUrl.startsWith("ssh://") && !gitEnv.GIT_SSH_COMMAND) {
-    gitEnv.GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5";
-  }
 
   const result = spawnSync("git", gitArgs, {
     encoding: "utf-8",
@@ -475,6 +447,47 @@ function logUnavailableCandidates(skipped) {
   for (const { candidate, probe } of skipped) {
     log(`Detected that ${candidate.label} is unavailable${formatProbeReason(probe.reason)}.`);
   }
+}
+
+function installFromCandidates(python, candidates, env, options = {}) {
+  const { forceReinstall = false, firstAttemptMessage = null } = options;
+  if (candidates.length === 0) {
+    return { ok: false };
+  }
+
+  if (typeof firstAttemptMessage === "function") {
+    const message = firstAttemptMessage(candidates[0]);
+    if (message) {
+      log(message);
+    }
+  }
+
+  let installResult = runPipInstall(python, candidates[0].spec, env, {
+    forceReinstall,
+    noCache: candidates[0].noCache,
+  });
+  if (installResult.status === 0) {
+    return { ok: true, installedFrom: candidates[0].spec };
+  }
+  flushCapturedOutput(installResult);
+
+  for (const [index, candidate] of candidates.entries()) {
+    if (index === 0) {
+      continue;
+    }
+    const previousLabel = candidates[index - 1].label;
+    log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
+    installResult = runPipInstall(python, candidate.spec, env, {
+      forceReinstall,
+      noCache: candidate.noCache,
+    });
+    if (installResult.status === 0) {
+      return { ok: true, installedFrom: candidate.spec };
+    }
+    flushCapturedOutput(installResult);
+  }
+
+  return { ok: false };
 }
 
 function runPipInstall(python, spec, env, options = {}) {
@@ -577,44 +590,26 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
-    const resolution = await resolveInstallCandidates(latestMainInstallCandidates());
+    const resolution = await resolveInstallCandidates(mainBranchInstallCandidates());
     const upgradeCandidates = resolution.candidates;
     if (upgradeCandidates.length > 0) {
-      log(`Upgrading GPD from the latest GitHub ${GITHUB_FALLBACK_BRANCH} branch into the managed environment...`);
+      log(`Upgrading GPD from the latest GitHub ${GITHUB_MAIN_BRANCH} branch into the managed environment...`);
       logUnavailableCandidates(resolution.skipped);
       if (resolution.skipped.length > 0) {
-        log(`Using ${upgradeCandidates[0].label} for the ${GITHUB_FALLBACK_BRANCH}-branch upgrade.`);
+        log(`Using ${upgradeCandidates[0].label} for the ${GITHUB_MAIN_BRANCH}-branch upgrade.`);
       }
-      let installResult = runPipInstall(python, upgradeCandidates[0].spec, pipInstallEnv, {
+      const installAttempt = installFromCandidates(python, upgradeCandidates, pipInstallEnv, {
         forceReinstall: true,
-        noCache: upgradeCandidates[0].noCache,
       });
-      if (installResult.status === 0) {
-        return { ok: true, requestedVersion, installedFrom: upgradeCandidates[0].spec };
-      }
-      flushCapturedOutput(installResult);
-
-      for (const [index, candidate] of upgradeCandidates.entries()) {
-        if (index === 0) {
-          continue;
-        }
-        const previousLabel = upgradeCandidates[index - 1].label;
-        log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
-        installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
-          forceReinstall: true,
-          noCache: candidate.noCache,
-        });
-        if (installResult.status === 0) {
-          return { ok: true, requestedVersion, installedFrom: candidate.spec };
-        }
-        flushCapturedOutput(installResult);
+      if (installAttempt.ok) {
+        return { ok: true, requestedVersion, installedFrom: installAttempt.installedFrom };
       }
 
-      log(`GitHub ${GITHUB_FALLBACK_BRANCH} upgrade failed across all main-branch candidates.`);
+      log(`GitHub ${GITHUB_MAIN_BRANCH} upgrade failed across all main-branch candidates.`);
       return { ok: false, requestedVersion };
     } else if (resolution.skipped.length > 0) {
       logUnavailableCandidates(resolution.skipped);
-      log(`No accessible GitHub ${GITHUB_FALLBACK_BRANCH} source candidate was detected for the upgrade.`);
+      log(`No accessible GitHub ${GITHUB_MAIN_BRANCH} source candidate was detected for the upgrade.`);
       return { ok: false, requestedVersion };
     }
   }
@@ -625,38 +620,21 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
       ? "Reinstalling GPD"
       : "Installing GPD";
 
-  // Try GitHub source candidates in precedence order.
-  const resolution = await resolveInstallCandidates(sourceInstallCandidates(pythonVersion));
-  const sourceCandidates = resolution.candidates;
+  // Try the matching tagged GitHub release candidates in precedence order.
+  const resolution = await resolveInstallCandidates(releaseInstallCandidates(pythonVersion));
+  const releaseCandidates = resolution.candidates;
   logUnavailableCandidates(resolution.skipped);
 
-  let installResult = null;
-  if (sourceCandidates.length > 0) {
-    log(`${action} from ${sourceCandidates[0].label} into the managed environment...`);
-    installResult = runPipInstall(python, sourceCandidates[0].spec, pipInstallEnv, {
+  if (releaseCandidates.length > 0) {
+    const installAttempt = installFromCandidates(python, releaseCandidates, pipInstallEnv, {
       forceReinstall,
-      noCache: sourceCandidates[0].noCache,
+      firstAttemptMessage: (candidate) => `${action} from ${candidate.label} into the managed environment...`,
     });
-    if (installResult.status === 0) {
-      return { ok: true, requestedVersion, installedFrom: sourceCandidates[0].spec };
+    if (installAttempt.ok) {
+      return { ok: true, requestedVersion, installedFrom: installAttempt.installedFrom };
     }
-    flushCapturedOutput(installResult);
-
-    for (const [index, candidate] of sourceCandidates.entries()) {
-      if (index === 0) {
-        continue;
-      }
-      const previousLabel = sourceCandidates[index - 1].label;
-      log(`${previousLabel} failed. Falling back to ${candidate.label}...`);
-      installResult = runPipInstall(python, candidate.spec, pipInstallEnv, {
-        forceReinstall,
-        noCache: candidate.noCache,
-      });
-      if (installResult.status === 0) {
-        return { ok: true, requestedVersion, installedFrom: candidate.spec };
-      }
-      flushCapturedOutput(installResult);
-    }
+  } else if (resolution.skipped.length > 0) {
+    log("No accessible tagged GitHub release source candidate was detected.");
   }
 
   return { ok: false, requestedVersion };
@@ -779,7 +757,7 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching GitHub source in ~/.gpd/venv`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/.gpd/venv`);
   console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");

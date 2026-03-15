@@ -63,10 +63,12 @@ Typical new-project workflow:
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Install directly from GitHub:
+Ordinary installs stay pinned to the matching tagged release. Use `--upgrade` only when you intentionally want the latest unreleased `main` source.
+
+Install the unreleased GitHub `main` snapshot explicitly:
 
 ```bash
-npx -y github:psi-oss/get-physics-done
+npx -y github:psi-oss/get-physics-done --upgrade
 ```
 
 </details>

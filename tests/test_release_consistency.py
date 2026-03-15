@@ -233,12 +233,12 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
-    assert 'const GITHUB_FALLBACK_BRANCH = "main"' in content
+    assert 'const GITHUB_MAIN_BRANCH = "main"' in content
     assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
-    assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in content
+    assert "archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz" in content
     assert "git+${repoGitUrl}@v${version}" in content
-    assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in content
+    assert "git+${repoGitUrl}@${GITHUB_MAIN_BRANCH}" in content
     assert "function repositoryGitUrl(" in content
     assert "function repositorySshGitUrl(" not in content
     assert "requestedVersion" in content
@@ -284,9 +284,10 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
     assert "`--upgrade`" in readme
     assert "~/.gpd/venv" in readme
     assert "latest GitHub `main` source" in readme
+    assert "github:psi-oss/get-physics-done --upgrade" in readme
     assert "--reinstall" in content
     assert "--upgrade" in content
-    assert "Reinstall the matching GitHub source in ~/.gpd/venv" in content
+    assert "Reinstall the matching tagged GitHub source in ~/.gpd/venv" in content
     assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
 
 
@@ -612,12 +613,12 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
         assert "gpdPythonVersion" in install_content
-        assert 'const GITHUB_FALLBACK_BRANCH = "main"' in install_content
+        assert 'const GITHUB_MAIN_BRANCH = "main"' in install_content
         assert '"-m", "venv"' in install_content
         assert '".gpd"' in install_content
         assert "archive/refs/tags/v${version}.tar.gz" in install_content
-        assert "archive/refs/heads/${GITHUB_FALLBACK_BRANCH}.tar.gz" in install_content
+        assert "archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz" in install_content
         assert "git+${repoGitUrl}@v${version}" in install_content
-        assert "git+${repoGitUrl}@${GITHUB_FALLBACK_BRANCH}" in install_content
+        assert "git+${repoGitUrl}@${GITHUB_MAIN_BRANCH}" in install_content
         assert "requestedVersion" in install_content
         assert "GitHub sources" in install_content

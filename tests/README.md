@@ -153,15 +153,15 @@ flowchart TD
 - `bin/install.js -> external Python package {get-physics-done}`
   `external-package`
 
-- `bin/install.js -> GitHub source archive candidate family {https://github.com/psi-oss/get-physics-done/archive/refs/tags/v<version>.tar.gz, https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz}`
+- `bin/install.js -> GitHub tagged release source family {https://github.com/psi-oss/get-physics-done/archive/refs/tags/v<version>.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@v<version>}`
   `external-service`
 
-- `bin/install.js -> GitHub git candidate family {git+https://github.com/psi-oss/get-physics-done.git@v<version>, git+https://github.com/psi-oss/get-physics-done.git@main}`
+- `bin/install.js -> GitHub main-branch source family {https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> ordered source install candidate chain {tag archive, main archive, https tag checkout, https main checkout}`
+- `bin/install.js -> tagged release install candidate chain {tag archive, https tag checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` try GitHub source candidates in precedence order and fail closed if none can be installed.
+  Normal install and `--reinstall` stay pinned to the matching tagged release and fail closed if it cannot be installed.
 
 - `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`

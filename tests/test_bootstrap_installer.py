@@ -570,7 +570,7 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_falls_back_to_main_archive_when_tag_archive_install_fails(tmp_path: Path) -> None:
+def test_bootstrap_falls_back_to_tag_git_when_tag_archive_install_fails(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={"FAKE_PIP_FAIL_TAG_ARCHIVE": "1"},
@@ -585,17 +585,17 @@ def test_bootstrap_falls_back_to_main_archive_when_tag_archive_install_fails(tmp
 
     assert managed_pip_targets == [
         TAG_ARCHIVE_SPEC,
-        MAIN_ARCHIVE_SPEC,
+        TAG_HTTPS_GIT_SPEC,
     ]
     assert (
-        f"GitHub source archive for v{PYTHON_PACKAGE_VERSION} failed. Falling back to current main branch source archive..."
+        f"GitHub source archive for v{PYTHON_PACKAGE_VERSION} failed. Falling back to HTTPS git checkout for v{PYTHON_PACKAGE_VERSION}..."
         in result.stdout
     )
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources_are_unavailable(tmp_path: Path) -> None:
+def test_bootstrap_prefers_preflighted_tag_git_candidate_when_tag_archive_is_inaccessible(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
@@ -605,15 +605,7 @@ def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources
                         "availability": "unavailable",
                         "reason": "HTTP 404",
                     },
-                    MAIN_ARCHIVE_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "HTTP 404",
-                    },
                     TAG_HTTPS_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git exit 2",
-                    },
-                    MAIN_HTTPS_GIT_SPEC: {
                         "availability": "available",
                         "reason": "git ls-remote succeeded",
                     },
@@ -629,24 +621,21 @@ def test_bootstrap_prefers_preflighted_https_source_candidate_when_other_sources
         entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
-    assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
+    assert managed_pip_targets == [TAG_HTTPS_GIT_SPEC]
+    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
+    assert f"Installing GPD from HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
     assert "Could not find a version that satisfies the requirement" not in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: Path) -> None:
+def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sources(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     TAG_ARCHIVE_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "HTTP 404",
-                    },
-                    MAIN_ARCHIVE_SPEC: {
                         "availability": "unavailable",
                         "reason": "HTTP 404",
                     },
@@ -663,51 +652,19 @@ def test_bootstrap_source_fallback_prefers_preflighted_git_candidate(tmp_path: P
         },
     )
 
-    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    assert result.returncode == 1
 
     entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-    managed_pip_targets = [
-        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert managed_pip_targets == [MAIN_HTTPS_GIT_SPEC]
+    assert managed_pip_installs == []
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
-    assert "Detected that current main branch source archive is unavailable: HTTP 404." in result.stdout
     assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: tag v{PYTHON_PACKAGE_VERSION} is not published." in result.stdout
-    assert "Installing GPD from HTTPS git checkout of main into the managed environment..." in result.stdout
-    assert "HTTP error 404 while getting tagged archive" not in result.stderr
-
-
-@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
-@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_falls_back_to_https_git_when_archive_urls_fail(tmp_path: Path) -> None:
-    result, _, log_path = _run_bootstrap_with_fake_python(
-        tmp_path,
-        extra_env={
-            "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
-            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
-            "FAKE_PIP_FAIL_TAG_GIT": "1",
-        },
-    )
-
-    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
-
-    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-    managed_pip_targets = [
-        entry["argv"][-1] for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
-    ]
-
-    assert managed_pip_targets == [
-        TAG_ARCHIVE_SPEC,
-        MAIN_ARCHIVE_SPEC,
-        TAG_HTTPS_GIT_SPEC,
-        MAIN_HTTPS_GIT_SPEC,
-    ]
-    assert (
-        f"current main branch source archive failed. Falling back to HTTPS git checkout for v{PYTHON_PACKAGE_VERSION}..."
-        in result.stdout
-    )
-    assert f"HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} failed. Falling back to HTTPS git checkout of main..." in result.stdout
+    assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
+    assert "main branch" not in result.stdout
+    assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -722,17 +679,13 @@ def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(
                         "availability": "unavailable",
                         "reason": "HTTP 404",
                     },
-                    MAIN_ARCHIVE_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "HTTP 404",
-                    },
                     TAG_HTTPS_GIT_SPEC: {
                         "availability": "unavailable",
                         "reason": "git exit 2",
                     },
                     MAIN_HTTPS_GIT_SPEC: {
-                        "availability": "unavailable",
-                        "reason": "git exit 2",
+                        "availability": "available",
+                        "reason": "git ls-remote succeeded",
                     },
                 }
             ),
@@ -748,21 +701,21 @@ def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(
 
     assert managed_pip_installs == []
     assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
-    assert "Detected that HTTPS git checkout of main is unavailable: git exit 2." in result.stdout
+    assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: git exit 2." in result.stdout
+    assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
     assert "Falling back to" not in result.stdout
+    assert "main branch" not in result.stdout
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
-def test_bootstrap_fails_closed_when_all_github_sources_fail(tmp_path: Path) -> None:
+def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         extra_env={
             "FAKE_PIP_FAIL_TAG_ARCHIVE": "1",
-            "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
             "FAKE_PIP_FAIL_TAG_GIT": "1",
-            "FAKE_PIP_FAIL_MAIN_GIT": "1",
         },
     )
 
@@ -775,9 +728,8 @@ def test_bootstrap_fails_closed_when_all_github_sources_fail(tmp_path: Path) -> 
 
     assert managed_pip_targets == [
         TAG_ARCHIVE_SPEC,
-        MAIN_ARCHIVE_SPEC,
         TAG_HTTPS_GIT_SPEC,
-        MAIN_HTTPS_GIT_SPEC,
     ]
+    assert "current main branch source archive" not in result.stdout
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
     assert "Could not find a version that satisfies the requirement" not in result.stderr
