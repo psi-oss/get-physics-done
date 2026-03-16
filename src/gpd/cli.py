@@ -32,6 +32,7 @@ from rich.text import Text
 
 from gpd.core.constants import ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.core.errors import ConfigError, GPDError
+from gpd.core.arkhe import cmd_gtd_measure_lambda, execute_arkhe_binary
 
 if TYPE_CHECKING:
     from gpd.mcp.paper.models import PaperConfig
@@ -579,6 +580,31 @@ def main(
     global _raw, _cwd  # noqa: PLW0603
     _raw = raw
     _cwd = Path(cwd)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# gtd — Get Teknet Done (Arkhe(n) Orchestration)
+# ═══════════════════════════════════════════════════════════════════════════
+
+gtd_app = typer.Typer(help="Get Teknet Done: Arkhe(n) research orchestration")
+app.add_typer(gtd_app, name="gtd")
+
+
+@gtd_app.command("new-foundation")
+def gtd_new_foundation(
+    foundation_id: str = typer.Argument(..., help="Foundation ID (e.g. F-004)"),
+) -> None:
+    """Initialize a new foundation with phase tracking."""
+    result = execute_arkhe_binary(_get_cwd(), "genesis", [foundation_id])
+    _output(result)
+    if not result.get("success"):
+        raise typer.Exit(code=1)
+
+
+@gtd_app.command("measure-lambda")
+def gtd_measure_lambda_cmd() -> None:
+    """Display current λ₂ across all active foundations."""
+    _output(cmd_gtd_measure_lambda(_get_cwd()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
