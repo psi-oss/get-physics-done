@@ -497,7 +497,12 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
 
 def _validate_command_name(path: Path, command: CommandDef) -> None:
     """Reject command metadata that drifts from its registry filename."""
-    expected_name = f"gpd:{path.stem}"
+    if command.name.startswith("gtd:"):
+        stem = path.stem.removeprefix("gtd-")
+        expected_name = f"gtd:{stem}"
+    else:
+        expected_name = f"gpd:{path.stem}"
+
     if command.name != expected_name:
         raise ValueError(
             f"Command frontmatter name {command.name!r} does not match file stem {path.stem!r}; "
