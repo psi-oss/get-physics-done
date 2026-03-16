@@ -61,6 +61,7 @@ _ANCHOR_UNKNOWN_QUESTION_PATTERNS = (
 _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+: Extra inputs are not permitted$"),
     re.compile(r"^references\.\d+\.aliases: Input should be a valid list$"),
+    re.compile(r"^(?:context_intake|approach_policy|uncertainty_markers) must be an object, not .+$"),
 )
 
 

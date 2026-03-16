@@ -821,6 +821,9 @@ def test_real_installed_contract_and_review_surfaces_keep_required_schema_bodies
         assert "@ include depth limit reached:" not in lowered
 
     assert "Canonical source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`" in verify_work
+    assert "check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" in verify_work
+    assert 'gap_subject_kind: "{check_subject_kind}"' in verify_work
+    assert "\nsubject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
     assert "# state.json Schema" in sync_state
     assert "Reproducibility Manifest Template" in write_paper
     assert "Peer Review Panel Protocol" in review_reader

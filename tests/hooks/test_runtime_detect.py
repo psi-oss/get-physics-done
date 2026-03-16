@@ -359,6 +359,18 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_OPENCODE
 
+    def test_corrupted_opencode_global_manifest_respects_explicit_home_override(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        opencode_dir = home / ".config" / "opencode"
+        (opencode_dir / "get-physics-done").mkdir(parents=True)
+        (opencode_dir / "gpd-file-manifest.json").write_text("not-json", encoding="utf-8")
+
+        env = _clean_runtime_env()
+        with patch.dict(os.environ, env, clear=True):
+            assert detect_active_runtime_with_gpd_install(cwd=workspace, home=home) == RUNTIME_OPENCODE
+
 
 class TestDetectRuntimeForGpdUse:
     """Tests for the install-aware runtime selection used by GPD-owned surfaces."""

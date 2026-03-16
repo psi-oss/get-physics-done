@@ -467,6 +467,17 @@ def test_validate_project_contract_warns_when_optional_sections_are_missing_but_
     assert "no forbidden_proxies recorded yet" in result.warnings
 
 
+def test_validate_project_contract_accepts_recoverable_singleton_normalization() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"] = "not-a-dict"
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+    assert "context_intake must be an object, not str" in result.warnings
+
+
 def test_plan_contract_schema_uses_supported_contract_enum_values() -> None:
     schema_text = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
 

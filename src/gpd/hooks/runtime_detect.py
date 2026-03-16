@@ -141,7 +141,7 @@ def _manifest_install_scope(config_dir: Path) -> str | None:
     return scope if scope in (SCOPE_LOCAL, SCOPE_GLOBAL) else None
 
 
-def _runtime_from_manifest_or_path(config_dir: Path) -> str | None:
+def _runtime_from_manifest_or_path(config_dir: Path, *, home: Path | None = None) -> str | None:
     """Infer the owning runtime for *config_dir* from its manifest or path."""
     manifest_path = config_dir / MANIFEST_NAME
     if manifest_path.exists():
@@ -160,14 +160,14 @@ def _runtime_from_manifest_or_path(config_dir: Path) -> str | None:
             continue
         if config_dir.name == adapter.local_config_dir_name:
             return runtime
-        if _paths_equal(config_dir, adapter.resolve_global_config_dir()):
+        if _paths_equal(config_dir, adapter.resolve_global_config_dir(home=home)):
             return runtime
     return None
 
 
-def _has_gpd_install(config_dir: Path) -> bool:
+def _has_gpd_install(config_dir: Path, *, home: Path | None = None) -> bool:
     """Return True when *config_dir* appears to contain a GPD install."""
-    runtime = _runtime_from_manifest_or_path(config_dir)
+    runtime = _runtime_from_manifest_or_path(config_dir, home=home)
     if runtime is None:
         return False
     adapter = _adapter(runtime)
@@ -197,9 +197,9 @@ def _runtime_dir_has_gpd_install(
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
 
-    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd)):
+    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd), home=resolved_home):
         return True
-    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home)):
+    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home), home=resolved_home):
         return True
     return False
 
@@ -212,16 +212,16 @@ def _detect_runtime_install_target(
 ) -> RuntimeInstallTarget | None:
     """Return the concrete config dir currently serving a runtime install, if any."""
     resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
     local_dir = _local_runtime_dir(runtime, resolved_cwd)
-    if _has_gpd_install(local_dir):
+    if _has_gpd_install(local_dir, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=local_dir,
             install_scope=_manifest_install_scope(local_dir) or SCOPE_LOCAL,
         )
 
-    resolved_home = home or Path.home()
     global_dir = _global_runtime_dir(runtime, home=resolved_home)
-    if _has_gpd_install(global_dir):
+    if _has_gpd_install(global_dir, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=global_dir,
             install_scope=_manifest_install_scope(global_dir) or SCOPE_GLOBAL,
@@ -282,7 +282,7 @@ def resolve_effective_runtime(
     if require_gpd_install:
         for runtime in ordered_runtimes:
             local_dir = _local_runtime_dir(runtime, resolved_cwd)
-            if _has_gpd_install(local_dir):
+            if _has_gpd_install(local_dir, home=resolved_home):
                 return EffectiveRuntimeResolution(
                     runtime=runtime,
                     source=SOURCE_LOCAL,
@@ -291,7 +291,7 @@ def resolve_effective_runtime(
                 )
 
             global_dir = _global_runtime_dir(runtime, home=resolved_home)
-            if _has_gpd_install(global_dir):
+            if _has_gpd_install(global_dir, home=resolved_home):
                 return EffectiveRuntimeResolution(
                     runtime=runtime,
                     source=SOURCE_GLOBAL,

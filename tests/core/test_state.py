@@ -583,6 +583,27 @@ def test_state_set_project_contract_accepts_recoverable_schema_normalization(tmp
     assert saved["project_contract"]["references"][0]["aliases"] == []
 
 
+def test_state_set_project_contract_accepts_recoverable_singleton_normalization(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"] = "not-a-dict"
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is True
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is not None
+    assert saved["project_contract"]["context_intake"] == {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+
+
 def test_save_state_json_drops_malformed_project_contract_instead_of_salvaging(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"]["must_read_refs"] = "ref-benchmark"

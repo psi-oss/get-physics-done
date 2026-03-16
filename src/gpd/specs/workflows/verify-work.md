@@ -202,7 +202,7 @@ For each contract-backed check, create a validation record that includes **both 
 - name: Brief check name
 - expected: What the physics should show (specific, verifiable)
 - computation: A specific numerical test the AI will perform before presenting to the researcher
-- subject_kind: `claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check`
+- check_subject_kind: `claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check`
 - subject_id: Contract ID when available
 
 Rules:
@@ -305,7 +305,7 @@ Build check list from extracted contract-backed checks, including computational 
 Checks with non-empty `comparison_kind` are decisive and must end with either a recorded `comparison_verdict` or a recorded gap before the file can finish. Exploratory or partial verification is allowed to end at `inconclusive` or `tension`; it is not allowed to imply a pass from suggestive but non-decisive evidence.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks a decisive verdict, add a structured `suggested_contract_checks` entry before final validation. Do not replace that ledger with prose.
 
-If the PLAN has a `contract`, every check in this file must carry the relevant `subject_kind`, `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_ids`, and `forbidden_proxy_id` when applicable.
+If the PLAN has a `contract`, every body check in this file must carry the relevant `check_subject_kind`, `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_ids`, and `forbidden_proxy_id` when applicable.
 Mirror decisive verdicts into frontmatter `comparison_verdicts`. The body `## Comparison Verdicts` section is a readable summary, not a substitute for the frontmatter ledger consumed by validation and downstream publication tooling.
 
 Create file (or extend existing):
@@ -340,7 +340,7 @@ session_status: validating
 
 number: 1
 name: [first check name]
-subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
 subject_id: [contract id or ""]
 claim_id: [claim-id or ""]
 deliverable_id: [deliverable-id or ""]
@@ -369,7 +369,7 @@ awaiting: researcher response
 
 ### 1. [Check Name]
 
-subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
+check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]
 subject_id: [contract id or ""]
 claim_id: [claim-id or ""]
 deliverable_id: [deliverable-id or ""]
@@ -553,7 +553,7 @@ severity: {inferred}
 Append to Gaps section (structured YAML for plan-phase --gaps):
 
 ```yaml
-- subject_kind: "{subject_kind}"
+- gap_subject_kind: "{check_subject_kind}"
   subject_id: "{subject_id}"
   expectation: "{expected physics outcome from check}"
   expected_check: "{expected physics outcome from check}"
