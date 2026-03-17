@@ -56,6 +56,25 @@ def _derived_template_contract() -> dict[str, object]:
     return contract
 
 
+def _assert_contract_tools_reject(contract: dict[str, object], expected_error: str) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    suggest_result = suggest_contract_checks(contract)
+
+    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
+    assert run_result == expected
+    assert suggest_result == expected
+
+
 @pytest.mark.parametrize(
     ("schema_version", "expected_error"),
     [
@@ -391,6 +410,45 @@ def test_contract_tools_reject_blocking_salvage_schema_drift() -> None:
     }
     assert run_result == expected
     assert suggest_result == expected
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_error"),
+    [
+        (
+            lambda contract: contract["claims"].append(dict(contract["claims"][0])),
+            "duplicate claim id claim-benchmark",
+        ),
+        (
+            lambda contract: contract["deliverables"][0].__setitem__("id", "claim-benchmark"),
+            "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous",
+        ),
+        (
+            lambda contract: contract["references"][0].__setitem__("carry_forward_to", ["claim-benchmark"]),
+            "reference ref-benchmark carry_forward_to must name workflow scope, not contract id claim-benchmark",
+        ),
+    ],
+)
+def test_contract_tools_reject_shared_contract_integrity_errors(
+    mutator,
+    expected_error: str,
+) -> None:
+    contract = _load_project_contract_fixture()
+
+    mutator(contract)
+
+    _assert_contract_tools_reject(contract, expected_error)
+
+
+def test_contract_tools_reject_shared_integrity_errors_after_salvage() -> None:
+    contract = _load_project_contract_fixture()
+    contract["references"][0]["notes"] = "legacy extra field"
+    contract["deliverables"][0]["id"] = "claim-benchmark"
+
+    _assert_contract_tools_reject(
+        contract,
+        "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous",
+    )
 
 
 def test_verification_server_success_responses_keep_stable_envelope_equality() -> None:

@@ -17,7 +17,13 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract, SuggestedContractCheck
+from gpd.contracts import (
+    ComparisonVerdict,
+    ContractResults,
+    ResearchContract,
+    SuggestedContractCheck,
+    collect_contract_integrity_errors,
+)
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -246,7 +252,10 @@ def _validate_contract_mapping(
     if not enforce_plan_semantics:
         return _PlanContractResolution(contract=contract)
 
-    semantic_errors = _validate_plan_contract(contract)
+    semantic_errors: list[str] = []
+    for error in (*collect_contract_integrity_errors(contract), *_validate_plan_contract(contract)):
+        if error not in semantic_errors:
+            semantic_errors.append(error)
     if semantic_errors:
         return _PlanContractResolution(errors=semantic_errors)
     return _PlanContractResolution(contract=contract)

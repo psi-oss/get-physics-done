@@ -1143,6 +1143,11 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
 
     assert "# PLAN Contract Schema" in planner_prompt
     assert "Every claim must declare a stable `id`." in planner_prompt
+    assert (
+        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
+        "target resolution becomes ambiguous."
+        in planner_prompt
+    )
     assert "If `must_surface: true`, `required_actions` must not be empty." in planner_prompt
     assert "# Contract Results Schema" in summary_template
     assert "Missing contract-backed `contract_results` is invalid." in summary_template
@@ -1156,6 +1161,11 @@ def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodie
     assert "# state.json Schema" in sync_state
     assert "Authoritative vs Derived" in sync_state
     assert "`project_contract`" in sync_state
+    assert (
+        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
+        "target resolution becomes ambiguous."
+        in sync_state
+    )
     assert "`convention_lock`" in sync_state
     assert "Reproducibility Manifest Template" in write_paper
     assert '"execution_steps"' in write_paper
@@ -1194,6 +1204,11 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "automation: automated | hybrid | human" in plan_schema
     assert "For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required." in plan_schema
     assert "All ID cross-links must resolve to declared IDs." in plan_schema
+    assert (
+        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
+        "target resolution becomes ambiguous."
+        in plan_schema
+    )
     assert "`deliverables[]` must not be empty." in plan_schema
     assert "`acceptance_tests[]` must not be empty." in plan_schema
     assert "If `must_surface: true`, `applies_to[]` must not be empty." in plan_schema
@@ -1214,6 +1229,11 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
     assert "If a project contract has any `references[]`, at least one reference must set `must_surface: true`." in state_schema
     assert "If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty." in state_schema
     assert "If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty." in state_schema
+    assert (
+        "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
+        "target resolution becomes ambiguous."
+        in state_schema
+    )
     assert "`scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`" in state_schema
     assert "Which reference should serve as the decisive benchmark anchor?" in state_schema
     assert "Blank-after-trim values are invalid" in state_schema

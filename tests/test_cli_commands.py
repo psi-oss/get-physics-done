@@ -1996,6 +1996,38 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is True
 
+    def test_validate_plan_contract_command_rejects_ambiguous_contract_target_ids(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        plan_path = phase_dir / "01-01-PLAN.md"
+        plan_path.write_text(
+            (FIXTURES_DIR / "plan_with_contract.md")
+            .read_text(encoding="utf-8")
+            .replace("deliverables: [deliv-figure]", "deliverables: [claim-benchmark]", 1)
+            .replace("    - id: deliv-figure", "    - id: claim-benchmark", 1)
+            .replace(
+                "      evidence_required: [deliv-figure, ref-benchmark]",
+                "      evidence_required: [claim-benchmark, ref-benchmark]",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "plan-contract", str(plan_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any(
+            "contract: contract id claim-benchmark is reused across claim, deliverable; "
+            "target resolution is ambiguous" in error
+            for error in payload["errors"]
+        )
+
     def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)

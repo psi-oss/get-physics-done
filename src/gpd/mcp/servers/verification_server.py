@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from mcp.server.fastmcp import FastMCP
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ResearchContract
+from gpd.contracts import ResearchContract, collect_contract_integrity_errors
 from gpd.core.contract_validation import (
     _sanitize_contract_scalars,
     _split_project_contract_schema_findings,
@@ -1093,6 +1093,15 @@ def _validate_contract_scalar_fields(contract_raw: dict[str, object]) -> dict[st
     return _error_result(f"Invalid contract payload: {_summarize_contract_salvage_errors(errors)}")
 
 
+def _validate_contract_integrity(contract: ResearchContract) -> dict[str, object] | None:
+    """Reject semantically ambiguous contracts after structural validation."""
+
+    errors = collect_contract_integrity_errors(contract)
+    if not errors:
+        return None
+    return _error_result(f"Invalid contract payload: {_summarize_contract_salvage_errors(errors)}")
+
+
 def _parse_contract_payload(contract_raw: dict[str, object]) -> tuple[ResearchContract | None, list[str], dict | None]:
     schema_error = _validate_contract_schema_version(contract_raw.get("schema_version"))
     if schema_error is not None:
@@ -1101,7 +1110,11 @@ def _parse_contract_payload(contract_raw: dict[str, object]) -> tuple[ResearchCo
     if scalar_error is not None:
         return None, [], scalar_error
     try:
-        return ResearchContract.model_validate(contract_raw), [], None
+        contract = ResearchContract.model_validate(contract_raw)
+        integrity_error = _validate_contract_integrity(contract)
+        if integrity_error is not None:
+            return None, [], integrity_error
+        return contract, [], None
     except PydanticValidationError as exc:
         contract, salvage_errors = salvage_project_contract(contract_raw)
         if contract is not None:
@@ -1110,6 +1123,9 @@ def _parse_contract_payload(contract_raw: dict[str, object]) -> tuple[ResearchCo
                 allow_singleton_defaults=False,
             )
             if not blocking:
+                integrity_error = _validate_contract_integrity(contract)
+                if integrity_error is not None:
+                    return None, [], integrity_error
                 return contract, recoverable, None
             summary = _summarize_contract_salvage_errors(blocking)
             return None, [], _error_result(f"Invalid contract payload: {summary}")

@@ -695,6 +695,33 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("must_read_refs references unknown reference ref-missing" in error for error in result.errors)
 
+    def test_plan_rejects_cross_kind_contract_id_collision(self):
+        content = _valid_plan_contract_frontmatter().replace("    - id: deliv-main\n", "    - id: claim-main\n", 1) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any(
+            "contract id claim-main is reused across claim, deliverable; target resolution is ambiguous" in error
+            for error in result.errors
+        )
+
+    def test_plan_rejects_reference_carry_forward_to_contract_id(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "      required_actions: [read, compare, cite]\n",
+            "      required_actions: [read, compare, cite]\n"
+            "      carry_forward_to: [claim-main]\n",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any(
+            "reference ref-main carry_forward_to must name workflow scope, not contract id claim-main" in error
+            for error in result.errors
+        )
+
     def test_valid_verification(self):
         content = "---\nphase: 01\nverified: 2025-01-01\nstatus: passed\nscore: 5/5\n---\n\nBody."
         result = validate_frontmatter(content, "verification")

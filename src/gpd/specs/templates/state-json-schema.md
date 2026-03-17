@@ -206,6 +206,7 @@ If a project-contract reference sets `must_surface: true`, `applies_to[]` must n
 
 Every ID-like field must point to a declared object ID in the same contract:
 
+- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 - `context_intake.must_read_refs[]` must contain `references[].id` values only.
 - `references[].aliases[]` may store stable human-facing labels or citation strings that help canonicalize downstream anchor mentions.
 - `claims[].observables[]` must contain `observables[].id` values only.

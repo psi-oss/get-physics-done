@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import anyio
 
 
@@ -53,6 +56,10 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     verification = descriptors["gpd-verification"]
     assert "structured request objects or schema_version=1 contract payloads" in verification["description"]
     assert "request templates" in verification["description"]
+    assert "shared semantic integrity rules" in verification["description"]
+    assert "target resolution ambiguous" in verification["description"]
+    assert "references[].carry_forward_to only for workflow scope labels" in verification["description"]
+    assert "never contract IDs" in verification["description"]
 
     conventions = descriptors["gpd-conventions"]
     assert "ASSERT_CONVENTION validation" in conventions["description"]
@@ -63,3 +70,16 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     assert arxiv["availability"] == "conditional"
     assert "optional Python module 'arxiv_mcp_server'" in arxiv["availability_condition"]
     assert "Optional/conditional arXiv paper search and retrieval" in arxiv["description"]
+
+
+def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules() -> None:
+    descriptor = json.loads(
+        (Path(__file__).resolve().parents[2] / "infra" / "gpd-verification.json").read_text(encoding="utf-8")
+    )
+
+    description = descriptor["description"]
+    assert "structured request objects or schema_version=1 contract payloads" in description
+    assert "shared semantic integrity rules" in description
+    assert "target resolution ambiguous" in description
+    assert "references[].carry_forward_to only for workflow scope labels" in description
+    assert "never contract IDs" in description

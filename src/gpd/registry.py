@@ -143,6 +143,32 @@ def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = 
     return field_name
 
 
+def _parse_frontmatter_string_field(
+    raw: object,
+    *,
+    field_name: str,
+    owner_name: str,
+    default: str = "",
+    required: bool = False,
+) -> str:
+    """Validate frontmatter scalar fields that must stay strings."""
+    if raw is None:
+        if default:
+            return default
+        if required:
+            subject = _format_frontmatter_field_subject(field_name, owner_name)
+            raise ValueError(f"{subject} must be a non-empty string")
+        return default
+    if not isinstance(raw, str):
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a string")
+    value = raw.strip()
+    if required and not value:
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a non-empty string")
+    return value
+
+
 def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | None = None) -> list[str]:
     """Normalize tools-like frontmatter fields with explicit validation."""
     if raw is None:
@@ -288,7 +314,9 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
     if raw is None:
         return "project-required"
 
-    mode = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"context_mode for {command_name} must be a string")
+    mode = raw.strip().lower()
     if not mode:
         return "project-required"
     if mode not in VALID_CONTEXT_MODES:
@@ -302,7 +330,9 @@ def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
     if raw is None:
         return "orchestrator"
 
-    authority = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"commit_authority for {agent_name} must be a string")
+    authority = raw.strip().lower()
     if not authority:
         return "orchestrator"
     if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
@@ -323,7 +353,9 @@ def _parse_agent_metadata_enum(
     if raw is None:
         return default
 
-    value = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"{field_name} for {agent_name} must be a string")
+    value = raw.strip().lower()
     if not value:
         return default
     if value not in valid_values:
@@ -620,10 +652,20 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         meta, body = _parse_frontmatter(text)
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
-    agent_name = str(meta.get("name", path.stem))
+    agent_name = _parse_frontmatter_string_field(
+        meta.get("name"),
+        field_name="name",
+        owner_name=path.stem,
+        default=path.stem,
+        required=True,
+    )
     return AgentDef(
         name=agent_name,
-        description=str(meta.get("description", "")),
+        description=_parse_frontmatter_string_field(
+            meta.get("description"),
+            field_name="description",
+            owner_name=agent_name,
+        ),
         system_prompt=body.strip(),
         tools=_parse_tools(meta.get("tools"), owner_name=agent_name),
         commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=agent_name),
@@ -655,7 +697,11 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
             valid_values=VALID_AGENT_SHARED_STATE_AUTHORITIES,
             default="return_only",
         ),
-        color=str(meta.get("color", "")),
+        color=_parse_frontmatter_string_field(
+            meta.get("color"),
+            field_name="color",
+            owner_name=agent_name,
+        ),
         path=str(path),
         source=source,
     )
@@ -669,7 +715,13 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
-    command_name = str(meta.get("name", path.stem))
+    command_name = _parse_frontmatter_string_field(
+        meta.get("name"),
+        field_name="name",
+        owner_name=path.stem,
+        default=path.stem,
+        required=True,
+    )
     requires = _parse_requires(meta.get("requires"), command_name=command_name)
     allowed_tools = _parse_allowed_tools(meta.get("allowed-tools"), command_name=command_name)
 
@@ -680,8 +732,16 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
 
     return CommandDef(
         name=command_name,
-        description=str(meta.get("description", "")),
-        argument_hint=str(meta.get("argument-hint", "")),
+        description=_parse_frontmatter_string_field(
+            meta.get("description"),
+            field_name="description",
+            owner_name=command_name,
+        ),
+        argument_hint=_parse_frontmatter_string_field(
+            meta.get("argument-hint"),
+            field_name="argument-hint",
+            owner_name=command_name,
+        ),
         context_mode=_parse_context_mode(meta.get("context_mode"), command_name=command_name),
         requires=requires,
         allowed_tools=allowed_tools,

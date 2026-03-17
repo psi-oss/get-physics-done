@@ -261,6 +261,26 @@ class TestParseAgentFile:
         with pytest.raises(ValueError, match="Invalid frontmatter in .*broken\\.md"):
             _parse_agent_file(f, source="agents")
 
+    @pytest.mark.parametrize(
+        ("frontmatter_line", "expected_error"),
+        [
+            ("name: 7", r"name for bad-agent must be a string"),
+            ("description: true", r"description for bad-agent must be a string"),
+            ("color: 3", r"color for bad-agent must be a string"),
+        ],
+    )
+    def test_agent_file_rejects_non_string_scalar_frontmatter(
+        self, tmp_path: Path, frontmatter_line: str, expected_error: str
+    ) -> None:
+        f = tmp_path / "bad-agent.md"
+        f.write_text(
+            f"---\n{frontmatter_line}\n---\nPrompt.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match=expected_error):
+            _parse_agent_file(f, source="agents")
+
 
 class TestParseCommandFile:
     """Tests for _parse_command_file with various file contents."""
@@ -341,6 +361,32 @@ class TestParseCommandFile:
         f.write_text("---\nname: gpd:help\nbad: [unterminated\n---\nBody.", encoding="utf-8")
 
         with pytest.raises(ValueError, match="Invalid frontmatter in .*help\\.md"):
+            _parse_command_file(f, source="commands")
+
+    @pytest.mark.parametrize(
+        ("frontmatter_line", "expected_error"),
+        [
+            ("name: 9", r"name for help must be a string"),
+            ("description: true", r"description for gpd:help must be a string"),
+            ("argument-hint: 5", r"argument-hint for gpd:help must be a string"),
+        ],
+    )
+    def test_command_file_rejects_non_string_scalar_frontmatter(
+        self, tmp_path: Path, frontmatter_line: str, expected_error: str
+    ) -> None:
+        f = tmp_path / "help.md"
+        if frontmatter_line.startswith("name:"):
+            f.write_text(
+                f"---\n{frontmatter_line}\n---\nBody.",
+                encoding="utf-8",
+            )
+        else:
+            f.write_text(
+                f"---\nname: gpd:help\n{frontmatter_line}\n---\nBody.",
+                encoding="utf-8",
+            )
+
+        with pytest.raises(ValueError, match=expected_error):
             _parse_command_file(f, source="commands")
 
     def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:

@@ -229,6 +229,7 @@ Rules:
 - For non-scoping plans, include `references[]` unless explicit grounding context survives elsewhere in the contract (`context_intake`, `approach_policy`, or preserved scoping inputs).
 - All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
 - IDs must be unique across each section.
+- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 - Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
 - A cross-reference must fail loudly if it points to an undeclared ID.
 - A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.

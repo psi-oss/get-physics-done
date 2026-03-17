@@ -193,7 +193,11 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
             "dimensional analysis, domain and bundle-specific checklists, limiting case checks, "
             "symmetry verification, and coverage gap analysis. Contract-aware tools expect "
             "structured request objects or schema_version=1 contract payloads and surface exact "
-            "required fields via request templates."
+            "required fields via request templates. Contract payloads must also satisfy shared "
+            "semantic integrity rules: do not reuse target IDs across contract kinds in ways that "
+            "make target resolution ambiguous, and use references[].carry_forward_to only for "
+            "workflow scope labels such as planning, execution, verification, or writing, never "
+            "contract IDs."
         ),
         "capabilities": [
             "run_check",
