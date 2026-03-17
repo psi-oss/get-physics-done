@@ -26,6 +26,7 @@ Calculations in de Sitter space are subtle because the spacetime has a positive 
 - See `analytic-continuation.md` for Euclidean continuation and contour choices
 - See `effective-field-theory.md` for EFT of inflation and controlled low-energy expansions
 - See `holography-ads-cft.md` for holographic comparison points and dictionary discipline
+- See `architecture/retrocausal-susskind.md` for retrocausal integration and static-patch holonomy
 
 ## Step 1: Declare the de Sitter Setup
 
