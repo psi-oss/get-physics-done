@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
 

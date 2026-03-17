@@ -30,9 +30,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from gpd.core.arkhe import cmd_gtd_measure_lambda, execute_arkhe_binary
 from gpd.core.constants import ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.core.errors import ConfigError, GPDError
-from gpd.core.arkhe import cmd_gtd_measure_lambda, execute_arkhe_binary
 
 if TYPE_CHECKING:
     from gpd.mcp.paper.models import PaperConfig
