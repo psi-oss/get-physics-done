@@ -153,10 +153,21 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
 
 def _contract_check_request_hint(check_key: str, *, contract: ResearchContract | None = None) -> dict[str, object]:
     hint = _CONTRACT_CHECK_REQUEST_HINTS.get(check_key, {})
+    check_meta = get_verification_check(check_key)
+    binding_targets = list(check_meta.binding_targets) if check_meta is not None else []
+    supported_binding_fields = _supported_binding_fields_for_targets(binding_targets)
     request_template = copy.deepcopy(hint.get("request_template", {}))
     enriched_hint = {
         "required_request_fields": list(hint.get("required_request_fields", [])),
-        "optional_request_fields": list(hint.get("optional_request_fields", [])),
+        "optional_request_fields": [
+            *supported_binding_fields,
+            *[
+                field
+                for field in hint.get("optional_request_fields", [])
+                if field != "binding.*"
+            ],
+        ],
+        "supported_binding_fields": supported_binding_fields,
         "request_template": request_template,
     }
 
@@ -307,16 +318,42 @@ def _validate_string_list_members(value: object, *, field_name: str) -> str | No
     return None
 
 
-def _validate_binding_payload(binding: dict[str, object]) -> str | None:
+def _validate_string_list_field(value: object, *, field_name: str) -> str | None:
+    if not isinstance(value, list):
+        return f"{field_name} must be a list of strings"
+    return _validate_string_list_members(value, field_name=field_name)
+
+
+def _validate_binding_field_value(value: object, *, field_name: str) -> str | None:
+    if isinstance(value, str):
+        if not value.strip():
+            return f"{field_name} must be a non-empty string"
+        return None
+    if isinstance(value, list):
+        error = _validate_string_list_members(value, field_name=field_name)
+        if error is not None:
+            return error
+        if not value:
+            return f"{field_name} must include at least one non-empty string"
+        return None
+    return f"{field_name} must be a string or list of strings"
+
+
+def _validate_binding_payload(binding: dict[str, object], *, allowed_targets: Iterable[str]) -> str | None:
+    allowed_keys = {
+        key
+        for target in allowed_targets
+        for key in (f"{target}_id", f"{target}_ids")
+    }
+    unknown_keys = sorted(str(key) for key in binding if key not in allowed_keys)
+    if unknown_keys:
+        supported = ", ".join(_supported_binding_fields_for_targets(allowed_targets))
+        joined = ", ".join(unknown_keys)
+        return f"binding contains unsupported keys: {joined}; supported keys are {supported}"
+
     for key in sorted(binding):
-        if key not in _SUPPORTED_BINDING_KEYS:
-            continue
         raw = binding[key]
-        if isinstance(raw, str):
-            if not raw.strip():
-                return f"binding.{key} must be a non-empty string"
-            continue
-        error = _validate_string_list_members(raw, field_name=f"binding.{key}")
+        error = _validate_binding_field_value(raw, field_name=f"binding.{key}")
         if error is not None:
             return error
     return None
@@ -332,7 +369,7 @@ def _normalize_contract_metadata(metadata: dict[str, object]) -> tuple[dict[str,
             normalized[key] = normalized_value
     for key in ("allowed_families", "forbidden_families"):
         if key in normalized:
-            error = _validate_string_list_members(normalized[key], field_name=f"metadata.{key}")
+            error = _validate_string_list_field(normalized[key], field_name=f"metadata.{key}")
             if error is not None:
                 return {}, error
             normalized[key] = _normalize_string_list(normalized[key])
@@ -675,6 +712,19 @@ def _binding_key_labels_for_targets(targets: Iterable[str]) -> list[str]:
     return labels
 
 
+def _supported_binding_fields_for_targets(targets: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    fields: list[str] = []
+    for target in targets:
+        for suffix in ("id", "ids"):
+            field = f"binding.{target}_{suffix}"
+            if field in seen:
+                continue
+            seen.add(field)
+            fields.append(field)
+    return fields
+
+
 def _binding_values_for_target(binding: dict[str, object], target: str) -> list[str]:
     values: list[str] = []
     for key in (f"{target}_id", f"{target}_ids"):
@@ -715,6 +765,27 @@ def _contract_ids_for_target(contract: ResearchContract, target: str) -> set[str
     return set()
 
 
+def _validate_bound_contract_ids(
+    *,
+    binding: dict[str, object],
+    allowed_targets: Iterable[str],
+    contract: ResearchContract | None,
+) -> str | None:
+    if contract is None:
+        return None
+
+    for target in allowed_targets:
+        values = _binding_values_for_target(binding, target)
+        if not values:
+            continue
+        known_ids = _contract_ids_for_target(contract, target)
+        unknown_values = [value for value in values if value not in known_ids]
+        if unknown_values:
+            suffix = "id" if len(unknown_values) == 1 else "ids"
+            return f"binding.{target}_{suffix} references unknown contract {target} {', '.join(unknown_values)}"
+    return None
+
+
 def _collect_binding_context(
     *,
     check_targets: Iterable[str],
@@ -729,12 +800,6 @@ def _collect_binding_context(
     binding_issues: list[str] = []
     contract_impacts: list[str] = []
 
-    unknown_keys = sorted(str(key) for key in binding if key not in _SUPPORTED_BINDING_KEYS)
-    if unknown_keys:
-        supported = ", ".join(_SUPPORTED_BINDING_KEY_LABELS)
-        joined = ", ".join(unknown_keys)
-        binding_issues.append(f"binding contains unsupported keys: {joined}; supported keys are {supported}")
-
     for target in check_targets:
         values = _binding_values_for_target(binding, target)
         if not values:
@@ -744,17 +809,8 @@ def _collect_binding_context(
             contract_impacts.extend(values)
             continue
 
-        known_ids = _contract_ids_for_target(contract, target)
-        valid_values = [value for value in values if value in known_ids]
-        unknown_values = [value for value in values if value not in known_ids]
-        if valid_values:
-            valid_by_target[target] = valid_values
-            contract_impacts.extend(valid_values)
-        if unknown_values:
-            suffix = "id" if len(unknown_values) == 1 else "ids"
-            binding_issues.append(
-                f"binding.{target}_{suffix} references unknown contract {target} {', '.join(unknown_values)}"
-            )
+        valid_by_target[target] = values
+        contract_impacts.extend(values)
 
     if binding_supplied and not any(valid_by_target.values()):
         expected = ", ".join(_binding_key_labels_for_targets(check_targets))
@@ -1339,17 +1395,25 @@ def run_contract_check(request: dict) -> dict:
     phase contract object with ``schema_version: 1``. The payload is treated as
     a hard schema boundary for authoritative fields: non-object sections,
     coercive scalars, blank strings, and malformed list members are rejected
-    instead of being guessed. Limited recoverable structural drift may still be
-    salvaged, and any such recovery is surfaced back as automated issues.
+    instead of being guessed. Contract payloads must also satisfy the shared
+    semantic integrity rules: do not reuse target IDs across claim/deliverable/
+    acceptance-test/reference kinds in ways that make resolution ambiguous, and
+    use ``references[].carry_forward_to`` only for workflow scope labels, never
+    contract IDs. Limited recoverable structural drift may still be salvaged,
+    and any such recovery is surfaced back as structured salvage findings.
 
     ``request.binding``, ``request.metadata``, and ``request.observed`` are each
     optional objects. Decisive pass/fail verdicts still require the check-specific
-    fields inside those objects. ``request.artifact_content`` is optional and must
-    be a string when present.
+    fields inside those objects. When ``request.binding`` is present, its keys
+    must come from the per-check ``supported_binding_fields`` surfaced by
+    ``suggest_contract_checks(...)``; unsupported or irrelevant binding fields
+    are request errors, not soft verification issues. ``request.artifact_content``
+    is optional and must be a string when present.
 
     Use ``suggest_contract_checks(contract, active_checks=...)`` first when you
-    need the exact ``required_request_fields``, ``optional_request_fields``, and
-    ``request_template`` for a given contract-aware check before calling this tool.
+    need the exact ``required_request_fields``, ``optional_request_fields``,
+    ``supported_binding_fields``, and ``request_template`` for a given
+    contract-aware check before calling this tool.
     """
 
     with gpd_span("mcp.verification.run_contract_check"):
@@ -1387,7 +1451,7 @@ def run_contract_check(request: dict) -> dict:
                     return error
 
             binding = binding_raw or {}
-            binding_error = _validate_binding_payload(binding)
+            binding_error = _validate_binding_payload(binding, allowed_targets=check_meta.binding_targets)
             if binding_error is not None:
                 return _error_result(binding_error)
             binding_supplied = binding_raw is not None
@@ -1403,6 +1467,13 @@ def run_contract_check(request: dict) -> dict:
             if artifact_content_error is not None:
                 return _error_result(artifact_content_error)
             artifact_content = artifact_content or ""
+            binding_contract_error = _validate_bound_contract_ids(
+                binding=binding,
+                allowed_targets=check_meta.binding_targets,
+                contract=contract,
+            )
+            if binding_contract_error is not None:
+                return _error_result(binding_contract_error)
             binding_ids, binding_issues, contract_impacts = _collect_binding_context(
                 check_targets=check_meta.binding_targets,
                 binding=binding,
@@ -1672,6 +1743,7 @@ def run_contract_check(request: dict) -> dict:
                 "check_class": check_meta.check_class,
                 "contract_aware": check_meta.contract_aware,
                 "binding_targets": check_meta.binding_targets,
+                "supported_binding_fields": _supported_binding_fields_for_targets(check_meta.binding_targets),
                 "status": status,
                 "evidence_directness": evidence_directness,
                 "binding": binding,
@@ -1679,6 +1751,8 @@ def run_contract_check(request: dict) -> dict:
                 "automated_issues": automated_issues,
                 "metrics": metrics,
                 "contract_impacts": contract_impacts,
+                "contract_salvaged": bool(contract_salvage_errors),
+                "contract_salvage_findings": list(contract_salvage_errors),
                 "guidance": check_meta.oracle_hint,
                 }
             )
@@ -1693,7 +1767,11 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
     ``contract`` must be an object with ``schema_version: 1`` and the normal GPD
     contract structure. The tool keeps authoritative fields strict: non-object
     payloads, coercive scalars, and malformed list members are rejected rather
-    than inferred. Limited recoverable structural drift may still be salvaged,
+    than inferred. Contract payloads must also satisfy the shared semantic
+    integrity rules: do not reuse target IDs across claim/deliverable/
+    acceptance-test/reference kinds in ways that make resolution ambiguous, and
+    use ``references[].carry_forward_to`` only for workflow scope labels, never
+    contract IDs. Limited recoverable structural drift may still be salvaged,
     and any such recovery is carried through the suggestion metadata.
 
     ``active_checks`` is optional and must be ``list[str]`` when provided. Supply
@@ -1701,8 +1779,9 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
     ``already_active`` precisely.
 
     Each ``suggested_checks[]`` entry includes ``required_request_fields``,
-    ``optional_request_fields``, and a ``request_template`` that is safe to use as
-    the starting point for ``run_contract_check(request=...)``.
+    ``optional_request_fields``, ``supported_binding_fields``, and a
+    ``request_template`` that is safe to use as the starting point for
+    ``run_contract_check(request=...)``.
     """
 
     with gpd_span("mcp.verification.suggest_contract_checks"):
@@ -1774,6 +1853,8 @@ def suggest_contract_checks(contract: dict, active_checks: list[str] | None = No
             response = {
                 "suggested_checks": suggestions,
                 "suggested_count": len(suggestions),
+                "contract_salvaged": bool(contract_salvage_errors),
+                "contract_salvage_findings": list(contract_salvage_errors),
             }
             if contract_salvage_errors:
                 response["contract_warnings"] = [

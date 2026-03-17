@@ -647,6 +647,33 @@ class CodexAdapter(RuntimeAdapter):
         if installed_agent_names and not installed_agent_names.issubset(registered_roles):
             raise RuntimeError("Codex install incomplete: GPD agent roles are not registered")
 
+    def install_completeness_relpaths(self) -> tuple[str, ...]:
+        """Return Codex-specific artifacts required for a usable install."""
+        return (*super().install_completeness_relpaths(), "config.toml")
+
+    def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing Codex install artifacts, including the shared skills dir."""
+        missing = list(super().missing_install_artifacts(target_dir))
+
+        skills_dir = _load_manifest_codex_skills_dir(target_dir)
+        if skills_dir is None:
+            skills_dir = _resolve_codex_skills_dir(
+                target_dir,
+                is_global=_is_global_codex_target(target_dir),
+            )
+
+        try:
+            has_gpd_skills = skills_dir.is_dir() and any(
+                entry.is_dir() and entry.name.startswith("gpd-") for entry in skills_dir.iterdir()
+            )
+        except OSError:
+            has_gpd_skills = False
+
+        if not has_gpd_skills:
+            missing.append(str(skills_dir))
+
+        return tuple(missing)
+
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         write_manifest(
             target_dir,
@@ -668,13 +695,13 @@ class CodexAdapter(RuntimeAdapter):
 
         Removes only GPD-specific files/directories, preserves user content.
         """
-        if skills_dir is None:
-            skills_dir = _resolve_codex_uninstall_skills_dir(
-                target_dir,
-                is_global=_is_global_codex_target(target_dir),
-            )
-
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
+            self._validate_target_runtime(target_dir, action="uninstall from")
+            if skills_dir is None:
+                skills_dir = _resolve_codex_uninstall_skills_dir(
+                    target_dir,
+                    is_global=_is_global_codex_target(target_dir),
+                )
             removed: list[str] = []
             counts: dict[str, int] = {"skills": 0, "agents": 0, "hooks": 0}
 

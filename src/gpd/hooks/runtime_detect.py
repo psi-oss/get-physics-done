@@ -166,14 +166,14 @@ def _runtime_from_manifest_or_path(config_dir: Path, *, home: Path | None = None
 
 
 def _has_gpd_install(config_dir: Path, *, home: Path | None = None) -> bool:
-    """Return True when *config_dir* appears to contain a GPD install."""
+    """Return True when *config_dir* has stable markers of a GPD install."""
     runtime = _runtime_from_manifest_or_path(config_dir, home=home)
     if runtime is None:
         return False
     adapter = _adapter(runtime)
     if adapter is None:
         return False
-    return adapter.has_complete_install(config_dir)
+    return adapter.has_detectable_install(config_dir)
 
 
 def _install_marker_quality(config_dir: Path) -> int:

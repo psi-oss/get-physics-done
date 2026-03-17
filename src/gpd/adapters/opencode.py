@@ -957,6 +957,7 @@ class OpenCodeAdapter(RuntimeAdapter):
         from gpd.core.observability import gpd_span
 
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
+            self._validate_target_runtime(target_dir, action="uninstall from")
             result = uninstall_opencode(target_dir, config_dir=target_dir)
             removed: list[str] = []
             if result["commands"]:

@@ -1262,8 +1262,12 @@ class TestInitProgress:
         _setup_project(tmp_path)
         _write_coercive_project_contract_state(tmp_path)
 
+        from gpd.core.state import state_load
+
+        loaded = state_load(tmp_path)
         ctx = init_progress(tmp_path)
 
+        assert loaded.state["project_contract"] is None
         assert ctx["project_contract"] is None
         assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
 
@@ -1280,6 +1284,22 @@ class TestInitProgress:
         assert "notes" not in ctx["project_contract"]["claims"][0]
         assert ctx["project_contract"]["references"][0]["aliases"] == []
         assert "Recover known limiting behavior" in ctx["active_reference_context"]
+
+    def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        _write_recoverable_project_contract_state(tmp_path)
+
+        from gpd.core.state import state_load
+
+        loaded = state_load(tmp_path)
+        ctx = init_progress(tmp_path)
+
+        assert loaded.state["project_contract"] == ctx["project_contract"]
+        assert loaded.state["project_contract"]["claims"][0]["id"] == "claim-benchmark"
+        assert loaded.state["project_contract"]["references"][0]["aliases"] == []
+        assert "notes" not in loaded.state["project_contract"]["claims"][0]
 
 
 # ─── _extract_frontmatter_field ──────────────────────────────────────────────

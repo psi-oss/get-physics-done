@@ -736,6 +736,39 @@ def test_load_state_json_preserves_recoverable_warning_only_project_contract_dri
     assert loaded["project_contract"]["references"][0]["aliases"] == []
 
 
+def test_state_load_matches_context_progress_for_recoverably_normalized_project_contract(
+    tmp_path: Path,
+):
+    planning = tmp_path / ".gpd"
+    planning.mkdir()
+    (planning / "phases").mkdir()
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "2"
+    state["position"]["status"] = "Executing"
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["notes"] = "harmless"
+    contract["references"][0]["aliases"] = "not-a-list"
+
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    persisted["project_contract"] = contract
+    layout.state_json.write_text(json.dumps(persisted, indent=2) + "\n", encoding="utf-8")
+
+    from gpd.core.context import init_progress
+
+    loaded = state_load(tmp_path)
+    ctx = init_progress(tmp_path)
+
+    assert loaded.state["project_contract"] == ctx["project_contract"]
+    assert loaded.state["project_contract"]["references"][0]["aliases"] == []
+    assert "notes" not in loaded.state["project_contract"]["claims"][0]
+
+
 def test_ensure_state_schema_preserves_good_fields_when_one_is_bad():
     """When one top-level key has type errors, other valid keys survive."""
     result = ensure_state_schema({

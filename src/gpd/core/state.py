@@ -926,6 +926,7 @@ def _normalize_state_schema(
     raw: dict | None,
     *,
     allow_project_contract_salvage: bool = True,
+    retain_blocking_project_contract_errors: bool = True,
 ) -> tuple[dict, list[str]]:
     """Normalize a raw state dict and capture integrity-affecting coercions."""
     if not raw:
@@ -954,6 +955,7 @@ def _normalize_state_schema(
         normalized,
         integrity_issues,
         allow_project_contract_salvage=allow_project_contract_salvage,
+        retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
     )
 
     try:
@@ -1021,6 +1023,7 @@ def _normalize_project_contract_section(
     integrity_issues: list[str],
     *,
     allow_project_contract_salvage: bool,
+    retain_blocking_project_contract_errors: bool = True,
 ) -> object:
     if value is None or not isinstance(value, dict):
         return value
@@ -1042,7 +1045,9 @@ def _normalize_project_contract_section(
         errors,
         allow_singleton_defaults=allow_project_contract_salvage,
     )
-    if schema_errors and not allow_project_contract_salvage:
+    if schema_errors:
+        if retain_blocking_project_contract_errors:
+            return normalized_contract.model_dump() if normalized_contract is not None else None
         integrity_issues.append(
             'schema normalization: dropped "project_contract" because contract schema required normalization'
         )
@@ -1115,12 +1120,14 @@ def _salvage_state_sections(
     integrity_issues: list[str],
     *,
     allow_project_contract_salvage: bool,
+    retain_blocking_project_contract_errors: bool,
 ) -> dict[str, object]:
     if normalized.get("project_contract") is not None:
         normalized["project_contract"] = _normalize_project_contract_section(
             normalized.get("project_contract"),
             integrity_issues,
             allow_project_contract_salvage=allow_project_contract_salvage,
+            retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
         )
     if normalized.get("intermediate_results") is not None:
         normalized["intermediate_results"] = _normalize_intermediate_results_section(
@@ -1146,8 +1153,12 @@ def ensure_state_schema(raw: dict | None) -> dict:
 
 
 def _normalize_state_for_persistence(raw: dict | None) -> dict:
-    """Normalize state for writes without salvaging malformed project contracts."""
-    normalized, _issues = _normalize_state_schema(raw, allow_project_contract_salvage=False)
+    """Normalize state for writes using standard-mode project-contract salvage."""
+    normalized, _issues = _normalize_state_schema(
+        raw,
+        allow_project_contract_salvage=True,
+        retain_blocking_project_contract_errors=False,
+    )
     return normalized
 
 
@@ -1760,12 +1771,14 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
+        allow_project_contract_salvage = integrity_mode != "review"
 
         try:
             raw = json_path.read_text(encoding="utf-8")
             normalized, integrity_issues = _normalize_state_schema(
                 json.loads(raw),
-                allow_project_contract_salvage=False,
+                allow_project_contract_salvage=allow_project_contract_salvage,
+                retain_blocking_project_contract_errors=False,
             )
             if integrity_mode == "review" and integrity_issues:
                 logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
@@ -1784,7 +1797,8 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
                 bak_raw = bak_path.read_text(encoding="utf-8")
                 restored, integrity_issues = _normalize_state_schema(
                     json.loads(bak_raw),
-                    allow_project_contract_salvage=False,
+                    allow_project_contract_salvage=allow_project_contract_salvage,
+                    retain_blocking_project_contract_errors=False,
                 )
                 if integrity_mode == "review" and integrity_issues:
                     logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))

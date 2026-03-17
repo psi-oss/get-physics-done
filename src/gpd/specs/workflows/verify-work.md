@@ -26,6 +26,9 @@ Walk through derivation logic, perform numerical spot-checks, re-derive limiting
 Use the researcher-session body scaffold from `research-verification.md`, but keep the frontmatter contract compatible with `@{GPD_INSTALL_DIR}/templates/verification-report.md` and `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md`.
 
 <required_reading>
+@{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md
+@{GPD_INSTALL_DIR}/templates/verification-report.md
+@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 @{GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md
 </required_reading>
 

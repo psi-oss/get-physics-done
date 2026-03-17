@@ -1137,6 +1137,26 @@ def test_review_and_execution_prompts_expand_required_schema_sources() -> None:
     assert "Contract Results Schema" in executor
 
 
+def test_verification_and_agent_reference_prompts_expand_required_reference_bodies() -> None:
+    verify_work = _expand_prompt_surface(WORKFLOWS_DIR / "verify-work.md")
+    verify_phase = _expand_prompt_surface(WORKFLOWS_DIR / "verify-phase.md")
+    phase_researcher = _expand_prompt_surface(AGENTS_DIR / "gpd-phase-researcher.md")
+    planner = _expand_prompt_surface(AGENTS_DIR / "gpd-planner.md")
+
+    assert "Verification Independence" in verify_work
+    assert "# Contract Results Schema" in verify_work
+    assert "Verification Independence" in verify_phase
+    assert "# Contract Results Schema" in verify_phase
+    assert "Shared Research Philosophy and Protocols" in phase_researcher
+    assert "Agent Infrastructure Protocols" in phase_researcher
+    assert "Shared Protocols" in planner
+    assert "Agent Infrastructure Protocols" in planner
+    assert "@ include not resolved:" not in verify_work.lower()
+    assert "@ include not resolved:" not in verify_phase.lower()
+    assert "@ include not resolved:" not in phase_researcher.lower()
+    assert "@ include not resolved:" not in planner.lower()
+
+
 def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> None:
     planner_prompt = _expand_prompt_surface(TEMPLATES_DIR / "planner-subagent-prompt.md")
     summary_template = _expand_prompt_surface(TEMPLATES_DIR / "summary.md")

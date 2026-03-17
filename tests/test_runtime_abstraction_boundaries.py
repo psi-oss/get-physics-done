@@ -110,6 +110,11 @@ _SHARED_RUNTIME_AGNOSTIC_PATHS = (
     REPO_ROOT / "src/gpd/registry.py",
     REPO_ROOT / "src/gpd/mcp/servers/skills_server.py",
 )
+_SHARED_TEST_RUNTIME_SURFACE_PATHS = (
+    REPO_ROOT / "tests/test_bootstrap_installer.py",
+    REPO_ROOT / "tests/test_install_lifecycle.py",
+    REPO_ROOT / "tests/test_update_workflow.py",
+)
 _TEXT_SURFACE_SUFFIXES = {".md", ".py"}
 
 
@@ -182,6 +187,11 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
                 if pattern.search(line):
                     matches.append((rel_path, line_no, line))
     return matches
+
+
+def _runtime_literal_sequence_pattern(values: tuple[str, ...]) -> re.Pattern[str]:
+    quoted_values = [rf'["\']{re.escape(value)}["\']' for value in values]
+    return re.compile(r"[\[(]\s*" + r"\s*,\s*".join(quoted_values) + r"\s*[\])]", re.DOTALL)
 
 
 def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> None:
@@ -265,5 +275,25 @@ def test_shared_builtin_server_descriptors_do_not_hardcode_bootstrap_commands() 
 
     assert leaks == [], (
         "Shared built-in MCP descriptors should not hardcode runtime-specific bootstrap commands:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_runtime_facing_tests_do_not_duplicate_runtime_catalog_literals() -> None:
+    runtime_names = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+    install_flags = tuple(descriptor.install_flag for descriptor in _RUNTIME_DESCRIPTORS)
+    name_pattern = _runtime_literal_sequence_pattern(runtime_names)
+    flag_pattern = _runtime_literal_sequence_pattern(install_flags)
+
+    leaks: list[tuple[Path, int, str]] = []
+    for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS:
+        content = path.read_text(encoding="utf-8")
+        if name_pattern.search(content):
+            leaks.append((path, 0, "hard-coded supported runtime name tuple/list literal"))
+        if flag_pattern.search(content):
+            leaks.append((path, 0, "hard-coded supported runtime flag tuple/list literal"))
+
+    assert leaks == [], (
+        "Shared runtime-facing tests should derive supported runtime sets from the runtime catalog:\n"
         f"{_format_failures(leaks)}"
     )

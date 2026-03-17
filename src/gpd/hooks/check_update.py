@@ -37,6 +37,7 @@ def _version_files() -> list[Path]:
     """Return VERSION file candidates, preferring the active runtime's install first."""
     from gpd.hooks.runtime_detect import (
         ALL_RUNTIMES,
+        _detect_runtime_install_target,
         _global_runtime_dir,
         _local_runtime_dir,
         detect_runtime_for_gpd_use,
@@ -46,10 +47,20 @@ def _version_files() -> list[Path]:
     resolved_home = Path.home()
     active_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
     runtimes = [active_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != active_runtime]
+    install_targets = {
+        runtime: _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home) for runtime in ALL_RUNTIMES
+    }
+    has_concrete_install = any(target is not None for target in install_targets.values())
 
     install_dirs: list[Path] = []
     for runtime in runtimes:
         if runtime not in ALL_RUNTIMES:
+            continue
+        install_target = install_targets.get(runtime)
+        if install_target is not None:
+            install_dirs.append(install_target.config_dir / GPD_INSTALL_DIR_NAME)
+            continue
+        if has_concrete_install:
             continue
         install_dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
         install_dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)

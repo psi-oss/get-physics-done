@@ -1573,11 +1573,15 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "insufficient_evidence"
-        assert result["contract_impacts"] == []
-        assert "metadata.source_reference_id" in result["missing_inputs"]
-        assert any("unsupported keys: cliam_ids" in issue for issue in result["automated_issues"])
-        assert any("at least one valid bound ID" in issue for issue in result["automated_issues"])
+        assert result == {
+            "error": (
+                "binding contains unsupported keys: cliam_ids; supported keys are "
+                "binding.claim_id, binding.claim_ids, binding.deliverable_id, binding.deliverable_ids, "
+                "binding.acceptance_test_id, binding.acceptance_test_ids, binding.reference_id, "
+                "binding.reference_ids"
+            ),
+            "schema_version": 1,
+        }
 
     def test_run_contract_check_requires_valid_bound_ids_when_binding_is_supplied(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -1639,12 +1643,12 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "insufficient_evidence"
-        assert result["contract_impacts"] == []
-        assert any("unknown contract claim" in issue for issue in result["automated_issues"])
-        assert any("unknown contract reference" in issue for issue in result["automated_issues"])
+        assert result == {
+            "error": "binding.claim_id references unknown contract claim claim-missing",
+            "schema_version": 1,
+        }
 
-    def test_run_contract_check_ignores_non_target_binding_keys_in_contract_impacts(self):
+    def test_run_contract_check_rejects_non_target_binding_keys(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 
         result = run_contract_check(
@@ -1660,8 +1664,15 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "fail"
-        assert result["contract_impacts"] == ["claim-benchmark", "fp-01"]
+        assert result == {
+            "error": (
+                "binding contains unsupported keys: reference_ids; supported keys are "
+                "binding.claim_id, binding.claim_ids, binding.deliverable_id, binding.deliverable_ids, "
+                "binding.acceptance_test_id, binding.acceptance_test_ids, binding.forbidden_proxy_id, "
+                "binding.forbidden_proxy_ids"
+            ),
+            "schema_version": 1,
+        }
 
     def test_run_contract_check_benchmark_default_follows_bound_claim_context(self):
         from gpd.mcp.servers.verification_server import run_contract_check

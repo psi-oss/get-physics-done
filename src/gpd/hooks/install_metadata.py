@@ -103,11 +103,11 @@ def _infer_explicit_target(
 
 
 def config_dir_has_complete_install(config_dir: Path) -> bool:
-    """Return whether *config_dir* satisfies the shared install contract."""
+    """Return whether *config_dir* has the stable markers of a GPD install."""
     runtime = installed_runtime(config_dir)
     if runtime is not None:
         try:
-            return get_adapter(runtime).has_complete_install(config_dir)
+            return get_adapter(runtime).has_detectable_install(config_dir)
         except KeyError:
             pass
     return (config_dir / "gpd-file-manifest.json").is_file() and (config_dir / "get-physics-done").is_dir()

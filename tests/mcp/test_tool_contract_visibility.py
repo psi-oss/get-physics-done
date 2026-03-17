@@ -23,9 +23,14 @@ def test_run_contract_check_tool_description_surfaces_request_requirements() -> 
     assert "``request.contract`` is optional" in description
     assert "``schema_version: 1``" in description
     assert "``request.binding``, ``request.metadata``, and ``request.observed`` are each" in description
+    assert "``request.artifact_content``" in description
+    assert "must be a string when present" in description
     assert "``required_request_fields``" in description
     assert "``optional_request_fields``" in description
+    assert "``supported_binding_fields``" in description
     assert "``request_template``" in description
+    assert "``references[].carry_forward_to`` only for workflow scope labels" in description
+    assert "make resolution ambiguous" in description
 
 
 def test_suggest_contract_checks_tool_description_surfaces_contract_requirements() -> None:
@@ -36,6 +41,8 @@ def test_suggest_contract_checks_tool_description_surfaces_contract_requirements
     assert "``contract`` must be an object with ``schema_version: 1``" in description
     assert "``active_checks`` is optional and must be ``list[str]``" in description
     assert "``already_active``" in description
+    assert "``supported_binding_fields``" in description
+    assert "``references[].carry_forward_to`` only for workflow scope labels" in description
     assert "``run_contract_check(request=...)``" in description
 
 
@@ -55,10 +62,22 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
 
     verification = descriptors["gpd-verification"]
     assert "structured request objects or schema_version=1 contract payloads" in verification["description"]
-    assert "request templates" in verification["description"]
-    assert "shared semantic integrity rules" in verification["description"]
+    assert "required_request_fields" in verification["description"]
+    assert "optional_request_fields" in verification["description"]
+    assert "request_template" in verification["description"]
+    assert "supported binding fields" in verification["description"]
+    for field in (
+        "binding.observable_id(s)",
+        "binding.claim_id(s)",
+        "binding.deliverable_id(s)",
+        "binding.acceptance_test_id(s)",
+        "binding.reference_id(s)",
+        "binding.forbidden_proxy_id(s)",
+    ):
+        assert field in verification["description"]
+    assert "live semantic integrity rules" in verification["description"]
     assert "target resolution ambiguous" in verification["description"]
-    assert "references[].carry_forward_to only for workflow scope labels" in verification["description"]
+    assert "`references[].carry_forward_to` entries as workflow scope labels only" in verification["description"]
     assert "never contract IDs" in verification["description"]
 
     conventions = descriptors["gpd-conventions"]
@@ -79,7 +98,20 @@ def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules()
 
     description = descriptor["description"]
     assert "structured request objects or schema_version=1 contract payloads" in description
-    assert "shared semantic integrity rules" in description
+    assert "required_request_fields" in description
+    assert "optional_request_fields" in description
+    assert "request_template" in description
+    assert "supported binding fields" in description
+    for field in (
+        "binding.observable_id(s)",
+        "binding.claim_id(s)",
+        "binding.deliverable_id(s)",
+        "binding.acceptance_test_id(s)",
+        "binding.reference_id(s)",
+        "binding.forbidden_proxy_id(s)",
+    ):
+        assert field in description
+    assert "live semantic integrity rules" in description
     assert "target resolution ambiguous" in description
-    assert "references[].carry_forward_to only for workflow scope labels" in description
+    assert "`references[].carry_forward_to` entries as workflow scope labels only" in description
     assert "never contract IDs" in description

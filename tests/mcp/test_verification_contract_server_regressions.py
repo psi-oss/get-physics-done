@@ -170,6 +170,16 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["declared_family"] == "bootstrap"
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
+    assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
+        "binding.claim_id",
+        "binding.claim_ids",
+        "binding.deliverable_id",
+        "binding.deliverable_ids",
+        "binding.acceptance_test_id",
+        "binding.acceptance_test_ids",
+        "binding.reference_id",
+        "binding.reference_ids",
+    ]
 
 
 def test_suggest_contract_checks_surfaces_salvage_warnings() -> None:
@@ -181,6 +191,8 @@ def test_suggest_contract_checks_surfaces_salvage_warnings() -> None:
     result = suggest_contract_checks(contract)
 
     assert "error" not in result
+    assert result["contract_salvaged"] is True
+    assert result["contract_salvage_findings"] == ["references.0.notes: Extra inputs are not permitted"]
     assert any("salvaged before check suggestion" in warning for warning in result["contract_warnings"])
     assert any(entry["check_key"] == "contract.benchmark_reproduction" for entry in result["suggested_checks"])
 
@@ -250,6 +262,22 @@ def test_run_contract_check_rejects_non_mapping_payloads(payload: object) -> Non
                 },
             },
             "metadata.forbidden_families[0] must be a non-empty string",
+        ),
+        (
+            {
+                "check_key": "contract.benchmark_reproduction",
+                "binding": {"claim_ids": {"primary": "claim-benchmark"}},
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            },
+            "binding.claim_ids must be a string or list of strings",
+        ),
+        (
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {"allowed_families": "power_law"},
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            },
+            "metadata.allowed_families must be a list of strings",
         ),
     ],
 )
@@ -475,6 +503,36 @@ def test_verification_server_success_responses_keep_stable_envelope_equality() -
     checklist_expected = dict(checklist_result)
     checklist_expected.pop("schema_version")
     assert checklist_result == checklist_expected
+
+
+def test_run_contract_check_surfaces_machine_readable_contract_salvage_findings() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["claims"][0]["notes"] = "legacy extra field"
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"], "reference_ids": ["ref-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+
+    assert result["contract_salvaged"] is True
+    assert result["contract_salvage_findings"] == ["claims.0.notes: Extra inputs are not permitted"]
+    assert result["supported_binding_fields"] == [
+        "binding.claim_id",
+        "binding.claim_ids",
+        "binding.deliverable_id",
+        "binding.deliverable_ids",
+        "binding.acceptance_test_id",
+        "binding.acceptance_test_ids",
+        "binding.reference_id",
+        "binding.reference_ids",
+    ]
 
 
 def test_verification_server_pure_success_tools_return_stable_envelopes() -> None:

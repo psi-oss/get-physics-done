@@ -229,7 +229,7 @@ _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
-_LIST_ITEM_INCLUDE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)(@.*)$")
+_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -742,18 +742,15 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        include_candidate = trimmed
-        bullet_match = _LIST_ITEM_INCLUDE_RE.match(trimmed)
-        if bullet_match:
-            include_candidate = bullet_match.group(1)
+        include_match = _AT_INCLUDE_LINE_RE.match(trimmed)
+        if not include_match:
+            result.append(line)
+            continue
+
+        include_candidate = include_match.group(1)
 
         # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if (
-            not include_candidate.startswith("@")
-            or len(include_candidate) < 3
-            or include_candidate[1] == " "
-            or re.match(r"^@\w+\{", include_candidate)
-        ):
+        if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
             result.append(line)
             continue
 

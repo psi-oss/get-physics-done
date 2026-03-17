@@ -668,6 +668,10 @@ class GeminiAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return "gemini"
 
+    def _runtime_bridge_only_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini artifacts that appear only after finalize_install()."""
+        return ("settings.json",)
+
     def install(
         self,
         gpd_root: Path,
@@ -676,11 +680,13 @@ class GeminiAdapter(RuntimeAdapter):
         is_global: bool = False,
         explicit_target: bool = False,
     ) -> dict[str, object]:
-        """Install GPD and persist Gemini settings as part of the install.
+        """Install Gemini surfaces and defer settings persistence to finalization.
 
         Unlike Claude Code, Gemini requires ``settings.json`` to enable
         ``experimental.enableAgents`` for the installed agents to function.
-        A bare content copy is therefore an incomplete Gemini install.
+        ``install()`` prepares those settings in-memory; ``finalize_install()``
+        writes them to disk once the caller is ready to complete the runtime
+        configuration step.
         """
         previous_finalize_pending = getattr(self, "_gemini_finalize_pending", False)
         self._gemini_finalize_pending = True
@@ -853,6 +859,21 @@ class GeminiAdapter(RuntimeAdapter):
             metadata=metadata or None,
             install_scope=self._current_install_scope_flag(),
             explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+
+    def install_completeness_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini-specific artifacts required for a usable install."""
+        return (
+            *super().install_completeness_relpaths(),
+            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
+            *self._runtime_bridge_only_relpaths(),
+        )
+
+    def install_verification_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini artifacts that must exist before ``install()`` returns."""
+        return (
+            *super().install_completeness_relpaths(),
+            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
         )
 
     def finish_install(

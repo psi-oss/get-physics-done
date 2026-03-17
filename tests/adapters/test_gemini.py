@@ -748,6 +748,20 @@ class TestInstall:
         # install() must NOT have written settings or set the settingsWritten flag
         assert result.get("settingsWritten") is not True
         assert not (target / "settings.json").exists()
+        assert adapter.missing_install_artifacts(target) == ("settings.json",)
+
+    def test_install_returns_before_finalize_but_runtime_completeness_stays_strict(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Install-time verification must not hide missing finalize artifacts afterwards."""
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        adapter.install(gpd_root, target)
+
+        missing = adapter.missing_install_artifacts(target)
+        assert missing == ("settings.json",)
+        assert adapter.missing_install_verification_artifacts(target) == ()
 
     def test_force_statusline_forwarded_through_finalize(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

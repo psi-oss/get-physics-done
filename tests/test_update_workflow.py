@@ -6,8 +6,16 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
+_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+
+
+def _install_and_finalize(adapter, gpd_root: Path, target: Path, **install_kwargs: object) -> dict[str, object]:
+    result = adapter.install(gpd_root, target, **install_kwargs)
+    adapter.finalize_install(result)
+    return result
 
 
 def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
@@ -33,20 +41,20 @@ def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
     assert "./.claude/gpd-local-patches" not in content
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_default_local_install_keeps_local_update_scope_and_manifest(
     tmp_path: Path,
-    runtime: str,
+    descriptor,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    adapter = get_adapter(runtime)
+    adapter = get_adapter(descriptor.runtime_name)
     target = tmp_path / adapter.config_dir_name
     target.mkdir(parents=True)
 
-    if runtime == "codex":
+    if "skills/" in descriptor.manifest_file_prefixes:
         monkeypatch.setenv("CODEX_SKILLS_DIR", str(tmp_path / "shared-skills"))
 
-    adapter.install(GPD_ROOT, target, is_global=False)
+    _install_and_finalize(adapter, GPD_ROOT, target, is_global=False)
 
     content = (target / "get-physics-done" / "workflows" / "update.md").read_text(encoding="utf-8")
     manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
@@ -54,23 +62,23 @@ def test_default_local_install_keeps_local_update_scope_and_manifest(
     assert 'INSTALL_SCOPE="--local"' in content
     assert 'INSTALL_SCOPE="--global"' not in content
     assert manifest["install_scope"] == "local"
-    if runtime == "codex":
+    if "skills/" in descriptor.manifest_file_prefixes:
         assert manifest["codex_skills_dir"] == str(tmp_path / ".agents" / "skills")
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
-def test_explicit_target_local_install_keeps_local_update_scope(tmp_path: Path, runtime: str) -> None:
-    adapter = get_adapter(runtime)
-    target = tmp_path / "explicit target" / f"{runtime} config"
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_explicit_target_local_install_keeps_local_update_scope(tmp_path: Path, descriptor) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    target = tmp_path / "explicit target" / f"{descriptor.runtime_name} config"
     target.mkdir(parents=True)
 
     install_kwargs: dict[str, object] = {"is_global": False, "explicit_target": True}
-    if runtime == "codex":
+    if "skills/" in descriptor.manifest_file_prefixes:
         skills_dir = tmp_path / "explicit target" / "skills"
         skills_dir.mkdir(parents=True)
         install_kwargs["skills_dir"] = skills_dir
 
-    adapter.install(GPD_ROOT, target, **install_kwargs)
+    _install_and_finalize(adapter, GPD_ROOT, target, **install_kwargs)
 
     content = (target / "get-physics-done" / "workflows" / "update.md").read_text(encoding="utf-8")
 
@@ -80,19 +88,19 @@ def test_explicit_target_local_install_keeps_local_update_scope(tmp_path: Path, 
     assert "TARGET_DIR_ARG=$(python3 - \"$GPD_CONFIG_DIR\"" in content
 
 
-@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
-def test_explicit_target_local_install_reapply_patches_uses_runtime_paths(tmp_path: Path, runtime: str) -> None:
-    adapter = get_adapter(runtime)
-    target = tmp_path / "explicit target" / f"{runtime} config"
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_explicit_target_local_install_reapply_patches_uses_runtime_paths(tmp_path: Path, descriptor) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    target = tmp_path / "explicit target" / f"{descriptor.runtime_name} config"
     target.mkdir(parents=True)
 
     install_kwargs: dict[str, object] = {"is_global": False, "explicit_target": True}
-    if runtime == "codex":
+    if "skills/" in descriptor.manifest_file_prefixes:
         skills_dir = tmp_path / "explicit target" / "skills"
         skills_dir.mkdir(parents=True)
         install_kwargs["skills_dir"] = skills_dir
 
-    adapter.install(GPD_ROOT, target, **install_kwargs)
+    _install_and_finalize(adapter, GPD_ROOT, target, **install_kwargs)
 
     content = (target / "get-physics-done" / "workflows" / "reapply-patches.md").read_text(encoding="utf-8")
 

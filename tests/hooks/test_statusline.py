@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from gpd.adapters import get_adapter
 from gpd.hooks.runtime_detect import TodoCandidate
 from gpd.hooks.statusline import (
     _check_update,
@@ -32,10 +33,26 @@ def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
 
 def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = "local") -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
+    if runtime is not None:
+        adapter = get_adapter(runtime)
+        for relpath in adapter.install_completeness_relpaths():
+            if relpath == "gpd-file-manifest.json":
+                continue
+            artifact = config_dir / relpath
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            if artifact.suffix:
+                artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+            else:
+                artifact.mkdir(parents=True, exist_ok=True)
+        if runtime == "codex":
+            (config_dir.parent / ".agents" / "skills" / "gpd-help").mkdir(parents=True, exist_ok=True)
+    else:
+        (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
     manifest: dict[str, object] = {"install_scope": install_scope}
     if runtime is not None:
         manifest["runtime"] = runtime
+        if runtime == "codex":
+            manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
     (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────

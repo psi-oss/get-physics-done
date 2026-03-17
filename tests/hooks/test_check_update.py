@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from gpd.adapters import get_adapter
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
     _do_check,
@@ -23,6 +24,26 @@ from gpd.hooks.runtime_detect import UpdateCacheCandidate
 
 def _cache_candidate(path: Path) -> UpdateCacheCandidate:
     return UpdateCacheCandidate(path=path)
+
+
+def _mark_complete_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
+    adapter = get_adapter(runtime)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for relpath in adapter.install_completeness_relpaths():
+        if relpath == "gpd-file-manifest.json":
+            continue
+        artifact = config_dir / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        if artifact.suffix:
+            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+        else:
+            artifact.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, object] = {"install_scope": install_scope, "runtime": runtime}
+    if runtime == "codex":
+        skills_dir = config_dir.parent / ".agents" / "skills"
+        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        manifest["codex_skills_dir"] = str(skills_dir)
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -129,10 +150,7 @@ class TestReadInstalledVersion:
         installed_codex_version.parent.mkdir(parents=True)
         stale_claude_version.write_text("1.0.0\n")
         installed_codex_version.write_text("2.0.0\n")
-        (installed_codex_dir / "gpd-file-manifest.json").write_text(
-            json.dumps({"install_scope": "local", "runtime": "codex"}),
-            encoding="utf-8",
-        )
+        _mark_complete_install(installed_codex_dir, runtime="codex")
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
@@ -455,11 +473,7 @@ class TestMainThrottle:
         global_runtime_dir = home / ".codex"
         global_cache = global_runtime_dir / "cache"
         global_cache.mkdir(parents=True)
-        (global_runtime_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-        (global_runtime_dir / "gpd-file-manifest.json").write_text(
-            json.dumps({"install_scope": "global", "runtime": "codex"}),
-            encoding="utf-8",
-        )
+        _mark_complete_install(global_runtime_dir, runtime="codex", install_scope="global")
         (global_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
             encoding="utf-8",

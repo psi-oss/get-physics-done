@@ -23,6 +23,22 @@ def _mark_complete_install(config_dir: Path, *, runtime: str, install_scope: str
         json.dumps({"runtime": runtime, "install_scope": install_scope}),
         encoding="utf-8",
     )
+    if runtime == "codex":
+        skills_dir = config_dir.parent / ".agents" / "skills" / "gpd-dummy"
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        (skills_dir / "SKILL.md").write_text(
+            "---\nname: gpd-dummy\ndescription: dummy\n---\n",
+            encoding="utf-8",
+        )
+        (config_dir / "config.toml").write_text("[agents]\n", encoding="utf-8")
+    elif runtime == "gemini":
+        (config_dir / "settings.json").write_text(
+            json.dumps({"experimental": {"enableAgents": True}}),
+            encoding="utf-8",
+        )
+        policy_dir = config_dir / "policies"
+        policy_dir.mkdir(parents=True, exist_ok=True)
+        (policy_dir / "gpd-auto-edit.toml").write_text("[[rule]]\n", encoding="utf-8")
 
 
 def _mark_incomplete_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
@@ -38,9 +54,10 @@ def _run_runtime_cli_with_recording(
     *,
     cwd: Path,
     argv: list[str],
+    runtime: str = "codex",
 ) -> tuple[int, dict[str, object]]:
     observed: dict[str, object] = {}
-    adapter = get_adapter("codex")
+    adapter = get_adapter(runtime)
 
     def record_missing_install_artifacts(target_dir: Path) -> tuple[str, ...]:
         observed["config_dir"] = target_dir
@@ -56,21 +73,23 @@ def _run_runtime_cli_with_recording(
     monkeypatch.delenv(ENV_GPD_ACTIVE_RUNTIME, raising=False)
     monkeypatch.delenv(ENV_GPD_DISABLE_CHECKOUT_REEXEC, raising=False)
     monkeypatch.setattr(adapter, "missing_install_artifacts", record_missing_install_artifacts)
-    monkeypatch.setattr("gpd.runtime_cli.get_adapter", lambda runtime: adapter)
+    monkeypatch.setattr("gpd.runtime_cli.get_adapter", lambda runtime_name: adapter)
     monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
 
     return main(argv), observed
 
 
-def test_runtime_cli_fails_cleanly_for_incomplete_install(tmp_path: Path, capsys) -> None:
-    config_dir = tmp_path / ".codex"
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_fails_cleanly_for_incomplete_install(tmp_path: Path, capsys, runtime: str) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
     config_dir.mkdir()
 
     exit_code = main(
         [
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -82,15 +101,22 @@ def test_runtime_cli_fails_cleanly_for_incomplete_install(tmp_path: Path, capsys
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime install incomplete for Codex" in captured.err
+    assert f"GPD runtime install incomplete for {adapter.display_name}" in captured.err
     assert "`gpd-file-manifest.json`" in captured.err
     assert "`get-physics-done`" in captured.err
-    assert "npx -y get-physics-done --codex --local" in captured.err
+    assert f"npx -y get-physics-done --{runtime} --local" in captured.err
 
 
-def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(monkeypatch, tmp_path: Path, capsys) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_incomplete_install(config_dir, runtime="codex")
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    runtime: str,
+) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_incomplete_install(config_dir, runtime=runtime)
     nested_cwd = tmp_path / "research" / "notes"
     nested_cwd.mkdir(parents=True)
     monkeypatch.chdir(nested_cwd)
@@ -98,9 +124,9 @@ def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(monk
     exit_code = main(
         [
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
-            "./.codex",
+            f"./{adapter.config_dir_name}",
             "--install-scope",
             "local",
             "state",
@@ -111,12 +137,14 @@ def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(monk
     captured = capsys.readouterr()
     assert exit_code == 127
     assert f"--target-dir {config_dir}" in captured.err
-    assert "npx -y get-physics-done --codex --local" in captured.err
+    assert f"npx -y get-physics-done --{runtime} --local" in captured.err
 
 
-def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_complete_install(config_dir, runtime="codex")
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, runtime: str) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=runtime)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
 
@@ -133,9 +161,9 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path) ->
     exit_code = main(
         [
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
-            "./.codex",
+            f"./{adapter.config_dir_name}",
             "--install-scope",
             "local",
             "state",
@@ -145,20 +173,22 @@ def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path) ->
 
     assert exit_code == 0
     assert observed["argv"] == ["gpd", "state", "load"]
-    assert observed["runtime"] == "codex"
+    assert observed["runtime"] == runtime
     assert observed["disable_reexec"] == "1"
 
 
-def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: Path) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_complete_install(config_dir, runtime="codex")
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: Path, runtime: str) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=runtime)
 
     exit_code, observed = _run_runtime_cli_with_recording(
         monkeypatch,
         cwd=tmp_path,
         argv=[
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -168,11 +198,12 @@ def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: P
             "--runtime",
             "gemini",
         ],
+        runtime=runtime,
     )
 
     assert exit_code == 0
     assert observed["argv"] == ["gpd", "resolve-model", "gpd-executor", "--runtime", "gemini"]
-    assert observed["runtime"] == "codex"
+    assert observed["runtime"] == runtime
 
 
 def test_runtime_cli_bridge_parse_preserves_passthrough_after_double_dash() -> None:
@@ -219,9 +250,15 @@ def test_cli_resolves_cli_cwd_from_last_repeated_flag(monkeypatch, tmp_path: Pat
     ) == final_cwd
 
 
-def test_runtime_cli_preserves_root_global_flags_before_subcommand(monkeypatch, tmp_path: Path) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_complete_install(config_dir, runtime="codex")
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_preserves_root_global_flags_before_subcommand(
+    monkeypatch,
+    tmp_path: Path,
+    runtime: str,
+) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=runtime)
     forwarded_cwd = tmp_path / "workspace"
     forwarded_cwd.mkdir()
 
@@ -230,7 +267,7 @@ def test_runtime_cli_preserves_root_global_flags_before_subcommand(monkeypatch, 
         cwd=tmp_path,
         argv=[
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -247,16 +284,22 @@ def test_runtime_cli_preserves_root_global_flags_before_subcommand(monkeypatch, 
     assert observed["argv"] == ["gpd", "--raw", "--cwd", str(forwarded_cwd), "state", "load"]
 
 
-def test_runtime_cli_keeps_double_dash_passthrough_arguments_verbatim(monkeypatch, tmp_path: Path) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_complete_install(config_dir, runtime="codex")
+@pytest.mark.parametrize("runtime", ["codex", "gemini"])
+def test_runtime_cli_keeps_double_dash_passthrough_arguments_verbatim(
+    monkeypatch,
+    tmp_path: Path,
+    runtime: str,
+) -> None:
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=runtime)
 
     exit_code, observed = _run_runtime_cli_with_recording(
         monkeypatch,
         cwd=tmp_path,
         argv=[
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -503,22 +546,26 @@ def test_runtime_cli_forwarded_cli_cwd_drives_local_repair_guidance(
     assert "npx -y get-physics-done --codex --local" in captured.err
 
 
+@pytest.mark.parametrize("runtime, foreign_runtime", [("codex", "claude-code"), ("gemini", "opencode")])
 def test_runtime_cli_fails_when_resolved_local_config_dir_manifest_runtime_mismatches(
     monkeypatch,
     tmp_path: Path,
     capsys,
+    runtime: str,
+    foreign_runtime: str,
 ) -> None:
-    config_dir = tmp_path / ".codex"
-    _mark_complete_install(config_dir, runtime="claude-code")
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=foreign_runtime)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
 
     exit_code = main(
         [
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
-            "./.codex",
+            f"./{adapter.config_dir_name}",
             "--install-scope",
             "local",
             "state",
@@ -528,25 +575,29 @@ def test_runtime_cli_fails_when_resolved_local_config_dir_manifest_runtime_misma
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert f"GPD runtime bridge mismatch for {get_adapter('codex').display_name}" in captured.err
-    assert f"{get_adapter('claude-code').display_name} (`claude-code`)" in captured.err
-    assert "npx -y get-physics-done --codex --local" in captured.err
+    assert f"GPD runtime bridge mismatch for {adapter.display_name}" in captured.err
+    assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in captured.err
+    assert f"npx -y get-physics-done --{runtime} --local" in captured.err
 
 
+@pytest.mark.parametrize("runtime, foreign_runtime", [("codex", "claude-code"), ("gemini", "opencode")])
 def test_runtime_cli_fails_when_explicit_target_manifest_runtime_mismatches(
     monkeypatch,
     tmp_path: Path,
     capsys,
+    runtime: str,
+    foreign_runtime: str,
 ) -> None:
-    config_dir = tmp_path / "custom-runtime-dir"
-    _mark_complete_install(config_dir, runtime="claude-code")
+    adapter = get_adapter(runtime)
+    config_dir = tmp_path / f"custom-{runtime}-dir"
+    _mark_complete_install(config_dir, runtime=foreign_runtime)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
 
     exit_code = main(
         [
             "--runtime",
-            "codex",
+            runtime,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -559,8 +610,8 @@ def test_runtime_cli_fails_when_explicit_target_manifest_runtime_mismatches(
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert f"GPD runtime bridge mismatch for {get_adapter('codex').display_name}" in captured.err
-    assert f"{get_adapter('claude-code').display_name} (`claude-code`)" in captured.err
+    assert f"GPD runtime bridge mismatch for {adapter.display_name}" in captured.err
+    assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in captured.err
     assert f"--target-dir {config_dir}" in captured.err
 
 

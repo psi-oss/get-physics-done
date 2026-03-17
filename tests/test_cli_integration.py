@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from gpd.adapters import get_adapter
 from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
 
@@ -124,11 +125,23 @@ def _invoke(*args: str, expect_ok: bool = True) -> object:
 
 def _mark_complete_runtime_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
     """Create the concrete install markers real runtime installs write."""
-    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
-        encoding="utf-8",
-    )
+    adapter = get_adapter(runtime)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for relpath in adapter.install_completeness_relpaths():
+        if relpath == "gpd-file-manifest.json":
+            continue
+        artifact = config_dir / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        if artifact.suffix:
+            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+        else:
+            artifact.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, object] = {"runtime": runtime, "install_scope": install_scope}
+    if runtime == "codex":
+        skills_dir = config_dir.parent / ".agents" / "skills"
+        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        manifest["codex_skills_dir"] = str(skills_dir)
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

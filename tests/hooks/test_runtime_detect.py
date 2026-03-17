@@ -67,11 +67,22 @@ def _mark_gpd_install(config_dir: Path, *, runtime: str | None = None, install_s
         raise AssertionError(f"Cannot infer runtime for install marker at {config_dir}")
 
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": install_scope, "runtime": runtime}),
-        encoding="utf-8",
-    )
+    adapter = get_adapter(runtime)
+    for relpath in adapter.install_completeness_relpaths():
+        if relpath == "gpd-file-manifest.json":
+            continue
+        artifact = config_dir / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        if artifact.suffix:
+            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+        else:
+            artifact.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, object] = {"install_scope": install_scope, "runtime": runtime}
+    if runtime == RUNTIME_CODEX:
+        skills_dir = config_dir.parent / ".agents" / "skills"
+        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        manifest["codex_skills_dir"] = str(skills_dir)
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def _write_install_manifest(config_dir: Path, *, install_scope: str) -> None:

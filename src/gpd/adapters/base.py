@@ -200,19 +200,59 @@ class RuntimeAdapter(abc.ABC):
         base = "npx -y get-physics-done"
         return f"{base} {self.install_flag}".strip()
 
-    def install_completeness_relpaths(self) -> tuple[str, ...]:
-        """Return relative artifacts required for a usable runtime install.
+    def install_detection_relpaths(self) -> tuple[str, ...]:
+        """Return the stable GPD-owned artifacts that identify an install.
 
-        Runtime detection, install-metadata lookups, and the runtime CLI bridge
-        all use the same shared contract. Adapters may extend this when their
-        installed surface requires additional runtime-owned files.
+        Shared hook/runtime selection code should rely on this minimal contract
+        so detection remains resilient even when runtime-private surfaces are
+        partially missing or awaiting finalization.
         """
         return (MANIFEST_NAME, GPD_INSTALL_DIR_NAME)
 
+    def missing_install_detection_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing stable detection artifacts relative to *target_dir*."""
+        missing: list[str] = []
+        for relpath in self.install_detection_relpaths():
+            if not (target_dir / relpath).exists():
+                missing.append(relpath)
+        return tuple(missing)
+
+    def has_detectable_install(self, target_dir: Path) -> bool:
+        """Return whether *target_dir* has the stable markers of a GPD install."""
+        return not self.missing_install_detection_artifacts(target_dir)
+
+    def install_completeness_relpaths(self) -> tuple[str, ...]:
+        """Return relative artifacts required for a fully usable runtime install.
+
+        The runtime CLI bridge and repair flows use this stricter contract.
+        Adapters may extend it when their installed surface requires additional
+        runtime-owned files.
+        """
+        return self.install_detection_relpaths()
+
     def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
-        """Return missing install artifacts relative to *target_dir*."""
+        """Return missing strict install artifacts relative to *target_dir*."""
         missing: list[str] = []
         for relpath in self.install_completeness_relpaths():
+            if not (target_dir / relpath).exists():
+                missing.append(relpath)
+        return tuple(missing)
+
+    def install_verification_relpaths(self) -> tuple[str, ...]:
+        """Return artifacts that must exist before ``install()`` can return.
+
+        Most runtimes fully materialize their usable install surface during
+        ``install()`` itself, so the install-time verification defaults to the
+        same artifact contract the runtime bridge enforces later. Runtimes with
+        an explicit post-install finalization step may override this to defer
+        checks for artifacts that are only written during finalization.
+        """
+        return self.install_completeness_relpaths()
+
+    def missing_install_verification_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing artifacts for install-time verification."""
+        missing: list[str] = []
+        for relpath in self.install_verification_relpaths():
             if not (target_dir / relpath).exists():
                 missing.append(relpath)
         return tuple(missing)
@@ -294,8 +334,7 @@ class RuntimeAdapter(abc.ABC):
             self._install_is_global = is_global
             try:
                 self._validate(gpd_root)
-                if explicit_target:
-                    self._validate_target_runtime(target_dir, action="install into")
+                self._validate_target_runtime(target_dir, action="install into")
                 path_prefix = self._compute_path_prefix(target_dir, is_global)
                 self._pre_cleanup(target_dir)
                 install_version = version_for_gpd_root(gpd_root) or __version__
@@ -431,7 +470,7 @@ class RuntimeAdapter(abc.ABC):
 
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""
-        missing = self.missing_install_artifacts(target_dir)
+        missing = self.missing_install_verification_artifacts(target_dir)
         if missing:
             joined = ", ".join(missing)
             raise RuntimeError(f"{self.display_name} install incomplete: missing {joined}")

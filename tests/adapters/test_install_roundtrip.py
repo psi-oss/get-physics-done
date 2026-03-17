@@ -60,9 +60,7 @@ def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
     if runtime == "gemini":
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(REPO_GPD_ROOT, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(REPO_GPD_ROOT, target)
         return target
 
     if runtime == "opencode":
@@ -72,6 +70,14 @@ def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
         return target
 
     raise AssertionError(f"Unsupported runtime {runtime}")
+
+
+def _install_gemini_for_tests(gpd_root: Path, target: Path) -> GeminiAdapter:
+    """Install Gemini artifacts and persist the deferred Gemini settings."""
+    adapter = GeminiAdapter()
+    result = adapter.install(gpd_root, target)
+    adapter.finalize_install(result)
+    return adapter
 
 
 def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
@@ -256,9 +262,7 @@ class TestGeminiRoundtrip:
     def installed(self, gpd_root: Path, tmp_path: Path) -> Path:
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(gpd_root, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(gpd_root, target)
         return target
 
     def test_commands_are_toml(self, installed: Path) -> None:
@@ -293,9 +297,7 @@ class TestGeminiRoundtrip:
         )
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(gpd_root, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(gpd_root, target)
 
         content = (target / "commands" / "gpd" / "progress.toml").read_text(encoding="utf-8")
         parsed = tomllib.loads(content)
@@ -360,6 +362,29 @@ class TestGeminiRoundtrip:
         assert "Task(" not in workflow
         assert "google_web_search" in reference
         assert "WebSearch" not in reference
+
+    def test_runtime_cli_bridge_is_pinned_in_shell_heavy_surfaces(self, tmp_path: Path) -> None:
+        """Gemini install rewrites the shell-heavy surfaces to the runtime bridge."""
+        installed = _install_real_repo_for_runtime(tmp_path, "gemini")
+        bridge_marker = "-m gpd.runtime_cli --runtime gemini"
+        command = _read_runtime_command_prompt(tmp_path, installed, "gemini", "set-profile")
+        workflow = (installed / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (installed / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
+        agent = (installed / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert bridge_marker in command
+        assert bridge_marker in workflow
+        assert bridge_marker in execute_phase
+        assert bridge_marker in agent
+        assert "config ensure-section" in command
+        assert "config ensure-section" in workflow
+        assert "init progress --include state,config" in command
+        assert 'if !' in execute_phase and "verify plan \"$plan\"" in execute_phase
+        assert 'INIT=$(' in agent and "init plan-phase \"<PHASE>\"" in agent
+        assert "gpd config ensure-section" not in command
+        assert 'INIT=$(gpd init progress --include state,config)' not in command
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
+        assert 'INIT=$(gpd init plan-phase "<PHASE>")' not in agent
 
     def test_settings_json_has_experimental(self, installed: Path) -> None:
         """settings.json enables experimental.enableAgents."""
@@ -479,6 +504,27 @@ class TestCodexRoundtrip:
         assert "Task(" not in workflow
         assert "web_search" in reference
         assert "WebSearch" not in reference
+
+    def test_runtime_cli_bridge_is_pinned_in_shell_heavy_surfaces(self, tmp_path: Path) -> None:
+        """Codex install rewrites the shell-heavy surfaces to the runtime bridge."""
+        target = _install_real_repo_for_runtime(tmp_path, "codex")
+        bridge_marker = "-m gpd.runtime_cli --runtime codex"
+        command = _read_runtime_command_prompt(tmp_path, target, "codex", "set-profile")
+        workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (target / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert bridge_marker in command
+        assert bridge_marker in workflow
+        assert bridge_marker in execute_phase
+        assert bridge_marker in agent
+        assert "config ensure-section" in command
+        assert "config ensure-section" in workflow
+        assert "verify plan \"$plan\"" in execute_phase
+        assert 'INIT=$(' in agent and "init plan-phase \"${PHASE}\"" in agent
+        assert "```bash\ngpd config ensure-section\n" not in workflow
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
+        assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
     def test_slash_commands_converted(self, installed: tuple[Path, Path]) -> None:
         """Content replaces /gpd: with $gpd- for Codex invocation syntax."""
@@ -651,15 +697,14 @@ class TestInstallUninstallCycle:
         assert not (target / "get-physics-done").exists()
 
     def test_gemini_cycle(self, gpd_root: Path, tmp_path: Path) -> None:
-        adapter = GeminiAdapter()
         target = tmp_path / ".gemini"
         target.mkdir()
 
-        adapter.install(gpd_root, target)
+        _install_gemini_for_tests(gpd_root, target)
         assert (target / "commands" / "gpd").is_dir()
         assert (target / "get-physics-done").is_dir()
 
-        adapter.uninstall(target)
+        GeminiAdapter().uninstall(target)
         assert not (target / "commands" / "gpd").exists()
         assert not (target / "get-physics-done").exists()
 
@@ -719,7 +764,7 @@ class TestSerializationRoundtrip:
         """Command body text survives TOML conversion for Gemini."""
         target = tmp_path / ".gemini"
         target.mkdir()
-        GeminiAdapter().install(gpd_root, target)
+        _install_gemini_for_tests(gpd_root, target)
 
         toml_file = target / "commands" / "gpd" / "help.toml"
         content = toml_file.read_text(encoding="utf-8")
@@ -758,7 +803,7 @@ class TestSerializationRoundtrip:
         # Gemini: commands/gpd/sub/deep.toml
         gem_target = tmp_path / "gem" / ".gemini"
         gem_target.mkdir(parents=True)
-        GeminiAdapter().install(gpd_root, gem_target)
+        _install_gemini_for_tests(gpd_root, gem_target)
         assert (gem_target / "commands" / "gpd" / "sub" / "deep.toml").exists()
 
         # Codex: skills/gpd-sub-deep/SKILL.md
