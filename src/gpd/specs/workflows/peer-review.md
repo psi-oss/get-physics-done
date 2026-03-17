@@ -157,6 +157,14 @@ Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
 
 </step>
 
+<step name="announce_panel">
+**Before spawning any reviewer, give the user a concise stage map:**
+
+Use one short sentence that names each stage's job, for example:
+
+`Launching the six-stage review panel: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.`
+</step>
+
 <step name="stage_1_read">
 **Stage 1 — Read the whole manuscript once.**
 

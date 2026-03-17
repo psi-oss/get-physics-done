@@ -118,6 +118,10 @@ fi
 
 **Follow the peer-review workflow** from `@{GPD_INSTALL_DIR}/workflows/peer-review.md`.
 
+When announcing the panel to the user, say what each stage does in one concise sentence, for example:
+
+`Launching the six-stage review panel: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.`
+
 The workflow handles all logic including:
 
 1. **Init** — Load project context, detect manuscript target, and resolve scope

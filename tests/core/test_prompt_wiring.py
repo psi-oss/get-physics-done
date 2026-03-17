@@ -1039,6 +1039,23 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`" in referee
 
 
+def test_peer_review_prompt_includes_concise_stage_map_for_users() -> None:
+    peer_review_command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+    peer_review_workflow = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "When announcing the panel to the user, say what each stage does in one concise sentence" in peer_review_command
+    assert "Before spawning any reviewer, give the user a concise stage map" in peer_review_workflow
+    for token in (
+        "Stage 1 maps the paper's claims",
+        "Stages 2-3 check prior work and mathematical soundness in parallel",
+        "Stage 4 checks whether the physical interpretation is supported",
+        "Stage 5 judges significance and venue fit",
+        "Stage 6 synthesizes everything into the final recommendation",
+    ):
+        assert token in peer_review_command
+        assert token in peer_review_workflow
+
+
 def test_research_verification_body_scaffold_keeps_body_only_subject_labels_distinct() -> None:
     research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
 
