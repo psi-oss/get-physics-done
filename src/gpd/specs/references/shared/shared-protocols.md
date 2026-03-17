@@ -323,6 +323,7 @@ Each protocol below provides step-by-step procedures for a specific computationa
 | String Field Theory | `references/protocols/string-field-theory.md` | BRST string fields, star product, BV, `A_infinity` / `L_infinity`, tachyon condensation |
 | Cosmological Perturbation Theory | `references/protocols/cosmological-perturbation-theory.md` | Inflation, scalar/tensor perturbations, gauge choices, power spectra |
 | de Sitter Space | `references/protocols/de-sitter-space.md` | Positive cosmological constant, cosmological horizons, dS/CFT, static patch holography |
+| Thukdam Protocol | `references/protocols/thukdam-protocol.md` | Post-mortem phase coherence, reverse projection theory, Clear Light state decoding |
 | Holography / AdS-CFT | `references/protocols/holography-ads-cft.md` | AdS/CFT dictionary, holographic renormalization, entanglement entropy |
 | Quantum Error Correction | `references/protocols/quantum-error-correction.md` | Stabilizer codes, surface codes, fault tolerance, threshold theorems |
 | Resummation | `references/protocols/resummation.md` | Borel summation, Pade approximants, conformal mapping, optimized perturbation theory |
