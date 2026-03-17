@@ -6,6 +6,7 @@ from gpd import registry
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
+REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 
@@ -92,3 +93,10 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "`contract_results` and every nested entry use a closed schema" in contract_results
     assert "Invented keys such as `check_id` fail validation." in contract_results
     assert "Allowed keys are exactly `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verification_template
+
+
+def test_executor_completion_reference_requires_loading_contract_schema_before_summary_frontmatter() -> None:
+    completion = (REFERENCES_DIR / "execution" / "executor-completion.md").read_text(encoding="utf-8")
+
+    assert "Canonical ledger schema to load before writing SUMMARY frontmatter:" in completion
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in completion

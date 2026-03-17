@@ -124,11 +124,13 @@ class TestParseTools:
     def test_none_returns_empty(self) -> None:
         assert _parse_tools(None) == []
 
-    def test_int_returns_empty(self) -> None:
-        assert _parse_tools(42) == []
+    def test_invalid_scalar_raises(self) -> None:
+        with pytest.raises(ValueError, match="tools must be a string or list of strings"):
+            _parse_tools(42)
 
-    def test_list_with_non_string_elements(self) -> None:
-        assert _parse_tools([1, True, "shell"]) == ["1", "True", "shell"]
+    def test_list_with_non_string_elements_raises(self) -> None:
+        with pytest.raises(ValueError, match="tools must contain only strings"):
+            _parse_tools([1, True, "shell"])
 
     def test_string_with_extra_whitespace(self) -> None:
         assert _parse_tools("  file_read ,  , file_write  ") == ["file_read", "file_write"]
@@ -232,6 +234,20 @@ class TestParseAgentFile:
         agent = _parse_agent_file(f, source="agents")
         assert agent.tools == ["file_read", "shell"]
 
+    def test_agent_file_invalid_tools_scalar_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-tools-scalar.md"
+        f.write_text("---\nname: bad-agent\ntools: 7\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="tools for bad-agent must be a string or list of strings"):
+            _parse_agent_file(f, source="agents")
+
+    def test_agent_file_tools_list_rejects_non_string_members(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-tools-list.md"
+        f.write_text("---\nname: bad-agent\ntools:\n  - file_read\n  - true\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="tools for bad-agent must contain only strings"):
+            _parse_agent_file(f, source="agents")
+
     def test_agent_file_empty_body(self, tmp_path: Path) -> None:
         f = tmp_path / "nobody.md"
         f.write_text("---\nname: nobody\n---\n", encoding="utf-8")
@@ -277,17 +293,26 @@ class TestParseCommandFile:
         assert cmd.requires == {}
         assert cmd.allowed_tools == []
 
-    def test_command_requires_non_dict_ignored(self, tmp_path: Path) -> None:
+    def test_command_requires_non_dict_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-requires.md"
         f.write_text("---\nname: bad\nrequires: not-a-dict\n---\nBody.", encoding="utf-8")
-        cmd = _parse_command_file(f, source="commands")
-        assert cmd.requires == {}
 
-    def test_command_allowed_tools_non_list_ignored(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="requires for bad must be a mapping"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_allowed_tools_non_list_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "bad-tools.md"
         f.write_text("---\nname: bad\nallowed-tools: just-a-string\n---\nBody.", encoding="utf-8")
-        cmd = _parse_command_file(f, source="commands")
-        assert cmd.allowed_tools == []
+
+        with pytest.raises(ValueError, match="allowed-tools for bad must be a list of strings"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_allowed_tools_list_rejects_non_string_members(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-tools-members.md"
+        f.write_text("---\nname: bad\nallowed-tools:\n  - file_read\n  - true\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="allowed-tools for bad must contain only strings"):
+            _parse_command_file(f, source="commands")
 
     def test_command_unexpected_fields(self, tmp_path: Path) -> None:
         f = tmp_path / "extra.md"

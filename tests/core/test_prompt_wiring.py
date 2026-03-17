@@ -143,6 +143,7 @@ AGENT_REFERENCE_TOKENS = {
         "references/orchestration/checkpoints.md",
         "templates/state-machine.md",
         "templates/summary.md",
+        "templates/contract-results-schema.md",
         "templates/calculation-log.md",
     ],
     "gpd-experiment-designer.md": [
@@ -1133,6 +1134,7 @@ def test_review_and_execution_prompts_expand_required_schema_sources() -> None:
     assert "Review Ledger Schema" in referee
     assert "Referee Decision Schema" in referee
     assert "Summary Template" in executor
+    assert "Contract Results Schema" in executor
 
 
 def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> None:

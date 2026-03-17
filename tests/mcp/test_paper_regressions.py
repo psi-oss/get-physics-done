@@ -133,7 +133,7 @@ def test_artifact_manifest_models_reject_extra_fields_and_invalid_sha256() -> No
         )
 
 
-def test_build_artifact_manifest_relativizes_absolute_source_paths_within_output_dir(tmp_path) -> None:
+def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> None:
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
     from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 
@@ -171,7 +171,7 @@ def test_build_artifact_manifest_relativizes_absolute_source_paths_within_output
     )
 
     figure_artifact = next(artifact for artifact in manifest.artifacts if artifact.category == "figure")
-    assert figure_artifact.sources[0].path == "sources/input-figure.pdf"
+    assert figure_artifact.sources[0].path == str(original_path)
 
 
 def test_prepare_figures_returns_relative_paths(tmp_path) -> None:

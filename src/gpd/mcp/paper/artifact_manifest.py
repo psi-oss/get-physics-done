@@ -27,11 +27,10 @@ def _display_path(path: Path, output_dir: Path) -> str:
 
 
 def _portable_source_path(path: Path, output_dir: Path) -> str:
-    """Return a portable artifact source path when it can be made relative."""
+    """Return the original source path exactly as supplied by the caller."""
 
-    if not path.is_absolute():
-        return str(path)
-    return _display_path(path, output_dir)
+    del output_dir
+    return str(path)
 
 
 def _resolve_output_path(path: Path, output_dir: Path) -> Path:

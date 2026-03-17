@@ -374,3 +374,21 @@ class TestContractFromDataDefensiveGuard:
             )
             is None
         )
+
+    def test_contract_from_data_returns_none_for_duplicate_claim_ids(self):
+        assert (
+            contract_from_data(
+                {
+                    "scope": {"question": "q", "in_scope": ["x"]},
+                    "claims": [
+                        {"id": "c1", "statement": "first"},
+                        {"id": "c1", "statement": "second"},
+                    ],
+                    "uncertainty_markers": {
+                        "weakest_anchors": ["anchor"],
+                        "disconfirming_observations": ["counterexample"],
+                    },
+                }
+            )
+            is None
+        )

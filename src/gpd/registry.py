@@ -136,13 +136,58 @@ def _is_frontmatter_delimiter(line: str) -> bool:
     return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
-def _parse_tools(raw: object) -> list[str]:
-    """Normalize tools field from frontmatter to a list of strings."""
+def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = None) -> str:
+    """Return a field label suitable for targeted validation errors."""
+    if owner_name:
+        return f"{field_name} for {owner_name}"
+    return field_name
+
+
+def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | None = None) -> list[str]:
+    """Normalize tools-like frontmatter fields with explicit validation."""
+    if raw is None:
+        return []
     if isinstance(raw, str):
         return [t.strip() for t in raw.split(",") if t.strip()]
-    if isinstance(raw, list):
-        return [str(t) for t in raw]
-    return []
+    if not isinstance(raw, list):
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a string or list of strings")
+
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            subject = _format_frontmatter_field_subject(field_name, owner_name)
+            raise ValueError(f"{subject} must contain only strings")
+        value = item.strip()
+        if value:
+            values.append(value)
+    return values
+
+
+def _parse_requires(raw: object, *, command_name: str) -> dict[str, object]:
+    """Normalize command requires frontmatter without accepting malformed mappings."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"requires for {command_name} must be a mapping")
+    return raw
+
+
+def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
+    """Normalize command allowed-tools frontmatter without coercing invalid entries."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"allowed-tools for {command_name} must be a list of strings")
+
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise ValueError(f"allowed-tools for {command_name} must contain only strings")
+        value = item.strip()
+        if value:
+            values.append(value)
+    return values
 
 
 def _parse_str_list(raw: object, *, field_name: str, command_name: str) -> list[str]:
@@ -580,7 +625,7 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         name=agent_name,
         description=str(meta.get("description", "")),
         system_prompt=body.strip(),
-        tools=_parse_tools(meta.get("tools", "")),
+        tools=_parse_tools(meta.get("tools"), owner_name=agent_name),
         commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=agent_name),
         surface=_parse_agent_metadata_enum(
             meta.get("surface"),
@@ -624,26 +669,22 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
-    requires = meta.get("requires", {})
-    if not isinstance(requires, dict):
-        requires = {}
-
-    allowed_tools_raw = meta.get("allowed-tools", [])
-    if not isinstance(allowed_tools_raw, list):
-        allowed_tools_raw = []
+    command_name = str(meta.get("name", path.stem))
+    requires = _parse_requires(meta.get("requires"), command_name=command_name)
+    allowed_tools = _parse_allowed_tools(meta.get("allowed-tools"), command_name=command_name)
 
     try:
-        review_contract = _parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires)
+        review_contract = _parse_review_contract(meta.get("review-contract"), command_name, requires)
     except ValueError as exc:
         raise ValueError(f"Invalid review-contract in {path}: {exc}") from exc
 
     return CommandDef(
-        name=meta.get("name", path.stem),
+        name=command_name,
         description=str(meta.get("description", "")),
         argument_hint=str(meta.get("argument-hint", "")),
-        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=str(meta.get("name", path.stem))),
+        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=command_name),
         requires=requires,
-        allowed_tools=[str(t) for t in allowed_tools_raw],
+        allowed_tools=allowed_tools,
         review_contract=review_contract,
         content=body.strip(),
         path=str(path),

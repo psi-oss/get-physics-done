@@ -457,7 +457,7 @@ comparison_verdicts:
     assert result.results.decisive_comparison_failures_scoped.passed is True
 
 
-def test_build_paper_quality_input_uses_plan_contract_targets_when_summary_ledger_is_partial(tmp_path: Path) -> None:
+def test_build_paper_quality_input_ignores_partial_summary_ledger_for_verified_coverage(tmp_path: Path) -> None:
     plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
@@ -482,8 +482,66 @@ contract_results:
 
     result = build_paper_quality_input(tmp_path)
 
-    assert result.verification.contract_targets_verified.satisfied == 1
+    assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+
+
+def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_coverage_and_confidence(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace(
+        "  deliverables:\n",
+        """    claim-made-up:
+      status: passed
+      summary: Invalid claim id
+  deliverables:
+""",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+
+
+def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_coverage_and_confidence(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace(
+        "---\n\n# Summary\n",
+        """  - subject_id: claim-made-up
+    subject_kind: claim
+    subject_role: decisive
+    reference_id: ref-benchmark
+    comparison_kind: benchmark
+    metric: relative_error
+    threshold: "<= 0.02"
+    verdict: pass
+---
+
+# Summary
+""",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
 
 
 def test_build_paper_quality_input_ignores_invalid_verification_ledger_for_report_passed(tmp_path: Path) -> None:

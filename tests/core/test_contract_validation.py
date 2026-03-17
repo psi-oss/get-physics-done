@@ -185,6 +185,35 @@ def test_validate_project_contract_approved_mode_accepts_non_reference_grounding
     assert "references must include at least one must_surface=true anchor" in result.warnings
 
 
+def test_validate_project_contract_approved_mode_rejects_carry_forward_contract_id_as_grounding() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-background",
+            "kind": "paper",
+            "locator": "https://example.com/background",
+            "aliases": [],
+            "role": "background",
+            "why_it_matters": "Context only; not a grounding anchor.",
+            "applies_to": [],
+            "carry_forward_to": ["claim-benchmark"],
+            "must_surface": False,
+            "required_actions": [],
+        }
+    ]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert (
+        "reference ref-background carry_forward_to must name workflow scope, not contract id claim-benchmark"
+        in result.errors
+    )
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+
+
 def test_validate_project_contract_rejects_unknown_must_read_ref() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"]["must_read_refs"] = ["ref-missing"]
@@ -213,6 +242,19 @@ def test_validate_project_contract_rejects_duplicate_ids() -> None:
 
     assert result.valid is False
     assert "duplicate claim id claim-benchmark" in result.errors
+
+
+def test_validate_project_contract_rejects_cross_type_id_collisions() -> None:
+    contract = _load_contract_fixture()
+    contract["deliverables"][0]["id"] = "claim-benchmark"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert (
+        "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous"
+        in result.errors
+    )
 
 
 def test_validate_project_contract_rejects_unknown_observables_and_evidence() -> None:

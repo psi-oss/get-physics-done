@@ -167,10 +167,9 @@ def _resolve_cli_cwd_from_argv(argv: list[str]) -> Path:
     for index, arg in enumerate(global_args):
         if arg == "--cwd" and index + 1 < len(global_args):
             raw_cwd = global_args[index + 1]
-            break
+            continue
         if arg.startswith("--cwd="):
             raw_cwd = arg.split("=", 1)[1]
-            break
 
     candidate = Path(raw_cwd).expanduser()
     if candidate.is_absolute():

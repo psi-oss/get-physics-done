@@ -914,8 +914,15 @@ After all tasks complete, load the completion protocols reference for detailed S
 
 **file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-completion.md`
 
+For contract-backed SUMMARY frontmatter, explicitly load and read the canonical ledger schema before drafting any YAML:
+
+@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
+
+This schema is authoritative for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`. Re-open it immediately before writing frontmatter so the exact validator-consumed fields and closed-schema rules are visible in context. Do not rely on memory, prior plans, or a paraphrase from `templates/summary.md`.
+
 Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+- For contract-backed plans, load the schema above before writing frontmatter and copy `plan_contract_ref`, `contract_results`, and `comparison_verdicts` exactly from that canonical contract surface
 - If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
 - Include `comparison_verdicts` whenever the plan produces decisive internal or external comparisons
 - One-liner must be substantive and physics-specific (not "calculation completed")

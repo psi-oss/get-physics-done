@@ -451,6 +451,10 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
         # ASSERT_CONVENTION: key=value, key=value, ...
         <!-- ASSERT_CONVENTION: key=value, key=value, ... -->
 
+    Every derivation artifact must include at least one ASSERT_CONVENTION line.
+    Missing assertions are treated as invalid, not advisory, because downstream
+    verification depends on those headers matching the convention lock.
+
     Returns mismatches and missing assertions.
     """
     from gpd.core.conventions import parse_assert_conventions

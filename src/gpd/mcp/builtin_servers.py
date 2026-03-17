@@ -73,7 +73,9 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-conventions": {
         "description": (
             "GPD convention lock management. Tools for querying, setting, validating, and comparing "
-            "physics conventions across research phases."
+            "physics conventions across research phases, including ASSERT_CONVENTION validation. "
+            "Every derivation artifact must carry at least one ASSERT_CONVENTION header that matches "
+            "the project convention lock."
         ),
         "capabilities": [
             "convention_lock_status",
@@ -189,7 +191,9 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         "description": (
             "GPD physics verification checks. Tools for running contract-aware checks, "
             "dimensional analysis, domain and bundle-specific checklists, limiting case checks, "
-            "symmetry verification, and coverage gap analysis."
+            "symmetry verification, and coverage gap analysis. Contract-aware tools expect "
+            "structured request objects or schema_version=1 contract payloads and surface exact "
+            "required fields via request templates."
         ),
         "capabilities": [
             "run_check",
@@ -211,8 +215,9 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     },
     "gpd-arxiv": {
         "description": (
-            "arXiv paper search and retrieval via arxiv-mcp-server. Search for physics papers, "
-            "fetch abstracts, and download full text."
+            "Optional/conditional arXiv paper search and retrieval via arxiv-mcp-server. "
+            "Available only when the optional arxiv-mcp-server dependency is installed; "
+            "search for physics papers, fetch abstracts, and download full text."
         ),
         "capabilities": [
             "search_papers",
@@ -304,6 +309,14 @@ def build_public_descriptor(name: str) -> dict[str, object]:
     alternatives = _build_public_alternatives(name)
     if alternatives:
         descriptor["alternatives"] = alternatives
+    if raw.get("optional"):
+        descriptor["optional"] = True
+        descriptor["availability"] = "conditional"
+        module_check = raw.get("module_check")
+        if isinstance(module_check, str) and module_check:
+            descriptor["availability_condition"] = (
+                f"Available only when the optional Python module '{module_check}' is installed."
+            )
     return descriptor
 
 

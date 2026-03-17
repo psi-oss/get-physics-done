@@ -1313,7 +1313,28 @@ def _claim_ids_for_regime(contract: ResearchContract, regime_label: str) -> list
 
 @mcp.tool()
 def run_contract_check(request: dict) -> dict:
-    """Run a contract-aware verification check using structured metadata."""
+    """Run a contract-aware verification check from a single structured ``request`` object.
+
+    ``request.check_key`` or ``request.check_id`` is required and must name a
+    contract-aware verification check such as ``contract.limit_recovery`` or
+    ``contract.benchmark_reproduction``.
+
+    ``request.contract`` is optional, but when supplied it must be a project or
+    phase contract object with ``schema_version: 1``. The payload is treated as
+    a hard schema boundary for authoritative fields: non-object sections,
+    coercive scalars, blank strings, and malformed list members are rejected
+    instead of being guessed. Limited recoverable structural drift may still be
+    salvaged, and any such recovery is surfaced back as automated issues.
+
+    ``request.binding``, ``request.metadata``, and ``request.observed`` are each
+    optional objects. Decisive pass/fail verdicts still require the check-specific
+    fields inside those objects. ``request.artifact_content`` is optional and must
+    be a string when present.
+
+    Use ``suggest_contract_checks(contract, active_checks=...)`` first when you
+    need the exact ``required_request_fields``, ``optional_request_fields``, and
+    ``request_template`` for a given contract-aware check before calling this tool.
+    """
 
     with gpd_span("mcp.verification.run_contract_check"):
         try:
@@ -1651,7 +1672,22 @@ def run_contract_check(request: dict) -> dict:
 
 @mcp.tool()
 def suggest_contract_checks(contract: dict, active_checks: list[str] | None = None) -> dict:
-    """Suggest generic contract-aware checks from a project or phase contract."""
+    """Suggest contract-aware checks from a schema-validated project or phase ``contract``.
+
+    ``contract`` must be an object with ``schema_version: 1`` and the normal GPD
+    contract structure. The tool keeps authoritative fields strict: non-object
+    payloads, coercive scalars, and malformed list members are rejected rather
+    than inferred. Limited recoverable structural drift may still be salvaged,
+    and any such recovery is carried through the suggestion metadata.
+
+    ``active_checks`` is optional and must be ``list[str]`` when provided. Supply
+    already-enabled check ids or check keys so each suggestion can mark
+    ``already_active`` precisely.
+
+    Each ``suggested_checks[]`` entry includes ``required_request_fields``,
+    ``optional_request_fields``, and a ``request_template`` that is safe to use as
+    the starting point for ``run_contract_check(request=...)``.
+    """
 
     with gpd_span("mcp.verification.suggest_contract_checks"):
         try:

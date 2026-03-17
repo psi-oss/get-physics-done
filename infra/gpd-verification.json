@@ -1,6 +1,6 @@
 {
   "name": "gpd-verification",
-  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis.",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware tools expect structured request objects or schema_version=1 contract payloads and surface exact required fields via request templates.",
   "transport": "stdio",
   "command": "gpd-mcp-verification",
   "args": [],

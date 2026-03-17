@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -32,6 +33,7 @@ __all__ = [
     "ContractLink",
     "ContractUncertaintyMarkers",
     "ResearchContract",
+    "collect_contract_integrity_errors",
     "contract_from_data",
 ]
 
@@ -655,6 +657,66 @@ class ResearchContract(BaseModel):
     uncertainty_markers: ContractUncertaintyMarkers = Field(default_factory=ContractUncertaintyMarkers)
 
 
+_CONTRACT_ID_GROUPS: tuple[tuple[str, str], ...] = (
+    ("observable", "observables"),
+    ("claim", "claims"),
+    ("deliverable", "deliverables"),
+    ("acceptance test", "acceptance_tests"),
+    ("reference", "references"),
+    ("forbidden proxy", "forbidden_proxies"),
+    ("link", "links"),
+)
+_AMBIGUOUS_TARGET_ID_KINDS: tuple[str, ...] = ("claim", "deliverable", "acceptance test", "reference")
+
+
+def _contract_ids_by_kind(contract: ResearchContract) -> dict[str, set[str]]:
+    return {
+        kind: {item.id for item in getattr(contract, field_name)}
+        for kind, field_name in _CONTRACT_ID_GROUPS
+    }
+
+
+def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
+    """Return semantic integrity errors that require a cross-contract view."""
+
+    ids_by_kind = _contract_ids_by_kind(contract)
+    owners_by_id: dict[str, list[str]] = defaultdict(list)
+    errors: list[str] = []
+
+    for kind, field_name in _CONTRACT_ID_GROUPS:
+        counts: dict[str, int] = defaultdict(int)
+        for item in getattr(contract, field_name):
+            counts[item.id] += 1
+        for item_id, count in sorted(counts.items()):
+            if count > 1:
+                errors.append(f"duplicate {kind} id {item_id}")
+
+    for kind in _AMBIGUOUS_TARGET_ID_KINDS:
+        for item_id in ids_by_kind[kind]:
+            owners_by_id[item_id].append(kind)
+
+    for item_id, owner_kinds in sorted(owners_by_id.items()):
+        unique_kinds = tuple(dict.fromkeys(owner_kinds))
+        if len(unique_kinds) < 2:
+            continue
+        kinds_text = ", ".join(unique_kinds)
+        errors.append(f"contract id {item_id} is reused across {kinds_text}; target resolution is ambiguous")
+
+    declared_contract_ids = {
+        item_id
+        for ids in ids_by_kind.values()
+        for item_id in ids
+    }
+    for reference in contract.references:
+        for target in reference.carry_forward_to:
+            if target in declared_contract_ids:
+                errors.append(
+                    f"reference {reference.id} carry_forward_to must name workflow scope, not contract id {target}"
+                )
+
+    return errors
+
+
 def contract_from_data(data: object) -> ResearchContract | None:
     """Return a validated :class:`ResearchContract` when *data* is a mapping.
 
@@ -667,6 +729,9 @@ def contract_from_data(data: object) -> ResearchContract | None:
     if _collect_contract_scalar_errors(data):
         return None
     try:
-        return ResearchContract.model_validate(data)
+        contract = ResearchContract.model_validate(data)
     except PydanticValidationError:
         return None
+    if collect_contract_integrity_errors(contract):
+        return None
+    return contract

@@ -23,6 +23,7 @@ from gpd.contracts import (
     ContractScope,
     ContractUncertaintyMarkers,
     ResearchContract,
+    collect_contract_integrity_errors,
 )
 
 __all__ = ["ProjectContractValidationResult", "salvage_project_contract", "validate_project_contract"]
@@ -391,7 +392,7 @@ def _has_authoritative_scalar_schema_findings(errors: list[str]) -> bool:
 def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
     """Return cross-link errors without forcing mature-phase completeness."""
 
-    errors: list[str] = []
+    errors: list[str] = collect_contract_integrity_errors(contract)
     _append_duplicates(errors, "claim", [claim.id for claim in contract.claims])
     _append_duplicates(errors, "deliverable", [deliverable.id for deliverable in contract.deliverables])
     _append_duplicates(errors, "acceptance_test", [test.id for test in contract.acceptance_tests])
@@ -504,7 +505,6 @@ def _has_anchor_like_reference(contract: ResearchContract) -> bool:
             or reference.must_surface
             or bool(reference.required_actions)
             or bool(reference.applies_to)
-            or bool(reference.carry_forward_to)
         ):
             return True
     return False

@@ -291,50 +291,54 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
             except PydanticValidationError:
                 contract_results = None
             if contract_results is not None:
+                comparison_verdicts: list[ComparisonVerdict] = []
                 try:
                     comparison_verdicts = _parse_comparison_verdicts(meta)
-                except (PydanticValidationError, TypeError, ValueError):
-                    comparison_verdicts = []
-                contract_alignment_errors = _summary_contract_errors(
-                    plan_contract,
-                    contract_results,
-                    comparison_verdicts,
-                )
-                expected_claim_ids = {claim.id for claim in plan_contract.claims}
-                expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
-                expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
-                passed_claims.update(
-                    claim_id
-                    for claim_id, entry in contract_results.claims.items()
-                    if claim_id in expected_claim_ids and entry.status == "passed"
-                )
-                passed_deliverables.update(
-                    deliverable_id
-                    for deliverable_id, entry in contract_results.deliverables.items()
-                    if deliverable_id in expected_deliverable_ids and entry.status == "passed"
-                )
-                passed_tests.update(
-                    test_id
-                    for test_id, entry in contract_results.acceptance_tests.items()
-                    if test_id in expected_test_ids and entry.status == "passed"
-                )
-                for expected_ids, entries in (
-                    (expected_claim_ids, contract_results.claims),
-                    (expected_deliverable_ids, contract_results.deliverables),
-                    (expected_test_ids, contract_results.acceptance_tests),
-                ):
-                    for entry_id, entry in entries.items():
-                        if entry_id not in expected_ids:
-                            continue
-                        for evidence in entry.evidence:
-                            if evidence.confidence == "high":
-                                confidences.append(VerificationConfidence.independently_confirmed)
-                            elif evidence.confidence == "medium":
-                                confidences.append(VerificationConfidence.structurally_present)
-                            elif evidence.confidence == "low":
-                                confidences.append(VerificationConfidence.unable_to_verify)
-                            else:
-                                confidences.append(VerificationConfidence.unreliable)
+                except (PydanticValidationError, TypeError, ValueError) as exc:
+                    contract_alignment_errors.append(f"comparison_verdicts: {exc}")
+                if not contract_alignment_errors:
+                    contract_alignment_errors = _summary_contract_errors(
+                        plan_contract,
+                        contract_results,
+                        comparison_verdicts,
+                    )
+
+                if not contract_alignment_errors:
+                    expected_claim_ids = {claim.id for claim in plan_contract.claims}
+                    expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
+                    expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
+                    passed_claims.update(
+                        claim_id
+                        for claim_id, entry in contract_results.claims.items()
+                        if claim_id in expected_claim_ids and entry.status == "passed"
+                    )
+                    passed_deliverables.update(
+                        deliverable_id
+                        for deliverable_id, entry in contract_results.deliverables.items()
+                        if deliverable_id in expected_deliverable_ids and entry.status == "passed"
+                    )
+                    passed_tests.update(
+                        test_id
+                        for test_id, entry in contract_results.acceptance_tests.items()
+                        if test_id in expected_test_ids and entry.status == "passed"
+                    )
+                    for expected_ids, entries in (
+                        (expected_claim_ids, contract_results.claims),
+                        (expected_deliverable_ids, contract_results.deliverables),
+                        (expected_test_ids, contract_results.acceptance_tests),
+                    ):
+                        for entry_id, entry in entries.items():
+                            if entry_id not in expected_ids:
+                                continue
+                            for evidence in entry.evidence:
+                                if evidence.confidence == "high":
+                                    confidences.append(VerificationConfidence.independently_confirmed)
+                                elif evidence.confidence == "medium":
+                                    confidences.append(VerificationConfidence.structurally_present)
+                                elif evidence.confidence == "low":
+                                    confidences.append(VerificationConfidence.unable_to_verify)
+                                else:
+                                    confidences.append(VerificationConfidence.unreliable)
 
         verified_at = str(meta.get("verified") or meta.get("completed") or "")
         status = str(meta.get("status") or "")

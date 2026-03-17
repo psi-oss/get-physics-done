@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import gpd.cli as cli_module
 import gpd.runtime_cli as runtime_cli
 from gpd.adapters import get_adapter
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
@@ -202,6 +203,20 @@ def test_runtime_cli_resolves_cli_cwd_from_equals_style_flag(monkeypatch, tmp_pa
     monkeypatch.chdir(launcher_cwd)
 
     assert _resolve_cli_cwd_from_argv(["--cwd=" + str(forwarded_cwd), "state", "load"]) == forwarded_cwd
+
+
+def test_cli_resolves_cli_cwd_from_last_repeated_flag(monkeypatch, tmp_path: Path) -> None:
+    launcher_cwd = tmp_path / "launcher"
+    launcher_cwd.mkdir()
+    first_cwd = tmp_path / "workspace-a"
+    first_cwd.mkdir()
+    final_cwd = tmp_path / "workspace-b" / "nested"
+    final_cwd.mkdir(parents=True)
+    monkeypatch.chdir(launcher_cwd)
+
+    assert cli_module._resolve_cli_cwd_from_argv(
+        ["state", "load", "--cwd", str(first_cwd), "--cwd", str(final_cwd)]
+    ) == final_cwd
 
 
 def test_runtime_cli_preserves_root_global_flags_before_subcommand(monkeypatch, tmp_path: Path) -> None:
@@ -398,6 +413,55 @@ def test_runtime_cli_resolves_local_config_dir_from_forwarded_cli_cwd(monkeypatc
     assert exit_code == 0
     assert observed["config_dir"] == config_dir
     assert observed["argv"] == ["gpd", "state", "load", "--cwd", str(forwarded_cwd)]
+    assert observed["runtime"] == "codex"
+    assert observed["disable_reexec"] == "1"
+
+
+def test_runtime_cli_uses_last_repeated_forwarded_cli_cwd_for_bridge_resolution(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    launcher_cwd = tmp_path / "runtime"
+    launcher_cwd.mkdir()
+    ignored_cwd = tmp_path / "ignored" / "notes"
+    ignored_cwd.mkdir(parents=True)
+    workspace_root = tmp_path / "project"
+    config_dir = workspace_root / ".codex"
+    _mark_complete_install(config_dir, runtime="codex")
+    final_cwd = workspace_root / "research" / "notes"
+    final_cwd.mkdir(parents=True)
+
+    observed: dict[str, object] = {}
+
+    def fake_entrypoint() -> int:
+        observed["argv"] = list(sys.argv)
+        observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
+        observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+        return 0
+
+    monkeypatch.chdir(launcher_cwd)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
+
+    exit_code = main(
+        [
+            "--runtime",
+            "codex",
+            "--config-dir",
+            "./.codex",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+            "--cwd",
+            str(ignored_cwd),
+            "--cwd",
+            str(final_cwd),
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed["argv"] == ["gpd", "state", "load", "--cwd", str(ignored_cwd), "--cwd", str(final_cwd)]
     assert observed["runtime"] == "codex"
     assert observed["disable_reexec"] == "1"
 
