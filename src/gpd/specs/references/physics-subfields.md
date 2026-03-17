@@ -36,6 +36,7 @@ GPD is designed for physics research broadly, with particular strength in proble
 | String Field Theory | references/subfields/string-field-theory.md | Open/closed superstrings, BRST, BV, tachyon condensation, `A_infinity` / `L_infinity` |
 | Classical Mechanics | references/subfields/classical-mechanics.md | Lagrangian/Hamiltonian dynamics, nonlinear dynamics, chaos, celestial mechanics |
 | Soft Matter & Biophysics | references/subfields/soft-matter-biophysics.md | Polymer physics, membrane dynamics, active matter, colloids, self-assembly, biomolecular simulation |
+| Molecular Communication | references/subfields/molecular-communication.md | Nanonetworks, IoNT, molecular signaling, diffusion-based synchronization, synaptic Tzinorot |
 | Astrophysics | references/subfields/astrophysics.md | Stellar structure, accretion disks, compact objects, radiative transfer, gravitational waves, nucleosynthesis |
 
 ---
@@ -71,6 +72,7 @@ When a research project spans multiple subfields, use this guide to identify the
 | Asymptotic symmetries, soft theorems, memory, celestial amplitudes | GR & Cosmology | QFT for scattering amplitudes; Mathematical Physics for representation theory |
 | Polymers, membranes, colloids, self-assembly         | Soft Matter           | Stat Mech for phase behavior; Fluid for hydrodynamics          |
 | Active matter, molecular motors, biophysics          | Soft Matter           | Stat Mech for non-equilibrium; Fluid for active hydrodynamics  |
+| Molecular signaling, IoNT, synaptic communication    | Molecular Communication| Soft Matter & Biophysics for diffusion; QFT (Hadronic) for subatomic foundations |
 | Stellar structure, nucleosynthesis, supernovae       | Astrophysics          | Nuclear/Particle for reaction rates; Stat Mech for EOS         |
 | Accretion disks, jets, MHD winds                     | Astrophysics          | Fluid/Plasma for MHD; GR for relativistic disks                |
 | Gravitational wave sources, compact binary mergers   | Astrophysics          | GR for waveforms; Nuclear/Particle for EOS                     |
