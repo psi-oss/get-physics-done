@@ -2112,14 +2112,19 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
         if progress_pattern.search(content):
             new_content = progress_pattern.sub(lambda m: m.group(1) + progress_str, content, count=1)
             _write_state_markdown_locked(cwd, new_content)
-            checkpoints_result = sync_phase_checkpoints(cwd)
+            try:
+                checkpoints_result = sync_phase_checkpoints(cwd)
+                checkpoint_files = checkpoints_result.updated_files
+            except Exception:
+                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
+                checkpoint_files = []
             return UpdateProgressResult(
                 updated=True,
                 percent=percent,
                 completed=total_completed,
                 total=total_plans,
                 bar=progress_str,
-                checkpoint_files=checkpoints_result.updated_files,
+                checkpoint_files=checkpoint_files,
             )
 
         return UpdateProgressResult(updated=False, reason="Progress field not found in STATE.md")

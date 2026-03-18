@@ -1907,7 +1907,10 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
                     _save_state_markdown(cwd, state_content)
 
-            sync_phase_checkpoints(cwd)
+            try:
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
 
         return PhaseCompleteResult(
             completed_phase=phase_num,
@@ -2058,7 +2061,10 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                     )
                     _save_state_markdown(cwd, state_content)
 
-            sync_phase_checkpoints(cwd)
+            try:
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
 
         return MilestoneCompleteResult(
             version=version,
