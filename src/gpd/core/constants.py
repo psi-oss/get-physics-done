@@ -16,6 +16,7 @@ __all__ = [
     "ACTIVE_TRACE_FILENAME",
     "ANALYSIS_DIR_NAME",
     "AGENT_ID_FILENAME",
+    "CHECKPOINTS_FILENAME",
     "CONFIG_FILENAME",
     "CONTEXT_SUFFIX",
     "CONVENTIONS_FILENAME",
@@ -40,6 +41,7 @@ __all__ = [
     "PATTERNS_DIR_NAME",
     "PATTERNS_INDEX_FILENAME",
     "PHASES_DIR_NAME",
+    "PHASE_CHECKPOINTS_DIR_NAME",
     "PLANNING_DIR_NAME",
     "PLAN_SUFFIX",
     "PROJECT_FILENAME",
@@ -110,11 +112,17 @@ REQUIREMENTS_FILENAME = "REQUIREMENTS.md"
 MILESTONES_FILENAME = "MILESTONES.md"
 """Milestone tracking document."""
 
+CHECKPOINTS_FILENAME = "CHECKPOINTS.md"
+"""Root-level human-facing checkpoint index."""
+
 AGENT_ID_FILENAME = "current-agent-id.txt"
 """File storing the current agent's identifier for resume detection."""
 
 PHASES_DIR_NAME = "phases"
 """Subdirectory under .gpd/ containing per-phase directories."""
+
+PHASE_CHECKPOINTS_DIR_NAME = "phase-checkpoints"
+"""Root-level generated checkpoint shelf with one document per phase."""
 
 ANALYSIS_DIR_NAME = "analysis"
 """Subdirectory under .gpd/ for internal analysis/provenance reports."""
@@ -390,6 +398,10 @@ class ProjectLayout:
         return self.gpd / MILESTONES_FILENAME
 
     @property
+    def checkpoints_md(self) -> Path:
+        return self.root / CHECKPOINTS_FILENAME
+
+    @property
     def agent_id_file(self) -> Path:
         return self.gpd / AGENT_ID_FILENAME
 
@@ -398,6 +410,10 @@ class ProjectLayout:
     @property
     def phases_dir(self) -> Path:
         return self.gpd / PHASES_DIR_NAME
+
+    @property
+    def phase_checkpoints_dir(self) -> Path:
+        return self.root / PHASE_CHECKPOINTS_DIR_NAME
 
     @property
     def analysis_dir(self) -> Path:
@@ -457,6 +473,10 @@ class ProjectLayout:
     def phase_dir(self, phase_name: str) -> Path:
         """Return path to a specific phase directory."""
         return self.phases_dir / phase_name
+
+    def phase_checkpoint_file(self, phase_name: str) -> Path:
+        """Return the generated checkpoint note path for a phase directory."""
+        return self.phase_checkpoints_dir / f"{phase_name}.md"
 
     def trace_file(self, phase: str, plan: str) -> Path:
         """Return path to a trace JSONL file for a given phase+plan."""

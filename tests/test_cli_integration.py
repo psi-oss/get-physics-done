@@ -770,6 +770,19 @@ class TestSummaryExtractCommand:
         assert parsed["one_liner"] == "Set up project"
 
 
+class TestSyncPhaseCheckpointsCommand:
+    def test_sync_phase_checkpoints(self, gpd_project: Path) -> None:
+        phase_dir = gpd_project / ".gpd" / "phases" / "01-test-phase"
+        (phase_dir / "01-VERIFICATION.md").write_text("# Verification\n\nPassed.\n", encoding="utf-8")
+
+        result = _invoke("--raw", "sync-phase-checkpoints")
+
+        parsed = json.loads(result.output)
+        assert parsed["phase_count"] == 1
+        assert (gpd_project / "phase-checkpoints" / "01-test-phase.md").exists()
+        assert (gpd_project / "CHECKPOINTS.md").exists()
+
+
 class TestResolveModelCommand:
     def test_resolve_tier(self) -> None:
         result = _invoke("resolve-tier", "gpd-executor")

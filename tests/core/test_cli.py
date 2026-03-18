@@ -1100,6 +1100,23 @@ def test_history_digest_subcommand(mock_digest):
     mock_digest.assert_called_once()
 
 
+@patch("gpd.core.checkpoints.sync_phase_checkpoints")
+def test_sync_phase_checkpoints_subcommand(mock_sync):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "generated": True,
+        "phase_count": 1,
+        "checkpoint_dir": "phase-checkpoints",
+        "root_index": "CHECKPOINTS.md",
+        "updated_files": ["phase-checkpoints/01-test-phase.md", "CHECKPOINTS.md"],
+        "removed_files": [],
+    }
+    mock_sync.return_value = mock_result
+    result = runner.invoke(app, ["sync-phase-checkpoints"])
+    assert result.exit_code == 0
+    mock_sync.assert_called_once()
+
+
 @patch("gpd.core.commands.cmd_regression_check")
 def test_regression_check_subcommand_passing(mock_check):
     mock_result = MagicMock()

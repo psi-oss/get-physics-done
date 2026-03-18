@@ -19,6 +19,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.core.checkpoints import sync_phase_checkpoints
 from gpd.core.constants import (
     CONTEXT_SUFFIX,
     MILESTONES_DIR_NAME,
@@ -1906,6 +1907,11 @@ def phase_complete(cwd: Path, phase_num: str) -> PhaseCompleteResult:
 
                     _save_state_markdown(cwd, state_content)
 
+            try:
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
+
         return PhaseCompleteResult(
             completed_phase=phase_num,
             phase_name=phase_info.phase_name,
@@ -2054,6 +2060,11 @@ def milestone_complete(cwd: Path, version: str, *, name: str | None = None) -> M
                         state_content, "Last Activity Description", f"{version} milestone completed and archived"
                     )
                     _save_state_markdown(cwd, state_content)
+
+            try:
+                sync_phase_checkpoints(cwd)
+            except Exception:
+                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
 
         return MilestoneCompleteResult(
             version=version,

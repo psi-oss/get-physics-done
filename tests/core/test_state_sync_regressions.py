@@ -339,6 +339,9 @@ def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_pat
     assert result.completed == 1
     assert result.total == 1
     assert result.percent == 100
+    assert (cwd / "phase-checkpoints" / "01-foundations.md").exists()
+    assert (cwd / "CHECKPOINTS.md").exists()
+    assert "CHECKPOINTS.md" in result.checkpoint_files
 
 
 def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) -> None:

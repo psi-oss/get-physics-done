@@ -134,6 +134,8 @@ class TestPhaseLifecycle:
         # STATE.md should reflect transition
         state = (tmp_path / ".gpd" / "STATE.md").read_text()
         assert "Ready to plan" in state
+        assert (tmp_path / "phase-checkpoints" / "01-setup.md").exists()
+        assert (tmp_path / "CHECKPOINTS.md").exists()
 
     def test_completing_last_phase_marks_milestone_complete(self, tmp_path: Path) -> None:
         self._create_fixture(tmp_path)

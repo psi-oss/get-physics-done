@@ -3417,6 +3417,14 @@ def history_digest() -> None:
     _output(cmd_history_digest(_get_cwd()))
 
 
+@app.command("sync-phase-checkpoints")
+def sync_phase_checkpoints() -> None:
+    """Generate root-facing checkpoint notes from phase summaries."""
+    from gpd.core.checkpoints import sync_phase_checkpoints
+
+    _output(sync_phase_checkpoints(_get_cwd()))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # summary-extract — Summary extraction
 # ═══════════════════════════════════════════════════════════════════════════
