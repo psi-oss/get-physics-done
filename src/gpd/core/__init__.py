@@ -15,6 +15,7 @@ Modules:
     suggest     — Next-action intelligence
     config      — Multi-runtime config, model tiers
     trace       — JSONL execution tracing
+    kernel      — content-addressed verification verdict helpers
 """
 
 __all__: list[str] = []

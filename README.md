@@ -496,7 +496,7 @@ The `gpd` CLI also includes machine-readable validation, observability, and trac
 | `gpd validate verification-contract <VERIFICATION.md>` | Validate verification frontmatter plus contract-result / comparison alignment |
 | `gpd validate review-ledger <file.json>` | Validate the final staged peer-review issue ledger |
 | `gpd validate referee-decision <file.json> [--strict] [--ledger <file.json>]` | Validate a staged peer-review decision against hard recommendation gates and optional ledger consistency |
-| `gpd validate reproducibility-manifest <file.json> --strict` | Validate a reproducibility manifest and require review-ready coverage |
+| `gpd validate reproducibility-manifest <file.json> [--strict] [--kernel-verdict]` | Validate a reproducibility manifest, optionally requiring review-ready coverage or emitting a content-addressed kernel verdict |
 
 </details>
 

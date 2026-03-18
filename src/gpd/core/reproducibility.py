@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import (
@@ -15,6 +17,9 @@ from pydantic import (
 from pydantic import (
     ValidationError as PydanticValidationError,
 )
+
+from gpd.core.kernel import Fail, Pass, RegistryBase
+from gpd.core.kernel import run as run_kernel
 
 __all__ = [
     "RequiredPackage",
@@ -30,8 +35,10 @@ __all__ = [
     "PlatformDifference",
     "EnvironmentSpecification",
     "ReproducibilityManifest",
+    "ReproducibilityManifestRegistry",
     "ReproducibilityIssue",
     "ReproducibilityValidationResult",
+    "build_reproducibility_kernel_verdict",
     "compute_sha256",
     "validate_reproducibility_manifest",
     "verify_output_checksum",
@@ -205,6 +212,45 @@ class ReproducibilityValidationResult(BaseModel):
     checksum_coverage_percent: float = 0.0
     stochastic_seed_coverage_percent: float = 100.0
     ready_for_review: bool = False
+
+
+class ReproducibilityManifestRegistry(RegistryBase):
+    """Kernel-compatible registry wrapper for reproducibility manifests."""
+
+    def __init__(
+        self,
+        manifest: ReproducibilityManifest,
+        validation: ReproducibilityValidationResult,
+        raw_bytes: bytes,
+    ) -> None:
+        super().__init__(raw_bytes)
+        self.manifest = manifest
+        self.validation = validation
+
+    @classmethod
+    def from_manifest(
+        cls,
+        manifest: ReproducibilityManifest,
+        validation: ReproducibilityValidationResult,
+    ) -> ReproducibilityManifestRegistry:
+        payload = manifest.model_dump(mode="json")
+        raw_bytes = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return cls(manifest=manifest, validation=validation, raw_bytes=raw_bytes)
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "input_data": len(self.manifest.input_data),
+            "generated_data": len(self.manifest.generated_data),
+            "execution_steps": len(self.manifest.execution_steps),
+            "expected_results": len(self.manifest.expected_results),
+            "output_files": len(self.manifest.output_files),
+            "random_seeds": len(self.manifest.random_seeds),
+        }
 
 
 def _format_schema_issue(error: dict[str, object]) -> ReproducibilityIssue:
@@ -491,4 +537,69 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
         checksum_coverage_percent=checksum_coverage,
         stochastic_seed_coverage_percent=seed_coverage,
         ready_for_review=ready,
+    )
+
+
+def build_reproducibility_kernel_verdict(
+    manifest: ReproducibilityManifest,
+    *,
+    validation: ReproducibilityValidationResult | None = None,
+    generated_at: datetime | None = None,
+) -> dict[str, object]:
+    """Build a content-addressed kernel verdict for a reproducibility manifest."""
+    validation_result = validation or validate_reproducibility_manifest(manifest)
+    registry = ReproducibilityManifestRegistry.from_manifest(manifest, validation_result)
+
+    def manifest_valid(reg: RegistryBase) -> object:
+        typed = reg
+        if not isinstance(typed, ReproducibilityManifestRegistry):
+            return Fail("reproducibility manifest registry type mismatch")
+        if typed.validation.valid:
+            return Pass("manifest passes structural reproducibility validation")
+        first_issue = typed.validation.issues[0].message if typed.validation.issues else "manifest is invalid"
+        return Fail(first_issue)
+
+    def checksum_coverage_complete(reg: RegistryBase) -> object:
+        typed = reg
+        if not isinstance(typed, ReproducibilityManifestRegistry):
+            return Fail("reproducibility manifest registry type mismatch")
+        coverage = typed.validation.checksum_coverage_percent
+        if coverage == 100.0:
+            return Pass("all declared checksums are covered")
+        return Fail(f"checksum coverage is {coverage:.2f}%")
+
+    def stochastic_seed_coverage_complete(reg: RegistryBase) -> object:
+        typed = reg
+        if not isinstance(typed, ReproducibilityManifestRegistry):
+            return Fail("reproducibility manifest registry type mismatch")
+        coverage = typed.validation.stochastic_seed_coverage_percent
+        if coverage == 100.0:
+            return Pass("all stochastic steps have explicit seeds")
+        return Fail(f"stochastic seed coverage is {coverage:.2f}%")
+
+    def review_ready_metadata(reg: RegistryBase) -> object:
+        typed = reg
+        if not isinstance(typed, ReproducibilityManifestRegistry):
+            return Fail("reproducibility manifest registry type mismatch")
+        if typed.validation.ready_for_review:
+            return Pass("manifest is review-ready")
+        blocking_warnings = [
+            warning.message
+            for warning in typed.validation.warnings
+            if "approximate checksum" not in warning.message.lower()
+        ]
+        if blocking_warnings:
+            return Fail(blocking_warnings[0])
+        return Fail("manifest is not review-ready")
+
+    return run_kernel(
+        registry,
+        {
+            "manifest_valid": manifest_valid,
+            "checksum_coverage_complete": checksum_coverage_complete,
+            "stochastic_seed_coverage_complete": stochastic_seed_coverage_complete,
+            "review_ready_metadata": review_ready_metadata,
+        },
+        predicates_source=Path(__file__),
+        generated_at=generated_at,
     )

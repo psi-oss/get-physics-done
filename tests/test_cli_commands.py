@@ -2159,6 +2159,48 @@ class TestReviewValidationCommands:
         assert payload["valid"] is True
         assert payload["ready_for_review"] is False
 
+    def test_validate_reproducibility_manifest_can_emit_kernel_verdict(self, gpd_project: Path) -> None:
+        manifest_path = gpd_project / "reproducibility-kernel.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "paper_title": "Kernel Ready",
+                    "date": "2026-03-10",
+                    "environment": {
+                        "python_version": "3.12.1",
+                        "package_manager": "uv",
+                        "required_packages": [{"package": "numpy", "version": "1.26.4"}],
+                        "lock_file": "uv.lock",
+                        "system_requirements": {},
+                    },
+                    "execution_steps": [{"name": "run", "command": "python scripts/run.py", "stochastic": True}],
+                    "expected_results": [{"quantity": "x", "expected_value": "1", "tolerance": "0.1", "script": "scripts/run.py"}],
+                    "output_files": [{"path": "results/out.json", "checksum_sha256": "a" * 64}],
+                    "resource_requirements": [{"step": "run", "cpu_cores": 1, "memory_gb": 1.0}],
+                    "random_seeds": [{"computation": "run", "seed": "42"}],
+                    "seeding_strategy": "Fixed seed",
+                    "verification_steps": ["rerun pipeline", "compare outputs", "inspect artifacts"],
+                    "minimum_viable": "1 core",
+                    "recommended": "2 cores",
+                    "last_verified": "2026-03-10",
+                    "last_verified_platform": "macOS 14 arm64",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "reproducibility-manifest", str(manifest_path), "--kernel-verdict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["validation"]["valid"] is True
+        assert payload["kernel_verdict"]["overall"] == "PASS"
+        assert payload["kernel_verdict"]["verdict_hash"].startswith("sha256:")
+
 
 def test_cli_import_survives_runtime_help_lookup_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     import gpd as gpd_package

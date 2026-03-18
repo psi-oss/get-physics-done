@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from gpd.core.reproducibility import (
@@ -14,6 +15,7 @@ from gpd.core.reproducibility import (
     RequiredPackage,
     ResourceRequirement,
     SystemRequirements,
+    build_reproducibility_kernel_verdict,
     compute_sha256,
     validate_reproducibility_manifest,
     verify_output_checksum,
@@ -106,6 +108,39 @@ def test_validate_reproducibility_manifest_valid():
     assert result.checksum_coverage_percent == 100.0
     assert result.stochastic_seed_coverage_percent == 100.0
     assert result.issues == []
+
+
+def test_build_reproducibility_kernel_verdict_is_stably_content_addressed():
+    manifest = _manifest()
+
+    v1 = build_reproducibility_kernel_verdict(
+        manifest,
+        generated_at=datetime(2026, 3, 18, 12, 0, tzinfo=UTC),
+    )
+    v2 = build_reproducibility_kernel_verdict(
+        manifest,
+        generated_at=datetime(2026, 3, 18, 12, 5, tzinfo=UTC),
+    )
+
+    assert v1["overall"] == "PASS"
+    assert v1["verdict_hash"] == v2["verdict_hash"]
+    assert v1["timestamp"] != v2["timestamp"]
+    assert v1["registry_stats"]["execution_steps"] == 3
+
+
+def test_build_reproducibility_kernel_verdict_reflects_validation_failures():
+    manifest = _manifest().model_copy(
+        update={
+            "environment": _manifest().environment.model_copy(update={"lock_file": ""}),
+        }
+    )
+    validation = validate_reproducibility_manifest(manifest)
+
+    verdict = build_reproducibility_kernel_verdict(manifest, validation=validation)
+
+    assert verdict["overall"] == "FAIL"
+    assert verdict["results"]["manifest_valid"]["passed"] is False
+    assert "lock file" in str(verdict["results"]["manifest_valid"]["reason"]).lower()
 
 
 def test_validate_reproducibility_manifest_reports_schema_errors_without_raising():

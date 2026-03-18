@@ -3284,13 +3284,50 @@ def validate_reproducibility_manifest_cmd(
         "--strict",
         help="Require review-ready coverage in addition to structural validity",
     ),
+    kernel_verdict: bool = typer.Option(
+        False,
+        "--kernel-verdict",
+        help="Also emit a content-addressed kernel verdict for structurally valid manifests.",
+    ),
 ) -> None:
     """Validate a machine-readable reproducibility manifest."""
-    from gpd.core.reproducibility import validate_reproducibility_manifest
+    from gpd.core.kernel import print_verdict
+    from gpd.core.reproducibility import (
+        ReproducibilityManifest,
+        build_reproducibility_kernel_verdict,
+        validate_reproducibility_manifest,
+    )
 
     payload = _load_json_document(input_path)
     result = validate_reproducibility_manifest(payload)
-    _output(result)
+    if not kernel_verdict:
+        _output(result)
+    else:
+        manifest_obj: ReproducibilityManifest | None = None
+        if isinstance(payload, dict):
+            try:
+                manifest_obj = ReproducibilityManifest.model_validate(payload)
+            except PydanticValidationError:
+                manifest_obj = None
+
+        verdict = (
+            build_reproducibility_kernel_verdict(manifest_obj, validation=result)
+            if manifest_obj is not None
+            else None
+        )
+
+        if _raw:
+            _output(
+                {
+                    "validation": result.model_dump(mode="json"),
+                    "kernel_verdict": verdict,
+                }
+            )
+        else:
+            _output(result)
+            if verdict is not None:
+                console.print()
+                print_verdict(verdict, domain="Reproducibility")
     if not result.valid or (strict and (not result.ready_for_review or bool(result.warnings))):
         raise typer.Exit(code=1)
 
