@@ -86,17 +86,21 @@ def test_run_contract_check_tool_description_surfaces_request_requirements() -> 
     assert "``request.check_key`` or ``request.check_id`` is required" in description
     assert "``request.contract`` is optional" in description
     assert "``schema_version`` defaults to ``1`` when omitted" in description
+    assert "same-kind IDs must be unique" in description
+    assert "contract context must stay consistent with metadata defaults" in description
+    assert "metadata defaults and explicit" in description
+    assert "metadata fields, so benchmark anchors" in description
     assert "``request.binding``, ``request.metadata``, and ``request.observed`` are each" in description
     assert "Singular/plural binding" in description
     assert "aliases (for example ``claim_id`` / ``claim_ids``) must match when both are" in description
-    assert "``request.check_key`` and ``request.check_id`` are sent" in description
+    assert "may use either the canonical key or the numeric id" in description
     assert "``request.artifact_content``" in description
     assert "must be a string when present" in description
     assert "``required_request_fields``" in description
     assert "``optional_request_fields``" in description
     assert "``supported_binding_fields``" in description
     assert "``request_template``" in description
-    assert "``references[].carry_forward_to`` only for workflow scope labels" in description
+    assert "workflow scope labels, never contract IDs" in description
     assert "make resolution ambiguous" in description
 
 
@@ -106,10 +110,14 @@ def test_suggest_contract_checks_tool_description_surfaces_contract_requirements
     description = _tool_description(mcp, "suggest_contract_checks")
 
     assert "``schema_version`` defaults to ``1`` when omitted" in description
+    assert "same-kind IDs must be unique" in description
+    assert "contract context must stay consistent with metadata defaults" in description
+    assert "metadata defaults and explicit" in description
+    assert "metadata fields, so benchmark anchors" in description
     assert "``active_checks`` is optional and must be ``list[str]``" in description
     assert "``already_active``" in description
     assert "``supported_binding_fields``" in description
-    assert "``references[].carry_forward_to`` only for workflow scope labels" in description
+    assert "workflow scope labels, never contract IDs" in description
     assert "``run_contract_check(request=...)``" in description
 
 

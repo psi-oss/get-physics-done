@@ -37,22 +37,40 @@ Every list named above must contain objects, not strings.
 
 ## Object Rules
 
-### `scope`
+### `schema_version`
 
 ```yaml
 schema_version: 1
-
-scope:
-  question: "[The decisive question this plan advances]"
 ```
 
-`scope.question` is required and must be non-empty after trimming whitespace.
+Rules:
+
+- `schema_version` is optional in the YAML frontmatter only because it defaults to `1`.
+- No other value is supported.
+
+### `scope`
+
+```yaml
+scope:
+  question: "[The decisive question this plan advances]"
+  in_scope: ["[Optional boundary or objective]"]
+  out_of_scope: ["[Optional excluded boundary]"]
+  unresolved_questions: ["[Optional open question that still blocks planning]"]
+```
+
+Rules:
+
+- `scope` must be an object, not a string or list.
+- `scope.question` is required and must be non-empty after trimming whitespace.
+- `in_scope`, `out_of_scope`, and `unresolved_questions` are optional arrays of non-empty strings.
+- Use `scope.unresolved_questions` for genuinely undecided anchors; do not hide them in prose or placeholder text.
 
 ### `claims[]`
 
 ```yaml
 - id: claim-main
   statement: "[Physics statement this plan must establish]"
+  observables: [obs-main]
   deliverables: [deliv-main]
   acceptance_tests: [test-main]
   references: [ref-main]
@@ -138,6 +156,19 @@ Rules:
 - `path` is optional, but preferred whenever the plan already knows the durable artifact location.
 - `must_contain` is optional, but if present it must be an array of strings.
 
+### `forbidden_proxies[]`
+
+```yaml
+- id: fp-main
+  subject: claim-main
+  proxy: "[False-success pattern]"
+  reason: "[Why this would be false progress]"
+```
+
+Rules:
+
+- `subject` must reference a declared claim or deliverable ID.
+
 ### `references[]`
 
 ```yaml
@@ -181,19 +212,6 @@ Rules:
 - `evidence_required[]` may only reference declared claim, deliverable, acceptance-test, or reference IDs.
 - `automation` is optional and defaults to `hybrid`, but if present it must be `automated`, `hybrid`, or `human`.
 
-### `forbidden_proxies[]`
-
-```yaml
-- id: fp-main
-  subject: claim-main
-  proxy: "[False-success pattern]"
-  reason: "[Why this would be false progress]"
-```
-
-Rules:
-
-- `subject` must reference a declared claim or deliverable ID.
-
 ### `links[]`
 
 ```yaml
@@ -214,6 +232,8 @@ Rules:
 ```yaml
 uncertainty_markers:
   weakest_anchors: ["[Least-certain anchor still carrying load]"]
+  unvalidated_assumptions: ["[Optional assumption still carrying load]"]
+  competing_explanations: ["[Optional competing explanation]"]
   disconfirming_observations: ["[Observation that would force a rethink]"]
 ```
 
@@ -221,6 +241,7 @@ Rules:
 
 - `weakest_anchors` must not be empty.
 - `disconfirming_observations` must not be empty.
+- `unvalidated_assumptions` and `competing_explanations` are optional arrays of non-empty strings, but when present they must stay explicit in the contract.
 
 ---
 
@@ -228,6 +249,7 @@ Rules:
 
 - For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
 - For non-scoping plans, include `references[]` unless explicit grounding context survives elsewhere in the contract (`context_intake`, `approach_policy`, or preserved scoping inputs).
+- When a plan depends on traceable handoffs or decisive comparisons, surface `links[]` explicitly instead of burying the dependency in prose.
 - All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
 - IDs must be unique across each section.
 - Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.

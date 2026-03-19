@@ -51,6 +51,9 @@ def _valid_plan_contract_frontmatter(
         "contract:\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "  context_intake:\n"
+        "    must_read_refs: [ref-main]\n"
+        "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n"
         "  claims:\n"
         "    - id: claim-main\n"
         "      statement: Recover the benchmark value within tolerance\n"
@@ -103,6 +106,24 @@ def _add_plan_conventions(content: str) -> str:
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n",
         1,
+    )
+
+
+def _plan_contract_frontmatter_with_explicit_semantic_sections() -> str:
+    return _valid_plan_contract_frontmatter(
+        extra_contract_lines=(
+            "  observables:\n"
+            "    - id: obs-main\n"
+            "      name: Benchmark value\n"
+            "      kind: scalar\n"
+            "      definition: Decisive benchmark observable\n"
+            "  links:\n"
+            "    - id: link-main\n"
+            "      source: claim-main\n"
+            "      target: deliv-main\n"
+            "      relation: supports\n"
+            "      verified_by: [test-main]"
+        )
     )
 
 # ---------------------------------------------------------------------------
@@ -262,6 +283,43 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="expected an object"):
             parse_contract_block(content)
 
+    def test_missing_context_intake_raises(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "",
+            1,
+        ) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match="missing context_intake"):
+            parse_contract_block(content)
+
+    @pytest.mark.parametrize(
+        ("missing_line", "expected_error"),
+        [
+            ("      kind: scalar\n", "observables.0.kind must be explicit in plan contracts"),
+            ("      kind: figure\n", "deliverables.0.kind must be explicit in plan contracts"),
+            ("      kind: benchmark\n", "acceptance_tests.0.kind must be explicit in plan contracts"),
+            ("      kind: paper\n", "references.0.kind must be explicit in plan contracts"),
+            ("      role: benchmark\n", "references.0.role must be explicit in plan contracts"),
+            ("      relation: supports\n", "links.0.relation must be explicit in plan contracts"),
+        ],
+    )
+    def test_missing_explicit_semantic_field_raises(
+        self,
+        missing_line: str,
+        expected_error: str,
+    ):
+        content = _plan_contract_frontmatter_with_explicit_semantic_sections().replace(
+            missing_line,
+            "",
+            1,
+        ) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match=expected_error):
+            parse_contract_block(content)
+
     def test_semantically_incomplete_contract_raises(self):
         content = (
             "---\n"
@@ -359,6 +417,47 @@ class TestValidateFrontmatter:
 
         assert result.valid is False
         assert "contract: context_intake.must_read_refs must be a list, not str" in result.errors
+
+    def test_plan_rejects_missing_context_intake(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any("missing context_intake" in error for error in result.errors)
+
+    @pytest.mark.parametrize(
+        ("missing_line", "expected_error"),
+        [
+            ("      kind: scalar\n", "contract: observables.0.kind must be explicit in plan contracts"),
+            ("      kind: figure\n", "contract: deliverables.0.kind must be explicit in plan contracts"),
+            ("      kind: benchmark\n", "contract: acceptance_tests.0.kind must be explicit in plan contracts"),
+            ("      kind: paper\n", "contract: references.0.kind must be explicit in plan contracts"),
+            ("      role: benchmark\n", "contract: references.0.role must be explicit in plan contracts"),
+            ("      relation: supports\n", "contract: links.0.relation must be explicit in plan contracts"),
+        ],
+    )
+    def test_plan_rejects_missing_explicit_semantic_fields(
+        self,
+        missing_line: str,
+        expected_error: str,
+    ):
+        content = _plan_contract_frontmatter_with_explicit_semantic_sections().replace(
+            missing_line,
+            "",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert expected_error in result.errors
 
     def test_missing_fields(self):
         content = "---\nphase: 01-test\n---\n\nBody."
@@ -1280,6 +1379,9 @@ class TestVerifyPlanStructure:
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n"
             "  claims:\n"
             "    - id: claim-main\n"
             "      statement: Recover the benchmark value within tolerance\n"

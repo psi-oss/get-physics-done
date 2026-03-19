@@ -1272,9 +1272,15 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     summary_template = _expand_prompt_surface(TEMPLATES_DIR / "summary.md")
 
     assert "# PLAN Contract Schema" in phase_prompt
+    assert "schema_version: 1" in phase_prompt
+    assert "in_scope:" in phase_prompt
     assert "context_intake:" in phase_prompt
     assert "claims:" in phase_prompt
+    assert "observables: [obs-main]" in phase_prompt
+    assert "### `forbidden_proxies[]`" in phase_prompt
+    assert "### `links[]`" in phase_prompt
     assert "# PLAN Contract Schema" in planner_prompt
+    assert "scope.unresolved_questions" in planner_prompt
     assert "Every claim must declare a stable `id`." in planner_prompt
     assert (
         "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
@@ -1326,18 +1332,26 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
 
     assert "schema_version: 1" in plan_schema
+    assert "scope:" in plan_schema
+    assert "in_scope: [\"[Optional boundary or objective]\"]" in plan_schema
+    assert "unresolved_questions: [\"[Optional open question that still blocks planning]\"]" in plan_schema
     assert "context_intake:" in plan_schema
     assert "must_read_refs: [ref-main]" in plan_schema
     assert "approach_policy:" in plan_schema
     assert "allowed_fit_families: [power_law]" in plan_schema
     assert "`context_intake` must be an object, not a string or list." in plan_schema
     assert "`observables[]` may only reference declared `observables[].id`." in plan_schema
+    assert "observables: [obs-main]" in plan_schema
     assert "aliases: [\"optional stable label or citation shorthand\"]" in plan_schema
     assert "carry_forward_to: [planning, verification]" in plan_schema
     assert "automation: automated | hybrid | human" in plan_schema
     assert "required_actions: [read, compare, cite, avoid]" in plan_schema
     assert "`required_actions[]` values must use the closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`." in plan_schema
     assert "For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required." in plan_schema
+    assert "### `forbidden_proxies[]`" in plan_schema
+    assert "### `links[]`" in plan_schema
+    assert "unvalidated_assumptions" in plan_schema
+    assert "competing_explanations" in plan_schema
     assert "All ID cross-links must resolve to declared IDs." in plan_schema
     assert (
         "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "

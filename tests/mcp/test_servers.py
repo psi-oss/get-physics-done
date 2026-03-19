@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
+import anyio
 import pytest
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -103,6 +104,17 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
             "disconfirming_observations": ["Claim-specific benchmark mismatch"],
         },
     }
+
+
+def _tool_description_and_schema(tool_name: str) -> tuple[str, dict[str, object]]:
+    async def _load() -> tuple[str, dict[str, object]]:
+        from gpd.mcp.servers.conventions_server import mcp
+
+        tools = await mcp.list_tools()
+        tool = next(tool for tool in tools if tool.name == tool_name)
+        return tool.description, tool.inputSchema
+
+    return anyio.run(_load)
 
 
 class TestBuiltinServerDescriptors:
@@ -310,6 +322,37 @@ class TestConventionsServer:
         result = convention_set(str(tmp_path), "custom:my_convention", "my_value")
         assert result["status"] == "set"
         assert result["type"] == "custom"
+
+    def test_convention_set_tool_schema_constrains_key_and_value_surface(self):
+        from gpd.core.conventions import KNOWN_CONVENTIONS
+
+        description, schema = _tool_description_and_schema("convention_set")
+
+        key_schema = schema["properties"]["key"]
+        value_schema = schema["properties"]["value"]
+
+        assert "custom:<slug>" in description
+        assert "blank or placeholder string" in description
+        assert "clear a convention" in description
+
+        assert key_schema["anyOf"][0]["enum"] == KNOWN_CONVENTIONS
+        assert key_schema["anyOf"][1]["pattern"] == r"^custom:[A-Za-z0-9][A-Za-z0-9_-]*$"
+        assert "custom:<slug>" in key_schema["anyOf"][1]["description"]
+        assert value_schema["minLength"] == 1
+        assert value_schema["pattern"] == r"^(?!\s*(?:null|none|undefined)\s*$)\S(?:.*\S)?$"
+        assert "placeholder strings" in value_schema["description"]
+        assert "Use None to clear a convention." in value_schema["description"]
+
+    def test_convention_set_rejects_invalid_custom_key_shape(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / ".gpd"
+        planning.mkdir()
+        (planning / "state.json").write_text(json.dumps({}))
+
+        result = convention_set(str(tmp_path), "custom:bad key", "my_value")
+        assert "error" in result
+        assert "Custom convention keys" in result["error"]
 
 
     def test_load_lock_non_dict_state_json(self, tmp_path):

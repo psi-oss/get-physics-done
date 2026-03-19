@@ -1052,10 +1052,10 @@ def _integrity_issue_from_contract_error(error: str) -> str:
         return f'schema normalization: dropped unknown "project_contract.{path}"'
     if " must be an object, not " in error:
         path, actual = error.split(" must be an object, not ", 1)
-        return f'schema normalization: reset "project_contract.{path}" because expected object, got {actual}'
+        return f'schema normalization: normalized "project_contract.{path}" because expected object, got {actual}'
     if " must be a list, not " in error:
         path, actual = error.split(" must be a list, not ", 1)
-        return f'schema normalization: reset "project_contract.{path}" because expected list, got {actual}'
+        return f'schema normalization: normalized "project_contract.{path}" because expected list, got {actual}'
     if error.endswith(" is required"):
         normalized_error = error.replace("scope.", "project_contract.scope.", 1)
         return f"schema normalization: {normalized_error}"
@@ -1063,68 +1063,6 @@ def _integrity_issue_from_contract_error(error: str) -> str:
         path, detail = error.split(":", 1)
         return f'schema normalization: dropped malformed "project_contract.{path.strip()}": {detail.strip()}'
     return f"schema normalization: {error}"
-
-
-_PROJECT_CONTRACT_LIST_DRIFT_PATHS: tuple[tuple[str, ...], ...] = (
-    ("scope", "unresolved_questions"),
-    ("context_intake", "must_read_refs"),
-    ("context_intake", "must_include_prior_outputs"),
-    ("context_intake", "user_asserted_anchors"),
-    ("context_intake", "known_good_baselines"),
-    ("context_intake", "context_gaps"),
-    ("context_intake", "crucial_inputs"),
-    ("approach_policy", "formulations"),
-    ("approach_policy", "allowed_estimator_families"),
-    ("approach_policy", "forbidden_estimator_families"),
-    ("approach_policy", "allowed_fit_families"),
-    ("approach_policy", "forbidden_fit_families"),
-    ("approach_policy", "stop_and_rethink_conditions"),
-    ("uncertainty_markers", "weakest_anchors"),
-    ("uncertainty_markers", "unvalidated_assumptions"),
-    ("uncertainty_markers", "competing_explanations"),
-    ("uncertainty_markers", "disconfirming_observations"),
-)
-_DEFAULTABLE_PROJECT_CONTRACT_SECTIONS = frozenset({"context_intake", "approach_policy", "uncertainty_markers"})
-
-
-def _nested_mapping_value(value: object, path: tuple[str, ...]) -> tuple[bool, object]:
-    current = value
-    for key in path:
-        if not isinstance(current, dict) or key not in current:
-            return False, None
-        current = current[key]
-    return True, current
-
-
-def _set_nested_mapping_value(value: dict[str, object], path: tuple[str, ...], replacement: object) -> None:
-    current: dict[str, object] = value
-    for key in path[:-1]:
-        child = current.get(key)
-        if not isinstance(child, dict):
-            return
-        current = child
-    current[path[-1]] = replacement
-
-
-def _normalize_project_contract_list_scalar_drift(
-    raw_contract: dict[str, object],
-    normalized_contract: dict[str, object],
-    integrity_issues: list[str],
-) -> dict[str, object]:
-    adjusted_contract = copy.deepcopy(normalized_contract)
-    for path in _PROJECT_CONTRACT_LIST_DRIFT_PATHS:
-        has_raw_value, raw_value = _nested_mapping_value(raw_contract, path)
-        if not has_raw_value or not isinstance(raw_value, str):
-            continue
-
-        path_text = ".".join(path)
-        integrity_issues.append(
-            f'schema normalization: reset "project_contract.{path_text}" because expected list, got str'
-        )
-        if path[0] in _DEFAULTABLE_PROJECT_CONTRACT_SECTIONS:
-            _set_nested_mapping_value(adjusted_contract, path, [])
-
-    return adjusted_contract
 
 
 def _normalize_project_contract_section(
@@ -1137,14 +1075,14 @@ def _normalize_project_contract_section(
     if value is None or not isinstance(value, dict):
         return value
 
+    list_shape_drift_errors = _collect_list_shape_drift_errors(value)
     normalized_contract, errors = salvage_project_contract(value)
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
-    if normalized_contract_dump is not None:
-        normalized_contract_dump = _normalize_project_contract_list_scalar_drift(
-            value,
-            normalized_contract_dump,
-            integrity_issues,
-        )
+    integrity_issues.extend(
+        _integrity_issue_from_contract_error(error)
+        for error in list_shape_drift_errors
+        if error not in errors
+    )
     if not errors:
         return normalized_contract_dump
 
@@ -2212,26 +2150,29 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     """
     warning_messages: list[str] = []
     try:
+        # Treat model instances like serialized payloads so schema drift is
+        # checked through the same strict path as JSON/dict input.
         if isinstance(contract_data, ResearchContract):
-            parsed = contract_data
+            contract_payload = contract_data.model_dump(mode="python")
         else:
-            list_shape_drift_errors = _collect_list_shape_drift_errors(contract_data)
-            normalized_contract, schema_findings = salvage_project_contract(contract_data)
-            schema_warnings, schema_errors = _split_project_contract_schema_findings(
-                schema_findings,
-                allow_singleton_defaults=False,
+            contract_payload = contract_data
+        list_shape_drift_errors = _collect_list_shape_drift_errors(contract_payload)
+        normalized_contract, schema_findings = salvage_project_contract(contract_payload)
+        schema_warnings, schema_errors = _split_project_contract_schema_findings(
+            schema_findings,
+            allow_singleton_defaults=False,
+        )
+        schema_errors = list(dict.fromkeys([*schema_errors, *list_shape_drift_errors]))
+        if schema_errors:
+            return StateUpdateResult(
+                updated=False,
+                reason="Invalid project contract schema: " + "; ".join(schema_errors),
             )
-            schema_errors = list(dict.fromkeys([*schema_errors, *list_shape_drift_errors]))
-            if schema_errors:
-                return StateUpdateResult(
-                    updated=False,
-                    reason="Invalid project contract schema: " + "; ".join(schema_errors),
-                )
-            warning_messages.extend(schema_warnings)
-            if normalized_contract is None:
-                parsed = ResearchContract.model_validate(contract_data)
-            else:
-                parsed = normalized_contract
+        warning_messages.extend(schema_warnings)
+        if normalized_contract is None:
+            parsed = ResearchContract.model_validate(contract_payload)
+        else:
+            parsed = normalized_contract
     except PydanticValidationError as exc:
         first_error = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"

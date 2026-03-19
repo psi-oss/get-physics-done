@@ -11,12 +11,14 @@ Usage:
 
 import json
 import logging
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import Annotated, TypeVar
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import WithJsonSchema
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
@@ -72,6 +74,38 @@ CONVENTION_OPTIONS: dict[str, list[str]] = {
     "gamma_matrix_convention": ["Dirac", "Weyl", "Majorana"],
     "creation_annihilation_order": ["normal", "anti-normal", "Weyl"],
 }
+
+_CUSTOM_CONVENTION_KEY_BODY = r"[A-Za-z0-9][A-Za-z0-9_-]*"
+_CUSTOM_CONVENTION_KEY_PATTERN = rf"^{_CUSTOM_CONVENTION_KEY_BODY}$"
+_CONVENTION_VALUE_PATTERN = r"^(?!\s*(?:null|none|undefined)\s*$)\S(?:.*\S)?$"
+
+ConventionKeyInput = Annotated[
+    str,
+    WithJsonSchema(
+        {
+            "description": "Use one canonical convention field name or a custom key with the custom:<slug> prefix.",
+            "anyOf": [
+                {"type": "string", "enum": KNOWN_CONVENTIONS},
+                {
+                    "type": "string",
+                    "pattern": rf"^custom:{_CUSTOM_CONVENTION_KEY_BODY}$",
+                    "description": "Custom keys must be non-empty slugs such as custom:<slug>.",
+                },
+            ],
+        }
+    ),
+]
+ConventionValueInput = Annotated[
+    str,
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "pattern": _CONVENTION_VALUE_PATTERN,
+            "description": "Convention values must be non-empty and must not be blank or placeholder strings like null, none, or undefined. Use None to clear a convention.",
+        }
+    ),
+]
 
 # ─── Subfield Default Conventions ─────────────────────────────────────────────
 
@@ -264,8 +298,8 @@ def convention_lock_status(project_dir: str) -> dict:
 @mcp.tool()
 def convention_set(
     project_dir: str,
-    key: str,
-    value: str,
+    key: ConventionKeyInput,
+    value: ConventionValueInput,
     force: bool = False,
 ) -> dict:
     """Set a convention in the project's convention lock.
@@ -274,7 +308,10 @@ def convention_set(
     Use force=True to override an already-set convention (dangerous
     mid-project -- can invalidate prior derivations).
 
-    Custom conventions use the 'custom:' prefix: key="custom:my_convention".
+    Key must be one of the canonical convention fields or a custom key in
+    the form ``custom:<slug>`` (for example ``custom:my_convention``).
+    Value must be non-empty and must not be a blank or placeholder string.
+    Use ``None`` to clear a convention.
     """
     with gpd_span("mcp.conventions.set", convention_key=key):
         try:
@@ -283,6 +320,10 @@ def convention_set(
                 custom_key = key[len("custom:") :]
                 if not custom_key:
                     raise ConventionError("Custom convention key cannot be empty")
+                if not re.fullmatch(_CUSTOM_CONVENTION_KEY_PATTERN, custom_key):
+                    raise ConventionError(
+                        "Custom convention keys must be non-empty slugs using letters, numbers, underscores, or hyphens"
+                    )
 
             def _mutate(lock: ConventionLock) -> ConventionSetResult:
                 if key.startswith("custom:"):

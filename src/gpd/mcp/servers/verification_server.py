@@ -233,8 +233,14 @@ class ContractObservedRequest(_ContractRequestBase):
 
 
 class RunContractCheckRequest(_ContractRequestBase):
-    check_key: str | None = Field(default=None, description="Canonical contract-aware check key.")
-    check_id: str | None = Field(default=None, description="Compatibility alias for check_key.")
+    check_key: str | None = Field(
+        default=None,
+        description="Canonical contract-aware check key, or a stable numeric id that resolves to the same check.",
+    )
+    check_id: str | None = Field(
+        default=None,
+        description="Compatibility alias for check_key; may use either the canonical key or numeric id.",
+    )
     contract: dict[str, object] | ResearchContract | None = Field(
         default=None,
         description="Optional project or phase contract payload; salvage remains runtime-managed.",
@@ -2070,11 +2076,15 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     boundary for authoritative fields: non-object sections,
     coercive scalars, blank strings, and malformed list members are rejected
     instead of being guessed. Contract payloads must also satisfy the shared
-    semantic integrity rules: do not reuse target IDs across claim/deliverable/
-    acceptance-test/reference kinds in ways that make resolution ambiguous, and
-    use ``references[].carry_forward_to`` only for workflow scope labels, never
-    contract IDs. Limited recoverable structural drift may still be salvaged,
-    and any such recovery is surfaced back as structured salvage findings.
+    semantic integrity rules: same-kind IDs must be unique, target IDs must not
+    be reused across claim/deliverable/acceptance-test/reference kinds when
+    that would make resolution ambiguous, and ``references[].carry_forward_to``
+    is only for workflow scope labels, never contract IDs. Binding-derived
+    contract context must stay consistent with metadata defaults and explicit
+    metadata fields, so benchmark anchors, regime labels, and family
+    selections cannot contradict the resolved binding. Limited recoverable
+    structural drift may still be salvaged, and any such recovery is surfaced
+    back as structured salvage findings.
 
     ``request.binding``, ``request.metadata``, and ``request.observed`` are each
     optional objects. Decisive pass/fail verdicts still require the check-specific
@@ -2084,7 +2094,8 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     are request errors, not soft verification issues. Singular/plural binding
     aliases (for example ``claim_id`` / ``claim_ids``) must match when both are
     provided. If both ``request.check_key`` and ``request.check_id`` are sent,
-    they must normalize to the same value. ``request.artifact_content`` is
+    they may use either the canonical key or the numeric id, but they must still
+    identify the same verification check. ``request.artifact_content`` is
     optional and must be a string when present.
 
     Use ``suggest_contract_checks(contract, active_checks=...)`` first when you
@@ -2101,23 +2112,25 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
             request_key_error = _validate_run_contract_check_request_keys(request)
             if request_key_error is not None:
                 return _error_result(request_key_error)
-            check_key = _normalize_optional_scalar_str(request.get("check_key"))
+            check_key_value = _normalize_optional_scalar_str(request.get("check_key"))
             check_id_value = _normalize_optional_scalar_str(request.get("check_id"))
-            if (
-                isinstance(check_key, str)
-                and isinstance(check_id_value, str)
-                and check_key
-                and check_id_value
-                and check_key != check_id_value
-            ):
-                return _error_result("check_key and check_id must match when both are provided")
-            check_id = str(check_key or check_id_value or "").strip()
-            if not check_id:
-                return _error_result("Missing check_key or check_id")
-
-            check_meta = get_verification_check(check_id)
+            has_check_key = isinstance(check_key_value, str) and bool(check_key_value)
+            has_check_id = isinstance(check_id_value, str) and bool(check_id_value)
+            check_key_meta = get_verification_check(check_key_value) if has_check_key else None
+            check_id_meta = get_verification_check(check_id_value) if has_check_id else None
+            if has_check_key and has_check_id:
+                if check_key_meta is None or check_id_meta is None or check_key_meta.check_id != check_id_meta.check_id:
+                    return _error_result("check_key and check_id must identify the same contract check when both are provided")
+                check_meta = check_key_meta
+            else:
+                check_meta = check_key_meta or check_id_meta
             if check_meta is None:
+                check_id = str(check_key_value or check_id_value or "").strip()
+                if not check_id:
+                    return _error_result("Missing check_key or check_id")
                 return _error_result(f"Unknown contract check: {check_id}")
+
+            check_id = check_meta.check_id
             if not check_meta.contract_aware:
                 return _error_result(f"Check {check_id} is not contract-aware")
 
@@ -2460,11 +2473,15 @@ def suggest_contract_checks(contract: SuggestContractPayload, active_checks: Str
     provided. The tool keeps authoritative fields strict: non-object
     payloads, coercive scalars, and malformed list members are rejected rather
     than inferred. Contract payloads must also satisfy the shared semantic
-    integrity rules: do not reuse target IDs across claim/deliverable/
-    acceptance-test/reference kinds in ways that make resolution ambiguous, and
-    use ``references[].carry_forward_to`` only for workflow scope labels, never
-    contract IDs. Limited recoverable structural drift may still be salvaged,
-    and any such recovery is carried through the suggestion metadata.
+    integrity rules: same-kind IDs must be unique, target IDs must not be
+    reused across claim/deliverable/acceptance-test/reference kinds when that
+    would make resolution ambiguous, and ``references[].carry_forward_to`` is
+    only for workflow scope labels, never contract IDs. Binding-derived
+    contract context must stay consistent with metadata defaults and explicit
+    metadata fields, so benchmark anchors, regime labels, and family
+    selections cannot contradict the resolved binding. Limited recoverable
+    structural drift may still be salvaged, and any such recovery is carried
+    through the suggestion metadata.
 
     ``active_checks`` is optional and must be ``list[str]`` when provided. Supply
     already-enabled check ids or check keys so each suggestion can mark

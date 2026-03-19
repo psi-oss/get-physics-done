@@ -259,6 +259,11 @@ def _validate_contract_mapping(
         return _PlanContractResolution(contract=contract)
 
     semantic_errors: list[str] = []
+    if "context_intake" not in sanitized_contract_data:
+        semantic_errors.append("missing context_intake")
+    for error in _collect_plan_contract_explicit_field_errors(sanitized_contract_data):
+        if error not in semantic_errors:
+            semantic_errors.append(error)
     for error in (*collect_contract_integrity_errors(contract), *_validate_plan_contract(contract)):
         if error not in semantic_errors:
             semantic_errors.append(error)
@@ -328,6 +333,14 @@ _DECISIVE_ACCEPTANCE_TEST_COMPARISON_KINDS: dict[str, frozenset[str]] = {
     "benchmark": frozenset({"benchmark"}),
     "cross_method": frozenset({"cross_method"}),
 }
+_PLAN_CONTRACT_EXPLICIT_COLLECTION_FIELDS: tuple[tuple[str, str], ...] = (
+    ("observables", "kind"),
+    ("deliverables", "kind"),
+    ("acceptance_tests", "kind"),
+    ("references", "kind"),
+    ("references", "role"),
+    ("links", "relation"),
+)
 
 
 class FrontmatterValidation(BaseModel):
@@ -343,6 +356,22 @@ class FrontmatterValidation(BaseModel):
 def _resolve_field(meta: dict, name: str) -> str | None:
     """Return *name* when present in *meta*, otherwise ``None``."""
     return name if name in meta else None
+
+
+def _collect_plan_contract_explicit_field_errors(contract_data: dict[str, object]) -> list[str]:
+    """Return missing enum-backed semantic fields that plans must state explicitly."""
+
+    errors: list[str] = []
+    for collection_name, field_name in _PLAN_CONTRACT_EXPLICIT_COLLECTION_FIELDS:
+        raw_collection = contract_data.get(collection_name)
+        if not isinstance(raw_collection, list):
+            continue
+        for index, item in enumerate(raw_collection):
+            if not isinstance(item, dict):
+                continue
+            if field_name not in item:
+                errors.append(f"{collection_name}.{index}.{field_name} must be explicit in plan contracts")
+    return errors
 
 
 def _has_contract_grounding_context(contract: ResearchContract) -> bool:

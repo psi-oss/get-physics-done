@@ -50,6 +50,27 @@ def test_run_contract_check_treats_empty_binding_like_omitted_binding() -> None:
     assert omitted_binding_result["status"] == "pass"
 
 
+def test_run_contract_check_accepts_semantically_equivalent_check_key_and_check_id_pairs() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    request_payload = {
+        "check_key": "5.16",
+        "check_id": "contract.benchmark_reproduction",
+        "contract": copy.deepcopy(_load_project_contract_fixture()),
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    expected = run_contract_check({**copy.deepcopy(request_payload), "check_key": "contract.benchmark_reproduction"})
+    result = run_contract_check(request_payload)
+
+    assert result == expected
+    assert result["status"] == "pass"
+    assert result["check_key"] == "contract.benchmark_reproduction"
+    assert result["check_id"] == "5.16"
+    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected
+
+
 @pytest.mark.parametrize(
     ("request_payload", "expected_error"),
     [
@@ -72,7 +93,7 @@ def test_run_contract_check_treats_empty_binding_like_omitted_binding() -> None:
                 "check_id": "contract.limit_recovery",
             },
             {
-                "error": "check_key and check_id must match when both are provided",
+                "error": "check_key and check_id must identify the same contract check when both are provided",
                 "schema_version": 1,
             },
         ),

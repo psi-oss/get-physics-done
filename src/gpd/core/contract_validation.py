@@ -76,6 +76,15 @@ _USER_ASSERTED_ANCHOR_PLACEHOLDER_PATTERNS = (
     re.compile(r"\bplaceholder\b"),
     re.compile(r"\bto be determined\b"),
 )
+_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS = (
+    re.compile(r"^\s*(?:tbd|todo|unknown|unclear|none|n/?a|placeholder)\s*$"),
+    re.compile(r"\btbd\b"),
+    re.compile(r"\btodo\b"),
+    re.compile(r"\bunknown\b"),
+    re.compile(r"\bunclear\b"),
+    re.compile(r"\bplaceholder\b"),
+    re.compile(r"\bto be determined\b"),
+)
 _CONCRETE_TEXT_ANCHOR_PATTERNS = (
     re.compile(r"\bbenchmark\b"),
     re.compile(r"\bbaseline\b"),
@@ -102,6 +111,11 @@ _CONCRETE_TEXT_ANCHOR_PATTERNS = (
     re.compile(r"\bobservable\b"),
     re.compile(r"\bcomparison\b"),
     re.compile(r"\banchor\b"),
+)
+_REFERENCE_LOCATOR_CONCRETE_PATTERNS = (
+    re.compile(r"\b(?:doi\s*[:/]|https?://(?:doi\.org/|arxiv\.org/abs/)|arxiv\s*:)\S+"),
+    re.compile(r"\b(?:fig(?:ure)?|table|eq(?:uation)?|section|sec\.?|chapter|ch\.?|appendix)\.?\s*\d+[a-z]?\b"),
+    re.compile(r"\b(?:19|20)\d{2}\b"),
 )
 _CONCRETE_TEXT_ATTACHMENT_PATTERNS = (
     re.compile(r"\bfrom\b"),
@@ -631,6 +645,32 @@ def _is_concrete_text_grounding(value: str) -> bool:
     return any(pattern.search(lowered) for pattern in _CONCRETE_TEXT_ANCHOR_PATTERNS)
 
 
+def _is_concrete_reference_locator(value: str) -> bool:
+    """Return whether *value* names a concrete reference locator rather than a placeholder."""
+
+    lowered = value.casefold().strip()
+    if not lowered:
+        return False
+    if any(pattern.search(lowered) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
+        return True
+    if any(pattern.search(lowered) for pattern in _REFERENCE_LOCATOR_CONCRETE_PATTERNS):
+        return True
+    if re.search(r"\b(?:et al\.|journal|proceedings?|conference|chapter|sec\.?|section|table|fig(?:ure)?|eq(?:uation)?)\b", lowered) and re.search(
+        r"\b\d+\b", lowered
+    ):
+        return True
+    return False
+
+
+def _is_placeholder_reference_locator(value: str) -> bool:
+    """Return whether *value* is a placeholder locator that cannot ground approval."""
+
+    lowered = value.casefold().strip()
+    if not lowered:
+        return True
+    return any(pattern.search(lowered) for pattern in _REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS)
+
+
 def _has_concrete_grounding_entries(values: list[str], *, field_name: str) -> bool:
     """Return whether any grounding entry is concrete for the requested field."""
 
@@ -656,6 +696,10 @@ def _has_anchor_like_reference(contract: ResearchContract) -> bool:
 
     for reference in contract.references:
         role = reference.role.casefold().strip()
+        if _is_placeholder_reference_locator(reference.locator):
+            continue
+        if _is_concrete_reference_locator(reference.locator):
+            return True
         if role == "background":
             continue
         if (
