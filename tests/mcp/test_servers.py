@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import anyio
@@ -131,6 +133,64 @@ class TestBuiltinServerDescriptors:
             prerequisite = descriptor["prerequisites"][0].lower()
             assert "npx" not in prerequisite, name
             assert "get-physics-done" not in prerequisite, name
+
+    def test_public_descriptor_python_module_alternative_uses_versioned_launcher_label(self):
+        from gpd.mcp.builtin_servers import build_public_descriptors
+
+        descriptor = build_public_descriptors()["gpd-state"]
+        python_module = descriptor["alternatives"]["python_module"]
+
+        assert str(python_module["command"]) == "python3.11"
+        assert str(python_module["command"]) != "python"
+
+    def test_build_mcp_servers_dict_checks_optional_modules_in_target_interpreter(self, monkeypatch):
+        from gpd.mcp import builtin_servers
+
+        target_python = "/opt/gpd/python3.11"
+        current_python = "/usr/bin/python3.9"
+        observed: dict[str, object] = {}
+
+        def fake_run(command, *, check, stdout, stderr):
+            observed["command"] = command
+            observed["check"] = check
+            observed["stdout"] = stdout
+            observed["stderr"] = stderr
+            return SimpleNamespace(returncode=0 if command[0] == target_python else 1)
+
+        monkeypatch.setattr(builtin_servers.sys, "executable", current_python)
+        monkeypatch.setattr(builtin_servers.subprocess, "run", fake_run)
+
+        servers = builtin_servers.build_mcp_servers_dict(python_path=target_python)
+
+        assert "gpd-arxiv" in servers
+        assert observed["command"][0] == target_python
+        assert observed["command"][2].startswith("import importlib.util")
+        assert observed["command"][3] == "arxiv_mcp_server"
+        assert observed["check"] is False
+
+
+class TestMcpServerRunner:
+    """Tests for shared MCP server CLI transport wiring."""
+
+    def test_run_mcp_server_preserves_explicit_port_zero(self, monkeypatch):
+        from gpd.mcp.servers import run_mcp_server
+
+        calls: list[str] = []
+
+        class FakeMCP:
+            def __init__(self) -> None:
+                self.settings = SimpleNamespace(host=None, port=8123)
+
+            def run(self, transport: str) -> None:
+                calls.append(transport)
+
+        monkeypatch.setattr(sys, "argv", ["gpd-mcp-state", "--transport", "sse", "--port", "0"])
+
+        mcp = FakeMCP()
+        run_mcp_server(mcp, "fake server")
+
+        assert mcp.settings.port == 0
+        assert calls == ["sse"]
 
 # ---------------------------------------------------------------------------
 # 1. Conventions server
@@ -1162,6 +1222,15 @@ class TestSkillsServer:
 
 class TestStateServer:
     """Tests for gpd.mcp.servers.state_server tool functions."""
+
+    def test_get_state_rejects_relative_project_dir(self):
+        from gpd.mcp.servers.state_server import get_state
+
+        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=AssertionError("should not run")):
+            result = get_state("relative/project")
+
+        assert result["error"] == "project_dir must be an absolute path"
+        assert result["schema_version"] == 1
 
     def test_get_state(self):
         from gpd.mcp.servers.state_server import get_state

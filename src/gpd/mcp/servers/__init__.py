@@ -75,7 +75,7 @@ def run_mcp_server(mcp: object, description: str) -> None:
     args = parser.parse_args()
     if args.host:
         mcp.settings.host = args.host  # type: ignore[union-attr]
-    if args.port:
+    if args.port is not None:
         mcp.settings.port = args.port  # type: ignore[union-attr]
     mcp.run(transport=args.transport)  # type: ignore[union-attr]
 

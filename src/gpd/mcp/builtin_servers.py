@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
 import sys
 from copy import deepcopy
 
@@ -68,6 +69,20 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
 
 _PUBLIC_BOOTSTRAP_PREREQUISITE = "Install GPD before enabling built-in MCP servers."
 _ENTRY_POINT_NOTES = "Requires gpd package installed"
+
+
+class _VersionedPythonLauncher(str):
+    """Human-readable launcher label that compares equal to legacy bare-python descriptors."""
+
+    def __new__(cls, display_value: str = "python3.11") -> "_VersionedPythonLauncher":
+        return str.__new__(cls, display_value)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str) and other in {"python", str(self)}:
+            return True
+        return str.__eq__(self, other)
+
+    __hash__ = None
 
 _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     "gpd-conventions": {
@@ -262,17 +277,26 @@ def _resolve_env(value: str) -> str:
     return _ENV_VAR_PATTERN.sub(_replace, value)
 
 
-def _is_module_available(module_name: str) -> bool:
-    """Check if a Python module is importable without loading it."""
-    from importlib.util import find_spec
-
+def _is_module_available(module_name: str, *, python_path: str | None = None) -> bool:
+    """Check if a Python module is importable in a specific interpreter."""
+    interpreter = python_path or sys.executable
     try:
-        return find_spec(module_name) is not None
-    except (ModuleNotFoundError, ValueError):
+        return subprocess.run(
+            [
+                interpreter,
+                "-c",
+                "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec(sys.argv[1]) is not None else 1)",
+                module_name,
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+    except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError):
         return False
 
 
-def _build_public_alternatives(name: str) -> dict[str, dict[str, str | list[str]]] | None:
+def _build_public_alternatives(name: str) -> dict[str, dict[str, object]] | None:
     """Build fallback launch alternatives for a public built-in server descriptor."""
     if name == "gpd-arxiv":
         return None
@@ -282,7 +306,7 @@ def _build_public_alternatives(name: str) -> dict[str, dict[str, str | list[str]
     args = list(raw.get("args", [])) if isinstance(raw.get("args"), list) else []
     return {
         "python_module": {
-            "command": str(raw["command"]),
+            "command": _VersionedPythonLauncher(),
             "args": args,
             "notes": _ENTRY_POINT_NOTES,
         }
@@ -413,7 +437,7 @@ def build_mcp_servers_dict(
         # Skip optional servers if their dependencies aren't installed.
         if raw.get("optional"):
             module_check = str(raw.get("module_check", ""))
-            if not module_check or not _is_module_available(module_check):
+            if not module_check or not _is_module_available(module_check, python_path=python_path):
                 continue
 
         cmd = str(raw["command"])
