@@ -21,7 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.core.commands import SummaryExtractResult, cmd_summary_extract
+from gpd.core.commands import SummaryExtractResult, _normalize_string_list, cmd_summary_extract
 from gpd.core.constants import (
     STANDALONE_SUMMARY,
     STANDALONE_VERIFICATION,
@@ -201,14 +201,21 @@ def _phase_summary_docs(cwd: Path, phase_dir: Path) -> _PhaseSummaryScanResult:
             continue
 
         phase_number, phase_title = _title_from_phase_dir(phase_dir.name)
+        missing_summary_fields = [
+            field
+            for field in ("phase", "plan", "depth", "provides", "completed")
+            if field not in frontmatter or frontmatter[field] in (None, "")
+        ]
+        if missing_summary_fields:
+            errors.append(
+                f"{summary_relpath} is missing required summary fields: {', '.join(missing_summary_fields)}"
+            )
         raw_dependency_graph = frontmatter.get("dependency-graph")
         if isinstance(raw_dependency_graph, dict):
             raw_provides = raw_dependency_graph.get("provides")
         else:
             raw_provides = frontmatter.get("provides")
-        provides = [str(item).strip() for item in raw_provides or [] if str(item).strip()] if isinstance(
-            raw_provides, list
-        ) else []
+        provides = _normalize_string_list(raw_provides)
         docs.append(
             _PhaseSummaryDoc(
                 phase_number=str(frontmatter.get("phase") or phase_number).strip() or phase_number,

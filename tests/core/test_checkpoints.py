@@ -16,34 +16,49 @@ def _setup_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _write_summary(path: Path, *, phase: str, plan: str, one_liner: str, completed: str = "2026-03-17") -> None:
-    path.write_text(
-        textwrap.dedent(
-            f"""\
-            ---
-            phase: "{phase}"
-            plan: "{plan}"
-            completed: "{completed}"
-            one-liner: "{one_liner}"
-            key-files:
-              - src/model.py
-            key-decisions:
-              - Keep the reduced wedge
-            patterns-established:
-              - Hidden-damage rejection survives
-            ---
-
-            # Summary
-
-            **{one_liner}**
-
-            ## Key Results
-
-            The phase produced a clean checkpoint result.
-            """
-        ),
-        encoding="utf-8",
+def _write_summary(
+    path: Path,
+    *,
+    phase: str,
+    plan: str,
+    one_liner: str,
+    completed: str = "2026-03-17",
+    provides: str | list[str] = "phase checkpoint",
+) -> None:
+    lines = [
+        "---",
+        f'phase: "{phase}"',
+        f'plan: "{plan}"',
+        "depth: full",
+    ]
+    if isinstance(provides, list):
+        lines.append("provides:")
+        lines.extend(f"  - {item}" for item in provides)
+    else:
+        lines.append(f"provides: {provides!r}")
+    lines.extend(
+        [
+            f'completed: "{completed}"',
+            f'one-liner: "{one_liner}"',
+            "key-files:",
+            "  - src/model.py",
+            "key-decisions:",
+            "  - Keep the reduced wedge",
+            "patterns-established:",
+            "  - Hidden-damage rejection survives",
+            "---",
+            "",
+            "# Summary",
+            "",
+            f"**{one_liner}**",
+            "",
+            "## Key Results",
+            "",
+            "The phase produced a clean checkpoint result.",
+            "",
+        ]
     )
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _write_malformed_summary(path: Path, *, phase: str, plan: str) -> None:
@@ -113,6 +128,25 @@ def test_sync_phase_checkpoints_generates_root_and_phase_docs(tmp_path: Path) ->
     rerun = sync_phase_checkpoints(cwd)
     assert rerun.updated_files == []
     assert rerun.removed_files == []
+
+
+def test_sync_phase_checkpoints_preserves_scalar_provides(tmp_path: Path) -> None:
+    cwd = _setup_project(tmp_path)
+    phase_dir = cwd / ".gpd" / "phases" / "01-test-phase"
+    phase_dir.mkdir()
+    _write_summary(
+        phase_dir / "01-SUMMARY.md",
+        phase="01",
+        plan="01",
+        one_liner="Set up the project",
+        provides="solver",
+    )
+
+    result = sync_phase_checkpoints(cwd)
+
+    assert result.phase_count == 1
+    phase_checkpoint = (cwd / ".gpd" / "phase-checkpoints" / "01-test-phase.md").read_text(encoding="utf-8")
+    assert "In practical terms, this phase now gives the project solver." in phase_checkpoint
 
 
 def test_sync_phase_checkpoints_skips_malformed_summary_and_still_regenerates_other_phases(

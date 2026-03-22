@@ -23,6 +23,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import ResearchContract, collect_contract_integrity_errors
 from gpd.core.contract_validation import (
+    _collect_list_shape_drift_errors,
     _sanitize_contract_scalars,
     _split_project_contract_schema_findings,
     salvage_project_contract,
@@ -1727,6 +1728,8 @@ def _validate_contract_scalar_fields(contract_raw: dict[str, object]) -> dict[st
 
     errors: list[str] = []
     _sanitize_contract_scalars(contract_raw, errors=errors)
+    errors.extend(_collect_list_shape_drift_errors(contract_raw))
+    errors = list(dict.fromkeys(errors))
     if not errors:
         return None
     return _error_result(f"Invalid contract payload: {_summarize_contract_salvage_errors(errors)}")

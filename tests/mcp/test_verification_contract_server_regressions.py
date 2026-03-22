@@ -152,6 +152,37 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
     assert suggest_result == expected
 
 
+@pytest.mark.parametrize(
+    ("path", "value", "expected_error"),
+    [
+        ("claims.0.references", "ref-benchmark", "claims.0.references must be a list, not str"),
+        ("references.0.aliases", "benchmark-paper", "references.0.aliases must be a list, not str"),
+        (
+            "references.0.required_actions",
+            "read",
+            "references.0.required_actions must be a list, not str",
+        ),
+    ],
+)
+def test_contract_tools_reject_nested_list_shape_drift(
+    path: str,
+    value: object,
+    expected_error: str,
+) -> None:
+    contract = _load_project_contract_fixture()
+
+    if path == "claims.0.references":
+        contract["claims"][0]["references"] = value
+    elif path == "references.0.aliases":
+        contract["references"][0]["aliases"] = value
+    elif path == "references.0.required_actions":
+        contract["references"][0]["required_actions"] = value
+    else:  # pragma: no cover - defensive guard for future test edits
+        raise AssertionError(f"Unhandled path: {path}")
+
+    _assert_contract_tools_reject(contract, expected_error)
+
+
 def test_suggest_contract_checks_derives_request_templates_from_contract() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 

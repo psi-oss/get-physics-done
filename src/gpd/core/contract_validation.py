@@ -28,7 +28,6 @@ from gpd.contracts import (
 __all__ = ["ProjectContractValidationResult", "salvage_project_contract", "validate_project_contract"]
 
 
-_APPROVED_REFERENCE_ROLES = frozenset({"benchmark", "definition", "method", "must_consider"})
 _ANCHOR_UNKNOWN_DIRECT_PATTERNS = (
     re.compile(r"\bneed(?:s)? grounding\b"),
     re.compile(r"\b(?:(?:decisive|benchmark|comparison)\s+)?target not (?:yet )?chosen\b"),
@@ -684,32 +683,8 @@ def _has_concrete_grounding_entries(values: list[str], *, field_name: str) -> bo
 def _has_anchor_like_reference(contract: ResearchContract) -> bool:
     """Return whether the contract includes a reference that can ground approved mode."""
 
-    reference_ids = {reference.id for reference in contract.references}
-    linked_reference_ids = set(contract.context_intake.must_read_refs)
-    linked_reference_ids.update(reference_id for claim in contract.claims for reference_id in claim.references)
-    linked_reference_ids.update(
-        evidence_id
-        for test in contract.acceptance_tests
-        for evidence_id in test.evidence_required
-        if evidence_id in reference_ids
-    )
-
     for reference in contract.references:
-        role = reference.role.casefold().strip()
-        if _is_placeholder_reference_locator(reference.locator):
-            continue
         if _is_concrete_reference_locator(reference.locator):
-            return True
-        if role == "background":
-            continue
-        if (
-            reference.id in linked_reference_ids
-            or reference.kind == "user_anchor"
-            or role in _APPROVED_REFERENCE_ROLES
-            or reference.must_surface
-            or bool(reference.required_actions)
-            or bool(reference.applies_to)
-        ):
             return True
     return False
 

@@ -29,7 +29,7 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
-from gpd.core.frontmatter import UNSUPPORTED_FRONTMATTER_FIELDS, FrontmatterParseError, extract_frontmatter
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import (
     compare_phase_numbers,
@@ -354,13 +354,12 @@ def cmd_summary_extract(
     except FrontmatterParseError as exc:
         raise ValidationError(f"YAML parse error in {summary_path}: {exc}") from exc
 
-    unsupported_summary_fields = [
-        f"{field}: {message}"
-        for field, message in UNSUPPORTED_FRONTMATTER_FIELDS.get("summary", {}).items()
-        if field in fm
-    ]
-    if unsupported_summary_fields:
-        raise ValidationError(f"Unsupported summary frontmatter in {summary_path}: {'; '.join(unsupported_summary_fields)}")
+    if any(field in fm for field in ("plan_contract_ref", "contract_results", "comparison_verdicts")):
+        validation = validate_frontmatter(content, "summary", source_path=full_path)
+        if not validation.valid:
+            raise ValidationError(
+                f"Invalid summary frontmatter in {summary_path}: {'; '.join(validation.errors)}"
+            )
 
     # Extract one-liner: frontmatter first, fall back to body bold text
     one_liner = fm.get("one-liner")

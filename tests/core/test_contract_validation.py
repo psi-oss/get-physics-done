@@ -206,6 +206,34 @@ def test_validate_project_contract_approved_mode_accepts_concrete_reference_loca
     assert result.mode == "approved"
 
 
+@pytest.mark.parametrize("locator", ["Benchmark paper", "reference article"])
+def test_validate_project_contract_approved_mode_rejects_vague_reference_locator_grounding(
+    locator: str,
+) -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-anchor",
+            "kind": "paper",
+            "locator": locator,
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Vague locators must not satisfy approved grounding.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read", "compare"],
+        }
+    ]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+
+
 @pytest.mark.parametrize(
     "field_name,value",
     [

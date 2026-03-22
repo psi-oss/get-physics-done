@@ -8,6 +8,7 @@ from gpd.core.commands import cmd_summary_extract
 from gpd.core.errors import ValidationError
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage4"
+PLAN_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _summary_with_reference_usage(*, status: str, completed_actions: str, missing_actions: str) -> str:
@@ -20,9 +21,34 @@ def _summary_with_reference_usage(*, status: str, completed_actions: str, missin
     )
 
 
+def _write_matching_plan_contract(tmp_path: Path, *, required_actions: list[str] | None = None) -> None:
+    plan_path = tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_text = (PLAN_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+    if required_actions is not None:
+        plan_text = plan_text.replace(
+            "required_actions: [read, compare, cite]",
+            "required_actions: [" + ", ".join(required_actions) + "]",
+            1,
+        )
+    plan_path.write_text(plan_text, encoding="utf-8")
+
+
+def _write_contract_backed_summary(
+    tmp_path: Path,
+    summary_text: str,
+    *,
+    filename: str = "01-SUMMARY.md",
+    required_actions: list[str] | None = None,
+) -> Path:
+    _write_matching_plan_contract(tmp_path, required_actions=required_actions)
+    summary_path = tmp_path / filename
+    summary_path.write_text(summary_text, encoding="utf-8")
+    return summary_path
+
+
 def test_summary_extract_parses_contract_results_and_comparison_verdicts(tmp_path: Path) -> None:
-    summary_path = tmp_path / "01-SUMMARY.md"
-    summary_path.write_text((FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"), encoding="utf-8")
+    _write_contract_backed_summary(tmp_path, (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"))
 
     result = cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
@@ -38,8 +64,7 @@ def test_summary_extract_parses_contract_results_and_comparison_verdicts(tmp_pat
 
 
 def test_summary_extract_field_filter_returns_contract_results(tmp_path: Path) -> None:
-    summary_path = tmp_path / "01-SUMMARY.md"
-    summary_path.write_text((FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"), encoding="utf-8")
+    _write_contract_backed_summary(tmp_path, (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"))
 
     result = cmd_summary_extract(tmp_path, "01-SUMMARY.md", fields=["contract_results", "comparison_verdicts"])
 
@@ -53,70 +78,68 @@ def test_summary_extract_rejects_placeholder_contract_results_section_shapes(
     tmp_path: Path,
     placeholder: str,
 ) -> None:
-    summary_path = tmp_path / "broken-SUMMARY.md"
-    summary_path.write_text(
-        (
-            "---\n"
-            "phase: 01\n"
-            "plan: 01\n"
-            "depth: full\n"
-            "provides: []\n"
-            "completed: 2026-03-13\n"
-            "contract_results:\n"
-            f"  claims: {placeholder}\n"
-            "  uncertainty_markers:\n"
-            "    weakest_anchors: []\n"
-            "    disconfirming_observations: []\n"
-            "---\n\n"
-            "# Summary\n"
-        ),
-        encoding="utf-8",
+    summary_text = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary_text = summary_text.replace(
+        "  claims:\n"
+        "    claim-benchmark:\n"
+        "      status: passed\n"
+        "      summary: Benchmark claim verified against the decisive anchor.\n"
+        "      linked_ids: [deliv-figure, test-benchmark, ref-benchmark]\n"
+        "      evidence:\n"
+        "        - verifier: gpd-verifier\n"
+        "          method: benchmark reproduction\n"
+        "          confidence: high\n"
+        "          claim_id: claim-benchmark\n"
+        "          deliverable_id: deliv-figure\n"
+        "          acceptance_test_id: test-benchmark\n"
+        "          reference_id: ref-benchmark\n"
+        "          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md\n",
+        f"  claims: {placeholder}\n",
+        1,
     )
+    _write_contract_backed_summary(tmp_path, summary_text, filename="broken-SUMMARY.md")
 
     with pytest.raises(ValidationError, match="claims"):
         cmd_summary_extract(tmp_path, "broken-SUMMARY.md")
 
 
 def test_summary_extract_requires_explicit_uncertainty_markers(tmp_path: Path) -> None:
-    summary_path = tmp_path / "broken-SUMMARY.md"
-    summary_path.write_text(
-        (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
-            "  uncertainty_markers:\n"
-            "    weakest_anchors: [Reference tolerance interpretation]\n"
-            "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
-            "",
-            1,
-        ),
-        encoding="utf-8",
+    summary_text = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+        "  uncertainty_markers:\n"
+        "    weakest_anchors: [Reference tolerance interpretation]\n"
+        "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
+        "",
+        1,
     )
+    _write_contract_backed_summary(tmp_path, summary_text, filename="broken-SUMMARY.md")
 
     with pytest.raises(ValidationError, match="uncertainty_markers"):
         cmd_summary_extract(tmp_path, "broken-SUMMARY.md")
 
 
 def test_summary_extract_normalizes_reference_action_ledgers(tmp_path: Path) -> None:
-    summary_path = tmp_path / "01-SUMMARY.md"
-    summary_path.write_text(
+    _write_contract_backed_summary(
+        tmp_path,
         _summary_with_reference_usage(
-            status="missing",
-            completed_actions='[" read ", read, "read", "  "]',
-            missing_actions='[" compare ", compare, cite, " ", cite]',
+            status="completed",
+            completed_actions='[" read ", compare, cite, " ", cite]',
+            missing_actions="[]",
         ),
-        encoding="utf-8",
+        required_actions=["read"],
     )
 
     result = cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
     assert result.contract_results is not None
-    assert result.contract_results.references["ref-benchmark"].completed_actions == ["read"]
-    assert result.contract_results.references["ref-benchmark"].missing_actions == ["compare", "cite"]
+    assert result.contract_results.references["ref-benchmark"].completed_actions == ["read", "compare", "cite"]
+    assert result.contract_results.references["ref-benchmark"].missing_actions == []
 
 
 @pytest.mark.parametrize(
     ("status", "completed_actions", "missing_actions", "expected_completed", "expected_missing"),
     [
         ("Completed", "Read", "[]", ["read"], []),
-        ("Missing", "[]", "Compare", [], ["compare"]),
+        ("completed", '[" read ", READ, "read"]', "[]", ["read"], []),
     ],
 )
 def test_summary_extract_normalizes_singleton_and_case_variant_reference_action_ledgers(
@@ -127,14 +150,14 @@ def test_summary_extract_normalizes_singleton_and_case_variant_reference_action_
     expected_completed: list[str],
     expected_missing: list[str],
 ) -> None:
-    summary_path = tmp_path / "01-SUMMARY.md"
-    summary_path.write_text(
+    _write_contract_backed_summary(
+        tmp_path,
         _summary_with_reference_usage(
             status=status,
             completed_actions=completed_actions,
             missing_actions=missing_actions,
         ),
-        encoding="utf-8",
+        required_actions=["read"],
     )
 
     result = cmd_summary_extract(tmp_path, "01-SUMMARY.md")
@@ -172,20 +195,40 @@ def test_summary_extract_rejects_contradictory_reference_action_ledgers(
     missing_actions: str,
     message: str,
 ) -> None:
-    summary_path = tmp_path / "01-SUMMARY.md"
-    summary_path.write_text(
+    _write_contract_backed_summary(
+        tmp_path,
         _summary_with_reference_usage(
             status=status,
             completed_actions=completed_actions,
             missing_actions=missing_actions,
         ),
-        encoding="utf-8",
+        required_actions=["read"],
     )
 
     with pytest.raises(ValidationError) as excinfo:
         cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
     assert message in str(excinfo.value)
+
+
+def test_summary_extract_rejects_unresolved_plan_contract_ref(tmp_path: Path) -> None:
+    summary_path = tmp_path / "01-SUMMARY.md"
+    summary_path.write_text((FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="could not resolve matching plan contract"):
+        cmd_summary_extract(tmp_path, "01-SUMMARY.md")
+
+
+def test_summary_extract_rejects_unknown_contract_ids(tmp_path: Path) -> None:
+    summary_text = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+        "claim-benchmark",
+        "claim-unknown",
+        1,
+    )
+    _write_contract_backed_summary(tmp_path, summary_text)
+
+    with pytest.raises(ValidationError, match="Unknown claim contract_results entry: claim-unknown"):
+        cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
 
 def test_summary_extract_rejects_non_list_comparison_verdicts(tmp_path: Path) -> None:

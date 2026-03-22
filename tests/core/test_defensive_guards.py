@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 from gpd.contracts import VerificationEvidence, contract_from_data
+from gpd.core.errors import ResultError
 from gpd.core.extras import (
     ApproximationCheckResult,
     approximation_check,
@@ -320,21 +323,20 @@ class TestResultVerifyWithExistingBadRecords:
 
 
 class TestResultUpdateWithBadVerificationRecords:
-    """result_update gracefully handles malformed verification_records via the guard."""
+    """result_update must reject malformed verification_records at the write boundary."""
 
-    def test_update_with_string_records_skips_them(self, caplog):
-        """Passing a string item in verification_records via update should skip it."""
+    def test_update_with_string_records_rejects_them(self):
+        """Passing a string item in verification_records via update should fail."""
         state: dict = {}
         result_add(state, result_id="R-01")
-        with caplog.at_level(logging.WARNING):
-            fields, result = result_update(
+        with pytest.raises(ResultError, match="verification_records"):
+            result_update(
                 state,
                 "R-01",
                 verification_records=["not a dict"],
             )
-        assert "verification_records" in fields
-        assert result.verification_records == []
-        assert "Skipping" in caplog.text
+        assert state["intermediate_results"][0]["verification_records"] == []
+        assert state["intermediate_results"][0]["verified"] is False
 
     def test_update_with_valid_records_succeeds(self):
         """Passing well-formed dict records via update should succeed."""

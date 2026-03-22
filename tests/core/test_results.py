@@ -318,16 +318,36 @@ def test_result_update_rejects_false_verified_when_existing_records_remain():
         result_update(state, "R-05a", verified=False)
 
 
-def test_result_update_rejects_string_false_verified_when_existing_records_remain():
+def test_result_update_rejects_string_verified_values():
     state: dict = {}
-    result_add(
-        state,
-        result_id="R-05b",
-        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
-    )
+    result_add(state, result_id="R-05b")
 
-    with pytest.raises(ResultError, match="verified cannot be false when verification_records are present"):
+    with pytest.raises(ResultError, match="verified must be a boolean"):
         result_update(state, "R-05b", verified="false")
+
+
+@pytest.mark.parametrize("verified", ["false", "maybe", 1, None])
+def test_result_update_rejects_non_boolean_verified_values(verified):
+    state: dict = {}
+    result_add(state, result_id="R-05c")
+
+    with pytest.raises(ResultError, match="verified must be a boolean"):
+        result_update(state, "R-05c", verified=verified)
+
+
+@pytest.mark.parametrize(
+    "verification_records",
+    [
+        ["not a dict"],
+        [{"verifier": "auditor", "method": "manual", "confidence": 17}],
+    ],
+)
+def test_result_update_rejects_malformed_verification_records(verification_records):
+    state: dict = {}
+    result_add(state, result_id="R-05d")
+
+    with pytest.raises(ResultError, match="verification_records"):
+        result_update(state, "R-05d", verification_records=verification_records)
 
 
 def test_result_verify_not_found():

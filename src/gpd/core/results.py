@@ -103,6 +103,30 @@ def _normalize_verification_records(
     return normalized
 
 
+def _strict_verification_records(
+    records: object,
+) -> list[VerificationEvidence]:
+    """Validate an update-time verification-record payload without dropping data."""
+    if records is None:
+        return []
+    if not isinstance(records, list):
+        raise ResultError("verification_records must be a list of verification records")
+
+    normalized: list[VerificationEvidence] = []
+    for index, record in enumerate(records):
+        if isinstance(record, VerificationEvidence):
+            normalized.append(record)
+            continue
+        if isinstance(record, dict):
+            try:
+                normalized.append(VerificationEvidence(**record))
+            except (TypeError, _PydanticValidationError) as exc:
+                raise ResultError(f"Invalid verification_records[{index}]: {exc}") from exc
+            continue
+        raise ResultError(f"verification_records[{index}] must be a verification record object")
+    return normalized
+
+
 def _has_verification_evidence(result: dict[str, object]) -> bool:
     """Return whether a result has any verification signal."""
     return result.get("verified") is True or bool(result.get("verification_records"))
@@ -427,24 +451,14 @@ def result_update(
         elif not isinstance(updates["depends_on"], list):
             updates["depends_on"] = [updates["depends_on"]]
 
-    # Coerce verified to bool
     if "verified" in updates:
         raw = updates["verified"]
-        if isinstance(raw, bool):
-            updates["verified"] = raw
-        elif isinstance(raw, str):
-            updates["verified"] = raw.strip().lower() in ("true", "1", "yes")
-        else:
-            updates["verified"] = bool(raw)
+        if not isinstance(raw, bool):
+            raise ResultError("verified must be a boolean")
 
     if "verification_records" in updates:
-        records_raw = updates["verification_records"]
-        if records_raw is None:
-            updates["verification_records"] = []
-        elif isinstance(records_raw, list):
-            updates["verification_records"] = [record.model_dump() for record in _normalize_verification_records(records_raw)]
-        else:
-            raise ResultError("verification_records must be a list of verification records")
+        records = _strict_verification_records(updates["verification_records"])
+        updates["verification_records"] = [record.model_dump() for record in records]
         has_records = bool(updates["verification_records"])
         if "verified" not in updates:
             updates["verified"] = has_records
