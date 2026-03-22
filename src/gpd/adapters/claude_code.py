@@ -18,7 +18,9 @@ from gpd.adapters.install_utils import (
     hook_python_interpreter,
     parse_jsonc,
     read_settings,
+    remove_empty_json_object_file,
     remove_stale_agents,
+    prune_empty_ancestors,
     translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
@@ -290,6 +292,8 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
             if modified:
                 write_settings(settings_path, settings)
+            if remove_empty_json_object_file(settings_path):
+                result["removed"].append(settings_path.name)
 
         if not is_global_target:
             import json as _json
@@ -311,10 +315,28 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                             del mcp_config["mcpServers"]
                         mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
                         result["removed"].append(f"MCP servers from {mcp_config_path.name}")
+                if remove_empty_json_object_file(mcp_config_path):
+                    result["removed"].append(mcp_config_path.name)
+            for path in (
+                target_dir / "commands",
+                target_dir / "agents",
+                target_dir / "hooks",
+                target_dir / "cache",
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
             return result
 
         mcp_config_path = _mcp_config_path(target_dir, is_global=True)
         if not mcp_config_path.exists():
+            for path in (
+                target_dir / "commands",
+                target_dir / "agents",
+                target_dir / "hooks",
+                target_dir / "cache",
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
             return result
 
         import json as _json
@@ -328,6 +350,14 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
         removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
         if not removed_keys:
+            for path in (
+                target_dir / "commands",
+                target_dir / "agents",
+                target_dir / "hooks",
+                target_dir / "cache",
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
             return result
 
         for key in removed_keys:
@@ -337,6 +367,16 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
         mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
         result["removed"].append("MCP servers from .claude.json")
+        if remove_empty_json_object_file(mcp_config_path):
+            result["removed"].append(mcp_config_path.name)
+        for path in (
+            target_dir / "commands",
+            target_dir / "agents",
+            target_dir / "hooks",
+            target_dir / "cache",
+            target_dir,
+        ):
+            prune_empty_ancestors(path, stop_at=target_dir.parent)
         return result
 
 

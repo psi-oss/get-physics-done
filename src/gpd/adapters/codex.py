@@ -28,16 +28,21 @@ from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    CACHE_DIR_NAME,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
+    UPDATE_CACHE_FILENAME,
     compile_markdown_for_runtime,
     convert_tool_references_in_body,
     expand_tilde,
     get_global_dir,
     hook_python_interpreter,
+    managed_hook_paths,
     pre_install_cleanup,
+    prune_empty_ancestors,
     remove_stale_agents,
+    remove_empty_text_file,
     render_markdown_frontmatter,
     split_markdown_frontmatter,
     verify_installed,
@@ -759,6 +764,7 @@ class CodexAdapter(RuntimeAdapter):
                 )
             removed: list[str] = []
             counts: dict[str, int] = {"skills": 0, "agents": 0, "hooks": 0}
+            managed_hooks = managed_hook_paths(target_dir)
 
             # 1. Remove gpd-* skill directories from skills_dir
             if skills_dir.exists():
@@ -794,14 +800,26 @@ class CodexAdapter(RuntimeAdapter):
             # 5. Remove GPD hooks
             hooks_dir = target_dir / "hooks"
             if hooks_dir.exists():
-                for hook_path in hooks_dir.iterdir():
-                    if not hook_path.is_file():
-                        continue
-                    if hook_path.name in HOOK_SCRIPTS.values():
+                for rel_path in sorted(managed_hooks):
+                    hook_path = target_dir / rel_path
+                    if hook_path.is_file():
                         hook_path.unlink()
                         counts["hooks"] += 1
 
-            # 6. Remove GPD MCP servers from config.toml
+            # 6. Remove GPD update cache files.
+            cache_dir = target_dir / CACHE_DIR_NAME
+            removed_cache = False
+            for cache_path in (
+                cache_dir / UPDATE_CACHE_FILENAME,
+                cache_dir / f"{UPDATE_CACHE_FILENAME}.inflight",
+            ):
+                if cache_path.is_file():
+                    cache_path.unlink()
+                    removed_cache = True
+            if removed_cache:
+                removed.append(f"{CACHE_DIR_NAME}/{UPDATE_CACHE_FILENAME}")
+
+            # 7. Remove GPD MCP servers from config.toml
             config_toml_mcp = target_dir / "config.toml"
             if config_toml_mcp.exists():
                 toml_mcp = config_toml_mcp.read_text(encoding="utf-8")
@@ -810,7 +828,7 @@ class CodexAdapter(RuntimeAdapter):
                     config_toml_mcp.write_text(cleaned_mcp, encoding="utf-8")
                     removed.append("config.toml MCP servers")
 
-            # 7. Clean up config.toml
+            # 8. Clean up config.toml
             config_toml = target_dir / "config.toml"
             if config_toml.exists():
                 toml_content = config_toml.read_text(encoding="utf-8")
@@ -820,6 +838,17 @@ class CodexAdapter(RuntimeAdapter):
                 if cleaned != toml_content:
                     config_toml.write_text(cleaned, encoding="utf-8")
                     removed.append("config.toml GPD entries")
+                if remove_empty_text_file(config_toml):
+                    removed.append("config.toml")
+
+            for path in (
+                target_dir / "agents",
+                target_dir / "hooks",
+                target_dir / "cache",
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
+            prune_empty_ancestors(skills_dir, stop_at=skills_dir.parent.parent)
 
             # Build "removed" list matching base class return shape
             if counts["skills"]:

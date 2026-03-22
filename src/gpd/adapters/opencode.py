@@ -21,9 +21,11 @@ from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    CACHE_DIR_NAME,
     HOOK_SCRIPTS,
     MANIFEST_NAME,
     PATCHES_DIR_NAME,
+    UPDATE_CACHE_FILENAME,
     _default_install_target,
     _normalize_install_scope_flag,
     _paths_equal,
@@ -35,7 +37,10 @@ from gpd.adapters.install_utils import (
     get_global_dir,
     hook_python_interpreter,
     install_gpd_content,
+    managed_hook_paths,
     parse_jsonc,
+    prune_empty_ancestors,
+    remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
     replace_placeholders,
@@ -655,6 +660,7 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
     Returns a dict with counts of removed items.
     """
     counts: dict[str, int] = {"commands": 0, "agents": 0, "hooks": 0, "dirs": 0, "permissions": 0}
+    managed_hooks = managed_hook_paths(target_dir)
 
     # 1. Remove command/gpd-*.md files
     command_dir = target_dir / "command"
@@ -689,12 +695,20 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
     # 4. Remove GPD hooks
     hooks_dir = target_dir / "hooks"
     if hooks_dir.exists():
-        for hook_path in hooks_dir.iterdir():
-            if not hook_path.is_file():
-                continue
-            if hook_path.name in HOOK_SCRIPTS.values():
+        for rel_path in sorted(managed_hooks):
+            hook_path = target_dir / rel_path
+            if hook_path.is_file():
                 hook_path.unlink()
                 counts["hooks"] += 1
+
+    # 4b. Remove GPD update cache files.
+    cache_dir = target_dir / CACHE_DIR_NAME
+    for cache_path in (
+        cache_dir / UPDATE_CACHE_FILENAME,
+        cache_dir / f"{UPDATE_CACHE_FILENAME}.inflight",
+    ):
+        if cache_path.is_file():
+            cache_path.unlink()
 
     # 5. Remove GPD MCP servers from opencode.json (uses "mcp" key, not "mcpServers")
     oc_config_dir_mcp = config_dir
@@ -744,6 +758,16 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
         if modified:
             oc_config_path.write_text(json.dumps(oc_config, indent=2) + "\n", encoding="utf-8")
             counts["permissions"] += 1
+        remove_empty_json_object_file(oc_config_path)
+
+    for path in (
+        target_dir / "command",
+        target_dir / "agents",
+        target_dir / "hooks",
+        target_dir / "cache",
+        target_dir,
+    ):
+        prune_empty_ancestors(path, stop_at=target_dir.parent)
 
     return counts
 

@@ -720,7 +720,7 @@ class TestInstallUninstallCycle:
         assert (target / "get-physics-done").is_dir()
 
         adapter.uninstall(target, skills_dir=skills)
-        assert not any(d.name.startswith("gpd-") for d in skills.iterdir() if d.is_dir())
+        assert not skills.exists() or not any(d.name.startswith("gpd-") for d in skills.iterdir() if d.is_dir())
         assert not (target / "get-physics-done").exists()
 
     def test_opencode_cycle(self, gpd_root: Path, tmp_path: Path) -> None:

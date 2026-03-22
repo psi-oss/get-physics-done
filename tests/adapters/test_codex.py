@@ -761,7 +761,7 @@ class TestUninstall:
 
         adapter.uninstall(target)
 
-        assert not any(
+        assert not original_shared_skills.exists() or not any(
             entry.is_dir() and entry.name.startswith("gpd-")
             for entry in original_shared_skills.iterdir()
         )
@@ -786,7 +786,7 @@ class TestUninstall:
         adapter.uninstall(target)
         local_skills = tmp_path / ".agents" / "skills"
 
-        assert not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
+        assert not local_skills.exists() or not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -798,7 +798,7 @@ class TestUninstall:
 
         result = adapter.uninstall(target, skills_dir=skills)
 
-        gpd_skills = [d for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        gpd_skills = [d for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")] if skills.exists() else []
         assert len(gpd_skills) == 0
         assert any("skills" in item for item in result["removed"])
 
@@ -816,7 +816,7 @@ class TestUninstall:
         adapter.uninstall(target, skills_dir=skills)
 
         agents_dir = target / "agents"
-        assert not any(f.name.startswith("gpd-") for f in agents_dir.iterdir())
+        assert not agents_dir.exists() or not any(f.name.startswith("gpd-") for f in agents_dir.iterdir())
         assert (agents_dir / "custom.md").exists()
         assert (agents_dir / "custom.toml").exists()
 

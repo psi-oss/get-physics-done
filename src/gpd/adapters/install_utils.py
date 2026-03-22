@@ -94,6 +94,69 @@ def _default_install_target(config_dir: Path, runtime: str, scope_flag: str | No
     return None
 
 
+def bundled_hooks_dir() -> Path:
+    """Return the directory containing the bundled GPD hook scripts."""
+    return Path(__file__).resolve().parents[1] / HOOKS_DIR_NAME
+
+
+def bundled_hook_relpaths() -> tuple[str, ...]:
+    """Return managed bundled hook file paths relative to a runtime config dir."""
+    hooks_dir = bundled_hooks_dir()
+    if not hooks_dir.is_dir():
+        return ()
+
+    relpaths: list[str] = []
+    for hook_file in sorted(hooks_dir.iterdir()):
+        if hook_file.is_file() and not hook_file.name.startswith("__"):
+            relpaths.append(f"{HOOKS_DIR_NAME}/{hook_file.name}")
+    return tuple(relpaths)
+
+
+def prune_empty_ancestors(path: Path, *, stop_at: Path | None = None) -> None:
+    """Remove *path* and empty ancestor directories until *stop_at* is reached."""
+    current = path
+    while True:
+        if stop_at is not None and _paths_equal(current, stop_at):
+            return
+        if not current.exists() or not current.is_dir():
+            return
+        try:
+            next(current.iterdir())
+        except StopIteration:
+            current.rmdir()
+            current = current.parent
+            continue
+        return
+
+
+def remove_empty_json_object_file(path: Path) -> bool:
+    """Delete *path* when it contains only an empty JSON object."""
+    if not path.is_file():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if payload != {}:
+        return False
+    path.unlink()
+    return True
+
+
+def remove_empty_text_file(path: Path) -> bool:
+    """Delete *path* when its text content is empty after stripping whitespace."""
+    if not path.is_file():
+        return False
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if content.strip():
+        return False
+    path.unlink()
+    return True
+
+
 def config_dir_reference(
     target_dir: Path,
     config_dir_name: str,
@@ -1093,14 +1156,14 @@ def write_manifest(
 
     # hooks/
     if hooks_dir.exists():
-        bundled_hooks_dir = Path(__file__).resolve().parents[1] / HOOKS_DIR_NAME
-        for hook_name in HOOK_SCRIPTS.values():
+        for rel_path in bundled_hook_relpaths():
+            hook_name = PurePosixPath(rel_path).name
             installed_hook = hooks_dir / hook_name
-            bundled_hook = bundled_hooks_dir / hook_name
+            bundled_hook = bundled_hooks_dir() / hook_name
             if not installed_hook.exists() or not bundled_hook.exists():
                 continue
             if file_hash(installed_hook) == file_hash(bundled_hook):
-                files[f"hooks/{hook_name}"] = file_hash(installed_hook)
+                files[rel_path] = file_hash(installed_hook)
 
     # External/shared skills
     if skills_dir:
@@ -1126,28 +1189,7 @@ def _tracked_hook_paths_for_cleanup(
     skills_dir: str | Path | None = None,
 ) -> set[str]:
     """Return managed hook paths that pre-install cleanup may safely remove."""
-    manifest_path = config_dir / MANIFEST_NAME
-    if not manifest_path.exists():
-        return set()
-
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        manifest = None
-
-    if isinstance(manifest, dict):
-        raw_files = manifest.get("files")
-        if isinstance(raw_files, dict):
-            tracked = {str(path) for path in raw_files if str(path).startswith("hooks/")}
-            if tracked:
-                return tracked
-
-    hooks_dir = config_dir / HOOKS_DIR_NAME
-    return {
-        f"{HOOKS_DIR_NAME}/{hook_filename}"
-        for hook_filename in HOOK_SCRIPTS.values()
-        if (hooks_dir / hook_filename).is_file()
-    }
+    return managed_hook_paths(config_dir)
 
 
 def tracked_hook_paths_from_manifest(config_dir: Path) -> set[str]:
@@ -1169,6 +1211,30 @@ def tracked_hook_paths_from_manifest(config_dir: Path) -> set[str]:
         return set()
 
     return {str(path) for path in raw_files if str(path).startswith("hooks/")}
+
+
+def managed_hook_paths(config_dir: Path) -> set[str]:
+    """Return bundled hook paths that are manifest-tracked or hash-matched."""
+    tracked = tracked_hook_paths_from_manifest(config_dir)
+    managed: set[str] = set()
+
+    for rel_path in bundled_hook_relpaths():
+        installed_hook = config_dir / rel_path
+        if rel_path in tracked:
+            managed.add(rel_path)
+            continue
+        if not installed_hook.is_file():
+            continue
+        bundled_hook = bundled_hooks_dir() / PurePosixPath(rel_path).name
+        if not bundled_hook.is_file():
+            continue
+        try:
+            if file_hash(installed_hook) == file_hash(bundled_hook):
+                managed.add(rel_path)
+        except (FileNotFoundError, OSError):
+            continue
+
+    return managed
 
 
 def _managed_install_paths(

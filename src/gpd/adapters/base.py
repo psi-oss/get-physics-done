@@ -11,21 +11,24 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import (
     AGENTS_DIR_NAME,
+    CACHE_DIR_NAME,
     COMMANDS_DIR_NAME,
     FLAT_COMMANDS_DIR_NAME,
     GPD_INSTALL_DIR_NAME,
     HOOKS_DIR_NAME,
     MANIFEST_NAME,
+    UPDATE_CACHE_FILENAME,
     build_runtime_cli_bridge_command,
     compute_path_prefix,
     convert_tool_references_in_body,
     copy_hook_scripts,
     install_gpd_content,
+    managed_hook_paths,
     pre_install_cleanup,
+    prune_empty_ancestors,
     process_settings_commit_attribution,
     replace_placeholders,
     strip_sub_tags,
-    tracked_hook_paths_from_manifest,
     translate_frontmatter_tool_names,
     validate_package_integrity,
     write_manifest,
@@ -591,13 +594,27 @@ class RuntimeAdapter(abc.ABC):
             hooks_dir = target_dir / HOOKS_DIR_NAME
             if hooks_dir.is_dir():
                 hook_count = 0
-                for rel_path in sorted(tracked_hook_paths_from_manifest(target_dir)):
+                for rel_path in sorted(managed_hook_paths(target_dir)):
                     hook_path = target_dir / rel_path
                     if hook_path.is_file():
                         hook_path.unlink()
                         hook_count += 1
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
+
+            # Remove GPD update cache files.
+            cache_dir = target_dir / CACHE_DIR_NAME
+            cache_paths = (
+                cache_dir / UPDATE_CACHE_FILENAME,
+                cache_dir / f"{UPDATE_CACHE_FILENAME}.inflight",
+            )
+            removed_cache = False
+            for cache_path in cache_paths:
+                if cache_path.is_file():
+                    cache_path.unlink()
+                    removed_cache = True
+            if removed_cache:
+                removed.append(f"{CACHE_DIR_NAME}/{UPDATE_CACHE_FILENAME}")
 
             removed.extend(self._cleanup_runtime_config(target_dir))
 
@@ -612,6 +629,16 @@ class RuntimeAdapter(abc.ABC):
             if patches_dir.is_dir():
                 shutil.rmtree(patches_dir)
                 removed.append("gpd-local-patches/")
+
+            for path in (
+                target_dir / COMMANDS_DIR_NAME,
+                target_dir / FLAT_COMMANDS_DIR_NAME,
+                target_dir / AGENTS_DIR_NAME,
+                target_dir / HOOKS_DIR_NAME,
+                target_dir / CACHE_DIR_NAME,
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
 
             span.set_attribute("gpd.removed_count", len(removed))
             logger.info("Uninstalled GPD from %s: removed %d items", self.runtime_name, len(removed))

@@ -877,9 +877,7 @@ class TestUninstall:
 
         adapter.uninstall(target)
 
-        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
-        assert "statusLine" not in settings
-        assert settings.get("experimental", {}).get("enableAgents") is not True
+        assert not (target / "settings.json").exists()
 
     def test_uninstall_preserves_preexisting_experimental_agents(
         self,

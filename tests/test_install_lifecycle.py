@@ -437,7 +437,7 @@ class TestCodexLifecycle:
         result = adapter.uninstall(target, skills_dir=skills_dir)
 
         # Discoverable Codex skills removed
-        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")] if skills_dir.exists() else []
         assert len(gpd_skills) == 0, f"Skills not removed: {[d.name for d in gpd_skills]}"
 
         # get-physics-done removed
@@ -822,6 +822,45 @@ class TestManifestConsistency:
         assert manifest["install_scope"] == "global"
 
 
+@pytest.mark.parametrize("runtime", _ALL_RUNTIMES)
+def test_clean_local_uninstall_removes_gpd_owned_runtime_artifacts(tmp_path: Path, gpd_root: Path, runtime: str) -> None:
+    adapter = get_adapter(runtime)
+    target = tmp_path / adapter.config_dir_name
+    target.mkdir(parents=True, exist_ok=True)
+
+    install_kwargs = _install_kwargs_for_runtime(tmp_path, runtime, is_global=False)
+    _install_and_finalize(adapter, gpd_root, target, **install_kwargs)
+
+    if runtime == "codex":
+        adapter.uninstall(target, skills_dir=install_kwargs["skills_dir"])
+        skills_dir = Path(str(install_kwargs["skills_dir"]))
+        assert not skills_dir.exists()
+        assert not skills_dir.parent.exists()
+        assert not (target / "config.toml").exists()
+    else:
+        adapter.uninstall(target)
+
+    assert not (target / "hooks" / "install_metadata.py").exists()
+    assert not (target / "cache" / "gpd-update-check.json").exists()
+    assert not (target / "cache" / "gpd-update-check.json.inflight").exists()
+    assert not (target / "commands").exists()
+    assert not (target / "command").exists()
+    assert not (target / "agents").exists()
+    assert not (target / "hooks").exists()
+    assert not (target / "cache").exists()
+    assert not (target / "get-physics-done").exists()
+
+    if runtime == "claude-code":
+        assert not (target / "settings.json").exists()
+        assert not (tmp_path / ".mcp.json").exists()
+    elif runtime == "gemini":
+        assert not (target / "settings.json").exists()
+    elif runtime == "opencode":
+        assert not (target / "opencode.json").exists()
+
+    assert not target.exists()
+
+
 def test_explicit_lifecycle_suites_cover_all_catalog_runtimes() -> None:
     lifecycle_classes = (
         TestClaudeCodeLifecycle,
@@ -1087,7 +1126,7 @@ class TestInstallThenUninstallClean:
 
         assert not (target / "get-physics-done").exists()
         assert not (target / MANIFEST_NAME).exists()
-        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        gpd_skills = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("gpd-")] if skills_dir.exists() else []
         assert len(gpd_skills) == 0
 
 

@@ -29,7 +29,9 @@ from gpd.adapters.install_utils import (
     process_attribution,
     protect_runtime_agent_prompt,
     read_settings,
+    remove_empty_json_object_file,
     remove_stale_agents,
+    prune_empty_ancestors,
     render_markdown_frontmatter,
     split_markdown_frontmatter,
     strip_sub_tags,
@@ -1232,6 +1234,8 @@ class GeminiAdapter(RuntimeAdapter):
             if modified:
                 write_settings(settings_path, settings)
                 logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
+            if remove_empty_json_object_file(settings_path):
+                result.setdefault("removed", []).append(settings_path.name)
 
         policy_files = _normalize_string_list(managed_runtime_files)
         if not policy_files:
@@ -1244,6 +1248,16 @@ class GeminiAdapter(RuntimeAdapter):
         policy_dir = _managed_gemini_policy_path(target_dir).parent
         if policy_dir.is_dir() and not any(policy_dir.iterdir()):
             policy_dir.rmdir()
+
+        for path in (
+            target_dir / "commands",
+            target_dir / "agents",
+            target_dir / "hooks",
+            target_dir / "cache",
+            policy_dir,
+            target_dir,
+        ):
+            prune_empty_ancestors(path, stop_at=target_dir.parent)
 
         return result
 
