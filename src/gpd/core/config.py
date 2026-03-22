@@ -25,6 +25,7 @@ __all__ = [
     "MODEL_PROFILES",
     "AutonomyMode",
     "BranchingStrategy",
+    "RuntimePermissions",
     "GPDProjectConfig",
     "ModelProfile",
     "ModelTier",
@@ -57,6 +58,29 @@ class ReviewCadence(StrEnum):
     DENSE = "dense"
     ADAPTIVE = "adaptive"
     SPARSE = "sparse"
+
+
+class RuntimePermissions(StrEnum):
+    """Runtime-level permission handling mode.
+
+    This controls how GPD configures the host runtime's *tool permission*
+    layer, which is separate from GPD's own ``AutonomyMode`` (physics
+    scoping / interruption cadence).
+
+    ``default``
+        The runtime uses its normal permission prompts.  The user is
+        asked before destructive or external-facing operations.
+
+    ``permissive``
+        GPD configures the runtime to skip tool-permission prompts
+        where possible.  For Claude Code this generates a launch wrapper
+        that passes ``--dangerously-skip-permissions``.  For runtimes
+        that already run in a permissive sandbox (e.g. Codex) the mode
+        is acknowledged but no additional changes are needed.
+    """
+
+    DEFAULT = "default"
+    PERMISSIVE = "permissive"
 
 
 class ResearchMode(StrEnum):
@@ -314,6 +338,7 @@ class GPDProjectConfig(BaseModel):
 
     model_profile: ModelProfile = ModelProfile.REVIEW
     autonomy: AutonomyMode = AutonomyMode.BALANCED
+    runtime_permissions: RuntimePermissions = RuntimePermissions.DEFAULT
     review_cadence: ReviewCadence = ReviewCadence.ADAPTIVE
     research_mode: ResearchMode = ResearchMode.BALANCED
 
@@ -397,6 +422,7 @@ def _enum_value(value: object) -> object:
 
 _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
     "autonomy": lambda config: _enum_value(config.autonomy),
+    "runtime_permissions": lambda config: _enum_value(config.runtime_permissions),
     "branching_strategy": lambda config: _enum_value(config.branching_strategy),
     "checkpoint_after_first_load_bearing_result": (
         lambda config: config.checkpoint_after_first_load_bearing_result
@@ -444,6 +470,7 @@ _EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, obj
 
 _CONFIG_KEY_ALIASES: dict[str, str] = {
     "autonomy": "autonomy",
+    "runtime_permissions": "runtime_permissions",
     "branching_strategy": "branching_strategy",
     "checkpoint_after_first_load_bearing_result": "checkpoint_after_first_load_bearing_result",
     "checkpoint_after_n_tasks": "checkpoint_after_n_tasks",
@@ -642,6 +669,7 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
         "research",
         "review_cadence",
         "research_mode",
+        "runtime_permissions",
         "verifier",
         "workflow",
     }
@@ -715,6 +743,10 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
             autonomy=_coalesce(
                 _get_nested(parsed, "autonomy"),
                 _CONFIG_DEFAULTS.autonomy,
+            ),
+            runtime_permissions=_coalesce(
+                _get_nested(parsed, "runtime_permissions"),
+                _CONFIG_DEFAULTS.runtime_permissions,
             ),
             review_cadence=_coalesce(
                 _get_nested(parsed, "review_cadence", section="execution", field="review_cadence"),
