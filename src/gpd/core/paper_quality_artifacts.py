@@ -30,7 +30,7 @@ from gpd.core.paper_quality import (
     VerificationQualityInput,
 )
 from gpd.mcp.paper.bibliography import BibliographyAudit
-from gpd.mcp.paper.models import ArtifactManifest
+from gpd.mcp.paper.models import ArtifactManifest, is_supported_paper_journal
 
 __all__ = ["build_paper_quality_input"]
 
@@ -249,6 +249,24 @@ def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
                 existing = verdicts_by_key.get(key)
                 verdicts_by_key[key] = verdict if existing is None else _merge_comparison_verdict(existing, verdict)
     return list(verdicts_by_key.values())
+
+
+def _resolve_paper_journal(artifact_manifest: ArtifactManifest | None, paper_config: dict[str, object]) -> str:
+    """Return the supported journal key to use for quality scoring.
+
+    Manifest journals are preferred when they are supported builder keys.
+    Unsupported manifest journals fall back to a supported PAPER-CONFIG journal
+    instead of overriding it.
+    """
+
+    manifest_journal = artifact_manifest.journal if artifact_manifest is not None else None
+    config_journal = paper_config.get("journal")
+
+    if is_supported_paper_journal(manifest_journal):
+        return manifest_journal
+    if is_supported_paper_journal(config_journal):
+        return str(config_journal)
+    return "generic"
 
 
 def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
@@ -501,11 +519,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         if artifact_manifest is not None
         else str(paper_config.get("title") or paper_config.get("paper_title") or "")
     )
-    journal = (
-        artifact_manifest.journal
-        if artifact_manifest is not None
-        else str(paper_config.get("journal") or "generic")
-    )
+    journal = _resolve_paper_journal(artifact_manifest, paper_config)
 
     figure_registry = _load_figure_registry(root)
     verdicts = _collect_comparison_verdicts(root)

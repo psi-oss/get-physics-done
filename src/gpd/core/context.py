@@ -50,6 +50,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.contract_validation import (
+    _collect_list_shape_drift_errors,
     _split_project_contract_schema_findings,
     salvage_project_contract,
     validate_project_contract,
@@ -213,7 +214,9 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
         backup_contract = raw_backup.get("project_contract")
         if not isinstance(backup_contract, dict):
             return None
+        backup_list_shape_errors = _collect_list_shape_drift_errors(backup_contract)
         backup_normalized, backup_findings = salvage_project_contract(backup_contract)
+        backup_findings = list(dict.fromkeys([*backup_findings, *backup_list_shape_errors]))
         _backup_warnings, backup_errors = _split_project_contract_schema_findings(
             backup_findings,
             allow_singleton_defaults=False,
@@ -241,7 +244,9 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
                     return backup_payload
                 return layout.state_json, raw_contract
 
+            list_shape_drift_errors = _collect_list_shape_drift_errors(raw_contract)
             normalized_contract, schema_findings = salvage_project_contract(raw_contract)
+            schema_findings = list(dict.fromkeys([*schema_findings, *list_shape_drift_errors]))
             _schema_warnings, schema_errors = _split_project_contract_schema_findings(
                 schema_findings,
                 allow_singleton_defaults=False,
@@ -265,7 +270,9 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
     backup_contract = raw_backup.get("project_contract")
     if not isinstance(backup_contract, dict):
         return None
+    backup_list_shape_errors = _collect_list_shape_drift_errors(backup_contract)
     backup_normalized, backup_findings = salvage_project_contract(backup_contract)
+    backup_findings = list(dict.fromkeys([*backup_findings, *backup_list_shape_errors]))
     _backup_warnings, backup_errors = _split_project_contract_schema_findings(
         backup_findings,
         allow_singleton_defaults=False,
@@ -333,7 +340,9 @@ def _load_project_contract(cwd: Path) -> tuple[ResearchContract | None, dict[str
                 errors=["project contract must be a JSON object"],
             )
 
+        list_shape_drift_errors = _collect_list_shape_drift_errors(raw_contract)
         normalized_contract, schema_findings = salvage_project_contract(raw_contract)
+        schema_findings = list(dict.fromkeys([*schema_findings, *list_shape_drift_errors]))
         schema_warnings, schema_errors = _split_project_contract_schema_findings(
             schema_findings,
             allow_singleton_defaults=False,

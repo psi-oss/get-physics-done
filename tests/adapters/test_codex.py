@@ -205,6 +205,76 @@ class TestInstall:
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
 
+    def test_install_failure_preserves_live_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        existing_skill = skills / "gpd-help"
+        existing_skill.mkdir()
+        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        preserved_skill = skills / "custom-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+
+        def fail_compile(*args, **kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr("gpd.adapters.codex.compile_markdown_for_runtime", fail_compile)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
+
+    def test_install_failure_after_live_backup_restores_original_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        existing_skill = skills / "gpd-help"
+        existing_skill.mkdir()
+        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        preserved_skill = skills / "custom-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+
+        original_rename = Path.rename
+
+        def fake_render(*args, **kwargs):
+            return None
+
+        def fake_rename(self: Path, target_path: Path):
+            if target_path == skills and self.name.endswith(".backup"):
+                return original_rename(self, target_path)
+            if target_path == skills:
+                raise RuntimeError("boom after backup")
+            return original_rename(self, target_path)
+
+        monkeypatch.setattr("gpd.adapters.codex._render_commands_as_skills", fake_render)
+        monkeypatch.setattr(Path, "rename", fake_rename)
+
+        with pytest.raises(RuntimeError, match="boom after backup"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
+
     def test_install_rewrites_gpd_cli_calls_to_runtime_cli_bridge(
         self,
         adapter: CodexAdapter,

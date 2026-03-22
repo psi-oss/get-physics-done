@@ -62,6 +62,6 @@ def test_runtime_context_surfaces_structurally_valid_draft_project_contract_with
     assert ctx["project_contract_validation"]["valid"] is False
     assert ctx["project_contract_validation"]["mode"] == "approved"
     assert any(
-        "approved project contract requires at least one concrete anchor" in error
+        "references must include at least one must_surface=true anchor" in error
         for error in ctx["project_contract_validation"]["errors"]
     )

@@ -19,13 +19,19 @@ from gpd.runtime_cli import _parse_args, _resolve_cli_cwd_from_argv, main
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
 _RUNTIME_CANONICALIZATION_TOKENS: list[tuple[str, str, str]] = []
+_SEEN_CANONICALIZATION_TOKENS: set[tuple[str, str]] = set()
 for descriptor in _RUNTIME_DESCRIPTORS:
     if descriptor.display_name.strip() and descriptor.display_name.casefold() != descriptor.runtime_name.casefold():
-        _RUNTIME_CANONICALIZATION_TOKENS.append((descriptor.runtime_name, descriptor.display_name, "display_name"))
-    if descriptor.selection_aliases:
-        alias = descriptor.selection_aliases[0]
+        token = (descriptor.runtime_name, descriptor.display_name)
+        if token not in _SEEN_CANONICALIZATION_TOKENS:
+            _SEEN_CANONICALIZATION_TOKENS.add(token)
+            _RUNTIME_CANONICALIZATION_TOKENS.append((descriptor.runtime_name, descriptor.display_name, "display_name"))
+    for alias in descriptor.selection_aliases:
         if alias.strip() and alias.casefold() != descriptor.runtime_name.casefold():
-            _RUNTIME_CANONICALIZATION_TOKENS.append((descriptor.runtime_name, alias, "selection_alias"))
+            token = (descriptor.runtime_name, alias)
+            if token not in _SEEN_CANONICALIZATION_TOKENS:
+                _SEEN_CANONICALIZATION_TOKENS.add(token)
+                _RUNTIME_CANONICALIZATION_TOKENS.append((descriptor.runtime_name, alias, "selection_alias"))
 GPD_ROOT = Path(__file__).resolve().parent.parent / "src" / "gpd"
 
 
@@ -135,6 +141,49 @@ def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(
     assert exit_code == 127
     assert f"--target-dir {config_dir}" in captured.err
     assert f"npx -y get-physics-done {adapter.install_flag} --local" in captured.err
+
+
+@pytest.mark.parametrize("runtime_value", ["", 123])
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_fails_when_manifest_runtime_is_blank_or_non_string(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+    runtime_value,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / "gpd-file-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["runtime"] = runtime_value
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for malformed manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{adapter.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected malformed install manifest" in captured.err
+    assert "The manifest `runtime` field must be a non-empty string." in captured.err
+    assert "Repair or reinstall with:" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

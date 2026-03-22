@@ -156,6 +156,7 @@ Additionally:
 - Stage 1 must also emit `CLAIMS{round_suffix}.json` as a compact `ClaimIndex`.
 - Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`.
 - In strict mode, specialist stage filenames must match `STAGE-(reader|literature|math|physics|interestingness)(-R<round>)?.json`, and all five must share the same optional `-R<round>` suffix.
+- In strict mode, any additional noncanonical `stage_artifacts` entry fails validation rather than being ignored.
 - The final adjudicator must emit `REVIEW-LEDGER{round_suffix}.json` and `REFEREE-DECISION{round_suffix}.json` (empty suffix on the first round).
 - The artifact should stay compact. It is a decision handoff, not a second manuscript.
 

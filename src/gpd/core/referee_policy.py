@@ -126,10 +126,12 @@ def _strict_stage_artifact_errors(stage_artifacts: list[str]) -> list[str]:
 
     seen_stage_ids: set[str] = set()
     round_suffixes: set[str] = set()
+    invalid_stage_artifacts: list[str] = []
 
     for artifact_path in stage_artifacts:
         match = _STRICT_STAGE_ARTIFACT_RE.fullmatch(Path(artifact_path.strip()).name)
         if match is None:
+            invalid_stage_artifacts.append(artifact_path)
             continue
         seen_stage_ids.add(match.group(1))
         round_suffixes.add(match.group(2) or "")
@@ -140,6 +142,11 @@ def _strict_stage_artifact_errors(stage_artifacts: list[str]) -> list[str]:
         errors.append(
             "Strict staged peer review requires the canonical five specialist stage artifacts: missing "
             + ", ".join(f"STAGE-{stage_id}.json" for stage_id in missing_stage_ids)
+        )
+    if invalid_stage_artifacts:
+        errors.append(
+            "Strict staged peer review rejects noncanonical stage artifacts: "
+            + ", ".join(invalid_stage_artifacts)
         )
     if len(round_suffixes) > 1:
         errors.append("Strict staged peer review requires all specialist stage artifacts to use the same round suffix.")

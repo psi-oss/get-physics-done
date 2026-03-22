@@ -121,6 +121,10 @@ The paper builder currently supports:
 
 Choose one supported key exactly. Do not use freeform journal names here.
 
+Artifact manifests emitted by the builder should use the same supported keys. If an
+artifact manifest carries an unsupported journal value, the builder ignores it in
+favor of a supported `paper/PAPER-CONFIG.json` journal instead of letting it win.
+
 ## Validation Rules
 
 - Keep top-level arrays (`authors`, `sections`, `figures`, `appendix_sections`) as JSON arrays.

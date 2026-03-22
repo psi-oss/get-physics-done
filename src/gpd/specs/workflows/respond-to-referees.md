@@ -29,7 +29,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
 
 **Read mode settings:**
 
@@ -66,7 +66,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-If review preflight exits nonzero because of missing project state, missing manuscript or referee-report source, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses.
+If review preflight exits nonzero because of missing project state, missing manuscript or referee-report source, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses. Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes; otherwise the contract is visible but blocked, and the response should surface the blocker instead of relying on it.
 
 **Locate paper directory:**
 
@@ -117,7 +117,7 @@ ls .gpd/review/REVIEW-LEDGER*.json 2>/dev/null
 ls .gpd/review/REFEREE-DECISION*.json 2>/dev/null
 ```
 
-If matching round-specific files exist, load them as structured context. Use `REFEREE-REPORT*.md` as the canonical issue-ID source, and use `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` to identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale.
+If matching round-specific files exist, load them as structured context. Use `REFEREE-REPORT*.md` as the canonical issue-ID source, and use `REVIEW-LEDGER*.json` / `REFEREE-DECISION*.json` to identify blocking issues, unsupported-claim findings, recommendation floors, and the referee's stated rationale. Keep `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible together when drafting the response letter.
 
 Set `round_suffix` to match the peer-review artifact convention:
 

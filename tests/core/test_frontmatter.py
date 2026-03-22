@@ -380,6 +380,24 @@ class TestParseContractBlock:
         ):
             parse_contract_block(content)
 
+    def test_accepts_recoverable_extra_key_drift(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines=(
+                "  claims:\n"
+                "    - id: claim-main\n"
+                "      statement: Recover the benchmark value within tolerance\n"
+                "      deliverables: [deliv-main]\n"
+                "      acceptance_tests: [test-main]\n"
+                "      references: [ref-main]\n"
+                "      notes: harmless"
+            ),
+        ) + "Body.\n"
+
+        contract = parse_contract_block(content)
+
+        assert contract is not None
+        assert contract.claims[0].id == "claim-main"
+
 
 # ---------------------------------------------------------------------------
 # validate_frontmatter

@@ -38,7 +38,7 @@ The benchmark was recovered within tolerance.
             {
                 "version": 1,
                 "paper_title": "Benchmark Paper",
-                "journal": "prd",
+                "journal": "jhep",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [],
             }
@@ -135,7 +135,7 @@ comparison_verdicts:
     result = build_paper_quality_input(tmp_path)
 
     assert result.title == "Benchmark Paper"
-    assert result.journal == "prd"
+    assert result.journal == "jhep"
     assert result.completeness.required_sections_present.satisfied == 3
     assert result.citations.missing_placeholders.passed is True
     assert result.citations.citation_keys_resolve.satisfied == 1
@@ -145,6 +145,36 @@ comparison_verdicts:
     assert result.figures.decisive_artifact_roles_clear.satisfied == 1
     assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 1
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
+
+
+def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_is_unsupported(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\begin{abstract}Fallback test.\\end{abstract}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps({"title": "Config Fallback Title", "journal": "jhep"}),
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Manifest Title",
+                "journal": "prd",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "artifacts": [],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Manifest Title"
+    assert result.journal == "jhep"
 
 
 def test_build_paper_quality_input_normalizes_empty_contract_results_reference_lists(tmp_path: Path) -> None:

@@ -384,7 +384,7 @@ gpd state update "Current Plan" "<value>"
 gpd result add --description "<result description>"
 
 # Advance / transition phase status
-gpd state advance-plan
+gpd state advance
 gpd phase complete <phase-number>
 ```
 
@@ -421,7 +421,7 @@ Used by verifiers and orchestrators to validate research artifacts:
 
 ```bash
 # Verify plan structure (wave assignments, dependencies, frontmatter)
-gpd verify plan-structure <plan-file-path>
+gpd verify plan <plan-file-path>
 
 # Verify phase completeness (all plans have SUMMARY.md)
 gpd verify phase <phase-number>

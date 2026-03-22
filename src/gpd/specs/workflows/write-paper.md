@@ -61,7 +61,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
 
 **Load mode settings:**
 
@@ -95,7 +95,7 @@ Run the centralized review preflight before continuing:
 gpd validate review-preflight write-paper --strict
 ```
 
-If review preflight exits nonzero because of missing project state, missing roadmap, degraded review integrity, missing research artifacts, or non-review-ready reproducibility coverage, STOP and show the blocking issues before drafting.
+If review preflight exits nonzero because of missing project state, missing roadmap, degraded review integrity, missing research artifacts, or non-review-ready reproducibility coverage, STOP and show the blocking issues before drafting. Keep the current `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout the staged review; they are authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes.
 
 **Locate paper directory (if resuming):**
 
@@ -174,6 +174,7 @@ Use `protocol_bundle_context` from init JSON as additive specialized-publication
 
 - If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact guidance, estimator caveats, and reference prompts visible while choosing main-text figures, appendices, and related-work framing.
 - Use bundle guidance to check whether the manuscript surfaces the right decisive comparisons, benchmark anchors, and estimator limitations for this project.
+- Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes; otherwise the contract is visible but blocked, and drafting must pause for contract repair.
 - Do **not** let bundle guidance invent new claims, replace `project_contract`, or override `contract_results`, `comparison_verdicts`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or `active_reference_context`. Those remain authoritative.
 - If no bundle is selected, rely on shared publication guidance plus the contract-backed comparison artifacts already present in the project.
 
@@ -914,7 +915,7 @@ Before finalizing, run the same staged peer-review panel used by `/gpd:peer-revi
 5. `gpd-review-significance`
 6. `gpd-referee` as final adjudicator
 
-For the detailed staging, artifact naming, round handling, `CLAIMS{round_suffix}.json` / `STAGE-*{round_suffix}.json` outputs, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, and recommendation guardrails, follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using `${PAPER_DIR}/main.tex` as the resolved target and the current draft's bibliography and audit artifacts. Keep the current `project_contract` and `active_reference_context` visible throughout that staged review; they remain authoritative when judging whether the manuscript has surfaced decisive evidence honestly.
+For the detailed staging, artifact naming, round handling, `CLAIMS{round_suffix}.json` / `STAGE-*{round_suffix}.json` outputs, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, and recommendation guardrails, follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using `${PAPER_DIR}/main.tex` as the resolved target and the current draft's bibliography and audit artifacts. Keep the current `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; they remain authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes.
 
 **If the staged panel fails:** Do not silently waive the review. Note the failure and recommend running `/gpd:peer-review` directly after resolving the blocking issue.
 

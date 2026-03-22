@@ -254,7 +254,7 @@ gpd state update "Current Plan" "<value>"
 gpd result add --description "<result description>"
 
 # Advance / transition phase status
-gpd state advance-plan
+gpd state advance
 gpd phase complete <phase-number>
 ```
 

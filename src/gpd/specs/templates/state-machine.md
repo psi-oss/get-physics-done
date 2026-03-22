@@ -40,7 +40,7 @@ Disk status values (from `roadmap_analyze`): `no_directory`, `empty`, `discussed
 - **Not started → Researched**: `/gpd:plan-phase` with research enabled (skips discuss, creates RESEARCH.md directly)
 - **Researched → Planned**: `/gpd:plan-phase` completes (`{NN}-{plan}-PLAN.md` files created with wave frontmatter)
 - **Planned → Executing**: `/gpd:execute-phase` starts (STATE.md Status set to "Ready to execute", Current Plan set to 1)
-- **Executing → Phase complete**: `gpd state advance-plan` when `currentPlan >= totalPlans` (Status set to "Phase complete — ready for verification")
+- **Executing → Phase complete**: `gpd state advance` when `currentPlan >= totalPlans` (Status set to "Phase complete — ready for verification")
 - **Phase complete → Verified**: `/gpd:verify-work` completes (`{NN}-VERIFICATION.md` and/or `{NN}-VALIDATION.md` created)
 - **Verified → Complete**: `gpd phase complete {N}` (ROADMAP checkbox marked `[x]`, STATE.md advances to next phase)
 - **Executing → Blocked**: Dependency not met or failure encountered (blocker added via `gpd state add-blocker`)
@@ -77,7 +77,7 @@ Pending → In progress → Complete
 ```
 
 - **Owner file**: Plan frontmatter (`status` field), SUMMARY.md existence
-- **Pending → In progress**: `gpd state advance-plan` sets Current Plan to this plan's number; executor begins work
+- **Pending → In progress**: `gpd state advance` sets Current Plan to this plan's number; executor begins work
 - **In progress → Complete**: Executor creates matching `{NN}-{plan}-SUMMARY.md` with frontmatter (one-liner, key-files, methods, patterns, decisions, dependency-graph)
 - **In progress → Failed**: Executor encounters unrecoverable error; plan marked failed
 - **Failed → Pending**: `/gpd:revise-phase` creates replacement plan
@@ -117,9 +117,9 @@ Active → Audited → Complete → Archived
 | Current Phase | STATE.md (`**Current Phase:**`) | `gpd state update`, `gpd phase complete` |
 | Current Phase Name | STATE.md (`**Current Phase Name:**`) | `gpd state update`, `gpd phase complete` |
 | Total Phases | STATE.md (`**Total Phases:**`) | `gpd phase add/remove` |
-| Current Plan | STATE.md (`**Current Plan:**`) | `gpd state advance-plan` |
+| Current Plan | STATE.md (`**Current Plan:**`) | `gpd state advance` |
 | Total Plans in Phase | STATE.md (`**Total Plans in Phase:**`) | Workflow orchestrator |
-| Status | STATE.md (`**Status:**`) | `gpd state update`, `gpd state advance-plan`, `gpd phase complete` |
+| Status | STATE.md (`**Status:**`) | `gpd state update`, `gpd state advance`, `gpd phase complete` |
 | Progress | STATE.md (`**Progress:**`) | `gpd state update-progress` (counts SUMMARY.md files across all phases) |
 | Last Activity | STATE.md (`**Last Activity:**`) | Most state-modifying commands |
 | Paused At | STATE.md (`**Paused At:**`) | `/gpd:pause-work` (set), `/gpd:resume-work` (clear) |
@@ -147,9 +147,9 @@ Active → Audited → Complete → Archived
 | Phase: → Researched | `/gpd:research-phase` or `/gpd:plan-phase` | `{NN}-RESEARCH.md` created |
 | Phase: Researched → Planned | `/gpd:plan-phase` | `{NN}-{plan}-PLAN.md` files created, STATE.md updated |
 | Phase: Planned → Executing | `/gpd:execute-phase` | STATE.md (Status, Current Plan updated) |
-| Plan: advance within phase | `gpd state advance-plan` | STATE.md (Current Plan incremented, Status updated) |
+| Plan: advance within phase | `gpd state advance` | STATE.md (Current Plan incremented, Status updated) |
 | Plan: complete | Executor creates SUMMARY.md | `{NN}-{plan}-SUMMARY.md` created |
-| Phase: → Phase complete | `gpd state advance-plan` (last plan) | STATE.md (Status = "Phase complete — ready for verification") |
+| Phase: → Phase complete | `gpd state advance` (last plan) | STATE.md (Status = "Phase complete — ready for verification") |
 | Phase: → Verified | `/gpd:verify-work` | `{NN}-VERIFICATION.md` and/or `{NN}-VALIDATION.md` created |
 | Phase: Verified → Complete | `gpd phase complete {N}` | ROADMAP.md (checkbox), STATE.md (next phase), progress updated |
 | Milestone: → Audited | `/gpd:audit-milestone` | `{version}-MILESTONE-AUDIT.md` created |

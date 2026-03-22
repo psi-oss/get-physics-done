@@ -19,7 +19,7 @@ If the source PLAN contains a `contract:` block, then the derived `SUMMARY.md` o
 - `contract_results`
 - `comparison_verdicts` whenever a decisive comparison is required by the contract or decisive anchor context
 
-If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required, and `uncertainty_markers` must stay explicit in the frontmatter.
+If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required, and `uncertainty_markers` must stay explicit in the frontmatter. In contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty so the unresolved anchors stay visible before writing.
 
 ---
 
@@ -79,10 +79,10 @@ contract_results:
       status: rejected|violated|unresolved|not_applicable
       notes: "[why this proxy was or was not allowed]"
   uncertainty_markers:
-    weakest_anchors: []
-    unvalidated_assumptions: []
-    competing_explanations: []
-    disconfirming_observations: []
+    weakest_anchors: [anchor-1]
+    unvalidated_assumptions: [assumption-1]
+    competing_explanations: [alternative-1]
+    disconfirming_observations: [observation-1]
 ```
 
 Rules:

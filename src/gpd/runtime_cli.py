@@ -130,15 +130,20 @@ def _load_install_manifest(config_dir: Path) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _manifest_runtime(config_dir: Path) -> str | None:
-    """Return the persisted runtime for *config_dir* when present."""
-    runtime = _load_install_manifest(config_dir).get("runtime")
+def _manifest_runtime_status(config_dir: Path) -> tuple[str | None, bool]:
+    """Return the persisted runtime and whether the manifest declares one."""
+    manifest = _load_install_manifest(config_dir)
+    if "runtime" not in manifest:
+        return None, False
+
+    runtime = manifest.get("runtime")
     if not isinstance(runtime, str):
-        return None
+        return None, True
+
     normalized = runtime.strip()
     if not normalized:
-        return None
-    return normalize_runtime_name(normalized) or normalized
+        return None, True
+    return normalize_runtime_name(normalized) or normalized, True
 
 
 def _runtime_display_name(runtime: str) -> str:
@@ -333,6 +338,36 @@ def _runtime_mismatch_error_message(
     )
 
 
+def _malformed_manifest_runtime_error_message(
+    *,
+    runtime: str,
+    raw_config_dir: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+) -> str:
+    """Return repair guidance when the install manifest runtime field is malformed."""
+    repair_command = build_runtime_install_repair_command(
+        runtime,
+        install_scope=install_scope,
+        target_dir=config_dir,
+        explicit_target=_uses_effective_explicit_target(
+            runtime=runtime,
+            raw_config_dir=raw_config_dir,
+            config_dir=config_dir,
+            install_scope=install_scope,
+            explicit_target=explicit_target,
+            cli_cwd=cli_cwd,
+        ),
+    )
+    return (
+        f"GPD runtime bridge rejected malformed install manifest at `{config_dir}`.\n"
+        "The manifest `runtime` field must be a non-empty string.\n"
+        f"Repair or reinstall with: `{repair_command}`\n"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate the install contract, then dispatch into ``gpd.cli``."""
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -347,7 +382,19 @@ def main(argv: list[str] | None = None) -> int:
         explicit_target=bool(options.explicit_target),
         cli_cwd=cli_cwd,
     )
-    manifest_runtime = _manifest_runtime(config_dir)
+    manifest_runtime, manifest_has_runtime = _manifest_runtime_status(config_dir)
+    if manifest_has_runtime and manifest_runtime is None:
+        sys.stderr.write(
+            _malformed_manifest_runtime_error_message(
+                runtime=runtime,
+                raw_config_dir=options.config_dir,
+                config_dir=config_dir,
+                install_scope=options.install_scope,
+                explicit_target=bool(options.explicit_target),
+                cli_cwd=cli_cwd,
+            )
+        )
+        return 127
     if manifest_runtime is not None and manifest_runtime != runtime:
         sys.stderr.write(
             _runtime_mismatch_error_message(

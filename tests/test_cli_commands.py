@@ -344,6 +344,37 @@ class TestStateCommands:
         assert payload["warnings"] == []
         assert any("must_read_refs must be a list, not str" in error for error in payload["errors"])
 
+    def test_set_project_contract_raw_accepts_schema_valid_contract_with_approval_blockers(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["context_intake"] = {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+        contract["references"][0]["role"] = "background"
+        contract["references"][0]["must_surface"] = False
+        contract_path = gpd_project / "draft-contract.json"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["updated"] is True
+        assert any("references must include at least one must_surface=true anchor" in warning for warning in payload["warnings"])
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"]["references"][0]["role"] == "background"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Init commands
@@ -480,6 +511,32 @@ review_summary:
         assert payload["project_contract"] is not None
         assert payload["project_contract"]["references"][0]["must_surface"] is False
         assert payload["project_contract"]["references"][0]["role"] == "background"
+        assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
+        assert payload["project_contract_validation"]["valid"] is False
+        assert "project_contract_load_info" in payload
+        assert "project_contract_validation" in payload
+
+    def test_phase_op_surfaces_contract_load_and_validation_gates(self, gpd_project: Path) -> None:
+        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["context_intake"] = {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+        contract["references"][0]["role"] = "background"
+        contract["references"][0]["must_surface"] = False
+        state["project_contract"] = contract
+        (gpd_project / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = runner.invoke(app, ["--raw", "init", "phase-op"], catch_exceptions=False)
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+
+        assert payload["project_contract"] is not None
         assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert payload["project_contract_validation"]["valid"] is False
         assert "project_contract_load_info" in payload
@@ -1740,6 +1797,15 @@ class TestReviewValidationCommands:
             ),
             encoding="utf-8",
         )
+        (paper_dir / "PAPER-CONFIG.json").write_text(
+            json.dumps(
+                {
+                    "title": "Benchmark Paper",
+                    "journal": "jhep",
+                }
+            ),
+            encoding="utf-8",
+        )
         (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
             json.dumps(
                 {
@@ -1822,7 +1888,7 @@ class TestReviewValidationCommands:
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert payload["journal"] == "prd"
+        assert payload["journal"] == "jhep"
         assert payload["categories"]["verification"]["checks"]["contract_targets_verified"] > 0
         assert payload["categories"]["results"]["checks"]["comparison_with_prior_work_present"] > 0
 
@@ -1955,6 +2021,40 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is False
         assert any("canonical five specialist stage artifacts" in reason for reason in payload["reasons"])
+
+    def test_validate_referee_decision_command_rejects_extra_noncanonical_stage_artifact(self, gpd_project: Path) -> None:
+        _write_review_stage_artifacts(gpd_project)
+        decision_path = gpd_project / "referee-decision-extra-artifact.json"
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "manuscript_path": "paper/main.tex",
+                    "target_journal": "jhep",
+                    "final_recommendation": "major_revision",
+                    "stage_artifacts": [
+                        ".gpd/review/STAGE-reader.json",
+                        ".gpd/review/STAGE-literature.json",
+                        ".gpd/review/STAGE-math.json",
+                        ".gpd/review/STAGE-physics.json",
+                        ".gpd/review/STAGE-interestingness.json",
+                        ".gpd/review/STAGE-meta.json",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert any("rejects noncanonical stage artifacts" in reason for reason in payload["reasons"])
+        assert any("STAGE-meta.json" in reason for reason in payload["reasons"])
 
     def test_validate_referee_decision_command_blocks_overly_positive_prl_decision(self, gpd_project: Path) -> None:
         _write_review_stage_artifacts(gpd_project)

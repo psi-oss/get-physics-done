@@ -33,7 +33,7 @@ Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema sour
 Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit statuses like `not_attempted`, `missing`, `not_applicable`, or `unresolved` instead of silently omitting contract IDs.
 Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML and apply it literally rather than paraphrasing from memory.
 `plan_contract_ref` must be the canonical project-root-relative `.gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path. It must not be absolute, parent-traversing, or collapse to a bare sibling reference. For reference-backed decisive comparisons, `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` can satisfy the requirement; `comparison_kind: other` cannot.
-Keep `uncertainty_markers` explicit and user-visible in contract-backed outputs; do not let it be synthesized by hidden defaults.
+Keep `uncertainty_markers` explicit and user-visible in contract-backed outputs; do not let it be synthesized by hidden defaults. In strict contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty.
 For `contract_results.references`, keep the action ledger consistent: `completed` needs non-empty `completed_actions`, `missing` needs non-empty `missing_actions`, `not_applicable` keeps both lists empty, and the two lists must not overlap.
 `required_actions`, `completed_actions`, and `missing_actions` all use the same validator-enforced action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
 When evidence is about an explicit proxy guardrail, bind it through `forbidden_proxy_id` instead of inventing a new subject kind.
@@ -146,10 +146,10 @@ contract_results (required for contract-backed plans):
       status: rejected|violated|unresolved|not_applicable
       notes: "[why this proxy was or was not allowed]"
   uncertainty_markers:
-    weakest_anchors: []
-    unvalidated_assumptions: []
-    competing_explanations: []
-    disconfirming_observations: []
+    weakest_anchors: [anchor-1]
+    unvalidated_assumptions: [assumption-1]
+    competing_explanations: [alternative-1]
+    disconfirming_observations: [observation-1]
 
 # Decisive comparison verdict ledger
 # Required whenever a contract-backed claim / deliverable / acceptance test depends on a decisive comparison.

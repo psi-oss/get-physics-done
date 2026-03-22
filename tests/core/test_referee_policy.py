@@ -213,6 +213,29 @@ def test_strict_review_rejects_noncanonical_stage_artifact_filenames() -> None:
     assert any("canonical five specialist stage artifacts" in reason for reason in report.reasons)
 
 
+def test_strict_review_rejects_canonical_five_plus_invalid_extra_stage_artifact() -> None:
+    report = evaluate_referee_decision(
+        RefereeDecisionInput(
+            manuscript_path="paper/main.tex",
+            target_journal="jhep",
+            final_recommendation=ReviewRecommendation.major_revision,
+            stage_artifacts=[
+                ".gpd/review/STAGE-reader.json",
+                ".gpd/review/STAGE-literature.json",
+                ".gpd/review/STAGE-math.json",
+                ".gpd/review/STAGE-physics.json",
+                ".gpd/review/STAGE-interestingness.json",
+                ".gpd/review/STAGE-meta.json",
+            ],
+        ),
+        strict=True,
+    )
+
+    assert report.valid is False
+    assert any("rejects noncanonical stage artifacts" in reason for reason in report.reasons)
+    assert any("STAGE-meta.json" in reason for reason in report.reasons)
+
+
 def test_strict_review_rejects_mixed_stage_round_suffixes() -> None:
     report = evaluate_referee_decision(
         RefereeDecisionInput(

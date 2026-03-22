@@ -1132,6 +1132,7 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     verify_command = (COMMANDS_DIR / "verify-work.md").read_text(encoding="utf-8")
     write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    respond_to_referees = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     sync_state = (WORKFLOWS_DIR / "sync-state.md").read_text(encoding="utf-8")
     review_reader = (AGENTS_DIR / "gpd-review-reader.md").read_text(encoding="utf-8")
     review_literature = (AGENTS_DIR / "gpd-review-literature.md").read_text(encoding="utf-8")
@@ -1147,6 +1148,12 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "project_contract_validation" in peer_review
     assert "project_contract_load_info" in peer_review
     assert "Treat `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` as authoritative contract-backed evidence context" in peer_review
+    assert "project_contract_load_info" in write_paper
+    assert "project_contract_validation" in write_paper
+    assert "authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes" in write_paper
+    assert "project_contract_load_info" in respond_to_referees
+    assert "project_contract_validation" in respond_to_referees
+    assert "authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes" in respond_to_referees
     assert "templates/paper/review-ledger-schema.md" in peer_review
     assert "templates/paper/referee-decision-schema.md" in peer_review
     assert "references/publication/peer-review-panel.md" in peer_review
@@ -1155,7 +1162,11 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "Canonical schema for `paper/reproducibility-manifest.json`:" in write_paper
     assert "Canonical reconciliation contract:" in sync_state
     assert "state-json-schema.md` itself" in sync_state
-    assert "Keep the current `project_contract` and `active_reference_context` visible throughout that staged review" in write_paper
+    assert (
+        "Keep the current `project_contract`, `project_contract_load_info`, `project_contract_validation`, "
+        "and `active_reference_context` visible throughout the staged review"
+        in write_paper
+    )
     assert "peer-review-panel.md` directly" in review_reader
     assert "peer-review-panel.md` directly" in review_literature
     assert "Required schema for `STAGE-math.json` (`StageReviewReport`, mirroring the staged-review contract):" in review_math

@@ -68,6 +68,9 @@ def test_summary_template_surfaces_plan_contract_ref_rule_for_contract_ledgers()
     assert "Choose the depth explicitly" in summary_template
     assert "default: full" not in summary_template
     assert "Keep `uncertainty_markers` explicit and user-visible" in summary_template
+    assert "uncertainty_markers:" in summary_template
+    assert "weakest_anchors: [anchor-1]" in summary_template
+    assert "disconfirming_observations: [observation-1]" in summary_template
     assert "For contract-backed summaries, `contract_results` is required" in summary_template
     assert "It must not be absolute, parent-traversing, or collapse to a bare sibling reference." in summary_template
     assert "`completed` needs non-empty `completed_actions`" in summary_template
@@ -82,6 +85,18 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
     assert "every claim, deliverable, and acceptance_test entry in `contract_results` is `passed`" in verification_template
     assert "If any contract target is `partial`, `failed`, `blocked`, `missing`, or `unresolved`, use `gaps_found`, `expert_needed`, or `human_needed` instead of `passed`." in verification_template
     assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML" in verification_template
+    assert "uncertainty_markers:" in verification_template
+    assert "weakest_anchors: [anchor-1]" in verification_template
+    assert "disconfirming_observations: [observation-1]" in verification_template
+
+
+def test_research_verification_template_surfaces_non_empty_uncertainty_markers() -> None:
+    research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
+
+    assert "Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract." in research_verification
+    assert "uncertainty_markers:" in research_verification
+    assert "weakest_anchors: [anchor-1]" in research_verification
+    assert "disconfirming_observations: [observation-1]" in research_verification
 
 
 def test_write_paper_prompt_discovers_plan_scoped_and_legacy_phase_summaries() -> None:
@@ -102,6 +117,9 @@ def test_comparison_templates_match_full_comparison_verdict_subject_kind_enum() 
     assert expected_kind in internal
     assert expected_kind in experimental
     assert expected_kind in contract_results
+    assert "uncertainty_markers:" in contract_results
+    assert "weakest_anchors: [anchor-1]" in contract_results
+    assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Only `subject_role: decisive` closes a decisive requirement" in internal
     assert "Only `subject_role: decisive` closes a decisive requirement" in experimental
     assert "Must be the canonical project-root-relative `.gpd/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
@@ -119,6 +137,9 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "reference-backed decisive comparison is required" in contract_results
     assert "acceptance test with `kind: benchmark` or `kind: cross_method`" in contract_results
     assert "`contract_results` and every nested entry use a closed schema" in contract_results
+    assert "uncertainty_markers:" in contract_results
+    assert "weakest_anchors: [anchor-1]" in contract_results
+    assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Invented keys such as `check_id` fail validation." in contract_results
     assert "Allowed keys are exactly `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verification_template
 
@@ -126,12 +147,18 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
 def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary() -> None:
     summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
     contract_results = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
+    state_schema = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
 
     assert "forbidden_proxy_id" in summary_template
     assert "forbidden_proxy_id" in contract_results
     assert "action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`" in summary_template
     assert "closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`" in contract_results
     assert "completed_actions: [read, use, compare, cite, avoid]" in summary_template
+    assert "uncertainty_markers:" in summary_template
+    assert "weakest_anchors: [anchor-1]" in summary_template
+    assert "disconfirming_observations: [observation-1]" in summary_template
+    assert "uncertainty_markers.weakest_anchors" in state_schema
+    assert "uncertainty_markers.disconfirming_observations" in state_schema
 
 
 def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round_suffix_rules() -> None:

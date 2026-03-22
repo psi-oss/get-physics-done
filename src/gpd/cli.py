@@ -682,7 +682,7 @@ def state_set_project_contract_cmd(
 
     contract_data = _load_json_document(source)
 
-    validation = validate_project_contract(contract_data, mode="approved")
+    validation = validate_project_contract(contract_data, mode="draft")
     if not validation.valid:
         _output(validation)
         raise typer.Exit(code=1)

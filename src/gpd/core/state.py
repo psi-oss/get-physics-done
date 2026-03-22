@@ -1088,26 +1088,22 @@ def _normalize_project_contract_section(
 
     list_shape_drift_errors = _collect_list_shape_drift_errors(value)
     normalized_contract, errors = salvage_project_contract(value)
+    combined_errors = list(dict.fromkeys([*errors, *list_shape_drift_errors]))
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
-    integrity_issues.extend(
-        _integrity_issue_from_contract_error(error)
-        for error in list_shape_drift_errors
-        if error not in errors
-    )
-    if not errors:
+    if not combined_errors:
         return normalized_contract_dump
 
     # Run contract salvage before any direct Pydantic acceptance so coercive
     # scalar drift is surfaced as an integrity issue instead of silently
     # canonicalized by field validators or bool/int coercion.
-    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in errors)
-    if _has_authoritative_scalar_schema_findings(errors):
+    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
+    if _has_authoritative_scalar_schema_findings(combined_errors):
         integrity_issues.append(
             'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
         )
         return None
     _schema_warnings, schema_errors = _split_project_contract_schema_findings(
-        errors,
+        combined_errors,
         allow_singleton_defaults=allow_project_contract_salvage,
     )
     if schema_errors:
@@ -1218,10 +1214,10 @@ def ensure_state_schema(raw: dict | None) -> dict:
 
 
 def _normalize_state_for_persistence(raw: dict | None) -> dict:
-    """Normalize state for writes using standard-mode project-contract salvage."""
+    """Normalize state for writes without silently salvaging malformed contracts."""
     normalized, _issues = _normalize_state_schema(
         raw,
-        allow_project_contract_salvage=True,
+        allow_project_contract_salvage=False,
         retain_blocking_project_contract_errors=False,
     )
     return normalized
@@ -2198,15 +2194,23 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         message = first_error.get("msg", "validation failed")
         return StateUpdateResult(updated=False, reason=f"Invalid project contract at {location}: {message}")
 
-    validation = validate_project_contract(parsed, mode="approved")
-    if not validation.valid:
+    draft_validation = validate_project_contract(parsed, mode="draft")
+    if not draft_validation.valid:
         return StateUpdateResult(
             updated=False,
-            reason="Project contract failed scoping validation: " + "; ".join(validation.errors),
+            reason="Project contract failed scoping validation: " + "; ".join(draft_validation.errors),
         )
-    for warning in validation.warnings:
+    for warning in draft_validation.warnings:
         if warning not in warning_messages:
             warning_messages.append(warning)
+
+    approval_validation = validate_project_contract(parsed, mode="approved")
+    for warning in approval_validation.warnings:
+        if warning not in warning_messages:
+            warning_messages.append(warning)
+    for error in approval_validation.errors:
+        if error not in warning_messages:
+            warning_messages.append(error)
 
     state_obj = load_state_json(cwd) or default_state_dict()
     contract_payload = parsed.model_dump()

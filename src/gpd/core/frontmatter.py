@@ -35,6 +35,8 @@ from gpd.core.contract_validation import (
     _collect_list_shape_drift_errors,
     _format_schema_error,
     _sanitize_contract_scalars,
+    _split_project_contract_schema_findings,
+    salvage_project_contract,
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function, resolve_project_root
@@ -250,8 +252,15 @@ def _validate_contract_mapping(
     if scalar_errors or list_shape_drift_errors:
         return _PlanContractResolution(errors=list(dict.fromkeys([*scalar_errors, *list_shape_drift_errors])))
 
+    normalized_contract, schema_findings = salvage_project_contract(sanitized_contract_data)
+    schema_warnings, schema_errors = _split_project_contract_schema_findings(
+        schema_findings,
+        allow_singleton_defaults=False,
+    )
+    if schema_errors:
+        return _PlanContractResolution(errors=list(dict.fromkeys(schema_errors)))
     try:
-        contract = ResearchContract.model_validate(sanitized_contract_data)
+        contract = normalized_contract or ResearchContract.model_validate(sanitized_contract_data)
     except PydanticValidationError as exc:
         return _PlanContractResolution(errors=_format_pydantic_validation_errors(exc))
 

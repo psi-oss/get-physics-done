@@ -91,7 +91,6 @@ def _write_recoverable_project_contract_state(tmp_path: Path) -> None:
     state = default_state_dict()
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
-    contract["references"][0]["aliases"] = "not-a-list"
     state["project_contract"] = contract
     (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
@@ -1398,7 +1397,6 @@ class TestInitProgress:
         assert ctx["project_contract"] is not None
         assert ctx["project_contract"]["claims"][0]["id"] == "claim-benchmark"
         assert "notes" not in ctx["project_contract"]["claims"][0]
-        assert ctx["project_contract"]["references"][0]["aliases"] == ["not-a-list"]
         assert "Recover known limiting behavior" in ctx["active_reference_context"]
 
     def test_progress_matches_state_loader_for_recoverably_normalized_project_contract(
@@ -1414,8 +1412,24 @@ class TestInitProgress:
 
         assert loaded.state["project_contract"] == ctx["project_contract"]
         assert loaded.state["project_contract"]["claims"][0]["id"] == "claim-benchmark"
-        assert loaded.state["project_contract"]["references"][0]["aliases"] == ["not-a-list"]
         assert "notes" not in loaded.state["project_contract"]["claims"][0]
+
+    def test_load_project_contract_rejects_list_shape_drift_from_raw_state(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+
+        from gpd.core.state import default_state_dict
+
+        state = default_state_dict()
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["references"][0]["aliases"] = "not-a-list"
+        state["project_contract"] = contract
+        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        loaded, load_info = _load_project_contract(tmp_path)
+
+        assert loaded is None
+        assert load_info["status"] == "blocked_schema"
+        assert any("references.0.aliases must be a list, not str" in error for error in load_info["errors"])
 
     def test_load_project_contract_fallback_salvages_nested_metadata_must_surface(
         self,

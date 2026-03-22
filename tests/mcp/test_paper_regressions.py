@@ -117,7 +117,7 @@ def test_artifact_manifest_models_reject_extra_fields_and_invalid_sha256() -> No
             {
                 "version": 1,
                 "paper_title": "Strict Manifest",
-                "journal": "prd",
+                "journal": "prl",
                 "created_at": "2026-03-17T00:00:00+00:00",
                 "artifacts": [
                     {
@@ -155,7 +155,7 @@ def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> No
         authors=[Author(name="Test Author", affiliation="Test Univ")],
         abstract="",
         sections=[Section(title="Intro", content="Content")],
-        journal="prd",
+        journal="jhep",
     )
 
     manifest = build_artifact_manifest(

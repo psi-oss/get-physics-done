@@ -156,8 +156,6 @@ def config_dir_has_complete_install(config_dir: Path) -> bool:
             return get_adapter(runtime).has_complete_install(config_dir)
         except KeyError:
             return False
-    if _has_generic_complete_install(config_dir):
-        return True
     if "runtime" in manifest:
         return False
     return _has_generic_complete_install(config_dir)

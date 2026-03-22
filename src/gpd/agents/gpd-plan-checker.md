@@ -852,12 +852,12 @@ ls "$phase_dir"/../PROJECT.md 2>/dev/null
 
 ## Step 2: Load All Plans
 
-Use gpd to validate plan structure:
+Use `gpd verify plan` to validate plan structure:
 
 ```bash
 for plan in "$PHASE_DIR"/*-PLAN.md; do
   echo "=== $plan ==="
-  PLAN_STRUCTURE=$(gpd verify plan-structure "$plan")
+  PLAN_STRUCTURE=$(gpd verify plan "$plan")
   echo "$PLAN_STRUCTURE"
 done
 ```
@@ -938,10 +938,10 @@ For each requirement: find covering task(s), verify method is specific, flag gap
 
 ## Step 5: Validate Task Structure
 
-Use gpd plan-structure verification (already run in Step 2):
+Use `gpd verify plan` (already run in Step 2):
 
 ```bash
-PLAN_STRUCTURE=$(gpd verify plan-structure "$PLAN_PATH")
+PLAN_STRUCTURE=$(gpd verify plan "$PLAN_PATH")
 ```
 
 The `tasks` array in the result shows each task's completeness:

@@ -270,8 +270,8 @@ These phrases are valid for preserving uncertainty when they point to a genuinel
 | `current_phase` | `string \| null` | `gpd phase complete`, `state update` | All agents (via init) |
 | `current_phase_name` | `string \| null` | `gpd phase complete`, `state update` | All agents (via init) |
 | `total_phases` | `integer \| null` | `gpd phase add/remove` | Progress display |
-| `current_plan` | `string \| integer \| null` | `gpd state advance-plan` | Executor, orchestrators |
-| `total_plans_in_phase` | `integer \| null` | Plan-phase orchestrator | Executor, advance-plan |
+| `current_plan` | `string \| integer \| null` | `gpd state advance` | Executor, orchestrators |
+| `total_plans_in_phase` | `integer \| null` | Plan-phase orchestrator | Executor, state advance |
 | `status` | `string \| null` | Multiple commands | All agents |
 | `last_activity` | `string \| null` | Most state-modifying commands | Session display |
 | `last_activity_desc` | `string \| null` | Executor, workflows | Session display |
@@ -506,11 +506,11 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 
 | Agent | Reads | Writes (via gpd CLI) |
 |-------|-------|----------------------|
-| **gpd-executor** | `convention_lock`, `position`, `intermediate_results` | `state advance-plan`, `state update`, `result add`, `convention set` |
+| **gpd-executor** | `convention_lock`, `position`, `intermediate_results` | `state advance`, `state update`, `result add`, `convention set` |
 | **gpd-planner** | `convention_lock`, `position`, `decisions`, `blockers` | (reads only — orchestrator writes) |
 | **gpd-verifier** | `convention_lock`, `position` | (reads only) |
 | **gpd-debugger** | full state | `state add-blocker` |
 | **gpd-consistency-checker** | `convention_lock`, `intermediate_results` | (reads only) |
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
-| **Orchestrators** | `position`, `session` | `state update`, `state patch`, `state advance-plan`, `state record-session`, `state record-metric` |
+| **Orchestrators** | `position`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |

@@ -2672,7 +2672,7 @@ Required plan frontmatter fields:
 Also validate plan structure:
 
 ```bash
-STRUCTURE=$(gpd verify plan-structure "$PLAN_PATH")
+STRUCTURE=$(gpd verify plan "$PLAN_PATH")
 ```
 
 Returns JSON: `{ valid, errors, warnings, task_count, tasks }`

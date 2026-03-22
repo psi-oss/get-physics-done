@@ -166,7 +166,7 @@ After SUMMARY.md, update STATE.md using gpd CLI:
 
 ```bash
 # Advance plan counter (handles edge cases automatically)
-gpd state advance-plan
+gpd state advance
 
 # Recalculate progress bar from disk state
 gpd state update-progress
@@ -195,7 +195,7 @@ gpd state record-session \
 
 **State command behaviors:**
 
-- `state advance-plan`: Increments Current Plan, detects last-plan edge case, sets status
+- `state advance`: Increments Current Plan, detects last-plan edge case, sets status
 - `state update-progress`: Recalculates progress bar from SUMMARY.md counts on disk
 - `state record-metric`: Appends to Performance Metrics table
 - `state add-decision`: Adds to Decisions section, removes placeholders
@@ -208,15 +208,15 @@ gpd CLI commands can fail. Handle errors explicitly:
 
 ```bash
 # CORRECT — check exit code and handle failure
-if ! gpd state advance-plan; then
-  echo "ERROR: state advance-plan failed. Check STATE.md format."
+if ! gpd state advance; then
+  echo "ERROR: state advance failed. Check STATE.md format."
   # Read STATE.md to diagnose
   cat .gpd/STATE.md
   # Retry once after diagnosis, or flag for human review
 fi
 
 # WRONG — ignoring exit codes
-gpd state advance-plan  # might silently fail
+gpd state advance  # might silently fail
 ```
 
 **Common gpd CLI failure modes:**

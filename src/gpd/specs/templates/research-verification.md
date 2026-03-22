@@ -8,6 +8,7 @@ Template for `.gpd/phases/XX-name/{phase}-VERIFICATION.md` -- persistent researc
 
 A conversational walkthrough of research results, checking derivation logic, physical intuition, edge cases, and overall soundness.
 Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. This template adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow) on top of that same verification ledger.
+The contract-backed frontmatter example below keeps `uncertainty_markers` explicit and non-empty so the strict contract-results validator sees unresolved anchors before the report is written.
 
 ---
 
@@ -29,6 +30,11 @@ contract_results:
   acceptance_tests: {}
   references: {}
   forbidden_proxies: {}
+  uncertainty_markers:
+    weakest_anchors: [anchor-1]
+    unvalidated_assumptions: [assumption-1]
+    competing_explanations: [alternative-1]
+    disconfirming_observations: [observation-1]
 comparison_verdicts: []
 suggested_contract_checks: []
 source: [list of SUMMARY.md files validated]

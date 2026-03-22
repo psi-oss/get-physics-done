@@ -18,10 +18,9 @@ PROMPT_ROOTS = (
 )
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
 
-INIT_COMMAND_RE = re.compile(r"@init_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
-INIT_USAGE_RE = re.compile(r"\bgpd init ([a-z0-9-]+)\b")
-VALIDATE_COMMAND_RE = re.compile(r"@validate_app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
-VALIDATE_USAGE_RE = re.compile(r"\bgpd(?:\s+--raw)?\s+validate\s+([a-z0-9-]+)\b")
+ROOT_COMMAND_RE = re.compile(r"@app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
+TYPER_GROUP_RE = re.compile(r"app\.add_typer\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*name=\"([a-z0-9-]+)\"", re.MULTILINE)
+GROUP_COMMAND_RE = re.compile(r"@{group}\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
 SUMMARY_EXTRACT_FIELDS_RE = re.compile(r"\bgpd\s+summary-extract\b[^\n`]*\s--fields\b")
@@ -34,40 +33,84 @@ def _iter_prompt_sources() -> list[Path]:
     return files
 
 
-def _declared_init_subcommands() -> set[str]:
+def _declared_command_surfaces() -> set[str]:
     content = CLI_PATH.read_text(encoding="utf-8")
-    return set(INIT_COMMAND_RE.findall(content))
+    surfaces = set(ROOT_COMMAND_RE.findall(content))
+    surfaces.update(_declared_group_surfaces(content))
+    return surfaces
 
 
-def _declared_validate_subcommands() -> set[str]:
+def _declared_group_surfaces(content: str) -> set[str]:
+    groups = dict(TYPER_GROUP_RE.findall(content))
+    surfaces: set[str] = set(groups.values())
+    for group_var, group_name in groups.items():
+        command_re = re.compile(GROUP_COMMAND_RE.pattern.format(group=re.escape(group_var)), re.MULTILINE)
+        for subcommand in command_re.findall(content):
+            surfaces.add(f"{group_name} {subcommand}")
+    return surfaces
+
+
+def _declared_root_commands(content: str) -> set[str]:
+    return set(ROOT_COMMAND_RE.findall(content))
+
+
+def _declared_groups(content: str) -> dict[str, set[str]]:
+    groups = dict(TYPER_GROUP_RE.findall(content))
+    result: dict[str, set[str]] = {}
+    for group_var, group_name in groups.items():
+        command_re = re.compile(GROUP_COMMAND_RE.pattern.format(group=re.escape(group_var)), re.MULTILINE)
+        result[group_name] = set(command_re.findall(content))
+    return result
+
+
+def _iter_markdown_code_samples(content: str) -> list[str]:
+    samples: list[str] = []
+    fenced_pattern = re.compile(r"```(?:[^\n`]*)\n(.*?)```", re.DOTALL)
+    for match in fenced_pattern.finditer(content):
+        samples.append(match.group(1))
+    inline_source = fenced_pattern.sub("\n", content)
+    samples.extend(re.findall(r"`([^`]+)`", inline_source))
+    return samples
+
+
+def _extract_gpd_command_surfaces(
+    content: str,
+    *,
+    root_commands: set[str],
+    group_commands: dict[str, set[str]],
+) -> list[str]:
+    command_roots = root_commands | set(group_commands)
+    if not command_roots:
+        return []
+
+    root_pattern = "|".join(sorted((re.escape(root) for root in command_roots), key=len, reverse=True))
+    prefix_pattern = r"(?:\s+(?:--raw|--cwd(?:=[^\s`]+)?|--cwd\s+[^\s`]+))*"
+    pattern = re.compile(rf"\bgpd{prefix_pattern}\s+({root_pattern})(?:\s+([a-z0-9-]+))?")
+    surfaces: list[str] = []
+    for sample in _iter_markdown_code_samples(content):
+        for match in pattern.finditer(sample):
+            command = match.group(1)
+            subcommand = match.group(2)
+            if command in root_commands and command not in group_commands:
+                surfaces.append(command)
+                continue
+            if command in group_commands:
+                surfaces.append(command if subcommand is None else f"{command} {subcommand}")
+    return surfaces
+
+
+def test_prompt_sources_use_only_real_gpd_command_surfaces() -> None:
+    allowed = _declared_command_surfaces()
     content = CLI_PATH.read_text(encoding="utf-8")
-    return set(VALIDATE_COMMAND_RE.findall(content))
-
-
-def test_prompt_sources_use_only_real_gpd_init_subcommands() -> None:
-    allowed = _declared_init_subcommands()
+    root_commands = _declared_root_commands(content)
+    group_commands = _declared_groups(content)
     invalid: list[str] = []
 
     for path in _iter_prompt_sources():
         content = path.read_text(encoding="utf-8")
-        for match in INIT_USAGE_RE.finditer(content):
-            subcommand = match.group(1)
-            if subcommand not in allowed:
-                invalid.append(f"{path.relative_to(REPO_ROOT)} -> {subcommand}")
-
-    assert invalid == []
-
-
-def test_prompt_sources_use_only_real_gpd_validate_subcommands() -> None:
-    allowed = _declared_validate_subcommands()
-    invalid: list[str] = []
-
-    for path in _iter_prompt_sources():
-        content = path.read_text(encoding="utf-8")
-        for match in VALIDATE_USAGE_RE.finditer(content):
-            subcommand = match.group(1)
-            if subcommand not in allowed:
-                invalid.append(f"{path.relative_to(REPO_ROOT)} -> {subcommand}")
+        for surface in _extract_gpd_command_surfaces(content, root_commands=root_commands, group_commands=group_commands):
+            if surface not in allowed:
+                invalid.append(f"{path.relative_to(REPO_ROOT)} -> {surface}")
 
     assert invalid == []
 
@@ -152,6 +195,8 @@ def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() 
 
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in schema
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in schema
+    assert "gpd state advance" in schema
+    assert "gpd state advance-plan" not in schema
     assert "Preferred write path: `gpd state set-project-contract <path-to-contract.json>`." not in schema
 
 

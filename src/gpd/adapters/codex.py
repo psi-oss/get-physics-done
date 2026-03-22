@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import shutil
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -863,18 +864,77 @@ def _copy_commands_as_skills(
     if not src_dir.exists():
         return
 
-    # Remove old gpd-* skill directories before copying (clean slate)
-    if skills_dir.exists():
-        for entry in list(skills_dir.iterdir()):
-            if entry.is_dir() and entry.name.startswith(f"{prefix}-"):
-                shutil.rmtree(entry)
-    else:
-        skills_dir.mkdir(parents=True, exist_ok=True)
+    skills_parent = skills_dir.parent
+    skills_parent.mkdir(parents=True, exist_ok=True)
 
+    staging_root = Path(tempfile.mkdtemp(prefix=f".{skills_dir.name}.gpd-", dir=str(skills_parent)))
+    staged_skills_dir = staging_root / skills_dir.name
+    staged_skills_dir.mkdir(parents=True, exist_ok=True)
+
+    live_backup: Path | None = None
+    try:
+        if skills_dir.exists():
+            for entry in sorted(skills_dir.iterdir()):
+                if entry.name.startswith(f"{prefix}-"):
+                    continue
+                _copy_preserved_skill_entry(entry, staged_skills_dir / entry.name)
+
+        _render_commands_as_skills(
+            src_dir,
+            staged_skills_dir,
+            prefix,
+            path_prefix,
+            gpd_src_root,
+            install_scope,
+            launcher=launcher,
+        )
+
+        if skills_dir.exists():
+            live_backup = staging_root / f"{skills_dir.name}.backup"
+            skills_dir.rename(live_backup)
+        staged_skills_dir.rename(skills_dir)
+    except Exception:
+        if live_backup is not None and live_backup.exists() and not skills_dir.exists():
+            live_backup.rename(skills_dir)
+        raise
+    finally:
+        if live_backup is not None and live_backup.exists():
+            try:
+                shutil.rmtree(live_backup)
+            except OSError:
+                logger.warning("Failed to remove backup skills dir %s", live_backup)
+        if staging_root.exists():
+            try:
+                shutil.rmtree(staging_root)
+            except OSError:
+                logger.warning("Failed to clean staging skills dir %s", staging_root)
+
+
+def _copy_preserved_skill_entry(src: Path, dest: Path) -> None:
+    """Copy a non-GPD skill entry into a staged skills directory."""
+    if src.is_symlink():
+        dest.symlink_to(src.readlink())
+        return
+    if src.is_dir():
+        shutil.copytree(src, dest, symlinks=True)
+        return
+    shutil.copy2(src, dest)
+
+
+def _render_commands_as_skills(
+    src_dir: Path,
+    skills_dir: Path,
+    prefix: str,
+    path_prefix: str,
+    gpd_src_root: Path | None = None,
+    install_scope: str | None = None,
+    *,
+    launcher: str,
+) -> None:
+    """Render command markdown into a skills directory without mutating the live tree."""
     for entry in sorted(src_dir.iterdir()):
         if entry.is_dir():
-            # Recurse into subdirectories, adding to prefix
-            _copy_commands_as_skills(
+            _render_commands_as_skills(
                 entry,
                 skills_dir,
                 f"{prefix}-{entry.name}",

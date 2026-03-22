@@ -191,10 +191,10 @@ def test_installed_runtime_recovers_from_invalid_manifest_runtime_using_file_pre
     assert installed_runtime(target_dir) == runtime
 
 
-def test_config_dir_has_complete_install_accepts_generic_markers_even_with_invalid_manifest_runtime(
+def test_config_dir_has_complete_install_rejects_generic_markers_when_manifest_runtime_is_invalid(
     tmp_path: Path,
 ) -> None:
-    from gpd.hooks.install_metadata import config_dir_has_complete_install
+    from gpd.hooks.install_metadata import config_dir_has_complete_install, installed_update_command
 
     config_dir = tmp_path / "custom-runtime-dir"
     config_dir.mkdir()
@@ -204,7 +204,8 @@ def test_config_dir_has_complete_install_accepts_generic_markers_even_with_inval
     )
     (config_dir / "get-physics-done").mkdir()
 
-    assert config_dir_has_complete_install(config_dir) is True
+    assert config_dir_has_complete_install(config_dir) is False
+    assert installed_update_command(config_dir) is None
 
 
 def test_installed_update_command_ignores_process_cwd_for_nested_default_local_install(tmp_path: Path) -> None:

@@ -54,6 +54,7 @@ Only `final_recommendation` is strictly required by the runtime model. Most othe
 - `stage_artifacts` should list every specialist stage artifact used by the final referee. In strict mode, fewer than five stage artifacts fails validation.
 - In strict mode, specialist stage artifact filenames must match `STAGE-(reader|literature|math|physics|interestingness)(-R<round>)?.json`.
 - In strict mode, all specialist stage artifacts must use the same optional `-R<round>` suffix; do not mix unsuffixed and suffixed stage names in one decision.
+- In strict mode, any extra noncanonical `stage_artifacts` entry fails validation instead of being ignored.
 - When the validator has project-root access, every listed `stage_artifacts` path must exist.
 - `blocking_issue_ids` should be a subset of `REVIEW-LEDGER.json` `issues[].issue_id`.
 - When you validate with `--ledger`, every unresolved blocking issue in the ledger must appear in `blocking_issue_ids`.

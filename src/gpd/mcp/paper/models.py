@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -293,6 +293,15 @@ class PaperConfig(BaseModel):
     journal: Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"] = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
     attribution_footer: str = "Generated with Get Physics Done"
+
+
+SUPPORTED_PAPER_JOURNALS = frozenset(get_args(PaperConfig.model_fields["journal"].annotation))
+
+
+def is_supported_paper_journal(journal: object) -> bool:
+    """Return whether *journal* is one of the builder's supported journal keys."""
+
+    return isinstance(journal, str) and journal in SUPPORTED_PAPER_JOURNALS
 
 
 class PaperOutput(BaseModel):
