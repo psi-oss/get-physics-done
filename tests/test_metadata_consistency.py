@@ -95,7 +95,9 @@ def test_python_floor_is_consistent_across_install_surfaces() -> None:
     installer = _read("bin/install.js")
 
     assert "Python 3.11+" in readme
-    assert "minor >= 11" in installer
+    assert "MIN_SUPPORTED_PYTHON_MINOR = 11" in installer
+    assert "PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, 11]" in installer
+    assert "preferredPythonCommands" in installer
     assert "Python 3.11+ is required" in installer
 
 

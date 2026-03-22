@@ -34,6 +34,9 @@ const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
 const INSTALL_CANDIDATE_PROBE_REDIRECT_LIMIT = 5;
+const MIN_SUPPORTED_PYTHON_MAJOR = 3;
+const MIN_SUPPORTED_PYTHON_MINOR = 11;
+const PREFERRED_VERSIONED_PYTHON_MINORS = [13, 12, 11];
 
 const red = "\x1b[31m";
 const green = "\x1b[32m";
@@ -129,13 +132,28 @@ function pythonVersionInfo(python) {
   };
 }
 
+function isSupportedPython(info) {
+  if (!info) {
+    return false;
+  }
+  return info.major > MIN_SUPPORTED_PYTHON_MAJOR
+    || (info.major === MIN_SUPPORTED_PYTHON_MAJOR && info.minor >= MIN_SUPPORTED_PYTHON_MINOR);
+}
+
+function preferredPythonCommands() {
+  return [
+    ...PREFERRED_VERSIONED_PYTHON_MINORS.map((minor) => `python3.${minor}`),
+    "python3",
+    "python",
+  ];
+}
+
 function checkPython() {
-  for (const cmd of ["python3", "python"]) {
+  // Prefer explicit, known-good minor versions before generic aliases so a
+  // too-new `python3` does not mask an installed compatible interpreter.
+  for (const cmd of preferredPythonCommands()) {
     const info = pythonVersionInfo(cmd);
-    if (!info) {
-      continue;
-    }
-    if (info.major > 3 || (info.major === 3 && info.minor >= 11)) {
+    if (isSupportedPython(info)) {
       return info;
     }
   }
@@ -551,9 +569,16 @@ function ensureManagedEnvironment(basePython) {
   let shouldCreate = !existingManaged;
   if (
     existingManaged
-    && (existingManaged.major < 3 || (existingManaged.major === 3 && existingManaged.minor < 11))
+    && (
+      !isSupportedPython(existingManaged)
+      || existingManaged.major > basePython.major
+      || (existingManaged.major === basePython.major && existingManaged.minor > basePython.minor)
+    )
   ) {
-    log(`Recreating managed environment at ${venvDir} (found ${existingManaged.text}).`);
+    log(
+      `Recreating managed environment at ${venvDir} `
+      + `(found ${existingManaged.text}; switching to ${basePython.text}).`
+    );
     fs.rmSync(venvDir, { recursive: true, force: true });
     shouldCreate = true;
   }

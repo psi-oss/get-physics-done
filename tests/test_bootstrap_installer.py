@@ -65,7 +65,7 @@ def test_version_consistency():
     assert PACKAGE_VERSION == PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
 
 
-def _write_fake_python(script_path: Path, log_path: Path) -> None:
+def _write_fake_python(script_path: Path, log_path: Path, version_text: str = "Python 3.13.2") -> None:
     script = f"""#!{sys.executable}
 import json
 import os
@@ -134,7 +134,7 @@ def write_managed_python(target: pathlib.Path) -> None:
 args = sys.argv[1:]
 
 if args == ["--version"]:
-    print("Python 3.13.2")
+    print({version_text!r})
     record()
     raise SystemExit(0)
 
@@ -229,6 +229,7 @@ if args[:3] == ["-m", "gpd.cli", "uninstall"]:
 record()
 raise SystemExit(0)
 """
+    script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(script, encoding="utf-8")
     script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
@@ -238,6 +239,8 @@ def _run_bootstrap_with_fake_python(
     *,
     installer_args: list[str] | None = None,
     extra_env: dict[str, str] | None = None,
+    python_versions: dict[str, str] | None = None,
+    precreate_managed_version: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -245,8 +248,23 @@ def _run_bootstrap_with_fake_python(
     local_bin = home / ".local" / "bin"
     log_path = tmp_path / "python-log.jsonl"
 
-    for name in ("python3", "python"):
-        _write_fake_python(fake_bin / name, log_path)
+    versions = {
+        "python3.13": "Python 3.13.2",
+        "python3.12": "Python 3.12.9",
+        "python3.11": "Python 3.11.9",
+        "python3": "Python 3.13.2",
+        "python": "Python 3.13.2",
+    }
+    if python_versions:
+        versions.update(python_versions)
+
+    for name, version_text in versions.items():
+        _write_fake_python(fake_bin / name, log_path, version_text)
+
+    if precreate_managed_version is not None:
+        managed_bin = home / ".gpd" / "venv" / "bin"
+        for name in ("python", "python3"):
+            _write_fake_python(managed_bin / name, log_path, precreate_managed_version)
 
     env = os.environ.copy()
     env["HOME"] = str(home)
@@ -845,3 +863,54 @@ def test_bootstrap_fails_closed_when_all_release_sources_fail(tmp_path: Path) ->
     assert "current main branch source archive" not in result.stdout
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
     assert "Could not find a version that satisfies the requirement" not in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_prefers_versioned_python_when_generic_alias_is_newer(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        python_versions={
+            "python3": "Python 3.14.3",
+            "python": "Python 3.14.3",
+            "python3.13": "Python 3.13.2",
+        },
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    venv_creations = [
+        entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]
+    ]
+
+    assert len(venv_creations) == 1
+    assert venv_creations[0]["exe"].endswith("python3.13")
+    assert "Found Python 3.13.2" in result.stdout
+    assert "Found Python 3.14.3" not in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        python_versions={
+            "python3": "Python 3.14.3",
+            "python": "Python 3.14.3",
+            "python3.13": "Python 3.13.2",
+        },
+        precreate_managed_version="Python 3.14.3",
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    venv_creations = [
+        entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]
+    ]
+
+    assert len(venv_creations) == 1
+    assert venv_creations[0]["exe"].endswith("python3.13")
+    assert "switching to Python 3.13.2" in result.stdout
+    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
