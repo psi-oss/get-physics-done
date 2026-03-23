@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal
@@ -277,6 +278,39 @@ class PaperConfig(BaseModel):
     journal: str = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
     attribution_footer: str = "Generated with Get Physics Done"
+    output_filename: str | None = None
+
+
+_MAX_FILENAME_LENGTH = 60
+_SANITIZE_RE = re.compile(r"[^a-z0-9\-]+")
+_COLLAPSE_HYPHENS_RE = re.compile(r"-{2,}")
+
+
+def derive_output_filename(config: PaperConfig) -> str:
+    """Derive a filesystem-safe output filename (without extension) from *config*.
+
+    Resolution order:
+    1. ``config.output_filename`` if explicitly provided.
+    2. Sanitized ``config.title``: lowercased, special characters stripped,
+       spaces replaced with hyphens, truncated to 60 characters.
+    3. ``"main"`` as the ultimate fallback when the title is empty.
+    """
+    if config.output_filename:
+        return config.output_filename
+
+    title = config.title.strip()
+    if not title:
+        return "main"
+
+    slug = title.lower().replace(" ", "-")
+    slug = _SANITIZE_RE.sub("", slug)
+    slug = _COLLAPSE_HYPHENS_RE.sub("-", slug)
+    slug = slug.strip("-")
+
+    if not slug:
+        return "main"
+
+    return slug[:_MAX_FILENAME_LENGTH]
 
 
 class PaperOutput(BaseModel):
