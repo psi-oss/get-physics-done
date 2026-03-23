@@ -201,6 +201,19 @@ Return STAGE 1 COMPLETE with assessment, blocker count, and major concern count.
 If Stage 1 fails, STOP. Later stages depend on its claim map.
 </step>
 
+<step name="stage_recovery_1">
+**Stage 1 recovery -- Validate the reader output before proceeding.**
+
+Check that both `.gpd/review/CLAIMS{round_suffix}.json` and `.gpd/review/STAGE-reader{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling` for the stage report; `claims` for the claim index).
+
+If validation fails:
+
+1. **Retry once.** Re-run the Stage 1 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` and `ClaimIndex` JSON schemas from `peer-review-panel.md`.
+2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stages 2-6.
+
+Max retries per stage: **1**.
+</step>
+
 <step name="stage_2_and_3">
 **Stages 2 and 3 — Run literature and mathematics in parallel when possible.**
 
@@ -281,6 +294,19 @@ If the runtime supports parallel subagent execution, run Stage 2 and Stage 3 in 
 If either stage fails, STOP and report the failure.
 </step>
 
+<step name="stage_recovery_2_3">
+**Stages 2-3 recovery -- Validate literature and math outputs before proceeding.**
+
+For each of `.gpd/review/STAGE-literature{round_suffix}.json` and `.gpd/review/STAGE-math{round_suffix}.json`, check that the file exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+
+If validation fails for either stage:
+
+1. **Retry once.** Re-run only the failed stage subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 4.
+
+Max retries per stage: **1**.
+</step>
+
 <step name="stage_4_physics">
 **Stage 4 — Check physical soundness after the mathematical pass.**
 
@@ -334,6 +360,19 @@ Return STAGE 4 COMPLETE with assessment, blocker count, and major concern count.
 If Stage 4 fails, STOP and report the failure.
 </step>
 
+<step name="stage_recovery_4">
+**Stage 4 recovery -- Validate the physics output before proceeding.**
+
+Check that `.gpd/review/STAGE-physics{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+
+If validation fails:
+
+1. **Retry once.** Re-run the Stage 4 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 5.
+
+Max retries per stage: **1**.
+</step>
+
 <step name="stage_5_significance">
 **Stage 5 — Judge interestingness and venue fit after the technical stages.**
 
@@ -376,6 +415,19 @@ Return STAGE 5 COMPLETE with assessment, blocker count, and major concern count.
 ```
 
 If Stage 5 fails, STOP and report the failure.
+</step>
+
+<step name="stage_recovery_5">
+**Stage 5 recovery -- Validate the significance output before proceeding.**
+
+Check that `.gpd/review/STAGE-interestingness{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+
+If validation fails:
+
+1. **Retry once.** Re-run the Stage 5 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 6 adjudication.
+
+Max retries per stage: **1**.
 </step>
 
 <step name="final_adjudication">
@@ -447,6 +499,26 @@ Return REVIEW COMPLETE with recommendation, confidence, issue counts, and whethe
 If the referee agent fails to spawn or returns an error, STOP and report the failure. Do not silently skip final adjudication.
 </step>
 
+<step name="stage_recovery_6">
+**Stage 6 recovery -- Validate the adjudication outputs before proceeding.**
+
+Check that both `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `manuscript_path`, `issues` for the ledger; `manuscript_path`, `target_journal`, `final_recommendation`, `final_confidence`, `stage_artifacts`, `blocking_issue_ids` for the decision).
+
+Run the built-in validators:
+
+```bash
+gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+```
+
+If validation fails:
+
+1. **Retry once.** Re-run the Stage 6 referee subagent with the same inputs and an explicit reminder to match the `review-ledger-schema.md` and `referee-decision-schema.md` schemas.
+2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
+
+Max retries per stage: **1**.
+</step>
+
 <step name="optional_pdf_compile">
 **Optional PDF compile of the LaTeX referee report:**
 
@@ -511,11 +583,16 @@ If this was a revision round, state the round number and whether the referee con
 - [ ] Supporting artifacts loaded when present
 - [ ] Claim index written
 - [ ] Stage 1 reader artifact written
+- [ ] Stage 1 output validated (JSON schema check passed or retry succeeded)
 - [ ] Stage 2 literature-context artifact written
 - [ ] Stage 3 mathematical-soundness artifact written
+- [ ] Stages 2-3 outputs validated (JSON schema check passed or retry succeeded)
 - [ ] Stage 4 physical-soundness artifact written
+- [ ] Stage 4 output validated (JSON schema check passed or retry succeeded)
 - [ ] Stage 5 interestingness artifact written
+- [ ] Stage 5 output validated (JSON schema check passed or retry succeeded)
 - [ ] Review ledger and referee decision JSON written
+- [ ] Stage 6 outputs validated (ledger and decision schema checks passed or retry succeeded)
 - [ ] Final adjudicating gpd-referee executed successfully
 - [ ] Latest referee report located and summarized
 - [ ] Outcome routed to the correct next action
