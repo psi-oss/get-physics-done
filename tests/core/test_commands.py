@@ -294,6 +294,29 @@ class TestRegressionCheck:
         assert len(issues) == 1
         assert issues[0].gap_count == 3
 
+    def test_phase_scope_limits_checks_to_requested_phase(self, tmp_path: Path):
+        self._setup_complete_phases(tmp_path)
+        phase2_dir = tmp_path / ".gpd" / "phases" / "02-core"
+        (phase2_dir / "02-core-01-SUMMARY.md").write_text(
+            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
+        )
+        result = cmd_regression_check(tmp_path, phase="1")
+        assert result.passed is True
+        assert result.phases_checked == 1
+
+    def test_invalid_verification_status_is_flagged(self, tmp_path: Path):
+        self._setup_complete_phases(tmp_path)
+        phase1_dir = tmp_path / ".gpd" / "phases" / "01-setup"
+        (phase1_dir / "01-setup-VERIFICATION.md").write_text(
+            "---\nstatus: validating\nscore: 2/5 checks verified\n---\n\n# Verification\n"
+        )
+        result = cmd_regression_check(tmp_path)
+        assert result.passed is False
+        issues = [i for i in result.issues if i.type == "invalid_verification_status"]
+        assert len(issues) == 1
+        assert issues[0].status == "validating"
+        assert "must be one of" in (issues[0].error or "")
+
     def test_quick_mode_limits_phases(self, tmp_path: Path):
         phases = tmp_path / ".gpd" / "phases"
         for i in range(1, 6):

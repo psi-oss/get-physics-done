@@ -806,7 +806,7 @@ This mirrors **physics peer review**: reviewers see the paper (results), not the
 5. SUMMARY `contract_results` / `comparison_verdicts` only as evidence maps
 6. No secondary success schema. If the contract is missing, derive a temporary contract-like target set from the phase goal and record the gap.
 
-If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a `suggested_contract_check`. Do not silently downgrade verification scope. Keep it structured with `check`, `reason`, optional paired `suggested_subject_kind` + `suggested_subject_id` when the gap can be bound to a known contract target, and `evidence_path`. If the target is still unknown, omit both keys instead of leaving one blank.
+If the contract is missing a decisive benchmark, falsification path, or forbidden-proxy rejection check that is clearly needed, record it as a structured `suggested_contract_checks` entry. Do not silently downgrade verification scope. Keep it structured with `check`, `reason`, optional paired `suggested_subject_kind` + `suggested_subject_id` when the gap can be bound to a known contract target, and `evidence_path`. If the target is still unknown, omit both keys instead of leaving one blank.
 
 **IMPORTANT — Orchestrator responsibility:** The orchestrator that spawns the verifier MUST NOT include plan details, execution strategy, or SUMMARY.md content in the verifier's spawn prompt. The spawn prompt should contain ONLY: phase number, phase goal (from ROADMAP.md), artifact file paths, and STATE.md path. Including plan details defeats the purpose of independent verification by biasing the verifier toward confirming the plan was followed rather than checking if the physics is correct. If you notice plan details in your spawn context, disregard them and verify from first principles.
 
@@ -1685,6 +1685,7 @@ Canonical files to include directly before you verify or write frontmatter:
 - If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required.
 - `plan_contract_ref` must be a string ending with the exact `#/contract` fragment and it must resolve to the matching PLAN contract on disk.
 - `contract_results` must cover every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the PLAN contract. Do not silently omit open work; use explicit incomplete statuses instead.
+- `contract_results.uncertainty_markers` must stay explicit in contract-backed outputs, and `weakest_anchors` plus `disconfirming_observations` must be non-empty so unresolved anchors remain visible before writing.
 - `comparison_verdicts` must use real contract IDs only. `subject_kind` must be `claim`, `deliverable`, `acceptance_test`, or `reference`, and it must match the actual contract ID kind. Do not invent `artifact` or other ad hoc subject kinds.
 - Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail consistency checks against `contract_results`; `supporting` and `supplemental` verdicts are context only.
 - If a decisive comparison was required or attempted but remains unresolved, record `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
@@ -1692,7 +1693,7 @@ Canonical files to include directly before you verify or write frontmatter:
 - `suggested_contract_checks` entries in `VERIFICATION.md` may only use `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`. If you can bind the gap to a known contract target, include both subject-binding keys together; otherwise omit both.
 
 Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs. If the comparison was attempted but remains unresolved, record `inconclusive` or `tension` rather than omitting the verdict or upgrading the parent target to pass.
-Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. For each suggested check, start from its returned `request_template`, satisfy the listed `required_request_fields`, constrain any bindings to the returned `supported_binding_fields`, and then execute `run_contract_check(request=...)` so the check is actually run instead of merely discovered. If the contract still appears to miss a decisive check after that pass, record it as a structured `suggested_contract_check`.
+Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. For each suggested check, start from its returned `request_template`, satisfy the listed `required_request_fields`, constrain any bindings to the returned `supported_binding_fields`, and then execute `run_contract_check(request=...)` so the check is actually run instead of merely discovered. If the contract still appears to miss a decisive check after that pass, record it as a structured `suggested_contract_checks` entry.
 
 **Protocol bundle guidance (additive, not authoritative)**
 
@@ -3865,6 +3866,11 @@ contract_results:
     forbidden-proxy-id:
       status: rejected|violated|unresolved|not_applicable
       notes: "[why this proxy was or was not allowed]"
+  uncertainty_markers:
+    weakest_anchors: []
+    unvalidated_assumptions: []
+    competing_explanations: []
+    disconfirming_observations: []
 re_verification:        # Only if previous VERIFICATION.md existed
   previous_status: gaps_found
   previous_score: 2/5

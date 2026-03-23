@@ -413,6 +413,21 @@ class TestRegressionCheck:
         result = _invoke("regression-check", "--quick")
         assert result.exit_code == 0
 
+    def test_regression_check_phase_scope(self, gpd_project: Path) -> None:
+        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
+        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
+        (p2 / "01-SUMMARY.md").write_text(
+            '---\nphase: "02"\nplan: "01"\n'
+            "conventions:\n  metric: (+,-,-,-)\n"
+            "---\n\n# Summary\n"
+        )
+
+        result = _invoke("--raw", "regression-check", "1")
+        parsed = json.loads(result.output)
+        assert result.exit_code == 0
+        assert parsed["passed"] is True
+        assert parsed["phases_checked"] == 1
+
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
         p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"

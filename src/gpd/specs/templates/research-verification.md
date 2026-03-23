@@ -341,7 +341,7 @@ Probe how sensitive results are to assumptions and approximations.
 - Organize by check category (derivation logic, intuition, limits, edges, consistency, robustness)
 - Include explicit forbidden-proxy rejection checks and decisive comparison checks when the contract requires them
 - Add `suggested_contract_checks` if the verifier finds a missing decisive check
-- Set status to "validating"
+- Set session_status to "validating"
 - Current Check points to check 1
 - All checks have result: [pending]
 

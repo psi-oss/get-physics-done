@@ -377,6 +377,16 @@ class TestStateCommands:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Regression check commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestRegressionCheckCommands:
+    def test_default_scope(self, gpd_project: Path) -> None:
+        _invoke("regression-check")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Init commands
 # ═══════════════════════════════════════════════════════════════════════════
 

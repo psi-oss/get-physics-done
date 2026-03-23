@@ -194,6 +194,9 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert benchmark["binding"]["acceptance_test_ids"] == ["test-benchmark"]
     assert benchmark["binding"]["reference_ids"] == ["ref-benchmark"]
     assert benchmark["metadata"]["source_reference_id"] == "ref-benchmark"
+    assert benchmark["observed"]["metric_value"] is None
+    assert benchmark["observed"]["threshold_value"] is None
+    assert benchmark["artifact_content"] is None
 
     limit = checks["contract.limit_recovery"]["request_template"]
     assert limit["binding"]["claim_ids"] == ["claim-benchmark"]
@@ -201,10 +204,18 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert limit["binding"]["observable_ids"] == ["obs-benchmark"]
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
+    assert limit["observed"]["limit_passed"] is None
+    assert limit["observed"]["observed_limit"] is None
+    assert limit["artifact_content"] is None
 
     direct_proxy = checks["contract.direct_proxy_consistency"]["request_template"]
     assert direct_proxy["binding"]["claim_ids"] == ["claim-benchmark"]
     assert direct_proxy["binding"]["forbidden_proxy_ids"] == ["fp-01"]
+    assert direct_proxy["observed"]["proxy_only"] is None
+    assert direct_proxy["observed"]["direct_available"] is None
+    assert direct_proxy["observed"]["proxy_available"] is None
+    assert direct_proxy["observed"]["consistency_passed"] is None
+    assert direct_proxy["artifact_content"] is None
 
     fit = checks["contract.fit_family_mismatch"]["request_template"]
     assert fit["binding"]["claim_ids"] == ["claim-benchmark"]
@@ -213,6 +224,9 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
     assert fit["metadata"]["forbidden_families"] == ["polynomial"]
+    assert fit["observed"]["selected_family"] is None
+    assert fit["observed"]["competing_family_checked"] is None
+    assert fit["artifact_content"] is None
 
     estimator = checks["contract.estimator_family_mismatch"]["request_template"]
     assert estimator["binding"]["claim_ids"] == ["claim-benchmark"]
@@ -221,6 +235,10 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["declared_family"] == "bootstrap"
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
+    assert estimator["observed"]["selected_family"] is None
+    assert estimator["observed"]["bias_checked"] is None
+    assert estimator["observed"]["calibration_checked"] is None
+    assert estimator["artifact_content"] is None
     assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
         "binding.claim_id",
         "binding.claim_ids",
@@ -231,6 +249,58 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
         "binding.reference_id",
         "binding.reference_ids",
     ]
+
+
+def test_suggest_contract_checks_templates_do_not_pass_when_reused_unchanged() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _derived_template_contract()
+    result = suggest_contract_checks(contract)
+
+    for entry in result["suggested_checks"]:
+        request = {
+            "check_key": entry["check_key"],
+            "contract": contract,
+            **copy.deepcopy(entry["request_template"]),
+        }
+        run_result = run_contract_check(request)
+        assert run_result["status"] == "insufficient_evidence", entry["check_key"]
+
+
+def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _derived_template_contract()
+
+    limit = run_contract_check(
+        {
+            "check_key": "contract.limit_recovery",
+            "contract": contract,
+            "observed": {"limit_passed": True, "observed_limit": "large-k"},
+        }
+    )
+    fit = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": contract,
+            "observed": {"selected_family": "power_law", "competing_family_checked": True},
+        }
+    )
+    estimator = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": contract,
+            "observed": {
+                "selected_family": "bootstrap",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
+
+    assert limit["status"] == "pass"
+    assert fit["status"] == "pass"
+    assert estimator["status"] == "pass"
 
 
 def test_suggest_contract_checks_surfaces_salvage_warnings() -> None:

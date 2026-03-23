@@ -37,9 +37,10 @@ from gpd.core.constants import (
     VALID_RETURN_STATUSES,
     ProjectLayout,
 )
+from gpd.core.contract_validation import validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import gpd_span
 from gpd.core.state import (
     load_state_json,
@@ -196,6 +197,17 @@ def check_state_validity(cwd: Path) -> HealthCheck:
     result = state_validate(cwd)
     issues = list(result.issues)
     warnings = list(result.warnings)
+
+    state_obj = load_state_json(cwd)
+    if isinstance(state_obj, dict) and state_obj.get("project_contract") is not None:
+        approval_validation = validate_project_contract(state_obj["project_contract"], mode="approved")
+        if not approval_validation.valid:
+            for error in approval_validation.errors:
+                issue = f"project_contract: {error}"
+                if issue not in issues:
+                    issues.append(issue)
+                if issue in warnings:
+                    warnings.remove(issue)
 
     # Additional: check phase ID format
     layout = ProjectLayout(cwd)
@@ -408,11 +420,17 @@ def check_config(cwd: Path) -> HealthCheck:
 
 
 def check_plan_frontmatter(cwd: Path) -> HealthCheck:
-    """Check plan file frontmatter for 'wave' field and numbering gaps."""
+    """Check plan file frontmatter for numbering gaps and canonical schema."""
     layout = ProjectLayout(cwd)
     phases_dir = layout.phases_dir
+    details: dict[str, object] = {
+        "plans_checked": 0,
+        "plans_missing_wave": 0,
+        "plans_missing_contract": 0,
+        "numbering_gaps": 0,
+    }
+    issues: list[str] = []
     warnings: list[str] = []
-    details: dict[str, object] = {"plans_checked": 0, "plans_missing_wave": 0, "numbering_gaps": 0}
 
     if not phases_dir.is_dir():
         return HealthCheck(status=CheckStatus.OK, label="Plan Frontmatter", details=details)
@@ -447,16 +465,24 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
             if content is None:
                 continue
             try:
-                meta, _ = extract_frontmatter(content)
+                validation = validate_frontmatter(content, "plan", source_path=plan_path)
             except FrontmatterParseError:
-                warnings.append(f"{phase_dir.name}/{plan_name}: YAML parse error")
+                issues.append(f"{phase_dir.name}/{plan_name}: YAML parse error")
                 continue
-            if meta.get("wave") is None:
-                warnings.append(f"{phase_dir.name}/{plan_name}: missing 'wave' in frontmatter")
+            missing = set(validation.missing)
+            if "wave" in missing:
                 details["plans_missing_wave"] = int(details["plans_missing_wave"]) + 1  # type: ignore[arg-type]
+            if "contract" in missing:
+                details["plans_missing_contract"] = int(details["plans_missing_contract"]) + 1  # type: ignore[arg-type]
+            if missing:
+                issues.append(
+                    f"{phase_dir.name}/{plan_name}: missing required frontmatter fields: {', '.join(validation.missing)}"
+                )
+            for error in validation.errors:
+                issues.append(f"{phase_dir.name}/{plan_name}: {error}")
 
-    status = CheckStatus.WARN if warnings else CheckStatus.OK
-    return HealthCheck(status=status, label="Plan Frontmatter", details=details, warnings=warnings)
+    status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
+    return HealthCheck(status=status, label="Plan Frontmatter", details=details, issues=issues, warnings=warnings)
 
 
 def check_latest_return(cwd: Path) -> HealthCheck:

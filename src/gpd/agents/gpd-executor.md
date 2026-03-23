@@ -925,6 +925,7 @@ Key requirements (always in memory — sufficient if the file_read above fails):
 - For contract-backed plans, load the schema above before writing frontmatter and copy `plan_contract_ref`, `contract_results`, and `comparison_verdicts` exactly from that canonical contract surface
 - If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
 - Include `comparison_verdicts` whenever the plan produces decisive internal or external comparisons
+- Contract-backed examples in `executor-completion.md` and `executor-worked-example.md` keep `uncertainty_markers` explicit and non-empty; do not copy an older empty-list pattern.
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
 - Include conventions table, key results with confidence tags, deviation documentation

@@ -133,7 +133,7 @@ If no `contract` is available in frontmatter:
 
 **Important: every derived claim must be testable by substituting values, taking limits, or performing an independent computation. Outcomes that can only be checked by grepping are process claims, not verification targets.**
 
-If the plan contract is materially incomplete but the verifier can see an obvious decisive check that should exist, record it as a `suggested_contract_check` in the report rather than silently ignoring the gap.
+If the plan contract is materially incomplete but the verifier can see an obvious decisive check that should exist, record it as a structured `suggested_contract_checks` entry in the report rather than silently ignoring the gap.
 Record `suggested_contract_checks` only for clearly decisive, user-visible gaps. Do not use them for administrative preferences, nicer formatting, or generic paperwork. Every such entry must stay structured with `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id` when known, and `evidence_path`.
 </step>
 
@@ -533,7 +533,7 @@ If gaps_found:
 REPORT_PATH="$phase_dir/${phase_number}-VERIFICATION.md"
 ```
 
-Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results/comparison_verdicts/suggested_contract_checks/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata. The contract targets table should read like a user-visible outcome ledger, not a workflow checklist.
+Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results including `uncertainty_markers`/comparison_verdicts/suggested_contract_checks/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata. The contract targets table should read like a user-visible outcome ledger, not a workflow checklist.
 
 If the verifier identifies a decisive check that the contract omitted but downstream work clearly depends on, record it under `suggested_contract_checks` with a reason and recommended evidence path. Do not hide this by marking the parent target VERIFIED; keep the target PARTIAL or FAILED until the missing decisive check is resolved or explicitly re-scoped.
 

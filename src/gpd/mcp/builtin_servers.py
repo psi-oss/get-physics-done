@@ -74,7 +74,7 @@ _ENTRY_POINT_NOTES = "Requires gpd package installed and Python >=3.11"
 class _VersionedPythonLauncher(str):
     """Human-readable launcher label that compares equal to legacy bare-python descriptors."""
 
-    def __new__(cls, display_value: str = "python3") -> "_VersionedPythonLauncher":
+    def __new__(cls, display_value: str = "python3") -> _VersionedPythonLauncher:
         return str.__new__(cls, display_value)
 
     def __eq__(self, other: object) -> bool:

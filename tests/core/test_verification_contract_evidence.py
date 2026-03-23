@@ -1666,6 +1666,29 @@ def test_validate_frontmatter_verification_rejects_passed_status_with_unresolved
     assert "status: passed is inconsistent with unresolved forbidden_proxies: fp-benchmark" in result.errors
 
 
+def test_validate_frontmatter_verification_rejects_non_canonical_status(tmp_path: Path) -> None:
+    phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    phase_dir.mkdir(parents=True)
+    (phase_dir / "01-01-PLAN.md").write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _verification_with_contract_results().replace("status: passed\n", "status: validating\n", 1),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert "status: must be one of passed, gaps_found, expert_needed, human_needed" in result.errors
+
+
 def test_verify_summary_requires_must_surface_reference_actions(tmp_path: Path) -> None:
     phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
     phase_dir.mkdir(parents=True)

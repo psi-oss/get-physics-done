@@ -216,12 +216,14 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
         assert python_module.get("notes") == "Requires gpd package installed and Python >=3.11"
 
 
-def test_arxiv_descriptor_tracks_required_dependency_surface() -> None:
+def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
 
     project = tomllib.loads(_read("pyproject.toml"))["project"]
     dependencies: list[str] = project["dependencies"]
-    assert any(item.startswith("arxiv-mcp-server") for item in dependencies)
+    optional = project.get("optional-dependencies", {})
+    assert not any(item.startswith("arxiv-mcp-server") for item in dependencies)
+    assert optional == {"arxiv": ["arxiv-mcp-server>=0.3.2"]}
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]

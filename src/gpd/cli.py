@@ -3709,12 +3709,13 @@ def summary_extract(
 
 @app.command("regression-check")
 def regression_check(
+    phase: str | None = typer.Argument(None, help="Optional phase number to limit scope"),
     quick: bool = typer.Option(False, "--quick", help="Only check most recent 2 completed phases"),
 ) -> None:
-    """Check for regressions across completed phases."""
+    """Check for regressions across completed phases, optionally limited to one phase."""
     from gpd.core.commands import cmd_regression_check
 
-    result = cmd_regression_check(_get_cwd(), quick=quick)
+    result = cmd_regression_check(_get_cwd(), phase=phase, quick=quick)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)

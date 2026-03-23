@@ -20,8 +20,8 @@ from pathlib import Path
 
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_install_repair_command
-from gpd.hooks.install_metadata import installed_runtime
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
+from gpd.hooks.install_metadata import installed_runtime
 from gpd.hooks.runtime_detect import normalize_runtime_name
 
 

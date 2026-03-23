@@ -266,6 +266,11 @@ contract_results:
           confidence: high
           evidence_path: "checks/pole_limit.py"
           notes: "Pole limit matches the published coefficient."
+  uncertainty_markers:
+    weakest_anchors: ["finite-term mass matching"]
+    unvalidated_assumptions: ["general-gauge-independence"]
+    competing_explanations: ["on-shell vs MS-bar finite-part conventions"]
+    disconfirming_observations: ["no independent gauge-parameter scan"]
 comparison_verdicts:
   - subject_id: "claim-mass-counterterm"
     subject_kind: "claim"

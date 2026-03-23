@@ -13,6 +13,7 @@ from gpd.core.context import (
     _load_project_contract,
     _merge_reference_intake,
     _normalize_phase_name,
+    _state_exists,
     init_execute_phase,
     init_map_research,
     init_milestone_op,
@@ -474,6 +475,27 @@ class TestInitExecutePhase:
         ctx = init_execute_phase(tmp_path, "1")
 
         assert ctx["state_exists"] is True
+
+    def test_state_exists_uses_files_without_loading_or_repairing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.core.state import default_state_dict
+
+        _setup_project(tmp_path)
+        (tmp_path / ".gpd" / "state.json.bak").write_text(
+            json.dumps(default_state_dict()),
+            encoding="utf-8",
+        )
+
+        def _unexpected_load(_cwd: Path) -> dict[str, object] | None:
+            raise AssertionError("_state_exists should not load state")
+
+        monkeypatch.setattr("gpd.core.context._load_state_json", _unexpected_load)
+
+        assert _state_exists(tmp_path) is True
+        assert not (tmp_path / ".gpd" / "state.json").exists()
 
     def test_surfaces_active_reference_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

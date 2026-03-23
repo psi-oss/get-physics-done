@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from gpd.core.contract_validation import validate_project_contract
 from gpd.core.health import (
     CheckStatus,
     HealthCheck,
@@ -29,6 +31,8 @@ from gpd.core.health import (
     run_health,
 )
 from gpd.core.storage_paths import ProjectStorageLayout
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 # ─── Model Tests ─────────────────────────────────────────────────────────────
 
@@ -321,7 +325,7 @@ class TestCheckPlanFrontmatter:
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         # Create plans with a gap: 01, 03 (missing 02)
-        plan_content = "---\nwave: 1\n---\n# Plan\n"
+        plan_content = _canonical_plan_frontmatter()
         (phase_dir / "01-PLAN.md").write_text(plan_content)
         (phase_dir / "03-PLAN.md").write_text(plan_content)
         result = check_plan_frontmatter(tmp_path)
@@ -334,13 +338,103 @@ class TestCheckPlanFrontmatter:
         phases = tmp_path / ".gpd" / "phases"
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
-        plan_content = "---\nwave: 1\n---\n# Plan\n"
+        plan_content = _canonical_plan_frontmatter()
         (phase_dir / "01-PLAN.md").write_text(plan_content)
         (phase_dir / "02-PLAN.md").write_text(plan_content)
         (phase_dir / "03-PLAN.md").write_text(plan_content)
         result = check_plan_frontmatter(tmp_path)
         assert result.details["numbering_gaps"] == 0
         assert not any("Plan numbering gap" in w for w in result.warnings)
+
+    def test_missing_contract_block_fails(self, tmp_path: Path):
+        phases = tmp_path / ".gpd" / "phases"
+        phase_dir = phases / "01-intro"
+        phase_dir.mkdir(parents=True)
+        plan_content = (
+            "---\n"
+            "phase: 01-intro\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
+            "---\n\n"
+            "# Plan\n"
+        )
+        (phase_dir / "01-PLAN.md").write_text(plan_content)
+
+        result = check_plan_frontmatter(tmp_path)
+
+        assert result.status == CheckStatus.FAIL
+        assert any("missing required frontmatter fields: contract" in issue for issue in result.issues)
+
+    def test_invalid_contract_schema_fails(self, tmp_path: Path):
+        phases = tmp_path / ".gpd" / "phases"
+        phase_dir = phases / "01-intro"
+        phase_dir.mkdir(parents=True)
+        plan_content = (
+            "---\n"
+            "phase: 01-intro\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
+            "contract: []\n"
+            "---\n\n"
+            "# Plan\n"
+        )
+        (phase_dir / "01-PLAN.md").write_text(plan_content)
+
+        result = check_plan_frontmatter(tmp_path)
+
+        assert result.status == CheckStatus.FAIL
+        assert any("contract: expected an object" in issue for issue in result.issues)
+
+
+class TestCheckStateValidityProjectContract:
+    def test_promotes_approval_blockers_to_issues(self, tmp_path: Path):
+        cwd = _bootstrap_health_project(tmp_path)
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["context_intake"] = {
+            "must_read_refs": [],
+            "must_include_prior_outputs": [],
+            "user_asserted_anchors": [],
+            "known_good_baselines": [],
+            "context_gaps": [],
+            "crucial_inputs": [],
+        }
+        contract["references"][0]["role"] = "background"
+        contract["references"][0]["must_surface"] = False
+        contract["references"][0]["applies_to"] = []
+        contract["references"][0]["required_actions"] = []
+
+        state = {"project_contract": contract}
+        (cwd / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        approval_validation = validate_project_contract(contract, mode="approved")
+        fake_state_validation = SimpleNamespace(
+            issues=[],
+            warnings=[f"project_contract: {error}" for error in approval_validation.errors],
+        )
+
+        with patch("gpd.core.health.state_validate", return_value=fake_state_validation):
+            result = check_state_validity(cwd)
+
+        assert result.status == CheckStatus.FAIL
+        assert approval_validation.errors
+        assert any(issue.startswith("project_contract: ") for issue in result.issues)
+        assert not any(warning in result.warnings for warning in fake_state_validation.warnings)
 
 
 class TestCheckStateValidity:
@@ -652,6 +746,10 @@ def _init_git_repo(tmp_path: Path) -> Path:
     repo_root = Path(__file__).resolve().parents[2]
     (tmp_path / ".gitignore").write_text((repo_root / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
     return tmp_path
+
+
+def _canonical_plan_frontmatter() -> str:
+    return (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
 
 
 class TestCheckLatestReturn:

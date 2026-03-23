@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 from gpd.contracts import ResearchContract
@@ -620,6 +621,26 @@ def test_state_set_project_contract_rejects_research_contract_instance_singleton
     assert saved["project_contract"] is None
 
 
+def test_state_set_project_contract_suppresses_serializer_warning_for_invalid_research_contract_instance(
+    tmp_path: Path,
+):
+    contract = ResearchContract.model_validate(
+        json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    )
+    object.__setattr__(contract, "schema_version", "bad")
+    save_state_json(tmp_path, default_state_dict())
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is False
+    assert caught == []
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is None
+
+
 def test_state_set_project_contract_accepts_recoverable_schema_normalization(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
@@ -720,6 +741,33 @@ def test_save_state_json_drops_project_contract_when_singleton_list_drift_requir
     assert persisted["open_questions"] == ["Keep this question"]
 
 
+def test_save_state_json_preserves_last_valid_backup_project_contract_when_new_write_drops_primary_contract(
+    tmp_path: Path,
+):
+    valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    initial_state = default_state_dict()
+    initial_state["position"]["status"] = "Executing"
+    initial_state["project_contract"] = valid_contract
+    save_state_json(tmp_path, initial_state)
+
+    invalid_contract = json.loads(json.dumps(valid_contract))
+    invalid_contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+
+    next_state = default_state_dict()
+    next_state["position"]["status"] = "Paused"
+    next_state["project_contract"] = invalid_contract
+    save_state_json(tmp_path, next_state)
+
+    layout = ProjectLayout(tmp_path)
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    backup = json.loads((layout.gpd / STATE_JSON_BACKUP_FILENAME).read_text(encoding="utf-8"))
+
+    assert persisted["project_contract"] is None
+    assert backup["position"]["status"] == "Paused"
+    assert backup["project_contract"] is not None
+    assert backup["project_contract"]["references"][0]["id"] == "ref-benchmark"
+
+
 def test_save_state_json_preserves_recoverable_warning_only_project_contract_drift(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
@@ -760,6 +808,31 @@ def test_save_state_markdown_drops_project_contract_when_singleton_list_drift_re
     persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
     assert persisted["project_contract"] is None
     assert persisted["position"]["status"] == "Paused"
+
+
+def test_save_state_markdown_preserves_last_valid_backup_project_contract_when_primary_contract_is_dropped(
+    tmp_path: Path,
+):
+    valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = valid_contract
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    corrupted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    corrupted["project_contract"]["context_intake"]["must_read_refs"] = "ref-benchmark"
+    layout.state_json.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
+
+    md_content = layout.state_md.read_text(encoding="utf-8").replace("**Status:** Executing", "**Status:** Paused", 1)
+    result = save_state_markdown(tmp_path, md_content)
+
+    backup = json.loads((layout.gpd / STATE_JSON_BACKUP_FILENAME).read_text(encoding="utf-8"))
+
+    assert result["project_contract"] is None
+    assert backup["position"]["status"] == "Paused"
+    assert backup["project_contract"] is not None
+    assert backup["project_contract"]["references"][0]["id"] == "ref-benchmark"
 
 
 def test_load_state_json_backup_restore_drops_project_contract_when_backup_requires_blocking_normalization(

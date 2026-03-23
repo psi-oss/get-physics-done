@@ -26,6 +26,7 @@ from gpd.contracts import (
     ConventionLock,
     ResearchContract,
     VerificationEvidence,
+    contract_from_data,
 )
 from gpd.core.constants import (
     ENV_GPD_DEBUG,
@@ -1814,16 +1815,42 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
     planning.mkdir(parents=True, exist_ok=True)
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
+    backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
     intent_file = _intent_path(cwd)
     temp_suffix = f"{os.getpid()}.{uuid4().hex}"
     json_tmp = json_path.with_suffix(f".json.tmp.{temp_suffix}")
     md_tmp = md_path.with_suffix(f".md.tmp.{temp_suffix}")
 
     json_backup = safe_read_file(json_path)
+    prior_json_backup = safe_read_file(backup_path)
     md_backup = safe_read_file(md_path)
 
     normalized = _normalize_state_for_persistence(state_obj)
     json_rendered = json.dumps(normalized, indent=2) + "\n"
+    backup_rendered = json_rendered
+
+    def _valid_project_contract_from_state_text(state_text: str | None) -> object | None:
+        if state_text is None:
+            return None
+        try:
+            parsed = json.loads(state_text)
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        project_contract = parsed.get("project_contract")
+        if contract_from_data(project_contract) is None:
+            return None
+        return copy.deepcopy(project_contract)
+
+    if normalized.get("project_contract") is None:
+        preserved_contract = _valid_project_contract_from_state_text(json_backup)
+        if preserved_contract is None:
+            preserved_contract = _valid_project_contract_from_state_text(prior_json_backup)
+        if preserved_contract is not None:
+            backup_state = copy.deepcopy(normalized)
+            backup_state["project_contract"] = preserved_contract
+            backup_rendered = json.dumps(backup_state, indent=2) + "\n"
 
     try:
         atomic_write(json_tmp, json_rendered)
@@ -1838,7 +1865,7 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
             pass
 
         try:
-            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_rendered)
+            atomic_write(backup_path, backup_rendered)
         except OSError:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("Failed to write state.json backup")
@@ -1904,6 +1931,16 @@ def _load_state_json_with_integrity_issues(
     json_path = _state_json_path(cwd)
     bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
 
+    def _drop_invalid_project_contract(state_obj: dict) -> tuple[dict, list[str]]:
+        project_contract = state_obj.get("project_contract")
+        if project_contract is None or contract_from_data(project_contract) is not None:
+            return state_obj, []
+        cleaned_state = dict(state_obj)
+        cleaned_state["project_contract"] = None
+        return cleaned_state, [
+            'schema normalization: dropped "project_contract" because contract integrity checks failed'
+        ]
+
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
         # Read paths must not silently default malformed singleton contract sections.
@@ -1928,6 +1965,8 @@ def _load_state_json_with_integrity_issues(
                 allow_project_contract_salvage=allow_project_contract_salvage,
                 retain_blocking_project_contract_errors=False,
             )
+            normalized, contract_integrity_issues = _drop_invalid_project_contract(normalized)
+            integrity_issues.extend(contract_integrity_issues)
             if integrity_mode == "review" and integrity_issues:
                 logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
                 return None, integrity_issues
@@ -1952,6 +1991,8 @@ def _load_state_json_with_integrity_issues(
                     allow_project_contract_salvage=allow_project_contract_salvage,
                     retain_blocking_project_contract_errors=False,
                 )
+                restored, contract_integrity_issues = _drop_invalid_project_contract(restored)
+                integrity_issues.extend(contract_integrity_issues)
                 if integrity_mode == "review" and integrity_issues:
                     logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))
                     return None, integrity_issues
@@ -2178,7 +2219,7 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         # Treat model instances like serialized payloads so schema drift is
         # checked through the same strict path as JSON/dict input.
         if isinstance(contract_data, ResearchContract):
-            contract_payload = contract_data.model_dump(mode="python")
+            contract_payload = contract_data.model_dump(mode="python", warnings=False)
         elif isinstance(contract_data, dict):
             contract_payload = contract_data
         else:

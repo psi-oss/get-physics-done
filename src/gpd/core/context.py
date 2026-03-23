@@ -136,7 +136,8 @@ def _path_exists(cwd: Path, target: str) -> bool:
 
 def _state_exists(cwd: Path) -> bool:
     """Return whether the project has recoverable state from JSON or STATE.md."""
-    return _load_state_json(cwd) is not None
+    layout = ProjectLayout(cwd)
+    return any(path.exists() for path in (layout.state_json, layout.state_json_backup, layout.state_md))
 
 
 def _generate_slug(text: str | None) -> str | None:

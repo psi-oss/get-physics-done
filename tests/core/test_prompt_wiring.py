@@ -993,17 +993,23 @@ def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_led
     assert "frontmatter contract compatible with `@{GPD_INSTALL_DIR}/templates/verification-report.md`" in verify_workflow
     assert "status: passed | gaps_found | expert_needed | human_needed" in verify_workflow
     assert "session_status: validating" in verify_workflow
+    assert "uncertainty_markers:" in verify_workflow
     assert "Mirror decisive verdicts into frontmatter `comparison_verdicts`." in verify_workflow
     assert "structured `suggested_contract_checks` entry before final validation" in verify_workflow
     assert "request_template" in verify_workflow
     assert "required_request_fields" in verify_workflow
     assert "supported_binding_fields" in verify_workflow
     assert "run_contract_check(request=...)" in verify_workflow
+    assert "`suggested_contract_check`" not in verify_workflow
     assert "Return status (`passed` | `gaps_found` | `expert_needed` | `human_needed`)" in verify_phase
+    assert "contract_results including `uncertainty_markers`" in verify_phase
+    assert "`suggested_contract_check`" not in verify_phase
     assert "gap_subject_kind" in verifier_agent
     assert "Each gap has: `gap_subject_kind`" in verifier_agent
     assert "Each gap has: `subject_kind`" not in verifier_agent
     assert "Verification Status:** {passed | gaps_found | expert_needed | human_needed}" in verifier_agent
+    assert "uncertainty_markers:" in verifier_agent
+    assert "`suggested_contract_check`" not in verifier_agent
     assert "`contract_results` is authoritative." in execute_plan
     assert "project_contract_validation" in execute_plan
     assert "project_contract_load_info" in execute_plan
@@ -1392,7 +1398,7 @@ def test_non_adapter_sources_do_not_hardcode_runtime_names() -> None:
         if alias.strip()
     )
     runtime_name_re = re.compile(
-        r"\b(?:%s)\b" % "|".join(re.escape(term) for term in sorted(runtime_terms, key=len, reverse=True)),
+        rf"\b(?:{'|'.join(re.escape(term) for term in sorted(runtime_terms, key=len, reverse=True))})\b",
         re.IGNORECASE,
     )
     offenders: list[str] = []

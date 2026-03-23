@@ -476,7 +476,7 @@ Validate convention consistency across all phases.
 - Checks metric signature, Fourier convention, natural units, gauge choice
 - Detects convention drift where a symbol is redefined in a later phase
 - Cross-checks locked conventions against all phase artifacts
-- Scope to a single phase or run across all phases
+- Scope to a single phase using the optional phase argument, or run across all completed phases
 
 Usage: `/gpd:validate-conventions`
 Usage: `/gpd:validate-conventions 3`
@@ -487,7 +487,7 @@ Re-verify all previously verified claims and checks to catch regressions after c
 - Extracts verified results from VERIFICATION.md files
 - Re-runs dimensional analysis, limiting cases, and numerical checks
 - Reports any results that no longer hold
-- Scope to a single phase or run across all phases
+- Scope to a single phase using the optional phase argument, or run across all completed phases
 
 Usage: `/gpd:regression-check`
 Usage: `/gpd:regression-check 3`

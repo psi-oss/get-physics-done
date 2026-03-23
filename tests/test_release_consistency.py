@@ -116,7 +116,6 @@ def _copy_release_surfaces(repo_root: Path, out_dir: Path) -> None:
 
 def _expected_runtime_dependency_names() -> set[str]:
     return {
-        "arxiv-mcp-server",
         "jinja2",
         "mcp",
         "pillow",
@@ -126,6 +125,10 @@ def _expected_runtime_dependency_names() -> set[str]:
         "rich",
         "typer",
     }
+
+
+def _expected_wheel_dependency_names() -> set[str]:
+    return _expected_runtime_dependency_names() | {"arxiv-mcp-server"}
 
 
 def _normalized_requirement_name(requirement: str) -> str:
@@ -289,6 +292,10 @@ def test_public_bootstrap_installer_documents_public_flags_and_runtime_aliases()
     assert "`--local`" in readme
     assert "`-g`" in readme
     assert "`-l`" in readme
+    assert (
+        "Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir."
+        in readme
+    )
     assert "`--target-dir <path>`" in readme
     assert "`--force-statusline`" in readme
     assert "`--help`" in readme
@@ -587,7 +594,7 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     optional = project.get("optional-dependencies", {})
 
     assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
-    assert optional == {}
+    assert optional == {"arxiv": ["arxiv-mcp-server>=0.3.2"]}
 
 
 
@@ -705,7 +712,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         entry_points = wheel_zip.read(f"get_physics_done-{version}.dist-info/entry_points.txt").decode("utf-8")
         metadata = wheel_zip.read(f"get_physics_done-{version}.dist-info/METADATA").decode("utf-8")
         assert "gpd = gpd.cli:entrypoint" in entry_points
-        assert _wheel_dependency_names(metadata) == _expected_runtime_dependency_names()
+        assert _wheel_dependency_names(metadata) == _expected_wheel_dependency_names()
 
     sdist_prefix = f"get_physics_done-{version}/"
     with tarfile.open(sdist, "r:gz") as sdist_tar:

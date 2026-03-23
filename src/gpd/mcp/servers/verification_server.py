@@ -56,10 +56,10 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "expected_behavior": "matches the contracted asymptotic scaling",
             },
             "observed": {
-                "limit_passed": True,
-                "observed_limit": "power-law slope -1",
+                "limit_passed": None,
+                "observed_limit": None,
             },
-            "artifact_content": "",
+            "artifact_content": None,
         },
     },
     "contract.benchmark_reproduction": {
@@ -75,10 +75,10 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "source_reference_id": "ref-benchmark",
             },
             "observed": {
-                "metric_value": 0.008,
-                "threshold_value": 0.01,
+                "metric_value": None,
+                "threshold_value": None,
             },
-            "artifact_content": "",
+            "artifact_content": None,
         },
     },
     "contract.direct_proxy_consistency": {
@@ -95,12 +95,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "binding": {},
             "metadata": {},
             "observed": {
-                "proxy_only": False,
-                "direct_available": True,
-                "proxy_available": True,
-                "consistency_passed": True,
+                "proxy_only": None,
+                "direct_available": None,
+                "proxy_available": None,
+                "consistency_passed": None,
             },
-            "artifact_content": "",
+            "artifact_content": None,
         },
     },
     "contract.fit_family_mismatch": {
@@ -120,10 +120,10 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": "linear",
-                "competing_family_checked": True,
+                "selected_family": None,
+                "competing_family_checked": None,
             },
-            "artifact_content": "",
+            "artifact_content": None,
         },
     },
     "contract.estimator_family_mismatch": {
@@ -144,11 +144,11 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": "bootstrap",
-                "bias_checked": True,
-                "calibration_checked": True,
+                "selected_family": None,
+                "bias_checked": None,
+                "calibration_checked": None,
             },
-            "artifact_content": "",
+            "artifact_content": None,
         },
     },
 }
@@ -844,7 +844,9 @@ def _validate_optional_string(value: object, *, field_name: str) -> tuple[str | 
     if not isinstance(value, str):
         return None, f"{field_name} must be a string"
     stripped = value.strip()
-    return stripped or None, None
+    if not stripped:
+        return None, f"{field_name} must be a non-empty string"
+    return stripped, None
 
 
 def _normalize_string_list(value: object) -> object:
@@ -1372,6 +1374,27 @@ def _binding_values_for_target(binding: dict[str, object], target: str) -> list[
     return unique
 
 
+def _binding_values_by_field_for_target(binding: dict[str, object], target: str) -> dict[str, list[str]]:
+    values_by_field: dict[str, list[str]] = {}
+    for key in (f"{target}_id", f"{target}_ids"):
+        raw = binding.get(key)
+        values: list[str] = []
+        if isinstance(raw, str):
+            stripped = raw.strip()
+            if stripped:
+                values.append(stripped)
+        elif isinstance(raw, list):
+            for item in raw:
+                if isinstance(item, str):
+                    stripped = item.strip()
+                    if stripped:
+                        values.append(stripped)
+        unique = _unique_strings(values)
+        if unique:
+            values_by_field[key] = unique
+    return values_by_field
+
+
 def _contract_ids_for_target(contract: ResearchContract, target: str) -> set[str]:
     if target == "observable":
         return {observable.id for observable in contract.observables}
@@ -1398,14 +1421,11 @@ def _validate_bound_contract_ids(
         return None
 
     for target in allowed_targets:
-        values = _binding_values_for_target(binding, target)
-        if not values:
-            continue
         known_ids = _contract_ids_for_target(contract, target)
-        unknown_values = [value for value in values if value not in known_ids]
-        if unknown_values:
-            suffix = "id" if len(unknown_values) == 1 else "ids"
-            return f"binding.{target}_{suffix} references unknown contract {target} {', '.join(unknown_values)}"
+        for field_name, values in _binding_values_by_field_for_target(binding, target).items():
+            unknown_values = [value for value in values if value not in known_ids]
+            if unknown_values:
+                return f"binding.{field_name} references unknown contract {target} {', '.join(unknown_values)}"
     return None
 
 
@@ -2001,18 +2021,36 @@ def _with_contract_policy_defaults(
             enriched["allowed_families"] = list(contract.approach_policy.allowed_fit_families)
         if not enriched.get("forbidden_families") and contract.approach_policy.forbidden_fit_families:
             enriched["forbidden_families"] = list(contract.approach_policy.forbidden_fit_families)
+        if not enriched.get("declared_family") and len(contract.approach_policy.allowed_fit_families) == 1:
+            enriched["declared_family"] = contract.approach_policy.allowed_fit_families[0]
 
     if check_key == "contract.estimator_family_mismatch":
         if not enriched.get("allowed_families") and contract.approach_policy.allowed_estimator_families:
             enriched["allowed_families"] = list(contract.approach_policy.allowed_estimator_families)
         if not enriched.get("forbidden_families") and contract.approach_policy.forbidden_estimator_families:
             enriched["forbidden_families"] = list(contract.approach_policy.forbidden_estimator_families)
+        if not enriched.get("declared_family") and len(contract.approach_policy.allowed_estimator_families) == 1:
+            enriched["declared_family"] = contract.approach_policy.allowed_estimator_families[0]
 
     if check_key == "contract.limit_recovery":
         if not enriched.get("regime_label"):
             candidates, _ = _limit_regime_candidates(contract, binding_ids, binding_supplied=binding_supplied)
             if len(candidates) == 1:
                 enriched["regime_label"] = candidates[0]
+        if not enriched.get("expected_behavior"):
+            limit_tests = _matching_acceptance_tests(
+                contract,
+                kinds=("limiting_case",),
+                keywords=("limit", "asymptotic", "boundary", "scaling"),
+            )
+            limit_test = _apply_single_acceptance_test_binding(
+                {},
+                contract,
+                limit_tests,
+                include_observable_binding=True,
+            )
+            if limit_test is not None and limit_test.pass_condition:
+                enriched["expected_behavior"] = limit_test.pass_condition
 
     return enriched
 
@@ -2284,7 +2322,7 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
                     evidence_directness = "mixed"
                 elif not missing_inputs:
                     automated_issues.append("No direct limit or asymptotic evidence was supplied")
-                    status = "fail"
+                    status = "insufficient_evidence"
 
             elif check_meta.check_key == "contract.benchmark_reproduction":
                 source_reference_id = metadata.get("source_reference_id")
@@ -2442,6 +2480,10 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
                     missing_inputs.append("metadata.declared_family")
                 if selected_family is None:
                     missing_inputs.append("observed.selected_family")
+                if bias_checked is not True:
+                    missing_inputs.append("observed.bias_checked")
+                if calibration_checked is not True:
+                    missing_inputs.append("observed.calibration_checked")
                 metrics.update(
                     {
                         "declared_family": declared_family,

@@ -67,7 +67,7 @@ Typical new-project workflow:
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
 | `--reinstall` | Reinstall the matching tagged GitHub source into `~/.gpd/venv`. |
 | `--upgrade` | Upgrade `~/.gpd/venv` from the latest GitHub `main` source. |
-| `--target-dir <path>` | Override the runtime config directory; implies local scope. |
+| `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 

@@ -214,6 +214,10 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
         assert field_schema["minLength"] == 1
         assert field_schema["pattern"] == r"\S"
 
+    artifact_content = _schema_anyof_string(run_request["properties"]["artifact_content"])
+    assert artifact_content["minLength"] == 1
+    assert artifact_content["pattern"] == r"\S"
+
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
     _assert_open_object(contract_schema, label="contract")
     assert {"schema_version", "scope", "claims", "references"} <= set(contract_schema["properties"])

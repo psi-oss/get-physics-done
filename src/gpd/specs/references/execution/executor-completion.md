@@ -14,7 +14,7 @@ After all tasks complete, create `{phase}-{plan}-SUMMARY.md` at `${phase_dir}/`.
 
 @{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 
-**Verification contract:** For contract-backed work, the SUMMARY.md frontmatter MUST declare `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts` so the verifier can test results without re-reading the full derivation. `plan_contract_ref` must end with the exact `#/contract` fragment. `contract_results` must cover every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the PLAN contract. Use only real contract IDs in both ledgers. If a decisive comparison remains open, keep the parent target incomplete and emit `verdict: inconclusive` or `verdict: tension` instead of omitting the verdict. Every decisive numerical result needs concrete evidence. Every equation that matters downstream needs a spot-check or limiting-case anchor.
+**Verification contract:** For contract-backed work, the SUMMARY.md frontmatter MUST declare `plan_contract_ref`, `contract_results`, and any decisive `comparison_verdicts` so the verifier can test results without re-reading the full derivation. `plan_contract_ref` must end with the exact `#/contract` fragment. `contract_results` must cover every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the PLAN contract. Use only real contract IDs in both ledgers. If a decisive comparison remains open, keep the parent target incomplete and emit `verdict: inconclusive` or `verdict: tension` instead of omitting the verdict. Every decisive numerical result needs concrete evidence. Every equation that matters downstream needs a spot-check or limiting-case anchor. The contract-backed example below keeps `uncertainty_markers` explicit and non-empty to match the canonical schema.
 For `contract_results.references`, keep the action ledger internally consistent: `completed` requires non-empty `completed_actions`, `missing` requires non-empty `missing_actions`, `not_applicable` leaves both empty, and the two lists must not overlap.
 Every `comparison_verdicts` entry must declare `subject_role` explicitly. If the decisive external anchor came from the literature or another artifact, include `reference_id`; if the reference itself is the comparison subject, use `subject_kind: reference`.
 Treat decisive comparisons as required whenever the PLAN contract includes `benchmark` or `cross_method` acceptance tests, whenever a benchmark/compare-driven reference anchors the subject, or whenever execution actually performed a decisive comparison.
@@ -58,10 +58,10 @@ contract_results:
       status: rejected
       notes: "[why this tempting proxy did not count as success]"
   uncertainty_markers:
-    weakest_anchors: []
-    unvalidated_assumptions: []
-    competing_explanations: []
-    disconfirming_observations: []
+    weakest_anchors: ["finite-term mass matching"]
+    unvalidated_assumptions: ["general-gauge-independence"]
+    competing_explanations: ["on-shell vs MS-bar finite-part conventions"]
+    disconfirming_observations: ["no independent gauge-parameter scan"]
 comparison_verdicts:
   - subject_id: "claim-main"
     subject_kind: "claim"

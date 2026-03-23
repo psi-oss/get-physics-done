@@ -1767,7 +1767,7 @@ class TestVerificationServer:
         )
 
         assert result == {
-            "error": "binding.claim_id references unknown contract claim claim-missing",
+            "error": "binding.claim_ids references unknown contract claim claim-missing",
             "schema_version": 1,
         }
 
@@ -1977,6 +1977,22 @@ class TestVerificationServer:
         assert result["status"] == "insufficient_evidence"
         assert "metadata.declared_family" in result["missing_inputs"]
 
+    def test_run_contract_check_estimator_family_reports_missing_diagnostics(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.estimator_family_mismatch",
+                "contract": _load_project_contract_fixture(),
+                "metadata": {"declared_family": "bootstrap"},
+                "observed": {"selected_family": "bootstrap"},
+            }
+        )
+
+        assert result["status"] == "insufficient_evidence"
+        assert "observed.bias_checked" in result["missing_inputs"]
+        assert "observed.calibration_checked" in result["missing_inputs"]
+
     def test_run_contract_check_rejects_whitespace_only_benchmark_anchor(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 
@@ -1988,8 +2004,7 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "insufficient_evidence"
-        assert "metadata.source_reference_id" in result["missing_inputs"]
+        assert result == {"error": "metadata.source_reference_id must be a non-empty string", "schema_version": 1}
 
     def test_run_contract_check_rejects_whitespace_only_limit_metadata(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -2002,9 +2017,7 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "insufficient_evidence"
-        assert "metadata.regime_label" in result["missing_inputs"]
-        assert "metadata.expected_behavior" in result["missing_inputs"]
+        assert result == {"error": "metadata.regime_label must be a non-empty string", "schema_version": 1}
 
     def test_run_contract_check_rejects_whitespace_only_declared_fit_family(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -2017,8 +2030,7 @@ class TestVerificationServer:
             }
         )
 
-        assert result["status"] == "insufficient_evidence"
-        assert "metadata.declared_family" in result["missing_inputs"]
+        assert result == {"error": "metadata.declared_family must be a non-empty string", "schema_version": 1}
 
     def test_run_contract_check_direct_proxy_consistency_fails_on_proxy_only(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -2147,6 +2159,9 @@ class TestVerificationServer:
             "observed.threshold_value",
         ]
         assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+        assert benchmark["request_template"]["observed"]["metric_value"] is None
+        assert benchmark["request_template"]["observed"]["threshold_value"] is None
+        assert benchmark["request_template"]["artifact_content"] is None
 
     def test_suggest_contract_checks_returns_deep_copied_request_templates(self):
         import json

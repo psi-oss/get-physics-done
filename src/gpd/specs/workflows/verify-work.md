@@ -218,9 +218,9 @@ Rules:
 
 - If the contract already says a comparison against a benchmark / prior work / experiment / cross-method result is decisive, attach a comparison target so the final verification can emit a `comparison_verdict`. Do not mark the parent claim or acceptance test as passed until that decisive comparison is resolved. If the comparison was attempted but is still open, record `inconclusive` or `tension` instead of silently dropping it.
 - If a forbidden proxy exists, create an explicit rejection check rather than assuming silence means success.
-- If the contract lacks an obvious decisive check, create a `suggested_contract_check` entry with a short rationale instead of silently dropping the concern.
-- Only create `suggested_contract_check` entries for obvious decisive gaps on user-visible targets, not for paperwork preferences or generic workflow niceties.
-- Each `suggested_contract_check` entry must stay structured: `check`, `reason`, optional paired `suggested_subject_kind` + `suggested_subject_id` when the gap can be bound to a known contract target, and `evidence_path`. If no target is known yet, omit both keys instead of leaving one blank.
+- If the contract lacks an obvious decisive check, create a structured `suggested_contract_checks` entry with a short rationale instead of silently dropping the concern.
+- Only create `suggested_contract_checks` entries for obvious decisive gaps on user-visible targets, not for paperwork preferences or generic workflow niceties.
+- Each `suggested_contract_checks` entry must stay structured: `check`, `reason`, optional paired `suggested_subject_kind` + `suggested_subject_id` when the gap can be bound to a known contract target, and `evidence_path`. If no target is known yet, omit both keys instead of leaving one blank.
 
 **Examples with computational verification:**
 
@@ -335,6 +335,11 @@ contract_results:
   acceptance_tests: {}
   references: {}
   forbidden_proxies: {}
+  uncertainty_markers:
+    weakest_anchors: []
+    unvalidated_assumptions: []
+    competing_explanations: []
+    disconfirming_observations: []
 comparison_verdicts: []
 suggested_contract_checks: []
 source: [list of SUMMARY.md files]

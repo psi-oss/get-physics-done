@@ -79,6 +79,8 @@ __all__ = [
     "verify_artifacts",
 ]
 
+VERIFICATION_REPORT_STATUSES = ("passed", "gaps_found", "expert_needed", "human_needed")
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -1146,6 +1148,15 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
     errors: list[str] = []
 
     errors.extend(_unsupported_frontmatter_errors(schema_name, meta))
+
+    if schema_name == "verification" and "status" in meta:
+        raw_status = meta.get("status")
+        if not isinstance(raw_status, str):
+            errors.append("status: expected a string")
+        elif raw_status.strip() not in VERIFICATION_REPORT_STATUSES:
+            errors.append(
+                "status: must be one of passed, gaps_found, expert_needed, human_needed"
+            )
 
     if isinstance(meta.get("contract"), dict):
         resolution = _validate_contract_mapping(meta["contract"], enforce_plan_semantics=(schema_name == "plan"))

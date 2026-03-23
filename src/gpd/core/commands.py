@@ -29,7 +29,12 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
 )
 from gpd.core.errors import ValidationError
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
+from gpd.core.frontmatter import (
+    VERIFICATION_REPORT_STATUSES,
+    FrontmatterParseError,
+    extract_frontmatter,
+    validate_frontmatter,
+)
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import (
     compare_phase_numbers,
@@ -505,8 +510,22 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
 _CONVENTION_KV_RE = re.compile(r"^([^=:]+?)\s*[=:]\s*(.+)$")
 
 
+def _matches_phase_scope(dir_name: str, phase: str | None) -> bool:
+    """Return whether a completed phase directory matches an optional phase scope."""
+
+    if phase is None:
+        return True
+
+    requested = phase.strip()
+    if not requested:
+        return True
+
+    dir_phase = dir_name.split("-", 1)[0]
+    return compare_phase_numbers(dir_phase, requested) == 0
+
+
 @instrument_gpd_function("commands.regression_check")
-def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckResult:
+def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = False) -> RegressionCheckResult:
     """Check for regressions across completed phases.
 
     Scans completed phase directories for:
@@ -537,6 +556,10 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
         if is_phase_complete(len(plans), len(summaries)):
             completed_dirs.append(d)
 
+    if not completed_dirs:
+        return RegressionCheckResult(passed=True, issues=[], phases_checked=0)
+
+    completed_dirs = [d for d in completed_dirs if _matches_phase_scope(d.name, phase)]
     if not completed_dirs:
         return RegressionCheckResult(passed=True, issues=[], phases_checked=0)
 
@@ -611,7 +634,32 @@ def cmd_regression_check(cwd: Path, *, quick: bool = False) -> RegressionCheckRe
                 continue
 
             status = fm.get("status")
-            if status in ("gaps_found", "expert_needed", "human_needed"):
+            status_text = str(status).strip() if status is not None else ""
+            if not status_text:
+                issues.append(
+                    RegressionIssue(
+                        type="invalid_verification_status",
+                        phase=d.name,
+                        file=v_file.name,
+                        status=status_text or None,
+                        error="verification status must be one of passed, gaps_found, expert_needed, human_needed",
+                    )
+                )
+                continue
+
+            if status_text not in VERIFICATION_REPORT_STATUSES:
+                issues.append(
+                    RegressionIssue(
+                        type="invalid_verification_status",
+                        phase=d.name,
+                        file=v_file.name,
+                        status=status_text,
+                        error="verification status must be one of passed, gaps_found, expert_needed, human_needed",
+                    )
+                )
+                continue
+
+            if status_text in ("gaps_found", "expert_needed", "human_needed"):
                 score_str = str(fm.get("score", ""))
                 score_match = re.match(r"(\d+)/(\d+)", score_str)
                 verified = int(score_match.group(1)) if score_match else 0
