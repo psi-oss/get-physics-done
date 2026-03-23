@@ -2255,29 +2255,33 @@ def _resolve_permissions_autonomy(autonomy: str | None, *, strict: bool = True) 
 def _resolve_permissions_target_dir(runtime_name: str, *, target_dir: str | None, strict: bool = True) -> Path:
     """Resolve the installed config directory targeted by a permissions command."""
     from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import detect_install_scope
+    from gpd.hooks.runtime_detect import detect_install_scope, detect_runtime_install_target
 
     adapter = get_adapter(runtime_name)
     if target_dir:
         resolved = _resolve_cli_target_dir(target_dir)
     else:
-        install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
-        if install_scope == "global":
-            resolved = adapter.resolve_target_dir(True, _get_cwd())
-        elif install_scope == "local":
-            resolved = adapter.resolve_target_dir(False, _get_cwd())
+        install_target = detect_runtime_install_target(runtime_name, cwd=_get_cwd())
+        if install_target is not None:
+            resolved = install_target.config_dir
         else:
-            local_target = adapter.resolve_target_dir(False, _get_cwd())
-            global_target = adapter.resolve_target_dir(True, _get_cwd())
-            if adapter.has_complete_install(local_target):
-                resolved = local_target
-            elif adapter.has_complete_install(global_target):
-                resolved = global_target
+            install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
+            if install_scope == "global":
+                resolved = adapter.resolve_target_dir(True, _get_cwd())
+            elif install_scope == "local":
+                resolved = adapter.resolve_target_dir(False, _get_cwd())
             else:
-                _raise_permissions_resolution_error(
-                    f"No GPD install found for runtime {runtime_name!r}. Run `gpd install {runtime_name}` first.",
-                    strict=strict,
-                )
+                local_target = adapter.resolve_target_dir(False, _get_cwd())
+                global_target = adapter.resolve_target_dir(True, _get_cwd())
+                if adapter.has_complete_install(local_target):
+                    resolved = local_target
+                elif adapter.has_complete_install(global_target):
+                    resolved = global_target
+                else:
+                    _raise_permissions_resolution_error(
+                        f"No GPD install found for runtime {runtime_name!r}. Run `gpd install {runtime_name}` first.",
+                        strict=strict,
+                    )
 
     if not adapter.has_complete_install(resolved):
         _raise_permissions_resolution_error(

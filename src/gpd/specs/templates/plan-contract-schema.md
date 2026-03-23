@@ -17,6 +17,7 @@ The PLAN `contract` value must be a YAML object with these top-level sections:
 
 - `schema_version` (optional, defaults to `1`; no other value is supported)
 - `scope`
+- `context_intake`
 - `claims`
 - `deliverables`
 - `references`
@@ -26,7 +27,6 @@ The PLAN `contract` value must be a YAML object with these top-level sections:
 
 Optional sections:
 
-- `context_intake`
 - `approach_policy`
 - `observables`
 - `links`
@@ -100,8 +100,8 @@ context_intake:
 
 Rules:
 
-- `context_intake` must be an object, not a string or list.
-- Every field above is optional, but when present it must be an array of non-empty strings.
+- `context_intake` is required and must be a non-empty object, not a string or list.
+- Every field above is optional inside the object, but the object itself must not be empty.
 - `must_read_refs[]` may only reference declared `references[].id`.
 - Use `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors; do not invent placeholder references.
 

@@ -167,6 +167,36 @@ def _ambiguous_request_template_contract() -> dict[str, object]:
     return contract
 
 
+def _ambiguous_benchmark_binding_contract() -> dict[str, object]:
+    contract = _derived_template_contract()
+    contract["references"].append(
+        {
+            "id": "ref-benchmark-2",
+            "locator": "doi:10.1000/second-benchmark",
+            "role": "benchmark",
+            "why_it_matters": "Second benchmark anchor without a second benchmark test",
+            "required_actions": ["compare"],
+            "applies_to": ["claim-benchmark"],
+            "must_surface": True,
+        }
+    )
+    return contract
+
+
+def _ambiguous_limit_binding_contract() -> dict[str, object]:
+    contract = _derived_template_contract()
+    contract["observables"].append(
+        {
+            "id": "obs-small-k",
+            "name": "small-k observable",
+            "kind": "scalar",
+            "definition": "Secondary observable tracked in the small-k regime",
+            "regime": "small-k",
+        }
+    )
+    return contract
+
+
 def _binding_inconsistency_contract() -> dict[str, object]:
     contract = _ambiguous_request_template_contract()
     contract["forbidden_proxies"].append(
@@ -383,6 +413,7 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
 
     result = suggest_contract_checks(_derived_template_contract())
     checks = {entry["check_key"]: entry for entry in result["suggested_checks"]}
+    assert all(entry["request_template"]["check_key"] == entry["check_key"] for entry in result["suggested_checks"])
 
     benchmark = checks["contract.benchmark_reproduction"]["request_template"]
     assert benchmark["binding"]["claim_ids"] == ["claim-benchmark"]
@@ -596,6 +627,82 @@ def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolv
     assert limit["metadata"]["expected_behavior"] is None
     assert fit["metadata"]["declared_family"] is None
     assert estimator["metadata"]["declared_family"] is None
+
+
+def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    benchmark_result = suggest_contract_checks(_ambiguous_benchmark_binding_contract())
+    benchmark_checks = {entry["check_key"]: entry for entry in benchmark_result["suggested_checks"]}
+    benchmark = benchmark_checks["contract.benchmark_reproduction"]["request_template"]
+    assert benchmark["binding"] == {}
+    assert benchmark["metadata"]["source_reference_id"] is None
+
+    limit_result = suggest_contract_checks(_ambiguous_limit_binding_contract())
+    limit_checks = {entry["check_key"]: entry for entry in limit_result["suggested_checks"]}
+    limit = limit_checks["contract.limit_recovery"]["request_template"]
+    assert limit["binding"] == {}
+    assert limit["metadata"]["regime_label"] is None
+    assert limit["metadata"]["expected_behavior"] is None
+
+
+def test_run_contract_check_ambiguous_context_requires_explicit_subject_selector() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    benchmark = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": _ambiguous_benchmark_binding_contract(),
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    limit = run_contract_check(
+        {
+            "check_key": "contract.limit_recovery",
+            "contract": _ambiguous_limit_binding_contract(),
+            "observed": {"limit_passed": True, "observed_limit": "large-k"},
+        }
+    )
+
+    assert benchmark["status"] == "insufficient_evidence"
+    assert "metadata.source_reference_id" in benchmark["missing_inputs"]
+    assert "Ambiguous benchmark context requires an explicit benchmark reference" in benchmark["automated_issues"]
+
+    assert limit["status"] == "insufficient_evidence"
+    assert "metadata.regime_label" in limit["missing_inputs"]
+    assert "Ambiguous limit context requires an explicit regime selection" in limit["automated_issues"]
+
+
+def test_run_contract_check_ambiguous_context_accepts_explicit_metadata_selector() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    benchmark = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": _ambiguous_benchmark_binding_contract(),
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    limit = run_contract_check(
+        {
+            "check_key": "contract.limit_recovery",
+            "contract": _ambiguous_limit_binding_contract(),
+            "metadata": {
+                "regime_label": "large-k",
+                "expected_behavior": "Recovers the contracted large-k scaling",
+            },
+            "observed": {"limit_passed": True, "observed_limit": "large-k"},
+        }
+    )
+
+    assert benchmark["status"] == "pass"
+    assert benchmark["missing_inputs"] == []
+    assert benchmark["automated_issues"] == []
+
+    assert limit["status"] == "pass"
+    assert limit["missing_inputs"] == []
+    assert limit["automated_issues"] == []
 
 
 def test_run_contract_check_keyword_fallback_reaches_warning_when_prose_evidence_is_present() -> None:

@@ -37,6 +37,7 @@ _AMBIGUOUS_RUNTIME_ALIAS_TOOL_CONTEXT_RE = re.compile(
 _AMBIGUOUS_RUNTIME_ALIAS_PROSE_RE = re.compile(
     r"(?i)\b(?:use|using|call|invoke|run|spawn|ask|present|select|choose)\s+(?:the\s+)?(?:question|replace|skill|todo)\b(?:\s*[\(:][^`\n]*)?"
 )
+_BODY_TOOL_SECTION_RE = re.compile(r"(?i)(?:\btool\b|\btools\b|available tools|tool availability|tool surface|tool access|tool selection)")
 _FENCED_CODE_SEGMENT_RE = re.compile(r"```(?P<info>[^\n`]*)\n(?P<body>[\s\S]*?)```")
 _NON_TOOL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh", "python", "json", "yaml", "toml"})
 
@@ -123,6 +124,28 @@ def _body_contains_runtime_alias_leaks(body: str) -> bool:
     )
 
 
+def _body_explicit_tool_requirements(body: str) -> set[str]:
+    requirements: set[str] = set()
+    capture = False
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line:
+            capture = False
+            continue
+        if line.startswith("#") or line.startswith("**") or line.startswith("- ") or line.startswith("* "):
+            if _BODY_TOOL_SECTION_RE.search(line) and (line.endswith(":") or line.startswith("#") or line.startswith("**")):
+                capture = True
+                continue
+        if not capture:
+            continue
+        for tool in CANONICAL_TOOL_NAMES:
+            if tool in {"agent", "task", "file_edit"}:
+                continue
+            if re.search(rf"(?<!\\w){re.escape(tool)}(?!\\w)", line):
+                requirements.add(tool)
+    return requirements
+
+
 def test_body_alias_scan_flags_runtime_aliases_inside_inline_code() -> None:
     assert _body_contains_runtime_alias_leaks("Use `run_shell_command` before proceeding.") is True
 
@@ -158,6 +181,19 @@ def test_primary_prompt_frontmatter_uses_canonical_tool_names() -> None:
                 continue
             if canonical(tool) != tool or tool not in CANONICAL_TOOL_NAMES:
                 invalid.append(f"{path.relative_to(REPO_ROOT)} -> {tool}")
+
+    assert invalid == []
+
+
+def test_primary_prompt_body_tool_requirements_are_declared_in_frontmatter() -> None:
+    invalid: list[str] = []
+
+    for path in _iter_markdown_sources(*PRIMARY_PROMPT_ROOTS):
+        meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
+        declared_tools = set(_frontmatter_tools(meta))
+        missing = sorted(tool for tool in _body_explicit_tool_requirements(body) if tool not in declared_tools)
+        if missing:
+            invalid.append(f"{path.relative_to(REPO_ROOT)} -> {', '.join(missing)}")
 
     assert invalid == []
 

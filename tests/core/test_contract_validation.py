@@ -206,6 +206,68 @@ def test_validate_project_contract_approved_mode_accepts_concrete_reference_loca
     assert result.mode == "approved"
 
 
+def test_validate_project_contract_approved_mode_rejects_placeholder_must_surface_reference_masked_by_background_reference() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-placeholder-anchor",
+            "kind": "paper",
+            "locator": "TBD",
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Placeholder anchor should not ground approved mode.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read"],
+        },
+        {
+            "id": "ref-background",
+            "kind": "paper",
+            "locator": "doi:10.1234/example",
+            "aliases": [],
+            "role": "background",
+            "why_it_matters": "Concrete background material should not mask the placeholder anchor.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": False,
+            "required_actions": ["read"],
+        },
+    ]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+
+
+def test_validate_project_contract_approved_mode_accepts_concrete_must_surface_reference_anchor() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-anchor",
+            "kind": "paper",
+            "locator": "doi:10.1234/example",
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Concrete must_surface anchor should ground approved mode.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read"],
+        }
+    ]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+
+
 @pytest.mark.parametrize("locator", ["Benchmark paper", "reference article", "/tmp/nonexistent.txt", "report.pdf"])
 def test_validate_project_contract_approved_mode_rejects_vague_reference_locator_grounding(
     locator: str,

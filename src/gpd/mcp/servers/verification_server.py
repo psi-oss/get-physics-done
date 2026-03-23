@@ -707,6 +707,8 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     binding_targets = list(check_meta.binding_targets) if check_meta is not None else []
     supported_binding_fields = _supported_binding_fields_for_targets(binding_targets)
     request_template = copy.deepcopy(hint.get("request_template", {}))
+    if check_key:
+        request_template["check_key"] = check_key
     enriched_hint = {
         "required_request_fields": list(hint.get("required_request_fields", [])),
         "optional_request_fields": [
@@ -733,50 +735,53 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             for reference in contract.references
             if reference.role == "benchmark" or "compare" in reference.required_actions
         ]
-        candidates, _ = _benchmark_reference_candidates(contract, {}, binding_supplied=False)
-        if len(candidates) == 1:
-            metadata["source_reference_id"] = candidates[0]
-            binding.setdefault("reference_ids", [candidates[0]])
         benchmark_tests = _matching_acceptance_tests(
             contract,
             kinds=("benchmark",),
             keywords=("benchmark", "baseline", "reference"),
             evidence_ids=benchmark_reference_ids,
         )
-        benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
-        if benchmark_test is not None:
-            _set_single_binding_value(
-                binding,
-                "reference_ids",
-                [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
-            )
+        if len(_unique_strings(benchmark_reference_ids)) == 1 and len(benchmark_tests) == 1:
+            benchmark_reference_id = benchmark_reference_ids[0]
+            metadata["source_reference_id"] = benchmark_reference_id
+            binding.setdefault("reference_ids", [benchmark_reference_id])
+            benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
+            if benchmark_test is not None:
+                _set_single_binding_value(
+                    binding,
+                    "reference_ids",
+                    [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
+                )
 
     elif check_key == "contract.limit_recovery":
-        regime_candidates, _ = _limit_regime_candidates(contract, {}, binding_supplied=False)
-        if len(regime_candidates) == 1:
-            metadata["regime_label"] = regime_candidates[0]
-            _set_single_binding_value(
-                binding,
-                "observable_ids",
-                [observable.id for observable in contract.observables if observable.regime == regime_candidates[0]],
-            )
-            _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_candidates[0]))
         limit_tests = _matching_acceptance_tests(
             contract,
             kinds=("limiting_case",),
             keywords=("limit", "asymptotic", "boundary", "scaling"),
         )
-        limit_test = _apply_single_acceptance_test_binding(
-            binding,
-            contract,
-            limit_tests,
-            include_observable_binding=True,
+        regime_candidates = _unique_strings(
+            observable.regime for observable in contract.observables if observable.regime
         )
-        if limit_test is None:
-            binding_ids = {target: _binding_values_for_target(binding, target) for target in _BINDING_TARGETS}
-            limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
-        if limit_test is not None and limit_test.pass_condition:
-            metadata["expected_behavior"] = limit_test.pass_condition
+        if len(regime_candidates) == 1 and len(limit_tests) == 1:
+            regime_label = regime_candidates[0]
+            metadata["regime_label"] = regime_label
+            _set_single_binding_value(
+                binding,
+                "observable_ids",
+                [observable.id for observable in contract.observables if observable.regime == regime_label],
+            )
+            _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_label))
+            limit_test = _apply_single_acceptance_test_binding(
+                binding,
+                contract,
+                limit_tests,
+                include_observable_binding=True,
+            )
+            if limit_test is None:
+                binding_ids = {target: _binding_values_for_target(binding, target) for target in _BINDING_TARGETS}
+                limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
+            if limit_test is not None and limit_test.pass_condition:
+                metadata["expected_behavior"] = limit_test.pass_condition
 
     elif check_key == "contract.direct_proxy_consistency":
         if len(contract.forbidden_proxies) == 1:
@@ -831,6 +836,58 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         )
 
     return enriched_hint
+
+
+def _subject_binding_requirement(
+    check_key: str,
+    *,
+    contract: ResearchContract | None,
+    binding_ids: dict[str, list[str]],
+    resolved_subject: str | None,
+) -> tuple[list[str], str | None]:
+    """Return missing selector hints when a subject-bound check is still ambiguous."""
+
+    if contract is None or resolved_subject:
+        return [], None
+
+    if check_key == "contract.benchmark_reproduction":
+        benchmark_reference_ids = [
+            reference.id
+            for reference in contract.references
+            if reference.role == "benchmark" or "compare" in reference.required_actions
+        ]
+        benchmark_tests = _matching_acceptance_tests(
+            contract,
+            kinds=("benchmark",),
+            keywords=("benchmark", "baseline", "reference"),
+            evidence_ids=benchmark_reference_ids,
+        )
+        reference_candidates, _ = _benchmark_reference_candidates(
+            contract,
+            binding_ids,
+            binding_supplied=bool(binding_ids),
+        )
+        if len(reference_candidates) > 1 or len(_unique_strings(benchmark_reference_ids)) > 1 or len(benchmark_tests) > 1:
+            return [
+                "metadata.source_reference_id"
+            ], "Ambiguous benchmark context requires an explicit benchmark reference"
+
+    if check_key == "contract.limit_recovery":
+        regime_ids = _unique_strings(observable.regime for observable in contract.observables if observable.regime)
+        limit_tests = _matching_acceptance_tests(
+            contract,
+            kinds=("limiting_case",),
+            keywords=("limit", "asymptotic", "boundary", "scaling"),
+        )
+        regime_candidates, _ = _limit_regime_candidates(
+            contract,
+            binding_ids,
+            binding_supplied=bool(binding_ids),
+        )
+        if len(regime_candidates) > 1 or len(regime_ids) > 1 or len(limit_tests) > 1:
+            return ["metadata.regime_label"], "Ambiguous limit context requires an explicit regime selection"
+
+    return [], None
 
 
 def _normalize_optional_scalar_str(value: object) -> object:
@@ -2737,6 +2794,28 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
                     and calibration_checked is True
                 ):
                     status = "pass"
+
+            resolved_subject: str | None = None
+            if check_meta.check_key == "contract.benchmark_reproduction":
+                resolved_subject = source_reference_id
+            elif check_meta.check_key == "contract.limit_recovery":
+                resolved_subject = regime_label
+
+            binding_requirement_missing_inputs, binding_requirement_issue = _subject_binding_requirement(
+                check_meta.check_key,
+                contract=contract,
+                binding_ids=binding_ids,
+                resolved_subject=resolved_subject,
+            )
+            if binding_requirement_missing_inputs:
+                for missing_input in binding_requirement_missing_inputs:
+                    if missing_input not in missing_inputs:
+                        missing_inputs.append(missing_input)
+            if binding_requirement_issue is not None and binding_requirement_issue not in automated_issues:
+                automated_issues.append(binding_requirement_issue)
+                if status == "pass":
+                    status = "insufficient_evidence"
+                    evidence_directness = "mixed" if artifact_content else "metadata_only"
 
             if contract is not None:
                 metrics["contract_claim_count"] = len(contract.claims)

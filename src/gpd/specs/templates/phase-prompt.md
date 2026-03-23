@@ -10,7 +10,7 @@ Before authoring or revising the `contract:` block, use the canonical schema bel
 
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
-The validator is strict here: for ordinary execution plans, the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies, and non-empty `uncertainty_markers.weakest_anchors` plus `uncertainty_markers.disconfirming_observations`. If references are present, at least one must set `must_surface: true`.
+The validator is strict here: for ordinary execution plans, the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies, and a non-empty `context_intake`, plus non-empty `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations`. If references are present, at least one must set `must_surface: true`.
 
 ---
 
@@ -45,6 +45,13 @@ approximations:
 contract:
   scope:
     question: "[The decisive question this plan advances]"
+  context_intake:
+    must_read_refs: [ref-main]
+    must_include_prior_outputs: ["Phase 00 benchmark table"]
+    user_asserted_anchors: ["Use the lattice normalization from the user notes"]
+    known_good_baselines: ["Published large-N curve from Smith et al."]
+    context_gaps: ["Comparison source still undecided before planning"]
+    crucial_inputs: ["Check the user's finite-volume cutoff choice before proceeding"]
   claims:
     - id: "claim-main"
       statement: "[Physics statement this plan must establish]"
@@ -181,7 +188,7 @@ For `plan depth: light`, keep the same frontmatter but reduce the body to:
 - `<success_criteria>`
 
 Do not omit the `contract`, conventions, or approximation validity just because the plan is light.
-The `contract` block is still required in light mode, including any `links` needed to make downstream handoffs explicit.
+The `contract` block is still required in light mode, including `context_intake` and any `links` needed to make downstream handoffs explicit.
 If the plan is intentionally scoping-only, keep that limited shape explicit and preserve at least one target, open question, or carry-forward input instead of emitting a half-empty execution contract.
 
 ---
@@ -209,6 +216,13 @@ dimensional_check:
 contract:
   scope:
     question: What benchmark must this plan recover?
+  context_intake:
+    must_read_refs: [ref-textbook]
+    must_include_prior_outputs: ["Phase 01 benchmark table"]
+    user_asserted_anchors: ["Use the normalization from the user notes"]
+    known_good_baselines: ["Accepted reference curve from the milestone review"]
+    context_gaps: ["Need the exact comparison source before planning"]
+    crucial_inputs: ["Confirm the user's cutoff convention before writing the plan"]
   claims:
     - id: claim-polarization
       statement: Vacuum polarization tensor is transverse

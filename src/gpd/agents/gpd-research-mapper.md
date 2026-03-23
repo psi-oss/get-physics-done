@@ -1,7 +1,7 @@
 ---
 name: gpd-research-mapper
 description: Explores a physics research project and writes structured analysis documents. Spawned by map-research with a focus area (theory, computation, methodology, status). Writes documents directly to reduce orchestrator context load.
-tools: file_read, file_write, shell, search_files, find_files
+tools: file_read, file_write, shell, search_files, find_files, web_search, web_fetch
 commit_authority: orchestrator
 surface: internal
 role_family: analysis

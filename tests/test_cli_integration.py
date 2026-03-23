@@ -757,6 +757,34 @@ class TestConfigCommands:
         assert parsed["sync_applied"] is True
         assert settings["permissions"]["defaultMode"] == "bypassPermissions"
 
+    def test_permissions_status_and_sync_use_explicit_local_install_target(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / "external" / "claude-config"
+        target.mkdir(parents=True)
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target, is_global=False, explicit_target=True)
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(target))
+
+        status_result = _invoke("--raw", "permissions", "status", "--runtime", "claude-code")
+        parsed_status = json.loads(status_result.output)
+        assert parsed_status["runtime"] == "claude-code"
+        assert parsed_status["target"] == str(target)
+        assert parsed_status["settings_path"] == str(target / "settings.json")
+
+        sync_result = _invoke("--raw", "permissions", "sync", "--runtime", "claude-code", "--autonomy", "yolo")
+        parsed_sync = json.loads(sync_result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed_sync["runtime"] == "claude-code"
+        assert parsed_sync["target"] == str(target)
+        assert parsed_sync["sync_applied"] is True
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+
     def test_config_set_autonomy_attempts_runtime_permission_sync(
         self,
         gpd_project: Path,

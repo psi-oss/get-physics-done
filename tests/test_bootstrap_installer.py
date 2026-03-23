@@ -564,6 +564,30 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    target_dir = home / ".codex"
+    result, _home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=[_CODEX_INSTALL_FLAG, "--target-dir", str(target_dir)],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_runtime_installs = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--global", "--target-dir", str(target_dir)]
+    ]
+
+    assert len(managed_runtime_installs) == 1
+    assert f"Installing GPD (global) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_requires_explicit_runtime_with_target_dir_non_interactively(tmp_path: Path) -> None:
     target_dir = tmp_path / "custom target"
     result, _, log_path = _run_bootstrap_with_fake_python(

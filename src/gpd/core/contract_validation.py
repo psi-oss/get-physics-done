@@ -684,11 +684,11 @@ def _has_concrete_grounding_entries(values: list[str], *, field_name: str) -> bo
     raise ValueError(f"Unsupported grounding field {field_name!r}")
 
 
-def _has_anchor_like_reference(contract: ResearchContract) -> bool:
-    """Return whether the contract includes a reference that can ground approved mode."""
+def _has_concrete_must_surface_reference(contract: ResearchContract) -> bool:
+    """Return whether the contract includes a concrete must_surface reference."""
 
     for reference in contract.references:
-        if _is_concrete_reference_locator(reference.locator):
+        if reference.must_surface and _is_concrete_reference_locator(reference.locator):
             return True
     return False
 
@@ -703,7 +703,7 @@ def _has_approved_grounding_signal(contract: ResearchContract) -> bool:
 
     return any(
         (
-            _has_anchor_like_reference(contract),
+            _has_concrete_must_surface_reference(contract),
             _has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",

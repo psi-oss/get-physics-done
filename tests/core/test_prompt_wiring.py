@@ -1548,11 +1548,15 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "schema_version: 1" in phase_prompt
     assert "in_scope:" in phase_prompt
     assert "context_intake:" in phase_prompt
+    assert "non-empty `context_intake`" in phase_prompt
+    assert "must_include_prior_outputs: [\"Phase 00 benchmark table\"]" in phase_prompt
+    assert "user_asserted_anchors: [\"Use the lattice normalization from the user notes\"]" in phase_prompt
     assert "claims:" in phase_prompt
     assert "observables: [obs-main]" in phase_prompt
     assert "### `forbidden_proxies[]`" in phase_prompt
     assert "### `links[]`" in phase_prompt
     assert "# PLAN Contract Schema" in planner_prompt
+    assert "non-empty `context_intake` object" in planner_prompt
     assert "scope.unresolved_questions" in planner_prompt
     assert "Every claim must declare a stable `id`." in planner_prompt
     assert (
@@ -1622,10 +1626,15 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "in_scope: [\"[Optional boundary or objective]\"]" in plan_schema
     assert "unresolved_questions: [\"[Optional open question that still blocks planning]\"]" in plan_schema
     assert "context_intake:" in plan_schema
+    assert "`context_intake` is required and must be a non-empty object, not a string or list." in plan_schema
     assert "must_read_refs: [ref-main]" in plan_schema
+    assert "must_include_prior_outputs: [\"Phase 00 benchmark table\"]" in plan_schema
+    assert "user_asserted_anchors: [\"Use the lattice normalization from the user notes\"]" in plan_schema
+    assert "known_good_baselines: [\"Published large-N curve from Smith et al.\"]" in plan_schema
+    assert "context_gaps: [\"Comparison source still undecided before planning\"]" in plan_schema
+    assert "crucial_inputs: [\"Check the user's finite-volume cutoff choice before proceeding\"]" in plan_schema
     assert "approach_policy:" in plan_schema
     assert "allowed_fit_families: [power_law]" in plan_schema
-    assert "`context_intake` must be an object, not a string or list." in plan_schema
     assert "`observables[]` may only reference declared `observables[].id`." in plan_schema
     assert "observables: [obs-main]" in plan_schema
     assert "aliases: [\"optional stable label or citation shorthand\"]" in plan_schema

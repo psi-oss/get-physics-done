@@ -729,6 +729,12 @@ function runtimeGlobalConfigDir(runtime) {
   throw new Error(`Unsupported config policy for runtime ${runtime}`);
 }
 
+function targetDirMatchesGlobal(runtime, targetDir) {
+  const resolvedTargetDir = path.resolve(expandTilde(targetDir));
+  const resolvedGlobalDir = path.resolve(expandTilde(runtimeGlobalConfigDir(runtime)));
+  return resolvedTargetDir === resolvedGlobalDir;
+}
+
 function formatDisplayPath(filePath) {
   const home = os.homedir().replace(/\\/g, "/");
   const normalized = String(filePath).replace(/\\/g, "/");
@@ -822,7 +828,7 @@ function printHelp() {
     console.log(` ${cyan}${flags}${reset}${padding}Select ${runtimeDisplayName(runtime)} only`);
   }
   console.log(` ${cyan}--all${reset}                  Select all supported runtimes`);
-  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (implies local scope)`);
+  console.log(` ${cyan}--target-dir <path>${reset}    Override the runtime config directory (defaults to local scope unless it resolves to the runtime's canonical global config dir)`);
   console.log(` ${cyan}--force-statusline${reset}     Replace an existing runtime statusline`);
   console.log(` ${cyan}-h, --help${reset}              Show this help message`);
   console.log("");
@@ -1022,7 +1028,13 @@ async function selectRuntimes(args, action = "install") {
 
 async function selectInstallScope(args, runtimes, targetDir, action = "install") {
   if (targetDir) {
-    return "local";
+    if (args.includes("--global") || args.includes("-g")) {
+      return "global";
+    }
+    if (args.includes("--local") || args.includes("-l")) {
+      return "local";
+    }
+    return targetDirMatchesGlobal(runtimes[0], targetDir) ? "global" : "local";
   }
   if (args.includes("--global") || args.includes("-g")) {
     return "global";
@@ -1118,10 +1130,6 @@ async function main() {
   }
   if (isUninstall && forceStatusline) {
     error("Cannot combine --uninstall with --force-statusline.");
-    process.exit(1);
-  }
-  if (targetDir && (args.includes("--global") || args.includes("-g"))) {
-    error("Cannot combine --target-dir with --global. Use --local semantics for explicit target directories.");
     process.exit(1);
   }
   if (targetDir && parsedRuntimes.length === 0 && !process.stdin.isTTY) {

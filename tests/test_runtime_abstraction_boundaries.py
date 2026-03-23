@@ -298,6 +298,22 @@ def test_shared_mcp_python_surfaces_do_not_hardcode_runtime_command_prefixes() -
     )
 
 
+def test_shared_python_surfaces_do_not_hardcode_runtime_command_prefixes() -> None:
+    leaks = _scan_paths_for_pattern((REPO_ROOT / "src/gpd",), _SHARED_COMMAND_SURFACE_PATTERN)
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in leaks
+        if path.suffix == ".py"
+        and not path.as_posix().startswith("src/gpd/adapters/")
+        and not _is_allowed_shared_python_runtime_file(path)
+    ]
+
+    assert leaks == [], (
+        "Shared Python surfaces should stay canonical instead of hardcoding runtime command prefixes:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
 def test_shared_builtin_server_descriptors_do_not_hardcode_bootstrap_commands() -> None:
     leaks = _scan_paths_for_pattern((REPO_ROOT / "src/gpd/mcp/builtin_servers.py",), _SHARED_BOOTSTRAP_COMMAND_PATTERN)
 
