@@ -12,6 +12,7 @@ Instantly restore full research project context so "Where were we?" has an immed
 
 <required_reading>
 @{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
+@{GPD_INSTALL_DIR}/references/orchestration/state-portability.md
 </required_reading>
 
 <process>
@@ -41,6 +42,8 @@ If `active_execution_segment.first_result_gate_pending` is true, do not treat la
 </step>
 
 <step name="load_state">
+
+**machine_change_detection:** Before restoring context, compare the current hostname and platform with the session info stored in state.json. If they differ, display a notice that the project was last active on a different machine and recommend running the installer to ensure runtime-specific config is current. This is advisory, not blocking — the .gpd/ state itself is portable.
 
 Read and parse STATE.md, then PROJECT.md:
 
