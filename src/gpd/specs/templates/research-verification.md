@@ -72,7 +72,9 @@ suggested_contract_checks:
     suggested_subject_kind: reference
     suggested_subject_id: reference-main
     evidence_path: [artifact path or expected evidence path]
-source: [list of SUMMARY.md files validated]
+source:
+  - "[SUMMARY.md file validated]"
+  - "[additional SUMMARY.md file validated]"
 started: [ISO timestamp]
 updated: [ISO timestamp]
 session_status: validating | completed | diagnosed
@@ -229,7 +231,7 @@ Only `subject_role: decisive` closes a required decisive comparison; the other r
 - `verified`: OVERWRITE - latest verification timestamp
 - `score`: OVERWRITE - contract-backed verification progress summary
 - `plan_contract_ref`, `contract_results`, `comparison_verdicts`, `suggested_contract_checks`: must follow `verification-report.md` / `contract-results-schema.md`
-- `source`: IMMUTABLE - SUMMARY files being validated
+- `source`: IMMUTABLE - SUMMARY files being validated; keep this as a YAML list even when only one SUMMARY path is present
 - `started`: IMMUTABLE - set on creation
 - `updated`: OVERWRITE - update on every change
 - `session_status`: optional session-progress field for `validating | completed | diagnosed`
@@ -438,7 +440,10 @@ status: gaps_found
 verified: 2026-03-15T14:45:00Z
 score: 3/4 contract targets verified
 phase: 03-phase-diagram
-source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md
+source:
+  - "03-01-SUMMARY.md"
+  - "03-02-SUMMARY.md"
+  - "03-03-SUMMARY.md"
 started: 2026-03-15T14:00:00Z
 updated: 2026-03-15T14:45:00Z
 session_status: diagnosed

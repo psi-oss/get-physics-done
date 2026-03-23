@@ -3898,6 +3898,8 @@ comparison_verdicts:    # Required when a decisive comparison was required or at
     verdict: pass|tension|fail|inconclusive
     metric: "relative_error"
     threshold: "<= 0.01"
+    recommended_action: "[what to do next]"
+    notes: "[optional context]"
 suggested_contract_checks:
   # Allowed keys are exactly `check`, `reason`, `suggested_subject_kind`,
   # `suggested_subject_id`, and `evidence_path`.

@@ -226,6 +226,7 @@ Two plausible unchecked failure modes identified → **confidence cannot be HIGH
 ---
 phase: "02"
 plan: "01"
+depth: full
 physics-area: QED, renormalization
 tags: [self-energy, one-loop, dimensional-regularization, MS-bar]
 requires:
@@ -238,6 +239,7 @@ provides:
 affects:
   - "02-02: vertex correction (needs δZ₂ for Ward identity check)"
   - "02-03: renormalized propagator"
+completed: 2026-03-15
 plan_contract_ref: ".gpd/phases/02-self-energy/02-01-PLAN.md#/contract"
 contract_results:
   claims:
@@ -245,6 +247,16 @@ contract_results:
       status: passed
       summary: "Pole extraction reproduced the expected electron mass counterterm coefficient."
       linked_ids: [deliverable-self-energy-derivation, acceptance-test-pole, reference-qed-benchmark]
+      evidence:
+        - verifier: gpd-verifier
+          method: benchmark reproduction
+          confidence: high
+          claim_id: claim-mass-counterterm
+          deliverable_id: deliverable-self-energy-derivation
+          acceptance_test_id: acceptance-test-pole
+          reference_id: reference-qed-benchmark
+          forbidden_proxy_id: fp-summary-only
+          evidence_path: ".gpd/phases/02-self-energy/02-VERIFICATION.md"
     claim-massless-limit:
       status: passed
       summary: "The m→0 limit preserved the expected chiral behavior."
@@ -289,6 +301,8 @@ comparison_verdicts:
     metric: "coefficient_match"
     threshold: "exact"
     verdict: "pass"
+    recommended_action: "Keep the benchmark coefficient comparison explicit in the verification report."
+    notes: "Exact pole agreement closes the decisive benchmark requirement for this claim."
 ---
 
 # Phase 02 Plan 01: One-Loop Electron Self-Energy Summary

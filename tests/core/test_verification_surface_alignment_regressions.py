@@ -51,3 +51,26 @@ def test_verification_guidance_surfaces_the_same_canonical_suggestion_contract()
     assert decisive_gap_text in verify_workflow
     assert "same canonical schema surface" in research_verification
     assert "frontmatter contract compatible with `@{GPD_INSTALL_DIR}/templates/verification-report.md`" in verify_workflow
+
+
+def test_model_visible_worked_examples_keep_summary_and_verdict_shapes_copy_safe() -> None:
+    executor_example = _read("src/gpd/specs/references/execution/executor-worked-example.md")
+    verifier_prompt = _read("src/gpd/agents/gpd-verifier.md")
+
+    assert "depth: full" in executor_example
+    assert "completed: 2026-03-15" in executor_example
+    assert "evidence:" in executor_example
+    assert "verifier: gpd-verifier" in executor_example
+    assert 'recommended_action: "Keep the benchmark coefficient comparison explicit in the verification report."' in executor_example
+    assert 'notes: "Exact pole agreement closes the decisive benchmark requirement for this claim."' in executor_example
+    assert 'recommended_action: "[what to do next]"' in verifier_prompt
+    assert 'notes: "[optional context]"' in verifier_prompt
+
+
+def test_research_verification_template_keeps_source_as_yaml_list() -> None:
+    research_verification = _read("src/gpd/specs/templates/research-verification.md")
+
+    assert 'source:\n  - "[SUMMARY.md file validated]"' in research_verification
+    assert 'source:\n  - "03-01-SUMMARY.md"\n  - "03-02-SUMMARY.md"\n  - "03-03-SUMMARY.md"' in research_verification
+    assert "keep this as a YAML list even when only one SUMMARY path is present" in research_verification
+    assert "source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md" not in research_verification
