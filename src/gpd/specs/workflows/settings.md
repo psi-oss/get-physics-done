@@ -273,6 +273,15 @@ Quick commands:
 
 </step>
 
+<step name="runtime_guidance">
+Refer to `{GPD_INSTALL_DIR}/references/tooling/runtime-config-guide.md` for:
+- recommended minimal runtime configuration
+- extension and skill compatibility guidance
+- portable configuration patterns for multi-machine setups
+- permission mode alignment with GPD autonomy settings
+- troubleshooting common environment issues
+</step>
+
 </process>
 
 <downstream_consumption>
