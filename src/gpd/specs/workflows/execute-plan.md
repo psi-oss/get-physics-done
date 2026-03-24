@@ -8,6 +8,7 @@ Read config.json for planning behavior settings.
 
 Read these reference files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/execution/git-integration.md
+- {GPD_INSTALL_DIR}/references/execution/github-lifecycle.md
 - {GPD_INSTALL_DIR}/references/execution/execute-plan-recovery.md
 - {GPD_INSTALL_DIR}/references/execution/execute-plan-validation.md
 - {GPD_INSTALL_DIR}/references/execution/execute-plan-checkpoints.md
