@@ -88,6 +88,7 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 - If `selected_protocol_bundle_ids` is non-empty, treat the bundle summary as a quick map of which decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should make visible.
 - Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `GPD/paper/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*-SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
 - Judge the paper by reader-visible claims and surfaced evidence first. Review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
+- Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed without falling back to legacy recovery paths.
 - If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
 </step>
 
@@ -222,7 +223,7 @@ If Stage 1 fails, STOP. Later stages depend on its claim map.
 <step name="stage_recovery_1">
 **Stage 1 recovery -- Validate the reader output before proceeding.**
 
-Check that both `.gpd/review/CLAIMS{round_suffix}.json` and `.gpd/review/STAGE-reader{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling` for the stage report; `claims` for the claim index).
+Check that both `GPD/review/CLAIMS{round_suffix}.json` and `GPD/review/STAGE-reader{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling` for the stage report; `claims` for the claim index).
 
 If validation fails:
 
@@ -315,7 +316,7 @@ If either stage fails, STOP and report the failure.
 <step name="stage_recovery_2_3">
 **Stages 2-3 recovery -- Validate literature and math outputs before proceeding.**
 
-For each of `.gpd/review/STAGE-literature{round_suffix}.json` and `.gpd/review/STAGE-math{round_suffix}.json`, check that the file exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+For each of `GPD/review/STAGE-literature{round_suffix}.json` and `GPD/review/STAGE-math{round_suffix}.json`, check that the file exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
 
 If validation fails for either stage:
 
@@ -381,7 +382,7 @@ If Stage 4 fails, STOP and report the failure.
 <step name="stage_recovery_4">
 **Stage 4 recovery -- Validate the physics output before proceeding.**
 
-Check that `.gpd/review/STAGE-physics{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+Check that `GPD/review/STAGE-physics{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
 
 If validation fails:
 
@@ -438,7 +439,7 @@ If Stage 5 fails, STOP and report the failure.
 <step name="stage_recovery_5">
 **Stage 5 recovery -- Validate the significance output before proceeding.**
 
-Check that `.gpd/review/STAGE-interestingness{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+Check that `GPD/review/STAGE-interestingness{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
 
 If validation fails:
 
@@ -524,13 +525,13 @@ If the referee agent fails to spawn or returns an error, STOP and report the fai
 <step name="stage_recovery_6">
 **Stage 6 recovery -- Validate the adjudication outputs before proceeding.**
 
-Check that both `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `manuscript_path`, `issues` for the ledger; `manuscript_path`, `target_journal`, `final_recommendation`, `final_confidence`, `stage_artifacts`, `blocking_issue_ids` for the decision).
+Check that both `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `manuscript_path`, `issues` for the ledger; `manuscript_path`, `target_journal`, `final_recommendation`, `final_confidence`, `stage_artifacts`, `blocking_issue_ids` for the decision).
 
 Run the built-in validators:
 
 ```bash
-gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
-gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
 ```
 
 If validation fails:

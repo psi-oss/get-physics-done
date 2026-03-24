@@ -34,6 +34,7 @@ mcp = FastMCP("gpd-skills")
 
 _CONTRACT_REFERENCE_NAMES = {
     "contract-results-schema.md",
+    "peer-review-reliability.md",
     "peer-review-panel.md",
     "reproducibility-manifest.md",
     "summary.md",

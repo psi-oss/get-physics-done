@@ -13,6 +13,8 @@ context_cost: low
 
 Guidance for reliable execution of the staged peer-review pipeline, covering when the phase triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
 
+This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth.
+
 ## When Peer Review Triggers
 
 The peer review phase activates **after a complete manuscript draft exists** and **before final PDF packaging and submission**. Specifically:
@@ -24,8 +26,8 @@ The peer review phase activates **after a complete manuscript draft exists** and
 ### Precondition Checklist
 
 - Manuscript main file exists under `paper/`, `manuscript/`, or `draft/`
-- `.gpd/STATE.md` and `.gpd/ROADMAP.md` are present
-- Phase summaries and verification reports are available under `.gpd/phases/`
+- `GPD/STATE.md` and `GPD/ROADMAP.md` are present
+- Phase summaries and verification reports are available under `GPD/phases/`
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are present (strict mode)
 
 If any precondition fails, the review preflight blocks entry and reports the missing items.
@@ -40,7 +42,7 @@ The staged peer-review panel is an **automated internal review**. It is not a su
 | Agents | Six staged subagents with fresh context | Human domain experts |
 | Scope | Claim extraction, math, physics, literature, significance, adjudication | Full scientific judgment including community context |
 | Authority | Advisory; author decides how to respond | Binding; editor decides publication |
-| Artifacts | `.gpd/review/` JSON stage reports, referee report | Journal referee reports |
+| Artifacts | `GPD/review/` JSON stage reports, `GPD/REFEREE-REPORT{round_suffix}.md` / `.tex` | Journal referee reports |
 | Rounds | Up to 3 automated rounds | Journal-determined |
 
 Use internal review to catch overclaiming, missing evidence, mathematical errors, and weak physical interpretation **before** submitting to external review. Internal review findings should be treated as a quality gate, not as a publication decision.
@@ -53,7 +55,7 @@ All of the following must hold before the review phase begins:
 
 1. **Manuscript completeness.** All sections referenced in the paper structure are drafted. No placeholder or stub sections remain.
 2. **Artifact readiness.** `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation.
-3. **Verification coverage.** At least one verification report exists under `.gpd/phases/`.
+3. **Verification coverage.** At least one verification report exists under `GPD/phases/`.
 4. **Preflight pass.** `gpd validate review-preflight peer-review --strict` exits zero.
 
 ### Exit Criteria
@@ -108,9 +110,9 @@ If validation fails, treat it as a stage failure and apply the retry protocol ab
 
 The review pipeline produces these actionable artifacts:
 
-1. **Review summary** (`.gpd/REFEREE-REPORT.md` / `.gpd/REFEREE-REPORT.tex`): Human-readable narrative of the panel findings, recommendation, and rationale.
-2. **Review ledger** (`.gpd/review/REVIEW-LEDGER.json`): Machine-readable list of all issues with severity, blocking status, affected claims, and required actions.
-3. **Referee decision** (`.gpd/review/REFEREE-DECISION.json`): Final recommendation, confidence, blocking issue IDs, and stage artifact references.
+1. **Review summary** (`GPD/REFEREE-REPORT{round_suffix}.md` / `.tex`): Human-readable narrative of the panel findings, recommendation, and rationale.
+2. **Review ledger** (`GPD/review/REVIEW-LEDGER{round_suffix}.json`): Machine-readable list of all issues with severity, blocking status, affected claims, and required actions.
+3. **Referee decision** (`GPD/review/REFEREE-DECISION{round_suffix}.json`): Final recommendation, confidence, blocking issue IDs, and stage artifact references.
 
 ### Severity and Prioritization
 
@@ -127,7 +129,7 @@ Findings are classified by severity:
 
 1. **Read the review ledger.** Sort findings by severity (critical first, then major, then minor).
 2. **Address blocking issues.** Every finding with `"blocking": true` must be resolved or the claims must be narrowed to match the available evidence.
-3. **Write author response.** Document how each finding was addressed in `.gpd/AUTHOR-RESPONSE.md` (or `-R2.md` / `-R3.md` for subsequent rounds).
+3. **Write author response.** Document how each finding was addressed in `GPD/AUTHOR-RESPONSE{round_suffix}.md` (or `-R2.md` / `-R3.md` for subsequent rounds).
 4. **Re-enter review.** After revisions, re-run `/gpd:peer-review` for the next round. The pipeline detects prior reports and author responses to increment the round number automatically.
 5. **Converge.** The pipeline supports up to 3 review rounds. If the manuscript has not converged to `accept` or `minor_revision` after 3 rounds, consider restructuring the central contribution.
 
