@@ -145,6 +145,7 @@ _Last updated: [date] after [trigger]_
 
 - Every primary requirement should point back to a decisive output or deliverable
 - Name the anchor, benchmark, or reference that constrains the requirement
+- When a fixed benchmark surface carries baseline expectations, canonical failure conditions, or preserved blocker state, record it in `benchmark-record.md` instead of leaving it implicit
 - Carry forward required prior outputs or baselines explicitly when they matter
 - Record any misleading proxy that should not be accepted as success
 
