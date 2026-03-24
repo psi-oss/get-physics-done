@@ -22,6 +22,7 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 - `references/references.bib` is the BibTeX file maintained by the gpd-bibliographer agent
 - `state.json.project_contract` is the authoritative machine-readable anchor registry
 - `evidence-note.md` is the per-source support-boundary artifact to use when one reference needs more than a registry entry
+- `evidence-authority-ledger.md` is the optional post-read source-weight ledger when a project needs more than anchor presence
 - Phase SUMMARY.md files may reference citations by BibTeX key; this file is optional supplemental tracking
 - `CONVENTIONS.md` records which textbook conventions are followed; those textbooks should appear here
 - `PARAMETERS.md` may cite data sources; those citations should appear here
@@ -108,6 +109,7 @@ of truth for paper generation or scoping; it mirrors those systems for human rev
 
 - Full BibTeX entries (those go in `references/references.bib`)
 - Per-source support-boundary notes (those go in `evidence-note.md`)
+- Post-read evidence authority classifications (those go in `evidence-authority-ledger.md`)
 - Detailed summaries of papers (those go in phase RESEARCH.md)
 - Literature review analysis (that goes in literature review artifacts)
 
