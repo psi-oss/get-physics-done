@@ -139,3 +139,5 @@ gpd validate verification-contract .gpd/phases/XX-name/XX-VERIFICATION.md
 ```
 
 `PLAN` and `SUMMARY` artifacts are plan-scoped (`XX-YY-*`). `VERIFICATION.md` is phase-scoped (`XX-VERIFICATION.md`).
+
+If a project later promotes accepted evidence objects into a machine-usable registry, keep those records aligned with `structured-evidence-record-schema.md` instead of inventing ad-hoc evidence blobs inside `contract_results`.
