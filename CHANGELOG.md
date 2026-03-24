@@ -5,6 +5,7 @@ All notable changes to Get Physics Done are documented here.
 ## vNEXT
 
 - Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
+- Add an optional structured evidence record schema for machine-usable accepted evidence objects.
 
 ## v1.1.0
 
