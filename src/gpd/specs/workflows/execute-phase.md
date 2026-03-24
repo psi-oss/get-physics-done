@@ -1552,6 +1552,10 @@ fi
 
 <step name="offer_next">
 
+<continuation_routing>
+After phase completion, check the project's autonomy mode. If yolo or balanced with no pending checkpoint, auto-route to the next phase. If supervised, or if a checkpoint requires review, pause with a clear status message showing: current phase completed, why execution paused, exact next command to continue, and key artifacts to review. See `{GPD_INSTALL_DIR}/references/orchestration/continuous-execution.md` for the standard checkpoint protocol.
+</continuation_routing>
+
 **If more phases:**
 
 ```
