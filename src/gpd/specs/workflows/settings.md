@@ -46,6 +46,8 @@ Parse current values (default to `true` / first option if not present):
 `execution.review_cadence` is independent of `model_profile` and `research_mode`: it controls bounded review stop density, not agent tiering or verification rigor.
 
 Project conventions do **not** live in `.gpd/config.json`. Do not invent or preserve a `physics` section here. Unit systems, metric signatures, Fourier conventions, and other notation choices belong in `.gpd/CONVENTIONS.md` and `.gpd/state.json` via `gpd convention set`.
+
+Bounded pilot decisions for optional tools or workflow variants also do **not** live in `.gpd/config.json`. If a lane needs an explicit `promote` / `keep_experimental` / `pause` decision, record it in `experimental-lane-promotion-gate.md` rather than burying it in settings state.
   </step>
 
 <step name="determine_runtime_for_model_overrides">
