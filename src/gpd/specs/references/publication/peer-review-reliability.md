@@ -97,10 +97,12 @@ After each stage writes its artifact, confirm:
 
 - The file exists at the expected path
 - The file parses as valid JSON
-- Required top-level keys are present: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`
-- The `stage_id` matches the expected stage
-- `findings` is an array (may be empty)
-- Each finding has `issue_id`, `severity`, `summary`, and `blocking` fields
+- The built-in validators accept the matching artifact type:
+  - `gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json`
+  - `gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json`
+  - `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`
+  - `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`
+- Do not reimplement the schema checks manually in the workflow prose. The validators are the source of truth for required keys and cross-artifact consistency.
 
 If validation fails, treat it as a stage failure and apply the retry protocol above.
 

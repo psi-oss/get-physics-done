@@ -3735,7 +3735,7 @@ def validate_referee_decision(
     strict: bool = typer.Option(
         False,
         "--strict",
-        help="Require staged peer-review artifact coverage in addition to recommendation-floor consistency",
+        help="Require staged peer-review artifact coverage, recommendation-floor consistency, and explicit policy-driving inputs for all journals",
     ),
     ledger_path: str | None = typer.Option(
         None,

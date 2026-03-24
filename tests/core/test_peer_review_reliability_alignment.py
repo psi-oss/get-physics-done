@@ -21,6 +21,11 @@ def test_peer_review_workflow_references_canonical_reliability_doc_and_round_suf
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in workflow
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in workflow
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in workflow
+    assert "gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in workflow
+    assert (
+        "gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger "
+        "GPD/review/REVIEW-LEDGER{round_suffix}.json"
+    ) in workflow
     assert ".gpd/" not in workflow
 
 
@@ -35,6 +40,13 @@ def test_peer_review_reliability_reference_uses_canonical_gpd_paths_only() -> No
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in reliability
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in reliability
     assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in reliability
+    assert "gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json" in reliability
+    assert "gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json" in reliability
+    assert "gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in reliability
+    assert (
+        "gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger "
+        "GPD/review/REVIEW-LEDGER{round_suffix}.json"
+    ) in reliability
     assert "`REFEREE-DECISION.json`" not in reliability
     assert "`REVIEW-LEDGER.json`" not in reliability
     assert ".gpd/" not in reliability

@@ -2090,6 +2090,15 @@ class TestReviewValidationCommands:
         assert payload["valid"] is True
         assert payload["most_positive_allowed_recommendation"] == "major_revision"
 
+    def test_validate_referee_decision_help_surfaces_strict_policy_semantics(self) -> None:
+        result = runner.invoke(app, ["validate", "referee-decision", "--help"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert "Require staged peer-review artifact coverage" in result.output
+        assert "recommendation-floor consistency" in result.output
+        assert "policy-driving inputs" in result.output
+        assert "all journals" in result.output
+
     def test_validate_referee_decision_command_accepts_round_suffixed_stage_artifacts(self, gpd_project: Path) -> None:
         _write_review_stage_artifacts(
             gpd_project,

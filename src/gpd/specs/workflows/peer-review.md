@@ -545,9 +545,9 @@ If the referee agent fails to spawn or returns an error, STOP and report the fai
 <step name="stage_recovery_6">
 **Stage 6 recovery -- Validate the adjudication outputs before proceeding.**
 
-Check that both `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `manuscript_path`, `issues` for the ledger; `manuscript_path`, `target_journal`, `final_recommendation`, `final_confidence`, `stage_artifacts`, `blocking_issue_ids` for the decision).
+Check that both `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` exist and parse as valid JSON.
 
-Run the built-in validators:
+Then run the built-in validators. These are the authoritative schema and consistency checks:
 
 ```bash
 gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
@@ -556,7 +556,7 @@ gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --s
 
 If validation fails:
 
-1. **Retry once.** Re-run the Stage 6 referee subagent with the same inputs and an explicit reminder to match the `review-ledger-schema.md` and `referee-decision-schema.md` schemas.
+1. **Retry once.** Re-run the Stage 6 referee subagent with the same inputs and an explicit reminder to satisfy `review-ledger-schema.md` and `referee-decision-schema.md` by passing the built-in validators above.
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, validation errors, and any partial output. Do not proceed to report summarization.
 
 Max retries per stage: **1**.
