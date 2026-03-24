@@ -917,9 +917,6 @@ flowchart TD
 - `src/gpd/specs/workflows/{arxiv-submission,compact-state,compare-experiment,discover,insert-phase,resume-work,sensitivity-analysis,sync-state}.md -> src/gpd/specs/{references/publication/paper-quality-scoring.md,templates/state-archive.md,templates/paper/experimental-comparison.md,templates/research.md,references/orchestration/agent-infrastructure.md,references/orchestration/continuation-format.md,templates/parameter-table.md,templates/state-json-schema.md}`
   `include`
 
-- `src/gpd/specs/workflows/resume-work.md -> src/gpd/specs/references/orchestration/state-portability.md`
-  `include`
-
 - `src/gpd/specs/templates/continuation-prompt.md -> src/gpd/specs/{workflows/execute-plan.md,templates/summary.md,references/orchestration/checkpoints.md,references/verification/core/verification-core.md}`
   `include`
 
